@@ -26,6 +26,15 @@ async function bootstrap(): Promise<void> {
     secret: process.env['COOKIE_SECRET'] ?? 'dev-cookie-secret-change-in-prod',
   });
 
+  // ── Multipart (file uploads) ─────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fastifyMultipart = require('@fastify/multipart') as {
+    default: Parameters<NestFastifyApplication['register']>[0];
+  };
+  await app.register(fastifyMultipart.default ?? fastifyMultipart, {
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max CSV
+  });
+
   // ── Global validation pipe ───────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({

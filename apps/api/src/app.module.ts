@@ -6,6 +6,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { MailModule } from './modules/mail/mail.module';
+import { PersonsModule } from './modules/persons/persons.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 
 @Module({
@@ -43,6 +44,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     HealthModule,
     AuthModule,
     AdminModule,
+    PersonsModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
