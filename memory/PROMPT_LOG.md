@@ -226,3 +226,21 @@ Pending for next session: final audit pass for stragglers, re-zip the bootstrap.
 
 ## 00:00:00_29-04-2026
 Starting work on MyClash (F:\Github Repo\MyClash). Read AGENTS.md, memory/MEMORY.md, memory/LESSONS_LEARNED.md, docs/HIERARCHY.md, then start at T-001 in docs/BUILD_ORDER.md. Execute task T-001 · Initialize monorepo. After T-001 ships and reviewed, next tasks follow BUILD_ORDER.md order. Do not bundle multiple tasks. If anything is ambiguous, ask before guessing.
+
+## 01:00:00_29-04-2026
+User accepted eslint.config.mjs modification. Continued T-001 execution.
+
+## 02:00:00_29-04-2026
+User accepted all edits in F:\Github Repo\MyClash. Continued T-003 scaffolding (Next.js apps).
+
+## 03:00:00_29-04-2026
+T-001 shipped and pushed to main (commit e559a40). T-002 already satisfied by initial repo. T-003 shipped (commit bd00faa): three Next.js 15 apps with Tailwind v4, TypeScript strict, ports 3001/3002/3003. T-004 shipped (commit 5620cbe): NestJS API on Fastify, port 4000, GET /health, Swagger at /api/docs. T-005 shipped (commit 3e9c12d): 7 shared package skeletons with tsc build pipeline, workspace deps wired into all apps. T-006 shipped (commit 014a199): Docker Compose dev stack with Traefik self-signed TLS, Postgres, Redis, all apps containerised, Dockerfiles multi-stage. T-007 shipped (commit 03da7cf): Supabase services added to dev compose (Kong, GoTrue, PostgREST, Realtime, Storage). T-008 shipped (commit 69e0429): GitHub Actions CI (install→build-packages→typecheck/lint/test parallel) + CodeQL + CONTRIBUTING.md.
+
+## 04:00:00_29-04-2026
+User asked for SMTP provider recommendation. Advised Resend (3000/mo free, native SDK, best deliverability). User set up Resend account and verified myclash.fr domain. User chose Option B (Resend SDK in NestJS, not SMTP bridge). Sender: noreply@myclash.fr. API key to be added to .env later.
+
+## 05:00:00_29-04-2026
+T-009 shipped (commit 43be026): auth integration — magic-link claim flow + /api/v1/me. SupabaseModule (global, anon+service clients), MailModule (Resend SDK, bilingual FR/EN emails), AuthModule (POST /api/v1/auth/magic-link, GET /api/v1/auth/callback, GET /api/v1/me). Rate limiting via @nestjs/throttler. Login page (admin app), claim page (public app). 8/8 tests pass. .env.example updated with RESEND_API_KEY, MAIL_FROM, COOKIE_SECRET, SUPABASE_URL.
+
+## 06:00:00_29-04-2026
+User asked to verify .env.example is complete and update all memory files. Confirmed .env.example already has all required keys. Updated MEMORY.md (build progress, tech decisions, key env vars), LESSONS_LEARNED.md (NestJS+Vitest testing, email, auth/cookies), PROMPT_LOG.md (this entry).

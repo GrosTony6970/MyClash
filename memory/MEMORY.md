@@ -187,11 +187,52 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 - Manual override always available; warnings recompute live.
 - Full spec: `docs/ARCHITECTURE.md` §11quater.
 
+## Build progress (Phase P0 — completed 29-04-2026)
+
+All Phase P0 tasks are shipped on `main`. Current HEAD: `43be026`.
+
+| Task | Commit | Status |
+|---|---|---|
+| T-001 · Initialize monorepo | `e559a40` | ✅ done |
+| T-002 · ARCHITECTURE.md + BUILD_ORDER.md | already in repo | ✅ done |
+| T-003 · Scaffold three Next.js 15 apps | `bd00faa` | ✅ done |
+| T-004 · Scaffold NestJS API | `5620cbe` | ✅ done |
+| T-005 · Shared package skeletons | `3e9c12d` | ✅ done |
+| T-006 · Docker Compose + Traefik + Postgres + Redis | `014a199` | ✅ done |
+| T-007 · Self-hosted Supabase services | `03da7cf` | ✅ done |
+| T-008 · CI pipeline (GitHub Actions + CodeQL) | `69e0429` | ✅ done |
+| T-009 · Auth integration (magic-link + /me) | `43be026` | ✅ done |
+
+**Next task**: T-009b · Organizer signup (open self-service, named org)
+
+## Tech decisions locked in during implementation
+
+- **Email provider**: Resend (SDK, not SMTP). Sender: `noreply@myclash.fr` (domain verified in Resend). `RESEND_API_KEY` in `.env`.
+- **Cookie signing**: `@fastify/cookie` with `COOKIE_SECRET` env var. Auth cookies: `sb-access-token` + `sb-refresh-token` (httpOnly, Secure, SameSite=Lax).
+- **Rate limiting**: `@nestjs/throttler` — global 60/min/IP; auth endpoints 10/hour/IP.
+- **Supabase URL in Docker**: `http://kong:8000` (internal network). In dev without Docker: `http://localhost:8000`.
+- **Next.js**: `output: 'standalone'` set on all three apps for minimal Docker images.
+- **ESLint**: flat config (`eslint.config.mjs`) at root + per-app configs with `parserOptions.project` for typed linting.
+- **Vitest**: used for all unit tests. `passWithNoTests: true` on packages without tests yet (rulesets, etc.).
+- **NestJS testing in Vitest**: use direct instantiation (`new Service(mockDep1, mockDep2)`) rather than `Test.createTestingModule()` — the NestJS DI container doesn't resolve `useValue` mocks reliably in Vitest without `emitDecoratorMetadata` being active in the test runner.
+
+## Key env vars (canonical list — see .env.example for full list)
+
+Required for the API to start:
+- `SUPABASE_URL` — Kong gateway URL (`http://kong:8000` in Docker, `http://localhost:8000` in dev)
+- `SUPABASE_ANON_KEY` — JWT signed with `SUPABASE_JWT_SECRET`, role=anon
+- `SUPABASE_SERVICE_ROLE_KEY` — JWT signed with `SUPABASE_JWT_SECRET`, role=service_role
+- `SUPABASE_JWT_SECRET` — ≥32 chars, used by GoTrue + PostgREST + NestJS
+- `RESEND_API_KEY` — Resend API key (re_xxx...)
+- `MAIL_FROM` — `noreply@myclash.fr`
+- `COOKIE_SECRET` — 32-byte hex string for cookie signing
+- `MYCLASH_GUEST_JWT_SECRET` — separate from Supabase secret
+- `POSTGRES_PASSWORD` — Postgres password
+- `DOMAIN` — `myclash.fr` in prod, `myclash.localhost` in dev
+
 ## Themes — see linked thematic notes when they exist
 
 - *(none yet — when a topic grows beyond what fits here, create `docs/notes/<topic>.md` and link it here)*
-
-## Known unknowns / open questions
 
 - FAL 2026 raw per-exchange data: must be sourced by the project owner (see `docs/OWNER_TASKS.md` O-102). If unavailable, the golden test falls back to aggregate-level reproduction.
 - HEMA Ratings export format: to be confirmed with HEMA Ratings maintainers (O-103).

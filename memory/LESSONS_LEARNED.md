@@ -93,3 +93,19 @@ When in doubt about a deploy/ops convention: look at the MyFAL scripts first. Th
 ---
 
 *(New lessons added below as they are learned.)*
+
+## NestJS + Vitest testing
+
+- **Do not use `Test.createTestingModule()` with `useValue` mocks in Vitest** — the NestJS DI container requires `emitDecoratorMetadata` to be active at test runtime, which Vitest doesn't guarantee. `useValue` mocks silently fail to inject, leaving `this.dependency` as `undefined`. Use direct instantiation instead: `new MyService(mockDep1 as never, mockDep2 as never)`. This is simpler, faster, and avoids the DI resolution problem entirely.
+- **`@Global()` modules in test modules** — even with `useFactory`, global modules can cause unexpected re-instantiation. Prefer direct instantiation for unit tests; reserve `Test.createTestingModule()` for integration tests where the full module graph is needed.
+
+## Email & transactional messaging
+
+- **Use Resend SDK directly in NestJS** (not SMTP) for transactional emails. The SDK is typed, gives structured error objects, and avoids SMTP connection management. GoTrue (Supabase Auth) can still use SMTP for its own internal emails (email verification, password reset) — those are separate from NestJS-sent magic links.
+- **Always send bilingual emails (FR + EN)** for MyClash — the HEMA community is international and the platform is French-first but not French-only.
+- **Never reveal whether an email is registered** in magic-link endpoints. Always return the same generic message regardless of whether the email exists. This prevents email enumeration attacks on the participant roster.
+
+## Auth & cookies
+
+- **`@fastify/cookie` must be registered via `require()` in NestJS** when using the Fastify adapter — the ESM default import (`import fastifyCookie from '@fastify/cookie'`) produces a TypeScript type mismatch with `app.register()`. Use `const fastifyCookie = require('@fastify/cookie')` and access `.default` if present.
+- **`SUPABASE_URL` in Docker is `http://kong:8000`** (internal network name), not `http://localhost:8000`. In dev without Docker it's `http://localhost:8000`. Always use the env var, never hardcode.
