@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { MailModule } from './modules/mail/mail.module';
@@ -41,6 +42,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     // ── Feature modules ──────────────────────────────────────────────────
     HealthModule,
     AuthModule,
+    AdminModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
