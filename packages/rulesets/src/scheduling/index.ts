@@ -6,3 +6,6 @@ export type { Fighter, PoolAssignment } from './snake-seeding';
 
 export { localSearch, computeCost, buildCostReport } from './local-search';
 export type { PoolAssignmentSettings, CostReport } from './local-search';
+
+export { bergerSchedule, totalMatches, totalRounds } from './berger';
+export type { BergerMatch, BergerScheduleOptions } from './berger';
