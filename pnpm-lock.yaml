@@ -32,6 +32,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@myclash/types':
+        specifier: workspace:^
+        version: link:../../packages/types
       '@nestjs/common':
         specifier: ^10.4.0
         version: 10.4.22(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -72,6 +75,21 @@ importers:
 
   apps/web-admin:
     dependencies:
+      '@myclash/api-client':
+        specifier: workspace:^
+        version: link:../../packages/api-client
+      '@myclash/design-tokens':
+        specifier: workspace:^
+        version: link:../../packages/design-tokens
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../../packages/i18n
+      '@myclash/types':
+        specifier: workspace:^
+        version: link:../../packages/types
+      '@myclash/ui':
+        specifier: workspace:^
+        version: link:../../packages/ui
       next:
         specifier: 15.3.2
         version: 15.3.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -105,6 +123,21 @@ importers:
 
   apps/web-public:
     dependencies:
+      '@myclash/api-client':
+        specifier: workspace:^
+        version: link:../../packages/api-client
+      '@myclash/design-tokens':
+        specifier: workspace:^
+        version: link:../../packages/design-tokens
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../../packages/i18n
+      '@myclash/types':
+        specifier: workspace:^
+        version: link:../../packages/types
+      '@myclash/ui':
+        specifier: workspace:^
+        version: link:../../packages/ui
       next:
         specifier: 15.3.2
         version: 15.3.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -136,6 +169,21 @@ importers:
 
   apps/web-scoring:
     dependencies:
+      '@myclash/api-client':
+        specifier: workspace:^
+        version: link:../../packages/api-client
+      '@myclash/design-tokens':
+        specifier: workspace:^
+        version: link:../../packages/design-tokens
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../../packages/i18n
+      '@myclash/types':
+        specifier: workspace:^
+        version: link:../../packages/types
+      '@myclash/ui':
+        specifier: workspace:^
+        version: link:../../packages/ui
       next:
         specifier: 15.3.2
         version: 15.3.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -165,19 +213,57 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
-  packages/api-client: {}
+  packages/api-client:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
-  packages/db: {}
+  packages/db:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
-  packages/design-tokens: {}
+  packages/design-tokens:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
-  packages/i18n: {}
+  packages/i18n:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
-  packages/rulesets: {}
+  packages/rulesets:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)(lightningcss@1.32.0)(terser@5.46.2)
 
-  packages/types: {}
+  packages/types:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.5
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.5(react@19.2.5)
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
 packages:
 

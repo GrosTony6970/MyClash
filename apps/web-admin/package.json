@@ -11,6 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@myclash/api-client": "workspace:^",
+    "@myclash/design-tokens": "workspace:^",
+    "@myclash/i18n": "workspace:^",
+    "@myclash/types": "workspace:^",
+    "@myclash/ui": "workspace:^",
     "next": "15.3.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

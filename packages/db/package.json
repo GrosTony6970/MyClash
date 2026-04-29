@@ -2,13 +2,22 @@
   "name": "@myclash/db",
   "version": "0.0.0",
   "private": true,
-  "description": "Stub workspace — agent fills in during T-005. See docs/BUILD_ORDER.md.",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "description": "MyClash Drizzle ORM schema, migrations, and DB client.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "echo 'TODO: implement build'",
-    "lint": "echo 'TODO: implement lint'",
-    "typecheck": "echo 'TODO: implement typecheck'",
-    "test": "echo 'TODO: implement test'"
+    "build": "tsc --project tsconfig.json",
+    "lint": "echo 'lint: no sources yet'",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'test: no tests yet (T-101+)'"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
   }
 }
