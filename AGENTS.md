@@ -1,6 +1,6 @@
 # AGENTS.md
 
-You are an AI coding assistant working on **MyClash** — a free, open-source platform for HEMA tournament management.
+You are an AI coding assistant working on **MyClash** — a free, open-source platform for HEMA event management.
 
 This file is your **first read on every task**. It defines hard rules, the persistent-memory protocol, and where to look for everything else.
 
@@ -10,6 +10,7 @@ This file is your **first read on every task**. It defines hard rules, the persi
 
 | File | What it is | When to read |
 |---|---|---|
+| `docs/HIERARCHY.md` | **Authoritative** vocabulary for Event/Tournament/Workshop/Pool/Match/Exchange | **Read first** before writing any code or docs that mention these terms |
 | `docs/ARCHITECTURE.md` | Master technical spec (data model, modules, ruleset, etc.) | Before any non-trivial change |
 | `docs/BUILD_ORDER.md` | Sequenced task list with acceptance criteria | When picking the next task |
 | `docs/OWNER_TASKS.md` | What the human owner is responsible for | When a task references `[O-NNN]` |
@@ -20,7 +21,7 @@ This file is your **first read on every task**. It defines hard rules, the persi
 | `memory/notes/<topic>.md` | Thematic notes too detailed for MEMORY.md | Reference when MEMORY.md links to one |
 | `README.md` | Repo-oriented project documentation | Reference for newcomers |
 
-`docs/ARCHITECTURE.md` is **authoritative**. If anything conflicts with it, ask before deviating.
+`docs/ARCHITECTURE.md` is **authoritative for technical design**. `docs/HIERARCHY.md` is **authoritative for vocabulary**. If anything conflicts with either, ask before deviating.
 
 ---
 

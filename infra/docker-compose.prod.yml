@@ -108,8 +108,8 @@ services:
       GOTRUE_API_PORT: 9999
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
-      GOTRUE_SITE_URL: https://${DOMAIN}
-      GOTRUE_URI_ALLOW_LIST: https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN}
+      GOTRUE_SITE_URL: https://app.${DOMAIN}
+      GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN}
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
@@ -122,7 +122,7 @@ services:
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
       GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: https://${DOMAIN}/auth/v1/callback
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: https://app.${DOMAIN}/auth/v1/callback
       TZ: ${TZ}
     depends_on:
       db: { condition: service_healthy }
@@ -201,7 +201,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
       REDIS_URL: redis://redis:6379
-      SUPABASE_URL: https://${DOMAIN}
+      SUPABASE_URL: https://app.${DOMAIN}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET}
@@ -237,22 +237,22 @@ services:
       - traefik.http.routers.myclash-api.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-api.middlewares=myclash-compress@docker
       - traefik.http.services.myclash-api.loadbalancer.server.port=4000
-      # Auth + Realtime + Storage routed through the same domain on /auth/v1/* /realtime/v1/* /storage/v1/*
-      - traefik.http.routers.myclash-auth.rule=Host(`${DOMAIN}`) && PathPrefix(`/auth/v1`)
+      # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
+      - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
       - traefik.http.routers.myclash-auth.tls=true
       - traefik.http.routers.myclash-auth.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
       - traefik.http.services.myclash-supabase-auth.loadbalancer.server.port=9999
-      - traefik.http.routers.myclash-realtime.rule=Host(`${DOMAIN}`) && PathPrefix(`/realtime/v1`)
+      - traefik.http.routers.myclash-realtime.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/realtime/v1`)
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
       - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
       - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.port=4000
-      - traefik.http.routers.myclash-storage.rule=Host(`${DOMAIN}`) && PathPrefix(`/storage/v1`)
+      - traefik.http.routers.myclash-storage.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/storage/v1`)
       - traefik.http.routers.myclash-storage.entrypoints=websecure
       - traefik.http.routers.myclash-storage.tls=true
       - traefik.http.routers.myclash-storage.tls.certresolver=letsencrypt
@@ -304,7 +304,7 @@ services:
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://app.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
     container_name: myclash-web-public
@@ -327,13 +327,50 @@ services:
       options: { max-size: "10m", max-file: "3" }
     labels:
       - traefik.enable=true
-      - traefik.http.routers.myclash-public.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.myclash-public.rule=Host(`app.${DOMAIN}`)
       - traefik.http.routers.myclash-public.entrypoints=websecure
       - traefik.http.routers.myclash-public.tls=true
       - traefik.http.routers.myclash-public.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-public.priority=1
       - traefik.http.routers.myclash-public.middlewares=myclash-compress@docker
       - traefik.http.services.myclash-public.loadbalancer.server.port=3000
+
+  # ── web-marketing (static landing site at apex) ───────────────────
+  # Lightweight static site served by Caddy (or nginx). Holds the
+  # marketing/landing pages, "for organizers" pitch, public docs,
+  # and "go to app" / "go to admin" CTAs. No build complexity.
+  web-marketing:
+    build:
+      context: ../apps/web-marketing
+      dockerfile: Dockerfile
+    container_name: myclash-web-marketing
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ | head -c 100 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks: [myclash]
+    mem_limit: 128m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-marketing.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)
+      - traefik.http.routers.myclash-marketing.entrypoints=websecure
+      - traefik.http.routers.myclash-marketing.tls=true
+      - traefik.http.routers.myclash-marketing.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-marketing.middlewares=myclash-compress@docker,myclash-www-redirect@docker
+      - traefik.http.services.myclash-marketing.loadbalancer.server.port=80
+      # Redirect www → apex
+      - traefik.http.middlewares.myclash-www-redirect.redirectregex.regex=^https?://www\.${DOMAIN}/(.*)
+      - traefik.http.middlewares.myclash-www-redirect.redirectregex.replacement=https://${DOMAIN}/$${1}
+      - traefik.http.middlewares.myclash-www-redirect.redirectregex.permanent=true
 
   # ── web-scoring PWA (tablet-first, offline-first scorekeeper) ─────
   web-scoring:
@@ -343,7 +380,7 @@ services:
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://app.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
     container_name: myclash-web-scoring
     restart: unless-stopped
@@ -380,7 +417,7 @@ services:
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://app.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
     container_name: myclash-web-admin
     restart: unless-stopped

@@ -35,7 +35,7 @@
 ## Frontend & UX
 
 - For HEMA-themed UI, the prototype design language (Cinzel + Inter, red/blue + gold, shield motifs) is canonical.
-- Personas are non-exclusive: a single user can be Competitor + Referee + Workshop attendee at the same tournament. Onboarding must be multi-select.
+- Personas are non-exclusive: a single user can be Competitor + Referee + Workshop attendee at the same event. Onboarding must be multi-select.
 - The "My Schedule" view aggregates all of a user's commitments and surfaces conflicts. It is the most-used screen of the public PWA.
 - Never use `localStorage` / `sessionStorage` in artifacts running in Claude.ai (these APIs aren't supported there). For real production code, use IndexedDB for offline state.
 
@@ -55,7 +55,7 @@
 - Fuzzy match with `pg_trgm` and `unaccent`. Don't try to do this client-side — accents and typos are language-specific and the index lives where the data lives.
 - Capability boundaries between Guest and Claimed should be drawn at "anything that crosses devices" or "anything that edits." Casual users never need to claim; power users get a one-time magic link.
 - **Migrate user-owned data atomically on claim.** Follow rows, push subscriptions, workshop enrollments, persona selections — all transfer from `guest_session_id` to `user_id` in the same transaction as the claim. Otherwise the user "loses" their state, which is terrible UX.
-- **Default visibility follows the physical reality.** Anything that happens in shared physical space at the tournament (matches, referee slots, workshops) is public by default — the data just makes visible what's already visible IRL. Personal contact info (email, phone) is private by default. The opt-in/opt-out direction follows from "would the user be surprised to learn this is visible?"
+- **Default visibility follows the physical reality.** Anything that happens in shared physical space at the event (matches, referee slots, workshops) is public by default — the data just makes visible what's already visible IRL. Personal contact info (email, phone) is private by default. The opt-in/opt-out direction follows from "would the user be surprised to learn this is visible?"
 - **Following relationships are private and one-directional.** Don't notify the followed person. Don't show "X is following you." This isn't a social network; the follow is just a personal bookmark.
 
 ## Process & communication

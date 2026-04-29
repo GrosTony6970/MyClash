@@ -181,3 +181,45 @@ Notification policy: claimed users only get push for followed people's matches. 
 - Q3 (guests can follow): yes — already correct.
 
 Updated: ARCHITECTURE privacy table + capability matrix + schema + API endpoint comment, BUILD_ORDER T-608 + T-609, MEMORY.md, LESSONS_LEARNED.md (rewrote the lesson to reflect "physical-reality follows default visibility").
+
+## 23:00:00_28-04-2026
+
+**(Session 15 — routing flip + open organizer signup + hierarchy swap)** User requested four major changes:
+
+1. App moves to `app.myclash.fr`; apex `myclash.fr` becomes the marketing/landing site.
+2. Deploy directly from VPS via `deploy.sh`; the Windows wrapper (T-060) becomes optional.
+3. Open organizer onboarding (magic link or email+password, no Google OAuth in v1). Organizer becomes admin of their own event with full event/tournament/workshop/venue/roster control.
+4. Super-admin page to manage organizer accounts (suspend / delete / promote / reassign).
+
+User answered three follow-up questions:
+- **Hierarchy**: Event = the gathering (FAL 2026), Tournament = a competition within (Longsword Open). This **inverts** the original spec's terminology and requires rippling through ~250 references.
+- **Marketing site**: Static HTML/CSS only, served by Caddy. No build tooling.
+- **Org signup**: Force the organizer to name their organization at signup (cleaner data, slight friction).
+
+Major actions taken in this session:
+
+**Routing flip**:
+- `infra/docker-compose.prod.yml`: web-public → `app.${DOMAIN}`; new web-marketing service routes apex `${DOMAIN}` and `www.${DOMAIN}` (with www → apex redirect via Traefik regex middleware) to a Caddy container; Supabase paths moved from apex to `app.${DOMAIN}`; GoTrue site URL and redirect URIs updated.
+- New `apps/web-marketing/` workspace placeholder with stub package.json + README locking in static HTML/CSS only.
+
+**Deploy direction**:
+- BUILD_ORDER T-056 reframed as the canonical deploy mechanism with explicit "ssh deploy@myclash.fr; cd /srv/myclash; bash infra/scripts/deploy.sh" workflow.
+- BUILD_ORDER T-060 demoted to "skip for v1, optional"; file stays in repo as reference. `scripts/deploy.ts` still exists but isn't wired into pnpm scripts.
+- PRE_DEPLOY_CHECKLIST Phase 6 + 7 rewritten — removed `.env.deploy` step, removed all `pnpm deploy:prod` commands, replaced with direct SSH workflow. Renumbered steps (no longer 28; now 27).
+
+**Organizer onboarding**:
+- New ARCHITECTURE §12.7bis (signup flow, two-step form, auto-create with named org), §12.7ter (super admin org management with suspend/delete/promote/reassign actions), §12.7quater (account types summary table).
+- BUILD_ORDER T-009b: open organizer signup with FORCED organization naming at signup (collision-checked slug, reserved-name list, real-time validation).
+- BUILD_ORDER T-009c: super admin organization management dashboard at `/admin/organizations` with all CRUD-with-confirmation actions, audit_log on every action.
+
+**Hierarchy swap (the big one — ~250 references)**:
+- New `docs/HIERARCHY.md` as the **authoritative vocabulary doc**. Event = the gathering. Tournament = competition inside. Workshop = teaching session inside event. Persons + Workshops scoped to event_id; Phases + Matches scoped to tournament_id; Registrations are person within event registered to tournament.
+- ARCHITECTURE schema swapped: `events` table replaces what was `tournaments` (gathering); `tournaments` table replaces what was `events` (competition); referee_qualifications, referee_assignments, pool_assignment_settings re-scoped to event_id; persons.unique key is `(event_id, lower(email))`.
+- ARCHITECTURE API surface swapped: `/api/v1/events/:id/...` for the gathering, `/api/v1/events/:id/tournaments` to list competitions, `/api/v1/tournaments/:id/...` for a specific competition.
+- Public app routes: `/e/[eventSlug]/t/[tournamentSlug]` instead of `/t/[slug]/events/[eventSlug]`. Workshops at `/e/[eventSlug]/w/[workshopSlug]`.
+- Web-admin routes: `/org/[orgSlug]/events/[eventId]/tournaments/[tournamentId]/...` instead of `/org/[orgSlug]/tournaments/[id]/events/[eventId]/...`.
+- Narrative pass over all docs (ARCHITECTURE, BUILD_ORDER, myclash.md, README, OWNER_TASKS, PRE_DEPLOY_CHECKLIST, MEMORY, LESSONS_LEARNED) — replaced "tournament organizer" → "event organizer", "per-tournament" → "per-event", "this tournament" → "this event" where context implies the gathering.
+- AGENTS.md doc map updated to list HIERARCHY.md as **authoritative for vocabulary** alongside ARCHITECTURE.md being authoritative for technical design.
+- MEMORY.md got a new top-level Hierarchy section.
+
+Pending for next session: final audit pass for stragglers, re-zip the bootstrap.

@@ -26,7 +26,7 @@ Everything else can wait until the relevant dev phase approaches.
 ### O-001 · Domain registration
 - **When**: Day 1.
 - **Action**: Buy a domain. Suggested: `myclash.fr`, `myclash.io`, `myclash.org`. Recommended registrar in EU: OVH, Gandi (FR), or Porkbun (cheap, no upsells).
-- **DNS plan**: Wildcard subdomain support is required (`*.myclash.fr` for per-tournament subdomains is a *future* option — v1 uses path-based `myclash.fr/t/[slug]`, so a basic A record is enough).
+- **DNS plan**: Wildcard subdomain support is required (`*.myclash.fr` for per-event subdomains is a *future* option — v1 uses path-based `app.myclash.fr/e/[eventSlug]`, so a basic A record is enough).
 - **Subdomains needed at v1**:
   - `myclash.fr` → `web-public`
   - `admin.myclash.fr` → `web-admin`
@@ -96,7 +96,7 @@ Everything else can wait until the relevant dev phase approaches.
   - Sign up.
   - Verify sending domain (DNS records for SPF/DKIM/DMARC — required for deliverability).
   - Generate API key, store in repo secrets as `SMTP_API_KEY`.
-- **Volume estimate**: Magic links + notifications for a 100-fighter tournament = a few thousand emails total. Free tier covers it for years.
+- **Volume estimate**: Magic links + notifications for a 100-fighter event = a few thousand emails total. Free tier covers it for years.
 
 ### O-007 · VAPID keys for Web Push
 - **When**: Before T-1201 (Phase P12, but generate now and stash).
@@ -124,10 +124,10 @@ Everything else can wait until the relevant dev phase approaches.
 - **Note**: Submit for verification before opening to the public.
 
 ### O-009 · Object storage decision
-- **When**: Before fighter photos and tournament logos start being uploaded (around T-702).
+- **When**: Before fighter photos and event logos start being uploaded (around T-702).
 - **Options**:
   - **Supabase Storage** (self-hosted, included in compose) — simplest, no extra account needed.
-  - **Cloudflare R2** — cheap, S3-compatible, no egress fees. Good for production scale. Setup: create R2 bucket, generate API token, set bucket public-read for tournament assets.
+  - **Cloudflare R2** — cheap, S3-compatible, no egress fees. Good for production scale. Setup: create R2 bucket, generate API token, set bucket public-read for event assets.
   - **Scaleway Object Storage** — French alternative.
 - **Recommendation**: Start with Supabase Storage for v1. Switch to R2 if storage grows beyond ~10 GB.
 
@@ -160,15 +160,15 @@ Everything else can wait until the relevant dev phase approaches.
 - **Action**:
   - Reach out to HEMA Ratings maintainers (probably via the HEMA Ratings GitHub or email).
   - Confirm the public dataset URL/format is stable.
-  - Ask about their preferred submission format for tournament results.
+  - Ask about their preferred submission format for event results.
   - Mention MyClash as a potential pipeline; offer collaboration.
 - **Outcome**: Documented import + export contract in `docs/HEMA_RATINGS.md`.
 
-### O-104 · Beta tournament partner
+### O-104 · Beta event partner
 - **When**: Identify by Phase P5 end; confirm by P10.
-- **Action**: Find a HEMA tournament willing to run on MyClash for the first time. Strong candidates:
+- **Action**: Find a HEMA event willing to run on MyClash for the first time. Strong candidates:
   - Lyon AMHE (you already have a relationship; they ran the beta companion app).
-  - A small local tournament where falling back to spreadsheets isn't catastrophic.
+  - A small local event where falling back to spreadsheets isn't catastrophic.
 - **Required from them**: Date, expected fighter count, willingness to use new tool, organizer with patience for bugs.
 - **Recommend**: Beta event ≤80 fighters, single venue, weekend format.
 
@@ -186,7 +186,7 @@ Everything else can wait until the relevant dev phase approaches.
 - **When**: Before P6 (when public theming engine starts).
 - **Deliverables**:
   - MyClash logo (SVG, multiple sizes).
-  - Default tournament theme assets (placeholder hero image, default shield).
+  - Default event theme assets (placeholder hero image, default shield).
   - Favicon set.
 - **Source**: Designer (paid or volunteer). The prototype HTML's design language gives a very clear direction (Cinzel, red/blue, gold, shield motifs). A designer briefed with the prototype can deliver a logo in days.
 - **Budget**: €0 (volunteer) to €500 (commissioned).
@@ -265,7 +265,7 @@ Everything else can wait until the relevant dev phase approaches.
 ### O-206 · Beta event communication
 - **When**: 2 weeks before beta.
 - **Deliverables**:
-  - Announcement to participants ("This tournament uses MyClash").
+  - Announcement to participants ("This event uses MyClash").
   - Quick-start guide for fighters (how to find your pool, your matches, your workshops).
   - Quick-start guide for scorekeepers (how to enter exchanges, what to do if offline).
   - Emergency contact (you, on-site).

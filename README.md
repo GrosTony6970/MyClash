@@ -8,13 +8,13 @@
 
 ## What it is
 
-MyClash lets HEMA tournament organizers run their events end-to-end and publish results, while giving competitors, spectators, referees, and workshop attendees a single mobile-first experience for everything they need on event day.
+MyClash lets HEMA event organizers run their events end-to-end and publish results, while giving competitors, spectators, referees, and workshop attendees a single mobile-first experience for everything they need on event day.
 
 Designed around three convictions:
 
-1. **Real HEMA tournaments happen in spaces with bad wifi.** Offline-first scoring is the quality bar.
+1. **Real HEMA events happen in spaces with bad wifi.** Offline-first scoring is the quality bar.
 2. **Per-exchange data is the only honest source of truth.** Aggregate scores derive; raw exchanges persist.
-3. **Per-tournament theming makes platforms feel like local events.** A platform doesn't have to feel like a platform.
+3. **Per-event theming makes platforms feel like local events.** A platform doesn't have to feel like a platform.
 
 For the full product overview, see [`myclash.md`](./myclash.md).
 

@@ -1,6 +1,6 @@
 # MyClash — Architecture & Build Specification
 
-> **Free, open-source platform for managing and publishing results of Historical European Martial Arts (HEMA) tournaments.**
+> **Free, open-source platform for managing and publishing results of Historical European Martial Arts (HEMA) events.**
 >
 > This document is the master architectural reference for MyClash. It is written to be both human-readable and consumable by an AI coding agent (Claude Code, Cursor, Aider) as the project's anchor specification.
 >
@@ -34,7 +34,7 @@
 10. [Offline-First Scoring](#10-offline-first-scoring-pwa--indexeddb)
 11. [HEMA Ratings Integration](#11-hema-ratings-integration)
 12. [Authentication & Authorization](#12-authentication--authorization)
-13. [Per-Tournament Theming](#13-per-tournament-theming)
+13. [Per-Event Theming](#13-per-event-theming)
 14. [API Surface](#14-api-surface)
 15. [Frontend Routes](#15-frontend-routes)
 16. [Internationalization](#16-internationalization)
@@ -51,12 +51,12 @@
 
 ### 1.1 Mission
 
-MyClash is a free, open-source platform that lets any HEMA tournament organizer:
+MyClash is a free, open-source platform that lets any HEMA event organizer:
 
 - Create and run tournaments end-to-end (registration → pools → eliminations → publication).
 - Score matches at the piste (called **Lice**) with per-exchange granularity, even on flaky venue wifi.
 - Publish live results, brackets, rankings, and rich post-event statistics.
-- Offer a per-tournament public-facing experience (themed mini-app) for spectators and competitors.
+- Offer a per-event public-facing experience (themed mini-app) for spectators and competitors.
 
 It replaces the workflow people currently piece together with `hemaScorecard` + spreadsheets + static HTML pages (cf. `https://lyonamhe.fr/resultat_fal2026.html`).
 
@@ -66,12 +66,12 @@ It replaces the workflow people currently piece together with `hemaScorecard` + 
 |---|---|---|
 | Scoring | Per-match final score | Per-exchange (every clean hit, afterblow, double captured) |
 | Statistics | Pool standings only | Full exchange-level analytics, target zones, double-rate evolution, "deep hunters" leaderboards |
-| Public app | None (HTML export) | Per-tournament themed PWA with 3 personas (Competitor / Accompanist / Public) |
+| Public app | None (HTML export) | Per-event themed PWA with 3 personas (Competitor / Accompanist / Public) |
 | Mobile | Desktop-first | Mobile-first PWA, installable |
 | Live | Manual refresh | Realtime broadcast (sub-second) |
 | Offline | None | Scoring tablet works fully offline, syncs on reconnect |
-| Identity | Per-tournament | Global fighter profiles, linkable to HEMA Ratings |
-| Multi-tenant | Single-tournament install | Platform with per-tournament theming |
+| Identity | Per-event | Global fighter profiles, linkable to HEMA Ratings |
+| Multi-tenant | Single-event install | Platform with per-event theming |
 
 ### 1.3 Constraints
 
@@ -88,13 +88,13 @@ MyClash is **four distinct surfaces** sharing one backend:
 
 ### 2.1 Public/Spectator App (PWA, mobile-first)
 
-Per-tournament themed (logo, colors, history pages, club directory). Personas chosen during onboarding — **non-exclusive: a single user can be Competitor + Referee + Workshop Attendee simultaneously**. The "My Schedule" view aggregates whichever apply.
+Per-event themed (logo, colors, history pages, club directory). Personas chosen during onboarding — **non-exclusive: a single user can be Competitor + Referee + Workshop Attendee simultaneously**. The "My Schedule" view aggregates whichever apply.
 
 - **Competitor** — "my next match", "my pool standings", "my results", "where I need to be".
 - **Referee** — today's assigned matches, my piste schedule, on-piste tools (start clock, call halt/warning, request scorekeeper attention).
 - **Workshop Attendee** — selected workshops, capacity status, conflicts with my matches/refereeing.
 - **Accompanist** — follow favorite fighters, live tracking on multiple Lices.
-- **Public** — discover HEMA, tournament editorial, schedule, club directory.
+- **Public** — discover HEMA, event editorial, schedule, club directory.
 
 The **"My Schedule"** view is the unified personal view (matches the beta companion app at `https://myfal.lyonamhe.fr/`). It overlays:
 - My fights (as competitor)
@@ -121,7 +121,7 @@ Used at each Lice by a designated scorekeeper. One device per Lice. Functions:
 
 Per-organizer team. Functions:
 
-- Create tournament, configure events (weapon/category), select rulesets, configure theming.
+- Create event, configure tournaments (weapon/category), select rulesets, configure theming.
 - Register fighters (with link to global profile / HEMA Ratings).
 - Generate pools (configurable seeding) and elimination brackets (single elim, double elim, swiss).
 - Assign matches to Lices, manage piste schedule.
@@ -153,7 +153,7 @@ Platform-level admin (you). Functions:
 | ORM | **Drizzle ORM** | TS-first, lightweight, raw-SQL escape hatch for ranking queries |
 | Realtime | **Supabase Realtime** (Phoenix Channels) | Postgres-native broadcast on row changes; zero glue code for the read-side |
 | Auth | **Supabase Auth** (email magic link + Google OAuth) | Self-hostable, JWT-based, integrates with Postgres RLS |
-| Object Storage | **Supabase Storage** (S3-compatible) | Fighter photos, tournament logos, podium photos |
+| Object Storage | **Supabase Storage** (S3-compatible) | Fighter photos, event logos, podium photos |
 | Background jobs | **BullMQ** (Redis-backed) | Stats recomputation, HEMA Ratings sync, exports |
 | Cache + pub/sub | **Redis 7** | BullMQ + L2 cache for ranking queries |
 | Reverse proxy | **Traefik v3** | Automatic Let's Encrypt, label-based config, native Docker integration |
@@ -218,7 +218,7 @@ Three distinct mechanisms, each addressing a different concern:
 
 | Service | Responsibility |
 |---|---|
-| `web-public` | Public/Spectator + Competitor PWA. SSR public pages (`/t/[slug]/...`). |
+| `web-public` | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`). |
 | `web-scoring` | Scorekeeper PWA. Heavily client-side, IndexedDB-backed. |
 | `web-admin` | Organizer Admin + Super Admin SPA-like experience. |
 | `api` | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer. |
@@ -242,7 +242,7 @@ Organization (organizer team)
    └── Tournament
          │
          ├── Theme (colors, logo, custom pages)
-         ├── Lice (piste; multiple per tournament)
+         ├── Lice (piste; multiple per event)
          ├── Workshop ──┬── WorkshopInstructor
          │              ├── WorkshopSession (concrete time/place instance)
          │              │     └── WorkshopEnrollment (User → Session)
@@ -289,15 +289,15 @@ users (id, email, display_name, avatar_url, locale, created_at)
                   -- mirrors auth.users, RLS-enforced
 platform_roles (user_id, role)  -- super_admin override
 
--- Fighters (global cross-tournament identity)
+-- Fighters (global cross-event identity)
 --
--- A Fighter is the cross-tournament aggregate. Created lazily:
+-- A Fighter is the cross-event aggregate. Created lazily:
 --   - On first claim, persons.global_fighter_id is set to a new fighters row.
 --   - Or, the super admin manually merges multiple persons → one fighter.
--- A Fighter is what shows up at /fighters/<slug> across tournaments.
+-- A Fighter is what shows up at /fighters/<slug> across events.
 --
--- Persons within a single tournament are the operational unit; Fighters are
--- the historical/cross-tournament unit. They MUST stay aligned via global_fighter_id.
+-- Persons within a single event are the operational unit; Fighters are
+-- the historical/cross-event unit. They MUST stay aligned via global_fighter_id.
 fighters (
   id, slug, display_name, given_name, family_name,
   club_id, country_code,
@@ -308,33 +308,39 @@ fighters (
 )
 clubs (id, slug, name, city, country_code, website, logo_url)
 
--- Tournament structure
-tournaments (
+-- Hierarchy: Organization → Event → Tournament → Phase → Match → Exchange
+-- See docs/HIERARCHY.md for the canonical vocabulary.
+
+-- Event = the gathering (e.g. "FAL 2026"). Multi-day, has venue, dates,
+-- a roster of Persons, multiple Tournaments, multiple Workshops.
+events (
   id, organization_id, slug, name, location, start_date, end_date,
   status,  -- draft | published | running | completed | archived
   theme_id, public_landing_md, created_at
 )
 themes (
-  id, tournament_id, primary_color, secondary_color,
+  id, event_id, primary_color, secondary_color,
   accent_color, logo_url, hero_image_url,
   font_display, font_body, custom_css
 )
-lices (id, tournament_id, name, location_label, color_hex, sort_order)
+lices (id, event_id, name, location_label, color_hex, sort_order)
 
-events (
-  id, tournament_id, slug, name, weapon, category,
+-- Tournament = a competition within an event (e.g. "FAL 2026 Longsword Open").
+-- One weapon, one category, one ruleset, one bracket structure.
+tournaments (
+  id, event_id, slug, name, weapon, category,
   ruleset_code, ruleset_version, ruleset_config,
   status, sort_order
 )
 registrations (
-  id, event_id, person_id,             -- person within this tournament
+  id, tournament_id, person_id,        -- person from event roster, registered to a specific tournament
   fighter_id,                          -- nullable; populated when person.global_fighter_id set
   seed, status,                        -- registered | checked_in | withdrawn | disqualified
   bib_number
 )
 
 phases (
-  id, event_id, type,  -- pool | single_elim | double_elim | swiss
+  id, tournament_id, type,  -- pool | single_elim | double_elim | swiss
   sort_order, config_json,
   status  -- pending | running | completed
 )
@@ -380,9 +386,10 @@ exchanges (
 -- Audit & integrity
 audit_log (id, actor_user_id, action, entity_type, entity_id, payload_json, created_at)
 
--- Workshops
+-- Workshops (scoped to an Event, not a Tournament — workshops sit alongside
+-- the competitive Tournaments inside an Event)
 workshops (
-  id, tournament_id, slug, title,
+  id, event_id, slug, title,
   short_description, description_md,
   language,                   -- 'en' | 'fr' | 'both'
   level,                      -- 'beginner' | 'intermediate' | 'advanced' | 'all'
@@ -419,14 +426,15 @@ workshop_enrollments (
 -- Persons (canonical identity, organizer-authoritative)
 --
 -- Created by organizers BEFORE the event (manually or via CSV import).
--- Becomes a Fighter when registered to an event; becomes a Referee when
--- given qualifications; same Person can be all of these.
+-- A Person registers ONCE per event and then has zero or more registrations
+-- across the Tournaments inside that event. Becomes a Referee when given
+-- qualifications. The same Person can be all of these.
 --
--- Identity is anchored on (tournament_id, email) being unique. A Person
--- can later be promoted to a global Fighter profile (cross-tournament)
+-- Identity is anchored on (event_id, email) being unique. A Person
+-- can later be promoted to a global Fighter profile (cross-event)
 -- when they claim their account.
 persons (
-  id, tournament_id,
+  id, event_id,
   given_name, family_name, email,
   club_id,                           -- nullable, matched fuzzily on import
   hema_ratings_id,                   -- nullable, set on import or by organizer
@@ -437,7 +445,7 @@ persons (
   global_fighter_id,                 -- nullable; set when promoted to global profile
   created_by_user_id,                -- the organizer who added them
   created_at, updated_at,
-  UNIQUE(tournament_id, email)
+  UNIQUE(event_id, email)
 )
 
 -- Guest sessions: lightweight identity for "I typed my name, picked myself"
@@ -452,19 +460,19 @@ guest_sessions (
   ip_first_seen,                     -- audit only
   user_agent,                        -- audit only
   created_at, last_seen_at,
-  expires_at,                        -- default: tournament end + 7 days
+  expires_at,                        -- default: event end + 7 days
   revoked_at                         -- nullable; if organizer kicks the session
 )
 
 -- The claim event is implicit: persons.claim_status='claimed' AND claimed_by_user_id IS NOT NULL.
 -- The claim mechanism is Supabase Auth magic link to the email on file.
 
--- Following: a user (claimed) or guest session tracks Persons within a tournament.
--- Tournament-scoped. A coach who follows Jean at FAL 2027 doesn't automatically
+-- Following: a user (claimed) or guest session tracks Persons within an event.
+-- Event-scoped. A coach who follows Jean at FAL 2027 doesn't automatically
 -- follow Jean at Swordfish 2027 — privacy preferences may differ per event,
--- and follows live alongside the per-tournament Person rows.
+-- and follows live alongside the per-event Person rows.
 follows (
-  id, tournament_id, followed_person_id,
+  id, event_id, followed_person_id,
   -- Exactly one of these is set (CHECK constraint):
   follower_user_id,                  -- when follower is claimed (FK auth.users)
   follower_guest_session_id,         -- when follower is a guest session (FK guest_sessions)
@@ -478,13 +486,13 @@ follows (
     (follower_user_id IS NULL AND follower_guest_session_id IS NOT NULL)
   ),
   UNIQUE NULLS NOT DISTINCT
-    (tournament_id, followed_person_id, follower_user_id, follower_guest_session_id)
+    (event_id, followed_person_id, follower_user_id, follower_guest_session_id)
 )
 
 -- Per-Person privacy preferences. Created lazily on first claim with defaults;
 -- guest-mode persons keep the defaults.
 -- Matches and referee slots are ALWAYS public — they happen in shared physical
--- space. Workshops are part of the tournament's shared experience and default
+-- space. Workshops are part of the event's shared experience and default
 -- to public; users can opt out.
 person_privacy (
   person_id,                         -- PK + FK to persons
@@ -494,18 +502,19 @@ person_privacy (
   updated_at
 )
 
--- Refereeing
+-- Refereeing — qualifications are event-scoped (an organizer rates referees
+-- for THEIR event, separately from any other event's ratings)
 referee_qualifications (
-  id, user_id, tournament_id,
+  id, user_id, event_id,
   role,                       -- 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table'
   rating,                     -- 1..5 (confidence/quality, NULL = unrated)
   notes,                      -- free text from organizer
   active,                     -- bool, can disable without deleting
   created_at, updated_at,
-  UNIQUE(user_id, tournament_id, role)
+  UNIQUE(user_id, event_id, role)
 )
 referee_assignments (
-  id, tournament_id, user_id,
+  id, event_id, user_id,
   scope_type,                 -- 'lice' | 'pool' | 'match'
   lice_id,                    -- when scope='lice' or 'pool'
   pool_id,                    -- when scope='pool'
@@ -519,9 +528,9 @@ referee_assignments (
   created_at
 )
 
--- Pool & referee assignment settings (per tournament; can be overridden per event)
+-- Pool & referee assignment settings (per event default; can be overridden per event)
 pool_assignment_settings (
-  id, tournament_id, event_id,           -- event_id NULL = tournament default
+  id, event_id, tournament_id,           -- tournament_id NULL = event default
   enforce_school_separation,             -- bool, default true
   school_separation_strictness,          -- 'soft' | 'strict' (strict = fail if violated)
   enforce_skill_balance,                 -- bool, default true
@@ -712,7 +721,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 
 ### 8.1 What we display (mirroring lyonamhe.fr layout)
 
-**Tournament-level hero numbers:**
+**Event-level hero numbers:**
 - Total participants
 - Total matches
 - Doubles rate (%)
@@ -740,7 +749,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 - **Cold path (post-match)**: BullMQ job `recompute-event-stats` runs after each match completes. Materializes:
   - `mv_fighter_exchange_stats` (per-fighter, per-event)
   - `mv_event_stats_summary` (event-level aggregates)
-  - `mv_tournament_stats_summary` (tournament-level)
+  - `mv_event_stats_summary` (event-level)
 - Public stats page reads materialized views directly (fast).
 
 ### 8.3 Export formats
@@ -759,7 +768,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 
 | Channel | Payload | Subscribers |
 |---|---|---|
-| `tournament:{id}` | high-level events (match started, ended, podium published) | public app, admin |
+| `event:{id}` | high-level events (match started, ended, podium published) | public app, admin |
 | `event:{id}:standings` | pool standings deltas | public app, admin |
 | `lice:{id}:current` | current/next match on a Lice | public app, admin, accompanist views |
 | `match:{id}:exchanges` | new exchange, voided exchange, score update | public app, scorekeeper (other devices) |
@@ -780,7 +789,7 @@ Per-channel rate limit on the Realtime side (Supabase config). Clients debounce 
 
 ### 10.1 Why this is non-negotiable
 
-HEMA tournaments happen in sports halls, basements, and convention centers with hostile wifi. If the scorekeeper's tablet drops connection mid-match and the app stops working, the entire tournament jams up. Offline-first is **the** quality bar for the scoring app.
+HEMA events happen in sports halls, basements, and convention centers with hostile wifi. If the scorekeeper's tablet drops connection mid-match and the app stops working, the entire event jams up. Offline-first is **the** quality bar for the scoring app.
 
 ### 10.2 Architecture
 
@@ -839,7 +848,7 @@ A "HEMA Ratings export" button on the event page produces a CSV / JSON in the fo
 
 ```json
 {
-  "tournament": { "name": "...", "date": "...", "location": "..." },
+  "event": { "name": "...", "date": "...", "location": "..." },
   "event": { "weapon": "longsword", "category": "open" },
   "matches": [
     {
@@ -863,9 +872,9 @@ Direct API push if/when HEMA Ratings exposes one.
 
 ### 11bis.1 Concept
 
-Many HEMA tournaments run **workshops in parallel** with the competition (technique, source study, conditioning, judging seminars). MyClash treats workshops as first-class entities, not as bolted-on schedule items.
+Many HEMA events run **workshops in parallel** with the competition (technique, source study, conditioning, judging seminars). MyClash treats workshops as first-class entities, not as bolted-on schedule items.
 
-A user can be a **competitor** AND a **workshop attendee** AND a **referee** at the same tournament — these personas are non-exclusive.
+A user can be a **competitor** AND a **workshop attendee** AND a **referee** at the same event — these personas are non-exclusive.
 
 ### 11bis.2 Domain model
 
@@ -888,10 +897,10 @@ For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conf
 **Schedule resolution algorithm (server side):**
 
 ```ts
-async function getUserSchedule(userId: string, tournamentId: string): Promise<ScheduleItem[]> {
-  const matches      = await getCompetitorMatches(userId, tournamentId);
-  const refereeAssgs = await getRefereeAssignments(userId, tournamentId);
-  const workshops    = await getEnrolledWorkshopSessions(userId, tournamentId);
+async function getUserSchedule(userId: string, eventId: string): Promise<ScheduleItem[]> {
+  const matches      = await getCompetitorMatches(userId, eventId);
+  const refereeAssgs = await getRefereeAssignments(userId, eventId);
+  const workshops    = await getEnrolledWorkshopSessions(userId, eventId);
 
   const items: ScheduleItem[] = [
     ...matches.map(toScheduleItem),
@@ -922,7 +931,7 @@ Match times for conflict detection use a **buffer** (e.g. ±15 min) since match 
 
 ### 11bis.5 Public discovery
 
-- `/t/[slug]/workshops` — browsable workshop catalog with filters (day, category, language, level, instructor).
+- `/e/[eventSlug]/workshops` — browsable workshop catalog with filters (day, category, language, level, instructor).
 - Workshop detail page with description, instructor bio, sessions, "Add to my schedule" button.
 - Anonymous browsing allowed; enrollment requires login.
 
@@ -1017,12 +1026,12 @@ The hardest piece. Each pool requires **3 referees**, one per role:
 | `arbitre_assesseur` | Arbitre assesseur | Assessor referee |
 | `arbitre_table` | Arbitre de table | Table referee (timing/scoring oversight) |
 
-A user has zero or more `referee_qualifications` rows per tournament. A user qualified for a role with `rating=5` is highly trusted; `rating=1` means novice. Some users are qualified for all three roles, some for one.
+A user has zero or more `referee_qualifications` rows per event. A user qualified for a role with `rating=5` is highly trusted; `rating=1` means novice. Some users are qualified for all three roles, some for one.
 
 **Inputs:**
 - The pool schedule (every `(pool_id, lice_id, starts_at, ends_at)` tuple).
 - The event's match schedule (so we know when each fighter is on the piste).
-- All `referee_qualifications` for the tournament.
+- All `referee_qualifications` for the event.
 - All workshop enrollments per user (soft conflict).
 - `pool_assignment_settings`.
 
@@ -1035,7 +1044,7 @@ A user has zero or more `referee_qualifications` rows per tournament. A user qua
 - **Dedicated referee rest.** Same constraint applies even to users with no fighter registration, when `enforce_dedicated_referee_rest=true`.
 - **Workshop conflict.** If the user has a confirmed workshop session in the same time window, cost increases (warning, not rejection).
 - **Prefer high-rated referees.** When `prefer_high_rated_referees=true`, candidates are sorted by `rating` descending before being assigned.
-- **Workload balance.** Across the tournament, distribute refereeing duties evenly among qualified users.
+- **Workload balance.** Across the event, distribute refereeing duties evenly among qualified users.
 
 **Algorithm (greedy with backtracking):**
 
@@ -1099,19 +1108,19 @@ The auto-assign is **one-click + always overridable**. The expected workflow:
 
 ### 11quater.4 Referee rating maintenance
 
-- Qualifications and ratings are **per tournament** (a referee may be `rating=5` for `arbitre_table` at one event, `rating=3` at another with a stricter organizer).
+- Qualifications and ratings are **per event** (a referee may be `rating=5` for `arbitre_table` at one event, `rating=3` at another with a stricter organizer).
 - The organizer admin has a "Referee Pool" page where they can:
   - Add/remove qualified users.
   - Set role(s) per user.
   - Set rating per role per user.
   - Add notes.
-- A platform-level `referee_qualifications_global` view aggregates ratings across tournaments to suggest defaults when adding a referee to a new tournament. (Implementation deferred — heuristic average of last N tournaments.)
+- A platform-level `referee_qualifications_global` view aggregates ratings across events to suggest defaults when adding a referee to a new event. (Implementation deferred — heuristic average of last N events.)
 
 ---
 
 ## 11quinquies. Following & Public Profiles
 
-A user — anonymous, guest, or claimed — can search for any fighter or referee in the tournament, view their schedule and results, and follow them to build a personal "watchlist." This is the mechanism behind the **Accompanist** persona and is also useful for any user who wants to track friends, students, or rivals.
+A user — anonymous, guest, or claimed — can search for any fighter or referee in the event, view their schedule and results, and follow them to build a personal "watchlist." This is the mechanism behind the **Accompanist** persona and is also useful for any user who wants to track friends, students, or rivals.
 
 ### 11quinquies.1 Privacy model
 
@@ -1121,7 +1130,7 @@ Three categories of information, three different defaults:
 |---|---|---|
 | **Match schedule** (when, where, against whom) | Always public | Happens at the piste in front of everyone |
 | **Referee assignments** (when, where, role) | Always public | Same — happens in shared space |
-| **Workshop enrollments** | Public by default; opt-out available | Workshops are part of the tournament's shared experience; users who want privacy can opt out |
+| **Workshop enrollments** | Public by default; opt-out available | Workshops are part of the event's shared experience; users who want privacy can opt out |
 | **Email address** | Always masked publicly; full visible only to oneself | Anti-harvesting |
 | **Following relationships** | Private; never shown to the followed person | Avoids implied social relationships |
 
@@ -1160,10 +1169,10 @@ This happens atomically in the claim handler so the user never "loses" their fol
 
 ### 11quinquies.4 Public profile page
 
-`/t/<slug>/people/<personId>` — accessible to anyone. Shows:
+`/e/<eventSlug>/people/<personId>` — accessible to anyone. Shows:
 
 - Name, club, photo (if uploaded), HEMA Ratings (if linked).
-- Role badges: Competitor / Referee / Workshop lead — based on what's actually true for this tournament.
+- Role badges: Competitor / Referee / Workshop lead — based on what's actually true for this event.
 - **Today's items** — next match, next referee slot, currently-running match (with live score).
 - **Schedule** — full chronological list of matches + referee slots (+ workshops only if shared).
 - **Results** — pool standings, elimination progress, summary stats from the lyonamhe.fr-style stats module.
@@ -1171,7 +1180,7 @@ This happens atomically in the claim handler so the user never "loses" their fol
 
 ### 11quinquies.5 People search
 
-`/t/<slug>/people` — list/search interface. Same fuzzy lookup as onboarding (T-104b) but returns the richer public payload:
+`/e/<eventSlug>/people` — list/search interface. Same fuzzy lookup as onboarding (T-104b) but returns the richer public payload:
 
 ```json
 {
@@ -1190,7 +1199,7 @@ Filters: by role (competitor / referee / workshop lead / instructor), by club, b
 
 ### 11quinquies.6 The watchlist view
 
-`/t/<slug>/following` (or as a filter in `/my-schedule`) — list of all followed Persons with their next/current item:
+`/e/<eventSlug>/following` (or as a filter in `/my-schedule`) — list of all followed Persons with their next/current item:
 
 - Avatar, name, club.
 - Live state: `Live now (Lice 2)` / `Next: Pool A · 11:15 · Lice 1` / `Done — see results`.
@@ -1220,11 +1229,11 @@ MyClash uses a **two-tier identity model**: organizer-created Persons (the canon
 
 ### 12.1 The model
 
-**Person** — created by the organizer. Holds name, email, club, optional HEMA Ratings link. Lives in `persons` table, scoped to one tournament. The Person row exists *before* the user ever touches the app.
+**Person** — created by the organizer. Holds name, email, club, optional HEMA Ratings link. Lives in `persons` table, scoped to one event. The Person row exists *before* the user ever touches the app.
 
-**Guest session** — created when a participant types their name, finds themselves in the roster, and confirms. Lives in `guest_sessions`, bound to one Person, stored as a signed httpOnly cookie + server row. Lasts until tournament end + 7 days.
+**Guest session** — created when a participant types their name, finds themselves in the roster, and confirms. Lives in `guest_sessions`, bound to one Person, stored as a signed httpOnly cookie + server row. Lasts until event end + 7 days.
 
-**Claimed account** — created when the participant clicks a magic link sent to the email the organizer registered. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Persists across tournaments and devices.
+**Claimed account** — created when the participant clicks a magic link sent to the email the organizer registered. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Persists across events and devices.
 
 ### 12.2 Capability matrix
 
@@ -1246,11 +1255,11 @@ The line between Guest and Claimed is deliberately drawn at **anything that cros
 
 ### 12.3 First-arrival flow (the critical UX)
 
-1. Participant opens `myclash.fr/t/<tournament>` on their phone.
+1. Participant opens `app.myclash.fr/e/<event>` on their phone.
 2. Onboarding asks: "What's your name?" (single text input, not separated into first/last — easier on mobile).
 3. As they type, the app debounces and queries the lookup endpoint:
    ```
-   GET /api/v1/tournaments/:id/persons/lookup?q=jean+dup
+   GET /api/v1/events/:id/persons/lookup?q=jean+dup
    →  [
         { id, given_name, family_name, club_label, masked_email },
         ...
@@ -1295,16 +1304,16 @@ PlatformRole:
 
 OrganizationRole:
   - owner           : full org control, billing (future), member mgmt
-  - admin           : tournament creation, all org tournaments
-  - editor          : assigned tournaments only
+  - admin           : event creation, all org events
+  - editor          : assigned events only
   - scorekeeper     : assigned Lices only (records exchanges)
   - referee         : assigned Lices/matches (calls actions on the piste)
   - workshop_lead   : can edit workshop content for assigned workshops
   - read_only       : view-only access (e.g. press, partners)
 
 ImplicitRole (no row needed, derived from claim status + relations):
-  - competitor      : Person has registrations in this tournament
-  - workshop_attendee : Person has workshop_enrollments in this tournament
+  - competitor      : Person has registrations in this event
+  - workshop_attendee : Person has workshop_enrollments in this event
   - public          : anonymous or unclaimed without other roles
 ```
 
@@ -1313,8 +1322,70 @@ OrganizationRole grants always require a **claimed** account. They are never giv
 ### 12.7 Authentication mechanisms (v1)
 
 - **Magic link via SMTP** (Supabase Auth) — primary mechanism for claimed accounts. Used for organizer login, super admin, and Person claim. Email is the canonical identity.
+- **Email + password** (Supabase Auth) — also enabled for organizer accounts, for users who prefer a password to magic-link emails. Available at signup and login.
 - **Guest session** (signed cookie + server row) — for participants who only want to find their schedule.
 - **Google OAuth** — **deferred**, not in v1. Magic link covers the same use case without requiring 2–4 weeks of Google verification review.
+
+### 12.7bis Organizer signup (open)
+
+**Anyone can sign up to become a event organizer.** No invitation required, no super-admin approval gate at signup time. Super admin retains the power to suspend or remove organizer accounts post-hoc (see §12.7ter).
+
+**Signup flow** (at `https://admin.myclash.fr/signup`):
+
+1. User chooses a method:
+   - **Magic link**: enters email + display name → receives link → click → account created.
+   - **Email + password**: enters email + display name + password → account created → email verification link sent (must verify before creating events).
+2. On account creation, the system **auto-creates a personal Organization** with:
+   - `slug`: derived from display name (`jean-dupont`, with collision handling).
+   - `name`: `"<display_name>'s organization"` (the user can rename it any time).
+   - `status`: `active` (no manual approval needed).
+   - The user becomes the `owner` of this Organization (`organization_members.role = 'owner'`).
+3. They land on the org dashboard at `/org/<slug>` ready to create their first event.
+
+**What an organizer can do** without further approval:
+- Create one or more **Events** (the multi-day gathering, e.g. "FAL 2026") — *terminology TBD pending owner decision*.
+- Within each event, create competitions, workshops, schedule, venue.
+- Import the participant roster (manual + CSV).
+- Run the event end-to-end (registrations → pools → brackets → scoring → results).
+- Invite team members to their organization (admin, editor, scorekeeper, referee — see §12.6 roles).
+
+**What an organizer cannot do**:
+- See or edit any other organization's data.
+- Modify global Fighter profiles created by other organizations (only the organization that originated a Person can edit its details; once the Person is claimed and promoted to a global Fighter, the Fighter is editable by the claimed user).
+- Bypass platform-wide RLS policies.
+
+**Default `OrganizationRole.owner` capabilities** include creating events, theming, importing rosters, generating brackets, scoring (or assigning scorekeepers), publishing results, exporting to HEMA Ratings format. They are the admin of their own events.
+
+### 12.7ter Super admin — organizer management
+
+The super admin (project owner) has a dashboard at `https://admin.myclash.fr/admin/organizations` to manage all organizer accounts:
+
+- **List**: every organization with member count, event count, last activity, status.
+- **Inspect**: drill into any org to see members, events, and audit log entries.
+- **Actions**:
+  - **Suspend** an organization (`status = 'suspended'`) — its events become read-only-public; members cannot create new content, but existing data stays visible.
+  - **Reactivate** a suspended organization.
+  - **Delete** (hard) — for spam / abuse cases. Cascades to events, but global Fighter profiles and Persons that have been claimed by users are preserved (re-attached to a "deleted org" placeholder for data integrity).
+  - **Promote a user to super admin** (granting `platform_roles.role = 'super_admin'`).
+  - **Reset organization owner** — if the original owner loses access, super admin can re-assign ownership to another member.
+
+**No automatic approval gate at signup** means super admin's job is reactive moderation, not bottleneck approval. This is acceptable because:
+- Email verification deters bots.
+- Suspending a bad actor is fast (one click, immediate effect).
+- Real HEMA events are a small community; bad actors are rare and easily identified.
+
+### 12.7quater User account types — summary
+
+| Account type | How created | Capabilities |
+|---|---|---|
+| **Anonymous** | No account | Public reads, localStorage follows |
+| **Guest** | Picked self from organizer's roster | Per-event guest capabilities |
+| **Claimed (participant)** | Magic link to organizer-registered email | Cross-device, edit own profile |
+| **Organizer** | Self-signup (magic link or email+password) | Owns one organization, can create events |
+| **Organizer team member** | Invited by an existing organizer | Per-org role: admin, editor, scorekeeper, referee, workshop_lead, read_only |
+| **Super admin** | Promoted by another super admin (or DB bootstrap) | Platform-wide moderation |
+
+The Claimed-Participant and Organizer paths can converge: a Person who claims their profile on event day is a "claimed account"; if they later self-sign-up as an organizer at a different event, the same `auth.users` row is reused.
 
 ### 12.8 CSV import for the organizer roster
 
@@ -1327,7 +1398,7 @@ Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open;sidesword,competito
 Pierre,Martin,pierre@example.com,,,,referee
 ```
 
-- `email` is required and is the unique key within the tournament.
+- `email` is required and is the unique key within the event.
 - `event_codes` are semicolon-separated event slugs; auto-creates a registration row per code.
 - `roles` semicolon-separated set: `competitor`, `referee`, `workshop_lead`. Workshop attendees opt in themselves later by enrolling.
 - `club` is matched fuzzily against `clubs.name`; new clubs get a row marked `unverified=true` for organizer review.
@@ -1348,41 +1419,41 @@ Pierre,Martin,pierre@example.com,,,,referee
 }
 ```
 
-Manual creation uses the same form, single-row, in `/org/[orgSlug]/tournaments/[id]/persons/new`.
+Manual creation uses the same form, single-row, in `/org/[orgSlug]/events/[eventId]/persons/new`.
 
 ---
 
-## 13. Per-Tournament Theming
+## 13. Per-Event Theming
 
 ### 13.1 Scope
 
-Each tournament can customize:
+Each event can customize:
 
 - Logo, hero image, favicon.
 - Color palette (primary, secondary, accent, background).
-- Display font (the prototype uses Cinzel; allow per-tournament override).
-- Tournament-specific landing copy (Markdown).
+- Display font (the prototype uses Cinzel; allow per-event override).
+- Event-specific landing copy (Markdown).
 - Custom pages (history, location, partners, media kit) — Markdown with frontmatter.
 - Club directory (curated list of nearby clubs with descriptions, like the prototype).
 - "Discipline" pages (history of longsword, sidesword, etc.) — Markdown.
 
 ### 13.2 URL shape
 
-- Tournament public site: `/t/{tournament-slug}`
-- Event page: `/t/{tournament-slug}/e/{event-slug}`
-- Match page: `/t/{tournament-slug}/m/{match-id}`
-- Lice live view: `/t/{tournament-slug}/l/{lice-name}`
-- Fighter profile (in tournament context): `/t/{tournament-slug}/f/{fighter-slug}`
+- Event public site: `/e/{event-slug}`
+- Tournament page: `/e/{event-slug}/t/{tournament-slug}`
+- Match page: `/e/{event-slug}/m/{match-id}`
+- Lice live view: `/e/{event-slug}/l/{lice-name}`
+- Fighter profile (in event context): `/e/{event-slug}/f/{fighter-slug}`
 
-Global (cross-tournament):
+Global (cross-event):
 - Fighter profile: `/fighters/{slug}`
 - Club: `/clubs/{slug}`
-- Tournaments index: `/tournaments`
+- Events index: `/events`
 
 ### 13.3 Implementation
 
 - Theme stored in DB (`themes` table).
-- CSS variables injected at the layout level for the `/t/[slug]/...` route group.
+- CSS variables injected at the layout level for the `/e/[eventSlug]/...` route group.
 - Custom CSS field (sandboxed, vetted) for advanced tweaks.
 
 ---
@@ -1403,40 +1474,40 @@ Global (cross-tournament):
 GET    /api/v1/me                              # returns claimed user OR active guest
 
 # Persons (organizer roster — pre-event)
-GET    /api/v1/tournaments/:id/persons         [organizer+]
-POST   /api/v1/tournaments/:id/persons         [organizer+]   # manual create
-POST   /api/v1/tournaments/:id/persons/import  [organizer+]   # CSV upload
+GET    /api/v1/events/:id/persons         [organizer+]
+POST   /api/v1/events/:id/persons         [organizer+]   # manual create
+POST   /api/v1/events/:id/persons/import  [organizer+]   # CSV upload
 GET    /api/v1/persons/:id                     [organizer+ or self]
 PATCH  /api/v1/persons/:id                     [organizer+]
 DELETE /api/v1/persons/:id                     [organizer+]   # only if no registrations
 
 # Person lookup (the participant's "type your name" search)
-GET    /api/v1/tournaments/:id/persons/lookup?q=...  [public]
+GET    /api/v1/events/:id/persons/lookup?q=...  [public]
                                                # returns minimal fields:
                                                # id, given_name, family_name,
                                                # club_label, masked_email
                                                # rate-limited per IP
 
 # Public people search (richer than lookup; for the "find a fighter" feature)
-GET    /api/v1/tournaments/:id/people?q=...&role=...&club=...  [public]
+GET    /api/v1/events/:id/people?q=...&role=...&club=...  [public]
                                                # returns: id, names, club_label,
                                                # photo_url, role_badges,
                                                # next_event_at, follow_state
                                                # for the requesting session
 
 # Public profile, schedule, results — for ANY person (subject to their privacy prefs)
-GET    /api/v1/tournaments/:id/people/:personId               [public]
-GET    /api/v1/tournaments/:id/people/:personId/schedule      [public]
+GET    /api/v1/events/:id/people/:personId               [public]
+GET    /api/v1/events/:id/people/:personId/schedule      [public]
                                                # returns matches + referee_slots
                                                # workshops included by default;
                                                # excluded only if person_privacy
                                                # .hide_workshops_publicly is true
                                                # AND requester is not that person
-GET    /api/v1/tournaments/:id/people/:personId/results       [public]
+GET    /api/v1/events/:id/people/:personId/results       [public]
 
 # Following (anonymous gets localStorage; guest|claimed gets server-stored)
-GET    /api/v1/tournaments/:id/follows                        [guest|claimed]
-POST   /api/v1/tournaments/:id/follows                        [guest|claimed]
+GET    /api/v1/events/:id/follows                        [guest|claimed]
+POST   /api/v1/events/:id/follows                        [guest|claimed]
                                                # body: { person_id }
 DELETE /api/v1/follows/:followId                              [guest|claimed]
 PATCH  /api/v1/follows/:followId                              [guest|claimed]
@@ -1447,7 +1518,7 @@ GET    /api/v1/persons/me/privacy                             [claimed, owns per
 PATCH  /api/v1/persons/me/privacy                             [claimed, owns person]
 
 # Guest sessions (participant's pick-myself flow)
-POST   /api/v1/tournaments/:id/guest-sessions  [public]
+POST   /api/v1/events/:id/guest-sessions  [public]
                                                # body: { person_id }
                                                # creates session, sets cookie,
                                                # returns Person details
@@ -1455,11 +1526,11 @@ DELETE /api/v1/guest-sessions/me               [guest|claimed]
                                                # explicit logout for this device
 
 # Claim flow (Person → Supabase user)
-POST   /api/v1/tournaments/:id/persons/:id/request-claim  [public|guest]
+POST   /api/v1/events/:id/persons/:id/request-claim  [public|guest]
                                                # sends magic link to person.email
                                                # rate-limited per person, per IP
 
-# Fighters (global, cross-tournament)
+# Fighters (global, cross-event)
 GET    /api/v1/fighters?q=...&club=...
 GET    /api/v1/fighters/:slug
 POST   /api/v1/fighters                    [organizer+]
@@ -1481,30 +1552,30 @@ PATCH  /api/v1/organizations/:id           [owner|super_admin]
 POST   /api/v1/organizations/:id/approve   [super_admin]
 POST   /api/v1/organizations/:id/members   [owner]
 
-# Tournaments
-GET    /api/v1/tournaments                 [public, filtered]
-POST   /api/v1/tournaments                 [organizer+]
-GET    /api/v1/tournaments/:slug
-PATCH  /api/v1/tournaments/:id             [organizer+]
-POST   /api/v1/tournaments/:id/publish     [organizer+]
-GET    /api/v1/tournaments/:id/theme
-PATCH  /api/v1/tournaments/:id/theme       [organizer+]
-GET    /api/v1/tournaments/:id/lices
-POST   /api/v1/tournaments/:id/lices       [organizer+]
-GET    /api/v1/tournaments/:id/stats       [public]
-
-# Events
-POST   /api/v1/tournaments/:id/events      [organizer+]
-GET    /api/v1/events/:id
-GET    /api/v1/events/:id/registrations
-POST   /api/v1/events/:id/registrations    [organizer+]
-GET    /api/v1/events/:id/phases
-POST   /api/v1/events/:id/phases           [organizer+]
-GET    /api/v1/events/:id/standings        [public]
-GET    /api/v1/events/:id/final-ranking    [public]
+# Events (the gathering — was "Tournaments" pre-v1.4)
+GET    /api/v1/events                      [public, filtered]
+POST   /api/v1/events                      [organizer+]
+GET    /api/v1/events/:slug
+PATCH  /api/v1/events/:id                  [organizer+]
+POST   /api/v1/events/:id/publish          [organizer+]
+GET    /api/v1/events/:id/theme
+PATCH  /api/v1/events/:id/theme            [organizer+]
+GET    /api/v1/events/:id/lices
+POST   /api/v1/events/:id/lices            [organizer+]
 GET    /api/v1/events/:id/stats            [public]
-POST   /api/v1/events/:id/generate-pools   [organizer+]
-POST   /api/v1/events/:id/generate-bracket [organizer+]
+
+# Tournaments (a competition within an event — was "Events" pre-v1.4)
+POST   /api/v1/events/:id/tournaments      [organizer+]
+GET    /api/v1/tournaments/:id
+GET    /api/v1/tournaments/:id/registrations
+POST   /api/v1/tournaments/:id/registrations    [organizer+]
+GET    /api/v1/tournaments/:id/phases
+POST   /api/v1/tournaments/:id/phases           [organizer+]
+GET    /api/v1/tournaments/:id/standings        [public]
+GET    /api/v1/tournaments/:id/final-ranking    [public]
+GET    /api/v1/tournaments/:id/stats            [public]
+POST   /api/v1/tournaments/:id/generate-pools   [organizer+]
+POST   /api/v1/tournaments/:id/generate-bracket [organizer+]
 
 # Matches
 GET    /api/v1/matches/:id
@@ -1521,16 +1592,16 @@ POST   /api/v1/matches/:id/exchanges       [scorekeeper+]
 PATCH  /api/v1/exchanges/:id/void          [organizer+]
 
 # Stats
-GET    /api/v1/tournaments/:id/stats/overview
-GET    /api/v1/events/:id/stats/exchanges-distribution
-GET    /api/v1/events/:id/stats/target-zones
-GET    /api/v1/events/:id/stats/double-rate-evolution
-GET    /api/v1/events/:id/stats/deep-target-leaderboard
-GET    /api/v1/events/:id/stats/per-fighter
+GET    /api/v1/events/:id/stats/overview
+GET    /api/v1/tournaments/:id/stats/exchanges-distribution
+GET    /api/v1/tournaments/:id/stats/target-zones
+GET    /api/v1/tournaments/:id/stats/double-rate-evolution
+GET    /api/v1/tournaments/:id/stats/deep-target-leaderboard
+GET    /api/v1/tournaments/:id/stats/per-fighter
 
-# Workshops
-GET    /api/v1/tournaments/:id/workshops               [public]
-POST   /api/v1/tournaments/:id/workshops               [organizer+]
+# Workshops (scoped to event)
+GET    /api/v1/events/:id/workshops                    [public]
+POST   /api/v1/events/:id/workshops                    [organizer+]
 GET    /api/v1/workshops/:id
 PATCH  /api/v1/workshops/:id                           [organizer+]
 POST   /api/v1/workshops/:id/instructors               [organizer+]
@@ -1541,13 +1612,13 @@ POST   /api/v1/workshop-sessions/:id/enroll            [authenticated]
 DELETE /api/v1/workshop-sessions/:id/enroll            [authenticated]
 POST   /api/v1/workshop-sessions/:id/promote/:userId   [organizer+]
 
-# Refereeing
-GET    /api/v1/tournaments/:id/referee-assignments     [organizer+]
-POST   /api/v1/tournaments/:id/referee-assignments     [organizer+]
+# Refereeing (event-scoped — qualifications and assignments per event)
+GET    /api/v1/events/:id/referee-assignments          [organizer+]
+POST   /api/v1/events/:id/referee-assignments          [organizer+]
 PATCH  /api/v1/referee-assignments/:id                 [organizer+ or assigned user]
 POST   /api/v1/referee-assignments/:id/confirm         [assigned user]
 
-# Referee qualifications (per tournament)
+# Referee qualifications (per event)
 GET    /api/v1/tournaments/:id/referee-qualifications  [organizer+]
 POST   /api/v1/tournaments/:id/referee-qualifications  [organizer+]
 PATCH  /api/v1/referee-qualifications/:id              [organizer+]
@@ -1587,7 +1658,7 @@ GET    /api/v1/hema-ratings/search?q=...
 GET    /api/v1/hema-ratings/:hr-id
 
 # WebSocket
-WS     /ws  (channels: subscribe to tournament:{id}, lice:{id}, match:{id})
+WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 ```
 
 ### 14.3 Rate limits
@@ -1605,39 +1676,39 @@ WS     /ws  (channels: subscribe to tournament:{id}, lice:{id}, match:{id})
 
 ```
 /                                       # Platform landing
-/tournaments                            # Index of all published tournaments
+/events                                 # Index of all published events
 /fighters                               # Search global fighters
 /fighters/[slug]                        # Fighter profile
 /clubs/[slug]                           # Club page
 /about, /docs, /privacy
 
-# Per-tournament (themed)
-/t/[slug]                               # Tournament landing (themed)
-/t/[slug]/onboarding                    # Persona selection (multi-select)
-/t/[slug]/home                          # Persona-aware home
-/t/[slug]/my-schedule                   # UNIFIED personal view (matches + referee + workshops + conflicts)
-/t/[slug]/events                        # Event index
-/t/[slug]/events/[eventSlug]            # Event detail (pools + brackets)
-/t/[slug]/events/[eventSlug]/pools/[poolId]
-/t/[slug]/events/[eventSlug]/bracket
-/t/[slug]/events/[eventSlug]/standings
-/t/[slug]/events/[eventSlug]/stats
-/t/[slug]/lice/[liceName]               # Live view of a Lice
-/t/[slug]/match/[matchId]               # Match detail page
-/t/[slug]/fighters/[fighterSlug]        # Fighter in tournament context
-/t/[slug]/clubs                         # Club directory (per-tournament curated)
-/t/[slug]/info                          # Practical info, schedule, location
-/t/[slug]/discipline/[code]             # e.g. /discipline/longsword (history page)
-/t/[slug]/workshops                     # Workshop catalog (filterable)
-/t/[slug]/workshops/[workshopSlug]      # Workshop detail with sessions
-/t/[slug]/people                        # Search any fighter / referee in this tournament
-/t/[slug]/people/[personId]             # Public profile: schedule, results, follow button
-/t/[slug]/following                     # Watchlist: everyone I'm tracking
-/t/[slug]/referee                       # Referee dashboard (when role applies)
-/t/[slug]/referee/match/[matchId]       # On-piste referee tools
-/t/[slug]/profile                       # User profile in tournament context
-/t/[slug]/profile/privacy               # Privacy preferences (claimed only)
-/t/[slug]/notifications                 # Notification preferences + history
+# Per-event (themed)  — was `/t/[slug]/...` pre-v1.4
+/e/[eventSlug]                                          # Event landing (themed)
+/e/[eventSlug]/onboarding                               # Persona selection (multi-select)
+/e/[eventSlug]/home                                     # Persona-aware home
+/e/[eventSlug]/my-schedule                              # UNIFIED personal view (matches + referee + workshops + conflicts)
+/e/[eventSlug]/tournaments                              # Event index (e.g. "Longsword Open", "Sidesword Open")
+/e/[eventSlug]/t/[tournamentSlug]                       # Tournament detail (pools + brackets)
+/e/[eventSlug]/t/[tournamentSlug]/pools/[poolId]
+/e/[eventSlug]/t/[tournamentSlug]/bracket
+/e/[eventSlug]/t/[tournamentSlug]/standings
+/e/[eventSlug]/t/[tournamentSlug]/stats
+/e/[eventSlug]/lice/[liceName]                          # Live view of a Lice
+/e/[eventSlug]/match/[matchId]                          # Match detail page
+/e/[eventSlug]/fighters/[fighterSlug]                   # Fighter in event context
+/e/[eventSlug]/clubs                                    # Club directory (per-event curated)
+/e/[eventSlug]/info                                     # Practical info, schedule, location
+/e/[eventSlug]/discipline/[code]                        # e.g. /discipline/longsword (history page)
+/e/[eventSlug]/workshops                                # Workshop catalog (filterable)
+/e/[eventSlug]/w/[workshopSlug]                         # Workshop detail with sessions
+/e/[eventSlug]/people                                   # Search any fighter / referee in this event
+/e/[eventSlug]/people/[personId]                        # Public profile: schedule, results, follow button
+/e/[eventSlug]/following                                # Watchlist: everyone I'm tracking
+/e/[eventSlug]/referee                                  # Referee dashboard (when role applies)
+/e/[eventSlug]/referee/match/[matchId]                  # On-piste referee tools
+/e/[eventSlug]/profile                                  # User profile in event context
+/e/[eventSlug]/profile/privacy                          # Privacy preferences (claimed only)
+/e/[eventSlug]/notifications                            # Notification preferences + history
 ```
 
 ### 15.2 `web-scoring`
@@ -1656,41 +1727,49 @@ WS     /ws  (channels: subscribe to tournament:{id}, lice:{id}, match:{id})
 
 ```
 /login
+/signup                                  # Open organizer signup (T-009b)
 
 # Organizer
-/org/[orgSlug]                          # Org dashboard
-/org/[orgSlug]/tournaments
-/org/[orgSlug]/tournaments/new
-/org/[orgSlug]/tournaments/[id]/...
-   /general
-   /theme
-   /lices
-   /events
-   /events/[eventId]/...
-      /registrations
+/org/[orgSlug]                           # Org dashboard
+/org/[orgSlug]/settings                  # Org name, members, billing later
+/org/[orgSlug]/members                   # Invite/remove team members
+/org/[orgSlug]/events
+/org/[orgSlug]/events/new
+/org/[orgSlug]/events/[eventId]/...
+   /general                              # Name, dates, location, status
+   /theme                                # Per-event theming
+   /lices                                # Pistes
+   /persons                              # Roster (CSV import + manual create)
+   /persons/[personId]                   # Edit a person
+   /tournaments                          # Competitions inside this event
+   /tournaments/new
+   /tournaments/[tournamentId]/...
+      /general                           # Weapon, category, ruleset, ruleset config
+      /registrations                     # Pick people from event roster
       /pools
       /bracket
       /matches
       /stats
    /workshops
+   /workshops/new
    /workshops/[workshopId]/...
       /general
       /instructors
       /sessions
       /roster
-   /referees                             # referee pool: qualifications + ratings
-   /referees/assignments                 # referee assignment editor with auto-assign
-   /events/[eventId]/pool-populator     # pool populator UI (constraint sliders + manual override)
+   /referees                             # Referee pool: qualifications + ratings (per event)
+   /referees/assignments                 # Referee assignment editor with auto-assign
+   /tournaments/[tournamentId]/pool-populator   # Pool populator UI (constraint sliders + manual override)
    /scorekeepers
-   /schedule                             # unified day grid (matches + workshops)
+   /schedule                             # Unified day grid (matches across all tournaments + workshops)
    /publish
 
 # Super Admin
 /admin
-/admin/organizations
+/admin/organizations                     # T-009c: list, suspend, delete, etc.
 /admin/organizations/[id]
 /admin/users
-/admin/fighters                          # merge, moderation
+/admin/fighters                          # Merge, moderation
 /admin/rulesets
 /admin/feature-flags
 /admin/audit-log
@@ -1705,7 +1784,7 @@ WS     /ws  (channels: subscribe to tournament:{id}, lice:{id}, match:{id})
 - Library: `next-intl` for the public app, `i18next` for admin/scoring.
 - Translation files in `apps/*/messages/{locale}.json`.
 - All user-facing strings extracted from day 1 (no hardcoded English).
-- Tournament-specific content (landing, history pages) is per-locale Markdown.
+- Event-specific content (landing, history pages) is per-locale Markdown.
 
 ---
 
@@ -1951,13 +2030,13 @@ High-level phases:
 |---|---|---|
 | **P0** | Bootstrap | Monorepo, Docker Compose with Traefik, Supabase, CI green |
 | **P0.5** | Deployment Automation | OVH VPS bootstrap, prod Dockerfiles + compose, server-side `git pull + build + up` deploy, manual one-line trigger from Windows, migrations + rollback + backups |
-| **P1** | Domain core | DB schema, fighters/clubs/orgs/tournaments CRUD, RLS |
+| **P1** | Domain core | DB schema, fighters/clubs/orgs/events/tournaments CRUD, RLS |
 | **P2** | TF_v1 ruleset | Pure-function ruleset engine; FAL 2026 golden test |
 | **P3** | Pools & brackets | Pool generation, single-elim brackets, scheduling to Lices |
 | **P4** | Online scoring | Scorekeeper PWA shell, exchange entry, match clock, realtime broadcast |
 | **P5** | Offline scoring | IndexedDB outbox, service worker, sync engine, reconcile |
-| **P6** | Public PWA | Per-tournament theming, persona home screens, results & brackets |
-| **P7** | Admin app | Tournament wizard, theme editor, registrations, schedule mgmt |
+| **P6** | Public PWA | Per-event theming, persona home screens, results & brackets |
+| **P7** | Admin app | Event wizard, theme editor, registrations, schedule mgmt |
 | **P8** | Workshops | Workshop CRUD, sessions, enrollment, capacity, schedule conflicts |
 | **P9** | Referees & Assignment Engines | Referee qualifications/ratings, role-based auto-assignment (3 roles, soft constraints, missing-role report), pool populator UI |
 | **P10** | Statistics | Mirror lyonamhe.fr/resultat_fal2026.html stats layout |
@@ -1965,7 +2044,7 @@ High-level phases:
 | **P12** | Push notifications | VAPID setup, opt-in flow, scheduled jobs, fallbacks |
 | **P13** | Super admin | Org approval, fighter merge, ruleset moderation, audit log |
 | **P14** | i18n & polish | French translation, a11y, perf pass |
-| **P15** | Beta event | Run a real tournament, fix issues, tag v1.0 |
+| **P15** | Beta event | Run a real event, fix issues, tag v1.0 |
 
 **Total estimated: 14–18 weeks of focused engineering.**
 
@@ -2029,8 +2108,8 @@ These are intentionally **not** in scope for v1.0 but are tracked here:
 - **Push notifications** (Web Push API for "your match starts in 10 min").
 - **Mobile native apps** (React Native, sharing the API layer).
 - **Subscription model** (donations, optional org-paid tier for high-volume features). Decision deferred; v1 is fully free.
-- **Federation with other tournament platforms** (e.g. import from hemaScorecard exports).
-- **In-tournament photo gallery** (fighter portraits, podium photos uploaded by organizers).
+- **Federation with other event platforms** (e.g. import from hemaScorecard exports).
+- **In-event photo gallery** (fighter portraits, podium photos uploaded by organizers).
 - **Crowd judging / spectator scoring** (entertainment feature, not authoritative).
 - **AI-assisted refereeing** (target detection from video). Out of scope; flagged for research.
 - **HEMA Ratings push API** (when/if available).

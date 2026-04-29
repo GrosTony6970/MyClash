@@ -9,22 +9,22 @@
 
 ## Overview
 
-MyClash is a free, open-source platform that lets HEMA tournament organizers run their events end-to-end and publish results — while giving competitors, spectators, referees, and workshop attendees a single mobile-first experience for everything they need on event day.
+MyClash is a free, open-source platform that lets HEMA event organizers run their events end-to-end and publish results — while giving competitors, spectators, referees, and workshop attendees a single mobile-first experience for everything they need on event day.
 
 It replaces the patchwork of tools currently used: hemaScorecard for brackets, spreadsheets for schedules, static HTML pages for results, paper for refereeing. MyClash unifies these into one platform with three coordinated surfaces (public PWA, scoring tablet PWA, organizer admin) and a shared backend that captures every exchange.
 
 It is designed around three convictions:
 
-1. **Real HEMA tournaments happen in spaces with bad wifi.** Offline-first scoring is the quality bar.
+1. **Real HEMA events happen in spaces with bad wifi.** Offline-first scoring is the quality bar.
 2. **Per-exchange data is the only honest source of truth.** Aggregate scores derive; raw exchanges persist.
-3. **Per-tournament theming makes platforms feel like local events.** A platform doesn't have to feel like a platform.
+3. **Per-event theming makes platforms feel like local events.** A platform doesn't have to feel like a platform.
 
 ---
 
 ## Features (v1)
 
-### For tournament organizers
-- Create a themed tournament site (logo, colors, custom pages) at `myclash.fr/t/[slug]`.
+### For event organizers
+- Create a themed event site (logo, colors, custom pages) at `app.myclash.fr/e/[slug]`.
 - Define multiple events (weapon × category) with configurable rulesets.
 - Configure Lices (pistes) — multi-Lice scheduling.
 - Register fighters individually or via CSV import; suggest matches against global fighter database and HEMA Ratings.
@@ -60,13 +60,13 @@ It is designed around three convictions:
 - Notifications for cancellations and promotions.
 
 ### For spectators / accompanists
-- **Search any participant** in the tournament — fighters, referees, workshop leads.
+- **Search any participant** in the event — fighters, referees, workshop leads.
 - **Follow people** to build a personal watchlist (a coach watches their three students; a parent follows their kid).
 - **Watchlist view** shows next-match / live-now / just-finished state for everyone you follow, all in one screen.
 - Live Lice view: current and upcoming matches.
 - **Push notifications** when someone you follow is about to fight (claimed accounts only — verifies email ownership).
 - Live exchange feed during matches.
-- Tournament editorial pages, history, club directory.
+- Event editorial pages, history, club directory.
 - Following works for anonymous users too (saved on their device), but push notifications and cross-device sync require a quick magic-link claim.
 
 ### For platform admin (super admin)
@@ -99,14 +99,14 @@ It is designed around three convictions:
 8. **At any point, wifi can drop**: queue grows in IndexedDB outbox. UI shows "offline · 7 pending". Reconnect → silent sync.
 
 ### Organizer pre-event
-1. Creates tournament; configures theme to match their club's identity.
+1. Creates event; configures theme to match their club's identity.
 2. Adds 4 Lices, 3 events (Longsword Open, Sidesword Open, Longsword Women's).
 3. Imports 80 fighters from CSV; system suggests HEMA Ratings links.
 4. Goes to Pool Populator: 4 pools per event, school separation on, skill balance on. Clicks generate. Reviews. Two clubs have 3 fighters each in the same pool — drags one out manually, cost recomputes. Saves.
 5. Goes to Referees → Pool: adds 12 qualified users, sets ratings per role.
 6. Clicks Auto-assign Referees. Engine returns: 32 cells assigned, 1 missing (Pool C arbitre_assesseur — no qualified candidate available; rejection_reason: no_qualified_users). Organizer manually invites another referee, then re-runs.
 7. Locks assignments. Notifications go out automatically (assigned referees get a push).
-8. Day before event: publishes the tournament site.
+8. Day before event: publishes the event site.
 
 ### Organizer on event day
 1. Walks the venue with a laptop.
@@ -121,13 +121,13 @@ It is designed around three convictions:
 
 | Component | What it does |
 |---|---|
-| **Public PWA** | Per-tournament themed mobile experience for competitors, referees, workshop attendees, spectators. |
+| **Public PWA** | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators. |
 | **Scoring PWA** | Tablet-first offline-first per-exchange entry. |
 | **Admin SPA** | Desktop-first organizer toolset and super admin. |
 | **Ruleset engine** | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback. |
 | **Pool populator** | Constraint-driven pool generation (school separation, skill balance). |
 | **Referee assigner** | Constraint-driven 3-role assignment with feasibility report. |
-| **Statistics engine** | Materialized views of fighter/event/tournament stats; mirrors lyonamhe.fr layout. |
+| **Statistics engine** | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout. |
 | **Realtime layer** | Supabase Realtime broadcasts row changes to subscribed clients. |
 | **Offline outbox** | IndexedDB queue on the scoring app, with idempotent server reconciliation. |
 | **Notification scheduler** | BullMQ-driven web push for matches, workshops, schedule changes. |
@@ -136,7 +136,7 @@ It is designed around three convictions:
 
 ## Data sources
 
-- **Internal**: per-tournament data (organizer-created); per-exchange match data (scorekeeper-created); user profiles.
+- **Internal**: per-event data (organizer-created); per-exchange match data (scorekeeper-created); user profiles.
 - **External (read-only)**: HEMA Ratings dataset, pulled daily, for fighter rating display and pool skill balancing.
 - **External (write, organizer-mediated)**: HEMA Ratings export — organizers download a formatted file and submit it to HEMA Ratings curators manually.
 
@@ -148,7 +148,7 @@ It is designed around three convictions:
 - **Mobile-first**: every public app screen is built for one-handed phone use first. Desktop layouts are derived from mobile by widening, not redesigning.
 - **Tablet-first scoring app**: large, gloved-finger-friendly buttons. Color-coded (red fighter / blue fighter). High-contrast for outdoor lighting.
 - **Desktop-first admin**: dense, table-driven, drag-drop for scheduling.
-- **Per-tournament theming**: each tournament site adopts the organizer's logo, colors, and editorial content. Layout and components stay consistent — only the skin changes.
+- **Per-event theming**: each event site adopts the organizer's logo, colors, and editorial content. Layout and components stay consistent — only the skin changes.
 - **Internationalization**: English at launch, French in v1.1. HEMA terminology requires native review (referee role names stay in French).
 
 ---
@@ -160,7 +160,7 @@ It is designed around three convictions:
 - **Native mobile apps**: web PWAs only. May follow later.
 - **HEMA Ratings push API**: not available. Manual submission via export for v1.
 - **Frozen results state**: post-publish edits to exchanges require super-admin approval to prevent ranking manipulation.
-- **Federation with other tournament platforms**: import from hemaScorecard exports is a v2 nice-to-have.
+- **Federation with other event platforms**: import from hemaScorecard exports is a v2 nice-to-have.
 - **Crowd judging / spectator scoring**: out of scope; would be entertainment-only and never authoritative.
 
 ---

@@ -102,7 +102,7 @@ At your registrar's DNS panel, add **A records**:
 | `scoring.myclash.fr` | A | `<VPS-IP>` | 300 |
 | `www.myclash.fr` | CNAME | `myclash.fr` | 300 |
 
-If you anticipate per-tournament subdomains later (`fal2026.myclash.fr`), also add a wildcard A record: `*` → `<VPS-IP>`.
+If you anticipate per-event subdomains later (`fal2026.myclash.fr`), also add a wildcard A record: `*` → `<VPS-IP>`.
 
 ### ☐ 9. Verify DNS propagation
 From your Windows machine:
@@ -181,17 +181,7 @@ Goes into `POSTGRES_PASSWORD`.
 
 ## Phase 6 — First deploy (Day 3–4, ~1h)
 
-### ☐ 17. Configure local `.env.deploy` on Windows
-In `F:\Github Repo\MyClash\.env.deploy` (gitignored):
-```
-DEPLOY_HOST=myclash.fr
-DEPLOY_USER=deploy
-DEPLOY_SSH_KEY_PATH=~/.ssh/myclash_ed25519
-DEPLOY_REPO_PATH=/srv/myclash
-DEPLOY_SMOKE_URL=https://api.myclash.fr/health
-```
-
-### ☐ 18. Manually clone the repo on the VPS (one-time)
+### ☐ 17. Clone the repo on the VPS (one-time)
 ```bash
 ssh deploy@myclash.fr
 sudo mkdir -p /srv/myclash && sudo chown deploy:deploy /srv/myclash
@@ -200,61 +190,61 @@ git clone git@github.com:<your-username>/MyClash.git .
 # (using the deploy key you generated in step 2)
 ```
 
-### ☐ 19. Create `.env` on the VPS
+### ☐ 18. Create `.env` on the VPS
 ```bash
 cp .env.example .env
 nano .env
 # Fill in:
-#   - DOMAIN=myclash.fr
+#   - DOMAIN=myclash.fr   (compose computes app./admin./api./scoring. itself)
 #   - LETSENCRYPT_EMAIL=webmaster@myclash.fr  (or your address)
 #   - POSTGRES_PASSWORD=<from step 15>
 #   - SUPABASE_JWT_SECRET=<from step 14>
 #   - SUPABASE_REALTIME_SECRET=<from step 14>
+#   - MYCLASH_GUEST_JWT_SECRET=<from step 15>
 #   - SMTP_HOST/USER/PASS=<from step 10>
-#   - GOOGLE_OAUTH_*=<from step 11, if used>
 ```
 
-### ☐ 20. **Deploy with staging certs first**
-This avoids burning Let's Encrypt rate limits if something's broken:
-```powershell
-# from your Windows machine, in F:\Github Repo\MyClash
-pnpm deploy:prod -- --dev-certs
+### ☐ 19. **Deploy with staging certs first**
+Avoids burning Let's Encrypt rate limits if something's broken. Run this **on the VPS**:
+```bash
+ssh deploy@myclash.fr
+cd /srv/myclash
+bash infra/scripts/deploy.sh --dev-certs
 ```
-- TLS will use Let's Encrypt staging (cert won't be trusted by browsers — that's fine, just confirms the flow works).
+- TLS will use Let's Encrypt staging (cert won't be trusted by browsers — fine, just confirms the flow works).
 - Watch the streamed output for errors.
 - If something breaks, fix and re-run. The staging endpoint allows 30,000 requests/hour vs. production's 5/hour for failures.
 
-### ☐ 21. Verify all services healthy
-```powershell
-# Run the status script remotely
-ssh deploy@myclash.fr "cd /srv/myclash && bash infra/scripts/status.sh"
+### ☐ 20. Verify all services healthy
+On the VPS (still SSH'd in):
+```bash
+bash infra/scripts/status.sh
 ```
 All services should show `healthy` or `running`. If any are red, check logs.
 
-### ☐ 22. **Switch to production certs**
+### ☐ 21. **Switch to production certs**
 Once staging works:
-```powershell
+```bash
 # Wipe staging acme.json and re-deploy with prod certs
-ssh deploy@myclash.fr "cd /srv/myclash && rm -f data/traefik/acme.json && touch data/traefik/acme.json && chmod 600 data/traefik/acme.json"
-pnpm deploy:prod
+rm -f data/traefik/acme.json && touch data/traefik/acme.json && chmod 600 data/traefik/acme.json
+bash infra/scripts/deploy.sh
 ```
-Wait ~30 seconds for Traefik to issue real certificates. Then:
-```powershell
+Wait ~30 seconds for Traefik to issue real certificates. Then from your laptop:
+```
 curl -I https://myclash.fr
+curl -I https://app.myclash.fr
 curl -I https://api.myclash.fr/health
 curl -I https://admin.myclash.fr
 curl -I https://scoring.myclash.fr
 ```
 All should return `HTTP/2 200`.
 
-### ☐ 23. **Test the restore drill** (yes, before real users)
+### ☐ 22. **Test the restore drill** (yes, before real users)
 This is the most important pre-launch step. Without testing restore, your backups are theoretical.
-```powershell
-# Trigger a backup
-ssh deploy@myclash.fr "cd /srv/myclash && bash infra/scripts/backup.sh"
-
-# Verify backup file exists and is non-empty
-ssh deploy@myclash.fr "ls -lh /srv/myclash/backups/nightly/"
+```bash
+# On the VPS:
+bash infra/scripts/backup.sh
+ls -lh /srv/myclash/backups/nightly/
 
 # Optional but recommended: stand up a throwaway VM, copy the backup, run restore.sh against it
 ```
@@ -263,31 +253,31 @@ ssh deploy@myclash.fr "ls -lh /srv/myclash/backups/nightly/"
 
 ## Phase 7 — Pre-launch validation (Week before beta event)
 
-### ☐ 24. Run `pnpm deploy:prod` end-to-end with no errors
+### ☐ 23. Run `bash infra/scripts/deploy.sh` end-to-end with no errors
 Three times in a row, on three different days. Catches "works the first time then mysteriously breaks" issues.
 
-### ☐ 25. Test rollback
-```powershell
+### ☐ 24. Test rollback
+```bash
 # After making a small intentional change and deploying:
-pnpm rollback:prod
+bash infra/scripts/rollback.sh
 # Confirm services come back on the previous commit.
 ```
 
-### ☐ 26. Push notification end-to-end test
+### ☐ 25. Push notification end-to-end test
 - Visit `https://myclash.fr` on a phone, log in, accept push notification permission.
 - From admin or via API, send a test notification.
 - Confirm it arrives within 5 seconds.
 
-### ☐ 27. Tablet wifi-loss test
+### ☐ 26. Tablet wifi-loss test
 - Pair a tablet to the scoring app on venue wifi (or simulate with your phone hotspot).
 - Disable wifi mid-match, enter 5 exchanges.
 - Re-enable wifi.
 - Confirm exchanges sync and appear in the public app.
 
-### ☐ 28. Print paper scoresheets
+### ☐ 27. Print paper scoresheets
 Always have an analog fallback. See O-209 in OWNER_TASKS.md.
 
-### ☐ 29. Verify backup-then-restore drill on a throwaway VM
+### ☐ 28. Verify backup-then-restore drill on a throwaway VM
 - Spin up a fresh VPS (Hetzner CX11, €4/month, terminate after).
 - Copy a real backup over.
 - Run `infra/scripts/restore.sh <backup>`.
@@ -302,7 +292,7 @@ These can wait until specific phases:
 
 - **HEMA Ratings outreach** — wait until P11 (T-1101).
 - **Privacy policy / ToS** — wait until pre-beta (week before P15).
-- **Beta tournament partner** — confirm by P10, but informal commitment now is fine.
+- **Beta event partner** — confirm by P10, but informal commitment now is fine.
 - **Branding / logo design** — wait until P6 (theming work begins).
 - **French translations** — wait until P14.
 - **Discord community channel** — wait until public launch.

@@ -104,13 +104,49 @@
 - **Dep**: T-007, T-003
 - **Owner**: needs O-006 (SMTP for magic links). **Google OAuth (O-008) deferred — not in v1.**
 - **Goal**: A user can request a magic link to claim a Person profile, receive the link by email, click it, and become a Claimed account. Organizers can also log in via magic link to access the admin app.
-- **Files**: `apps/web-admin/app/login/**`, `apps/web-public/app/t/[slug]/claim/**`, `apps/api/src/modules/auth/**`.
+- **Files**: `apps/web-admin/app/login/**`, `apps/web-public/app/e/[eventSlug]/claim/**`, `apps/api/src/modules/auth/**`.
 - **AC**:
   - Organizer login at `/login` (admin app) → magic link to email → click → JWT cookie set, lands on org dashboard.
-  - Person claim at `/t/<slug>/claim?personId=...` (public app) → magic link to person.email → click → `persons.claim_status` becomes `'claimed'`, `claimed_by_user_id` set.
+  - Person claim at `/e/<eventSlug>/claim?personId=...` (public app) → magic link to person.email → click → `persons.claim_status` becomes `'claimed'`, `claimed_by_user_id` set.
   - Magic link emails go through Resend (or other SMTP from O-006).
   - API `/api/v1/me` returns either `{ type: 'claimed', user, person? }` or `{ type: 'guest', person }` or `{ type: 'anonymous' }`.
   - Rate limiting on magic link requests: 3 per hour per email + 10 per hour per IP.
+
+### T-009b · Organizer signup (open self-service, named org)
+- **Dep**: T-009
+- **Goal**: Anyone can self-sign-up as a event organizer via the admin app. Magic link OR email + password. **Organizer must name their organization at signup** (no auto-creation).
+- **Files**: `apps/web-admin/app/signup/**`, `apps/api/src/modules/auth/signup.controller.ts`, `apps/api/src/modules/organizations/onboarding.service.ts`.
+- **AC**:
+  - `/signup` form is a **two-step** flow (single-page with progressive disclosure):
+    1. **Account**: email + display name. Two paths: "Continue with magic link" or "Continue with password" (with confirm field).
+    2. **Organization**: organization name + slug (auto-suggested from name, editable). Must be unique. Tooltip explains: "This is the public name people will see when browsing your events. You can change it later in settings."
+  - Submission of step 2 is what triggers account creation. Step 1 alone does nothing server-side — the user can back out without leaving an orphan account.
+  - Email + password path: account created in `auth.users` with `email_confirmed_at = NULL`; verification email sent; user must verify before creating any event (org dashboard shows a banner until verified).
+  - Magic link path: account is implicitly verified on first link click.
+  - On successful submission, atomically:
+    - Insert `auth.users` (handled by Supabase).
+    - Insert `organizations` row with the user-provided `name`, `slug` (collision-checked client-side, server-validated), `status = 'active'`.
+    - Insert `organization_members` with `role = 'owner'`.
+  - First login lands on `/org/<slug>` org dashboard with empty state, prompting "Create your first event".
+  - Slug uniqueness validation is real-time (debounced 300ms) on the form, with green checkmark / red error.
+  - Reserved slugs blocked: `admin`, `api`, `app`, `www`, `myclash`, `super`, `staff`, plus a config list for future additions.
+  - Rate limit: 5 signups per hour per IP.
+
+### T-009c · Super admin organization management
+- **Dep**: T-009b
+- **Goal**: Super admin dashboard for managing organizer accounts.
+- **Files**: `apps/web-admin/app/admin/organizations/**`, `apps/api/src/modules/admin/organizations.controller.ts`.
+- **AC**:
+  - List view at `/admin/organizations` with: org name, owner email, member count, event count, status, last activity, created_at. Sortable, filterable.
+  - Detail view at `/admin/organizations/[id]` with: members, events, recent audit log entries.
+  - Actions (each with confirmation prompt):
+    - **Suspend** → `organizations.status = 'suspended'`, all events become read-only-public, members blocked from mutations. Reversible.
+    - **Reactivate** → `status = 'active'`.
+    - **Delete (hard)** → cascades to events; preserves global Fighter profiles and claimed Persons by reattaching to a `<deleted>` placeholder org. Logs to audit_log.
+    - **Promote member to super_admin** → inserts `platform_roles.role = 'super_admin'` for the chosen user.
+    - **Reassign ownership** → if `owner` is unreachable, super admin picks another member to become owner.
+  - Suspended-org behavior tested end-to-end: a member of a suspended org cannot create events, edit registrations, or score matches; they can still log in and view existing data read-only.
+  - All actions appear in `audit_log` with actor, action, target, and timestamp.
 
 ---
 
@@ -211,14 +247,14 @@
   - Idempotent: re-running on an already-provisioned host is a no-op.
   - Tested on a fresh OVH VPS Ubuntu 24.04 image.
 
-### T-056 · `infra/scripts/deploy.sh` (server-side)
+### T-056 · `infra/scripts/deploy.sh` (the primary deploy mechanism)
 - **Dep**: T-052, T-054, T-055
-- **Goal**: The script the VPS runs to update itself. Mirrors MyFAL's `deploy.sh` structure but adds Postgres backup, Drizzle migrations, and rollback metadata.
+- **Goal**: The canonical deploy script. Runs on the VPS. **This is how MyClash is deployed in v1 — directly from the VPS, manually, by the owner.** The cross-platform Windows wrapper (T-060) is optional convenience only.
 - **Files**: `infra/scripts/deploy.sh` (reference implementation already drafted in repo).
 - **AC**:
   - Sources `lib/log.sh`.
   - Acquires `flock` on `.deploy.lock` — concurrent deploys impossible.
-  - Validates `.env` (must define `ROOT_DOMAIN`, `ACME_EMAIL`, `POSTGRES_PASSWORD`).
+  - Validates `.env` (must define `DOMAIN`, `LETSENCRYPT_EMAIL`, `POSTGRES_PASSWORD`).
   - Auto-generates VAPID keys if missing.
   - Stamps `VERSION` into service-worker cache names.
   - Pre-deploy: `pg_dump` to `backups/pre-deploy/<timestamp>.sql.gz`.
@@ -226,9 +262,10 @@
   - `docker compose build` then runs migrations (`docker compose run --rm api pnpm --filter @myclash/db migrate`).
   - **Migration failure → script exits non-zero, `up` is not called, old containers continue running.**
   - On success: `docker compose up -d`, wait for healthchecks (20×3s per service).
-  - Smoke test via `curl https://api.${ROOT_DOMAIN}/health`.
+  - Smoke test via `curl https://api.${DOMAIN}/health`.
   - Records `.last-deploy.json` with `previousCommit`, `deployedCommit`, `deployedAt`, `deployedBy`, `backupFile`.
   - `--dev-certs`, `--skip-backup`, `--skip-migrations` flags supported (last two are dev-only, never used in prod).
+  - **Standard owner invocation**: `ssh deploy@myclash.fr`, then `cd /srv/myclash && bash infra/scripts/deploy.sh`.
 
 ### T-057 · `infra/scripts/rollback.sh`
 - **Dep**: T-056
@@ -274,11 +311,12 @@
   - `restore.sh <file>` confirms, decrypts if needed, drops & recreates DB, restores.
   - **Restore drill performed at least once before P15** (the beta event). Documented in RUNBOOK.
 
-### T-060 · `scripts/deploy.ts` cross-platform wrapper
+### T-060 · `scripts/deploy.ts` cross-platform wrapper — OPTIONAL / deferred
 - **Dep**: T-056
-- **Goal**: One-command deploy from the owner's Windows machine: `pnpm deploy:prod`.
-- **Files**: `scripts/deploy.ts` (reference implementation already drafted), `.env.deploy.example`, `package.json` script.
-- **AC**:
+- **Status**: **Skip for v1.** The owner deploys directly from the VPS via SSH (T-056). The Windows wrapper is convenience for occasional one-off pushes from the owner's laptop and can be implemented later if needed.
+- **Goal** (when implemented): One-command deploy from the owner's Windows machine: `pnpm deploy:prod`.
+- **Files**: `scripts/deploy.ts` (reference implementation already drafted in repo as a starting point), `.env.deploy.example`, `package.json` script.
+- **AC** (when implemented):
   - Reads `.env.deploy` (gitignored) for `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY_PATH`, `DEPLOY_REPO_PATH`, `DEPLOY_SMOKE_URL`.
   - SSHes to the VPS and invokes `cd <repo> && bash infra/scripts/deploy.sh <args>`.
   - Streams output back live.
@@ -286,6 +324,7 @@
   - `--dry-run` prints the command without executing.
   - Works in Windows PowerShell, macOS Terminal, and Linux shells without modification.
   - `pnpm rollback:prod` is the analogous wrapper for `infra/scripts/rollback.sh`.
+- **Why deferred**: Adds Node SSH dependency (`ssh2` or shell-out), needs `.env.deploy` setup on the dev machine, and fails opaquely when SSH config is wrong. Direct VPS deploy via `ssh + bash deploy.sh` is one extra command and far simpler to debug. The Node wrapper file stays in the repo as a reference, but is not wired up.
 
 ### T-061 · Health & version endpoints
 - **Dep**: T-054
@@ -314,8 +353,8 @@
 - **Goal**: Postgres RLS enabled on every user-data table with policies for read/write per role.
 - **Files**: `packages/db/migrations/0002_rls.sql`.
 - **AC**:
-  - Anonymous role can SELECT only published tournaments and their public children.
-  - `organization_member` with `role='admin'` can SELECT/UPDATE only their org's tournaments.
+  - Anonymous role can SELECT only published events and their public children.
+  - `organization_member` with `role='admin'` can SELECT/UPDATE only their org's events.
   - `super_admin` bypasses (via `auth.jwt() ->> 'role' = 'super_admin'`).
   - Test suite `packages/db/test/rls.test.ts` proves at least 10 cross-tenant leak attempts fail.
 
@@ -329,14 +368,14 @@
 
 ### T-104 · Persons CRUD + CSV import (the organizer roster)
 - **Dep**: T-101
-- **Goal**: NestJS `persons` module — manual create, edit, delete, list per tournament; CSV import with structured report.
+- **Goal**: NestJS `persons` module — manual create, edit, delete, list per event; CSV import with structured report.
 - **Files**: `apps/api/src/modules/persons/**`, `packages/types/persons.ts`.
 - **AC**:
   - All endpoints from §14 work.
-  - CSV import validates: required columns (`given_name`, `family_name`, `email`), email format, unique within tournament.
+  - CSV import validates: required columns (`given_name`, `family_name`, `email`), email format, unique within event.
   - Fuzzy club matching on `clubs.name` using `pg_trgm`; new clubs created with `unverified=true`.
   - Returns the structured report shape from §12.8 (created / updated / duplicates / invalid / new_clubs_for_review).
-  - Email match on `(tournament_id, lower(email))` for the unique constraint.
+  - Email match on `(event_id, lower(email))` for the unique constraint.
   - CSV parsing handles BOM, quoted commas, accented characters.
   - Test: import a 100-row CSV with 3 invalid rows, 5 duplicates, 2 new clubs → exactly that report.
 
@@ -345,11 +384,11 @@
 - **Goal**: Public endpoint that participants hit when typing their name on the onboarding screen.
 - **Files**: `apps/api/src/modules/persons/lookup.controller.ts`, migration adding `pg_trgm` indexes.
 - **AC**:
-  - `GET /tournaments/:id/persons/lookup?q=...` returns `[{ id, given_name, family_name, club_label, masked_email }]`.
+  - `GET /events/:id/persons/lookup?q=...` returns `[{ id, given_name, family_name, club_label, masked_email }]`.
   - Search uses `pg_trgm` similarity on `unaccent(given_name)` and `unaccent(family_name)`, threshold 0.3.
   - Returns max 10 matches, sorted by similarity desc.
   - Email is masked: `j***@g***.com`.
-  - Rate limited: 30 req/min per IP, 200 req/min per tournament.
+  - Rate limited: 30 req/min per IP, 200 req/min per event.
   - Test: query "jean" returns "Jean Dupont", "Jéan Martin", "Jean-Pierre Lambert" but not "Marie Dupont".
 
 ### T-104c · Guest session module
@@ -357,11 +396,11 @@
 - **Goal**: Create / resolve / revoke guest sessions; signed cookie + DB row.
 - **Files**: `apps/api/src/modules/auth/guest-sessions.controller.ts`, `apps/api/src/modules/auth/guest-jwt.guard.ts`.
 - **AC**:
-  - `POST /tournaments/:id/guest-sessions` with `{ person_id }` → creates row, sets `mc_guest` httpOnly cookie, returns `{ person, session }`.
+  - `POST /events/:id/guest-sessions` with `{ person_id }` → creates row, sets `mc_guest` httpOnly cookie, returns `{ person, session }`.
   - JWT signed with `MYCLASH_GUEST_JWT_SECRET` (separate from Supabase secret).
   - `DELETE /guest-sessions/me` revokes (sets `revoked_at`) and clears cookie.
-  - Guest sessions expire at `tournament.end_date + 7 days`.
-  - Cookie attributes: `Secure`, `HttpOnly`, `SameSite=Lax`, scoped to the tournament's host.
+  - Guest sessions expire at `event.end_date + 7 days`.
+  - Cookie attributes: `Secure`, `HttpOnly`, `SameSite=Lax`, scoped to the event's host.
   - `@GuestSession()` decorator extracts the bound `person_id` for downstream guards.
   - Test: a guest session for Person A cannot perform any action where the request body or path implies Person B.
 
@@ -375,9 +414,9 @@
   - Neither → `{ type: 'anonymous' }`.
   - Both present → claimed wins; the guest cookie is cleared (consolidation).
 
-### T-104e · Fighters & Clubs API (cross-tournament identity)
+### T-104e · Fighters & Clubs API (cross-event identity)
 - **Dep**: T-104
-- **Goal**: NestJS modules `fighters` and `clubs` with full CRUD per ARCHITECTURE.md §14. Fighters are the cross-tournament aggregate; created lazily via `POST /fighters/:id/promote` from a claimed Person.
+- **Goal**: NestJS modules `fighters` and `clubs` with full CRUD per ARCHITECTURE.md §14. Fighters are the cross-event aggregate; created lazily via `POST /fighters/:id/promote` from a claimed Person.
 - **Files**: `apps/api/src/modules/fighters/**`, `apps/api/src/modules/clubs/**`.
 - **AC**:
   - All endpoints listed in §14 work.
@@ -388,12 +427,12 @@
 
 ### T-105 · Organizations & Tournaments API
 - **Dep**: T-104
-- **Goal**: Modules `organizations` and `tournaments` with CRUD.
+- **Goal**: Modules `organizations` and `events` with CRUD.
 - **Files**: `apps/api/src/modules/organizations/**`, `apps/api/src/modules/tournaments/**`.
 - **AC**:
   - `POST /organizations` creates with `status='pending_approval'`.
   - `POST /organizations/:id/approve` requires super_admin.
-  - Tournament create requires the user to be a member of the organization.
+  - Event create requires the user to be a member of the organization.
 
 ### T-106 · Lices, Events, Registrations API
 - **Dep**: T-105
@@ -562,12 +601,12 @@
 - **Files**: `packages/db/migrations/0003_realtime.sql`, `apps/api/src/modules/realtime/**`.
 - **AC**:
   - Subscribing to `match:{id}:exchanges` receives row changes within 1s.
-  - RLS prevents subscribers from seeing draft tournaments.
+  - RLS prevents subscribers from seeing draft events.
 
 ### T-405 · Public live match view
 - **Dep**: T-404, T-003
-- **Goal**: `/t/[slug]/match/[matchId]` shows live exchange feed + score.
-- **Files**: `apps/web-public/app/t/[slug]/match/[matchId]/**`.
+- **Goal**: `/e/[eventSlug]/match/[matchId]` shows live exchange feed + score.
+- **Files**: `apps/web-public/app/e/[eventSlug]/match/[matchId]/**`.
 - **AC**:
   - New exchange appears within 1s of entry.
   - Disconnect/reconnect resumes from current state.
@@ -631,10 +670,10 @@
   - 10+ shared components (Button, Card, Pill, ShieldBg, etc.) match the prototype's look.
   - Storybook (or similar) demos all components.
 
-### T-602 · Per-tournament theming engine
+### T-602 · Per-event theming engine
 - **Dep**: T-601, T-105
-- **Goal**: Themes table read at SSR for every `/t/[slug]/...` request; CSS variables injected.
-- **Files**: `apps/web-public/app/t/[slug]/layout.tsx`, `apps/web-public/src/theme/**`.
+- **Goal**: Themes table read at SSR for every `/e/[eventSlug]/...` request; CSS variables injected.
+- **Files**: `apps/web-public/app/e/[eventSlug]/layout.tsx`, `apps/web-public/src/theme/**`.
 - **AC**:
   - Custom primary/secondary/accent colors render.
   - Custom logo + hero image render.
@@ -642,8 +681,8 @@
 
 ### T-603 · Participant onboarding (name lookup → guest session)
 - **Dep**: T-602, T-104b, T-104c
-- **Goal**: Onboarding flow at `/t/[slug]/onboarding` — type your name, pick yourself from the list, optional persona selection, optionally request a magic link to claim.
-- **Files**: `apps/web-public/app/t/[slug]/onboarding/**`, `apps/web-public/src/components/PersonLookup.tsx`.
+- **Goal**: Onboarding flow at `/e/[eventSlug]/onboarding` — type your name, pick yourself from the list, optional persona selection, optionally request a magic link to claim.
+- **Files**: `apps/web-public/app/e/[eventSlug]/onboarding/**`, `apps/web-public/src/components/PersonLookup.tsx`.
 - **AC**:
   - Single text input with debounced (250ms) calls to `/persons/lookup`.
   - Match list shows: name, club name (visible), masked email.
@@ -657,17 +696,17 @@
 
 ### T-604 · Persona-aware home
 - **Dep**: T-603
-- **Goal**: `/t/[slug]/home` renders the appropriate home content per persona, matching the prototype's three home variants.
-- **Files**: `apps/web-public/app/t/[slug]/home/**`.
+- **Goal**: `/e/[eventSlug]/home` renders the appropriate home content per persona, matching the prototype's three home variants.
+- **Files**: `apps/web-public/app/e/[eventSlug]/home/**`.
 - **AC**:
   - Competitor home: my next match, today's parcours, my last results.
   - Accompanist home: favorites live, big matches.
-  - Public home: editorial, tournament intro, schedule highlights.
+  - Public home: editorial, event intro, schedule highlights.
 
 ### T-605 · Event detail + brackets + standings
 - **Dep**: T-604, T-305
 - **Goal**: Event page with pool tabs, bracket view, standings table.
-- **Files**: `apps/web-public/app/t/[slug]/events/[eventSlug]/**`.
+- **Files**: `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/**`.
 - **AC**:
   - Pool standings update live.
   - Bracket renders correctly for 8/16/32 fighter brackets.
@@ -675,16 +714,16 @@
 
 ### T-606 · Lice live view
 - **Dep**: T-405, T-602
-- **Goal**: `/t/[slug]/lice/[liceName]` shows currently playing match + queue.
-- **Files**: `apps/web-public/app/t/[slug]/lice/[liceName]/**`.
+- **Goal**: `/e/[eventSlug]/lice/[liceName]` shows currently playing match + queue.
+- **Files**: `apps/web-public/app/e/[eventSlug]/lice/[liceName]/**`.
 - **AC**:
   - Auto-updates when current match changes.
   - Mobile-optimized vertical layout.
 
 ### T-607 · Fighter & club pages
 - **Dep**: T-104, T-602
-- **Goal**: Profile pages for fighters and clubs (global and per-tournament context).
-- **Files**: `apps/web-public/app/fighters/[slug]/**`, `apps/web-public/app/t/[slug]/fighters/[fighterSlug]/**`, `apps/web-public/app/clubs/[slug]/**`.
+- **Goal**: Profile pages for fighters and clubs (global and per-event context).
+- **Files**: `apps/web-public/app/fighters/[slug]/**`, `apps/web-public/app/e/[eventSlug]/fighters/[fighterSlug]/**`, `apps/web-public/app/clubs/[slug]/**`.
 - **AC**:
   - Fighter page: bio, club, photo, current matches, history, HEMA Ratings (when synced).
   - Club page: members, recent results.
@@ -694,7 +733,7 @@
 - **Goal**: Backend endpoint that returns any Person's schedule, applying privacy filters per ARCHITECTURE.md §11quinquies.
 - **Files**: `apps/api/src/modules/persons/public-schedule.controller.ts`, `apps/api/src/modules/persons/privacy.service.ts`.
 - **AC**:
-  - `GET /tournaments/:id/people/:personId/schedule` returns `{ matches, referee_slots, workshops? }`.
+  - `GET /events/:id/people/:personId/schedule` returns `{ matches, referee_slots, workshops? }`.
   - `matches` and `referee_slots` are always included.
   - `workshops` are included by default; excluded only if `person_privacy.hide_workshops_publicly = true` AND the requester is not that same person (claimed user matching `personId`, or guest session bound to `personId`).
   - Email is never returned in this endpoint (use the masked field on `/people` endpoints if needed for display).
@@ -704,7 +743,7 @@
 ### T-609 · Person privacy preferences
 - **Dep**: T-104, T-009
 - **Goal**: Endpoints + UI for a claimed user to manage their own privacy preferences.
-- **Files**: `apps/api/src/modules/persons/privacy.controller.ts`, `apps/web-public/app/t/[slug]/profile/privacy/**`.
+- **Files**: `apps/api/src/modules/persons/privacy.controller.ts`, `apps/web-public/app/e/[eventSlug]/profile/privacy/**`.
 - **AC**:
   - `GET /persons/me/privacy` returns the row (auto-creates with defaults if missing).
   - `PATCH /persons/me/privacy` accepts `{ hide_workshops_publicly, allow_being_followed, show_real_email_to_followers }`.
@@ -724,8 +763,8 @@
 
 ### T-611 · People search + public profile UI
 - **Dep**: T-602, T-608, T-610
-- **Goal**: `/t/[slug]/people` search list and `/t/[slug]/people/[personId]` profile page.
-- **Files**: `apps/web-public/app/t/[slug]/people/**`.
+- **Goal**: `/e/[eventSlug]/people` search list and `/e/[eventSlug]/people/[personId]` profile page.
+- **Files**: `apps/web-public/app/e/[eventSlug]/people/**`.
 - **AC**:
   - Search: fuzzy name lookup with role/club filters, debounced 250ms.
   - Result rows show name, club, role badges (Competitor / Referee / Workshop lead), next event time.
@@ -738,10 +777,10 @@
 
 ### T-612 · Watchlist view
 - **Dep**: T-610, T-611
-- **Goal**: `/t/[slug]/following` — list of followed Persons with live state, sorted by upcoming time.
-- **Files**: `apps/web-public/app/t/[slug]/following/**`.
+- **Goal**: `/e/[eventSlug]/following` — list of followed Persons with live state, sorted by upcoming time.
+- **Files**: `apps/web-public/app/e/[eventSlug]/following/**`.
 - **AC**:
-  - Subscribed to `tournament:{id}` realtime channel — live state updates push without refresh.
+  - Subscribed to `event:{id}` realtime channel — live state updates push without refresh.
   - Each row shows: avatar, name, club, current state badge (`Live now (Lice 2)` / `Next: Pool A · 11:15` / `Done`).
   - "Just won 7-3" sticky for 5 minutes after match end.
   - Empty state: "Find people to follow on the People page."
@@ -762,12 +801,12 @@
 
 ## Phase P7 — Admin App
 
-### T-701 · Org dashboard + tournament wizard
+### T-701 · Org dashboard + event wizard
 - **Dep**: T-105
-- **Goal**: `/org/[orgSlug]` dashboard, "New Tournament" 4-step wizard.
-- **Files**: `apps/web-admin/app/org/[orgSlug]/**`, `apps/web-admin/app/org/[orgSlug]/tournaments/new/**`.
+- **Goal**: `/org/[orgSlug]` dashboard, "New Event" 4-step wizard.
+- **Files**: `apps/web-admin/app/org/[orgSlug]/**`, `apps/web-admin/app/org/[orgSlug]/events/new/**`.
 - **AC**:
-  - Wizard creates tournament, default lices, draft theme.
+  - Wizard creates event, default lices, draft theme.
   - Validation on each step.
   - Cancel returns to dashboard with no orphans.
 
@@ -782,7 +821,7 @@
 
 ### T-703 · Persons + registration management
 - **Dep**: T-104, T-104e
-- **Goal**: Admin pages for managing the tournament Persons roster and per-event registrations.
+- **Goal**: Admin pages for managing the event Persons roster and per-event registrations.
 - **Files**: `apps/web-admin/app/.../persons/**`, `apps/web-admin/app/.../events/[eventId]/registrations/**`.
 - **AC**:
   - Persons list with search, filter (role, club, claim_status), bulk actions.
@@ -843,8 +882,8 @@
 
 ### T-803 · Workshop public catalog
 - **Dep**: T-602, T-801
-- **Goal**: `/t/[slug]/workshops` list + `/t/[slug]/workshops/[workshopSlug]` detail.
-- **Files**: `apps/web-public/app/t/[slug]/workshops/**`.
+- **Goal**: `/e/[eventSlug]/workshops` list + `/e/[eventSlug]/w/[workshopSlug]` detail.
+- **Files**: `apps/web-public/app/e/[eventSlug]/workshops/**`.
 - **AC**:
   - Filters: day, category, level, language, instructor.
   - Detail page shows sessions, capacity status, "Add to my schedule" button.
@@ -861,8 +900,8 @@
 
 ### T-805 · "My Schedule" — unified view
 - **Dep**: T-802, T-403, T-901 *(referee qualifications and assignments)*
-- **Goal**: `/t/[slug]/my-schedule` — combined matches + refereeing + workshops with conflict markers.
-- **Files**: `apps/api/src/modules/schedule/my-schedule.controller.ts`, `apps/web-public/app/t/[slug]/my-schedule/**`.
+- **Goal**: `/e/[eventSlug]/my-schedule` — combined matches + refereeing + workshops with conflict markers.
+- **Files**: `apps/api/src/modules/schedule/my-schedule.controller.ts`, `apps/web-public/app/e/[eventSlug]/my-schedule/**`.
 - **AC**:
   - Day filter (Sat/Sun).
   - Conflicts visually flagged (red border, "Conflicts with L1-P3-M5").
@@ -876,21 +915,21 @@
 
 ### T-901 · Referee qualifications API
 - **Dep**: T-101, T-105
-- **Goal**: NestJS module `referees` with CRUD on `referee_qualifications` (per-tournament role + rating).
+- **Goal**: NestJS module `referees` with CRUD on `referee_qualifications` (per-event role + rating).
 - **Files**: `apps/api/src/modules/referees/qualifications.controller.ts`, `apps/api/src/modules/referees/qualifications.service.ts`.
 - **AC**:
   - Create/update/delete qualifications.
-  - A user can have 0..3 active qualifications per tournament (one per role: `arbitre_declarant`, `arbitre_assesseur`, `arbitre_table`).
+  - A user can have 0..3 active qualifications per event (one per role: `arbitre_declarant`, `arbitre_assesseur`, `arbitre_table`).
   - Rating is 1..5 or null.
   - Soft delete via `active=false` preserves history.
 
 ### T-902 · Pool assignment settings API
 - **Dep**: T-101, T-105
-- **Goal**: CRUD for `pool_assignment_settings` (per-tournament with optional per-event overrides).
+- **Goal**: CRUD for `pool_assignment_settings` (per-event with optional per-event overrides).
 - **Files**: `apps/api/src/modules/referees/settings.controller.ts`.
 - **AC**:
-  - Default settings created on tournament creation.
-  - Per-event override resolves correctly (event setting wins, else tournament default).
+  - Default settings created on event creation.
+  - Per-tournament override resolves correctly (tournament setting wins, else event default).
   - Validation: `enforce_fighter_referee_no_overlap` cannot be set to false.
 
 ### T-903 · Referee auto-assignment engine
@@ -961,8 +1000,8 @@
 
 ### T-909 · Referee dashboard (public app)
 - **Dep**: T-901, T-805
-- **Goal**: `/t/[slug]/referee` — when user has referee role, show their assigned pools/matches/roles.
-- **Files**: `apps/web-public/app/t/[slug]/referee/**`.
+- **Goal**: `/e/[eventSlug]/referee` — when user has referee role, show their assigned pools/matches/roles.
+- **Files**: `apps/web-public/app/e/[eventSlug]/referee/**`.
 - **AC**:
   - Shows assigned pools (with role) and matches.
   - Confirm/decline buttons per assignment.
@@ -970,8 +1009,8 @@
 
 ### T-910 · On-piste referee tools (lite v1)
 - **Dep**: T-402
-- **Goal**: `/t/[slug]/referee/match/[matchId]` — referee can call halt/resume, issue warnings, request scorekeeper attention.
-- **Files**: `apps/web-public/app/t/[slug]/referee/match/[matchId]/**`.
+- **Goal**: `/e/[eventSlug]/referee/match/[matchId]` — referee can call halt/resume, issue warnings, request scorekeeper attention.
+- **Files**: `apps/web-public/app/e/[eventSlug]/referee/match/[matchId]/**`.
 - **AC**:
   - Halt/resume creates `match_events` rows.
   - Warning recorded with target fighter and reason.
@@ -1001,7 +1040,7 @@
 ### T-1003 · Stats page UI (public)
 - **Dep**: T-1002, T-602
 - **Goal**: Reproduce `https://lyonamhe.fr/resultat_fal2026.html` layout.
-- **Files**: `apps/web-public/app/t/[slug]/events/[eventSlug]/stats/**`.
+- **Files**: `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/stats/**`.
 - **AC**:
   - All charts present: distribution of exchanges, target zones, double-rate evolution, top 5 deep target hunters.
   - Per-fighter detailed table renders correctly.
@@ -1119,7 +1158,7 @@
 - **Goal**: Once results published, post-publish edits to exchanges require super_admin approval.
 - **Files**: `apps/api/src/modules/matches/frozen-results.guard.ts`.
 - **AC**:
-  - Published tournament: organizer edit requests go to a "pending review" queue.
+  - Published event: organizer edit requests go to a "pending review" queue.
   - Super admin approves/rejects.
   - Rejection notifies the requester with reason.
 
@@ -1149,7 +1188,7 @@
 - **Goal**: Axe checks clean on critical user flows.
 - **Files**: `tests/a11y/**`.
 - **AC**:
-  - 0 critical Axe violations on: onboarding, my-schedule, scoring screen, event page, admin tournament wizard.
+  - 0 critical Axe violations on: onboarding, my-schedule, scoring screen, event page, admin event wizard.
   - Keyboard navigation works on all interactive components.
 
 ### T-1404 · Performance pass
@@ -1168,16 +1207,16 @@
 ### T-1501 · Pre-event dry-run
 - **Dep**: all
 - **Owner**: **needs O-201–O-206** (privacy policy, monitoring, backups, real-device tests, tablet provisioning, communications).
-- **Goal**: Run a fake tournament end-to-end on staging.
+- **Goal**: Run a fake event end-to-end on staging.
 - **AC**:
-  - Create org → tournament → events → registrations → pools → bracket → score 50 matches → publish.
+  - Create org → event → tournaments → registrations → pools → bracket → score 50 matches → publish.
   - All exports generated.
   - No critical bugs.
 
 ### T-1502 · Run a real event
 - **Dep**: T-1501
 - **Owner**: **needs O-104** (beta partner confirmed) and **O-301–O-303** (on-site presence on the day).
-- **Goal**: Use MyClash for a real HEMA tournament (target: a Lyon AMHE event or partner club).
+- **Goal**: Use MyClash for a real HEMA event (target: a Lyon AMHE event or partner club).
 - **AC**:
   - Event completed without falling back to spreadsheets.
   - Post-event retro documented.

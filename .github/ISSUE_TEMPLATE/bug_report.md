@@ -18,7 +18,7 @@ labels: bug
 
 - Surface: <!-- public app / scoring app / admin / api -->
 - Browser/device:
-- Tournament slug (if applicable):
+- Event slug (if applicable):
 
 ## Logs / screenshots
 

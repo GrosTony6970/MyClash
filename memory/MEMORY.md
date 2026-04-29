@@ -11,7 +11,7 @@
 ## Project identity
 
 - **Name**: MyClash
-- **Mission**: Free, open-source platform for HEMA (Historical European Martial Arts) tournament management and result publication.
+- **Mission**: Free, open-source platform for HEMA (Historical European Martial Arts) event management and result publication.
 - **License**: AGPL-3.0
 - **Owner**: Project author (a HEMA practitioner / Solution Architect, based in Bessenay, FR; affiliated with Lyon AMHE).
 - **Local repo path** (Windows, owner's machine): `F:\Github Repo\MyClash`
@@ -22,6 +22,20 @@
 - **Reference live beta** (companion app for Lyon AMHE's "Fosse aux Lions"): `https://myfal.lyonamhe.fr/` — confirms personas, "My Schedule" UX, push notifications.
 - **Reference prior art**: hemaScorecard (https://github.com/SeanFranklin/hemaScorecard) — MyClash is *not* a clone; key differentiators in `myclash.md`.
 - **Reference deployment pattern**: `https://github.com/GrosTony6970/MyFAL` — owner's existing OVH VPS deployment to reuse where possible.
+
+## Hierarchy & terminology (CRITICAL — see docs/HIERARCHY.md)
+
+```
+Organization → Event → Tournament → Phase → Match → Exchange
+                  └── Workshop
+```
+
+- **Event** = the gathering (FAL 2026, Swordfish 2027). Has venue, dates, roster.
+- **Tournament** = a competition within an event (Longsword Open). One weapon, one ruleset.
+- **Workshop** = a teaching session within an event.
+- Persons + Workshops are scoped to an Event. Registrations + Phases + Matches are scoped to a Tournament.
+- Public app URLs: `app.myclash.fr/e/<event-slug>/t/<tournament-slug>`.
+- Pre-v1.4 docs may use the old terminology where "Tournament" was the gathering — `docs/HIERARCHY.md` is authoritative; if anything conflicts with it, the HIERARCHY doc wins.
 
 ## Repo layout
 
@@ -81,7 +95,7 @@ Three identity states:
 
 Key invariants:
 - Only the organizer creates Persons. Participants cannot self-register.
-- Person uniqueness within a tournament: `(tournament_id, lower(email))`.
+- Person uniqueness within an event: `(event_id, lower(email))`.
 - Guest sessions sign with `MYCLASH_GUEST_JWT_SECRET`, distinct from Supabase secret. They can never escalate to Supabase tokens.
 - `persons.claim_status` is one of: `unclaimed`, `guest_active`, `claimed`.
 - The lookup endpoint masks email (`j***@g***.com`) and is rate-limited per IP.
@@ -99,7 +113,7 @@ Returns structured report with created/updated/duplicates/invalid/new_clubs.
 Anyone can search for any participant and view their public profile (schedule, results). Follows form a private "watchlist."
 
 Privacy defaults:
-- **Match schedule** + **referee assignments** + **workshop enrollments** are all public by default (they're part of the tournament's shared experience).
+- **Match schedule** + **referee assignments** + **workshop enrollments** are all public by default (they're part of the event's shared experience).
 - **Email** is always masked publicly.
 - A Person can opt out per category: `hide_workshops_publicly`, `allow_being_followed`.
 
@@ -108,7 +122,7 @@ Follow tiers:
 - Guest → server-stored, this device, no push.
 - Claimed → server-stored, cross-device, push notifications when followed person's match starts (default 10 min lead, configurable per follow).
 
-Follows are tournament-scoped (not global). The "watchlist view" at `/t/<slug>/following` shows live state for all followed Persons.
+Follows are event-scoped (not global). The "watchlist view" at `/e/<eventSlug>/following` shows live state for all followed Persons.
 
 ## Architecture quick reference
 
@@ -147,12 +161,12 @@ Follows are tournament-scoped (not global). The "watchlist view" at `/t/<slug>/f
 ## Personas (non-exclusive — a user can be several at once)
 
 - **Competitor** — registered to fight in events
-- **Referee** — qualified for one or more roles in this tournament
+- **Referee** — qualified for one or more roles in this event
 - **Workshop attendee** — enrolled in workshop sessions
 - **Scorekeeper** — assigned to a Lice, records exchanges
 - **Accompanist** — follows favorite fighters, no direct involvement
 - **Public** — anonymous spectator
-- **Organizer** — manages a tournament (admin app)
+- **Organizer** — manages an event with one or more tournaments inside it (admin app)
 - **Super admin** — platform-level (the project owner)
 
 The unified **My Schedule** view aggregates all of a user's commitments and surfaces conflicts.
