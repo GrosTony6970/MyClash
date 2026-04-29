@@ -3,6 +3,7 @@
 # Local development stack.
 # - Traefik with self-signed TLS for *.myclash.localhost
 # - Postgres + Redis (data services)
+# - Supabase: Auth (GoTrue), REST (PostgREST), Realtime, Storage, Kong gateway
 # - All three Next.js apps + NestJS API (built from source)
 #
 # Prerequisites:
@@ -19,11 +20,16 @@
 #   docker compose --env-file .env -f infra/docker-compose.dev.yml down
 #
 # Local URLs (after up):
-#   https://myclash.localhost        → web-public  (port 3000 inside)
-#   https://admin.myclash.localhost  → web-admin   (port 3000 inside)
-#   https://scoring.myclash.localhost → web-scoring (port 3000 inside)
-#   https://api.myclash.localhost    → NestJS API  (port 4000 inside)
-#   http://localhost:8080            → Traefik dashboard (dev only)
+#   https://myclash.localhost              → web-public  (port 3000 inside)
+#   https://admin.myclash.localhost        → web-admin   (port 3000 inside)
+#   https://scoring.myclash.localhost      → web-scoring (port 3000 inside)
+#   https://api.myclash.localhost          → NestJS API  (port 4000 inside)
+#   https://api.myclash.localhost/auth/v1/ → Supabase Auth (GoTrue)
+#   https://api.myclash.localhost/rest/v1/ → Supabase REST (PostgREST)
+#   https://api.myclash.localhost/realtime/v1/ → Supabase Realtime
+#   https://api.myclash.localhost/storage/v1/  → Supabase Storage
+#   http://localhost:8000                  → Kong direct (dev only)
+#   http://localhost:8080                  → Traefik dashboard (dev only)
 #
 # Note: Browser will show a TLS warning for the self-signed cert.
 # Click "Advanced → Proceed" once per hostname, or add the Traefik
@@ -86,6 +92,140 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks: [myclash-dev]
+
+  # ── Supabase Kong (API gateway) ──────────────────────────────────
+  # Routes /auth/v1/*, /rest/v1/*, /realtime/v1/*, /storage/v1/* to the
+  # appropriate Supabase services. Exposed on port 8000 for direct local
+  # access and via Traefik at https://api.myclash.localhost/auth/v1/ etc.
+  kong:
+    image: kong:2.8.1
+    container_name: myclash-dev-kong
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    ports:
+      - "8000:8000"   # Kong HTTP (dev direct access)
+    volumes:
+      - ./supabase/kong.yml:/var/lib/kong/kong.yml:ro
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      # Route Supabase sub-paths through Kong via Traefik
+      - traefik.http.routers.dev-kong-auth.rule=Host(`api.myclash.localhost`) && PathPrefix(`/auth/v1`)
+      - traefik.http.routers.dev-kong-auth.entrypoints=websecure
+      - traefik.http.routers.dev-kong-auth.tls=true
+      - traefik.http.routers.dev-kong-auth.priority=20
+      - traefik.http.routers.dev-kong-auth.service=dev-kong
+      - traefik.http.routers.dev-kong-rest.rule=Host(`api.myclash.localhost`) && PathPrefix(`/rest/v1`)
+      - traefik.http.routers.dev-kong-rest.entrypoints=websecure
+      - traefik.http.routers.dev-kong-rest.tls=true
+      - traefik.http.routers.dev-kong-rest.priority=20
+      - traefik.http.routers.dev-kong-rest.service=dev-kong
+      - traefik.http.routers.dev-kong-realtime.rule=Host(`api.myclash.localhost`) && PathPrefix(`/realtime/v1`)
+      - traefik.http.routers.dev-kong-realtime.entrypoints=websecure
+      - traefik.http.routers.dev-kong-realtime.tls=true
+      - traefik.http.routers.dev-kong-realtime.priority=20
+      - traefik.http.routers.dev-kong-realtime.service=dev-kong
+      - traefik.http.routers.dev-kong-storage.rule=Host(`api.myclash.localhost`) && PathPrefix(`/storage/v1`)
+      - traefik.http.routers.dev-kong-storage.entrypoints=websecure
+      - traefik.http.routers.dev-kong-storage.tls=true
+      - traefik.http.routers.dev-kong-storage.priority=20
+      - traefik.http.routers.dev-kong-storage.service=dev-kong
+      - traefik.http.services.dev-kong.loadbalancer.server.port=8000
+
+  # ── Supabase Auth (GoTrue) ────────────────────────────────────────
+  supabase-auth:
+    image: supabase/gotrue:v2.158.1
+    container_name: myclash-dev-supabase-auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
+      GOTRUE_SITE_URL: https://myclash.localhost
+      GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://admin.myclash.localhost,https://scoring.myclash.localhost
+      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"   # auto-confirm in dev — no SMTP needed
+      GOTRUE_LOG_LEVEL: INFO
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash-dev]
+
+  # ── Supabase REST (PostgREST) ─────────────────────────────────────
+  supabase-rest:
+    image: postgrest/postgrest:v12.2.0
+    container_name: myclash-dev-supabase-rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash-dev]
+
+  # ── Supabase Realtime ─────────────────────────────────────────────
+  supabase-realtime:
+    image: supabase/realtime:v2.30.34
+    container_name: myclash-dev-supabase-realtime
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-myclash}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
+      DB_SSL: "false"
+      PORT: 4000
+      JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET:-a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here}
+      ERL_AFLAGS: "-proto_dist inet_tcp"
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash-dev]
+
+  # ── Supabase Storage ──────────────────────────────────────────────
+  supabase-storage:
+    image: supabase/storage-api:v1.10.0
+    container_name: myclash-dev-supabase-storage
+    restart: unless-stopped
+    environment:
+      ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
+      POSTGREST_URL: http://supabase-rest:3000
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: myclash
+      REGION: local
+      GLOBAL_S3_BUCKET: myclash
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db: { condition: service_healthy }
+      supabase-rest: { condition: service_started }
+    volumes:
+      - dev_storage_data:/var/lib/storage
     networks: [myclash-dev]
 
   # ── NestJS API ────────────────────────────────────────────────────
@@ -208,3 +348,5 @@ volumes:
     name: myclash-dev-postgres-data
   dev_redis_data:
     name: myclash-dev-redis-data
+  dev_storage_data:
+    name: myclash-dev-storage-data
