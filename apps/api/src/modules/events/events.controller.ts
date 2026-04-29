@@ -1,0 +1,140 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import type { FastifyRequest } from 'fastify';
+import { SupabaseService } from '../supabase/supabase.service';
+import {
+  CreateEventDto,
+  CreateTournamentDto,
+  EventQueryDto,
+  UpdateEventDto,
+  UpdateTournamentDto,
+} from './dto/events.dto';
+import { EventsService } from './events.service';
+
+async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
+  const authHeader = req.headers['authorization'];
+  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : cookies?.['sb-access-token'];
+  if (!token) return 'anonymous';
+  const { data: { user } } = await supabase.anon.auth.getUser(token);
+  return user?.id ?? 'anonymous';
+}
+
+@ApiTags('events')
+@Controller()
+export class EventsController {
+  constructor(
+    private readonly events: EventsService,
+    private readonly supabase: SupabaseService,
+  ) {}
+
+  // ── Events ───────────────────────────────────────────────────────────────────
+
+  /** GET /api/v1/events?status=...&organizationId=... */
+  @Get('events')
+  @ApiOperation({ summary: 'List events (public, filtered)' })
+  async listEvents(@Query() query: EventQueryDto) {
+    return this.events.listEvents(query);
+  }
+
+  /** GET /api/v1/events/:slug */
+  @Get('events/:slug')
+  @ApiOperation({ summary: 'Get event by slug (public)' })
+  async getEvent(@Param('slug') slug: string) {
+    return this.events.getEventBySlug(slug);
+  }
+
+  /** POST /api/v1/organizations/:orgId/events */
+  @Post('organizations/:orgId/events')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create event (org admin+)' })
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  async createEvent(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() dto: CreateEventDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.createEvent(orgId, dto, userId);
+  }
+
+  /** PATCH /api/v1/events/:id */
+  @Patch('events/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update event (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async updateEvent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateEventDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.updateEvent(id, dto, userId);
+  }
+
+  /** POST /api/v1/events/:id/publish */
+  @Post('events/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Publish event (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async publishEvent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.publishEvent(id, userId);
+  }
+
+  // ── Tournaments ───────────────────────────────────────────────────────────────
+
+  /** GET /api/v1/events/:eventId/tournaments */
+  @Get('events/:eventId/tournaments')
+  @ApiOperation({ summary: 'List tournaments for an event (public)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async listTournaments(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.events.listTournaments(eventId);
+  }
+
+  /** POST /api/v1/events/:eventId/tournaments */
+  @Post('events/:eventId/tournaments')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create tournament (org admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async createTournament(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: CreateTournamentDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.createTournament(eventId, dto, userId);
+  }
+
+  /** PATCH /api/v1/tournaments/:id */
+  @Patch('tournaments/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update tournament (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async updateTournament(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTournamentDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.updateTournament(id, dto, userId);
+  }
+}
