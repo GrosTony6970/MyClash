@@ -223,3 +223,6 @@ Major actions taken in this session:
 - MEMORY.md got a new top-level Hierarchy section.
 
 Pending for next session: final audit pass for stragglers, re-zip the bootstrap.
+
+## 00:00:00_29-04-2026
+Starting work on MyClash (F:\Github Repo\MyClash). Read AGENTS.md, memory/MEMORY.md, memory/LESSONS_LEARNED.md, docs/HIERARCHY.md, then start at T-001 in docs/BUILD_ORDER.md. Execute task T-001 · Initialize monorepo. After T-001 ships and reviewed, next tasks follow BUILD_ORDER.md order. Do not bundle multiple tasks. If anything is ambiguous, ask before guessing.
