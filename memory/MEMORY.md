@@ -239,7 +239,19 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-205 · TF_v1_no_afterblow + Generic_PointsCap | `3897f73` | ✅ done |
 | T-206 · Server-side scoring service | `814013f` | ✅ done |
 
-**Next task**: T-301 · Pool generation algorithm (Phase P3)
+## Build progress (Phase P3 — in progress)
+
+| Task | Commit | Status |
+|---|---|---|
+| T-301 · Pool generation (snake seeding + local search) | `8a51abd` | ✅ done |
+| T-301 · Pool size configuration (poolCount or targetSize) | `5e35187` | ✅ done |
+| T-302 · Berger table round-robin match generation | `e250723` | ✅ done |
+| T-303 · Single-elimination bracket | `d6eb633` | ✅ done |
+| T-303 · Configurable bracket size | `17f9ae7` | ✅ done |
+| T-304 · Match-to-Lice scheduler | — | ⏳ next |
+
+**Current HEAD**: `17f9ae7`
+**Next task**: T-304 · Match-to-Lice scheduler
 
 ## Tech decisions locked in during implementation
 
@@ -296,3 +308,17 @@ Required for the API to start:
   - Doesn't fit and is large? → create `docs/notes/<topic>.md` and link to it from the "Themes" section.
 - When information becomes obsolete, **delete or correct it**. Stale memory is worse than no memory.
 - Cross-check against `LESSONS_LEARNED.md` — if a piece of information represents a *rule* the agent should follow, it belongs there, not here.
+
+## Scheduling algorithms (Phase P3)
+
+- **Pool generation** (`packages/rulesets/src/scheduling/`): snake seeding + local search. Accepts `poolCount` (explicit) or `targetSize` (e.g. 8 fighters/pool → auto-compute count). Default `targetSize=8`. Actual sizes balanced within ±1.
+- **Berger tables** (`berger.ts`): circle method round-robin. `bergerSchedule(n, options)` → `BergerMatch[]`. Labels: `L{lice}-P{pool}-M{seq}`. Odd N handled with bye.
+- **Single-elim bracket** (`single-elim.ts`): `singleElimBracket(n, options?)`. Default bracket size = next power of 2. Override with `options.bracketSize` (must be power of 2 and ≥ n). Standard seeding: 1 vs size, 2 vs size-1, etc. Byes protect top seeds.
+- All scheduling functions are **pure** (no DB, no I/O) and **deterministic** (seeded PRNG for local search).
+- Subpath export: `@myclash/rulesets/dist/scheduling/index` (API uses `moduleResolution: node` so must use dist path, not subpath export).
+
+## Ruleset engine
+
+- The `@myclash/rulesets` package must be **built** (`pnpm --filter @myclash/rulesets build`) before the API can typecheck against it. The API uses `moduleResolution: node` which resolves to `dist/`. In CI, the `build-packages` job runs before `typecheck`.
+- The TF_v1 golden test (T-204) is sacred — if it fails, fix the engine, not the fixture. Two entries in the FAL 2026 fixture have `_published_score` notes where the source page shows a different value than the formula produces (rounding boundary artifacts at 1.545 and 1.645).
+- `doublePenalty(0)` returns `-0` in JavaScript if implemented as `n*(n-1)/3`. Guard with `if (n <= 1) return 0` to avoid `-0 !== 0` test failures.

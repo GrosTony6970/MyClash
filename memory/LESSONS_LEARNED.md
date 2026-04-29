@@ -115,3 +115,10 @@ When in doubt about a deploy/ops convention: look at the MyFAL scripts first. Th
 
 - **`@fastify/cookie` must be registered via `require()` in NestJS** when using the Fastify adapter — the ESM default import (`import fastifyCookie from '@fastify/cookie'`) produces a TypeScript type mismatch with `app.register()`. Use `const fastifyCookie = require('@fastify/cookie')` and access `.default` if present.
 - **`SUPABASE_URL` in Docker is `http://kong:8000`** (internal network name), not `http://localhost:8000`. In dev without Docker it's `http://localhost:8000`. Always use the env var, never hardcode.
+
+## Scheduling & bracket generation
+
+- **Pool size math**: with K clubs × M fighters each and P pools, 0 same-club pairs is only achievable if M ≤ P (1 fighter per club per pool). With M=4 and P=3, minimum is 6 pairs — the test fixture must reflect what's mathematically achievable.
+- **Bracket seeding algorithm**: the standard recursive bracket seeding (1 vs size, 2 vs size-1) is built by starting with `[1]` and repeatedly inserting `complement - seed` after each seed, where `complement = currentLength * 2 + 1`. The naive "positions = [1,2]; double by inserting size+1-pos" approach produces wrong pairings.
+- **Configurable sizes**: always expose both `poolCount` and `targetSize` for pool generation, and `bracketSize` for elimination brackets. Organizers think in target sizes, not counts.
+- **Pure scheduling functions**: keep all scheduling algorithms in `packages/rulesets/src/scheduling/` as pure functions. The NestJS service layer (`pool-generator.ts`) handles DB access and orchestration. This makes the algorithms independently testable and usable client-side (Web Worker).

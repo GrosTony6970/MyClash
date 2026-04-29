@@ -250,3 +250,9 @@ Continued T-009b (organizer signup), T-009c (super admin org management), T-051.
 
 ## 08:00:00_29-04-2026
 User said "go" — proceeding to Phase P3 T-301 pool generation algorithm. Updating memory files first.
+
+## 09:00:00_30-04-2026
+User said "go" — proceeded to Phase P3. Completed T-301 (pool generation: snake seeding + local search, configurable poolCount/targetSize), T-302 (Berger table round-robin), T-303 (single-elimination bracket with configurable bracketSize). User requested pool size configuration → added targetSize mode. User requested bracket size configuration → added options.bracketSize. Current HEAD: 17f9ae7. Next: T-304 Match-to-Lice scheduler.
+
+## 10:00:00_30-04-2026
+User requested memory file update before next session. Updated MEMORY.md (P3 build progress, scheduling algorithms section, ruleset engine section), LESSONS_LEARNED.md (scheduling lessons), PROMPT_LOG.md (this entry).
