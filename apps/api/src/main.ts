@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
@@ -15,10 +16,44 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter({ logger: process.env['NODE_ENV'] !== 'test' }),
   );
 
+  // ── Cookie support ───────────────────────────────────────────────────────
+  // Register @fastify/cookie via the underlying Fastify instance
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fastifyCookie = require('@fastify/cookie') as {
+    default: Parameters<NestFastifyApplication['register']>[0];
+  };
+  await app.register(fastifyCookie.default ?? fastifyCookie, {
+    secret: process.env['COOKIE_SECRET'] ?? 'dev-cookie-secret-change-in-prod',
+  });
+
+  // ── Global validation pipe ───────────────────────────────────────────────
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,       // strip unknown properties
+      forbidNonWhitelisted: true,
+      transform: true,       // auto-transform payloads to DTO instances
+    }),
+  );
+
   // ── Global prefix ────────────────────────────────────────────────────────
   app.setGlobalPrefix('api/v1', {
-    // Health and version endpoints live at root /api/... not /api/v1/...
+    // Health and version endpoints live at /health and /version (no prefix)
     exclude: ['health', 'version'],
+  });
+
+  // ── CORS ─────────────────────────────────────────────────────────────────
+  const domain = process.env['DOMAIN'] ?? 'myclash.localhost';
+  app.enableCors({
+    origin: [
+      `https://${domain}`,
+      `https://admin.${domain}`,
+      `https://scoring.${domain}`,
+      // Dev
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+    ],
+    credentials: true,
   });
 
   // ── OpenAPI / Swagger (dev only) ─────────────────────────────────────────
@@ -30,6 +65,7 @@ async function bootstrap(): Promise<void> {
       )
       .setVersion('1.0')
       .addBearerAuth()
+      .addCookieAuth('sb-access-token')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
