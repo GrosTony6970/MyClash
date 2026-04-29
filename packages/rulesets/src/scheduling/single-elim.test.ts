@@ -149,6 +149,36 @@ describe('singleElimBracket', () => {
     expect(() => singleElimBracket(0)).toThrow();
   });
 
+  // ── Configurable bracket size ─────────────────────────────────────────────
+  it('bracketSize=16 with 13 fighters → 3 byes (same as default)', () => {
+    const bracket = singleElimBracket(13, { bracketSize: 16 });
+    expect(bracket.bracketSize).toBe(16);
+    expect(bracket.byeCount).toBe(3);
+  });
+
+  it('bracketSize=32 with 24 fighters → 8 byes (larger bracket)', () => {
+    const bracket = singleElimBracket(24, { bracketSize: 32 });
+    expect(bracket.bracketSize).toBe(32);
+    expect(bracket.byeCount).toBe(8);
+    expect(bracket.rounds).toBe(5);
+  });
+
+  it('bracketSize=16 with 20 fighters → cut to top 16 (error: bracketSize < fighterCount)', () => {
+    // To cut to top 16, the caller passes fighterCount=16 (already filtered)
+    // bracketSize < fighterCount is an error
+    expect(() => singleElimBracket(20, { bracketSize: 16 })).toThrow('bracketSize');
+  });
+
+  it('bracketSize must be a power of 2', () => {
+    expect(() => singleElimBracket(8, { bracketSize: 12 })).toThrow('power of 2');
+  });
+
+  it('bracketSize=8 with 8 fighters → 0 byes (explicit = default)', () => {
+    const bracket = singleElimBracket(8, { bracketSize: 8 });
+    expect(bracket.bracketSize).toBe(8);
+    expect(bracket.byeCount).toBe(0);
+  });
+
   // ── All seeds appear exactly once in round 1 ──────────────────────────────
   it('all seeds 1..N appear exactly once in round 1', () => {
     const n = 16;

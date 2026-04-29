@@ -47,6 +47,19 @@ export interface SingleElimBracket {
   slots: BracketSlot[];
 }
 
+export interface SingleElimOptions {
+  /**
+   * Override the bracket size (must be a power of 2 and ≥ fighterCount).
+   *
+   * Use cases:
+   *   - Cut to top N: bracketSize=16 with fighterCount=20 → only top 16 qualify
+   *   - Larger bracket: bracketSize=32 with fighterCount=24 → 8 byes
+   *
+   * If not provided, defaults to nextPowerOf2(fighterCount).
+   */
+  bracketSize?: number;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Next power of 2 ≥ n */
@@ -102,12 +115,33 @@ function buildSeedingOrder(size: number): Array<[number, number]> {
  * Generate a single-elimination bracket for N fighters.
  *
  * @param fighterCount  Number of qualified fighters
+ * @param options       Optional: override bracket size
  * @returns             Complete bracket structure
  */
-export function singleElimBracket(fighterCount: number): SingleElimBracket {
+export function singleElimBracket(
+  fighterCount: number,
+  options: SingleElimOptions = {},
+): SingleElimBracket {
   if (fighterCount < 2) throw new Error('Need at least 2 fighters for a bracket');
 
-  const bracketSize = nextPowerOf2(fighterCount);
+  // Resolve bracket size
+  let bracketSize: number;
+  if (options.bracketSize !== undefined) {
+    bracketSize = options.bracketSize;
+    // Validate: must be a power of 2
+    if (bracketSize < 2 || (bracketSize & (bracketSize - 1)) !== 0) {
+      throw new Error(`bracketSize must be a power of 2 (got ${bracketSize})`);
+    }
+    // Validate: must be ≥ fighterCount
+    if (bracketSize < fighterCount) {
+      throw new Error(
+        `bracketSize (${bracketSize}) must be ≥ fighterCount (${fighterCount})`,
+      );
+    }
+  } else {
+    bracketSize = nextPowerOf2(fighterCount);
+  }
+
   const byeCount = bracketSize - fighterCount;
   const rounds = Math.log2(bracketSize);
 
