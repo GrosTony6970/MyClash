@@ -18,6 +18,7 @@
     "test": "echo 'test: no tests yet (T-107)'"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.4.0",
     "typescript": "^5.6.0"
   }
 }
