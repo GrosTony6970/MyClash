@@ -267,7 +267,7 @@ importers:
   packages/api-client:
     devDependencies:
       openapi-typescript:
-        specifier: ^7.13.0
+        specifier: ^7.4.0
         version: 7.13.0(typescript@5.9.3)
       typescript:
         specifier: ^5.6.0
@@ -305,6 +305,10 @@ importers:
         version: 5.9.3
 
   packages/rulesets:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       typescript:
         specifier: ^5.6.0
@@ -3806,6 +3810,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
 snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
@@ -6978,3 +6985,5 @@ snapshots:
   yargs-parser@21.1.1: {}
 
   yocto-queue@0.1.0: {}
+
+  zod@4.3.6: {}
