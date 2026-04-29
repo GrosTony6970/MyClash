@@ -1,0 +1,423 @@
+# infra/docker-compose.prod.yml
+#
+# MyClash production stack. Inherits Traefik patterns from the owner's MyFAL
+# deployment (https://github.com/GrosTony6970/MyFAL).
+#
+# Usage:
+#   docker compose --env-file .env -f infra/docker-compose.prod.yml <command>
+#   (always wrap via infra/scripts/*.sh which sets the flags consistently)
+#
+# Conventions inherited from MyFAL:
+#   - Traefik 3.6.x with label-based routing
+#   - Cert resolver named "letsencrypt"
+#   - Log paths under ./logs/<service>/
+#   - Data paths under ./data/<service>/
+#   - .env vars: DOMAIN, LETSENCRYPT_EMAIL, TZ, COMPOSE_PROJECT_NAME
+#   - Container names prefixed with project name (myclash-*)
+#   - Healthchecks use `node -e` HTTP probe (no curl/wget needed in image)
+
+services:
+
+  # ── Reverse proxy ────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.6.6
+    container_name: myclash-traefik
+    restart: unless-stopped
+    command:
+      - --global.sendanonymoususage=false
+      - --api.dashboard=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --accesslog=true
+      - --accesslog.filepath=/logs/traefik.log
+      - --log=true
+      - --log.level=INFO
+      - --log.filepath=/logs/traefik.log
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/traefik:/data
+      - ./logs/traefik:/logs
+    networks: [myclash]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── Postgres (primary data store) ────────────────────────────────
+  db:
+    image: supabase/postgres:15.6.1.115
+    container_name: myclash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-myclash}
+      TZ: ${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./logs/db:/var/log/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myclash}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [myclash]
+    mem_limit: 2g
+    cpus: 2
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── Redis (cache + BullMQ + pub/sub) ──────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: myclash-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [myclash]
+    mem_limit: 768m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── Supabase Auth (GoTrue) ────────────────────────────────────────
+  supabase-auth:
+    image: supabase/gotrue:v2.158.1
+    container_name: myclash-supabase-auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      GOTRUE_SITE_URL: https://${DOMAIN}
+      GOTRUE_URI_ALLOW_LIST: https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN}
+      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${LETSENCRYPT_EMAIL}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: https://${DOMAIN}/auth/v1/callback
+      TZ: ${TZ}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── Supabase Realtime ─────────────────────────────────────────────
+  supabase-realtime:
+    image: supabase/realtime:v2.30.34
+    container_name: myclash-supabase-realtime
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-myclash}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_SSL: "false"
+      PORT: 4000
+      JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET}
+      ERL_AFLAGS: "-proto_dist inet_tcp"
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+      TZ: ${TZ}
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [myclash]
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── Supabase Storage ──────────────────────────────────────────────
+  supabase-storage:
+    image: supabase/storage-api:v1.10.0
+    container_name: myclash-supabase-storage
+    restart: unless-stopped
+    environment:
+      ANON_KEY: ${SUPABASE_ANON_KEY}
+      SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://supabase-rest:3000
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: myclash
+      REGION: local
+      GLOBAL_S3_BUCKET: myclash
+      TZ: ${TZ}
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - storage_data:/var/lib/storage
+    networks: [myclash]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── NestJS API ────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../
+      dockerfile: apps/api/Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    container_name: myclash-api
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      REDIS_URL: redis://redis:6379
+      SUPABASE_URL: https://${DOMAIN}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      DOMAIN: ${DOMAIN}
+      TZ: ${TZ}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      HEMA_RATINGS_SYNC_ENABLED: ${HEMA_RATINGS_SYNC_ENABLED:-true}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - ./logs/api:/app/logs
+    networks: [myclash]
+    mem_limit: 1g
+    cpus: 2
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-api.rule=Host(`api.${DOMAIN}`)
+      - traefik.http.routers.myclash-api.entrypoints=websecure
+      - traefik.http.routers.myclash-api.tls=true
+      - traefik.http.routers.myclash-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-api.middlewares=myclash-compress@docker
+      - traefik.http.services.myclash-api.loadbalancer.server.port=4000
+      # Auth + Realtime + Storage routed through the same domain on /auth/v1/* /realtime/v1/* /storage/v1/*
+      - traefik.http.routers.myclash-auth.rule=Host(`${DOMAIN}`) && PathPrefix(`/auth/v1`)
+      - traefik.http.routers.myclash-auth.entrypoints=websecure
+      - traefik.http.routers.myclash-auth.tls=true
+      - traefik.http.routers.myclash-auth.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-auth.priority=20
+      - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
+      - traefik.http.services.myclash-supabase-auth.loadbalancer.server.port=9999
+      - traefik.http.routers.myclash-realtime.rule=Host(`${DOMAIN}`) && PathPrefix(`/realtime/v1`)
+      - traefik.http.routers.myclash-realtime.entrypoints=websecure
+      - traefik.http.routers.myclash-realtime.tls=true
+      - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-realtime.priority=20
+      - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
+      - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.port=4000
+      - traefik.http.routers.myclash-storage.rule=Host(`${DOMAIN}`) && PathPrefix(`/storage/v1`)
+      - traefik.http.routers.myclash-storage.entrypoints=websecure
+      - traefik.http.routers.myclash-storage.tls=true
+      - traefik.http.routers.myclash-storage.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-storage.priority=20
+      - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
+      - traefik.http.services.myclash-supabase-storage.loadbalancer.server.port=5000
+      # Shared compression middleware
+      - traefik.http.middlewares.myclash-compress.compress=true
+
+  # ── Worker (BullMQ jobs: stats, exports, notifications, ratings) ──
+  worker:
+    build:
+      context: ../
+      dockerfile: apps/api/Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    container_name: myclash-worker
+    restart: unless-stopped
+    command: ["node", "dist/main.js", "--worker"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      REDIS_URL: redis://redis:6379
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET}
+      DOMAIN: ${DOMAIN}
+      TZ: ${TZ}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - ./logs/worker:/app/logs
+    networks: [myclash]
+    mem_limit: 768m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── web-public PWA (mobile-first, public/spectator/competitor) ────
+  web-public:
+    build:
+      context: ../
+      dockerfile: apps/web-public/Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+    container_name: myclash-web-public
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [myclash]
+    mem_limit: 768m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-public.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.myclash-public.entrypoints=websecure
+      - traefik.http.routers.myclash-public.tls=true
+      - traefik.http.routers.myclash-public.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-public.priority=1
+      - traefik.http.routers.myclash-public.middlewares=myclash-compress@docker
+      - traefik.http.services.myclash-public.loadbalancer.server.port=3000
+
+  # ── web-scoring PWA (tablet-first, offline-first scorekeeper) ─────
+  web-scoring:
+    build:
+      context: ../
+      dockerfile: apps/web-scoring/Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    container_name: myclash-web-scoring
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [myclash]
+    mem_limit: 512m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-scoring.rule=Host(`scoring.${DOMAIN}`)
+      - traefik.http.routers.myclash-scoring.entrypoints=websecure
+      - traefik.http.routers.myclash-scoring.tls=true
+      - traefik.http.routers.myclash-scoring.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-scoring.middlewares=myclash-compress@docker
+      - traefik.http.services.myclash-scoring.loadbalancer.server.port=3000
+
+  # ── web-admin SPA (organizer + super admin) ───────────────────────
+  web-admin:
+    build:
+      context: ../
+      dockerfile: apps/web-admin/Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    container_name: myclash-web-admin
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: ${TZ}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [myclash]
+    mem_limit: 512m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-admin.rule=Host(`admin.${DOMAIN}`)
+      - traefik.http.routers.myclash-admin.entrypoints=websecure
+      - traefik.http.routers.myclash-admin.tls=true
+      - traefik.http.routers.myclash-admin.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-admin.middlewares=myclash-compress@docker
+      - traefik.http.services.myclash-admin.loadbalancer.server.port=3000
+
+networks:
+  myclash:
+    name: myclash
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: myclash-postgres-data
+  redis_data:
+    name: myclash-redis-data
+  storage_data:
+    name: myclash-storage-data

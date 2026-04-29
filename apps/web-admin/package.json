@@ -1,0 +1,13 @@
+{
+  "name": "@myclash/web-admin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stub workspace — agent fills in during T-003/T-004. See docs/BUILD_ORDER.md.",
+  "scripts": {
+    "dev": "echo 'TODO (T-003/T-004): implement dev'",
+    "build": "echo 'TODO: implement build'",
+    "lint": "echo 'TODO: implement lint'",
+    "typecheck": "echo 'TODO: implement typecheck'",
+    "test": "echo 'TODO: implement test'"
+  }
+}

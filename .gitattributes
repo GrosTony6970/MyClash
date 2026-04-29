@@ -1,0 +1,38 @@
+# .gitattributes
+#
+# Cross-platform safety. Owner develops on Windows; production runs on Linux.
+# Without these rules, Windows checkouts will silently insert CRLF into
+# Docker entrypoint scripts, which then fail at container start.
+
+* text=auto eol=lf
+
+# Server-side scripts MUST be LF
+*.sh    text eol=lf
+*.bash  text eol=lf
+Dockerfile  text eol=lf
+*.dockerfile text eol=lf
+
+# Config files that might be processed by shell parsers
+.env*       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+
+# Windows-only scripts (if any) keep CRLF
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binaries — no transformation
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.svg       binary
+*.ico       binary
+*.pdf       binary
+*.woff      binary
+*.woff2     binary
+
+# Mark generated files for GitHub language stats
+packages/api-client/src/generated/** linguist-generated

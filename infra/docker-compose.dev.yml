@@ -1,0 +1,40 @@
+# infra/docker-compose.dev.yml
+#
+# Development compose. Used for local dev only — no Traefik, no TLS, services
+# expose ports directly. Apps run via `pnpm dev` on the host (not in Docker)
+# so hot reload works; only the data services (Postgres, Redis, Supabase) run
+# in containers.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.dev.yml --env-file .env up -d
+#
+# This file is a STUB. The agent fills it in during T-006.
+
+services:
+  db:
+    image: supabase/postgres:15.6.1.115
+    container_name: myclash-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
+      POSTGRES_DB: ${POSTGRES_DB:-myclash}
+    ports:
+      - "5432:5432"
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: myclash-dev-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - dev_redis_data:/data
+
+  # TODO (T-007): supabase-auth, supabase-realtime, supabase-storage, kong, postgrest
+
+volumes:
+  dev_postgres_data:
+  dev_redis_data:

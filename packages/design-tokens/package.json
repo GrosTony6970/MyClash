@@ -1,0 +1,14 @@
+{
+  "name": "@myclash/design-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stub workspace — agent fills in during T-005. See docs/BUILD_ORDER.md.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo 'TODO: implement build'",
+    "lint": "echo 'TODO: implement lint'",
+    "typecheck": "echo 'TODO: implement typecheck'",
+    "test": "echo 'TODO: implement test'"
+  }
+}

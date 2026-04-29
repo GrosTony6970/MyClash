@@ -1,0 +1,32 @@
+# infra/docker-compose.staging-certs.yml
+#
+# Overlay for testing TLS without hitting Let's Encrypt rate limits.
+# Layered on top of docker-compose.prod.yml when --dev-certs is passed.
+#
+#   docker compose --env-file .env \
+#     -f infra/docker-compose.prod.yml \
+#     -f infra/docker-compose.staging-certs.yml \
+#     up -d
+#
+# Inherited verbatim from MyFAL's pattern.
+
+services:
+  traefik:
+    command:
+      - --global.sendanonymoususage=false
+      - --api.dashboard=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme-staging.json
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --accesslog=true
+      - --accesslog.filepath=/logs/traefik.log
+      - --log=true
+      - --log.level=INFO
+      - --log.filepath=/logs/traefik.log

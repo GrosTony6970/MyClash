@@ -1,0 +1,55 @@
+# ── Secrets and local config ─────────────────────────────────────
+.env
+.env.local
+.env.deploy
+.env.*.local
+
+# ── MyClash runtime data (matches MyFAL pattern) ─────────────────
+data/
+logs/
+backups/
+.last-deploy.json
+.last-deploy.json.rolled-back-*
+.deploy.lock
+cookies.txt
+server.out
+server.err
+
+# ── Service-specific secrets ─────────────────────────────────────
+infra/scripts/reference/myfal/*        # owner's MyFAL scripts (privacy)
+!infra/scripts/reference/myfal/README.md
+data/traefik/acme*.json
+data/app/google-oauth-tokens.json
+config/google-oauth-client.json
+
+# ── Node / pnpm / monorepo build outputs ─────────────────────────
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# ── Test artefacts ───────────────────────────────────────────────
+playwright-report/
+test-results/
+.nyc_output/
+
+# ── Editor / OS ──────────────────────────────────────────────────
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+
+# ── Misc ─────────────────────────────────────────────────────────
+*.log
+*.pid
+*.tgz
+.eslintcache
