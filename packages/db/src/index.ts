@@ -1,5 +1,9 @@
-// @myclash/db
-//
-// Stub. Implementation lands in BUILD_ORDER tasks (T-005, T-101+, T-201+, etc.).
-// See docs/ARCHITECTURE.md for the design.
-export {};
+/**
+ * @myclash/db — public API
+ */
+
+// Schema (all tables)
+export * from './schema';
+
+// Client factory
+export { createDb, type Db } from './client';
