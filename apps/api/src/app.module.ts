@@ -4,6 +4,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ClubsModule } from './modules/clubs/clubs.module';
+import { FightersModule } from './modules/fighters/fighters.module';
 import { HealthModule } from './modules/health/health.module';
 import { MailModule } from './modules/mail/mail.module';
 import { PersonsModule } from './modules/persons/persons.module';
@@ -45,6 +47,8 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     AuthModule,
     AdminModule,
     PersonsModule,
+    ClubsModule,
+    FightersModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
