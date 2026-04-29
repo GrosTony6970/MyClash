@@ -9,3 +9,6 @@ export type { PoolAssignmentSettings, CostReport } from './local-search';
 
 export { bergerSchedule, totalMatches, totalRounds } from './berger';
 export type { BergerMatch, BergerScheduleOptions } from './berger';
+
+export { singleElimBracket, totalBracketMatches } from './single-elim';
+export type { BracketSlot, SingleElimBracket } from './single-elim';
