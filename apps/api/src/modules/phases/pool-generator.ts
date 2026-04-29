@@ -3,12 +3,20 @@
  *
  * Pool generation service — orchestrates snake seeding + local search.
  * Calls the pure scheduling functions from @myclash/rulesets.
+ *
+ * Supports two configuration modes:
+ *   - poolCount:    explicit number of pools (e.g. 4 pools)
+ *   - targetSize:   target fighters per pool (e.g. 8 per pool)
+ *
+ * When targetSize is given, poolCount = ceil(fighters / targetSize).
+ * The actual pool sizes are balanced within ±1 (hard constraint).
  */
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import {
   snakeSeed,
   localSearch,
   buildCostReport,
+  computePoolSizes,
   type Fighter,
   type PoolAssignmentSettings,
 } from '@myclash/rulesets/dist/scheduling/index';
@@ -16,8 +24,21 @@ import { SupabaseService } from '../supabase/supabase.service';
 
 export interface GeneratePoolsInput {
   tournamentId: string;
-  poolCount: number;
+
+  /**
+   * Exactly one of poolCount or targetSize must be provided.
+   *
+   * poolCount:   explicit number of pools (e.g. 4)
+   * targetSize:  target fighters per pool (e.g. 8 → ceil(fighters/8) pools)
+   *
+   * If both are provided, poolCount takes precedence.
+   * If neither is provided, defaults to targetSize=8.
+   */
+  poolCount?: number;
+  targetSize?: number;
+
   settings: PoolAssignmentSettings;
+
   /** PRNG seed for determinism (default: 42) */
   seed?: number;
 }
@@ -26,7 +47,11 @@ export interface GeneratePoolsResult {
   pools: Array<{
     name: string;
     registrationIds: string[];
+    size: number;
   }>;
+  poolCount: number;
+  targetSize: number;
+  actualSizes: number[];
   costReport: ReturnType<typeof buildCostReport>;
 }
 
@@ -37,9 +62,7 @@ export class PoolGeneratorService {
   constructor(private readonly supabase: SupabaseService) {}
 
   async generatePools(input: GeneratePoolsInput): Promise<GeneratePoolsResult> {
-    const { tournamentId, poolCount, settings, seed = 42 } = input;
-
-    if (poolCount < 1) throw new BadRequestException('poolCount must be at least 1');
+    const { tournamentId, settings, seed = 42 } = input;
 
     // Fetch registrations with skill data
     const { data: regs, error } = await this.supabase.service
@@ -57,11 +80,29 @@ export class PoolGeneratorService {
       throw new BadRequestException('No registered fighters found for this tournament');
     }
 
-    if (regs.length < poolCount) {
-      throw new BadRequestException(
-        `Cannot create ${poolCount} pools with only ${regs.length} fighters`,
-      );
+    const fighterCount = regs.length;
+
+    // ── Resolve poolCount from input ────────────────────────────────────────
+    let poolCount: number;
+    let targetSize: number;
+
+    if (input.poolCount !== undefined) {
+      poolCount = input.poolCount;
+      if (poolCount < 1) throw new BadRequestException('poolCount must be at least 1');
+      if (poolCount > fighterCount) {
+        throw new BadRequestException(
+          `Cannot create ${poolCount} pools with only ${fighterCount} fighters`,
+        );
+      }
+      targetSize = Math.ceil(fighterCount / poolCount);
+    } else {
+      targetSize = input.targetSize ?? 8;
+      if (targetSize < 2) throw new BadRequestException('targetSize must be at least 2');
+      poolCount = Math.max(1, Math.ceil(fighterCount / targetSize));
     }
+
+    // Compute actual balanced pool sizes (within ±1)
+    const actualSizes = computePoolSizes(fighterCount, poolCount);
 
     // Map to Fighter type for the scheduling algorithm
     const fighters: Fighter[] = regs.map((reg, idx) => {
@@ -92,18 +133,23 @@ export class PoolGeneratorService {
       poolMap.set(a.poolIndex, existing);
     }
 
-    const pools = Array.from({ length: poolCount }, (_, i) => ({
-      name: `Pool ${String.fromCharCode(65 + i)}`, // Pool A, Pool B, ...
-      registrationIds: poolMap.get(i) ?? [],
-    }));
+    const pools = Array.from({ length: poolCount }, (_, i) => {
+      const registrationIds = poolMap.get(i) ?? [];
+      return {
+        name: `Pool ${String.fromCharCode(65 + i)}`, // Pool A, Pool B, ...
+        registrationIds,
+        size: registrationIds.length,
+      };
+    });
 
     this.logger.log(
-      `Generated ${poolCount} pools for tournament ${tournamentId}: ` +
+      `Generated ${poolCount} pools (target size ${targetSize}) for tournament ${tournamentId}: ` +
+      `sizes=[${actualSizes.join(',')}], ` +
       `cost=${costReport.totalCost.toFixed(2)}, ` +
       `sameClub=${costReport.sameClubPairsPerPool.reduce((s: number, p: { count: number }) => s + p.count, 0)}, ` +
       `skillVar=${costReport.skillVariance.toFixed(3)}`,
     );
 
-    return { pools, costReport };
+    return { pools, poolCount, targetSize, actualSizes, costReport };
   }
 }
