@@ -8,8 +8,10 @@ import { ClubsModule } from './modules/clubs/clubs.module';
 import { EventsModule } from './modules/events/events.module';
 import { FightersModule } from './modules/fighters/fighters.module';
 import { HealthModule } from './modules/health/health.module';
+import { LicesModule } from './modules/lices/lices.module';
 import { MailModule } from './modules/mail/mail.module';
 import { PersonsModule } from './modules/persons/persons.module';
+import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 
 @Module({
@@ -51,6 +53,8 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     ClubsModule,
     FightersModule,
     EventsModule,
+    LicesModule,
+    RegistrationsModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
