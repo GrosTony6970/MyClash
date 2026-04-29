@@ -99,6 +99,12 @@ When in doubt about a deploy/ops convention: look at the MyFAL scripts first. Th
 - **Do not use `Test.createTestingModule()` with `useValue` mocks in Vitest** — the NestJS DI container requires `emitDecoratorMetadata` to be active at test runtime, which Vitest doesn't guarantee. `useValue` mocks silently fail to inject, leaving `this.dependency` as `undefined`. Use direct instantiation instead: `new MyService(mockDep1 as never, mockDep2 as never)`. This is simpler, faster, and avoids the DI resolution problem entirely.
 - **`@Global()` modules in test modules** — even with `useFactory`, global modules can cause unexpected re-instantiation. Prefer direct instantiation for unit tests; reserve `Test.createTestingModule()` for integration tests where the full module graph is needed.
 
+## Ruleset engine
+
+- **Build before typecheck**: `@myclash/rulesets` must be built (`pnpm --filter @myclash/rulesets build`) before the API can typecheck. The API uses `moduleResolution: node` → resolves to `dist/`. In CI, `build-packages` runs before `typecheck`.
+- **`doublePenalty(-0)` trap**: `n*(n-1)/3` returns `-0` for `n=0`. Guard with `if (n <= 1) return 0` to avoid `-0 !== 0` test failures.
+- **FAL 2026 golden test**: 2 entries have `_published_score` notes where the source page shows a different value than the formula produces (rounding boundary at 1.545→1.5 and 1.645→1.6). The fixture stores the formula-correct value. This is expected and documented.
+
 ## Email & transactional messaging
 
 - **Use Resend SDK directly in NestJS** (not SMTP) for transactional emails. The SDK is typed, gives structured error objects, and avoids SMTP connection management. GoTrue (Supabase Auth) can still use SMTP for its own internal emails (email verification, password reset) — those are separate from NestJS-sent magic links.

@@ -244,3 +244,9 @@ T-009 shipped (commit 43be026): auth integration — magic-link claim flow + /ap
 
 ## 06:00:00_29-04-2026
 User asked to verify .env.example is complete and update all memory files. Confirmed .env.example already has all required keys. Updated MEMORY.md (build progress, tech decisions, key env vars), LESSONS_LEARNED.md (NestJS+Vitest testing, email, auth/cookies), PROMPT_LOG.md (this entry).
+
+## 07:00:00_29-04-2026
+Continued T-009b (organizer signup), T-009c (super admin org management), T-051..T-059 (deployment automation), T-055 (interactive VPS bootstrap), T-101 (DB schema Drizzle), T-102 (RLS policies), T-103 (seed script), T-104..T-104e (persons CRUD, lookup, guest sessions, /me, fighters/clubs), T-105 (orgs + events/tournaments), T-106 (lices + registrations), T-107 (API client scaffold), T-201+T-202 (ruleset plugin contract + TF_v1), T-203+T-204 (FAL 2026 fixture + golden test), T-205 (TF_v1_no_afterblow + Generic_PointsCap), T-206 (server-side scoring service). All Phase P0, P0.5, P1, P2 complete. Current HEAD: 814013f. Next: Phase P3 T-301 pool generation.
+
+## 08:00:00_29-04-2026
+User said "go" — proceeding to Phase P3 T-301 pool generation algorithm. Updating memory files first.

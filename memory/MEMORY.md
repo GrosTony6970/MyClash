@@ -189,7 +189,7 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P0 — completed 29-04-2026)
 
-All Phase P0 tasks are shipped on `main`. Current HEAD: `43be026`.
+All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 
 | Task | Commit | Status |
 |---|---|---|
@@ -202,8 +202,44 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `43be026`.
 | T-007 · Self-hosted Supabase services | `03da7cf` | ✅ done |
 | T-008 · CI pipeline (GitHub Actions + CodeQL) | `69e0429` | ✅ done |
 | T-009 · Auth integration (magic-link + /me) | `43be026` | ✅ done |
+| T-009b · Organizer signup | `75d5995` | ✅ done |
+| T-009c · Super admin org management | `3e3f7c5` | ✅ done |
 
-**Next task**: T-009b · Organizer signup (open self-service, named org)
+## Build progress (Phase P0.5 — completed 29-04-2026)
+
+| Task | Commit | Status |
+|---|---|---|
+| T-051..T-059 · Deployment automation | `38d5b10` | ✅ done |
+| T-055 · VPS bootstrap (interactive) | `13ffe57` | ✅ done |
+
+## Build progress (Phase P1 — completed 29-04-2026)
+
+| Task | Commit | Status |
+|---|---|---|
+| T-101 · DB schema (Drizzle) | `393fa0a` | ✅ done |
+| T-102 · RLS policies | `a941f4f` | ✅ done |
+| T-103 · Seed script | `55a118e` | ✅ done |
+| T-104 · Persons CRUD + CSV import | `d03f7e8` | ✅ done |
+| T-104b · Person lookup (pg_trgm) | `db2b296` | ✅ done |
+| T-104c · Guest session module | `0690394` | ✅ done |
+| T-104d · /api/v1/me unified identity | `1c8481f` | ✅ done |
+| T-104e · Fighters & Clubs API | `a9daf10` | ✅ done |
+| T-105 · Organizations & Events/Tournaments API | `e00ae6a` | ✅ done |
+| T-106 · Lices, Registrations API | `d2a231d` | ✅ done |
+| T-107 · API client scaffold | `2060b3c` | ✅ done |
+
+## Build progress (Phase P2 — completed 29-04-2026)
+
+| Task | Commit | Status |
+|---|---|---|
+| T-201 · Ruleset plugin contract | `783303f` | ✅ done |
+| T-202 · TF_v1 pure functions | `783303f` | ✅ done |
+| T-203 · FAL 2026 fixture (aggregate fallback) | `6f84ee1` | ✅ done |
+| T-204 · TF_v1 golden test (115 tests) | `6f84ee1` | ✅ done |
+| T-205 · TF_v1_no_afterblow + Generic_PointsCap | `3897f73` | ✅ done |
+| T-206 · Server-side scoring service | `814013f` | ✅ done |
+
+**Next task**: T-301 · Pool generation algorithm (Phase P3)
 
 ## Tech decisions locked in during implementation
 
@@ -215,6 +251,12 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `43be026`.
 - **ESLint**: flat config (`eslint.config.mjs`) at root + per-app configs with `parserOptions.project` for typed linting.
 - **Vitest**: used for all unit tests. `passWithNoTests: true` on packages without tests yet (rulesets, etc.).
 - **NestJS testing in Vitest**: use direct instantiation (`new Service(mockDep1, mockDep2)`) rather than `Test.createTestingModule()` — the NestJS DI container doesn't resolve `useValue` mocks reliably in Vitest without `emitDecoratorMetadata` being active in the test runner.
+
+## Ruleset engine
+
+- The `@myclash/rulesets` package must be **built** (`pnpm --filter @myclash/rulesets build`) before the API can typecheck against it. The API uses `moduleResolution: node` which resolves to `dist/`, not `src/`. In CI, the `build-packages` job runs before `typecheck`.
+- The TF_v1 golden test (T-204) is sacred — if it fails, fix the engine, not the fixture. Two entries in the FAL 2026 fixture have `_published_score` notes where the source page shows a different value than the formula produces (rounding boundary artifacts at 1.545 and 1.645).
+- `doublePenalty(0)` returns `-0` in JavaScript if implemented as `n*(n-1)/3`. Guard with `if (n <= 1) return 0` to avoid `-0 !== 0` test failures.
 
 ## Key env vars (canonical list — see .env.example for full list)
 
