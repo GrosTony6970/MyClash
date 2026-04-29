@@ -20,6 +20,7 @@ export class MeResponseDto {
     claim_status: string;
   };
 
+  /** Present only when type='guest' */
   @ApiProperty({ required: false })
   session?: {
     device_label: string;

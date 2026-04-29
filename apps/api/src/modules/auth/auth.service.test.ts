@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { GuestJwtService } from './guest-jwt.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -19,13 +20,12 @@ const mockSupabase = {
 };
 
 function makeQueryChain(result: unknown) {
-  const chain = {
+  return {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     update: vi.fn().mockReturnThis(),
   };
-  return chain;
 }
 
 const mockMailService = {
@@ -34,14 +34,19 @@ const mockMailService = {
 
 const mockConfigService = {
   getOrThrow: vi.fn(),
-  get: vi.fn((key: string, defaultVal?: string) => {
+  get: vi.fn((key: string, def?: string) => {
     const values: Record<string, string> = {
       DOMAIN: 'myclash.localhost',
       MAIL_FROM: 'noreply@myclash.fr',
     };
-    return values[key] ?? defaultVal ?? '';
+    return values[key] ?? def ?? '';
   }),
 };
+
+// Real GuestJwtService for integration-style tests
+const guestJwtService = new GuestJwtService({
+  getOrThrow: () => 'test-guest-secret-at-least-32-chars-long',
+} as never);
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
@@ -52,11 +57,11 @@ describe('AuthService', () => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
 
-    // Instantiate directly — avoids NestJS DI metadata issues in Vitest
     service = new AuthService(
       mockSupabase as never,
       mockMailService as never,
       mockConfigService as never,
+      guestJwtService,
     );
   });
 
@@ -142,6 +147,78 @@ describe('AuthService', () => {
 
       const result = await service.getMe(mockRequest);
       expect(result.type).toBe('anonymous');
+    });
+
+    it('returns guest when valid mc_guest cookie present (no Supabase token)', async () => {
+      getUserMock.mockResolvedValue({ data: { user: null }, error: { message: 'no token' } });
+
+      const sessionChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: {
+            id: 'session-1',
+            device_label: 'iPhone (Safari)',
+            expires_at: new Date(Date.now() + 3600000).toISOString(),
+            revoked_at: null,
+          },
+          error: null,
+        }),
+      };
+      const personChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'person-1', given_name: 'Jean', family_name: 'Dupont', event_id: 'event-1', claim_status: 'unclaimed' },
+          error: null,
+        }),
+      };
+      fromMock
+        .mockReturnValueOnce(sessionChain)
+        .mockReturnValueOnce(personChain);
+
+      const expiresAt = new Date(Date.now() + 3600000);
+      const guestToken = guestJwtService.sign(
+        { sub: 'session-1', person_id: 'person-1', event_id: 'event-1', type: 'guest' },
+        expiresAt,
+      );
+
+      const mockRequest = {
+        headers: {},
+        cookies: { mc_guest: guestToken },
+      } as never;
+
+      const result = await service.getMe(mockRequest);
+      expect(result.type).toBe('guest');
+      expect(result.session?.device_label).toBe('iPhone (Safari)');
+      expect(result.person?.given_name).toBe('Jean');
+    });
+
+    it('claimed wins when both Supabase token and guest cookie present; clears guest cookie', async () => {
+      getUserMock.mockResolvedValue({
+        data: {
+          user: { id: 'user-123', email: 'organizer@example.com', user_metadata: {} },
+        },
+        error: null,
+      });
+
+      const expiresAt = new Date(Date.now() + 3600000);
+      const guestToken = guestJwtService.sign(
+        { sub: 'session-1', person_id: 'person-1', event_id: 'event-1', type: 'guest' },
+        expiresAt,
+      );
+
+      const clearCookieMock = vi.fn();
+      const mockReply = { clearCookie: clearCookieMock } as never;
+
+      const mockRequest = {
+        headers: { authorization: 'Bearer valid-token' },
+        cookies: { mc_guest: guestToken },
+      } as never;
+
+      const result = await service.getMe(mockRequest, mockReply);
+      expect(result.type).toBe('claimed');
+      expect(clearCookieMock).toHaveBeenCalledWith('mc_guest', { path: '/' });
     });
   });
 });
