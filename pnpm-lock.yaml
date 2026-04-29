@@ -11,9 +11,21 @@ importers:
       '@eslint/js':
         specifier: ^9.15.0
         version: 9.39.4
+      '@supabase/supabase-js':
+        specifier: ^2.105.1
+        version: 2.105.1
+      '@types/node':
+        specifier: ^22.15.18
+        version: 22.19.17
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       eslint:
         specifier: ^9.15.0
         version: 9.39.4(jiti@2.6.1)
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
       prettier:
         specifier: ^3.3.0
         version: 3.8.3
@@ -2181,6 +2193,10 @@ packages:
 
   dotenv@17.4.1:
     resolution: {integrity: sha512-k8DaKGP6r1G30Lx8V4+pCsLzKr8vLmV2paqEj1Y55GdAgJuIqpRp5FfajGF8KtwMxCz9qJc6wUIJnm053d/WCw==}
+    engines: {node: '>=12'}
+
+  dotenv@17.4.2:
+    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
 
   drizzle-kit@0.31.10:
@@ -5208,6 +5224,8 @@ snapshots:
   dotenv@16.6.1: {}
 
   dotenv@17.4.1: {}
+
+  dotenv@17.4.2: {}
 
   drizzle-kit@0.31.10:
     dependencies:

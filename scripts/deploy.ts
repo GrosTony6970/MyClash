@@ -55,7 +55,7 @@ function loadEnv(): DeployEnv {
   const env: Record<string, string> = {};
   for (const line of raw.split(/\r?\n/)) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    if (m?.[1] && m[2] !== undefined) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
   const required = ['DEPLOY_HOST', 'DEPLOY_USER', 'DEPLOY_SSH_KEY_PATH', 'DEPLOY_REPO_PATH', 'DEPLOY_SMOKE_URL'];
   for (const k of required) {
@@ -65,11 +65,11 @@ function loadEnv(): DeployEnv {
     }
   }
   return {
-    host: env.DEPLOY_HOST,
-    user: env.DEPLOY_USER,
-    sshKeyPath: env.DEPLOY_SSH_KEY_PATH.replace(/^~(?=$|\/|\\)/, homedir()),
-    repoPath: env.DEPLOY_REPO_PATH,
-    smokeUrl: env.DEPLOY_SMOKE_URL,
+    host: env['DEPLOY_HOST']!,
+    user: env['DEPLOY_USER']!,
+    sshKeyPath: env['DEPLOY_SSH_KEY_PATH']!.replace(/^~(?=$|\/|\\)/, homedir()),
+    repoPath: env['DEPLOY_REPO_PATH']!,
+    smokeUrl: env['DEPLOY_SMOKE_URL']!,
   };
 }
 
