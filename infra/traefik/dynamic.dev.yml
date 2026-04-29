@@ -1,0 +1,19 @@
+# infra/traefik/dynamic.dev.yml
+#
+# Traefik dynamic configuration for local development.
+# Provides self-signed TLS for *.myclash.localhost using Traefik's
+# built-in certificate generation (no external CA needed).
+
+tls:
+  stores:
+    default:
+      defaultGeneratedCert:
+        resolver: ""
+        domain:
+          main: "myclash.localhost"
+          sans:
+            - "*.myclash.localhost"
+
+  options:
+    default:
+      minVersion: VersionTLS12

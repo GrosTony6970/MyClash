@@ -1,16 +1,56 @@
 # infra/docker-compose.dev.yml
 #
-# Development compose. Used for local dev only — no Traefik, no TLS, services
-# expose ports directly. Apps run via `pnpm dev` on the host (not in Docker)
-# so hot reload works; only the data services (Postgres, Redis, Supabase) run
-# in containers.
+# Local development stack.
+# - Traefik with self-signed TLS for *.myclash.localhost
+# - Postgres + Redis (data services)
+# - All three Next.js apps + NestJS API (built from source)
+#
+# Prerequisites:
+#   1. Add to C:\Windows\System32\drivers\etc\hosts (Windows) or /etc/hosts:
+#        127.0.0.1  myclash.localhost
+#        127.0.0.1  admin.myclash.localhost
+#        127.0.0.1  scoring.myclash.localhost
+#        127.0.0.1  api.myclash.localhost
+#   2. Copy .env.example to .env and fill in values.
+#   3. Docker Desktop running.
 #
 # Usage:
-#   docker compose -f infra/docker-compose.dev.yml --env-file .env up -d
+#   docker compose --env-file .env -f infra/docker-compose.dev.yml up -d --build
+#   docker compose --env-file .env -f infra/docker-compose.dev.yml down
 #
-# This file is a STUB. The agent fills it in during T-006.
+# Local URLs (after up):
+#   https://myclash.localhost        → web-public  (port 3000 inside)
+#   https://admin.myclash.localhost  → web-admin   (port 3000 inside)
+#   https://scoring.myclash.localhost → web-scoring (port 3000 inside)
+#   https://api.myclash.localhost    → NestJS API  (port 4000 inside)
+#   http://localhost:8080            → Traefik dashboard (dev only)
+#
+# Note: Browser will show a TLS warning for the self-signed cert.
+# Click "Advanced → Proceed" once per hostname, or add the Traefik
+# default cert to your OS trust store.
 
 services:
+
+  # ── Reverse proxy ────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.6.6
+    container_name: myclash-dev-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"   # dashboard (dev only)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.dev.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.dev.yml:/etc/traefik/dynamic.dev.yml:ro
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      # Shared compress middleware (referenced by all routers)
+      - traefik.http.middlewares.myclash-compress.compress=true
+
+  # ── Postgres ─────────────────────────────────────────────────────
   db:
     image: supabase/postgres:15.6.1.115
     container_name: myclash-dev-db
@@ -20,21 +60,151 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       POSTGRES_DB: ${POSTGRES_DB:-myclash}
     ports:
-      - "5432:5432"
+      - "5432:5432"   # exposed for local DB tools (TablePlus, DBeaver, etc.)
     volumes:
       - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myclash}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [myclash-dev]
 
+  # ── Redis ─────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: myclash-dev-redis
     restart: unless-stopped
+    command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      - "6379:6379"   # exposed for local Redis tools
     volumes:
       - dev_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [myclash-dev]
 
-  # TODO (T-007): supabase-auth, supabase-realtime, supabase-storage, kong, postgrest
+  # ── NestJS API ────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    container_name: myclash-dev-api
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}
+      REDIS_URL: redis://redis:6379
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
+      MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET:-dev-guest-secret-change-me}
+      DOMAIN: myclash.localhost
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dev-api.rule=Host(`api.myclash.localhost`)
+      - traefik.http.routers.dev-api.entrypoints=websecure
+      - traefik.http.routers.dev-api.tls=true
+      - traefik.http.routers.dev-api.middlewares=myclash-compress@docker
+      - traefik.http.services.dev-api.loadbalancer.server.port=4000
+
+  # ── web-public PWA ────────────────────────────────────────────────
+  web-public:
+    build:
+      context: ../
+      dockerfile: apps/web-public/Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+    container_name: myclash-dev-web-public
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dev-public.rule=Host(`myclash.localhost`)
+      - traefik.http.routers.dev-public.entrypoints=websecure
+      - traefik.http.routers.dev-public.tls=true
+      - traefik.http.routers.dev-public.middlewares=myclash-compress@docker
+      - traefik.http.services.dev-public.loadbalancer.server.port=3000
+
+  # ── web-scoring PWA ───────────────────────────────────────────────
+  web-scoring:
+    build:
+      context: ../
+      dockerfile: apps/web-scoring/Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+    container_name: myclash-dev-web-scoring
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dev-scoring.rule=Host(`scoring.myclash.localhost`)
+      - traefik.http.routers.dev-scoring.entrypoints=websecure
+      - traefik.http.routers.dev-scoring.tls=true
+      - traefik.http.routers.dev-scoring.middlewares=myclash-compress@docker
+      - traefik.http.services.dev-scoring.loadbalancer.server.port=3000
+
+  # ── web-admin SPA ─────────────────────────────────────────────────
+  web-admin:
+    build:
+      context: ../
+      dockerfile: apps/web-admin/Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+    container_name: myclash-dev-web-admin
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [myclash-dev]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dev-admin.rule=Host(`admin.myclash.localhost`)
+      - traefik.http.routers.dev-admin.entrypoints=websecure
+      - traefik.http.routers.dev-admin.tls=true
+      - traefik.http.routers.dev-admin.middlewares=myclash-compress@docker
+      - traefik.http.services.dev-admin.loadbalancer.server.port=3000
+
+networks:
+  myclash-dev:
+    name: myclash-dev
+    driver: bridge
 
 volumes:
   dev_postgres_data:
+    name: myclash-dev-postgres-data
   dev_redis_data:
+    name: myclash-dev-redis-data
