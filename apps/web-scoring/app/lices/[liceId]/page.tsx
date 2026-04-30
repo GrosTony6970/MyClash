@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ExchangePad } from '../../../src/components/ExchangePad';
 
 interface MatchInfo {
   id: string;
@@ -100,7 +101,7 @@ export default function LiceMatchPage({ params }: Props) {
 
       {/* Match content */}
       {currentMatch ? (
-        <MatchView match={currentMatch} />
+        <MatchView match={currentMatch} apiUrl={apiUrl} />
       ) : (
         <NoMatchView />
       )}
@@ -110,7 +111,9 @@ export default function LiceMatchPage({ params }: Props) {
 
 // ── Match view ────────────────────────────────────────────────────────────────
 
-function MatchView({ match }: { match: MatchInfo }) {
+function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
+  const [nextSequence, setNextSequence] = useState(1);
+
   return (
     <div className="flex-1 flex flex-col p-6 gap-6">
       {/* Match header */}
@@ -155,12 +158,17 @@ function MatchView({ match }: { match: MatchInfo }) {
         </div>
       </div>
 
-      {/* Exchange pad placeholder — T-403 */}
-      <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-700 rounded-xl">
-        <p className="text-gray-500 text-sm text-center">
-          Exchange entry pad<br />
-          <span className="text-xs text-gray-600">(T-403)</span>
-        </p>
+      {/* Exchange pad — T-403 */}
+      <div className="flex-1">
+        <ExchangePad
+          matchId={match.id}
+          nextSequence={nextSequence}
+          apiUrl={apiUrl}
+          redName={match.redFighterName ?? 'Rouge'}
+          blueName={match.blueFighterName ?? 'Bleu'}
+          scoringEnabled={match.status === 'running'}
+          onExchangeRecorded={() => setNextSequence((n) => n + 1)}
+        />
       </div>
     </div>
   );

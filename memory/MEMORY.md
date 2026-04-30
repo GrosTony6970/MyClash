@@ -248,10 +248,12 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-302 · Berger table round-robin match generation | `e250723` | ✅ done |
 | T-303 · Single-elimination bracket | `d6eb633` | ✅ done |
 | T-303 · Configurable bracket size | `17f9ae7` | ✅ done |
-| T-304 · Match-to-Lice scheduler | — | ⏳ next |
+| Lint fix (no-misused-promises, no-unused-vars, web-admin) | `1d5d028` | ✅ done |
+| T-304 · Match-to-Lice scheduler | `87506b5` | ✅ done |
+| T-305 · Phases API | — | ⏳ next |
 
-**Current HEAD**: `17f9ae7`
-**Next task**: T-304 · Match-to-Lice scheduler
+**Current HEAD**: `87506b5`
+**Next task**: T-305 · Phases API
 
 ## Tech decisions locked in during implementation
 
