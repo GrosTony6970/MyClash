@@ -8,18 +8,18 @@ This file is your **first read on every task**. It defines hard rules, the persi
 
 ## Documentation map
 
-| File | What it is | When to read |
-|---|---|---|
-| `docs/HIERARCHY.md` | **Authoritative** vocabulary for Event/Tournament/Workshop/Pool/Match/Exchange | **Read first** before writing any code or docs that mention these terms |
-| `docs/ARCHITECTURE.md` | Master technical spec (data model, modules, ruleset, etc.) | Before any non-trivial change |
-| `docs/BUILD_ORDER.md` | Sequenced task list with acceptance criteria | When picking the next task |
-| `docs/OWNER_TASKS.md` | What the human owner is responsible for | When a task references `[O-NNN]` |
-| `myclash.md` | Functional / product / UX understanding of the app | For UX questions, persona flows, design decisions |
-| `memory/MEMORY.md` | Persistent thematic memory (you maintain this) | Start of every session, before answering |
-| `memory/LESSONS_LEARNED.md` | Permanent rules learned from past mistakes | Start of every session, before answering |
-| `memory/PROMPT_LOG.md` | Append-only log of user instructions | Append to it; rarely read |
-| `memory/notes/<topic>.md` | Thematic notes too detailed for MEMORY.md | Reference when MEMORY.md links to one |
-| `README.md` | Repo-oriented project documentation | Reference for newcomers |
+| File                        | What it is                                                                     | When to read                                                            |
+| --------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `docs/HIERARCHY.md`         | **Authoritative** vocabulary for Event/Tournament/Workshop/Pool/Match/Exchange | **Read first** before writing any code or docs that mention these terms |
+| `docs/ARCHITECTURE.md`      | Master technical spec (data model, modules, ruleset, etc.)                     | Before any non-trivial change                                           |
+| `docs/BUILD_ORDER.md`       | Sequenced task list with acceptance criteria                                   | When picking the next task                                              |
+| `docs/OWNER_TASKS.md`       | What the human owner is responsible for                                        | When a task references `[O-NNN]`                                        |
+| `myclash.md`                | Functional / product / UX understanding of the app                             | For UX questions, persona flows, design decisions                       |
+| `memory/MEMORY.md`          | Persistent thematic memory (you maintain this)                                 | Start of every session, before answering                                |
+| `memory/LESSONS_LEARNED.md` | Permanent rules learned from past mistakes                                     | Start of every session, before answering                                |
+| `memory/PROMPT_LOG.md`      | Append-only log of user instructions                                           | Append to it; rarely read                                               |
+| `memory/notes/<topic>.md`   | Thematic notes too detailed for MEMORY.md                                      | Reference when MEMORY.md links to one                                   |
+| `README.md`                 | Repo-oriented project documentation                                            | Reference for newcomers                                                 |
 
 `docs/ARCHITECTURE.md` is **authoritative for technical design**. `docs/HIERARCHY.md` is **authoritative for vocabulary**. If anything conflicts with either, ask before deviating.
 
@@ -132,6 +132,7 @@ This file is yours to maintain too. Keep it accurate as features evolve.
 ## What "done" looks like
 
 A task is done when:
+
 - All acceptance criteria pass with automated tests where possible.
 - `pnpm lint && pnpm typecheck && pnpm test` is green.
 - `memory/MEMORY.md` and `memory/LESSONS_LEARNED.md` are updated if anything new was learned.

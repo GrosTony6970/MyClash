@@ -16,10 +16,7 @@ import { isMatchOver } from '../tf_v1/score';
 
 // ── Score computation (no afterblow) ─────────────────────────────────────────
 
-function computeMatchScoreNoAfterblow(
-  match: Match,
-  exchanges: Exchange[],
-) {
+function computeMatchScoreNoAfterblow(match: Match, exchanges: Exchange[]) {
   const active = exchanges.filter((e) => !e.voided);
 
   let redScore = 0;

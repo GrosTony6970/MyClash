@@ -25,9 +25,11 @@ import type {
 export const GenericPointsCapConfigSchema = z.object({
   pointsCap: z.number().int().positive().default(5),
   timeLimitSeconds: z.number().int().positive().nullable().default(180),
-  pointValues: z.object({
-    hit: z.number().int().positive().default(1),
-  }).default({ hit: 1 }),
+  pointValues: z
+    .object({
+      hit: z.number().int().positive().default(1),
+    })
+    .default({ hit: 1 }),
 });
 
 export type GenericPointsCapConfig = z.infer<typeof GenericPointsCapConfigSchema>;
@@ -154,7 +156,9 @@ function standings(
     return seedA - seedB;
   });
 
-  rows.forEach((row, idx) => { row.rank = idx + 1; });
+  rows.forEach((row, idx) => {
+    row.rank = idx + 1;
+  });
 
   return rows.map(({ seed: _seed, ...row }) => row);
 }

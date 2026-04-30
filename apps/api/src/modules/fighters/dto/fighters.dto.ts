@@ -1,95 +1,123 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateFighterDto {
   @ApiProperty({ example: 'Jean' })
-  @IsString() @MinLength(1) @MaxLength(100)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   givenName!: string;
 
   @ApiProperty({ example: 'Dupont' })
-  @IsString() @MinLength(1) @MaxLength(100)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   familyName!: string;
 
   @ApiProperty({ example: 'Jean Dupont' })
-  @IsString() @MinLength(1) @MaxLength(200)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
   displayName!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   clubId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(2)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
   countryCode?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   hemaRatingsId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   photoUrl?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(2000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   bio?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dateOfBirth?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   genderCategory?: string;
 }
 
 export class UpdateFighterDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   givenName?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   familyName?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(200)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
   displayName?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   clubId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(2)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
   countryCode?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   hemaRatingsId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   photoUrl?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(2000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   bio?: string;
 }
 
 export class FighterQueryDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   q?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   club?: string;
 }
 

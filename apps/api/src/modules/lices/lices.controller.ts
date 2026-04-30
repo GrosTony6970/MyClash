@@ -1,6 +1,14 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, HttpStatus,
-  Param, ParseUUIDPipe, Patch, Post,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { LicesService } from './lices.service';
@@ -23,10 +31,7 @@ export class LicesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a lice (org admin+)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async create(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Body() dto: CreateLiceDto,
-  ) {
+  async create(@Param('eventId', ParseUUIDPipe) eventId: string, @Body() dto: CreateLiceDto) {
     return this.lices.create(eventId, dto);
   }
 
@@ -34,10 +39,7 @@ export class LicesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a lice (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateLiceDto,
-  ) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateLiceDto) {
     return this.lices.update(id, dto);
   }
 

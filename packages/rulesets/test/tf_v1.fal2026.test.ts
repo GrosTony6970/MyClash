@@ -22,7 +22,12 @@ import fixture from './fixtures/fal2026.json';
  * Compute TF_v1 score from aggregate values and round to 1 decimal.
  * This mirrors what the engine does when given per-exchange data.
  */
-function scoreFromAggregates(wins: number, ptsPlus: number, ptsMinus: number, doubles: number): number {
+function scoreFromAggregates(
+  wins: number,
+  ptsPlus: number,
+  ptsMinus: number,
+  doubles: number,
+): number {
   const agg = { wins, targetPoints: ptsPlus, timesHit: ptsMinus, doubles };
   const raw = computeScore(agg);
   return Math.round(raw * 10) / 10;

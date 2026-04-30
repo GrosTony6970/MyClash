@@ -8,8 +8,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const apiUrl =
-    process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,12 +42,10 @@ export default function LoginPage() {
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl font-bold mb-4">Check your email</h1>
           <p className="text-gray-600">
-            We sent a login link to <strong>{email}</strong>.
-            Click it to access your organizer dashboard.
+            We sent a login link to <strong>{email}</strong>. Click it to access your organizer
+            dashboard.
           </p>
-          <p className="mt-4 text-sm text-gray-400">
-            The link expires in 1 hour.
-          </p>
+          <p className="mt-4 text-sm text-gray-400">The link expires in 1 hour.</p>
         </div>
       </main>
     );
@@ -58,11 +55,14 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold mb-2">MyClash Admin</h1>
-        <p className="text-gray-600 mb-8">
-          Enter your email to receive a login link.
-        </p>
+        <p className="text-gray-600 mb-8">Enter your email to receive a login link.</p>
 
-        <form onSubmit={(e) => { void handleSubmit(e); }} className="flex flex-col gap-4">
+        <form
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+          className="flex flex-col gap-4"
+        >
           <div>
             <label htmlFor="email" className="block text-sm font-medium mb-1">
               Email address

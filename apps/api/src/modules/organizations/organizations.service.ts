@@ -6,7 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import type { AddMemberDto, CreateOrganizationDto, UpdateOrganizationDto } from './dto/organizations.dto';
+import type {
+  AddMemberDto,
+  CreateOrganizationDto,
+  UpdateOrganizationDto,
+} from './dto/organizations.dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -142,7 +146,15 @@ export class OrganizationsService {
 
     if (!data) throw new ForbiddenException('You are not a member of this organization');
 
-    const roleHierarchy = ['read_only', 'scorekeeper', 'referee', 'workshop_lead', 'editor', 'admin', 'owner'];
+    const roleHierarchy = [
+      'read_only',
+      'scorekeeper',
+      'referee',
+      'workshop_lead',
+      'editor',
+      'admin',
+      'owner',
+    ];
     const memberRole = (data as { role: string }).role;
     if (roleHierarchy.indexOf(memberRole) < roleHierarchy.indexOf(minRole)) {
       throw new ForbiddenException(`Requires ${minRole} role or higher`);

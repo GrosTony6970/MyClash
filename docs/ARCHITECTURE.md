@@ -5,6 +5,7 @@
 > This document is the master architectural reference for MyClash. It is written to be both human-readable and consumable by an AI coding agent (Claude Code, Cursor, Aider) as the project's anchor specification.
 >
 > **Companion docs:**
+>
 > - `docs/BUILD_ORDER.md` — sequenced task list for the AI coder.
 > - `docs/OWNER_TASKS.md` — operational checklist for the project owner (full version, organized by project phase).
 > - `docs/PRE_DEPLOY_CHECKLIST.md` — flat ordered checklist for everything that must happen before first production deploy.
@@ -62,16 +63,16 @@ It replaces the workflow people currently piece together with `hemaScorecard` + 
 
 ### 1.2 Why this is not a clone of hemaScorecard
 
-| | hemaScorecard | MyClash |
-|---|---|---|
-| Scoring | Per-match final score | Per-exchange (every clean hit, afterblow, double captured) |
-| Statistics | Pool standings only | Full exchange-level analytics, target zones, double-rate evolution, "deep hunters" leaderboards |
-| Public app | None (HTML export) | Per-event themed PWA with 3 personas (Competitor / Accompanist / Public) |
-| Mobile | Desktop-first | Mobile-first PWA, installable |
-| Live | Manual refresh | Realtime broadcast (sub-second) |
-| Offline | None | Scoring tablet works fully offline, syncs on reconnect |
-| Identity | Per-event | Global fighter profiles, linkable to HEMA Ratings |
-| Multi-tenant | Single-event install | Platform with per-event theming |
+|              | hemaScorecard         | MyClash                                                                                         |
+| ------------ | --------------------- | ----------------------------------------------------------------------------------------------- |
+| Scoring      | Per-match final score | Per-exchange (every clean hit, afterblow, double captured)                                      |
+| Statistics   | Pool standings only   | Full exchange-level analytics, target zones, double-rate evolution, "deep hunters" leaderboards |
+| Public app   | None (HTML export)    | Per-event themed PWA with 3 personas (Competitor / Accompanist / Public)                        |
+| Mobile       | Desktop-first         | Mobile-first PWA, installable                                                                   |
+| Live         | Manual refresh        | Realtime broadcast (sub-second)                                                                 |
+| Offline      | None                  | Scoring tablet works fully offline, syncs on reconnect                                          |
+| Identity     | Per-event             | Global fighter profiles, linkable to HEMA Ratings                                               |
+| Multi-tenant | Single-event install  | Platform with per-event theming                                                                 |
 
 ### 1.3 Constraints
 
@@ -97,6 +98,7 @@ Per-event themed (logo, colors, history pages, club directory). Personas chosen 
 - **Public** — discover HEMA, event editorial, schedule, club directory.
 
 The **"My Schedule"** view is the unified personal view (matches the beta companion app at `https://myfal.lyonamhe.fr/`). It overlays:
+
 - My fights (as competitor)
 - My refereeing assignments
 - My selected workshops
@@ -145,27 +147,27 @@ Platform-level admin (you). Functions:
 
 ### 3.1 Decisions
 
-| Layer | Choice | Rationale |
-|---|---|---|
-| Frontend (all PWAs) | **Next.js 15** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end |
-| Backend | **NestJS 10** + TypeScript | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference |
-| Database | **PostgreSQL 16** (via Supabase) | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly |
-| ORM | **Drizzle ORM** | TS-first, lightweight, raw-SQL escape hatch for ranking queries |
-| Realtime | **Supabase Realtime** (Phoenix Channels) | Postgres-native broadcast on row changes; zero glue code for the read-side |
-| Auth | **Supabase Auth** (email magic link + Google OAuth) | Self-hostable, JWT-based, integrates with Postgres RLS |
-| Object Storage | **Supabase Storage** (S3-compatible) | Fighter photos, event logos, podium photos |
-| Background jobs | **BullMQ** (Redis-backed) | Stats recomputation, HEMA Ratings sync, exports |
-| Cache + pub/sub | **Redis 7** | BullMQ + L2 cache for ranking queries |
-| Reverse proxy | **Traefik v3** | Automatic Let's Encrypt, label-based config, native Docker integration |
-| Container | **Docker + Docker Compose** | User requirement |
-| Monorepo tool | **pnpm workspaces** + **Turborepo** | Fast, simple, well-supported |
-| Client state | **TanStack Query** (React Query) + **Zustand** | Server state vs UI state separation |
-| Forms | **React Hook Form** + **Zod** | Schema validation shared with backend |
-| Heavy compute | **Web Workers** (via Comlink) | Bracket generation, ranking computation, statistics aggregation off the main thread |
-| Local-first storage (scoring) | **IndexedDB** (via Dexie.js) | Offline exchange queue |
-| Charts | **Recharts** + **D3** for custom viz | Statistics page |
-| Testing | **Vitest** (unit) + **Playwright** (E2E) | Modern, fast |
-| CI/CD | **GitHub Actions** | Standard |
+| Layer                         | Choice                                                          | Rationale                                                                                                    |
+| ----------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Frontend (all PWAs)           | **Next.js 15** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end                      |
+| Backend                       | **NestJS 10** + TypeScript                                      | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference |
+| Database                      | **PostgreSQL 16** (via Supabase)                                | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                        |
+| ORM                           | **Drizzle ORM**                                                 | TS-first, lightweight, raw-SQL escape hatch for ranking queries                                              |
+| Realtime                      | **Supabase Realtime** (Phoenix Channels)                        | Postgres-native broadcast on row changes; zero glue code for the read-side                                   |
+| Auth                          | **Supabase Auth** (email magic link + Google OAuth)             | Self-hostable, JWT-based, integrates with Postgres RLS                                                       |
+| Object Storage                | **Supabase Storage** (S3-compatible)                            | Fighter photos, event logos, podium photos                                                                   |
+| Background jobs               | **BullMQ** (Redis-backed)                                       | Stats recomputation, HEMA Ratings sync, exports                                                              |
+| Cache + pub/sub               | **Redis 7**                                                     | BullMQ + L2 cache for ranking queries                                                                        |
+| Reverse proxy                 | **Traefik v3**                                                  | Automatic Let's Encrypt, label-based config, native Docker integration                                       |
+| Container                     | **Docker + Docker Compose**                                     | User requirement                                                                                             |
+| Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                 |
+| Client state                  | **TanStack Query** (React Query) + **Zustand**                  | Server state vs UI state separation                                                                          |
+| Forms                         | **React Hook Form** + **Zod**                                   | Schema validation shared with backend                                                                        |
+| Heavy compute                 | **Web Workers** (via Comlink)                                   | Bracket generation, ranking computation, statistics aggregation off the main thread                          |
+| Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                    | Offline exchange queue                                                                                       |
+| Charts                        | **Recharts** + **D3** for custom viz                            | Statistics page                                                                                              |
+| Testing                       | **Vitest** (unit) + **Playwright** (E2E)                        | Modern, fast                                                                                                 |
+| CI/CD                         | **GitHub Actions**                                              | Standard                                                                                                     |
 
 ### 3.2 Why Supabase + NestJS together (not "one or the other")
 
@@ -216,17 +218,17 @@ Three distinct mechanisms, each addressing a different concern:
 
 ### 4.1 Service responsibilities
 
-| Service | Responsibility |
-|---|---|
-| `web-public` | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`). |
-| `web-scoring` | Scorekeeper PWA. Heavily client-side, IndexedDB-backed. |
-| `web-admin` | Organizer Admin + Super Admin SPA-like experience. |
-| `api` | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer. |
-| `worker` | NestJS in worker mode — BullMQ consumer (stats, exports, Ratings sync). |
-| `db` | Postgres (Supabase image or vanilla `postgres:16`). |
-| `redis` | Redis 7. |
-| `supabase-*` | If self-hosting full Supabase: kong, auth, storage, realtime, postgrest. |
-| `traefik` | Reverse proxy. |
+| Service       | Responsibility                                                              |
+| ------------- | --------------------------------------------------------------------------- |
+| `web-public`  | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`). |
+| `web-scoring` | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                     |
+| `web-admin`   | Organizer Admin + Super Admin SPA-like experience.                          |
+| `api`         | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.           |
+| `worker`      | NestJS in worker mode — BullMQ consumer (stats, exports, Ratings sync).     |
+| `db`          | Postgres (Supabase image or vanilla `postgres:16`).                         |
+| `redis`       | Redis 7.                                                                    |
+| `supabase-*`  | If self-hosting full Supabase: kong, auth, storage, realtime, postgrest.    |
+| `traefik`     | Reverse proxy.                                                              |
 
 > The three frontends could be a single Next.js app with route-based feature flags. **Decision: keep them as three apps in the monorepo**, sharing UI components via a `packages/ui` workspace. This isolates the scoring app (offline-first, very different UX) and the admin app (heavier, desktop-first) from the lean public PWA.
 
@@ -566,16 +568,17 @@ The `exchanges` table is the single source of truth. The match score is **always
 
 **Type meanings:**
 
-| `type` | Meaning | Score effect (TF_v1) |
-|---|---|---|
-| `clean` | One fighter struck, no afterblow | first striker gains `first_strike_value`; opponent +0 |
-| `afterblow` | First strike, then retaliation within window | first striker gains `first_strike_value`; opponent gains `afterblow_value` |
-| `double` | Both struck simultaneously | neither gains points; counted toward double penalty |
-| `no_exchange` | Halt, off-target, warning, etc. | no score effect |
+| `type`        | Meaning                                      | Score effect (TF_v1)                                                       |
+| ------------- | -------------------------------------------- | -------------------------------------------------------------------------- |
+| `clean`       | One fighter struck, no afterblow             | first striker gains `first_strike_value`; opponent +0                      |
+| `afterblow`   | First strike, then retaliation within window | first striker gains `first_strike_value`; opponent gains `afterblow_value` |
+| `double`      | Both struck simultaneously                   | neither gains points; counted toward double penalty                        |
+| `no_exchange` | Halt, off-target, warning, etc.              | no score effect                                                            |
 
 **Statistics columns derivation** (matching the lyonamhe.fr layout):
 
 For fighter F in event E:
+
 - `Dbl` = count(exchanges where match involves F and type='double')
 - `✓1` = count(type='clean', first_striker=F, first_strike_value=1)
 - `✓1-1` = count(type='afterblow', first_striker=F, first_strike_value=1)
@@ -627,12 +630,14 @@ SCORE(F)          = (wins(F) * WIN_BONUS + target_points(F))
 ```
 
 **Edge cases:**
+
 - If denominator = 0 (no hits received, no doubles): SCORE = numerator (treat as if denominator = 1). Document this explicitly.
 - Score is rounded to 1 decimal for display, but stored as full precision.
 
 ### 6.3 Ranking & tiebreakers
 
 Sort fighters by:
+
 1. `SCORE(F)` descending
 2. `wins(F)` descending
 3. `doubles(F)` ascending
@@ -678,19 +683,29 @@ Implementation must reproduce these scores byte-for-byte.
 ```ts
 // packages/rulesets/src/types.ts
 export interface Ruleset {
-  code: string;             // "TF_v1"
-  version: string;          // "1.0.0"
+  code: string; // "TF_v1"
+  version: string; // "1.0.0"
   displayName: string;
-  configSchema: ZodSchema;  // for validating ruleset_config
+  configSchema: ZodSchema; // for validating ruleset_config
 
   /** Compute one match's score from its exchanges */
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown): MatchScore;
 
   /** Decide if a match has ended (first-to-N, time-out, max-doubles, etc.) */
-  isMatchOver(match: Match, exchanges: Exchange[], clockMs: number, config: unknown): MatchEndDecision;
+  isMatchOver(
+    match: Match,
+    exchanges: Exchange[],
+    clockMs: number,
+    config: unknown,
+  ): MatchEndDecision;
 
   /** Compute pool standings from all matches */
-  computePoolStandings(pool: Pool, matches: Match[], registrations: Registration[], config: unknown): PoolStandingRow[];
+  computePoolStandings(
+    pool: Pool,
+    matches: Match[],
+    registrations: Registration[],
+    config: unknown,
+  ): PoolStandingRow[];
 
   /** Optional: compute event-level final ranking from pool + elim phases */
   computeFinalRanking?(event: Event, phases: Phase[], config: unknown): FinalRankingRow[];
@@ -704,6 +719,7 @@ export interface Ruleset {
 - **Generic_PointsCap** — first-to-N points, no algorithm score (for clubs that just want simple pool play).
 
 Additional rulesets are added by:
+
 1. Implementing the contract in `packages/rulesets/src/<code>.ts`.
 2. Registering it in the ruleset registry.
 3. Super Admin approval (DB row in `rulesets` table marks it `published`).
@@ -722,6 +738,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 ### 8.1 What we display (mirroring lyonamhe.fr layout)
 
 **Event-level hero numbers:**
+
 - Total participants
 - Total matches
 - Doubles rate (%)
@@ -729,6 +746,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 - Number of clubs
 
 **Per-event:**
+
 - Podium (top 3 with photos)
 - Final classification table
 - Pool phase classification (V / Pts+ / Pts− / Dbl / Score)
@@ -741,6 +759,7 @@ This dual-runtime design is critical for the offline scoring tablet.
 - Per-fighter detailed exchange table (Dbl / ✓1 / ✓1-1 / ✓2 / ✓2-1 / ✗1 / ✗1-1 / ✗2 / ✗2-1 / Total / Ratio)
 
 **Special awards:**
+
 - Prix Technique (judge-decided, not computed)
 
 ### 8.2 Computation strategy
@@ -766,13 +785,13 @@ This dual-runtime design is critical for the offline scoring tablet.
 
 ### 9.1 What is broadcast
 
-| Channel | Payload | Subscribers |
-|---|---|---|
-| `event:{id}` | high-level events (match started, ended, podium published) | public app, admin |
-| `event:{id}:standings` | pool standings deltas | public app, admin |
-| `lice:{id}:current` | current/next match on a Lice | public app, admin, accompanist views |
-| `match:{id}:exchanges` | new exchange, voided exchange, score update | public app, scorekeeper (other devices) |
-| `match:{id}:clock` | clock state changes | public app, scorekeeper |
+| Channel                | Payload                                                    | Subscribers                             |
+| ---------------------- | ---------------------------------------------------------- | --------------------------------------- |
+| `event:{id}`           | high-level events (match started, ended, podium published) | public app, admin                       |
+| `event:{id}:standings` | pool standings deltas                                      | public app, admin                       |
+| `lice:{id}:current`    | current/next match on a Lice                               | public app, admin, accompanist views    |
+| `match:{id}:exchanges` | new exchange, voided exchange, score update                | public app, scorekeeper (other devices) |
+| `match:{id}:clock`     | clock state changes                                        | public app, scorekeeper                 |
 
 ### 9.2 Mechanism
 
@@ -891,6 +910,7 @@ When a user views their **My Schedule**, the system computes their personal sche
 3. **Workshop enrollments** — soft, user choice.
 
 For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conflict**. Workshops are flagged with explicit "Conflicts with Match #L1-P3-M5" annotations. The user can:
+
 - Cancel the workshop enrollment.
 - Acknowledge the conflict (warning persists, but user proceeds).
 
@@ -898,9 +918,9 @@ For any pair `(item_a, item_b)` where time ranges overlap, the UI flags a **conf
 
 ```ts
 async function getUserSchedule(userId: string, eventId: string): Promise<ScheduleItem[]> {
-  const matches      = await getCompetitorMatches(userId, eventId);
+  const matches = await getCompetitorMatches(userId, eventId);
   const refereeAssgs = await getRefereeAssignments(userId, eventId);
-  const workshops    = await getEnrolledWorkshopSessions(userId, eventId);
+  const workshops = await getEnrolledWorkshopSessions(userId, eventId);
 
   const items: ScheduleItem[] = [
     ...matches.map(toScheduleItem),
@@ -909,11 +929,12 @@ async function getUserSchedule(userId: string, eventId: string): Promise<Schedul
   ];
 
   // Annotate conflicts: any two items with overlapping [starts_at, ends_at]
-  for (const a of items) for (const b of items) {
-    if (a.id !== b.id && rangesOverlap(a, b)) {
-      a.conflicts.push(b.id);
+  for (const a of items)
+    for (const b of items) {
+      if (a.id !== b.id && rangesOverlap(a, b)) {
+        a.conflicts.push(b.id);
+      }
     }
-  }
 
   return items.sort(byStartTime);
 }
@@ -952,15 +973,15 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 
 ### 11ter.2 Triggers
 
-| Event | Default lead time | Toggleable |
-|---|---|---|
-| Your match starts | 10 min before | yes |
-| Your refereeing slot starts | 10 min before | yes |
-| Your workshop starts | 15 min before | yes |
-| Your match assignment changed | immediate | yes |
-| Workshop you enrolled in cancelled | immediate | always on |
-| Promoted from waitlist to confirmed | immediate | always on |
-| Final results published | immediate | yes |
+| Event                               | Default lead time | Toggleable |
+| ----------------------------------- | ----------------- | ---------- |
+| Your match starts                   | 10 min before     | yes        |
+| Your refereeing slot starts         | 10 min before     | yes        |
+| Your workshop starts                | 15 min before     | yes        |
+| Your match assignment changed       | immediate         | yes        |
+| Workshop you enrolled in cancelled  | immediate         | always on  |
+| Promoted from waitlist to confirmed | immediate         | always on  |
+| Final results published             | immediate         | yes        |
 
 ### 11ter.3 Implementation
 
@@ -978,21 +999,24 @@ This is a v1 feature. The organizer admin gets two assistant tools — pool popu
 ### 11quater.1 Pool Populator
 
 **Inputs:**
+
 - A registered fighter list for an event.
 - Pool count (or target pool size).
 - `pool_assignment_settings` for this event.
 
 **Hard constraints** (always enforced):
+
 - Pool sizes balanced within ±1 fighter.
 
 **Soft constraints** (configurable, weighted in cost function):
+
 - **School separation** — fighters from the same `club_id` distributed across pools. Cost increases per same-club pair in the same pool.
 - **Skill balance** — high-rated fighters spread evenly. The "skill" of a fighter for an event is computed as:
   1. HEMA Ratings score for the **event's weapon**, if linked and not stale (<2 years old).
   2. Otherwise: HEMA Ratings overall rating.
   3. Otherwise: registration `seed`.
   4. Otherwise: registration order.
-  Pools should have similar mean rating; cost increases with mean-rating variance across pools.
+     Pools should have similar mean rating; cost increases with mean-rating variance across pools.
 
 **Algorithm (greedy + local search):**
 
@@ -1009,6 +1033,7 @@ This is a v1 feature. The organizer admin gets two assistant tools — pool popu
 This produces near-optimal results in practice without needing a CP-SAT solver. For very small pool counts (≤2) where school separation is impossible, the cost function reports unavoidable violations to the organizer.
 
 **Output:**
+
 - Pool assignments.
 - A **feasibility report**:
   - Same-club pairs in each pool (count + names).
@@ -1020,15 +1045,16 @@ This produces near-optimal results in practice without needing a CP-SAT solver. 
 
 The hardest piece. Each pool requires **3 referees**, one per role:
 
-| Role (canonical code) | French display | English gloss |
-|---|---|---|
-| `arbitre_declarant` | Arbitre déclarant | Lead/Director referee |
-| `arbitre_assesseur` | Arbitre assesseur | Assessor referee |
-| `arbitre_table` | Arbitre de table | Table referee (timing/scoring oversight) |
+| Role (canonical code) | French display    | English gloss                            |
+| --------------------- | ----------------- | ---------------------------------------- |
+| `arbitre_declarant`   | Arbitre déclarant | Lead/Director referee                    |
+| `arbitre_assesseur`   | Arbitre assesseur | Assessor referee                         |
+| `arbitre_table`       | Arbitre de table  | Table referee (timing/scoring oversight) |
 
 A user has zero or more `referee_qualifications` rows per event. A user qualified for a role with `rating=5` is highly trusted; `rating=1` means novice. Some users are qualified for all three roles, some for one.
 
 **Inputs:**
+
 - The pool schedule (every `(pool_id, lice_id, starts_at, ends_at)` tuple).
 - The event's match schedule (so we know when each fighter is on the piste).
 - All `referee_qualifications` for the event.
@@ -1036,10 +1062,12 @@ A user has zero or more `referee_qualifications` rows per event. A user qualifie
 - `pool_assignment_settings`.
 
 **Hard constraints** (assignment is rejected if violated):
+
 - A fighter cannot referee a pool whose time overlaps with a match they're fighting in. (`enforce_fighter_referee_no_overlap`)
 - A user must hold an active `referee_qualifications` row for the role being assigned.
 
 **Soft constraints** (cost function, configurable on/off):
+
 - **No back-to-back referee duties.** If `enforce_referee_no_back_to_back=true`, assigning the same user to two consecutive pool slots on the same Lice incurs high cost. `referee_rest_min_slots` controls the gap (default 1).
 - **Dedicated referee rest.** Same constraint applies even to users with no fighter registration, when `enforce_dedicated_referee_rest=true`.
 - **Workshop conflict.** If the user has a confirmed workshop session in the same time window, cost increases (warning, not rejection).
@@ -1066,6 +1094,7 @@ A user has zero or more `referee_qualifications` rows per event. A user qualifie
 ```
 
 **Output:**
+
 - Assignments persisted to `referee_assignments` with `auto_assigned=true`.
 - A **missing-role report**, structured for the admin UI:
   ```json
@@ -1126,28 +1155,28 @@ A user — anonymous, guest, or claimed — can search for any fighter or refere
 
 Three categories of information, three different defaults:
 
-| Information | Visibility | Why |
-|---|---|---|
-| **Match schedule** (when, where, against whom) | Always public | Happens at the piste in front of everyone |
-| **Referee assignments** (when, where, role) | Always public | Same — happens in shared space |
-| **Workshop enrollments** | Public by default; opt-out available | Workshops are part of the event's shared experience; users who want privacy can opt out |
-| **Email address** | Always masked publicly; full visible only to oneself | Anti-harvesting |
-| **Following relationships** | Private; never shown to the followed person | Avoids implied social relationships |
+| Information                                    | Visibility                                           | Why                                                                                     |
+| ---------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Match schedule** (when, where, against whom) | Always public                                        | Happens at the piste in front of everyone                                               |
+| **Referee assignments** (when, where, role)    | Always public                                        | Same — happens in shared space                                                          |
+| **Workshop enrollments**                       | Public by default; opt-out available                 | Workshops are part of the event's shared experience; users who want privacy can opt out |
+| **Email address**                              | Always masked publicly; full visible only to oneself | Anti-harvesting                                                                         |
+| **Following relationships**                    | Private; never shown to the followed person          | Avoids implied social relationships                                                     |
 
 Persons can opt out of being followed entirely (`person_privacy.allow_being_followed = false`). When that flag is set, their public profile remains visible (you can still find them and see their schedule) but the Follow button is hidden.
 
 ### 11quinquies.2 Following capabilities by tier
 
-| Capability | Anonymous | Guest | Claimed |
-|---|---|---|---|
-| View any person's public profile | ✅ | ✅ | ✅ |
-| View any person's match schedule | ✅ | ✅ | ✅ |
-| View any person's referee schedule | ✅ | ✅ | ✅ |
-| View their own workshop schedule | n/a | ✅ | ✅ |
-| View someone else's workshop schedule | ✅ unless they opted out | ✅ unless they opted out | ✅ unless they opted out |
-| Follow someone (build a watchlist) | localStorage only | server, this device | server, cross-device |
-| Push notification when followed person's match starts | ❌ | ❌ | ✅ (opt-in per follow) |
-| Manage privacy preferences | n/a | n/a | ✅ |
+| Capability                                            | Anonymous                | Guest                    | Claimed                  |
+| ----------------------------------------------------- | ------------------------ | ------------------------ | ------------------------ |
+| View any person's public profile                      | ✅                       | ✅                       | ✅                       |
+| View any person's match schedule                      | ✅                       | ✅                       | ✅                       |
+| View any person's referee schedule                    | ✅                       | ✅                       | ✅                       |
+| View their own workshop schedule                      | n/a                      | ✅                       | ✅                       |
+| View someone else's workshop schedule                 | ✅ unless they opted out | ✅ unless they opted out | ✅ unless they opted out |
+| Follow someone (build a watchlist)                    | localStorage only        | server, this device      | server, cross-device     |
+| Push notification when followed person's match starts | ❌                       | ❌                       | ✅ (opt-in per follow)   |
+| Manage privacy preferences                            | n/a                      | n/a                      | ✅                       |
 
 The localStorage-only path for anonymous users is intentional — it gives a quality-of-life feature without lying about cross-device sync. To get sync, the user upgrades to guest by picking their own name on onboarding. To get push notifications, they claim.
 
@@ -1217,6 +1246,7 @@ When a followed Person's match is scheduled to start within `notify_lead_time_mi
 Same scheduling mechanism as the user's own match notifications (BullMQ delayed jobs). Idempotent on `(user_id, match_id, notification_kind)` so rescheduling a match doesn't duplicate.
 
 Per-follow toggles (set on the Follow button's "..." menu):
+
 - ☑ Notify me when their match starts
 - ☐ Notify me when their referee slot starts
 - ☐ Notify me when their workshop starts (only if they share workshops)
@@ -1229,7 +1259,7 @@ MyClash uses a **two-tier identity model**: organizer-created Persons (the canon
 
 ### 12.1 The model
 
-**Person** — created by the organizer. Holds name, email, club, optional HEMA Ratings link. Lives in `persons` table, scoped to one event. The Person row exists *before* the user ever touches the app.
+**Person** — created by the organizer. Holds name, email, club, optional HEMA Ratings link. Lives in `persons` table, scoped to one event. The Person row exists _before_ the user ever touches the app.
 
 **Guest session** — created when a participant types their name, finds themselves in the roster, and confirms. Lives in `guest_sessions`, bound to one Person, stored as a signed httpOnly cookie + server row. Lasts until event end + 7 days.
 
@@ -1237,19 +1267,19 @@ MyClash uses a **two-tier identity model**: organizer-created Persons (the canon
 
 ### 12.2 Capability matrix
 
-| Capability | Anonymous | Guest | Claimed |
-|---|---|---|---|
-| Browse public schedule, brackets, results | ✅ | ✅ | ✅ |
-| See "my next match", "my pool" | ❌ | ✅ | ✅ |
-| Enroll/cancel workshop sessions | ❌ | ✅ | ✅ |
-| Confirm/decline referee assignment | ❌ | ✅ | ✅ |
-| Mark favorite fighters (accompanist) | ❌ | ✅ (this device) | ✅ (synced) |
-| Subscribe to push notifications | ❌ | ✅ (this device) | ✅ (cross-device) |
-| Use a second device | ❌ | ❌ (re-pick name) | ✅ (login link) |
-| Edit own profile (display name, bio, photo) | ❌ | ❌ | ✅ |
-| Promote Person → global Fighter profile | ❌ | ❌ | ✅ |
-| See full email address (instead of mask) | ❌ | ❌ | ✅ (own only) |
-| Access organizer admin | ❌ | ❌ | ✅ (if granted role) |
+| Capability                                  | Anonymous | Guest             | Claimed              |
+| ------------------------------------------- | --------- | ----------------- | -------------------- |
+| Browse public schedule, brackets, results   | ✅        | ✅                | ✅                   |
+| See "my next match", "my pool"              | ❌        | ✅                | ✅                   |
+| Enroll/cancel workshop sessions             | ❌        | ✅                | ✅                   |
+| Confirm/decline referee assignment          | ❌        | ✅                | ✅                   |
+| Mark favorite fighters (accompanist)        | ❌        | ✅ (this device)  | ✅ (synced)          |
+| Subscribe to push notifications             | ❌        | ✅ (this device)  | ✅ (cross-device)    |
+| Use a second device                         | ❌        | ❌ (re-pick name) | ✅ (login link)      |
+| Edit own profile (display name, bio, photo) | ❌        | ❌                | ✅                   |
+| Promote Person → global Fighter profile     | ❌        | ❌                | ✅                   |
+| See full email address (instead of mask)    | ❌        | ❌                | ✅ (own only)        |
+| Access organizer admin                      | ❌        | ❌                | ✅ (if granted role) |
 
 The line between Guest and Claimed is deliberately drawn at **anything that crosses devices or grants editing rights**. Casual users never need to claim. Power users get a one-time magic link.
 
@@ -1275,7 +1305,8 @@ If "Send me a login link": email goes to the organizer-registered address. Click
 ### 12.4 Edge cases
 
 **"I'm not in the list"** — the lookup endpoint returns an `[I'm none of these]` option. Tapping it surfaces:
-> *Only people pre-registered by the organizer can use this app. If you should be in the list, please find an organizer at the registration desk.*
+
+> _Only people pre-registered by the organizer can use this app. If you should be in the list, please find an organizer at the registration desk._
 
 This is intentional — preventing self-registration is what makes guest sessions safe. Without it, anyone could type "Pierre Lambert" and act as Pierre.
 
@@ -1285,7 +1316,7 @@ This is intentional — preventing self-registration is what makes guest session
 
 **Switching devices as a Guest** — the participant types their name again on the new device. They get a fresh guest session on Person X. Push subscriptions are per-session (per-device), so each device subscribes independently. That's fine — Guest is explicitly "this device only."
 
-**Email typos by the organizer** — if the participant's email in the roster is wrong, they can't claim. The organizer admin has an "edit person" form. Magic-link auth detects "no person with this email" and shows: *Ask the organizer to check your email is correctly registered as `[entered email]`.*
+**Email typos by the organizer** — if the participant's email in the roster is wrong, they can't claim. The organizer admin has an "edit person" form. Magic-link auth detects "no person with this email" and shows: _Ask the organizer to check your email is correctly registered as `[entered email]`._
 
 ### 12.5 Implementation notes
 
@@ -1343,13 +1374,15 @@ OrganizationRole grants always require a **claimed** account. They are never giv
 3. They land on the org dashboard at `/org/<slug>` ready to create their first event.
 
 **What an organizer can do** without further approval:
-- Create one or more **Events** (the multi-day gathering, e.g. "FAL 2026") — *terminology TBD pending owner decision*.
+
+- Create one or more **Events** (the multi-day gathering, e.g. "FAL 2026") — _terminology TBD pending owner decision_.
 - Within each event, create competitions, workshops, schedule, venue.
 - Import the participant roster (manual + CSV).
 - Run the event end-to-end (registrations → pools → brackets → scoring → results).
 - Invite team members to their organization (admin, editor, scorekeeper, referee — see §12.6 roles).
 
 **What an organizer cannot do**:
+
 - See or edit any other organization's data.
 - Modify global Fighter profiles created by other organizations (only the organization that originated a Person can edit its details; once the Person is claimed and promoted to a global Fighter, the Fighter is editable by the claimed user).
 - Bypass platform-wide RLS policies.
@@ -1370,20 +1403,21 @@ The super admin (project owner) has a dashboard at `https://admin.myclash.fr/adm
   - **Reset organization owner** — if the original owner loses access, super admin can re-assign ownership to another member.
 
 **No automatic approval gate at signup** means super admin's job is reactive moderation, not bottleneck approval. This is acceptable because:
+
 - Email verification deters bots.
 - Suspending a bad actor is fast (one click, immediate effect).
 - Real HEMA events are a small community; bad actors are rare and easily identified.
 
 ### 12.7quater User account types — summary
 
-| Account type | How created | Capabilities |
-|---|---|---|
-| **Anonymous** | No account | Public reads, localStorage follows |
-| **Guest** | Picked self from organizer's roster | Per-event guest capabilities |
-| **Claimed (participant)** | Magic link to organizer-registered email | Cross-device, edit own profile |
-| **Organizer** | Self-signup (magic link or email+password) | Owns one organization, can create events |
-| **Organizer team member** | Invited by an existing organizer | Per-org role: admin, editor, scorekeeper, referee, workshop_lead, read_only |
-| **Super admin** | Promoted by another super admin (or DB bootstrap) | Platform-wide moderation |
+| Account type              | How created                                       | Capabilities                                                                |
+| ------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Anonymous**             | No account                                        | Public reads, localStorage follows                                          |
+| **Guest**                 | Picked self from organizer's roster               | Per-event guest capabilities                                                |
+| **Claimed (participant)** | Magic link to organizer-registered email          | Cross-device, edit own profile                                              |
+| **Organizer**             | Self-signup (magic link or email+password)        | Owns one organization, can create events                                    |
+| **Organizer team member** | Invited by an existing organizer                  | Per-org role: admin, editor, scorekeeper, referee, workshop_lead, read_only |
+| **Super admin**           | Promoted by another super admin (or DB bootstrap) | Platform-wide moderation                                                    |
 
 The Claimed-Participant and Organizer paths can converge: a Person who claims their profile on event day is a "claimed account"; if they later self-sign-up as an organizer at a different event, the same `auth.users` row is reused.
 
@@ -1405,16 +1439,13 @@ Pierre,Martin,pierre@example.com,,,,referee
 - `hema_ratings_id` populates the link if known; otherwise the post-import HEMA Ratings suggester (T-1102) helps fill it in.
 
 **Import returns a structured report:**
+
 ```json
 {
   "created": 47,
   "updated": 3,
-  "duplicates": [
-    { "row": 12, "name": "Jean Dupont", "existing_email": "j***@gmail.com" }
-  ],
-  "invalid": [
-    { "row": 18, "reason": "Missing email", "raw": "Pierre,Martin,,,,," }
-  ],
+  "duplicates": [{ "row": 12, "name": "Jean Dupont", "existing_email": "j***@gmail.com" }],
+  "invalid": [{ "row": 18, "reason": "Missing email", "raw": "Pierre,Martin,,,,," }],
   "new_clubs_for_review": ["Hammaborg", "Indes"]
 }
 ```
@@ -1446,6 +1477,7 @@ Each event can customize:
 - Fighter profile (in event context): `/e/{event-slug}/f/{fighter-slug}`
 
 Global (cross-event):
+
 - Fighter profile: `/fighters/{slug}`
 - Club: `/clubs/{slug}`
 - Events index: `/events`
@@ -1793,7 +1825,7 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 ### 17.1 `docker-compose.yml` (sketch)
 
 ```yaml
-version: "3.9"
+version: '3.9'
 
 networks:
   myclash:
@@ -1806,7 +1838,6 @@ volumes:
   letsencrypt:
 
 services:
-
   traefik:
     image: traefik:v3.1
     restart: unless-stopped
@@ -1821,8 +1852,8 @@ services:
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.le.acme.tlschallenge=true
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
@@ -1878,7 +1909,7 @@ services:
 
   worker:
     build: ./apps/api
-    command: ["node", "dist/main.js", "--worker"]
+    command: ['node', 'dist/main.js', '--worker']
     restart: unless-stopped
     env_file: .env
     depends_on: [db, redis]
@@ -2026,25 +2057,25 @@ The detailed, task-level build order is in **`docs/BUILD_ORDER.md`**. That docum
 
 High-level phases:
 
-| Phase | Name | Goal |
-|---|---|---|
-| **P0** | Bootstrap | Monorepo, Docker Compose with Traefik, Supabase, CI green |
-| **P0.5** | Deployment Automation | OVH VPS bootstrap, prod Dockerfiles + compose, server-side `git pull + build + up` deploy, manual one-line trigger from Windows, migrations + rollback + backups |
-| **P1** | Domain core | DB schema, fighters/clubs/orgs/events/tournaments CRUD, RLS |
-| **P2** | TF_v1 ruleset | Pure-function ruleset engine; FAL 2026 golden test |
-| **P3** | Pools & brackets | Pool generation, single-elim brackets, scheduling to Lices |
-| **P4** | Online scoring | Scorekeeper PWA shell, exchange entry, match clock, realtime broadcast |
-| **P5** | Offline scoring | IndexedDB outbox, service worker, sync engine, reconcile |
-| **P6** | Public PWA | Per-event theming, persona home screens, results & brackets |
-| **P7** | Admin app | Event wizard, theme editor, registrations, schedule mgmt |
-| **P8** | Workshops | Workshop CRUD, sessions, enrollment, capacity, schedule conflicts |
-| **P9** | Referees & Assignment Engines | Referee qualifications/ratings, role-based auto-assignment (3 roles, soft constraints, missing-role report), pool populator UI |
-| **P10** | Statistics | Mirror lyonamhe.fr/resultat_fal2026.html stats layout |
-| **P11** | HEMA Ratings | Daily pull, search & link in registration |
-| **P12** | Push notifications | VAPID setup, opt-in flow, scheduled jobs, fallbacks |
-| **P13** | Super admin | Org approval, fighter merge, ruleset moderation, audit log |
-| **P14** | i18n & polish | French translation, a11y, perf pass |
-| **P15** | Beta event | Run a real event, fix issues, tag v1.0 |
+| Phase    | Name                          | Goal                                                                                                                                                             |
+| -------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0**   | Bootstrap                     | Monorepo, Docker Compose with Traefik, Supabase, CI green                                                                                                        |
+| **P0.5** | Deployment Automation         | OVH VPS bootstrap, prod Dockerfiles + compose, server-side `git pull + build + up` deploy, manual one-line trigger from Windows, migrations + rollback + backups |
+| **P1**   | Domain core                   | DB schema, fighters/clubs/orgs/events/tournaments CRUD, RLS                                                                                                      |
+| **P2**   | TF_v1 ruleset                 | Pure-function ruleset engine; FAL 2026 golden test                                                                                                               |
+| **P3**   | Pools & brackets              | Pool generation, single-elim brackets, scheduling to Lices                                                                                                       |
+| **P4**   | Online scoring                | Scorekeeper PWA shell, exchange entry, match clock, realtime broadcast                                                                                           |
+| **P5**   | Offline scoring               | IndexedDB outbox, service worker, sync engine, reconcile                                                                                                         |
+| **P6**   | Public PWA                    | Per-event theming, persona home screens, results & brackets                                                                                                      |
+| **P7**   | Admin app                     | Event wizard, theme editor, registrations, schedule mgmt                                                                                                         |
+| **P8**   | Workshops                     | Workshop CRUD, sessions, enrollment, capacity, schedule conflicts                                                                                                |
+| **P9**   | Referees & Assignment Engines | Referee qualifications/ratings, role-based auto-assignment (3 roles, soft constraints, missing-role report), pool populator UI                                   |
+| **P10**  | Statistics                    | Mirror lyonamhe.fr/resultat_fal2026.html stats layout                                                                                                            |
+| **P11**  | HEMA Ratings                  | Daily pull, search & link in registration                                                                                                                        |
+| **P12**  | Push notifications            | VAPID setup, opt-in flow, scheduled jobs, fallbacks                                                                                                              |
+| **P13**  | Super admin                   | Org approval, fighter merge, ruleset moderation, audit log                                                                                                       |
+| **P14**  | i18n & polish                 | French translation, a11y, perf pass                                                                                                                              |
+| **P15**  | Beta event                    | Run a real event, fix issues, tag v1.0                                                                                                                           |
 
 **Total estimated: 14–18 weeks of focused engineering.**
 
@@ -2117,4 +2148,4 @@ These are intentionally **not** in scope for v1.0 but are tracked here:
 
 ---
 
-*End of MyClash Architecture v1.0 specification.*
+_End of MyClash Architecture v1.0 specification._

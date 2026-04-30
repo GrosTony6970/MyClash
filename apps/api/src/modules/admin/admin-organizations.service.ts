@@ -1,11 +1,10 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import type { ListOrgsQueryDto, PromoteSuperAdminDto, ReassignOwnerDto } from './dto/admin-organizations.dto';
+import type {
+  ListOrgsQueryDto,
+  PromoteSuperAdminDto,
+  ReassignOwnerDto,
+} from './dto/admin-organizations.dto';
 
 /** Shape returned for each org in the list view. */
 export interface OrgListItem {
@@ -48,9 +47,7 @@ export class AdminOrganizationsService {
 
   async listOrganizations(query: ListOrgsQueryDto): Promise<OrgListItem[]> {
     try {
-      let q = this.supabase.service
-        .from('organizations')
-        .select(`
+      let q = this.supabase.service.from('organizations').select(`
           id, name, slug, status, created_at,
           organization_members!inner(user_id, role),
           events(id)
@@ -64,7 +61,8 @@ export class AdminOrganizationsService {
 
       // Flatten into OrgListItem shape
       return ((data ?? []) as Array<Record<string, unknown>>).map((org) => {
-        const members = (org['organization_members'] as Array<{ user_id: string; role: string }>) ?? [];
+        const members =
+          (org['organization_members'] as Array<{ user_id: string; role: string }>) ?? [];
         const ownerMember = members.find((m) => m.role === 'owner');
         return {
           id: org['id'] as string,
@@ -91,20 +89,25 @@ export class AdminOrganizationsService {
     try {
       const { data: org, error } = await this.supabase.service
         .from('organizations')
-        .select(`
+        .select(
+          `
           id, name, slug, status, created_at,
           organization_members(user_id, role, created_at),
           events(id)
-        `)
+        `,
+        )
         .eq('id', id)
         .maybeSingle();
 
       if (error) throw error;
       if (!org) throw new NotFoundException(`Organization ${id} not found`);
 
-      const members = ((org as Record<string, unknown>)['organization_members'] as Array<{
-        user_id: string; role: string; created_at: string;
-      }>) ?? [];
+      const members =
+        ((org as Record<string, unknown>)['organization_members'] as Array<{
+          user_id: string;
+          role: string;
+          created_at: string;
+        }>) ?? [];
 
       // Fetch recent audit log entries
       let auditLog: OrgDetail['recent_audit_log'] = [];
@@ -169,10 +172,7 @@ export class AdminOrganizationsService {
       // Log before deletion
       await this.writeAuditLog(actorUserId, 'org.delete', 'organization', id, { hard: true });
 
-      const { error } = await this.supabase.service
-        .from('organizations')
-        .delete()
-        .eq('id', id);
+      const { error } = await this.supabase.service.from('organizations').delete().eq('id', id);
 
       if (error) throw error;
       this.logger.log(`Organization ${id} hard-deleted by ${actorUserId}`);
@@ -202,11 +202,7 @@ export class AdminOrganizationsService {
 
   // ── Reassign ownership ───────────────────────────────────────────────────
 
-  async reassignOwner(
-    orgId: string,
-    dto: ReassignOwnerDto,
-    actorUserId: string,
-  ): Promise<void> {
+  async reassignOwner(orgId: string, dto: ReassignOwnerDto, actorUserId: string): Promise<void> {
     try {
       // Verify new owner is an existing member
       const { data: member } = await this.supabase.service
@@ -238,7 +234,9 @@ export class AdminOrganizationsService {
         new_owner_user_id: dto.newOwnerUserId,
       });
 
-      this.logger.log(`Org ${orgId} ownership reassigned to ${dto.newOwnerUserId} by ${actorUserId}`);
+      this.logger.log(
+        `Org ${orgId} ownership reassigned to ${dto.newOwnerUserId} by ${actorUserId}`,
+      );
     } catch (err) {
       if (err instanceof BadRequestException) throw err;
       this.logger.error(`Failed to reassign owner for org ${orgId}: ${String(err)}`);

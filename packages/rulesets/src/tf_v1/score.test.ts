@@ -140,7 +140,11 @@ describe('computeAggregates', () => {
   });
 
   it('no_exchange: no effect on any aggregate', () => {
-    const ex = makeExchange({ type: 'no_exchange', firstStrikerColor: null, firstStrikeValue: null });
+    const ex = makeExchange({
+      type: 'no_exchange',
+      firstStrikerColor: null,
+      firstStrikeValue: null,
+    });
     const agg = computeAggregates('reg-red', BASE_MATCH, [ex], false);
     expect(agg.targetPoints).toBe(0);
     expect(agg.timesHit).toBe(0);
@@ -148,7 +152,12 @@ describe('computeAggregates', () => {
   });
 
   it('voided exchanges are ignored', () => {
-    const ex = makeExchange({ type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 2, voided: true });
+    const ex = makeExchange({
+      type: 'clean',
+      firstStrikerColor: 'red',
+      firstStrikeValue: 2,
+      voided: true,
+    });
     const agg = computeAggregates('reg-red', BASE_MATCH, [ex], false);
     expect(agg.targetPoints).toBe(0);
   });
@@ -176,8 +185,20 @@ describe('computeMatchScore', () => {
 
   it('accumulates red score from clean hits', () => {
     const exchanges = [
-      makeExchange({ id: 'e1', sequence: 1, type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 }),
-      makeExchange({ id: 'e2', sequence: 2, type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 2 }),
+      makeExchange({
+        id: 'e1',
+        sequence: 1,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 1,
+      }),
+      makeExchange({
+        id: 'e2',
+        sequence: 2,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 2,
+      }),
     ];
     const score = computeMatchScore(BASE_MATCH, exchanges, TFv1DefaultConfig);
     expect(score.redScore).toBe(3);
@@ -187,8 +208,20 @@ describe('computeMatchScore', () => {
 
   it('counts doubles correctly', () => {
     const exchanges = [
-      makeExchange({ id: 'e1', sequence: 1, type: 'double', firstStrikerColor: null, firstStrikeValue: null }),
-      makeExchange({ id: 'e2', sequence: 2, type: 'double', firstStrikerColor: null, firstStrikeValue: null }),
+      makeExchange({
+        id: 'e1',
+        sequence: 1,
+        type: 'double',
+        firstStrikerColor: null,
+        firstStrikeValue: null,
+      }),
+      makeExchange({
+        id: 'e2',
+        sequence: 2,
+        type: 'double',
+        firstStrikerColor: null,
+        firstStrikeValue: null,
+      }),
     ];
     const score = computeMatchScore(BASE_MATCH, exchanges, TFv1DefaultConfig);
     expect(score.doubles).toBe(2);
@@ -204,7 +237,7 @@ describe('computeMatchScore', () => {
       afterblowValue: 1,
     });
     const score = computeMatchScore(BASE_MATCH, [ex], TFv1DefaultConfig);
-    expect(score.redScore).toBe(1);  // red struck first
+    expect(score.redScore).toBe(1); // red struck first
     expect(score.blueScore).toBe(1); // blue landed afterblow
     expect(score.redTimesHit).toBe(1); // red received afterblow
   });
@@ -225,9 +258,18 @@ describe('isMatchOver', () => {
   });
 
   it('over when first-to-points reached', () => {
-    const config = { ...TFv1DefaultConfig, matchFormat: { ...TFv1DefaultConfig.matchFormat, firstToPoints: 5, timeLimitSeconds: null } };
+    const config = {
+      ...TFv1DefaultConfig,
+      matchFormat: { ...TFv1DefaultConfig.matchFormat, firstToPoints: 5, timeLimitSeconds: null },
+    };
     const exchanges = Array.from({ length: 5 }, (_, i) =>
-      makeExchange({ id: `e${i}`, sequence: i + 1, type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 }),
+      makeExchange({
+        id: `e${i}`,
+        sequence: i + 1,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 1,
+      }),
     );
     const result = isMatchOver(BASE_MATCH, exchanges, 0, config);
     expect(result.isOver).toBe(true);
@@ -235,9 +277,18 @@ describe('isMatchOver', () => {
   });
 
   it('over when max doubles reached', () => {
-    const config = { ...TFv1DefaultConfig, matchFormat: { ...TFv1DefaultConfig.matchFormat, maxDoubles: 3, timeLimitSeconds: null } };
+    const config = {
+      ...TFv1DefaultConfig,
+      matchFormat: { ...TFv1DefaultConfig.matchFormat, maxDoubles: 3, timeLimitSeconds: null },
+    };
     const exchanges = Array.from({ length: 3 }, (_, i) =>
-      makeExchange({ id: `e${i}`, sequence: i + 1, type: 'double', firstStrikerColor: null, firstStrikeValue: null }),
+      makeExchange({
+        id: `e${i}`,
+        sequence: i + 1,
+        type: 'double',
+        firstStrikerColor: null,
+        firstStrikeValue: null,
+      }),
     );
     const result = isMatchOver(BASE_MATCH, exchanges, 0, config);
     expect(result.isOver).toBe(true);

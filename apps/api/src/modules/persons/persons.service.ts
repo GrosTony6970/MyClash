@@ -26,10 +26,12 @@ export class PersonsService {
   async listPersons(eventId: string): Promise<Person[]> {
     const { data, error } = await this.supabase.service
       .from('persons')
-      .select(`
+      .select(
+        `
         *,
         clubs ( name )
-      `)
+      `,
+      )
       .eq('event_id', eventId)
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true });
@@ -142,10 +144,7 @@ export class PersonsService {
       );
     }
 
-    const { error } = await this.supabase.service
-      .from('persons')
-      .delete()
-      .eq('id', personId);
+    const { error } = await this.supabase.service.from('persons').delete().eq('id', personId);
 
     if (error) throw new BadRequestException(error.message);
   }
@@ -173,7 +172,10 @@ export class PersonsService {
       .select('id, email, given_name, family_name')
       .eq('event_id', eventId);
 
-    const existingByEmail = new Map<string, { id: string; givenName: string; familyName: string }>();
+    const existingByEmail = new Map<
+      string,
+      { id: string; givenName: string; familyName: string }
+    >();
     for (const p of existingPersons ?? []) {
       const ep = p as { id: string; email: string; given_name: string; family_name: string };
       existingByEmail.set(ep.email.toLowerCase(), {

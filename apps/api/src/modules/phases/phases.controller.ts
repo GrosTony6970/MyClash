@@ -38,7 +38,12 @@ export class PhasesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Generate pool phase with Berger round-robin matches' })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  @ApiQuery({ name: 'force', required: false, type: Boolean, description: 'Overwrite existing pool phase' })
+  @ApiQuery({
+    name: 'force',
+    required: false,
+    type: Boolean,
+    description: 'Overwrite existing pool phase',
+  })
   @ApiResponse({ status: 201, description: 'Pool phase created' })
   @ApiResponse({ status: 409, description: 'Pool phase already exists (use ?force=true)' })
   async generatePools(
@@ -61,7 +66,12 @@ export class PhasesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Generate single-elimination bracket phase' })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  @ApiQuery({ name: 'force', required: false, type: Boolean, description: 'Overwrite existing bracket phase' })
+  @ApiQuery({
+    name: 'force',
+    required: false,
+    type: Boolean,
+    description: 'Overwrite existing bracket phase',
+  })
   @ApiResponse({ status: 201, description: 'Bracket phase created' })
   @ApiResponse({ status: 409, description: 'Bracket phase already exists (use ?force=true)' })
   async generateBracket(

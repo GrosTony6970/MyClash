@@ -119,13 +119,14 @@ Jean,Dupont,jean@example.com`;
 
     // ── The key AC test: 100 rows, 3 invalid, 5 duplicates (detected in service) ──
     it('parses 100-row CSV and correctly identifies 3 invalid rows', () => {
-      const validRows = Array.from({ length: 92 }, (_, i) =>
-        `Person${i},Test,person${i}@example.com,Club A`,
+      const validRows = Array.from(
+        { length: 92 },
+        (_, i) => `Person${i},Test,person${i}@example.com,Club A`,
       );
       const invalidRows = [
-        ',NoGivenName,nogiven@example.com,Club A',   // missing given_name
-        'NoEmail,Person,,Club A',                     // missing email
-        'BadEmail,Person,not-an-email,Club A',        // invalid email
+        ',NoGivenName,nogiven@example.com,Club A', // missing given_name
+        'NoEmail,Person,,Club A', // missing email
+        'BadEmail,Person,not-an-email,Club A', // invalid email
       ];
       // 5 "duplicate" rows — same emails as first 5 valid rows
       // (duplicate detection happens in PersonsService, not CsvImportService)

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from '../mail/mail.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -152,13 +147,12 @@ export class OnboardingService {
     const protocol = 'https';
 
     // Create the Supabase auth user (email_confirmed_at = NULL until verified)
-    const { data: authData, error: authError } =
-      await this.supabase.service.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: false, // requires email verification
-        user_metadata: { display_name: displayName },
-      });
+    const { data: authData, error: authError } = await this.supabase.service.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: false, // requires email verification
+      user_metadata: { display_name: displayName },
+    });
 
     if (authError || !authData.user) {
       if (authError?.message?.toLowerCase().includes('already registered')) {
@@ -200,7 +194,8 @@ export class OnboardingService {
 
     return {
       type: 'password',
-      message: 'Account created. Please check your email to verify your address before creating events.',
+      message:
+        'Account created. Please check your email to verify your address before creating events.',
       orgSlug,
       emailVerificationRequired: true,
     };

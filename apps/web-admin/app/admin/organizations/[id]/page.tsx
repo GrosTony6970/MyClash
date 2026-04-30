@@ -125,8 +125,18 @@ export default function AdminOrgDetailPage({ params }: Props) {
     }
   }
 
-  if (loading) return <main className="p-8"><p className="text-gray-400">Loading…</p></main>;
-  if (error) return <main className="p-8"><p className="text-red-600">{error}</p></main>;
+  if (loading)
+    return (
+      <main className="p-8">
+        <p className="text-gray-400">Loading…</p>
+      </main>
+    );
+  if (error)
+    return (
+      <main className="p-8">
+        <p className="text-red-600">{error}</p>
+      </main>
+    );
   if (!org) return null;
 
   return (
@@ -142,9 +152,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
           <h1 className="text-2xl font-bold">{org.name}</h1>
           <p className="text-gray-500 text-sm font-mono mt-0.5">{org.slug}</p>
         </div>
-        <span className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-medium ${
-          org.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-        }`}>
+        <span
+          className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-medium ${
+            org.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}
+        >
           {org.status}
         </span>
       </div>
@@ -169,33 +181,43 @@ export default function AdminOrgDetailPage({ params }: Props) {
         <div className="flex flex-wrap gap-2">
           {org.status === 'active' ? (
             <button
-              onClick={() => { void handleAction('suspend'); }}
+              onClick={() => {
+                void handleAction('suspend');
+              }}
               className="px-4 py-2 rounded-md text-sm font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors"
             >
               Suspend organization
             </button>
           ) : (
             <button
-              onClick={() => { void handleAction('reactivate'); }}
+              onClick={() => {
+                void handleAction('reactivate');
+              }}
               className="px-4 py-2 rounded-md text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
             >
               Reactivate organization
             </button>
           )}
           <button
-            onClick={() => { void handleReassignOwner(); }}
+            onClick={() => {
+              void handleReassignOwner();
+            }}
             className="px-4 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
           >
             Reassign ownership
           </button>
           <button
-            onClick={() => { void handlePromoteSuperAdmin(); }}
+            onClick={() => {
+              void handlePromoteSuperAdmin();
+            }}
             className="px-4 py-2 rounded-md text-sm font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
           >
             Promote member to super admin
           </button>
           <button
-            onClick={() => { void handleAction('delete'); }}
+            onClick={() => {
+              void handleAction('delete');
+            }}
             className="px-4 py-2 rounded-md text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
           >
             Delete (hard)
@@ -222,9 +244,13 @@ export default function AdminOrgDetailPage({ params }: Props) {
                 <tr key={m.user_id} className="border-b border-gray-100">
                   <td className="py-2 pr-4 font-mono text-xs text-gray-600">{m.user_id}</td>
                   <td className="py-2 pr-4">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                      m.role === 'owner' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        m.role === 'owner'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
                       {m.role}
                     </span>
                   </td>
@@ -246,16 +272,17 @@ export default function AdminOrgDetailPage({ params }: Props) {
         ) : (
           <div className="space-y-2">
             {org.recent_audit_log.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-3 text-sm border-b border-gray-100 pb-2">
+              <div
+                key={entry.id}
+                className="flex items-start gap-3 text-sm border-b border-gray-100 pb-2"
+              >
                 <span className="text-gray-400 text-xs whitespace-nowrap mt-0.5">
                   {new Date(entry.created_at).toLocaleString('fr-FR')}
                 </span>
                 <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
                   {entry.action}
                 </span>
-                <span className="text-gray-500 text-xs font-mono">
-                  by {entry.actor_user_id}
-                </span>
+                <span className="text-gray-500 text-xs font-mono">by {entry.actor_user_id}</span>
               </div>
             ))}
           </div>

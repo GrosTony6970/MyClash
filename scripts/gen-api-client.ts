@@ -29,8 +29,8 @@ const OPENAPI_URL = `${API_URL}/api/docs-json`;
 const OUT_DIR = resolve('packages/api-client/src/generated');
 const OUT_FILE = join(OUT_DIR, 'schema.ts');
 
-const ok   = (m: string) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
-const err  = (m: string) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
+const ok = (m: string) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
+const err = (m: string) => console.error(`\x1b[31m✗\x1b[0m ${m}`);
 const info = (m: string) => console.log(`  ${m}`);
 
 async function main() {
@@ -58,10 +58,9 @@ async function main() {
   // 3. Generate types using openapi-typescript CLI
   info('Generating TypeScript types from OpenAPI spec…');
   try {
-    execSync(
-      `pnpm exec openapi-typescript "${OPENAPI_URL}" --output "${OUT_FILE}"`,
-      { stdio: 'inherit' },
-    );
+    execSync(`pnpm exec openapi-typescript "${OPENAPI_URL}" --output "${OUT_FILE}"`, {
+      stdio: 'inherit',
+    });
     ok(`Types generated → ${OUT_FILE}`);
   } catch (e) {
     err(`openapi-typescript failed: ${String(e)}`);

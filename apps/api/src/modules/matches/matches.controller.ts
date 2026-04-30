@@ -1,6 +1,14 @@
 import {
-  Body, Controller, Get, HttpCode, HttpStatus,
-  Param, ParseUUIDPipe, Patch, Post, Req,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
@@ -18,7 +26,8 @@ class ClockActionDto {
   @IsIn(['start', 'halt', 'resume', 'end', 'reset_clock'])
   action!: ClockAction;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   reason?: string;
 }
 
@@ -58,10 +67,7 @@ export class MatchesController {
   @Patch('matches/:id/status')
   @ApiOperation({ summary: 'Update match status (scorekeeper+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async updateStatus(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateMatchStatusDto,
-  ) {
+  async updateStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMatchStatusDto) {
     return this.matches.updateStatus(id, dto);
   }
 
@@ -90,10 +96,7 @@ export class MatchesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record an exchange (scorekeeper+, idempotent on client_uuid)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async createExchange(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateExchangeDto,
-  ) {
+  async createExchange(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateExchangeDto) {
     return this.matches.createExchange(id, dto);
   }
 
@@ -104,10 +107,7 @@ export class MatchesController {
   @Patch('exchanges/:id/void')
   @ApiOperation({ summary: 'Void an exchange (organizer+). Never deletes.' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async voidExchange(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: VoidExchangeDto,
-  ) {
+  async voidExchange(@Param('id', ParseUUIDPipe) id: string, @Body() dto: VoidExchangeDto) {
     return this.matches.voidExchange(id, dto);
   }
 

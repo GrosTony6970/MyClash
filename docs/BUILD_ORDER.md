@@ -2,11 +2,12 @@
 
 > **Operational task list for the AI coding agent.**
 >
-> Read `docs/ARCHITECTURE.md` first. That document is the source of truth for *what* and *why*. This document is the source of truth for *order* and *acceptance criteria*.
+> Read `docs/ARCHITECTURE.md` first. That document is the source of truth for _what_ and _why_. This document is the source of truth for _order_ and _acceptance criteria_.
 >
 > Owner-side tasks (things only the human project owner can do — domains, hosting, legal, beta event coordination) are tracked in `docs/OWNER_TASKS.md` and cross-referenced from individual tasks below as `[needs O-NNN]`.
 >
 > **Rules of engagement:**
+>
 > 1. Tasks are picked **in order**. Don't skip ahead unless dependencies allow it.
 > 2. **One task = one PR.** Atomic, reviewable, testable.
 > 3. Acceptance criteria are **testable assertions**, not aspirations. If you can't verify it, the task isn't done.
@@ -28,6 +29,7 @@
 ## Phase P0 — Bootstrap
 
 ### T-001 · Initialize monorepo
+
 - **Dep**: none
 - **Goal**: Working `pnpm` + Turborepo monorepo with empty workspace targets.
 - **Files**: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `.gitignore`, `.editorconfig`, `.prettierrc`, `eslint.config.mjs`, `tsconfig.base.json`, `README.md`, `LICENSE` (AGPL-3.0).
@@ -38,6 +40,7 @@
   - README has project mission, link to `docs/ARCHITECTURE.md` and `docs/BUILD_ORDER.md`.
 
 ### T-002 · Add ARCHITECTURE.md and BUILD_ORDER.md
+
 - **Dep**: T-001
 - **Goal**: Commit the architecture and build order documents as project anchors.
 - **Files**: `docs/ARCHITECTURE.md`, `docs/BUILD_ORDER.md`, `AGENTS.md` (copy of §21 from ARCHITECTURE.md).
@@ -46,6 +49,7 @@
   - `AGENTS.md` at repo root references both.
 
 ### T-003 · Scaffold the three frontend apps
+
 - **Dep**: T-001
 - **Goal**: Three Next.js 15 apps (App Router, TS strict) at `apps/web-public`, `apps/web-scoring`, `apps/web-admin`. Each renders a placeholder home page.
 - **Files**: `apps/web-public/**`, `apps/web-scoring/**`, `apps/web-admin/**`.
@@ -56,6 +60,7 @@
   - Each app has TypeScript strict mode and passes `pnpm typecheck`.
 
 ### T-004 · Scaffold the NestJS API
+
 - **Dep**: T-001
 - **Goal**: NestJS 10 app at `apps/api` with health check endpoint.
 - **Files**: `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, `apps/api/src/health/*`.
@@ -65,6 +70,7 @@
   - OpenAPI/Swagger UI mounted at `/api/docs` in dev.
 
 ### T-005 · Shared packages skeletons
+
 - **Dep**: T-001
 - **Goal**: Empty package skeletons for `@myclash/ui`, `@myclash/types`, `@myclash/rulesets`, `@myclash/db`, `@myclash/design-tokens`, `@myclash/i18n`.
 - **Files**: `packages/*/package.json`, `packages/*/src/index.ts`, `packages/*/tsconfig.json`.
@@ -73,6 +79,7 @@
   - Each app can `import` from each package without errors.
 
 ### T-006 · Docker Compose with Traefik + Postgres + Redis
+
 - **Dep**: T-003, T-004
 - **Owner**: needs O-002 (hosting decision) for prod deploy; local dev only requires O-010 (hosts file).
 - **Goal**: `docker compose up` brings up Traefik, Postgres, Redis, all 3 frontends, API. HTTPS works locally with self-signed certs.
@@ -83,6 +90,7 @@
   - `docker compose down` cleans up without orphaned containers.
 
 ### T-007 · Self-hosted Supabase services
+
 - **Dep**: T-006
 - **Goal**: Add `supabase-auth` (GoTrue), `supabase-storage`, `supabase-realtime`, `kong`, `postgrest` to compose.
 - **Files**: `infra/docker-compose.yml`, `infra/supabase/**`, `.env.example`.
@@ -92,6 +100,7 @@
   - Realtime websocket connects at `wss://api.myclash.localhost/realtime/v1/websocket`.
 
 ### T-008 · CI pipeline
+
 - **Dep**: T-005
 - **Goal**: GitHub Actions workflow that runs lint, typecheck, test on every PR.
 - **Files**: `.github/workflows/ci.yml`, `.github/workflows/codeql.yml`.
@@ -101,6 +110,7 @@
   - Required status checks documented in `CONTRIBUTING.md`.
 
 ### T-009 · Auth integration end-to-end (magic-link claim flow)
+
 - **Dep**: T-007, T-003
 - **Owner**: needs O-006 (SMTP for magic links). **Google OAuth (O-008) deferred — not in v1.**
 - **Goal**: A user can request a magic link to claim a Person profile, receive the link by email, click it, and become a Claimed account. Organizers can also log in via magic link to access the admin app.
@@ -113,6 +123,7 @@
   - Rate limiting on magic link requests: 3 per hour per email + 10 per hour per IP.
 
 ### T-009b · Organizer signup (open self-service, named org)
+
 - **Dep**: T-009
 - **Goal**: Anyone can self-sign-up as a event organizer via the admin app. Magic link OR email + password. **Organizer must name their organization at signup** (no auto-creation).
 - **Files**: `apps/web-admin/app/signup/**`, `apps/api/src/modules/auth/signup.controller.ts`, `apps/api/src/modules/organizations/onboarding.service.ts`.
@@ -133,6 +144,7 @@
   - Rate limit: 5 signups per hour per IP.
 
 ### T-009c · Super admin organization management
+
 - **Dep**: T-009b
 - **Goal**: Super admin dashboard for managing organizer accounts.
 - **Files**: `apps/web-admin/app/admin/organizations/**`, `apps/api/src/modules/admin/organizations.controller.ts`.
@@ -159,6 +171,7 @@
 > **Trigger**: Manual deploy from the owner's Windows machine via `pnpm deploy:prod`. No auto-deploy in v1.
 >
 > **Conventions to inherit verbatim from MyFAL** (see `infra/scripts/lib/log.sh`):
+>
 > - Color-coded `ok`/`err`/`warn`/`hdr`/`info` helpers, sourced by every script.
 > - `set -Eeuo pipefail` at the top of every bash script.
 > - `ROOT_DIR` resolution via `BASH_SOURCE`.
@@ -167,6 +180,7 @@
 > - Retry loops for health checks (RETRIES × DELAY).
 >
 > **What MyClash adds beyond MyFAL**:
+>
 > - Drizzle migrations (with abort-on-failure semantics).
 > - Pre-deploy `pg_dump` to `backups/pre-deploy/` (Postgres, not just JSON files).
 > - `flock` lock to prevent concurrent deploys.
@@ -177,6 +191,7 @@
 > **Owner actions required first**: O-002 (VPS provisioned), O-003 (host hardened), O-001 (domain DNS pointing to VPS), O-051 (MyFAL reference scripts shared with the agent — already provided in the repo as reference at `infra/scripts/reference/myfal/`).
 
 ### T-051 · `.gitattributes` and cross-platform hygiene
+
 - **Dep**: T-001
 - **Goal**: Enforce LF line endings and Windows-friendly tooling so the repo works identically on Windows / Linux / macOS.
 - **Files**: `.gitattributes`, `package.json` (scripts), `.editorconfig`.
@@ -188,6 +203,7 @@
   - Verified: cloning the repo on Windows produces the same file hashes as on Linux.
 
 ### T-052 · `infra/scripts/lib/log.sh` shared helpers
+
 - **Dep**: T-001
 - **Goal**: Single source for all shell-script color/output helpers. All other scripts in `infra/scripts/` source this file.
 - **Files**: `infra/scripts/lib/log.sh`.
@@ -198,6 +214,7 @@
   - Sourceable via: `source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"`.
 
 ### T-053 · Production Dockerfiles
+
 - **Dep**: T-006
 - **Goal**: Production-grade multi-stage Dockerfiles for `apps/api`, `apps/web-public`, `apps/web-scoring`, `apps/web-admin`. Builds on the VPS, so cache layers matter.
 - **Files**: `apps/*/Dockerfile`, `.dockerignore` per app.
@@ -210,6 +227,7 @@
   - Builds reproducibly on a fresh VPS in <10 min cold, <2 min warm.
 
 ### T-054 · Production docker-compose
+
 - **Dep**: T-053
 - **Goal**: `infra/docker-compose.prod.yml` with resource limits, restart policies, health-checked dependencies, log rotation. **Reference implementation already drafted in repo** (modeled on MyFAL's `docker-compose.yml`).
 - **Files**: `infra/docker-compose.prod.yml`, `infra/docker-compose.staging-certs.yml`, `.env.example`.
@@ -233,6 +251,7 @@
   - `depends_on: { db: { condition: service_healthy }, redis: { condition: service_healthy } }` on api and worker.
 
 ### T-055 · VPS bootstrap script
+
 - **Dep**: O-002, O-003
 - **Owner**: needs O-051 (MyFAL reference) and SSH access to the VPS.
 - **Goal**: Idempotent bash script that sets up a fresh OVH VPS to host MyClash.
@@ -248,6 +267,7 @@
   - Tested on a fresh OVH VPS Ubuntu 24.04 image.
 
 ### T-056 · `infra/scripts/deploy.sh` (the primary deploy mechanism)
+
 - **Dep**: T-052, T-054, T-055
 - **Goal**: The canonical deploy script. Runs on the VPS. **This is how MyClash is deployed in v1 — directly from the VPS, manually, by the owner.** The cross-platform Windows wrapper (T-060) is optional convenience only.
 - **Files**: `infra/scripts/deploy.sh` (reference implementation already drafted in repo).
@@ -268,6 +288,7 @@
   - **Standard owner invocation**: `ssh deploy@myclash.fr`, then `cd /srv/myclash && bash infra/scripts/deploy.sh`.
 
 ### T-057 · `infra/scripts/rollback.sh`
+
 - **Dep**: T-056
 - **Goal**: Revert the last deploy: restore DB from pre-deploy backup, reset git, rebuild, restart.
 - **Files**: `infra/scripts/rollback.sh` (reference implementation already drafted).
@@ -281,6 +302,7 @@
   - Renames old `.last-deploy.json` to `.last-deploy.json.rolled-back-<timestamp>` and writes a new metadata file with `isRollback: true`.
 
 ### T-058 · `infra/scripts/{start,stop,refresh,status,destroy}.sh`
+
 - **Dep**: T-052, T-054
 - **Goal**: Day-2 operational scripts modeled on MyFAL's set.
 - **Files**:
@@ -296,6 +318,7 @@
   - `destroy.sh` confirms before destruction; `--force` skips the prompt; `--wipe-db` is required to remove volumes.
 
 ### T-059 · `infra/scripts/{backup,restore}.sh` and cron
+
 - **Dep**: T-054, T-055
 - **Goal**: Nightly backups, off-site replication, restore procedure.
 - **Files**:
@@ -312,6 +335,7 @@
   - **Restore drill performed at least once before P15** (the beta event). Documented in RUNBOOK.
 
 ### T-060 · `scripts/deploy.ts` cross-platform wrapper — OPTIONAL / deferred
+
 - **Dep**: T-056
 - **Status**: **Skip for v1.** The owner deploys directly from the VPS via SSH (T-056). The Windows wrapper is convenience for occasional one-off pushes from the owner's laptop and can be implemented later if needed.
 - **Goal** (when implemented): One-command deploy from the owner's Windows machine: `pnpm deploy:prod`.
@@ -327,6 +351,7 @@
 - **Why deferred**: Adds Node SSH dependency (`ssh2` or shell-out), needs `.env.deploy` setup on the dev machine, and fails opaquely when SSH config is wrong. Direct VPS deploy via `ssh + bash deploy.sh` is one extra command and far simpler to debug. The Node wrapper file stays in the repo as a reference, but is not wired up.
 
 ### T-061 · Health & version endpoints
+
 - **Dep**: T-054
 - **Goal**: Lightweight ops endpoints so owner and `status.sh` can verify a deploy at a glance.
 - **Files**: `apps/api/src/modules/health/version.controller.ts`.
@@ -340,6 +365,7 @@
 ## Phase P1 — Domain Core
 
 ### T-101 · DB schema (Drizzle)
+
 - **Dep**: T-007
 - **Goal**: Complete schema from ARCHITECTURE.md §5 in Drizzle format. Migration applied.
 - **Files**: `packages/db/src/schema/*.ts`, `packages/db/migrations/0001_init.sql`, `packages/db/drizzle.config.ts`.
@@ -349,6 +375,7 @@
   - Foreign keys, unique constraints, and indexes match the spec.
 
 ### T-102 · RLS policies for all tables
+
 - **Dep**: T-101
 - **Goal**: Postgres RLS enabled on every user-data table with policies for read/write per role.
 - **Files**: `packages/db/migrations/0002_rls.sql`.
@@ -359,6 +386,7 @@
   - Test suite `packages/db/test/rls.test.ts` proves at least 10 cross-tenant leak attempts fail.
 
 ### T-103 · Seed script — minimal
+
 - **Dep**: T-101
 - **Goal**: `scripts/seed-min.ts` creates a super admin, one organization, one organizer user.
 - **Files**: `scripts/seed-min.ts`.
@@ -367,6 +395,7 @@
   - Idempotent (running twice produces no duplicates / no errors).
 
 ### T-104 · Persons CRUD + CSV import (the organizer roster)
+
 - **Dep**: T-101
 - **Goal**: NestJS `persons` module — manual create, edit, delete, list per event; CSV import with structured report.
 - **Files**: `apps/api/src/modules/persons/**`, `packages/types/persons.ts`.
@@ -380,6 +409,7 @@
   - Test: import a 100-row CSV with 3 invalid rows, 5 duplicates, 2 new clubs → exactly that report.
 
 ### T-104b · Person lookup endpoint (fuzzy name search)
+
 - **Dep**: T-104
 - **Goal**: Public endpoint that participants hit when typing their name on the onboarding screen.
 - **Files**: `apps/api/src/modules/persons/lookup.controller.ts`, migration adding `pg_trgm` indexes.
@@ -392,6 +422,7 @@
   - Test: query "jean" returns "Jean Dupont", "Jéan Martin", "Jean-Pierre Lambert" but not "Marie Dupont".
 
 ### T-104c · Guest session module
+
 - **Dep**: T-104b
 - **Goal**: Create / resolve / revoke guest sessions; signed cookie + DB row.
 - **Files**: `apps/api/src/modules/auth/guest-sessions.controller.ts`, `apps/api/src/modules/auth/guest-jwt.guard.ts`.
@@ -405,6 +436,7 @@
   - Test: a guest session for Person A cannot perform any action where the request body or path implies Person B.
 
 ### T-104d · `/api/v1/me` unified identity endpoint
+
 - **Dep**: T-104c, T-009
 - **Goal**: Single endpoint that returns whichever identity is active.
 - **Files**: `apps/api/src/modules/auth/me.controller.ts`.
@@ -415,6 +447,7 @@
   - Both present → claimed wins; the guest cookie is cleared (consolidation).
 
 ### T-104e · Fighters & Clubs API (cross-event identity)
+
 - **Dep**: T-104
 - **Goal**: NestJS modules `fighters` and `clubs` with full CRUD per ARCHITECTURE.md §14. Fighters are the cross-event aggregate; created lazily via `POST /fighters/:id/promote` from a claimed Person.
 - **Files**: `apps/api/src/modules/fighters/**`, `apps/api/src/modules/clubs/**`.
@@ -426,6 +459,7 @@
   - OpenAPI spec in `/api/docs` matches.
 
 ### T-105 · Organizations & Tournaments API
+
 - **Dep**: T-104
 - **Goal**: Modules `organizations` and `events` with CRUD.
 - **Files**: `apps/api/src/modules/organizations/**`, `apps/api/src/modules/tournaments/**`.
@@ -435,6 +469,7 @@
   - Event create requires the user to be a member of the organization.
 
 ### T-106 · Lices, Events, Registrations API
+
 - **Dep**: T-105
 - **Goal**: Modules for `lices`, `events`, `registrations` with CRUD + bulk import.
 - **Files**: `apps/api/src/modules/lices/**`, `apps/api/src/modules/events/**`, `apps/api/src/modules/registrations/**`.
@@ -444,6 +479,7 @@
   - Registration status transitions enforced (registered → checked_in → done; cannot skip).
 
 ### T-107 · Generated API client
+
 - **Dep**: T-104, T-105, T-106
 - **Goal**: TypeScript API client generated from OpenAPI, published as `@myclash/api-client`.
 - **Files**: `packages/api-client/**`, `scripts/gen-api-client.ts`.
@@ -456,6 +492,7 @@
 ## Phase P2 — TF_v1 Ruleset (the hot core)
 
 ### T-201 · Ruleset plugin contract
+
 - **Dep**: T-005
 - **Goal**: Define the `Ruleset` interface and registry in `@myclash/rulesets`.
 - **Files**: `packages/rulesets/src/types.ts`, `packages/rulesets/src/registry.ts`.
@@ -464,6 +501,7 @@
   - Registry exposes `register(ruleset)`, `get(code, version)`, `list()`.
 
 ### T-202 · TF_v1 — pure functions
+
 - **Dep**: T-201
 - **Goal**: Implement `computeMatchScore`, `isMatchOver`, `computePoolStandings` for TF_v1 as pure functions (no DB, no I/O).
 - **Files**: `packages/rulesets/src/tf_v1/index.ts`, `packages/rulesets/src/tf_v1/score.ts`, `packages/rulesets/src/tf_v1/standings.ts`.
@@ -473,6 +511,7 @@
   - 100% unit test coverage of `score.ts` and `standings.ts`.
 
 ### T-203 · FAL 2026 fixture import
+
 - **Dep**: T-202
 - **Owner**: **needs O-102** — the per-exchange data must be sourced by the project owner. Without raw data, fall back to aggregate-level test (document this in the fixture).
 - **Goal**: Convert `https://lyonamhe.fr/resultat_fal2026.html` data into a JSON fixture used as the golden test.
@@ -482,6 +521,7 @@
   - If exchange-level data is unavailable, document the synthesis approach (and mark which fields are reconstructed).
 
 ### T-204 · TF_v1 golden test
+
 - **Dep**: T-202, T-203
 - **Goal**: Test that running TF_v1 on the FAL 2026 fixture reproduces the published pool standings to one decimal.
 - **Files**: `packages/rulesets/test/tf_v1.fal2026.test.ts`.
@@ -491,6 +531,7 @@
   - Test fails loudly with diff if ruleset changes break it.
 
 ### T-205 · TF_v1_no_afterblow + Generic_PointsCap
+
 - **Dep**: T-202
 - **Goal**: Two additional shipped rulesets per ARCHITECTURE.md §7.2.
 - **Files**: `packages/rulesets/src/tf_v1_no_afterblow/**`, `packages/rulesets/src/generic_points_cap/**`.
@@ -499,6 +540,7 @@
   - Each has unit tests covering scoring + standings.
 
 ### T-206 · Server-side scoring service
+
 - **Dep**: T-202, T-106
 - **Goal**: NestJS `matches` and `exchanges` modules using `@myclash/rulesets` for authoritative scoring.
 - **Files**: `apps/api/src/modules/matches/**`, `apps/api/src/modules/exchanges/**`.
@@ -513,6 +555,7 @@
 ## Phase P3 — Pools & Brackets
 
 ### T-301 · Pool generation algorithm
+
 - **Dep**: T-106
 - **Goal**: Configurable pool generation per ARCHITECTURE.md §11quater.1. Snake-seeding with school separation + skill balancing soft constraints.
 - **Files**: `apps/api/src/modules/phases/pool-generator.ts`, `packages/rulesets/src/scheduling/snake-seeding.ts`, `packages/rulesets/src/scheduling/local-search.ts`.
@@ -526,6 +569,7 @@
   - Test: 24 fighters from 6 clubs into 3 pools achieves 0 same-club pairs.
 
 ### T-302 · Round-robin match list per pool
+
 - **Dep**: T-301
 - **Goal**: Generate every match in a pool with a deterministic order (Berger tables).
 - **Files**: `packages/rulesets/src/scheduling/berger.ts`.
@@ -535,6 +579,7 @@
   - Test against known Berger schedules.
 
 ### T-303 · Single-elimination bracket
+
 - **Dep**: T-301
 - **Goal**: Generate a single-elimination bracket from N qualified fighters with bye handling.
 - **Files**: `packages/rulesets/src/scheduling/single-elim.ts`.
@@ -544,6 +589,7 @@
   - Bracket positions seed correctly (1 vs 16, 8 vs 9, etc.).
 
 ### T-304 · Match-to-Lice scheduler
+
 - **Dep**: T-302
 - **Goal**: Assign generated matches to Lices respecting per-fighter rest minimums.
 - **Files**: `apps/api/src/modules/schedule/match-scheduler.ts`.
@@ -553,6 +599,7 @@
   - Returns match order with `scheduled_at` timestamps.
 
 ### T-305 · Phases API
+
 - **Dep**: T-301, T-303
 - **Goal**: NestJS `phases` module with endpoints to generate pools and brackets.
 - **Files**: `apps/api/src/modules/phases/**`.
@@ -566,6 +613,7 @@
 ## Phase P4 — Online Scoring
 
 ### T-401 · Scoring app shell
+
 - **Dep**: T-003
 - **Goal**: Scoring PWA basic shell with login, Lice picker, current match view (no scoring yet).
 - **Files**: `apps/web-scoring/app/**`, `apps/web-scoring/public/manifest.json`.
@@ -575,6 +623,7 @@
   - Current match info (red/blue, weapon, ruleset) displayed.
 
 ### T-402 · Match clock component
+
 - **Dep**: T-401
 - **Goal**: Start/halt/resume/end clock with server sync.
 - **Files**: `apps/web-scoring/src/components/MatchClock.tsx`, `apps/api/src/modules/matches/clock.service.ts`.
@@ -584,6 +633,7 @@
   - Drift correction: clock recomputes from `match_events` timeline on every render.
 
 ### T-403 · Exchange entry UI (online only)
+
 - **Dep**: T-402, T-206
 - **Goal**: Tap-driven UI for entering clean / afterblow / double / no-exchange.
 - **Files**: `apps/web-scoring/src/components/ExchangePad.tsx`.
@@ -596,6 +646,7 @@
   - No-exchange with reason picker.
 
 ### T-404 · Realtime broadcast (server)
+
 - **Dep**: T-206
 - **Goal**: Postgres triggers + Supabase Realtime channels per ARCHITECTURE.md §9.
 - **Files**: `packages/db/migrations/0003_realtime.sql`, `apps/api/src/modules/realtime/**`.
@@ -604,6 +655,7 @@
   - RLS prevents subscribers from seeing draft events.
 
 ### T-405 · Public live match view
+
 - **Dep**: T-404, T-003
 - **Goal**: `/e/[eventSlug]/match/[matchId]` shows live exchange feed + score.
 - **Files**: `apps/web-public/app/e/[eventSlug]/match/[matchId]/**`.
@@ -616,6 +668,7 @@
 ## Phase P5 — Offline Scoring
 
 ### T-501 · IndexedDB outbox
+
 - **Dep**: T-403
 - **Goal**: Dexie-backed local store of pending exchanges with monotonic sequence per match.
 - **Files**: `apps/web-scoring/src/offline/db.ts`, `apps/web-scoring/src/offline/outbox.ts`.
@@ -625,6 +678,7 @@
   - 1000 exchanges insert in <500ms locally.
 
 ### T-502 · Service worker + offline shell cache
+
 - **Dep**: T-401
 - **Goal**: PWA service worker that pre-caches the scoring app shell + ruleset bundle.
 - **Files**: `apps/web-scoring/src/sw.ts`, `apps/web-scoring/next.config.ts` (workbox).
@@ -633,6 +687,7 @@
   - Lighthouse PWA score ≥ 90.
 
 ### T-503 · Sync engine
+
 - **Dep**: T-501, T-206
 - **Goal**: Background sync that drains the outbox to the server.
 - **Files**: `apps/web-scoring/src/offline/sync.ts`.
@@ -642,6 +697,7 @@
   - UI shows pending count, syncing indicator, error state.
 
 ### T-504 · Reconciliation on reconnect
+
 - **Dep**: T-503
 - **Goal**: When server has exchanges the client doesn't (admin edit, other device), client merges.
 - **Files**: `apps/web-scoring/src/offline/reconcile.ts`.
@@ -650,6 +706,7 @@
   - E2E test: enter 20 offline, admin voids one online, reconnect → both states reconciled.
 
 ### T-505 · Online/offline UI states
+
 - **Dep**: T-503
 - **Goal**: Prominent network/sync indicator visible on every scoring screen.
 - **Files**: `apps/web-scoring/src/components/SyncStatus.tsx`.
@@ -662,6 +719,7 @@
 ## Phase P6 — Public PWA & Theming
 
 ### T-601 · Design tokens package
+
 - **Dep**: T-005
 - **Goal**: Cinzel + Inter typography, color palette, spacing tokens, shield SVG components — extracted from the prototype HTML.
 - **Files**: `packages/design-tokens/**`, `packages/ui/**`.
@@ -671,6 +729,7 @@
   - Storybook (or similar) demos all components.
 
 ### T-602 · Per-event theming engine
+
 - **Dep**: T-601, T-105
 - **Goal**: Themes table read at SSR for every `/e/[eventSlug]/...` request; CSS variables injected.
 - **Files**: `apps/web-public/app/e/[eventSlug]/layout.tsx`, `apps/web-public/src/theme/**`.
@@ -680,6 +739,7 @@
   - Tournaments without theme fall back to defaults.
 
 ### T-603 · Participant onboarding (name lookup → guest session)
+
 - **Dep**: T-602, T-104b, T-104c
 - **Goal**: Onboarding flow at `/e/[eventSlug]/onboarding` — type your name, pick yourself from the list, optional persona selection, optionally request a magic link to claim.
 - **Files**: `apps/web-public/app/e/[eventSlug]/onboarding/**`, `apps/web-public/src/components/PersonLookup.tsx`.
@@ -695,6 +755,7 @@
   - Mobile-first; works one-handed on a phone with poor wifi (request retries 3× with backoff).
 
 ### T-604 · Persona-aware home
+
 - **Dep**: T-603
 - **Goal**: `/e/[eventSlug]/home` renders the appropriate home content per persona, matching the prototype's three home variants.
 - **Files**: `apps/web-public/app/e/[eventSlug]/home/**`.
@@ -704,6 +765,7 @@
   - Public home: editorial, event intro, schedule highlights.
 
 ### T-605 · Event detail + brackets + standings
+
 - **Dep**: T-604, T-305
 - **Goal**: Event page with pool tabs, bracket view, standings table.
 - **Files**: `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/**`.
@@ -713,6 +775,7 @@
   - Standings table matches the lyonamhe.fr layout (V/Pts+/Pts−/Dbl/Score).
 
 ### T-606 · Lice live view
+
 - **Dep**: T-405, T-602
 - **Goal**: `/e/[eventSlug]/lice/[liceName]` shows currently playing match + queue.
 - **Files**: `apps/web-public/app/e/[eventSlug]/lice/[liceName]/**`.
@@ -721,6 +784,7 @@
   - Mobile-optimized vertical layout.
 
 ### T-607 · Fighter & club pages
+
 - **Dep**: T-104, T-602
 - **Goal**: Profile pages for fighters and clubs (global and per-event context).
 - **Files**: `apps/web-public/app/fighters/[slug]/**`, `apps/web-public/app/e/[eventSlug]/fighters/[fighterSlug]/**`, `apps/web-public/app/clubs/[slug]/**`.
@@ -729,6 +793,7 @@
   - Club page: members, recent results.
 
 ### T-608 · Schedule-for-any-person endpoint
+
 - **Dep**: T-104, T-104c
 - **Goal**: Backend endpoint that returns any Person's schedule, applying privacy filters per ARCHITECTURE.md §11quinquies.
 - **Files**: `apps/api/src/modules/persons/public-schedule.controller.ts`, `apps/api/src/modules/persons/privacy.service.ts`.
@@ -741,6 +806,7 @@
   - 100ms p95 with materialized indexes.
 
 ### T-609 · Person privacy preferences
+
 - **Dep**: T-104, T-009
 - **Goal**: Endpoints + UI for a claimed user to manage their own privacy preferences.
 - **Files**: `apps/api/src/modules/persons/privacy.controller.ts`, `apps/web-public/app/e/[eventSlug]/profile/privacy/**`.
@@ -751,6 +817,7 @@
   - Only the Person themselves (claimed account where `claimed_by_user_id = auth.uid()`) can edit; super_admin can read but not write through this endpoint.
 
 ### T-610 · Follows module (server)
+
 - **Dep**: T-104c, T-009
 - **Goal**: NestJS `follows` module — list, create, delete, patch follow rows for the requesting session (guest or claimed).
 - **Files**: `apps/api/src/modules/follows/**`.
@@ -762,6 +829,7 @@
   - Returns the followed Person's current "next event" inline so the UI doesn't need a second roundtrip per row.
 
 ### T-611 · People search + public profile UI
+
 - **Dep**: T-602, T-608, T-610
 - **Goal**: `/e/[eventSlug]/people` search list and `/e/[eventSlug]/people/[personId]` profile page.
 - **Files**: `apps/web-public/app/e/[eventSlug]/people/**`.
@@ -776,6 +844,7 @@
   - Hidden Follow button when `allow_being_followed = false`; shows a small "This person prefers not to be followed" notice instead.
 
 ### T-612 · Watchlist view
+
 - **Dep**: T-610, T-611
 - **Goal**: `/e/[eventSlug]/following` — list of followed Persons with live state, sorted by upcoming time.
 - **Files**: `apps/web-public/app/e/[eventSlug]/following/**`.
@@ -787,6 +856,7 @@
   - Migration cue (guest only): banner suggesting login link for push notifications.
 
 ### T-613 · Follow notifications scheduler
+
 - **Dep**: T-610, T-1201
 - **Goal**: When a followed Person's match is scheduled to start within their `notify_match_start` lead time, push a notification to the follower.
 - **Files**: `apps/api/src/workers/follow-notification-scheduler.worker.ts`.
@@ -802,6 +872,7 @@
 ## Phase P7 — Admin App
 
 ### T-701 · Org dashboard + event wizard
+
 - **Dep**: T-105
 - **Goal**: `/org/[orgSlug]` dashboard, "New Event" 4-step wizard.
 - **Files**: `apps/web-admin/app/org/[orgSlug]/**`, `apps/web-admin/app/org/[orgSlug]/events/new/**`.
@@ -811,6 +882,7 @@
   - Cancel returns to dashboard with no orphans.
 
 ### T-702 · Theme editor
+
 - **Dep**: T-602
 - **Goal**: Live preview theme editor (colors, logo upload, fonts).
 - **Files**: `apps/web-admin/app/.../theme/**`.
@@ -820,6 +892,7 @@
   - Save persists theme; preview matches public site exactly.
 
 ### T-703 · Persons + registration management
+
 - **Dep**: T-104, T-104e
 - **Goal**: Admin pages for managing the event Persons roster and per-event registrations.
 - **Files**: `apps/web-admin/app/.../persons/**`, `apps/web-admin/app/.../events/[eventId]/registrations/**`.
@@ -833,6 +906,7 @@
   - Bulk check-in workflow.
 
 ### T-704 · Pool & bracket management
+
 - **Dep**: T-305, T-701
 - **Goal**: Generate pools and bracket from UI; preview before commit.
 - **Files**: `apps/web-admin/app/.../events/[eventId]/pools/**`, `apps/web-admin/app/.../events/[eventId]/bracket/**`.
@@ -842,6 +916,7 @@
   - "Force regenerate" with confirmation modal.
 
 ### T-705 · Manual exchange edit (audit-logged)
+
 - **Dep**: T-206
 - **Goal**: Admin can void/edit exchanges from a match detail page; every action audit-logged.
 - **Files**: `apps/web-admin/app/.../matches/[matchId]/**`.
@@ -851,6 +926,7 @@
   - Reverting a void restores the exchange.
 
 ### T-706 · Schedule day-grid (matches only first)
+
 - **Dep**: T-304
 - **Goal**: Drag-drop day grid with rows = Lices, cells = matches.
 - **Files**: `apps/web-admin/app/.../schedule/**`.
@@ -864,6 +940,7 @@
 ## Phase P8 — Workshops Module
 
 ### T-801 · Workshops API
+
 - **Dep**: T-101
 - **Goal**: NestJS `workshops` module with CRUD for workshops, instructors, sessions.
 - **Files**: `apps/api/src/modules/workshops/**`.
@@ -872,6 +949,7 @@
   - Capacity validated (cannot exceed `workshops.capacity`).
 
 ### T-802 · Workshop enrollment + waitlist
+
 - **Dep**: T-801
 - **Goal**: Enroll/cancel endpoints; waitlist auto-promotion.
 - **Files**: `apps/api/src/modules/workshops/enrollment.service.ts`, `apps/api/src/workers/waitlist-promote.worker.ts`.
@@ -881,6 +959,7 @@
   - Race-condition test: 100 concurrent enrolls into capacity=10 leaves exactly 10 confirmed.
 
 ### T-803 · Workshop public catalog
+
 - **Dep**: T-602, T-801
 - **Goal**: `/e/[eventSlug]/workshops` list + `/e/[eventSlug]/w/[workshopSlug]` detail.
 - **Files**: `apps/web-public/app/e/[eventSlug]/workshops/**`.
@@ -890,6 +969,7 @@
   - Anonymous can browse; enroll requires login.
 
 ### T-804 · Workshop admin
+
 - **Dep**: T-801, T-701
 - **Goal**: Admin UI to create/edit workshops, instructors, sessions; roster view; CSV roster export.
 - **Files**: `apps/web-admin/app/.../workshops/**`.
@@ -899,7 +979,8 @@
   - Cancel session triggers notification to all enrollees (via T-1201 once available; stub until then).
 
 ### T-805 · "My Schedule" — unified view
-- **Dep**: T-802, T-403, T-901 *(referee qualifications and assignments)*
+
+- **Dep**: T-802, T-403, T-901 _(referee qualifications and assignments)_
 - **Goal**: `/e/[eventSlug]/my-schedule` — combined matches + refereeing + workshops with conflict markers.
 - **Files**: `apps/api/src/modules/schedule/my-schedule.controller.ts`, `apps/web-public/app/e/[eventSlug]/my-schedule/**`.
 - **AC**:
@@ -914,6 +995,7 @@
 ## Phase P9 — Referees & Assignment Engines
 
 ### T-901 · Referee qualifications API
+
 - **Dep**: T-101, T-105
 - **Goal**: NestJS module `referees` with CRUD on `referee_qualifications` (per-event role + rating).
 - **Files**: `apps/api/src/modules/referees/qualifications.controller.ts`, `apps/api/src/modules/referees/qualifications.service.ts`.
@@ -924,6 +1006,7 @@
   - Soft delete via `active=false` preserves history.
 
 ### T-902 · Pool assignment settings API
+
 - **Dep**: T-101, T-105
 - **Goal**: CRUD for `pool_assignment_settings` (per-event with optional per-event overrides).
 - **Files**: `apps/api/src/modules/referees/settings.controller.ts`.
@@ -933,6 +1016,7 @@
   - Validation: `enforce_fighter_referee_no_overlap` cannot be set to false.
 
 ### T-903 · Referee auto-assignment engine
+
 - **Dep**: T-901, T-902, T-304
 - **Goal**: Pure-function constraint engine implementing the algorithm in ARCHITECTURE.md §11quater.2.
 - **Files**: `packages/rulesets/src/scheduling/referee-assigner.ts`, `packages/rulesets/src/scheduling/referee-assigner.test.ts`.
@@ -948,6 +1032,7 @@
     - Fighter Alice qualified as `arbitre_table`, also fighting Pool A → never assigned to Pool A's table role.
 
 ### T-904 · Pool populator API
+
 - **Dep**: T-301, T-902
 - **Goal**: Endpoint that runs the enhanced pool generator with current settings, returns proposed assignment + cost report (dry-run mode supported).
 - **Files**: `apps/api/src/modules/phases/pool-populator.controller.ts`.
@@ -957,6 +1042,7 @@
   - Cost report includes per-pool same-club count, skill variance, and which constraints were violated.
 
 ### T-905 · Auto-assign referees endpoint
+
 - **Dep**: T-903
 - **Goal**: NestJS endpoint wiring the engine to live data + persistence.
 - **Files**: `apps/api/src/modules/referees/auto-assign.controller.ts`.
@@ -966,6 +1052,7 @@
   - `POST /events/:id/lock-referee-assignments` transitions to confirmed state and triggers notifications (when P12 lands; stub until then).
 
 ### T-906 · Referee admin UI — qualifications & ratings
+
 - **Dep**: T-901
 - **Goal**: Admin page `/org/[orgSlug]/tournaments/[id]/referees` to manage referee pool.
 - **Files**: `apps/web-admin/app/.../referees/**`.
@@ -976,6 +1063,7 @@
   - Bulk operations.
 
 ### T-907 · Pool populator UI
+
 - **Dep**: T-904
 - **Goal**: Admin page `/events/[eventId]/pool-populator` — constraint toggles + auto-populate + drag-drop manual override.
 - **Files**: `apps/web-admin/app/.../events/[eventId]/pool-populator/**`.
@@ -987,6 +1075,7 @@
   - Visual conflict markers (same-club pairs highlighted in same pool).
 
 ### T-908 · Referee assignment UI
+
 - **Dep**: T-905, T-907
 - **Goal**: Admin page `/referees/assignments` — visual schedule grid with auto-assign + manual override + missing-role report.
 - **Files**: `apps/web-admin/app/.../referees/assignments/**`.
@@ -999,6 +1088,7 @@
   - Filter sidebar candidates by role + rating + availability.
 
 ### T-909 · Referee dashboard (public app)
+
 - **Dep**: T-901, T-805
 - **Goal**: `/e/[eventSlug]/referee` — when user has referee role, show their assigned pools/matches/roles.
 - **Files**: `apps/web-public/app/e/[eventSlug]/referee/**`.
@@ -1008,6 +1098,7 @@
   - Visible on "My Schedule" with role label.
 
 ### T-910 · On-piste referee tools (lite v1)
+
 - **Dep**: T-402
 - **Goal**: `/e/[eventSlug]/referee/match/[matchId]` — referee can call halt/resume, issue warnings, request scorekeeper attention.
 - **Files**: `apps/web-public/app/e/[eventSlug]/referee/match/[matchId]/**`.
@@ -1022,6 +1113,7 @@
 ## Phase P10 — Statistics
 
 ### T-1001 · Materialized views for fighter exchange stats
+
 - **Dep**: T-206
 - **Goal**: Postgres materialized views per ARCHITECTURE.md §5.3.
 - **Files**: `packages/db/migrations/0010_stats_views.sql`, `apps/api/src/modules/stats/**`.
@@ -1030,6 +1122,7 @@
   - Refreshed by trigger after exchange insert/update/void; debounced via Redis lock (1s).
 
 ### T-1002 · Tournament stats overview API
+
 - **Dep**: T-1001
 - **Goal**: Endpoints for the hero numbers + per-event aggregates.
 - **Files**: `apps/api/src/modules/stats/**`.
@@ -1038,6 +1131,7 @@
   - All endpoints from §14 stats section work.
 
 ### T-1003 · Stats page UI (public)
+
 - **Dep**: T-1002, T-602
 - **Goal**: Reproduce `https://lyonamhe.fr/resultat_fal2026.html` layout.
 - **Files**: `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/stats/**`.
@@ -1047,6 +1141,7 @@
   - Visual diff against the reference page within reasonable margins.
 
 ### T-1004 · Exports — CSV / JSON / HEMA Ratings format
+
 - **Dep**: T-1001
 - **Goal**: Export endpoints and Worker job to generate large exports.
 - **Files**: `apps/api/src/modules/exports/**`.
@@ -1056,6 +1151,7 @@
   - HEMA Ratings format documented in `docs/HEMA_RATINGS_EXPORT.md`.
 
 ### T-1005 · PDF export
+
 - **Dep**: T-1003
 - **Goal**: Puppeteer-based PDF of the public stats page.
 - **Files**: `apps/api/src/modules/exports/pdf.worker.ts`.
@@ -1068,6 +1164,7 @@
 ## Phase P11 — HEMA Ratings Sync
 
 ### T-1101 · Daily sync job
+
 - **Dep**: T-104
 - **Goal**: BullMQ daily cron pulls HEMA Ratings dataset into `hema_ratings_snapshots`.
 - **Files**: `apps/api/src/workers/hema-ratings-sync.worker.ts`.
@@ -1076,6 +1173,7 @@
   - Search index rebuilt after each sync.
 
 ### T-1102 · Search & link UI in registration
+
 - **Dep**: T-1101, T-703
 - **Goal**: When adding a registration, organizer sees suggested matches from HEMA Ratings.
 - **Files**: `apps/web-admin/src/components/HemaRatingsSuggest.tsx`.
@@ -1084,6 +1182,7 @@
   - Selecting a match populates the registration with `hema_ratings_id`.
 
 ### T-1103 · HEMA Ratings on fighter profile
+
 - **Dep**: T-1101, T-607
 - **Goal**: Fighter profile shows current rating(s) when linked.
 - **Files**: `apps/web-public/app/fighters/[slug]/**`.
@@ -1096,6 +1195,7 @@
 ## Phase P12 — Push Notifications
 
 ### T-1201 · VAPID + subscription endpoints
+
 - **Dep**: T-009
 - **Owner**: **needs O-007** (VAPID keys generated and stored).
 - **Goal**: Setup VAPID keys, subscribe/unsubscribe endpoints, opt-in flow.
@@ -1106,6 +1206,7 @@
   - User can disable from `/notifications` page.
 
 ### T-1202 · Scheduled notification triggers
+
 - **Dep**: T-1201, T-805
 - **Goal**: BullMQ delayed jobs for "match starting soon", "workshop starting soon", "referee slot soon".
 - **Files**: `apps/api/src/workers/notification-scheduler.worker.ts`.
@@ -1115,6 +1216,7 @@
   - Duplicate notification suppression (idempotency by job key).
 
 ### T-1203 · Event-driven notifications
+
 - **Dep**: T-1201
 - **Goal**: Immediate notifications for: assignment changes, workshop cancellation, waitlist promotion, results published.
 - **Files**: `apps/api/src/modules/notifications/event-handlers/**`.
@@ -1127,6 +1229,7 @@
 ## Phase P13 — Super Admin
 
 ### T-1301 · Super admin dashboard
+
 - **Dep**: T-009
 - **Goal**: `/admin` with org approvals, user management, ruleset moderation, feature flags.
 - **Files**: `apps/web-admin/app/admin/**`.
@@ -1136,6 +1239,7 @@
   - Approve a community-submitted ruleset.
 
 ### T-1302 · Fighter merge tool
+
 - **Dep**: T-104
 - **Goal**: Merge two fighter profiles (handles duplicates from registration).
 - **Files**: `apps/web-admin/app/admin/fighters/**`, `apps/api/src/modules/fighters/merge.service.ts`.
@@ -1145,6 +1249,7 @@
   - Merge is reversible within 30 days (via audit log).
 
 ### T-1303 · Audit log UI
+
 - **Dep**: T-101
 - **Goal**: Filterable audit log viewer.
 - **Files**: `apps/web-admin/app/admin/audit-log/**`.
@@ -1154,6 +1259,7 @@
   - Export to CSV.
 
 ### T-1304 · Frozen results state
+
 - **Dep**: T-705
 - **Goal**: Once results published, post-publish edits to exchanges require super_admin approval.
 - **Files**: `apps/api/src/modules/matches/frozen-results.guard.ts`.
@@ -1167,6 +1273,7 @@
 ## Phase P14 — i18n & Polish
 
 ### T-1401 · Extract all strings
+
 - **Dep**: all UI tasks
 - **Goal**: Every user-facing string goes through i18n. CI fails on hardcoded English in JSX.
 - **Files**: `apps/*/messages/en.json`, `eslint` rule `no-literal-string`.
@@ -1175,6 +1282,7 @@
   - 100% of strings extracted.
 
 ### T-1402 · French translation
+
 - **Dep**: T-1401
 - **Owner**: **needs O-106 + O-107** (French native speaker review and HEMA glossary).
 - **Goal**: `messages/fr.json` complete and reviewed.
@@ -1184,6 +1292,7 @@
   - Reviewed by a native French speaker (project author).
 
 ### T-1403 · Accessibility pass (WCAG AA)
+
 - **Dep**: all UI tasks
 - **Goal**: Axe checks clean on critical user flows.
 - **Files**: `tests/a11y/**`.
@@ -1192,6 +1301,7 @@
   - Keyboard navigation works on all interactive components.
 
 ### T-1404 · Performance pass
+
 - **Dep**: all
 - **Goal**: Lighthouse scores ≥ 90 on web-public landing and event pages.
 - **Files**: various.
@@ -1205,6 +1315,7 @@
 ## Phase P15 — Beta Event
 
 ### T-1501 · Pre-event dry-run
+
 - **Dep**: all
 - **Owner**: **needs O-201–O-206** (privacy policy, monitoring, backups, real-device tests, tablet provisioning, communications).
 - **Goal**: Run a fake event end-to-end on staging.
@@ -1214,6 +1325,7 @@
   - No critical bugs.
 
 ### T-1502 · Run a real event
+
 - **Dep**: T-1501
 - **Owner**: **needs O-104** (beta partner confirmed) and **O-301–O-303** (on-site presence on the day).
 - **Goal**: Use MyClash for a real HEMA event (target: a Lyon AMHE event or partner club).
@@ -1223,6 +1335,7 @@
   - All bugs found triaged.
 
 ### T-1503 · v1.0 release
+
 - **Dep**: T-1502
 - **Goal**: Tag v1.0, publish release notes, announce.
 - **AC**:
@@ -1329,4 +1442,4 @@ The following can be worked on **in parallel** by independent agents/devs once t
 
 ---
 
-*End of MyClash Build Order.*
+_End of MyClash Build Order._

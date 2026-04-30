@@ -34,11 +34,7 @@ type PadStep =
   | 'afterblow_choose_afterblow_value'
   | 'no_exchange_choose_reason';
 
-type NoExchangeReason =
-  | 'out_of_bounds'
-  | 'simultaneous_stop'
-  | 'no_valid_hit'
-  | 'other';
+type NoExchangeReason = 'out_of_bounds' | 'simultaneous_stop' | 'no_valid_hit' | 'other';
 
 interface PendingExchange {
   type?: ExchangeType;
@@ -90,35 +86,72 @@ function padReducer(state: PadState, action: PadAction): PadState {
     case 'START_CLEAN':
       return { ...state, step: 'clean_choose_striker', pending: { type: 'clean' }, error: null };
     case 'START_AFTERBLOW':
-      return { ...state, step: 'afterblow_choose_striker', pending: { type: 'afterblow' }, error: null };
+      return {
+        ...state,
+        step: 'afterblow_choose_striker',
+        pending: { type: 'afterblow' },
+        error: null,
+      };
     case 'START_DOUBLE':
       return { ...state, step: 'idle', pending: { type: 'double' }, submitting: true, error: null };
     case 'START_NO_EXCHANGE':
-      return { ...state, step: 'no_exchange_choose_reason', pending: { type: 'no_exchange' }, error: null };
+      return {
+        ...state,
+        step: 'no_exchange_choose_reason',
+        pending: { type: 'no_exchange' },
+        error: null,
+      };
 
     case 'CHOOSE_STRIKER':
       if (state.step === 'clean_choose_striker') {
-        return { ...state, step: 'clean_choose_value', pending: { ...state.pending, firstStrikerColor: action.color } };
+        return {
+          ...state,
+          step: 'clean_choose_value',
+          pending: { ...state.pending, firstStrikerColor: action.color },
+        };
       }
       if (state.step === 'afterblow_choose_striker') {
-        return { ...state, step: 'afterblow_choose_first_value', pending: { ...state.pending, firstStrikerColor: action.color } };
+        return {
+          ...state,
+          step: 'afterblow_choose_first_value',
+          pending: { ...state.pending, firstStrikerColor: action.color },
+        };
       }
       return state;
 
     case 'CHOOSE_FIRST_VALUE':
       if (state.step === 'clean_choose_value') {
-        return { ...state, step: 'idle', pending: { ...state.pending, firstStrikeValue: action.value }, submitting: true };
+        return {
+          ...state,
+          step: 'idle',
+          pending: { ...state.pending, firstStrikeValue: action.value },
+          submitting: true,
+        };
       }
       if (state.step === 'afterblow_choose_first_value') {
-        return { ...state, step: 'afterblow_choose_afterblow_value', pending: { ...state.pending, firstStrikeValue: action.value } };
+        return {
+          ...state,
+          step: 'afterblow_choose_afterblow_value',
+          pending: { ...state.pending, firstStrikeValue: action.value },
+        };
       }
       return state;
 
     case 'CHOOSE_AFTERBLOW_VALUE':
-      return { ...state, step: 'idle', pending: { ...state.pending, afterblowValue: action.value }, submitting: true };
+      return {
+        ...state,
+        step: 'idle',
+        pending: { ...state.pending, afterblowValue: action.value },
+        submitting: true,
+      };
 
     case 'CHOOSE_NO_EXCHANGE_REASON':
-      return { ...state, step: 'idle', pending: { ...state.pending, noExchangeReason: action.reason }, submitting: true };
+      return {
+        ...state,
+        step: 'idle',
+        pending: { ...state.pending, noExchangeReason: action.reason },
+        submitting: true,
+      };
 
     case 'SUBMIT_START':
       return { ...state, submitting: true, error: null };
@@ -135,7 +168,11 @@ function padReducer(state: PadState, action: PadAction): PadState {
       return { ...state, submitting: false, error: action.error };
 
     case 'CANCEL':
-      return { ...INITIAL_STATE, lastExchangeId: state.lastExchangeId, lastExchangeAt: state.lastExchangeAt };
+      return {
+        ...INITIAL_STATE,
+        lastExchangeId: state.lastExchangeId,
+        lastExchangeAt: state.lastExchangeAt,
+      };
 
     case 'UNDO_START':
       return { ...state, submitting: true, error: null };
@@ -221,7 +258,10 @@ export function ExchangePad({
         dispatch({ type: 'SUBMIT_SUCCESS', exchangeId: data.id });
         onExchangeRecorded?.(data.id);
       } catch (err) {
-        dispatch({ type: 'SUBMIT_ERROR', error: err instanceof Error ? err.message : 'Network error' });
+        dispatch({
+          type: 'SUBMIT_ERROR',
+          error: err instanceof Error ? err.message : 'Network error',
+        });
       }
     },
     [matchId, apiUrl, onExchangeRecorded],
@@ -411,8 +451,16 @@ export function ExchangePad({
           {(
             [
               { reason: 'out_of_bounds' as const, label: 'Out of bounds', sublabel: 'Hors piste' },
-              { reason: 'simultaneous_stop' as const, label: 'Simultaneous stop', sublabel: 'Arrêt simultané' },
-              { reason: 'no_valid_hit' as const, label: 'No valid hit', sublabel: 'Pas de touche valide' },
+              {
+                reason: 'simultaneous_stop' as const,
+                label: 'Simultaneous stop',
+                sublabel: 'Arrêt simultané',
+              },
+              {
+                reason: 'no_valid_hit' as const,
+                label: 'No valid hit',
+                sublabel: 'Pas de touche valide',
+              },
               { reason: 'other' as const, label: 'Other', sublabel: 'Autre' },
             ] as const
           ).map(({ reason, label, sublabel }) => (
@@ -430,7 +478,9 @@ export function ExchangePad({
       {/* ── Undo button ── */}
       {canUndo && state.step === 'idle' && (
         <button
-          onClick={() => { void handleUndo(); }}
+          onClick={() => {
+            void handleUndo();
+          }}
           disabled={state.submitting}
           className="w-full py-3 rounded-xl border-2 border-yellow-600 text-yellow-400 font-bold text-sm
                      hover:bg-yellow-900 active:bg-yellow-800 transition-colors disabled:opacity-50"
@@ -441,9 +491,7 @@ export function ExchangePad({
 
       {/* Submitting indicator */}
       {state.submitting && (
-        <div className="text-center text-gray-400 text-xs animate-pulse">
-          Recording…
-        </div>
+        <div className="text-center text-gray-400 text-xs animate-pulse">Recording…</div>
       )}
     </div>
   );
@@ -454,13 +502,15 @@ export function ExchangePad({
 type ButtonColor = 'green' | 'yellow' | 'orange' | 'gray' | 'red' | 'blue' | 'white';
 
 const COLOR_CLASSES: Record<ButtonColor, string> = {
-  green:  'bg-green-800 border-green-600 text-green-100 hover:bg-green-700 active:bg-green-600',
-  yellow: 'bg-yellow-800 border-yellow-600 text-yellow-100 hover:bg-yellow-700 active:bg-yellow-600',
-  orange: 'bg-orange-800 border-orange-600 text-orange-100 hover:bg-orange-700 active:bg-orange-600',
-  gray:   'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700 active:bg-gray-600',
-  red:    'bg-red-900 border-red-600 text-red-100 hover:bg-red-800 active:bg-red-700',
-  blue:   'bg-blue-900 border-blue-600 text-blue-100 hover:bg-blue-800 active:bg-blue-700',
-  white:  'bg-gray-700 border-gray-500 text-white hover:bg-gray-600 active:bg-gray-500',
+  green: 'bg-green-800 border-green-600 text-green-100 hover:bg-green-700 active:bg-green-600',
+  yellow:
+    'bg-yellow-800 border-yellow-600 text-yellow-100 hover:bg-yellow-700 active:bg-yellow-600',
+  orange:
+    'bg-orange-800 border-orange-600 text-orange-100 hover:bg-orange-700 active:bg-orange-600',
+  gray: 'bg-gray-800 border-gray-600 text-gray-100 hover:bg-gray-700 active:bg-gray-600',
+  red: 'bg-red-900 border-red-600 text-red-100 hover:bg-red-800 active:bg-red-700',
+  blue: 'bg-blue-900 border-blue-600 text-blue-100 hover:bg-blue-800 active:bg-blue-700',
+  white: 'bg-gray-700 border-gray-500 text-white hover:bg-gray-600 active:bg-gray-500',
 };
 
 function BigButton({

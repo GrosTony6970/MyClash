@@ -9,18 +9,18 @@ global:
 
 api:
   dashboard: true
-  insecure: true   # dashboard at http://localhost:8080 in dev only
+  insecure: true # dashboard at http://localhost:8080 in dev only
 
 entryPoints:
   web:
-    address: ":80"
+    address: ':80'
     http:
       redirections:
         entryPoint:
           to: websecure
           scheme: https
   websecure:
-    address: ":443"
+    address: ':443'
 
 providers:
   docker:

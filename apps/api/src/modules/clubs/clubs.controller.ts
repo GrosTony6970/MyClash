@@ -47,10 +47,7 @@ export class ClubsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a club (organizer+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateClubDto,
-  ) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClubDto) {
     return this.clubs.update(id, dto);
   }
 }

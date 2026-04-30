@@ -8,16 +8,17 @@ MyClash follows a strict build-order workflow driven by an AI coding agent. This
 
 Every pull request targeting `main` must pass all of the following GitHub Actions jobs before merging:
 
-| Check | Workflow | What it does |
-|---|---|---|
-| **Install dependencies** | `CI / Install dependencies` | `pnpm install --frozen-lockfile` |
-| **Build shared packages** | `CI / Build shared packages` | `pnpm turbo run build` for all `packages/*` |
-| **Typecheck** | `CI / Typecheck` | `pnpm turbo run typecheck` across all workspaces |
-| **Lint** | `CI / Lint` | `pnpm turbo run lint` + `pnpm format:check` |
-| **Test** | `CI / Test` | `pnpm turbo run test` (Vitest) |
-| **CodeQL** | `CodeQL Security Scan / Analyze` | Static security analysis |
+| Check                     | Workflow                         | What it does                                     |
+| ------------------------- | -------------------------------- | ------------------------------------------------ |
+| **Install dependencies**  | `CI / Install dependencies`      | `pnpm install --frozen-lockfile`                 |
+| **Build shared packages** | `CI / Build shared packages`     | `pnpm turbo run build` for all `packages/*`      |
+| **Typecheck**             | `CI / Typecheck`                 | `pnpm turbo run typecheck` across all workspaces |
+| **Lint**                  | `CI / Lint`                      | `pnpm turbo run lint` + `pnpm format:check`      |
+| **Test**                  | `CI / Test`                      | `pnpm turbo run test` (Vitest)                   |
+| **CodeQL**                | `CodeQL Security Scan / Analyze` | Static security analysis                         |
 
 To configure these as required checks in GitHub:
+
 1. Go to **Settings → Branches → Branch protection rules** for `main`.
 2. Enable **Require status checks to pass before merging**.
 3. Add each job name from the table above.
@@ -49,6 +50,7 @@ pnpm dev
 ```
 
 Local URLs:
+
 - `http://localhost:3001` — web-public
 - `http://localhost:3002` — web-scoring
 - `http://localhost:3003` — web-admin

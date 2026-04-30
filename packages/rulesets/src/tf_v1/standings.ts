@@ -50,12 +50,7 @@ export function computePoolStandings(
     for (const regId of [match.redRegistrationId, match.blueRegistrationId]) {
       if (!stats.has(regId)) continue;
 
-      const agg = computeAggregates(
-        regId,
-        match,
-        matchExchanges,
-        winnerId === regId,
-      );
+      const agg = computeAggregates(regId, match, matchExchanges, winnerId === regId);
 
       const current = stats.get(regId)!;
       current.wins += agg.wins;

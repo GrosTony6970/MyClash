@@ -1,8 +1,24 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, HttpStatus,
-  Param, ParseUUIDPipe, Patch, Post, Req,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { RegistrationsService } from './registrations.service';
 import { CreateRegistrationDto, UpdateRegistrationStatusDto } from './dto/registrations.dto';
@@ -51,11 +67,15 @@ export class RegistrationsController {
   ) {
     let buffer: Buffer | null = null;
     try {
-      const data = await (req as FastifyRequest & {
-        file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
-      }).file();
+      const data = await (
+        req as FastifyRequest & {
+          file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
+        }
+      ).file();
       if (data) buffer = await data.toBuffer();
-    } catch { /* no file */ }
+    } catch {
+      /* no file */
+    }
 
     if (!buffer) {
       return { created: 0, skipped: 0, errors: ['No file uploaded'] };

@@ -96,7 +96,9 @@ export default function LicePickerPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold">{a.liceName}</h2>
-                <p className="text-gray-400 text-sm">{a.tournamentName} · {a.eventName}</p>
+                <p className="text-gray-400 text-sm">
+                  {a.tournamentName} · {a.eventName}
+                </p>
               </div>
               {a.currentMatchId ? (
                 <span className="bg-red-700 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">

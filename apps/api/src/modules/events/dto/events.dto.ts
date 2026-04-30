@@ -1,21 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CreateEventDto {
   @ApiProperty({ example: 'FAL 2026' })
-  @IsString() @MinLength(2) @MaxLength(200)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
   name!: string;
 
   @ApiProperty({ example: 'fal-2026' })
-  @IsString() @MinLength(2) @MaxLength(100)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
   @Matches(/^[a-z0-9-]+$/, { message: 'Slug must be lowercase letters, digits, and hyphens' })
   slug!: string;
 
@@ -28,87 +24,114 @@ export class CreateEventDto {
   endDate!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   location?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   publicLandingMd?: string;
 }
 
 export class UpdateEventDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(2) @MaxLength(200)
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
   name?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   location?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   startDate?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   endDate?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   publicLandingMd?: string;
 }
 
 export class EventQueryDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   status?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   organizationId?: string;
 }
 
 export class CreateTournamentDto {
   @ApiProperty({ example: 'Longsword Open' })
-  @IsString() @MinLength(2) @MaxLength(200)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
   name!: string;
 
   @ApiProperty({ example: 'longsword-open' })
-  @IsString() @MinLength(2) @MaxLength(100)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
   @Matches(/^[a-z0-9-]+$/, { message: 'Slug must be lowercase letters, digits, and hyphens' })
   slug!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   weapon?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   category?: string;
 
   @ApiProperty({ required: false, default: 'TF_v1' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   rulesetCode?: string;
 
   @ApiProperty({ required: false, default: '1' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   rulesetVersion?: string;
 }
 
 export class UpdateTournamentDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(2) @MaxLength(200)
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
   name?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   weapon?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   category?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsIn(['draft', 'published', 'running', 'completed', 'archived'])
+  @IsOptional()
+  @IsIn(['draft', 'published', 'running', 'completed', 'archived'])
   status?: string;
 }

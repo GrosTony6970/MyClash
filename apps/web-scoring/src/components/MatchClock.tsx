@@ -98,30 +98,33 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
 
   // ── Clock action ──────────────────────────────────────────────────────────
 
-  const doAction = useCallback(async (action: string, reason?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ action, reason }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? `Action ${action} failed`);
+  const doAction = useCallback(
+    async (action: string, reason?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ action, reason }),
+        });
+        if (!res.ok) {
+          const body = (await res.json()) as { message?: string };
+          throw new Error(body.message ?? `Action ${action} failed`);
+        }
+        const newState = (await res.json()) as ClockState;
+        setClockState(newState);
+        setDisplayMs(computeDisplayMs(newState));
+        onStateChange?.(newState);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Clock action failed');
+      } finally {
+        setLoading(false);
       }
-      const newState = (await res.json()) as ClockState;
-      setClockState(newState);
-      setDisplayMs(computeDisplayMs(newState));
-      onStateChange?.(newState);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Clock action failed');
-    } finally {
-      setLoading(false);
-    }
-  }, [matchId, apiUrl, onStateChange]);
+    },
+    [matchId, apiUrl, onStateChange],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -138,29 +141,37 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
   return (
     <div className="flex flex-col items-center gap-4">
       {/* Clock display */}
-      <div className={`text-7xl font-black tabular-nums tracking-tight ${
-        status === 'running' ? 'text-white' :
-        status === 'halted'  ? 'text-yellow-400' :
-        status === 'ended'   ? 'text-gray-500' :
-        'text-gray-600'
-      }`}>
+      <div
+        className={`text-7xl font-black tabular-nums tracking-tight ${
+          status === 'running'
+            ? 'text-white'
+            : status === 'halted'
+              ? 'text-yellow-400'
+              : status === 'ended'
+                ? 'text-gray-500'
+                : 'text-gray-600'
+        }`}
+      >
         {formatMs(displayMs)}
       </div>
 
       {/* Status badge */}
-      <div className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
-        status === 'running' ? 'bg-green-900 text-green-300' :
-        status === 'halted'  ? 'bg-yellow-900 text-yellow-300' :
-        status === 'ended'   ? 'bg-gray-800 text-gray-400' :
-        'bg-gray-800 text-gray-500'
-      }`}>
+      <div
+        className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
+          status === 'running'
+            ? 'bg-green-900 text-green-300'
+            : status === 'halted'
+              ? 'bg-yellow-900 text-yellow-300'
+              : status === 'ended'
+                ? 'bg-gray-800 text-gray-400'
+                : 'bg-gray-800 text-gray-500'
+        }`}
+      >
         {status}
       </div>
 
       {/* Error */}
-      {error && (
-        <p className="text-red-400 text-sm text-center">{error}</p>
-      )}
+      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
       {/* Action buttons */}
       <div className="flex gap-3 flex-wrap justify-center">
@@ -229,10 +240,10 @@ function ClockButton({
   onClick: () => void;
 }) {
   const colors = {
-    green:  'bg-green-700 hover:bg-green-600 active:bg-green-800',
+    green: 'bg-green-700 hover:bg-green-600 active:bg-green-800',
     yellow: 'bg-yellow-700 hover:bg-yellow-600 active:bg-yellow-800',
-    red:    'bg-red-700 hover:bg-red-600 active:bg-red-800',
-    gray:   'bg-gray-700 hover:bg-gray-600 active:bg-gray-800',
+    red: 'bg-red-700 hover:bg-red-600 active:bg-red-800',
+    gray: 'bg-gray-700 hover:bg-gray-600 active:bg-gray-800',
   };
 
   return (

@@ -12,7 +12,11 @@ export class ListOrgsQueryDto {
   @IsString()
   q?: string;
 
-  @ApiProperty({ required: false, enum: ['name', 'created_at', 'last_activity'], default: 'created_at' })
+  @ApiProperty({
+    required: false,
+    enum: ['name', 'created_at', 'last_activity'],
+    default: 'created_at',
+  })
   @IsOptional()
   @IsIn(['name', 'created_at', 'last_activity'])
   sortBy?: 'name' | 'created_at' | 'last_activity';

@@ -51,7 +51,10 @@ describe('OrganizationsService', () => {
       slugChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: { id: 'org-1', status: 'pending_approval' }, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'org-1', status: 'pending_approval' },
+        error: null,
+      });
 
       const memberChain = makeChain({ data: null, error: null });
       memberChain.insert.mockResolvedValue({ data: null, error: null });
@@ -70,9 +73,9 @@ describe('OrganizationsService', () => {
       chain.maybeSingle.mockResolvedValue({ data: { id: 'existing' }, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.create({ name: 'Test', slug: 'taken-slug' }, 'user-1'),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.create({ name: 'Test', slug: 'taken-slug' }, 'user-1')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -93,9 +96,9 @@ describe('OrganizationsService', () => {
       chain.maybeSingle.mockResolvedValue({ data: null, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.assertOrgRole('org-1', 'user-1', 'admin'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.assertOrgRole('org-1', 'user-1', 'admin')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('throws ForbiddenException when role is insufficient', async () => {
@@ -103,9 +106,9 @@ describe('OrganizationsService', () => {
       chain.maybeSingle.mockResolvedValue({ data: { role: 'read_only' }, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.assertOrgRole('org-1', 'user-1', 'admin'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.assertOrgRole('org-1', 'user-1', 'admin')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('passes when user has sufficient role', async () => {
@@ -113,9 +116,7 @@ describe('OrganizationsService', () => {
       chain.maybeSingle.mockResolvedValue({ data: { role: 'owner' }, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.assertOrgRole('org-1', 'user-1', 'admin'),
-      ).resolves.not.toThrow();
+      await expect(service.assertOrgRole('org-1', 'user-1', 'admin')).resolves.not.toThrow();
     });
   });
 });

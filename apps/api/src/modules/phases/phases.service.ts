@@ -2,12 +2,7 @@
  * PhasesService — orchestrates pool and bracket generation.
  * Persists phases, pools, pool_members, and matches to the DB.
  */
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import {
   snakeSeed,
   localSearch,
@@ -38,11 +33,7 @@ export class PhasesService {
    *
    * Idempotent: returns 409 if a pool phase already exists, unless force=true.
    */
-  async generatePools(
-    tournamentId: string,
-    dto: GeneratePoolsDto,
-    force = false,
-  ) {
+  async generatePools(tournamentId: string, dto: GeneratePoolsDto, force = false) {
     // Check for existing pool phase
     const { data: existing } = await this.supabase.service
       .from('phases')
@@ -89,7 +80,9 @@ export class PhasesService {
     }
 
     if (poolCount > fighterCount) {
-      throw new BadRequestException(`Cannot create ${poolCount} pools with only ${fighterCount} fighters`);
+      throw new BadRequestException(
+        `Cannot create ${poolCount} pools with only ${fighterCount} fighters`,
+      );
     }
 
     // Map to Fighter type
@@ -112,7 +105,14 @@ export class PhasesService {
 
     // Snake seed + local search
     const initial = snakeSeed(fighters, poolCount);
-    const optimized = localSearch(initial, fighters, poolCount, settings, undefined, dto.seed ?? 42);
+    const optimized = localSearch(
+      initial,
+      fighters,
+      poolCount,
+      settings,
+      undefined,
+      dto.seed ?? 42,
+    );
     const costReport = buildCostReport(optimized, fighters, poolCount, settings);
 
     // Group by pool
@@ -136,7 +136,8 @@ export class PhasesService {
       .select('id')
       .single();
 
-    if (phaseError || !phase) throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
+    if (phaseError || !phase)
+      throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
     const phaseId = (phase as { id: string }).id;
 
     const createdPools: Array<{ id: string; name: string; matchCount: number }> = [];
@@ -152,7 +153,8 @@ export class PhasesService {
         .select('id')
         .single();
 
-      if (poolError || !pool) throw new BadRequestException(poolError?.message ?? 'Failed to create pool');
+      if (poolError || !pool)
+        throw new BadRequestException(poolError?.message ?? 'Failed to create pool');
       const poolId = (pool as { id: string }).id;
 
       // Insert pool_members
@@ -212,11 +214,7 @@ export class PhasesService {
    *
    * Idempotent: returns 409 if an elim phase already exists, unless force=true.
    */
-  async generateBracket(
-    tournamentId: string,
-    dto: GenerateBracketDto,
-    force = false,
-  ) {
+  async generateBracket(tournamentId: string, dto: GenerateBracketDto, force = false) {
     // Check for existing elim phase
     const { data: existing } = await this.supabase.service
       .from('phases')
@@ -278,7 +276,8 @@ export class PhasesService {
       .select('id')
       .single();
 
-    if (phaseError || !phase) throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
+    if (phaseError || !phase)
+      throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
     const phaseId = (phase as { id: string }).id;
 
     // Insert bracket slots

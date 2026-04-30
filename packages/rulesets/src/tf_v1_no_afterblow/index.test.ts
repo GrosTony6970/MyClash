@@ -5,16 +5,27 @@ import { registry } from '../registry';
 import type { Exchange, Match } from '../types';
 
 const BASE_MATCH: Match = {
-  id: 'm1', redRegistrationId: 'reg-red', blueRegistrationId: 'reg-blue',
-  rulesetCode: 'TF_v1_no_afterblow', rulesetVersion: '1.0.0', status: 'running',
+  id: 'm1',
+  redRegistrationId: 'reg-red',
+  blueRegistrationId: 'reg-blue',
+  rulesetCode: 'TF_v1_no_afterblow',
+  rulesetVersion: '1.0.0',
+  status: 'running',
 };
 
 function makeEx(overrides: Partial<Exchange>): Exchange {
   return {
-    id: 'e1', clientUuid: 'u1', matchId: 'm1', sequence: 1,
-    type: 'clean', occurredAt: new Date().toISOString(),
-    firstStrikerColor: 'red', firstStrikeValue: 1,
-    afterblowValue: null, noExchangeReason: null, voided: false,
+    id: 'e1',
+    clientUuid: 'u1',
+    matchId: 'm1',
+    sequence: 1,
+    type: 'clean',
+    occurredAt: new Date().toISOString(),
+    firstStrikerColor: 'red',
+    firstStrikeValue: 1,
+    afterblowValue: null,
+    noExchangeReason: null,
+    voided: false,
     ...overrides,
   };
 }

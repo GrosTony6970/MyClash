@@ -4,10 +4,10 @@ import { IsIn, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 // Valid status transitions: registered → checked_in → done
 // Cannot skip steps.
 export const REGISTRATION_STATUS_TRANSITIONS: Record<string, string[]> = {
-  registered:  ['checked_in'],
-  checked_in:  ['done', 'withdrawn'],
-  done:        [],
-  withdrawn:   [],
+  registered: ['checked_in'],
+  checked_in: ['done', 'withdrawn'],
+  done: [],
+  withdrawn: [],
   disqualified: [],
 };
 
@@ -17,15 +17,20 @@ export class CreateRegistrationDto {
   personId!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   fighterId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   seed?: number;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   bibNumber?: number;
 }
 

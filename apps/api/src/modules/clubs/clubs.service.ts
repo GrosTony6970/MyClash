@@ -22,10 +22,7 @@ export class ClubsService {
   constructor(private readonly supabase: SupabaseService) {}
 
   async list(query: ClubQueryDto) {
-    let q = this.supabase.service
-      .from('clubs')
-      .select('*')
-      .order('name', { ascending: true });
+    let q = this.supabase.service.from('clubs').select('*').order('name', { ascending: true });
 
     if (query.q) q = q.ilike('name', `%${query.q}%`) as typeof q;
     if (query.country) q = q.eq('country_code', query.country.toUpperCase()) as typeof q;

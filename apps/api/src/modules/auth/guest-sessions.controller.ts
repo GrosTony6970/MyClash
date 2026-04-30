@@ -11,12 +11,7 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
@@ -78,9 +73,7 @@ export class GuestSessionsController {
       .eq('id', eventId)
       .maybeSingle();
 
-    const endDate = event
-      ? new Date((event as { end_date: string }).end_date)
-      : new Date();
+    const endDate = event ? new Date((event as { end_date: string }).end_date) : new Date();
     const expiresAt = new Date(endDate.getTime() + 7 * 24 * 60 * 60 * 1000); // +7 days
 
     // 3. Detect device label from User-Agent
@@ -158,10 +151,7 @@ export class GuestSessionsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke current guest session (logout)' })
   @ApiResponse({ status: 204, description: 'Session revoked, cookie cleared' })
-  async revoke(
-    @Req() req: FastifyRequest,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
+  async revoke(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
     const token = cookies?.[COOKIE_NAME];
 

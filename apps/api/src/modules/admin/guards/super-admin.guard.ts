@@ -28,7 +28,10 @@ export class SuperAdminGuard implements CanActivate {
     const token = this.extractToken(request);
     if (!token) throw new UnauthorizedException('Authentication required');
 
-    const { data: { user }, error } = await this.supabase.anon.auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await this.supabase.anon.auth.getUser(token);
     if (error || !user) throw new UnauthorizedException('Invalid or expired token');
 
     // Check platform_roles table (graceful fallback pre-T-101)

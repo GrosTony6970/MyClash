@@ -146,7 +146,8 @@ describe('GuestJwtGuard', () => {
 
     guard.canActivate(ctx);
 
-    const session = (request as { guestSession?: { person_id: string; event_id: string } }).guestSession;
+    const session = (request as { guestSession?: { person_id: string; event_id: string } })
+      .guestSession;
     expect(session?.person_id).toBe('person-a');
     expect(session?.event_id).toBe('event-1');
   });

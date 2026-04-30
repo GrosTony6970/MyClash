@@ -25,9 +25,7 @@ const mockSupabase = {
 const mockMail = { sendMagicLink: vi.fn().mockResolvedValue(undefined) };
 
 const mockConfig = {
-  get: vi.fn((key: string, def?: string) =>
-    key === 'DOMAIN' ? 'myclash.localhost' : (def ?? ''),
-  ),
+  get: vi.fn((key: string, def?: string) => (key === 'DOMAIN' ? 'myclash.localhost' : (def ?? ''))),
   getOrThrow: vi.fn(),
 };
 
@@ -50,11 +48,7 @@ describe('OnboardingService', () => {
     vi.clearAllMocks();
     // Default: slug not taken
     fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
-    service = new OnboardingService(
-      mockSupabase as never,
-      mockMail as never,
-      mockConfig as never,
-    );
+    service = new OnboardingService(mockSupabase as never, mockMail as never, mockConfig as never);
   });
 
   describe('checkSlugAvailability', () => {

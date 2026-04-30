@@ -205,10 +205,7 @@ export class FightersService {
       .eq('fighter_id', dto.sourceId);
 
     // Delete source fighter
-    await this.supabase.service
-      .from('fighters')
-      .delete()
-      .eq('id', dto.sourceId);
+    await this.supabase.service.from('fighters').delete().eq('id', dto.sourceId);
 
     return { merged: true, targetId: dto.targetId };
   }

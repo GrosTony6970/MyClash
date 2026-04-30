@@ -31,8 +31,8 @@ export interface BergerMatch {
 }
 
 export interface BergerScheduleOptions {
-  liceLabel?: string;  // e.g. "1" → "L1"
-  poolLabel?: string;  // e.g. "A" → "PA"
+  liceLabel?: string; // e.g. "1" → "L1"
+  poolLabel?: string; // e.g. "A" → "PA"
 }
 
 /**
@@ -43,10 +43,7 @@ export interface BergerScheduleOptions {
  * @param options   Label options for match naming
  * @returns         Array of matches in round order
  */
-export function bergerSchedule(
-  n: number,
-  options: BergerScheduleOptions = {},
-): BergerMatch[] {
+export function bergerSchedule(n: number, options: BergerScheduleOptions = {}): BergerMatch[] {
   if (n < 2) throw new Error('Need at least 2 players for a round-robin');
 
   const lice = options.liceLabel ?? '1';

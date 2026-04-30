@@ -26,9 +26,13 @@ import { EventsService } from './events.service';
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
   const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : cookies?.['sb-access-token'];
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : cookies?.['sb-access-token'];
   if (!token) return 'anonymous';
-  const { data: { user } } = await supabase.anon.auth.getUser(token);
+  const {
+    data: { user },
+  } = await supabase.anon.auth.getUser(token);
   return user?.id ?? 'anonymous';
 }
 
@@ -91,10 +95,7 @@ export class EventsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Publish event (org admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async publishEvent(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: FastifyRequest,
-  ) {
+  async publishEvent(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
     return this.events.publishEvent(id, userId);
   }

@@ -1,12 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsInt,
-  IsOptional,
-  IsUUID,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class GeneratePoolsDto {
   /**
@@ -14,7 +7,9 @@ export class GeneratePoolsDto {
    * If neither provided, defaults to targetSize=8.
    */
   @ApiProperty({ required: false, example: 4 })
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   poolCount?: number;
 
   /**
@@ -22,27 +17,34 @@ export class GeneratePoolsDto {
    * Mutually exclusive with poolCount.
    */
   @ApiProperty({ required: false, example: 8 })
-  @IsOptional() @IsInt() @Min(2) @Max(20)
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(20)
   targetSize?: number;
 
   /** Enforce school (club) separation across pools (default: true) */
   @ApiProperty({ required: false, default: true })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   enforceSchoolSeparation?: boolean;
 
   /** Enforce skill balance across pools (default: true) */
   @ApiProperty({ required: false, default: true })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   enforceSkillBalance?: boolean;
 
   /** PRNG seed for deterministic generation (default: 42) */
   @ApiProperty({ required: false, default: 42 })
-  @IsOptional() @IsInt()
+  @IsOptional()
+  @IsInt()
   seed?: number;
 
   /** Lice ID to assign matches to (optional — assigns all to one Lice if provided) */
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   liceId?: string;
 }
 
@@ -52,7 +54,9 @@ export class GenerateBracketDto {
    * Defaults to next power of 2 ≤ total pool finishers.
    */
   @ApiProperty({ required: false, example: 16 })
-  @IsOptional() @IsInt() @Min(2)
+  @IsOptional()
+  @IsInt()
+  @Min(2)
   qualifyCount?: number;
 
   /**
@@ -60,11 +64,14 @@ export class GenerateBracketDto {
    * Defaults to next power of 2 ≥ qualifyCount.
    */
   @ApiProperty({ required: false, example: 16 })
-  @IsOptional() @IsInt() @Min(2)
+  @IsOptional()
+  @IsInt()
+  @Min(2)
   bracketSize?: number;
 
   /** Phase ID of the pool phase to read standings from */
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   poolPhaseId?: string;
 }

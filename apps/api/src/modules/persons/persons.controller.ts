@@ -84,16 +84,15 @@ export class PersonsController {
   @ApiOperation({ summary: 'Import persons from CSV' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Import report' })
-  async importCsv(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Req() req: FastifyRequest,
-  ) {
+  async importCsv(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     // Read multipart file via @fastify/multipart
     let buffer: Buffer | null = null;
     try {
-      const data = await (req as FastifyRequest & {
-        file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
-      }).file();
+      const data = await (
+        req as FastifyRequest & {
+          file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
+        }
+      ).file();
       if (data) {
         buffer = await data.toBuffer();
       }
@@ -103,7 +102,10 @@ export class PersonsController {
 
     if (!buffer) {
       return {
-        created: 0, updated: 0, duplicates: [], newClubsForReview: [],
+        created: 0,
+        updated: 0,
+        duplicates: [],
+        newClubsForReview: [],
         invalid: [{ row: 0, reason: 'No file uploaded', raw: '' }],
       };
     }
@@ -131,10 +133,7 @@ export class PersonsController {
   @ApiOperation({ summary: 'Update a person' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Updated person' })
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdatePersonDto,
-  ) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePersonDto) {
     return this.persons.updatePerson(id, dto);
   }
 

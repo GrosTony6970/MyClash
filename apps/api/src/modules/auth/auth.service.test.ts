@@ -169,13 +169,17 @@ describe('AuthService', () => {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({
-          data: { id: 'person-1', given_name: 'Jean', family_name: 'Dupont', event_id: 'event-1', claim_status: 'unclaimed' },
+          data: {
+            id: 'person-1',
+            given_name: 'Jean',
+            family_name: 'Dupont',
+            event_id: 'event-1',
+            claim_status: 'unclaimed',
+          },
           error: null,
         }),
       };
-      fromMock
-        .mockReturnValueOnce(sessionChain)
-        .mockReturnValueOnce(personChain);
+      fromMock.mockReturnValueOnce(sessionChain).mockReturnValueOnce(personChain);
 
       const expiresAt = new Date(Date.now() + 3600000);
       const guestToken = guestJwtService.sign(

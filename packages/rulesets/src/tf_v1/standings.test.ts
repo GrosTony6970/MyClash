@@ -34,10 +34,17 @@ function makeMatch(
 
 function makeClean(id: string, seq: number, striker: 'red' | 'blue', value: 1 | 2 = 1): Exchange {
   return {
-    id, clientUuid: id, matchId: 'm1', sequence: seq,
-    type: 'clean', occurredAt: new Date().toISOString(),
-    firstStrikerColor: striker, firstStrikeValue: value,
-    afterblowValue: null, noExchangeReason: null, voided: false,
+    id,
+    clientUuid: id,
+    matchId: 'm1',
+    sequence: seq,
+    type: 'clean',
+    occurredAt: new Date().toISOString(),
+    firstStrikerColor: striker,
+    firstStrikeValue: value,
+    afterblowValue: null,
+    noExchangeReason: null,
+    voided: false,
   };
 }
 
@@ -53,7 +60,10 @@ describe('computePoolStandings', () => {
   it('assigns rank 1 to the fighter with highest score', () => {
     const regs = [makeReg('r1'), makeReg('r2')];
     const matches = [
-      makeMatch('m1', 'r1', 'r2',
+      makeMatch(
+        'm1',
+        'r1',
+        'r2',
         [makeClean('e1', 1, 'red', 1), makeClean('e2', 2, 'red', 1), makeClean('e3', 3, 'red', 1)],
         'r1', // r1 wins
       ),
@@ -71,12 +81,28 @@ describe('computePoolStandings', () => {
     // r1: wins=1, pts=5, hit=2, dbl=0 → score=(3+5)/(2+0)=4
     // r2: wins=1, pts=3, hit=2, dbl=0 → score=(3+3)/(2+0)=3
     const regs = [makeReg('r1'), makeReg('r2')];
-    const m1 = makeMatch('m1', 'r1', 'r2',
-      [makeClean('e1', 1, 'red', 2), makeClean('e2', 2, 'red', 2), makeClean('e3', 3, 'blue', 1), makeClean('e4', 4, 'blue', 1)],
+    const m1 = makeMatch(
+      'm1',
+      'r1',
+      'r2',
+      [
+        makeClean('e1', 1, 'red', 2),
+        makeClean('e2', 2, 'red', 2),
+        makeClean('e3', 3, 'blue', 1),
+        makeClean('e4', 4, 'blue', 1),
+      ],
       'r1',
     );
-    const m2 = makeMatch('m2', 'r2', 'r1',
-      [makeClean('e5', 1, 'red', 1), makeClean('e6', 2, 'red', 1), makeClean('e7', 3, 'blue', 1), makeClean('e8', 4, 'blue', 1)],
+    const m2 = makeMatch(
+      'm2',
+      'r2',
+      'r1',
+      [
+        makeClean('e5', 1, 'red', 1),
+        makeClean('e6', 2, 'red', 1),
+        makeClean('e7', 3, 'blue', 1),
+        makeClean('e8', 4, 'blue', 1),
+      ],
       'r2',
     );
     const rows = computePoolStandings(POOL, [m1, m2], regs, TFv1DefaultConfig);

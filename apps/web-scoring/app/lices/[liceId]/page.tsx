@@ -79,11 +79,13 @@ export default function LiceMatchPage({ params }: Props) {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Network status bar */}
-      <div className={`px-4 py-1 text-xs font-bold text-center ${
-        networkStatus === 'online'
-          ? 'bg-green-900 text-green-300'
-          : 'bg-red-900 text-red-300 animate-pulse'
-      }`}>
+      <div
+        className={`px-4 py-1 text-xs font-bold text-center ${
+          networkStatus === 'online'
+            ? 'bg-green-900 text-green-300'
+            : 'bg-red-900 text-red-300 animate-pulse'
+        }`}
+      >
         {networkStatus === 'online' ? '● ONLINE' : '● OFFLINE — exchanges queued locally'}
       </div>
 
@@ -100,11 +102,7 @@ export default function LiceMatchPage({ params }: Props) {
       </header>
 
       {/* Match content */}
-      {currentMatch ? (
-        <MatchView match={currentMatch} apiUrl={apiUrl} />
-      ) : (
-        <NoMatchView />
-      )}
+      {currentMatch ? <MatchView match={currentMatch} apiUrl={apiUrl} /> : <NoMatchView />}
     </main>
   );
 }
@@ -131,9 +129,7 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
         <div className="text-center">
           <div className="bg-red-900 border-2 border-red-600 rounded-xl p-4">
             <p className="text-xs text-red-300 font-bold uppercase tracking-wide mb-1">Rouge</p>
-            <p className="font-bold text-lg leading-tight">
-              {match.redFighterName ?? 'Fighter A'}
-            </p>
+            <p className="font-bold text-lg leading-tight">{match.redFighterName ?? 'Fighter A'}</p>
           </div>
           <div className="mt-3 text-5xl font-black text-red-400">{match.redScore}</div>
         </div>
@@ -141,9 +137,7 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
         {/* VS */}
         <div className="text-center">
           <p className="text-gray-500 text-2xl font-bold">VS</p>
-          <p className="text-xs text-gray-600 mt-1 uppercase tracking-widest">
-            {match.status}
-          </p>
+          <p className="text-xs text-gray-600 mt-1 uppercase tracking-widest">{match.status}</p>
         </div>
 
         {/* Blue fighter */}

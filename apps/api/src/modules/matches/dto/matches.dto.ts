@@ -1,14 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsIn,
-  IsInt,
-  IsISO8601,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateMatchDto {
   @ApiProperty()
@@ -16,11 +7,13 @@ export class CreateMatchDto {
   phaseId!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   poolId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   liceId?: string;
 
   @ApiProperty()
@@ -32,19 +25,23 @@ export class CreateMatchDto {
   blueRegistrationId!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsISO8601()
+  @IsOptional()
+  @IsISO8601()
   scheduledAt?: string;
 
   @ApiProperty({ required: false, default: 'TF_v1' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   rulesetCode?: string;
 
   @ApiProperty({ required: false, default: '1.0.0' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   rulesetVersion?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   matchNumberLabel?: string;
 }
 
@@ -54,7 +51,8 @@ export class UpdateMatchStatusDto {
   status!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   winnerRegistrationId?: string;
 }
 
@@ -69,7 +67,8 @@ export class CreateExchangeDto {
   clientUuid!: string;
 
   @ApiProperty({ type: Number })
-  @IsInt() @Min(1)
+  @IsInt()
+  @Min(1)
   sequence!: number;
 
   @ApiProperty({ enum: ['clean', 'afterblow', 'double', 'no_exchange'] })
@@ -81,28 +80,38 @@ export class CreateExchangeDto {
   occurredAt!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsInt()
+  @IsOptional()
+  @IsInt()
   durationSincePrevMs?: number;
 
   @ApiProperty({ required: false, enum: ['red', 'blue', null] })
-  @IsOptional() @IsIn(['red', 'blue'])
+  @IsOptional()
+  @IsIn(['red', 'blue'])
   firstStrikerColor?: 'red' | 'blue';
 
   @ApiProperty({ required: false, enum: [1, 2] })
-  @IsOptional() @IsInt() @Min(1) @Max(2)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2)
   firstStrikeValue?: 1 | 2;
 
   @ApiProperty({ required: false, enum: [1, 2] })
-  @IsOptional() @IsInt() @Min(1) @Max(2)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2)
   afterblowValue?: 1 | 2;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   noExchangeReason?: string;
 }
 
 export class VoidExchangeDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   reason?: string;
 }

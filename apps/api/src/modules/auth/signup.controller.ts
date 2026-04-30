@@ -1,20 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Query,
-  Req,
-  Res,
-} from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { OnboardingService } from '../organizations/onboarding.service';
@@ -94,11 +79,7 @@ export class SignupController {
     if (accessToken) {
       const me = await this.auth.getMe(_req);
       if (me.type === 'claimed' && me.user?.id) {
-        await this.onboarding.completeSignupAfterMagicLink(
-          me.user.id,
-          orgName,
-          orgSlug,
-        );
+        await this.onboarding.completeSignupAfterMagicLink(me.user.id, orgName, orgSlug);
       }
     }
 

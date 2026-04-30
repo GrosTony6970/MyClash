@@ -57,7 +57,13 @@ function loadEnv(): DeployEnv {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
     if (m?.[1] && m[2] !== undefined) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
-  const required = ['DEPLOY_HOST', 'DEPLOY_USER', 'DEPLOY_SSH_KEY_PATH', 'DEPLOY_REPO_PATH', 'DEPLOY_SMOKE_URL'];
+  const required = [
+    'DEPLOY_HOST',
+    'DEPLOY_USER',
+    'DEPLOY_SSH_KEY_PATH',
+    'DEPLOY_REPO_PATH',
+    'DEPLOY_SMOKE_URL',
+  ];
   for (const k of required) {
     if (!env[k]) {
       err(`Missing ${k} in .env.deploy`);
@@ -76,8 +82,10 @@ function loadEnv(): DeployEnv {
 function runSSH(env: DeployEnv, remoteCmd: string): Promise<number> {
   return new Promise((resolve) => {
     const args = [
-      '-i', env.sshKeyPath,
-      '-o', 'StrictHostKeyChecking=accept-new',
+      '-i',
+      env.sshKeyPath,
+      '-o',
+      'StrictHostKeyChecking=accept-new',
       `${env.user}@${env.host}`,
       remoteCmd,
     ];
@@ -110,7 +118,9 @@ async function main() {
 
   if (dryRun) {
     warn('Dry run — no commands will execute on the VPS.');
-    console.log(`\nWould run on VPS:\n  cd ${env.repoPath} && bash infra/scripts/deploy.sh ${passthrough}`);
+    console.log(
+      `\nWould run on VPS:\n  cd ${env.repoPath} && bash infra/scripts/deploy.sh ${passthrough}`,
+    );
     return;
   }
 

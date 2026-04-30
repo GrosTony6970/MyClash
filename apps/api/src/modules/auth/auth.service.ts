@@ -14,13 +14,7 @@ import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { GuestJwtService } from './guest-jwt.service';
 
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
-const ALLOWED_REDIRECT_PREFIXES = [
-  '/org/',
-  '/admin/',
-  '/e/',
-  '/dashboard',
-  '/',
-];
+const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/dashboard', '/'];
 
 @Injectable()
 export class AuthService {
@@ -131,7 +125,10 @@ export class AuthService {
 
     // ── Claimed path ──────────────────────────────────────────────────────
     if (accessToken) {
-      const { data: { user }, error } = await this.supabase.anon.auth.getUser(accessToken);
+      const {
+        data: { user },
+        error,
+      } = await this.supabase.anon.auth.getUser(accessToken);
 
       if (!error && user) {
         // Both claimed + guest present → claimed wins, clear guest cookie
@@ -261,28 +258,22 @@ export class AuthService {
         .eq('id', personId);
     } catch {
       // Table not yet created — skip
-      this.logger.warn(`Could not update claim_status for person ${personId} — persons table not yet created`);
+      this.logger.warn(
+        `Could not update claim_status for person ${personId} — persons table not yet created`,
+      );
     }
   }
 
   private validateRedirect(redirectTo: string | undefined): string {
     if (!redirectTo) return '/';
-    const isAllowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) =>
-      redirectTo.startsWith(prefix),
-    );
+    const isAllowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) => redirectTo.startsWith(prefix));
     return isAllowed ? redirectTo : '/';
   }
 
-  private buildRedirectUrl(
-    path: string,
-    type: string,
-    personId: string | undefined,
-  ): string {
+  private buildRedirectUrl(path: string, type: string, personId: string | undefined): string {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const protocol = domain.includes('localhost') ? 'https' : 'https';
-    const base = type === 'claim'
-      ? `${protocol}://${domain}`
-      : `${protocol}://admin.${domain}`;
+    const base = type === 'claim' ? `${protocol}://${domain}` : `${protocol}://admin.${domain}`;
 
     const callbackPath = `/api/v1/auth/callback?type=${type}${personId ? `&personId=${personId}` : ''}&next=${encodeURIComponent(path)}`;
     return `${base}${callbackPath}`;

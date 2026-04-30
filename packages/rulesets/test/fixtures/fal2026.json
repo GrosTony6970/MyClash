@@ -11,83 +11,663 @@
   "longsword": {
     "total_fighters": 54,
     "pool_standings": [
-      { "rank": 1,  "name": "Thibaud Jacquier-Bret",    "wins": 4, "pts_plus": 37, "pts_minus": 10, "doubles": 2, "score": 4.6 },
-      { "rank": 2,  "name": "Thierry Lalain",            "wins": 4, "pts_plus": 36, "pts_minus": 10, "doubles": 3, "score": 4.0 },
-      { "rank": 3,  "name": "Florian Gonnet",            "wins": 5, "pts_plus": 49, "pts_minus": 12, "doubles": 5, "score": 3.4 },
-      { "rank": 4,  "name": "Pierre-Antoine Thévenin",   "wins": 5, "pts_plus": 26, "pts_minus": 13, "doubles": 1, "score": 3.2 },
-      { "rank": 5,  "name": "Zacharie Le moing",         "wins": 4, "pts_plus": 40, "pts_minus": 10, "doubles": 5, "score": 3.1 },
-      { "rank": 6,  "name": "Antoine Goldschmidt",       "wins": 4, "pts_plus": 48, "pts_minus": 18, "doubles": 3, "score": 3.0 },
-      { "rank": 7,  "name": "Romain Gudet",              "wins": 3, "pts_plus": 36, "pts_minus": 11, "doubles": 4, "score": 3.0 },
-      { "rank": 8,  "name": "Vincent Poiré",             "wins": 3, "pts_plus": 36, "pts_minus": 12, "doubles": 4, "score": 2.8 },
-      { "rank": 9,  "name": "Brad Lee-Jones",            "wins": 4, "pts_plus": 45, "pts_minus": 21, "doubles": 1, "score": 2.7 },
-      { "rank": 10, "name": "Alexandre Salvetti",        "wins": 3, "pts_plus": 44, "pts_minus": 20, "doubles": 3, "score": 2.4 },
-      { "rank": 11, "name": "Charles Biron",             "wins": 4, "pts_plus": 28, "pts_minus": 13, "doubles": 4, "score": 2.4 },
-      { "rank": 12, "name": "Mathias Sanchez",           "wins": 4, "pts_plus": 32, "pts_minus": 19, "doubles": 1, "score": 2.3 },
-      { "rank": 13, "name": "Gabriel Tardio",            "wins": 4, "pts_plus": 26, "pts_minus": 13, "doubles": 4, "score": 2.2 },
-      { "rank": 14, "name": "Hippolyte Biron",           "wins": 3, "pts_plus": 28, "pts_minus": 17, "doubles": 1, "score": 2.2 },
-      { "rank": 15, "name": "Geoffroy Sainte-Catherine", "wins": 2, "pts_plus": 33, "pts_minus": 18, "doubles": 1, "score": 2.2 },
-      { "rank": 16, "name": "Huberson William",          "wins": 3, "pts_plus": 42, "pts_minus": 28, "doubles": 2, "score": 1.8 },
-      { "rank": 17, "name": "Loïc Blazy",               "wins": 3, "pts_plus": 32, "pts_minus": 24, "doubles": 1, "score": 1.7 },
-      { "rank": 18, "name": "Emmanuel Maitrehenry",      "wins": 2, "pts_plus": 39, "pts_minus": 26, "doubles": 2, "score": 1.7 },
-      { "rank": 19, "name": "David Perchais",            "wins": 3, "pts_plus": 42, "pts_minus": 24, "doubles": 5, "score": 1.7 },
-      { "rank": 20, "name": "Artem Malyeyev",            "wins": 3, "pts_plus": 35, "pts_minus": 18, "doubles": 6, "score": 1.6 },
-      { "rank": 21, "name": "Yane Li Ah Chong",         "wins": 2, "pts_plus": 28, "pts_minus": 18, "doubles": 4, "score": 1.5, "_published_score": 1.6, "_note": "Published page shows 1.6; formula gives 34/22=1.545→1.5. Likely display rounding difference on the source page." },
-      { "rank": 22, "name": "Gauthier Dietschi",         "wins": 5, "pts_plus": 39, "pts_minus": 17, "doubles": 8, "score": 1.5 },
-      { "rank": 23, "name": "Aleksandr Ermolov",         "wins": 4, "pts_plus": 29, "pts_minus": 14, "doubles": 7, "score": 1.5 },
-      { "rank": 24, "name": "Axel Monti",                "wins": 3, "pts_plus": 43, "pts_minus": 31, "doubles": 5, "score": 1.4 },
-      { "rank": 25, "name": "Jordan Garnier",            "wins": 2, "pts_plus": 30, "pts_minus": 24, "doubles": 3, "score": 1.4 },
-      { "rank": 26, "name": "Adrien Guinet",             "wins": 2, "pts_plus": 34, "pts_minus": 25, "doubles": 4, "score": 1.4 },
-      { "rank": 27, "name": "Denis Allaume",             "wins": 3, "pts_plus": 38, "pts_minus": 16, "doubles": 8, "score": 1.4 },
-      { "rank": 28, "name": "Owen Docherty",             "wins": 2, "pts_plus": 34, "pts_minus": 28, "doubles": 3, "score": 1.3 },
-      { "rank": 29, "name": "Rémi Arbache",              "wins": 3, "pts_plus": 23, "pts_minus": 15, "doubles": 6, "score": 1.3 },
-      { "rank": 30, "name": "Guillaume Pauron",          "wins": 1, "pts_plus": 25, "pts_minus": 23, "doubles": 0, "score": 1.2 },
-      { "rank": 31, "name": "Adrien Valenza",            "wins": 2, "pts_plus": 34, "pts_minus": 29, "doubles": 4, "score": 1.2 },
-      { "rank": 32, "name": "Benjamin Pascal",           "wins": 2, "pts_plus": 35, "pts_minus": 24, "doubles": 6, "score": 1.2 },
-      { "rank": 33, "name": "Valentin Arnaud",           "wins": 2, "pts_plus": 31, "pts_minus": 26, "doubles": 5, "score": 1.1 },
-      { "rank": 34, "name": "Baptiste Dora",             "wins": 2, "pts_plus": 21, "pts_minus": 24, "doubles": 1, "score": 1.1 },
-      { "rank": 35, "name": "Thibaut Guinoiseau",        "wins": 2, "pts_plus": 15, "pts_minus": 19, "doubles": 1, "score": 1.1 },
-      { "rank": 36, "name": "Adrien Péchadre",           "wins": 4, "pts_plus": 32, "pts_minus": 26, "doubles": 7, "score": 1.1 },
-      { "rank": 37, "name": "Alexandre Cornede",         "wins": 2, "pts_plus": 24, "pts_minus": 28, "doubles": 3, "score": 1.0 },
-      { "rank": 38, "name": "Noam Sofia",                "wins": 1, "pts_plus": 17, "pts_minus": 20, "doubles": 1, "score": 1.0 },
-      { "rank": 39, "name": "Laurent Rosini",            "wins": 1, "pts_plus": 27, "pts_minus": 30, "doubles": 3, "score": 0.9 },
-      { "rank": 40, "name": "Damien Camors",             "wins": 1, "pts_plus": 22, "pts_minus": 20, "doubles": 5, "score": 0.9 },
-      { "rank": 41, "name": "Paul Lecompte",             "wins": 1, "pts_plus": 18, "pts_minus": 30, "doubles": 1, "score": 0.7 },
-      { "rank": 42, "name": "Ethan Joly",                "wins": 1, "pts_plus": 20, "pts_minus": 23, "doubles": 6, "score": 0.7 },
-      { "rank": 43, "name": "Aymeric Figuet",            "wins": 1, "pts_plus": 24, "pts_minus": 26, "doubles": 7, "score": 0.7 },
-      { "rank": 44, "name": "Damase Michaud",            "wins": 1, "pts_plus": 19, "pts_minus": 26, "doubles": 6, "score": 0.6 },
-      { "rank": 45, "name": "Marco Eusebio",             "wins": 0, "pts_plus": 25, "pts_minus": 34, "doubles": 5, "score": 0.6 },
-      { "rank": 46, "name": "Paul Decrock",              "wins": 0, "pts_plus": 22, "pts_minus": 35, "doubles": 3, "score": 0.6 },
-      { "rank": 47, "name": "Julien Burzotta",           "wins": 0, "pts_plus": 19, "pts_minus": 31, "doubles": 4, "score": 0.5 },
-      { "rank": 48, "name": "Arnaud Wuilliot",           "wins": 0, "pts_plus": 20, "pts_minus": 26, "doubles": 7, "score": 0.5 },
-      { "rank": 49, "name": "Ludovic Cayla",             "wins": 0, "pts_plus": 18, "pts_minus": 40, "doubles": 4, "score": 0.4 },
-      { "rank": 50, "name": "Kouzma Petoukhov",          "wins": 0, "pts_plus": 17, "pts_minus": 29, "doubles": 7, "score": 0.4 },
-      { "rank": 51, "name": "Finn Degrand",              "wins": 0, "pts_plus": 11, "pts_minus": 30, "doubles": 3, "score": 0.3 },
-      { "rank": 52, "name": "Adrien Plantade",           "wins": 0, "pts_plus": 12, "pts_minus": 40, "doubles": 1, "score": 0.3 },
-      { "rank": 53, "name": "Jocelyn Chaumette",         "wins": 0, "pts_plus": 11, "pts_minus": 39, "doubles": 2, "score": 0.3 },
-      { "rank": 54, "name": "Viven Joie",                "wins": 0, "pts_plus": 10, "pts_minus": 36, "doubles": 4, "score": 0.3 }
+      {
+        "rank": 1,
+        "name": "Thibaud Jacquier-Bret",
+        "wins": 4,
+        "pts_plus": 37,
+        "pts_minus": 10,
+        "doubles": 2,
+        "score": 4.6
+      },
+      {
+        "rank": 2,
+        "name": "Thierry Lalain",
+        "wins": 4,
+        "pts_plus": 36,
+        "pts_minus": 10,
+        "doubles": 3,
+        "score": 4.0
+      },
+      {
+        "rank": 3,
+        "name": "Florian Gonnet",
+        "wins": 5,
+        "pts_plus": 49,
+        "pts_minus": 12,
+        "doubles": 5,
+        "score": 3.4
+      },
+      {
+        "rank": 4,
+        "name": "Pierre-Antoine Thévenin",
+        "wins": 5,
+        "pts_plus": 26,
+        "pts_minus": 13,
+        "doubles": 1,
+        "score": 3.2
+      },
+      {
+        "rank": 5,
+        "name": "Zacharie Le moing",
+        "wins": 4,
+        "pts_plus": 40,
+        "pts_minus": 10,
+        "doubles": 5,
+        "score": 3.1
+      },
+      {
+        "rank": 6,
+        "name": "Antoine Goldschmidt",
+        "wins": 4,
+        "pts_plus": 48,
+        "pts_minus": 18,
+        "doubles": 3,
+        "score": 3.0
+      },
+      {
+        "rank": 7,
+        "name": "Romain Gudet",
+        "wins": 3,
+        "pts_plus": 36,
+        "pts_minus": 11,
+        "doubles": 4,
+        "score": 3.0
+      },
+      {
+        "rank": 8,
+        "name": "Vincent Poiré",
+        "wins": 3,
+        "pts_plus": 36,
+        "pts_minus": 12,
+        "doubles": 4,
+        "score": 2.8
+      },
+      {
+        "rank": 9,
+        "name": "Brad Lee-Jones",
+        "wins": 4,
+        "pts_plus": 45,
+        "pts_minus": 21,
+        "doubles": 1,
+        "score": 2.7
+      },
+      {
+        "rank": 10,
+        "name": "Alexandre Salvetti",
+        "wins": 3,
+        "pts_plus": 44,
+        "pts_minus": 20,
+        "doubles": 3,
+        "score": 2.4
+      },
+      {
+        "rank": 11,
+        "name": "Charles Biron",
+        "wins": 4,
+        "pts_plus": 28,
+        "pts_minus": 13,
+        "doubles": 4,
+        "score": 2.4
+      },
+      {
+        "rank": 12,
+        "name": "Mathias Sanchez",
+        "wins": 4,
+        "pts_plus": 32,
+        "pts_minus": 19,
+        "doubles": 1,
+        "score": 2.3
+      },
+      {
+        "rank": 13,
+        "name": "Gabriel Tardio",
+        "wins": 4,
+        "pts_plus": 26,
+        "pts_minus": 13,
+        "doubles": 4,
+        "score": 2.2
+      },
+      {
+        "rank": 14,
+        "name": "Hippolyte Biron",
+        "wins": 3,
+        "pts_plus": 28,
+        "pts_minus": 17,
+        "doubles": 1,
+        "score": 2.2
+      },
+      {
+        "rank": 15,
+        "name": "Geoffroy Sainte-Catherine",
+        "wins": 2,
+        "pts_plus": 33,
+        "pts_minus": 18,
+        "doubles": 1,
+        "score": 2.2
+      },
+      {
+        "rank": 16,
+        "name": "Huberson William",
+        "wins": 3,
+        "pts_plus": 42,
+        "pts_minus": 28,
+        "doubles": 2,
+        "score": 1.8
+      },
+      {
+        "rank": 17,
+        "name": "Loïc Blazy",
+        "wins": 3,
+        "pts_plus": 32,
+        "pts_minus": 24,
+        "doubles": 1,
+        "score": 1.7
+      },
+      {
+        "rank": 18,
+        "name": "Emmanuel Maitrehenry",
+        "wins": 2,
+        "pts_plus": 39,
+        "pts_minus": 26,
+        "doubles": 2,
+        "score": 1.7
+      },
+      {
+        "rank": 19,
+        "name": "David Perchais",
+        "wins": 3,
+        "pts_plus": 42,
+        "pts_minus": 24,
+        "doubles": 5,
+        "score": 1.7
+      },
+      {
+        "rank": 20,
+        "name": "Artem Malyeyev",
+        "wins": 3,
+        "pts_plus": 35,
+        "pts_minus": 18,
+        "doubles": 6,
+        "score": 1.6
+      },
+      {
+        "rank": 21,
+        "name": "Yane Li Ah Chong",
+        "wins": 2,
+        "pts_plus": 28,
+        "pts_minus": 18,
+        "doubles": 4,
+        "score": 1.5,
+        "_published_score": 1.6,
+        "_note": "Published page shows 1.6; formula gives 34/22=1.545→1.5. Likely display rounding difference on the source page."
+      },
+      {
+        "rank": 22,
+        "name": "Gauthier Dietschi",
+        "wins": 5,
+        "pts_plus": 39,
+        "pts_minus": 17,
+        "doubles": 8,
+        "score": 1.5
+      },
+      {
+        "rank": 23,
+        "name": "Aleksandr Ermolov",
+        "wins": 4,
+        "pts_plus": 29,
+        "pts_minus": 14,
+        "doubles": 7,
+        "score": 1.5
+      },
+      {
+        "rank": 24,
+        "name": "Axel Monti",
+        "wins": 3,
+        "pts_plus": 43,
+        "pts_minus": 31,
+        "doubles": 5,
+        "score": 1.4
+      },
+      {
+        "rank": 25,
+        "name": "Jordan Garnier",
+        "wins": 2,
+        "pts_plus": 30,
+        "pts_minus": 24,
+        "doubles": 3,
+        "score": 1.4
+      },
+      {
+        "rank": 26,
+        "name": "Adrien Guinet",
+        "wins": 2,
+        "pts_plus": 34,
+        "pts_minus": 25,
+        "doubles": 4,
+        "score": 1.4
+      },
+      {
+        "rank": 27,
+        "name": "Denis Allaume",
+        "wins": 3,
+        "pts_plus": 38,
+        "pts_minus": 16,
+        "doubles": 8,
+        "score": 1.4
+      },
+      {
+        "rank": 28,
+        "name": "Owen Docherty",
+        "wins": 2,
+        "pts_plus": 34,
+        "pts_minus": 28,
+        "doubles": 3,
+        "score": 1.3
+      },
+      {
+        "rank": 29,
+        "name": "Rémi Arbache",
+        "wins": 3,
+        "pts_plus": 23,
+        "pts_minus": 15,
+        "doubles": 6,
+        "score": 1.3
+      },
+      {
+        "rank": 30,
+        "name": "Guillaume Pauron",
+        "wins": 1,
+        "pts_plus": 25,
+        "pts_minus": 23,
+        "doubles": 0,
+        "score": 1.2
+      },
+      {
+        "rank": 31,
+        "name": "Adrien Valenza",
+        "wins": 2,
+        "pts_plus": 34,
+        "pts_minus": 29,
+        "doubles": 4,
+        "score": 1.2
+      },
+      {
+        "rank": 32,
+        "name": "Benjamin Pascal",
+        "wins": 2,
+        "pts_plus": 35,
+        "pts_minus": 24,
+        "doubles": 6,
+        "score": 1.2
+      },
+      {
+        "rank": 33,
+        "name": "Valentin Arnaud",
+        "wins": 2,
+        "pts_plus": 31,
+        "pts_minus": 26,
+        "doubles": 5,
+        "score": 1.1
+      },
+      {
+        "rank": 34,
+        "name": "Baptiste Dora",
+        "wins": 2,
+        "pts_plus": 21,
+        "pts_minus": 24,
+        "doubles": 1,
+        "score": 1.1
+      },
+      {
+        "rank": 35,
+        "name": "Thibaut Guinoiseau",
+        "wins": 2,
+        "pts_plus": 15,
+        "pts_minus": 19,
+        "doubles": 1,
+        "score": 1.1
+      },
+      {
+        "rank": 36,
+        "name": "Adrien Péchadre",
+        "wins": 4,
+        "pts_plus": 32,
+        "pts_minus": 26,
+        "doubles": 7,
+        "score": 1.1
+      },
+      {
+        "rank": 37,
+        "name": "Alexandre Cornede",
+        "wins": 2,
+        "pts_plus": 24,
+        "pts_minus": 28,
+        "doubles": 3,
+        "score": 1.0
+      },
+      {
+        "rank": 38,
+        "name": "Noam Sofia",
+        "wins": 1,
+        "pts_plus": 17,
+        "pts_minus": 20,
+        "doubles": 1,
+        "score": 1.0
+      },
+      {
+        "rank": 39,
+        "name": "Laurent Rosini",
+        "wins": 1,
+        "pts_plus": 27,
+        "pts_minus": 30,
+        "doubles": 3,
+        "score": 0.9
+      },
+      {
+        "rank": 40,
+        "name": "Damien Camors",
+        "wins": 1,
+        "pts_plus": 22,
+        "pts_minus": 20,
+        "doubles": 5,
+        "score": 0.9
+      },
+      {
+        "rank": 41,
+        "name": "Paul Lecompte",
+        "wins": 1,
+        "pts_plus": 18,
+        "pts_minus": 30,
+        "doubles": 1,
+        "score": 0.7
+      },
+      {
+        "rank": 42,
+        "name": "Ethan Joly",
+        "wins": 1,
+        "pts_plus": 20,
+        "pts_minus": 23,
+        "doubles": 6,
+        "score": 0.7
+      },
+      {
+        "rank": 43,
+        "name": "Aymeric Figuet",
+        "wins": 1,
+        "pts_plus": 24,
+        "pts_minus": 26,
+        "doubles": 7,
+        "score": 0.7
+      },
+      {
+        "rank": 44,
+        "name": "Damase Michaud",
+        "wins": 1,
+        "pts_plus": 19,
+        "pts_minus": 26,
+        "doubles": 6,
+        "score": 0.6
+      },
+      {
+        "rank": 45,
+        "name": "Marco Eusebio",
+        "wins": 0,
+        "pts_plus": 25,
+        "pts_minus": 34,
+        "doubles": 5,
+        "score": 0.6
+      },
+      {
+        "rank": 46,
+        "name": "Paul Decrock",
+        "wins": 0,
+        "pts_plus": 22,
+        "pts_minus": 35,
+        "doubles": 3,
+        "score": 0.6
+      },
+      {
+        "rank": 47,
+        "name": "Julien Burzotta",
+        "wins": 0,
+        "pts_plus": 19,
+        "pts_minus": 31,
+        "doubles": 4,
+        "score": 0.5
+      },
+      {
+        "rank": 48,
+        "name": "Arnaud Wuilliot",
+        "wins": 0,
+        "pts_plus": 20,
+        "pts_minus": 26,
+        "doubles": 7,
+        "score": 0.5
+      },
+      {
+        "rank": 49,
+        "name": "Ludovic Cayla",
+        "wins": 0,
+        "pts_plus": 18,
+        "pts_minus": 40,
+        "doubles": 4,
+        "score": 0.4
+      },
+      {
+        "rank": 50,
+        "name": "Kouzma Petoukhov",
+        "wins": 0,
+        "pts_plus": 17,
+        "pts_minus": 29,
+        "doubles": 7,
+        "score": 0.4
+      },
+      {
+        "rank": 51,
+        "name": "Finn Degrand",
+        "wins": 0,
+        "pts_plus": 11,
+        "pts_minus": 30,
+        "doubles": 3,
+        "score": 0.3
+      },
+      {
+        "rank": 52,
+        "name": "Adrien Plantade",
+        "wins": 0,
+        "pts_plus": 12,
+        "pts_minus": 40,
+        "doubles": 1,
+        "score": 0.3
+      },
+      {
+        "rank": 53,
+        "name": "Jocelyn Chaumette",
+        "wins": 0,
+        "pts_plus": 11,
+        "pts_minus": 39,
+        "doubles": 2,
+        "score": 0.3
+      },
+      {
+        "rank": 54,
+        "name": "Viven Joie",
+        "wins": 0,
+        "pts_plus": 10,
+        "pts_minus": 36,
+        "doubles": 4,
+        "score": 0.3
+      }
     ]
   },
   "sidesword": {
     "total_fighters": 18,
     "pool_standings": [
-      { "rank": 1,  "name": "Antoine Goldschmidt",  "wins": 4, "pts_plus": 57, "pts_minus": 15, "doubles": 3, "score": 4.1 },
-      { "rank": 2,  "name": "Théophile Przybylak",  "wins": 5, "pts_plus": 61, "pts_minus": 19, "doubles": 3, "score": 3.6 },
-      { "rank": 3,  "name": "Benjamin Pascal",       "wins": 5, "pts_plus": 52, "pts_minus": 15, "doubles": 7, "score": 2.3 },
-      { "rank": 4,  "name": "Zacharie Le moing",     "wins": 2, "pts_plus": 26, "pts_minus": 14, "doubles": 2, "score": 2.2 },
-      { "rank": 5,  "name": "Thierry Lalain",        "wins": 2, "pts_plus": 28, "pts_minus": 14, "doubles": 5, "score": 1.6, "_published_score": 1.7, "_note": "Published page shows 1.7; formula gives 34/20.667=1.645→1.6. Likely display rounding difference on the source page." },
-      { "rank": 6,  "name": "Mathias Sanchez",       "wins": 4, "pts_plus": 38, "pts_minus": 22, "doubles": 6, "score": 1.6 },
-      { "rank": 7,  "name": "Charlie Cerf",          "wins": 4, "pts_plus": 35, "pts_minus": 21, "doubles": 6, "score": 1.5 },
-      { "rank": 8,  "name": "Charles Biron",         "wins": 3, "pts_plus": 35, "pts_minus": 27, "doubles": 3, "score": 1.5 },
-      { "rank": 9,  "name": "Thibaut Guinoiseau",    "wins": 1, "pts_plus": 30, "pts_minus": 18, "doubles": 5, "score": 1.3 },
-      { "rank": 10, "name": "Hippolyte Biron",       "wins": 2, "pts_plus": 27, "pts_minus": 26, "doubles": 1, "score": 1.3 },
-      { "rank": 11, "name": "Alexandre Cornede",     "wins": 2, "pts_plus": 32, "pts_minus": 31, "doubles": 1, "score": 1.2 },
-      { "rank": 12, "name": "Rémi Arbache",          "wins": 2, "pts_plus": 28, "pts_minus": 27, "doubles": 3, "score": 1.2 },
-      { "rank": 13, "name": "Yane Li Ah Chong",      "wins": 3, "pts_plus": 29, "pts_minus": 30, "doubles": 4, "score": 1.1 },
-      { "rank": 14, "name": "Huberson William",      "wins": 2, "pts_plus": 21, "pts_minus": 24, "doubles": 5, "score": 0.9 },
-      { "rank": 15, "name": "Damase Michaud",        "wins": 1, "pts_plus": 23, "pts_minus": 32, "doubles": 3, "score": 0.8 },
-      { "rank": 16, "name": "Jordan Garnier",        "wins": 0, "pts_plus": 25, "pts_minus": 33, "doubles": 3, "score": 0.7 },
-      { "rank": 17, "name": "Romain Gaborieau",      "wins": 0, "pts_plus": 20, "pts_minus": 32, "doubles": 4, "score": 0.6 },
-      { "rank": 18, "name": "Guillaume Pauron",      "wins": 0, "pts_plus": 14, "pts_minus": 35, "doubles": 2, "score": 0.4 }
+      {
+        "rank": 1,
+        "name": "Antoine Goldschmidt",
+        "wins": 4,
+        "pts_plus": 57,
+        "pts_minus": 15,
+        "doubles": 3,
+        "score": 4.1
+      },
+      {
+        "rank": 2,
+        "name": "Théophile Przybylak",
+        "wins": 5,
+        "pts_plus": 61,
+        "pts_minus": 19,
+        "doubles": 3,
+        "score": 3.6
+      },
+      {
+        "rank": 3,
+        "name": "Benjamin Pascal",
+        "wins": 5,
+        "pts_plus": 52,
+        "pts_minus": 15,
+        "doubles": 7,
+        "score": 2.3
+      },
+      {
+        "rank": 4,
+        "name": "Zacharie Le moing",
+        "wins": 2,
+        "pts_plus": 26,
+        "pts_minus": 14,
+        "doubles": 2,
+        "score": 2.2
+      },
+      {
+        "rank": 5,
+        "name": "Thierry Lalain",
+        "wins": 2,
+        "pts_plus": 28,
+        "pts_minus": 14,
+        "doubles": 5,
+        "score": 1.6,
+        "_published_score": 1.7,
+        "_note": "Published page shows 1.7; formula gives 34/20.667=1.645→1.6. Likely display rounding difference on the source page."
+      },
+      {
+        "rank": 6,
+        "name": "Mathias Sanchez",
+        "wins": 4,
+        "pts_plus": 38,
+        "pts_minus": 22,
+        "doubles": 6,
+        "score": 1.6
+      },
+      {
+        "rank": 7,
+        "name": "Charlie Cerf",
+        "wins": 4,
+        "pts_plus": 35,
+        "pts_minus": 21,
+        "doubles": 6,
+        "score": 1.5
+      },
+      {
+        "rank": 8,
+        "name": "Charles Biron",
+        "wins": 3,
+        "pts_plus": 35,
+        "pts_minus": 27,
+        "doubles": 3,
+        "score": 1.5
+      },
+      {
+        "rank": 9,
+        "name": "Thibaut Guinoiseau",
+        "wins": 1,
+        "pts_plus": 30,
+        "pts_minus": 18,
+        "doubles": 5,
+        "score": 1.3
+      },
+      {
+        "rank": 10,
+        "name": "Hippolyte Biron",
+        "wins": 2,
+        "pts_plus": 27,
+        "pts_minus": 26,
+        "doubles": 1,
+        "score": 1.3
+      },
+      {
+        "rank": 11,
+        "name": "Alexandre Cornede",
+        "wins": 2,
+        "pts_plus": 32,
+        "pts_minus": 31,
+        "doubles": 1,
+        "score": 1.2
+      },
+      {
+        "rank": 12,
+        "name": "Rémi Arbache",
+        "wins": 2,
+        "pts_plus": 28,
+        "pts_minus": 27,
+        "doubles": 3,
+        "score": 1.2
+      },
+      {
+        "rank": 13,
+        "name": "Yane Li Ah Chong",
+        "wins": 3,
+        "pts_plus": 29,
+        "pts_minus": 30,
+        "doubles": 4,
+        "score": 1.1
+      },
+      {
+        "rank": 14,
+        "name": "Huberson William",
+        "wins": 2,
+        "pts_plus": 21,
+        "pts_minus": 24,
+        "doubles": 5,
+        "score": 0.9
+      },
+      {
+        "rank": 15,
+        "name": "Damase Michaud",
+        "wins": 1,
+        "pts_plus": 23,
+        "pts_minus": 32,
+        "doubles": 3,
+        "score": 0.8
+      },
+      {
+        "rank": 16,
+        "name": "Jordan Garnier",
+        "wins": 0,
+        "pts_plus": 25,
+        "pts_minus": 33,
+        "doubles": 3,
+        "score": 0.7
+      },
+      {
+        "rank": 17,
+        "name": "Romain Gaborieau",
+        "wins": 0,
+        "pts_plus": 20,
+        "pts_minus": 32,
+        "doubles": 4,
+        "score": 0.6
+      },
+      {
+        "rank": 18,
+        "name": "Guillaume Pauron",
+        "wins": 0,
+        "pts_plus": 14,
+        "pts_minus": 35,
+        "doubles": 2,
+        "score": 0.4
+      }
     ]
   }
 }

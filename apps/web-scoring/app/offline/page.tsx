@@ -4,7 +4,8 @@ export default function OfflinePage() {
       <div className="text-5xl mb-4">📡</div>
       <h1 className="text-2xl font-bold mb-2">You&apos;re offline</h1>
       <p className="text-gray-400 text-sm max-w-xs">
-        No internet connection. Exchanges entered while offline will sync automatically when you reconnect.
+        No internet connection. Exchanges entered while offline will sync automatically when you
+        reconnect.
       </p>
       <button
         onClick={() => window.location.reload()}

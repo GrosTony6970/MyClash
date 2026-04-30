@@ -2,7 +2,7 @@
 
 > Free, open-source platform for HEMA (Historical European Martial Arts) tournament management and result publication.
 
-**Production:** [myclash.fr](https://myclash.fr)  ·  **License:** [AGPL-3.0](./LICENSE)  ·  **Status:** Pre-launch development
+**Production:** [myclash.fr](https://myclash.fr) · **License:** [AGPL-3.0](./LICENSE) · **Status:** Pre-launch development
 
 ---
 
@@ -22,15 +22,15 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 
 ## Documentation
 
-| Document | Audience | Purpose |
-|---|---|---|
-| [`myclash.md`](./myclash.md) | Anyone | Product / functional / UX overview |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Developers & AI agents | Master technical specification |
-| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md) | AI coding agent | Sequenced task list with acceptance criteria |
-| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md) | Project owner | Operational checklist (domains, hosting, legal, beta event) |
-| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md) | Project owner | Flat ordered checklist for first production deploy |
-| [`AGENTS.md`](./AGENTS.md) | AI coding agent | Coder rules + persistent-memory protocol |
-| [`memory/MEMORY.md`](./memory/MEMORY.md) | AI coding agent | Persistent project memory (thematic) |
+| Document                                                         | Audience               | Purpose                                                     |
+| ---------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| [`myclash.md`](./myclash.md)                                     | Anyone                 | Product / functional / UX overview                          |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                 | Developers & AI agents | Master technical specification                              |
+| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                   | AI coding agent        | Sequenced task list with acceptance criteria                |
+| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                   | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
+| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md) | Project owner          | Flat ordered checklist for first production deploy          |
+| [`AGENTS.md`](./AGENTS.md)                                       | AI coding agent        | Coder rules + persistent-memory protocol                    |
+| [`memory/MEMORY.md`](./memory/MEMORY.md)                         | AI coding agent        | Persistent project memory (thematic)                        |
 
 ---
 
@@ -45,6 +45,7 @@ pnpm dev
 ```
 
 Local URLs (after `pnpm dev`):
+
 - `http://localhost:3000` — public PWA
 - `http://localhost:3001` — admin SPA
 - `http://localhost:3002` — scoring PWA
@@ -94,4 +95,4 @@ Inspired by [hemaScorecard](https://github.com/SeanFranklin/hemaScorecard) and [
 
 ---
 
-*MyClash is not affiliated with any HEMA federation, sport governing body, or commercial entity.*
+_MyClash is not affiliated with any HEMA federation, sport governing body, or commercial entity._

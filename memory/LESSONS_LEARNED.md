@@ -3,6 +3,7 @@
 > Permanent, reusable rules distilled from past errors, corrections, oversights, and bad technical choices.
 >
 > **Maintenance rules:**
+>
 > - Only record useful, general, reusable lessons. Skip lessons too narrow to recur.
 > - When a new lesson supersedes an older one, update the old one — don't create a duplicate.
 > - Never record the same lesson twice.
@@ -68,7 +69,7 @@
 ## Cross-platform & deployment
 
 - The owner's local OS is Windows. Repo scripts must be cross-platform — prefer Node-based scripts (`scripts/*.ts` invoked via pnpm) over bash for anything that runs on the developer machine.
-- Bash scripts are fine for things that *only* run server-side (on the OVH VPS). Place them in `infra/scripts/` and label them clearly.
+- Bash scripts are fine for things that _only_ run server-side (on the OVH VPS). Place them in `infra/scripts/` and label them clearly.
 - Enforce LF line endings via `.gitattributes` from day 1 — Windows checkouts will silently corrupt Docker entrypoint shell scripts otherwise.
 - Migrations run **before** new code containers replace old ones, never after. Migration failure must abort the deploy and leave the previous version running.
 - Take a `pg_dump` immediately before every production migration. Without this, "rolling back a bad deploy" is a marketing slogan, not a procedure.
@@ -92,7 +93,7 @@ When in doubt about a deploy/ops convention: look at the MyFAL scripts first. Th
 
 ---
 
-*(New lessons added below as they are learned.)*
+_(New lessons added below as they are learned.)_
 
 ## NestJS + Vitest testing
 

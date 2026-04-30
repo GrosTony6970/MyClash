@@ -13,7 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 
 export interface GuestJwtPayload {
-  sub: string;       // guest_session.id
+  sub: string; // guest_session.id
   person_id: string;
   event_id: string;
   type: 'guest';

@@ -32,7 +32,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     ThrottlerModule.forRoot([
       {
         name: 'global',
-        ttl: 60_000,   // 1 minute window
+        ttl: 60_000, // 1 minute window
         limit: 60,
       },
       {

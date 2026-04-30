@@ -6,12 +6,7 @@
  *
  * Use with @UseGuards(GuestJwtGuard) on endpoints that require a guest session.
  */
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { GuestJwtPayload } from './guest-jwt.service';
 import { GuestJwtService } from './guest-jwt.service';

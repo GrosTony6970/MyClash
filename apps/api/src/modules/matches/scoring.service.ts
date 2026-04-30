@@ -37,7 +37,9 @@ export class ScoringService {
     // Fetch match + all non-voided exchanges
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
-      .select('id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, ruleset_config, status, winner_registration_id')
+      .select(
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, ruleset_config, status, winner_registration_id',
+      )
       .eq('id', matchId)
       .maybeSingle();
 
@@ -74,7 +76,8 @@ export class ScoringService {
         sequence: ex['sequence'] as number,
         type: ex['type'] as RulesetExchange['type'],
         occurredAt: ex['occurred_at'] as string,
-        firstStrikerColor: (ex['first_striker_color'] as RulesetExchange['firstStrikerColor']) ?? null,
+        firstStrikerColor:
+          (ex['first_striker_color'] as RulesetExchange['firstStrikerColor']) ?? null,
         firstStrikeValue: (ex['first_strike_value'] as 1 | 2 | null) ?? null,
         afterblowValue: (ex['afterblow_value'] as 1 | 2 | null) ?? null,
         noExchangeReason: (ex['no_exchange_reason'] as string | null) ?? null,
@@ -88,7 +91,9 @@ export class ScoringService {
       ruleset = registry.get(match.rulesetCode, match.rulesetVersion);
     } catch {
       // Fallback to TF_v1 if ruleset not found
-      this.logger.warn(`Ruleset ${match.rulesetCode}@${match.rulesetVersion} not found, falling back to TF_v1`);
+      this.logger.warn(
+        `Ruleset ${match.rulesetCode}@${match.rulesetVersion} not found, falling back to TF_v1`,
+      );
       ruleset = TF_v1;
     }
 

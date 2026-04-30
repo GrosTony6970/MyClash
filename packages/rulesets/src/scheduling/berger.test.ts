@@ -123,7 +123,9 @@ describe('bergerSchedule', () => {
     const matches = bergerSchedule(n);
     const pairs = new Set<string>();
     for (const m of matches) {
-      const key = [Math.min(m.homeIndex, m.awayIndex), Math.max(m.homeIndex, m.awayIndex)].join('-');
+      const key = [Math.min(m.homeIndex, m.awayIndex), Math.max(m.homeIndex, m.awayIndex)].join(
+        '-',
+      );
       expect(pairs.has(key)).toBe(false);
       pairs.add(key);
     }

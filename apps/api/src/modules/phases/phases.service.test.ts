@@ -73,9 +73,9 @@ describe('PhasesService', () => {
       chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.generatePools('tournament-1', {}, false),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.generatePools('tournament-1', {}, false)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('deletes existing phase and regenerates when force=true', async () => {
@@ -126,13 +126,11 @@ describe('PhasesService', () => {
 
       const regsChain = makeAwaitableChain({ data: oneReg, error: null });
 
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain);
+      fromMock.mockReturnValueOnce(phaseCheckChain).mockReturnValueOnce(regsChain);
 
-      await expect(
-        service.generatePools('tournament-1', {}, false),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.generatePools('tournament-1', {}, false)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -144,9 +142,9 @@ describe('PhasesService', () => {
       chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.generateBracket('tournament-1', {}, false),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.generateBracket('tournament-1', {}, false)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('throws BadRequestException when fewer than 2 fighters qualify', async () => {
@@ -157,13 +155,11 @@ describe('PhasesService', () => {
 
       const regsChain = makeAwaitableChain({ data: oneReg, error: null });
 
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain);
+      fromMock.mockReturnValueOnce(phaseCheckChain).mockReturnValueOnce(regsChain);
 
-      await expect(
-        service.generateBracket('tournament-1', {}, false),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.generateBracket('tournament-1', {}, false)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('creates bracket with correct structure for 8 fighters', async () => {

@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    directory: '/'
     schedule:
       interval: weekly
       day: monday
@@ -10,16 +10,16 @@ updates:
       dev-dependencies:
         dependency-type: development
       next:
-        patterns: ["next", "@next/*"]
+        patterns: ['next', '@next/*']
       nest:
-        patterns: ["@nestjs/*"]
+        patterns: ['@nestjs/*']
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: '/'
     schedule:
       interval: monthly
 
   - package-ecosystem: docker
-    directory: "/infra"
+    directory: '/infra'
     schedule:
       interval: monthly

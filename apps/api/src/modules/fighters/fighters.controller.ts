@@ -12,12 +12,7 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FightersService } from './fighters.service';
@@ -30,10 +25,7 @@ import {
 } from './dto/fighters.dto';
 
 /** Extract claimed user ID from Supabase JWT in request. */
-async function getClaimedUserId(
-  req: FastifyRequest,
-  supabase: SupabaseService,
-): Promise<string> {
+async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
   const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
   const token = authHeader?.startsWith('Bearer ')
@@ -42,7 +34,10 @@ async function getClaimedUserId(
 
   if (!token) throw new UnauthorizedException('Authentication required');
 
-  const { data: { user }, error } = await supabase.anon.auth.getUser(token);
+  const {
+    data: { user },
+    error,
+  } = await supabase.anon.auth.getUser(token);
   if (error || !user) throw new UnauthorizedException('Invalid token');
   return user.id;
 }
@@ -83,10 +78,7 @@ export class FightersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a fighter (organizer+ or claimed owner)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateFighterDto,
-  ) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateFighterDto) {
     return this.fighters.update(id, dto);
   }
 
@@ -99,10 +91,7 @@ export class FightersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Promote a Person to global Fighter (claimed user only)' })
-  async promote(
-    @Body() dto: PromoteFighterDto,
-    @Req() req: FastifyRequest,
-  ) {
+  async promote(@Body() dto: PromoteFighterDto, @Req() req: FastifyRequest) {
     const userId = await getClaimedUserId(req, this.supabase);
     return this.fighters.promote(dto, userId);
   }

@@ -134,9 +134,7 @@ export function singleElimBracket(
     }
     // Validate: must be ≥ fighterCount
     if (bracketSize < fighterCount) {
-      throw new Error(
-        `bracketSize (${bracketSize}) must be ≥ fighterCount (${fighterCount})`,
-      );
+      throw new Error(`bracketSize (${bracketSize}) must be ≥ fighterCount (${fighterCount})`);
     }
   } else {
     bracketSize = nextPowerOf2(fighterCount);

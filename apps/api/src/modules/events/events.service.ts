@@ -63,7 +63,8 @@ export class EventsService {
       .eq('slug', dto.slug)
       .maybeSingle();
 
-    if (existing) throw new ConflictException(`Event slug "${dto.slug}" already exists in this organization`);
+    if (existing)
+      throw new ConflictException(`Event slug "${dto.slug}" already exists in this organization`);
 
     const { data, error } = await this.supabase.service
       .from('events')
@@ -86,7 +87,11 @@ export class EventsService {
 
   async updateEvent(eventId: string, dto: UpdateEventDto, userId: string) {
     const event = await this.getEventById(eventId);
-    await this.orgs.assertOrgRole((event as { organization_id: string }).organization_id, userId, 'admin');
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
@@ -108,7 +113,11 @@ export class EventsService {
 
   async publishEvent(eventId: string, userId: string) {
     const event = await this.getEventById(eventId);
-    await this.orgs.assertOrgRole((event as { organization_id: string }).organization_id, userId, 'admin');
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
 
     const { data, error } = await this.supabase.service
       .from('events')
@@ -136,7 +145,11 @@ export class EventsService {
 
   async createTournament(eventId: string, dto: CreateTournamentDto, userId: string) {
     const event = await this.getEventById(eventId);
-    await this.orgs.assertOrgRole((event as { organization_id: string }).organization_id, userId, 'admin');
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
 
     const { data: existing } = await this.supabase.service
       .from('tournaments')
@@ -145,7 +158,8 @@ export class EventsService {
       .eq('slug', dto.slug)
       .maybeSingle();
 
-    if (existing) throw new ConflictException(`Tournament slug "${dto.slug}" already exists in this event`);
+    if (existing)
+      throw new ConflictException(`Tournament slug "${dto.slug}" already exists in this event`);
 
     const { data, error } = await this.supabase.service
       .from('tournaments')
@@ -176,7 +190,11 @@ export class EventsService {
     if (!tournament) throw new NotFoundException(`Tournament ${tournamentId} not found`);
 
     const event = await this.getEventById((tournament as { event_id: string }).event_id);
-    await this.orgs.assertOrgRole((event as { organization_id: string }).organization_id, userId, 'admin');
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();

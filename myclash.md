@@ -24,6 +24,7 @@ It is designed around three convictions:
 ## Features (v1)
 
 ### For event organizers
+
 - Create a themed event site (logo, colors, custom pages) at `app.myclash.fr/e/[slug]`.
 - Define multiple events (weapon × category) with configurable rulesets.
 - Configure Lices (pistes) — multi-Lice scheduling.
@@ -36,6 +37,7 @@ It is designed around three convictions:
 - Publish results, rich statistics, and export to CSV/JSON/PDF/HEMA Ratings format.
 
 ### For scorekeepers
+
 - Tablet-first PWA, installable, **fully offline-capable**.
 - Per-exchange entry: clean hits (1pt/2pt), afterblows, doubles, no-exchange — large gloved-finger-friendly buttons.
 - Match clock with halt/resume.
@@ -43,6 +45,7 @@ It is designed around three convictions:
 - Always shows explicit network/sync state.
 
 ### For competitors
+
 - Persona-aware home screen: "my next match", "my pool", "where I need to be".
 - Live results across all events.
 - Workshop catalog with one-tap enrollment.
@@ -50,16 +53,19 @@ It is designed around three convictions:
 - Push notifications for upcoming matches, workshops, schedule changes.
 
 ### For referees
+
 - Confirm/decline assignments.
 - On-piste tools: halt/resume, issue warnings, request scorekeeper attention.
 - Schedule overlaid in My Schedule with role labels.
 
 ### For workshop attendees
+
 - Browse catalog by day/category/level/language/instructor.
 - Enroll; see waitlist position when full; auto-promote when a spot opens.
 - Notifications for cancellations and promotions.
 
 ### For spectators / accompanists
+
 - **Search any participant** in the event — fighters, referees, workshop leads.
 - **Follow people** to build a personal watchlist (a coach watches their three students; a parent follows their kid).
 - **Watchlist view** shows next-match / live-now / just-finished state for everyone you follow, all in one screen.
@@ -70,6 +76,7 @@ It is designed around three convictions:
 - Following works for anonymous users too (saved on their device), but push notifications and cross-device sync require a quick magic-link claim.
 
 ### For platform admin (super admin)
+
 - Approve organizer accounts.
 - Moderate global fighter profiles (merge duplicates).
 - Approve community-submitted rulesets.
@@ -80,6 +87,7 @@ It is designed around three convictions:
 ## User journeys
 
 ### Competitor on event day
+
 1. Opens `myclash.fr/t/fal2026` on phone.
 2. Logs in (or already logged in from prior visit).
 3. Onboarding (first time only): selects "Competitor" + maybe "Workshop attendee".
@@ -89,6 +97,7 @@ It is designed around three convictions:
 7. After matches: views their pool standings live; sees their final ranking when published.
 
 ### Scorekeeper at the piste
+
 1. Borrowed tablet at Lice 2; PWA pre-installed.
 2. Logs in once at start of day.
 3. UI shows: "Lice 2 — Pool C, Match 1: Alice (red) vs Bob (blue), Longsword".
@@ -99,6 +108,7 @@ It is designed around three convictions:
 8. **At any point, wifi can drop**: queue grows in IndexedDB outbox. UI shows "offline · 7 pending". Reconnect → silent sync.
 
 ### Organizer pre-event
+
 1. Creates event; configures theme to match their club's identity.
 2. Adds 4 Lices, 3 events (Longsword Open, Sidesword Open, Longsword Women's).
 3. Imports 80 fighters from CSV; system suggests HEMA Ratings links.
@@ -109,6 +119,7 @@ It is designed around three convictions:
 8. Day before event: publishes the event site.
 
 ### Organizer on event day
+
 1. Walks the venue with a laptop.
 2. Watches live dashboard: which matches are running on which Lices, score deltas.
 3. A scorekeeper voids an exchange in error → audit log captures it; super admin approves the void.
@@ -119,18 +130,18 @@ It is designed around three convictions:
 
 ## Key components
 
-| Component | What it does |
-|---|---|
-| **Public PWA** | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators. |
-| **Scoring PWA** | Tablet-first offline-first per-exchange entry. |
-| **Admin SPA** | Desktop-first organizer toolset and super admin. |
-| **Ruleset engine** | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback. |
-| **Pool populator** | Constraint-driven pool generation (school separation, skill balance). |
-| **Referee assigner** | Constraint-driven 3-role assignment with feasibility report. |
-| **Statistics engine** | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout. |
-| **Realtime layer** | Supabase Realtime broadcasts row changes to subscribed clients. |
-| **Offline outbox** | IndexedDB queue on the scoring app, with idempotent server reconciliation. |
-| **Notification scheduler** | BullMQ-driven web push for matches, workshops, schedule changes. |
+| Component                  | What it does                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Public PWA**             | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators.                                 |
+| **Scoring PWA**            | Tablet-first offline-first per-exchange entry.                                                                                |
+| **Admin SPA**              | Desktop-first organizer toolset and super admin.                                                                              |
+| **Ruleset engine**         | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback. |
+| **Pool populator**         | Constraint-driven pool generation (school separation, skill balance).                                                         |
+| **Referee assigner**       | Constraint-driven 3-role assignment with feasibility report.                                                                  |
+| **Statistics engine**      | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout.                                             |
+| **Realtime layer**         | Supabase Realtime broadcasts row changes to subscribed clients.                                                               |
+| **Offline outbox**         | IndexedDB queue on the scoring app, with idempotent server reconciliation.                                                    |
+| **Notification scheduler** | BullMQ-driven web push for matches, workshops, schedule changes.                                                              |
 
 ---
 
@@ -173,4 +184,4 @@ It is designed around three convictions:
 
 ---
 
-*This document evolves with the product. Update it when feature scope or UX direction changes.*
+_This document evolves with the product. Update it when feature scope or UX direction changes._

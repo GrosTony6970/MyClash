@@ -9,7 +9,10 @@ import { CsvImportService } from './csv-import.service';
 function trigramSimilarity(a: string, b: string): number {
   // Simple bigram overlap as a proxy for trigram similarity
   const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
   const na = normalize(a);
   const nb = normalize(b);
 
@@ -31,30 +34,62 @@ function trigramSimilarity(a: string, b: string): number {
 // ── Mock persons dataset ──────────────────────────────────────────────────────
 
 const PERSONS = [
-  { id: '1', given_name: 'Jean',         family_name: 'Dupont',   email: 'jean.dupont@gmail.com',   club: 'Lyon AMHE' },
-  { id: '2', given_name: 'Jéan',         family_name: 'Martin',   email: 'jean.martin@example.com', club: 'Cercle PRMD' },
-  { id: '3', given_name: 'Jean-Pierre',  family_name: 'Lambert',  email: 'jp.lambert@example.com',  club: null },
-  { id: '4', given_name: 'Marie',        family_name: 'Dupont',   email: 'marie.dupont@example.com', club: 'Lyon AMHE' },
-  { id: '5', given_name: 'Pierre',       family_name: 'Martin',   email: 'pierre.martin@example.com', club: null },
+  {
+    id: '1',
+    given_name: 'Jean',
+    family_name: 'Dupont',
+    email: 'jean.dupont@gmail.com',
+    club: 'Lyon AMHE',
+  },
+  {
+    id: '2',
+    given_name: 'Jéan',
+    family_name: 'Martin',
+    email: 'jean.martin@example.com',
+    club: 'Cercle PRMD',
+  },
+  {
+    id: '3',
+    given_name: 'Jean-Pierre',
+    family_name: 'Lambert',
+    email: 'jp.lambert@example.com',
+    club: null,
+  },
+  {
+    id: '4',
+    given_name: 'Marie',
+    family_name: 'Dupont',
+    email: 'marie.dupont@example.com',
+    club: 'Lyon AMHE',
+  },
+  {
+    id: '5',
+    given_name: 'Pierre',
+    family_name: 'Martin',
+    email: 'pierre.martin@example.com',
+    club: null,
+  },
 ];
 
 function simulateLookup(query: string, threshold = 0.3, limit = 10) {
   const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
   const nq = normalize(query);
 
-  return PERSONS
-    .map((p) => {
-      const sim = Math.max(
-        trigramSimilarity(p.given_name, query),
-        trigramSimilarity(p.family_name, query),
-        trigramSimilarity(`${p.given_name} ${p.family_name}`, query),
-        // Also check if query is a prefix (for short queries like "jean")
-        normalize(p.given_name).startsWith(nq) ? 0.5 : 0,
-        normalize(p.family_name).startsWith(nq) ? 0.4 : 0,
-      );
-      return { ...p, similarity: sim };
-    })
+  return PERSONS.map((p) => {
+    const sim = Math.max(
+      trigramSimilarity(p.given_name, query),
+      trigramSimilarity(p.family_name, query),
+      trigramSimilarity(`${p.given_name} ${p.family_name}`, query),
+      // Also check if query is a prefix (for short queries like "jean")
+      normalize(p.given_name).startsWith(nq) ? 0.5 : 0,
+      normalize(p.family_name).startsWith(nq) ? 0.4 : 0,
+    );
+    return { ...p, similarity: sim };
+  })
     .filter((p) => p.similarity >= threshold)
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit);
@@ -143,9 +178,12 @@ describe('LookupController', () => {
       const controller = new LookupController(mockSupabase as never, csvService);
       await controller.lookup('event-1', { q: 'jean', limit: '50' });
       // Verify the RPC was called with p_limit capped at 10
-      expect(rpcMock).toHaveBeenCalledWith('lookup_persons', expect.objectContaining({
-        p_limit: 10,
-      }));
+      expect(rpcMock).toHaveBeenCalledWith(
+        'lookup_persons',
+        expect.objectContaining({
+          p_limit: 10,
+        }),
+      );
     });
   });
 
@@ -154,18 +192,14 @@ describe('LookupController', () => {
       const mockSupabase = { service: { rpc: vi.fn() } };
       const controller = new LookupController(mockSupabase as never, csvService);
 
-      await expect(
-        controller.lookup('event-1', { q: '' }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(controller.lookup('event-1', { q: '' })).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException for whitespace-only query', async () => {
       const mockSupabase = { service: { rpc: vi.fn() } };
       const controller = new LookupController(mockSupabase as never, csvService);
 
-      await expect(
-        controller.lookup('event-1', { q: '   ' }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(controller.lookup('event-1', { q: '   ' })).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -180,7 +214,13 @@ describe('LookupController', () => {
             or: vi.fn().mockReturnThis(),
             limit: vi.fn().mockResolvedValue({
               data: [
-                { id: '1', given_name: 'Jean', family_name: 'Dupont', email: 'jean@example.com', clubs: { name: 'Lyon AMHE' } },
+                {
+                  id: '1',
+                  given_name: 'Jean',
+                  family_name: 'Dupont',
+                  email: 'jean@example.com',
+                  clubs: { name: 'Lyon AMHE' },
+                },
               ],
               error: null,
             }),

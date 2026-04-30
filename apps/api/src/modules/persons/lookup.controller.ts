@@ -1,18 +1,5 @@
-import {
-  BadRequestException,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Query,
-} from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -63,7 +50,12 @@ export class LookupController {
   @ApiOperation({ summary: 'Fuzzy person name lookup (public)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiQuery({ name: 'q', type: 'string', description: 'Search query (name)' })
-  @ApiQuery({ name: 'limit', type: 'number', required: false, description: 'Max results (default 10)' })
+  @ApiQuery({
+    name: 'limit',
+    type: 'number',
+    required: false,
+    description: 'Max results (default 10)',
+  })
   @ApiResponse({ status: 200, description: 'Matching persons (masked email)' })
   @ApiResponse({ status: 400, description: 'Missing or invalid query' })
   async lookup(
@@ -91,13 +83,15 @@ export class LookupController {
       return this.fallbackSearch(eventId, q, limit);
     }
 
-    return (data as Array<{
-      id: string;
-      given_name: string;
-      family_name: string;
-      club_label: string | null;
-      masked_email: string;
-    }>).map((row) => ({
+    return (
+      data as Array<{
+        id: string;
+        given_name: string;
+        family_name: string;
+        club_label: string | null;
+        masked_email: string;
+      }>
+    ).map((row) => ({
       id: row.id,
       given_name: row.given_name,
       family_name: row.family_name,
@@ -107,11 +101,7 @@ export class LookupController {
   }
 
   /** Fallback when pg_trgm function not yet available (pre-migration). */
-  private async fallbackSearch(
-    eventId: string,
-    q: string,
-    limit: number,
-  ): Promise<LookupResult[]> {
+  private async fallbackSearch(eventId: string, q: string, limit: number): Promise<LookupResult[]> {
     const { data } = await this.supabase.service
       .from('persons')
       .select('id, given_name, family_name, email, clubs(name)')

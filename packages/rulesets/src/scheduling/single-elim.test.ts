@@ -20,7 +20,6 @@ describe('totalBracketMatches', () => {
 // ── singleElimBracket ─────────────────────────────────────────────────────────
 
 describe('singleElimBracket', () => {
-
   // ── KEY AC TEST: 16 fighters → 4 rounds, 15 matches ──────────────────────
   it('16 fighters → 4 rounds, 15 matches, 0 byes', () => {
     const bracket = singleElimBracket(16);
@@ -54,9 +53,7 @@ describe('singleElimBracket', () => {
     const bracket = singleElimBracket(16);
     const r1 = bracket.slots.filter((s) => s.round === 1);
     const match1v16 = r1.find(
-      (s) =>
-        (s.homeSeed === 1 && s.awaySeed === 16) ||
-        (s.homeSeed === 16 && s.awaySeed === 1),
+      (s) => (s.homeSeed === 1 && s.awaySeed === 16) || (s.homeSeed === 16 && s.awaySeed === 1),
     );
     expect(match1v16).toBeDefined();
   });
@@ -65,9 +62,7 @@ describe('singleElimBracket', () => {
     const bracket = singleElimBracket(16);
     const r1 = bracket.slots.filter((s) => s.round === 1);
     const match8v9 = r1.find(
-      (s) =>
-        (s.homeSeed === 8 && s.awaySeed === 9) ||
-        (s.homeSeed === 9 && s.awaySeed === 8),
+      (s) => (s.homeSeed === 8 && s.awaySeed === 9) || (s.homeSeed === 9 && s.awaySeed === 8),
     );
     expect(match8v9).toBeDefined();
   });

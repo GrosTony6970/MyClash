@@ -17,7 +17,6 @@
 #   - Healthchecks use `node -e` HTTP probe (no curl/wget needed in image)
 
 services:
-
   # ── Reverse proxy ────────────────────────────────────────────────
   traefik:
     image: traefik:v3.6.6
@@ -41,8 +40,8 @@ services:
       - --log.level=INFO
       - --log.filepath=/logs/traefik.log
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data/traefik:/data
@@ -50,7 +49,7 @@ services:
     networks: [myclash]
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
@@ -66,7 +65,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./logs/db:/var/log/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myclash}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myclash}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -76,7 +75,7 @@ services:
     cpus: 2
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── Redis (cache + BullMQ + pub/sub) ──────────────────────────────
   redis:
@@ -87,7 +86,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -96,7 +95,7 @@ services:
     cpus: 1
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── Supabase Auth (GoTrue) ────────────────────────────────────────
   supabase-auth:
@@ -112,8 +111,8 @@ services:
       GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN}
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
-      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
-      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
+      GOTRUE_MAILER_AUTOCONFIRM: 'false'
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
       GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
@@ -130,7 +129,7 @@ services:
     mem_limit: 256m
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── Supabase Realtime ─────────────────────────────────────────────
   supabase-realtime:
@@ -143,12 +142,12 @@ services:
       DB_NAME: ${POSTGRES_DB:-myclash}
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_SSL: "false"
+      DB_SSL: 'false'
       PORT: 4000
       JWT_SECRET: ${SUPABASE_JWT_SECRET}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET}
-      ERL_AFLAGS: "-proto_dist inet_tcp"
-      ENABLE_TAILSCALE: "false"
+      ERL_AFLAGS: '-proto_dist inet_tcp'
+      ENABLE_TAILSCALE: 'false'
       DNS_NODES: "''"
       TZ: ${TZ}
     depends_on:
@@ -157,7 +156,7 @@ services:
     mem_limit: 512m
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── Supabase Storage ──────────────────────────────────────────────
   supabase-storage:
@@ -185,7 +184,7 @@ services:
     mem_limit: 256m
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── NestJS API ────────────────────────────────────────────────────
   api:
@@ -213,7 +212,13 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       HEMA_RATINGS_SYNC_ENABLED: ${HEMA_RATINGS_SYNC_ENABLED:-true}
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:4000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -228,7 +233,7 @@ services:
     cpus: 2
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
       - traefik.http.routers.myclash-api.rule=Host(`api.${DOMAIN}`)
@@ -271,7 +276,7 @@ services:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
     container_name: myclash-worker
     restart: unless-stopped
-    command: ["node", "dist/main.js", "--worker"]
+    command: ['node', 'dist/main.js', '--worker']
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
@@ -294,7 +299,7 @@ services:
     cpus: 1
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
 
   # ── web-public PWA (mobile-first, public/spectator/competitor) ────
   web-public:
@@ -314,7 +319,13 @@ services:
       PORT: 3000
       TZ: ${TZ}
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -324,7 +335,7 @@ services:
     cpus: 1
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
       - traefik.http.routers.myclash-public.rule=Host(`app.${DOMAIN}`)
@@ -348,7 +359,7 @@ services:
     environment:
       TZ: ${TZ}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ | head -c 100 || exit 1"]
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:80/ | head -c 100 || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -358,7 +369,7 @@ services:
     cpus: 0.5
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
       - traefik.http.routers.myclash-marketing.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)
@@ -389,7 +400,13 @@ services:
       PORT: 3000
       TZ: ${TZ}
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -399,7 +416,7 @@ services:
     cpus: 1
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
       - traefik.http.routers.myclash-scoring.rule=Host(`scoring.${DOMAIN}`)
@@ -426,7 +443,13 @@ services:
       PORT: 3000
       TZ: ${TZ}
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -436,7 +459,7 @@ services:
     cpus: 1
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
       - traefik.http.routers.myclash-admin.rule=Host(`admin.${DOMAIN}`)

@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { snakeSeed, sortBySkill, computePoolSizes, type Fighter } from './snake-seeding';
-import { localSearch, computeCost, buildCostReport, type PoolAssignmentSettings } from './local-search';
+import {
+  localSearch,
+  computeCost,
+  buildCostReport,
+  type PoolAssignmentSettings,
+} from './local-search';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

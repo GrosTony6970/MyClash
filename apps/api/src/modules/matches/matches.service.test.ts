@@ -6,7 +6,9 @@ import { MatchesService } from './matches.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
-const mockScoring = { recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }) };
+const mockScoring = {
+  recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
+};
 
 function makeChain(result: unknown) {
   const chain = {
@@ -74,9 +76,7 @@ describe('MatchesService', () => {
       const insertChain = makeChain({ data: null, error: null });
       insertChain.single.mockResolvedValue({ data: newExchange, error: null });
 
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(insertChain);
+      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
 
       const result = await service.createExchange('m1', {
         clientUuid: 'uuid-new',
@@ -106,9 +106,7 @@ describe('MatchesService', () => {
       const updateChain = makeChain({ data: null, error: null });
       updateChain.single.mockResolvedValue({ data: voidedExchange, error: null });
 
-      fromMock
-        .mockReturnValueOnce(fetchChain)
-        .mockReturnValueOnce(updateChain);
+      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
 
       const result = await service.voidExchange('ex-1', { reason: 'test' });
 
@@ -145,9 +143,7 @@ describe('MatchesService', () => {
       const insertChain = makeChain({ data: null, error: null });
       insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
 
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(insertChain);
+      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
 
       await service.createExchange('match-1', {
         clientUuid: 'fresh-uuid',
@@ -175,9 +171,7 @@ describe('MatchesService', () => {
         const insertChain = makeChain({ data: null, error: null });
         insertChain.single.mockResolvedValue({ data: { id: `ex-${i}` }, error: null });
 
-        fromMock
-          .mockReturnValueOnce(checkChain)
-          .mockReturnValueOnce(insertChain);
+        fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
       }
 
       const promises = Array.from({ length: N }, (_, i) =>

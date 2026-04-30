@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -19,11 +15,13 @@ export class RegistrationsService {
   async list(tournamentId: string) {
     const { data, error } = await this.supabase.service
       .from('registrations')
-      .select(`
+      .select(
+        `
         *,
         persons(id, given_name, family_name, email, club_id),
         fighters(id, slug, display_name)
-      `)
+      `,
+      )
       .eq('tournament_id', tournamentId)
       .order('bib_number', { ascending: true, nullsFirst: false });
 
@@ -34,7 +32,7 @@ export class RegistrationsService {
   // ── Create (single) ──────────────────────────────────────────────────────────
 
   async create(tournamentId: string, dto: CreateRegistrationDto) {
-    const bibNumber = dto.bibNumber ?? await this.nextBibNumber(tournamentId);
+    const bibNumber = dto.bibNumber ?? (await this.nextBibNumber(tournamentId));
 
     const { data, error } = await this.supabase.service
       .from('registrations')
@@ -109,14 +107,12 @@ export class RegistrationsService {
         ? parseInt(normalized['bib_number'], 10)
         : await this.nextBibNumber(tournamentId);
 
-      const { error } = await this.supabase.service
-        .from('registrations')
-        .insert({
-          tournament_id: tournamentId,
-          person_id: personId,
-          bib_number: bibNumber,
-          status: 'registered',
-        });
+      const { error } = await this.supabase.service.from('registrations').insert({
+        tournament_id: tournamentId,
+        person_id: personId,
+        bib_number: bibNumber,
+        status: 'registered',
+      });
 
       if (error) {
         if (error.message.includes('unique')) {
@@ -150,7 +146,7 @@ export class RegistrationsService {
     if (!allowed.includes(newStatus)) {
       throw new BadRequestException(
         `Cannot transition from "${currentStatus}" to "${newStatus}". ` +
-        `Allowed transitions: ${allowed.length ? allowed.join(', ') : 'none'}`,
+          `Allowed transitions: ${allowed.length ? allowed.join(', ') : 'none'}`,
       );
     }
 

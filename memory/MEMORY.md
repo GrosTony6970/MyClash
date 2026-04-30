@@ -20,7 +20,7 @@
 - **Production hosting**: OVH VPS (same provider as MyFAL — pattern reuse intended).
 - **Authoritative spec**: `docs/ARCHITECTURE.md`.
 - **Reference live beta** (companion app for Lyon AMHE's "Fosse aux Lions"): `https://myfal.lyonamhe.fr/` — confirms personas, "My Schedule" UX, push notifications.
-- **Reference prior art**: hemaScorecard (https://github.com/SeanFranklin/hemaScorecard) — MyClash is *not* a clone; key differentiators in `myclash.md`.
+- **Reference prior art**: hemaScorecard (https://github.com/SeanFranklin/hemaScorecard) — MyClash is _not_ a clone; key differentiators in `myclash.md`.
 - **Reference deployment pattern**: `https://github.com/GrosTony6970/MyFAL` — owner's existing OVH VPS deployment to reuse where possible.
 
 ## Hierarchy & terminology (CRITICAL — see docs/HIERARCHY.md)
@@ -54,6 +54,7 @@ Three files are intentionally at root: `README.md` (GitHub convention), `AGENTS.
 The owner runs MyFAL on an OVH VPS using a proven pattern. MyClash deploy scripts and compose files inherit these conventions:
 
 **Bash scripts (`infra/scripts/*.sh`):**
+
 - Color-coded logging helpers (`ok`, `err`, `warn`, `hdr`) in `infra/scripts/lib/log.sh`, sourced by every script.
 - `set -Eeuo pipefail` on every bash script.
 - Explicit `docker compose --env-file .env -f infra/docker-compose.prod.yml ...` everywhere.
@@ -63,6 +64,7 @@ The owner runs MyFAL on an OVH VPS using a proven pattern. MyClash deploy script
 - Auto-generation of VAPID keys if missing in `.env`.
 
 **Compose conventions:**
+
 - Traefik 3.6.x, label-based routing, cert resolver named `letsencrypt`.
 - ACME storage at `/data/acme.json` (production) or `/data/acme-staging.json` (`--dev-certs` overlay).
 - TLS challenge via port 443 (`tlschallenge=true`).
@@ -74,6 +76,7 @@ The owner runs MyFAL on an OVH VPS using a proven pattern. MyClash deploy script
 - Shared compress middleware: `myclash-compress@docker`.
 
 **MyClash additions beyond MyFAL:**
+
 - Postgres migrations with abort-on-failure (MyFAL is JSON-file-backed, no migrations).
 - `pg_dump` to `backups/pre-deploy/<timestamp>.sql.gz` before every deploy.
 - `flock` on `.deploy.lock` (concurrent deploys impossible).
@@ -89,11 +92,13 @@ Trigger: manual deploy from the owner's Windows machine. No auto-deploy in v1.
 **v1 ships without Google OAuth.** Magic-link auth only.
 
 Three identity states:
+
 - **Anonymous** — no cookie, public reads only. Can follow people via localStorage.
 - **Guest** — typed their name, picked themselves from the organizer's roster, has a `guest_sessions` row + signed cookie. Bound to one Person. Can enroll workshops, mark favorites, follow people (server-side, this device), subscribe to push (this device only). Cannot edit, cannot use second device without re-picking name.
 - **Claimed** — clicked a magic link sent to organizer-registered email. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Cross-device, can edit, can be promoted to global Fighter. Gets push notifications including for followed people.
 
 Key invariants:
+
 - Only the organizer creates Persons. Participants cannot self-register.
 - Person uniqueness within an event: `(event_id, lower(email))`.
 - Guest sessions sign with `MYCLASH_GUEST_JWT_SECRET`, distinct from Supabase secret. They can never escalate to Supabase tokens.
@@ -103,9 +108,11 @@ Key invariants:
 - **On guest→claimed migration, follows transfer atomically** in the same transaction as the claim. User never loses their watchlist.
 
 CSV import shape (organizer roster):
+
 ```
 given_name,family_name,email,club,hema_ratings_id,event_codes,roles
 ```
+
 Returns structured report with created/updated/duplicates/invalid/new_clubs.
 
 ## Following & public profiles
@@ -113,11 +120,13 @@ Returns structured report with created/updated/duplicates/invalid/new_clubs.
 Anyone can search for any participant and view their public profile (schedule, results). Follows form a private "watchlist."
 
 Privacy defaults:
+
 - **Match schedule** + **referee assignments** + **workshop enrollments** are all public by default (they're part of the event's shared experience).
 - **Email** is always masked publicly.
 - A Person can opt out per category: `hide_workshops_publicly`, `allow_being_followed`.
 
 Follow tiers:
+
 - Anonymous → localStorage only, no notifications.
 - Guest → server-stored, this device, no push.
 - Claimed → server-stored, cross-device, push notifications when followed person's match starts (default 10 min lead, configurable per follow).
@@ -141,7 +150,7 @@ Follows are event-scoped (not global). The "watchlist view" at `/e/<eventSlug>/f
 - **Owner's local OS**: Windows (path `F:\Github Repo\MyClash`).
 - **Implication**: Use cross-platform tooling. Avoid `bash`-only scripts at the repo root; prefer Node-based scripts (`scripts/*.ts` run via `pnpm`) so Windows + Linux + macOS work identically.
 - **Line endings**: enforce LF via `.gitattributes` (`* text=auto eol=lf`) to prevent Windows-checkout corrupting Docker entrypoint shell scripts.
-- **Scripts that *must* be bash** (e.g. server-side deploy scripts running on the OVH VPS) live in `infra/scripts/` and are clearly labeled.
+- **Scripts that _must_ be bash** (e.g. server-side deploy scripts running on the OVH VPS) live in `infra/scripts/` and are clearly labeled.
 - **CI** runs on Ubuntu (GitHub Actions default).
 
 ## Domain language (HEMA-specific)
@@ -191,75 +200,75 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 
-| Task | Commit | Status |
-|---|---|---|
-| T-001 · Initialize monorepo | `e559a40` | ✅ done |
-| T-002 · ARCHITECTURE.md + BUILD_ORDER.md | already in repo | ✅ done |
-| T-003 · Scaffold three Next.js 15 apps | `bd00faa` | ✅ done |
-| T-004 · Scaffold NestJS API | `5620cbe` | ✅ done |
-| T-005 · Shared package skeletons | `3e9c12d` | ✅ done |
-| T-006 · Docker Compose + Traefik + Postgres + Redis | `014a199` | ✅ done |
-| T-007 · Self-hosted Supabase services | `03da7cf` | ✅ done |
-| T-008 · CI pipeline (GitHub Actions + CodeQL) | `69e0429` | ✅ done |
-| T-009 · Auth integration (magic-link + /me) | `43be026` | ✅ done |
-| T-009b · Organizer signup | `75d5995` | ✅ done |
-| T-009c · Super admin org management | `3e3f7c5` | ✅ done |
+| Task                                                | Commit          | Status  |
+| --------------------------------------------------- | --------------- | ------- |
+| T-001 · Initialize monorepo                         | `e559a40`       | ✅ done |
+| T-002 · ARCHITECTURE.md + BUILD_ORDER.md            | already in repo | ✅ done |
+| T-003 · Scaffold three Next.js 15 apps              | `bd00faa`       | ✅ done |
+| T-004 · Scaffold NestJS API                         | `5620cbe`       | ✅ done |
+| T-005 · Shared package skeletons                    | `3e9c12d`       | ✅ done |
+| T-006 · Docker Compose + Traefik + Postgres + Redis | `014a199`       | ✅ done |
+| T-007 · Self-hosted Supabase services               | `03da7cf`       | ✅ done |
+| T-008 · CI pipeline (GitHub Actions + CodeQL)       | `69e0429`       | ✅ done |
+| T-009 · Auth integration (magic-link + /me)         | `43be026`       | ✅ done |
+| T-009b · Organizer signup                           | `75d5995`       | ✅ done |
+| T-009c · Super admin org management                 | `3e3f7c5`       | ✅ done |
 
 ## Build progress (Phase P0.5 — completed 29-04-2026)
 
-| Task | Commit | Status |
-|---|---|---|
+| Task                                 | Commit    | Status  |
+| ------------------------------------ | --------- | ------- |
 | T-051..T-059 · Deployment automation | `38d5b10` | ✅ done |
-| T-055 · VPS bootstrap (interactive) | `13ffe57` | ✅ done |
+| T-055 · VPS bootstrap (interactive)  | `13ffe57` | ✅ done |
 
 ## Build progress (Phase P1 — completed 29-04-2026)
 
-| Task | Commit | Status |
-|---|---|---|
-| T-101 · DB schema (Drizzle) | `393fa0a` | ✅ done |
-| T-102 · RLS policies | `a941f4f` | ✅ done |
-| T-103 · Seed script | `55a118e` | ✅ done |
-| T-104 · Persons CRUD + CSV import | `d03f7e8` | ✅ done |
-| T-104b · Person lookup (pg_trgm) | `db2b296` | ✅ done |
-| T-104c · Guest session module | `0690394` | ✅ done |
-| T-104d · /api/v1/me unified identity | `1c8481f` | ✅ done |
-| T-104e · Fighters & Clubs API | `a9daf10` | ✅ done |
+| Task                                           | Commit    | Status  |
+| ---------------------------------------------- | --------- | ------- |
+| T-101 · DB schema (Drizzle)                    | `393fa0a` | ✅ done |
+| T-102 · RLS policies                           | `a941f4f` | ✅ done |
+| T-103 · Seed script                            | `55a118e` | ✅ done |
+| T-104 · Persons CRUD + CSV import              | `d03f7e8` | ✅ done |
+| T-104b · Person lookup (pg_trgm)               | `db2b296` | ✅ done |
+| T-104c · Guest session module                  | `0690394` | ✅ done |
+| T-104d · /api/v1/me unified identity           | `1c8481f` | ✅ done |
+| T-104e · Fighters & Clubs API                  | `a9daf10` | ✅ done |
 | T-105 · Organizations & Events/Tournaments API | `e00ae6a` | ✅ done |
-| T-106 · Lices, Registrations API | `d2a231d` | ✅ done |
-| T-107 · API client scaffold | `2060b3c` | ✅ done |
+| T-106 · Lices, Registrations API               | `d2a231d` | ✅ done |
+| T-107 · API client scaffold                    | `2060b3c` | ✅ done |
 
 ## Build progress (Phase P2 — completed 29-04-2026)
 
-| Task | Commit | Status |
-|---|---|---|
-| T-201 · Ruleset plugin contract | `783303f` | ✅ done |
-| T-202 · TF_v1 pure functions | `783303f` | ✅ done |
-| T-203 · FAL 2026 fixture (aggregate fallback) | `6f84ee1` | ✅ done |
-| T-204 · TF_v1 golden test (115 tests) | `6f84ee1` | ✅ done |
+| Task                                           | Commit    | Status  |
+| ---------------------------------------------- | --------- | ------- |
+| T-201 · Ruleset plugin contract                | `783303f` | ✅ done |
+| T-202 · TF_v1 pure functions                   | `783303f` | ✅ done |
+| T-203 · FAL 2026 fixture (aggregate fallback)  | `6f84ee1` | ✅ done |
+| T-204 · TF_v1 golden test (115 tests)          | `6f84ee1` | ✅ done |
 | T-205 · TF_v1_no_afterblow + Generic_PointsCap | `3897f73` | ✅ done |
-| T-206 · Server-side scoring service | `814013f` | ✅ done |
+| T-206 · Server-side scoring service            | `814013f` | ✅ done |
 
 ## Build progress (Phase P3 — completed 30-04-2026)
 
-| Task | Commit | Status |
-|---|---|---|
-| T-301 · Pool generation (snake seeding + local search) | `8a51abd` | ✅ done |
+| Task                                                      | Commit    | Status  |
+| --------------------------------------------------------- | --------- | ------- |
+| T-301 · Pool generation (snake seeding + local search)    | `8a51abd` | ✅ done |
 | T-301 · Pool size configuration (poolCount or targetSize) | `5e35187` | ✅ done |
-| T-302 · Berger table round-robin match generation | `e250723` | ✅ done |
-| T-303 · Single-elimination bracket | `d6eb633` | ✅ done |
-| T-303 · Configurable bracket size | `17f9ae7` | ✅ done |
+| T-302 · Berger table round-robin match generation         | `e250723` | ✅ done |
+| T-303 · Single-elimination bracket                        | `d6eb633` | ✅ done |
+| T-303 · Configurable bracket size                         | `17f9ae7` | ✅ done |
 | Lint fix (no-misused-promises, no-unused-vars, web-admin) | `1d5d028` | ✅ done |
-| T-304 · Match-to-Lice scheduler | `87506b5` | ✅ done |
-| T-305 · Phases API | `709b429` | ✅ done |
+| T-304 · Match-to-Lice scheduler                           | `87506b5` | ✅ done |
+| T-305 · Phases API                                        | `709b429` | ✅ done |
 
 ## Build progress (Phase P4 — in progress, paused 30-04-2026)
 
-| Task | Commit | Status |
-|---|---|---|
-| T-401 · Scoring app shell | `(prev session)` | ✅ done |
-| T-402 · Match clock component | `c758d60` | ✅ done |
-| T-403 · Exchange entry UI | `709b429` | ✅ done |
-| T-404 · Realtime broadcast (server) | — | ⏳ next |
+| Task                                | Commit           | Status  |
+| ----------------------------------- | ---------------- | ------- |
+| T-401 · Scoring app shell           | `(prev session)` | ✅ done |
+| T-402 · Match clock component       | `c758d60`        | ✅ done |
+| T-403 · Exchange entry UI           | `709b429`        | ✅ done |
+| T-404 · Realtime broadcast (server) | —                | ⏳ next |
 
 **Current HEAD**: `8ed78ed`
 **Next task**: T-404 · Realtime broadcast (server)
@@ -285,6 +294,7 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 ## Key env vars (canonical list — see .env.example for full list)
 
 Required for the API to start:
+
 - `SUPABASE_URL` — Kong gateway URL (`http://kong:8000` in Docker, `http://localhost:8000` in dev)
 - `SUPABASE_ANON_KEY` — JWT signed with `SUPABASE_JWT_SECRET`, role=anon
 - `SUPABASE_SERVICE_ROLE_KEY` — JWT signed with `SUPABASE_JWT_SECRET`, role=service_role
@@ -298,7 +308,7 @@ Required for the API to start:
 
 ## Themes — see linked thematic notes when they exist
 
-- *(none yet — when a topic grows beyond what fits here, create `docs/notes/<topic>.md` and link it here)*
+- _(none yet — when a topic grows beyond what fits here, create `docs/notes/<topic>.md` and link it here)_
 
 - FAL 2026 raw per-exchange data: must be sourced by the project owner (see `docs/OWNER_TASKS.md` O-102). If unavailable, the golden test falls back to aggregate-level reproduction.
 - HEMA Ratings export format: to be confirmed with HEMA Ratings maintainers (O-103).
@@ -319,7 +329,7 @@ Required for the API to start:
   - Doesn't fit and is small? → add a new section (with a clear thematic title).
   - Doesn't fit and is large? → create `docs/notes/<topic>.md` and link to it from the "Themes" section.
 - When information becomes obsolete, **delete or correct it**. Stale memory is worse than no memory.
-- Cross-check against `LESSONS_LEARNED.md` — if a piece of information represents a *rule* the agent should follow, it belongs there, not here.
+- Cross-check against `LESSONS_LEARNED.md` — if a piece of information represents a _rule_ the agent should follow, it belongs there, not here.
 
 ## Scheduling algorithms (Phase P3)
 

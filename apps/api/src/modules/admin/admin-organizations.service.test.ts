@@ -70,7 +70,18 @@ function makeAwaitableChain(result: ChainResult) {
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   });
-  for (const key of ['select', 'eq', 'ilike', 'update', 'insert', 'delete', 'upsert', 'order', 'limit', 'in']) {
+  for (const key of [
+    'select',
+    'eq',
+    'ilike',
+    'update',
+    'insert',
+    'delete',
+    'upsert',
+    'order',
+    'limit',
+    'in',
+  ]) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -91,7 +102,10 @@ describe('AdminOrganizationsService', () => {
     it('returns empty array when table does not exist', async () => {
       // Simulate a DB error — the service catches and returns []
       fromMock.mockReturnValue(
-        makeAwaitableChain({ data: null, error: { message: 'relation "organizations" does not exist' } }),
+        makeAwaitableChain({
+          data: null,
+          error: { message: 'relation "organizations" does not exist' },
+        }),
       );
 
       const result = await service.listOrganizations({});
@@ -146,9 +160,9 @@ describe('AdminOrganizationsService', () => {
         eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
       });
 
-      await expect(
-        service.suspendOrganization('org-1', 'actor'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.suspendOrganization('org-1', 'actor')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -158,9 +172,7 @@ describe('AdminOrganizationsService', () => {
       chain.maybeSingle.mockResolvedValue({ data: null, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(service.getOrganization('nonexistent-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.getOrganization('nonexistent-id')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -171,11 +183,7 @@ describe('AdminOrganizationsService', () => {
       fromMock.mockReturnValue(chain);
 
       await expect(
-        service.reassignOwner(
-          'org-1',
-          { newOwnerUserId: 'non-member-user' },
-          'actor',
-        ),
+        service.reassignOwner('org-1', { newOwnerUserId: 'non-member-user' }, 'actor'),
       ).rejects.toThrow(BadRequestException);
     });
   });

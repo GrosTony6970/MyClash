@@ -10,12 +10,7 @@
  * Active time = sum of (resume_at - start_at) intervals.
  * Current active time = sum of closed intervals + (now - last_start) if running.
  */
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export type ClockAction = 'start' | 'halt' | 'resume' | 'end' | 'reset_clock';
@@ -39,10 +34,10 @@ export interface ClockState {
 
 // Valid transitions
 const VALID_TRANSITIONS: Record<string, ClockAction[]> = {
-  idle:    ['start'],
+  idle: ['start'],
   running: ['halt', 'end'],
-  halted:  ['resume', 'end', 'reset_clock'],
-  ended:   [],
+  halted: ['resume', 'end', 'reset_clock'],
+  ended: [],
 };
 
 @Injectable()
@@ -92,7 +87,7 @@ export class ClockService {
     if (!allowed.includes(action)) {
       throw new BadRequestException(
         `Cannot ${action} clock when status is '${current.status}'. ` +
-        `Allowed: ${allowed.length ? allowed.join(', ') : 'none'}`,
+          `Allowed: ${allowed.length ? allowed.join(', ') : 'none'}`,
       );
     }
 
@@ -125,10 +120,7 @@ export class ClockService {
         .update({ status: 'running', started_at: action === 'start' ? now : undefined })
         .eq('id', matchId);
     } else if (action === 'halt') {
-      await this.supabase.service
-        .from('matches')
-        .update({ status: 'paused' })
-        .eq('id', matchId);
+      await this.supabase.service.from('matches').update({ status: 'paused' }).eq('id', matchId);
     } else if (action === 'end') {
       await this.supabase.service
         .from('matches')
@@ -195,9 +187,10 @@ export class ClockService {
     }
 
     // Compute total including current running interval
-    const totalActiveMs = status === 'running' && runningFrom
-      ? activeMs + (Date.now() - new Date(runningFrom).getTime())
-      : activeMs;
+    const totalActiveMs =
+      status === 'running' && runningFrom
+        ? activeMs + (Date.now() - new Date(runningFrom).getTime())
+        : activeMs;
 
     return {
       matchId,

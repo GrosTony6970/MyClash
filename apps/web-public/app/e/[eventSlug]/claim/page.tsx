@@ -12,8 +12,7 @@ function ClaimForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const apiUrl =
-    process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,12 +49,10 @@ function ClaimForm() {
       <div className="w-full max-w-sm text-center">
         <h1 className="text-2xl font-bold mb-4">Check your email</h1>
         <p className="text-gray-600">
-          We sent a confirmation link to <strong>{email}</strong>.
-          Click it to confirm your profile and access your schedule across all your devices.
+          We sent a confirmation link to <strong>{email}</strong>. Click it to confirm your profile
+          and access your schedule across all your devices.
         </p>
-        <p className="mt-4 text-sm text-gray-400">
-          The link expires in 1 hour.
-        </p>
+        <p className="mt-4 text-sm text-gray-400">The link expires in 1 hour.</p>
       </div>
     );
   }
@@ -64,11 +61,16 @@ function ClaimForm() {
     <div className="w-full max-w-sm">
       <h1 className="text-2xl font-bold mb-2">Confirm your profile</h1>
       <p className="text-gray-600 mb-8">
-        Enter the email address the organizer registered for you.
-        We&apos;ll send you a confirmation link.
+        Enter the email address the organizer registered for you. We&apos;ll send you a confirmation
+        link.
       </p>
 
-      <form onSubmit={(e) => { void handleSubmit(e); }} className="flex flex-col gap-4">
+      <form
+        onSubmit={(e) => {
+          void handleSubmit(e);
+        }}
+        className="flex flex-col gap-4"
+      >
         <div>
           <label htmlFor="email" className="block text-sm font-medium mb-1">
             Your registered email
@@ -102,9 +104,7 @@ function ClaimForm() {
 
       <p className="mt-6 text-sm text-gray-500">
         Your email doesn&apos;t match?{' '}
-        <span className="text-gray-700">
-          Ask the organizer to check your registration.
-        </span>
+        <span className="text-gray-700">Ask the organizer to check your registration.</span>
       </p>
     </div>
   );

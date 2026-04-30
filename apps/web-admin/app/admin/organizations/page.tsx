@@ -37,7 +37,10 @@ export default function AdminOrganizationsPage() {
     const params = new URLSearchParams();
     if (search) params.set('q', search);
     if (statusFilter !== 'all') params.set('status', statusFilter);
-    params.set('sortBy', sortField === 'member_count' || sortField === 'event_count' ? 'created_at' : sortField);
+    params.set(
+      'sortBy',
+      sortField === 'member_count' || sortField === 'event_count' ? 'created_at' : sortField,
+    );
     params.set('order', sortOrder);
 
     const controller = new AbortController();
@@ -145,18 +148,30 @@ export default function AdminOrganizationsPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-gray-200 text-left text-gray-500">
-                <th className="py-2 pr-4 cursor-pointer hover:text-gray-800" onClick={() => toggleSort('name')}>
+                <th
+                  className="py-2 pr-4 cursor-pointer hover:text-gray-800"
+                  onClick={() => toggleSort('name')}
+                >
                   Name{sortIcon('name')}
                 </th>
                 <th className="py-2 pr-4">Owner</th>
-                <th className="py-2 pr-4 cursor-pointer hover:text-gray-800" onClick={() => toggleSort('member_count')}>
+                <th
+                  className="py-2 pr-4 cursor-pointer hover:text-gray-800"
+                  onClick={() => toggleSort('member_count')}
+                >
                   Members{sortIcon('member_count')}
                 </th>
-                <th className="py-2 pr-4 cursor-pointer hover:text-gray-800" onClick={() => toggleSort('event_count')}>
+                <th
+                  className="py-2 pr-4 cursor-pointer hover:text-gray-800"
+                  onClick={() => toggleSort('event_count')}
+                >
                   Events{sortIcon('event_count')}
                 </th>
                 <th className="py-2 pr-4">Status</th>
-                <th className="py-2 pr-4 cursor-pointer hover:text-gray-800" onClick={() => toggleSort('created_at')}>
+                <th
+                  className="py-2 pr-4 cursor-pointer hover:text-gray-800"
+                  onClick={() => toggleSort('created_at')}
+                >
                   Created{sortIcon('created_at')}
                 </th>
                 <th className="py-2">Actions</th>
@@ -166,7 +181,10 @@ export default function AdminOrganizationsPage() {
               {orgs.map((org) => (
                 <tr key={org.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-2 pr-4">
-                    <Link href={`/admin/organizations/${org.id}`} className="font-medium text-red-700 hover:underline">
+                    <Link
+                      href={`/admin/organizations/${org.id}`}
+                      className="font-medium text-red-700 hover:underline"
+                    >
                       {org.name}
                     </Link>
                     <span className="ml-2 text-gray-400 text-xs font-mono">{org.slug}</span>
@@ -175,11 +193,13 @@ export default function AdminOrganizationsPage() {
                   <td className="py-2 pr-4 text-gray-600">{org.member_count}</td>
                   <td className="py-2 pr-4 text-gray-600">{org.event_count}</td>
                   <td className="py-2 pr-4">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      org.status === 'active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        org.status === 'active'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
                       {org.status}
                     </span>
                   </td>
@@ -190,21 +210,27 @@ export default function AdminOrganizationsPage() {
                     <div className="flex gap-2">
                       {org.status === 'active' ? (
                         <button
-                          onClick={() => { void handleAction(org.id, 'suspend'); }}
+                          onClick={() => {
+                            void handleAction(org.id, 'suspend');
+                          }}
                           className="text-xs text-orange-600 hover:underline"
                         >
                           Suspend
                         </button>
                       ) : (
                         <button
-                          onClick={() => { void handleAction(org.id, 'reactivate'); }}
+                          onClick={() => {
+                            void handleAction(org.id, 'reactivate');
+                          }}
                           className="text-xs text-green-600 hover:underline"
                         >
                           Reactivate
                         </button>
                       )}
                       <button
-                        onClick={() => { void handleAction(org.id, 'delete'); }}
+                        onClick={() => {
+                          void handleAction(org.id, 'delete');
+                        }}
                         className="text-xs text-red-600 hover:underline"
                       >
                         Delete

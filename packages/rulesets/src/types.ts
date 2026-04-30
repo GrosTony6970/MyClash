@@ -119,11 +119,7 @@ export interface Ruleset {
    * Compute one match's score from its exchanges.
    * Must be a pure function — no DB, no I/O.
    */
-  computeMatchScore(
-    match: Match,
-    exchanges: Exchange[],
-    config: unknown,
-  ): MatchScore;
+  computeMatchScore(match: Match, exchanges: Exchange[], config: unknown): MatchScore;
 
   /**
    * Decide if a match has ended.
@@ -151,9 +147,5 @@ export interface Ruleset {
    * Optional: compute event-level final ranking from pool + elim phases.
    * Must be a pure function — no DB, no I/O.
    */
-  computeFinalRanking?(
-    event: Event,
-    phases: Phase[],
-    config: unknown,
-  ): FinalRankingRow[];
+  computeFinalRanking?(event: Event, phases: Phase[], config: unknown): FinalRankingRow[];
 }

@@ -48,9 +48,9 @@ describe('FightersService', () => {
       chain.maybeSingle.mockResolvedValue({ data: null, error: null });
       fromMock.mockReturnValue(chain);
 
-      await expect(
-        service.promote({ personId: 'nonexistent-person' }, 'user-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.promote({ personId: 'nonexistent-person' }, 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws ForbiddenException when claimed user does not own the Person', async () => {
@@ -62,7 +62,7 @@ describe('FightersService', () => {
           family_name: 'Dupont',
           email: 'jean@example.com',
           club_id: null,
-          claimed_by_user_id: 'user-A',  // owned by user-A
+          claimed_by_user_id: 'user-A', // owned by user-A
           global_fighter_id: null,
         },
         error: null,
@@ -70,9 +70,9 @@ describe('FightersService', () => {
       fromMock.mockReturnValue(chain);
 
       // user-B tries to promote person owned by user-A
-      await expect(
-        service.promote({ personId: 'person-1' }, 'user-B'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.promote({ personId: 'person-1' }, 'user-B')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('creates a Fighter when claimed user owns the Person', async () => {
@@ -100,9 +100,9 @@ describe('FightersService', () => {
       updateChain.eq.mockResolvedValue({ data: null, error: null });
 
       fromMock
-        .mockReturnValueOnce(personChain)   // persons select
-        .mockReturnValueOnce(insertChain)   // fighters insert
-        .mockReturnValueOnce(updateChain);  // persons update
+        .mockReturnValueOnce(personChain) // persons select
+        .mockReturnValueOnce(insertChain) // fighters insert
+        .mockReturnValueOnce(updateChain); // persons update
 
       const result = await service.promote({ personId: 'person-1' }, 'user-1');
       expect((result as { id: string }).id).toBe('fighter-new');
@@ -129,9 +129,7 @@ describe('FightersService', () => {
         error: null,
       });
 
-      fromMock
-        .mockReturnValueOnce(personChain)
-        .mockReturnValueOnce(existingFighterChain);
+      fromMock.mockReturnValueOnce(personChain).mockReturnValueOnce(existingFighterChain);
 
       const result = await service.promote({ personId: 'person-1' }, 'user-1');
       expect((result as { id: string }).id).toBe('fighter-existing');

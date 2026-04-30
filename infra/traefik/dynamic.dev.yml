@@ -8,11 +8,11 @@ tls:
   stores:
     default:
       defaultGeneratedCert:
-        resolver: ""
+        resolver: ''
         domain:
-          main: "myclash.localhost"
+          main: 'myclash.localhost'
           sans:
-            - "*.myclash.localhost"
+            - '*.myclash.localhost'
 
   options:
     default:

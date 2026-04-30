@@ -8,8 +8,8 @@ const START = '2026-04-25T09:00:00.000Z';
 function makeMatches(count: number, fightersPerMatch = 2): SchedulerMatch[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `match-${i + 1}`,
-    redRegistrationId: `fighter-${(i * fightersPerMatch) % 20 + 1}`,
-    blueRegistrationId: `fighter-${(i * fightersPerMatch + 1) % 20 + 2}`,
+    redRegistrationId: `fighter-${((i * fightersPerMatch) % 20) + 1}`,
+    blueRegistrationId: `fighter-${((i * fightersPerMatch + 1) % 20) + 2}`,
   }));
 }
 
@@ -23,7 +23,6 @@ function makeLices(count: number): SchedulerLice[] {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('scheduleMatches', () => {
-
   // ── Basic scheduling ──────────────────────────────────────────────────────
 
   it('schedules all matches when enough Lices available', () => {

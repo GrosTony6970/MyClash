@@ -142,9 +142,7 @@ export function scheduleMatches(
   const loads = Object.values(liceLoad);
   const maxLoad = Math.max(...loads);
   const minLoad = Math.min(...loads);
-  const imbalancePercent = maxLoad > 0
-    ? Math.round(((maxLoad - minLoad) / maxLoad) * 100)
-    : 0;
+  const imbalancePercent = maxLoad > 0 ? Math.round(((maxLoad - minLoad) / maxLoad) * 100) : 0;
 
   return { scheduledMatches, liceLoad, imbalancePercent, unscheduled };
 }

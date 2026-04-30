@@ -1,20 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreatePersonDto {
   @ApiProperty({ example: 'Jean' })
-  @IsString() @MinLength(1) @MaxLength(100)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   givenName!: string;
 
   @ApiProperty({ example: 'Dupont' })
-  @IsString() @MinLength(1) @MaxLength(100)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   familyName!: string;
 
   @ApiProperty({ example: 'jean.dupont@example.com' })
@@ -22,56 +19,75 @@ export class CreatePersonDto {
   email!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   clubId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   hemaRatingsId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dateOfBirth?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   genderCategory?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(2000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   notes?: string;
 }
 
 export class UpdatePersonDto {
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   givenName?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MinLength(1) @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   familyName?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsEmail()
+  @IsOptional()
+  @IsEmail()
   email?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   clubId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   hemaRatingsId?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   dateOfBirth?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   genderCategory?: string;
 
   @ApiProperty({ required: false })
-  @IsOptional() @IsString() @MaxLength(2000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
   notes?: string;
 }

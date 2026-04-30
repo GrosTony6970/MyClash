@@ -16,7 +16,14 @@ import { describe, it, expect } from 'vitest';
 // ── RLS policy logic (extracted for unit testing) ─────────────────────────────
 // These mirror the SQL functions in 0002_rls.sql
 
-type Role = 'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only';
+type Role =
+  | 'owner'
+  | 'admin'
+  | 'editor'
+  | 'scorekeeper'
+  | 'referee'
+  | 'workshop_lead'
+  | 'read_only';
 
 interface OrgMember {
   organizationId: string;
@@ -31,23 +38,39 @@ interface Event {
 }
 
 // Simulates is_super_admin() SQL function
-function isSuperAdmin(userId: string | null, platformRoles: Array<{ userId: string; role: string }>): boolean {
+function isSuperAdmin(
+  userId: string | null,
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
   if (!userId) return false;
-  return platformRoles.some(r => r.userId === userId && r.role === 'super_admin');
+  return platformRoles.some((r) => r.userId === userId && r.role === 'super_admin');
 }
 
 // Simulates is_org_member() SQL function
 function isOrgMember(userId: string | null, orgId: string, members: OrgMember[]): boolean {
   if (!userId) return false;
-  return members.some(m => m.organizationId === orgId && m.userId === userId);
+  return members.some((m) => m.organizationId === orgId && m.userId === userId);
 }
 
 // Simulates has_org_role() SQL function
-const ROLE_HIERARCHY: Role[] = ['read_only', 'scorekeeper', 'referee', 'workshop_lead', 'editor', 'admin', 'owner'];
+const ROLE_HIERARCHY: Role[] = [
+  'read_only',
+  'scorekeeper',
+  'referee',
+  'workshop_lead',
+  'editor',
+  'admin',
+  'owner',
+];
 
-function hasOrgRole(userId: string | null, orgId: string, minRole: Role, members: OrgMember[]): boolean {
+function hasOrgRole(
+  userId: string | null,
+  orgId: string,
+  minRole: Role,
+  members: OrgMember[],
+): boolean {
   if (!userId) return false;
-  const member = members.find(m => m.organizationId === orgId && m.userId === userId);
+  const member = members.find((m) => m.organizationId === orgId && m.userId === userId);
   if (!member) return false;
   return ROLE_HIERARCHY.indexOf(member.role) >= ROLE_HIERARCHY.indexOf(minRole);
 }
@@ -80,31 +103,36 @@ function canUpdateEvent(
 const ORG_A = 'org-a-uuid';
 const ORG_B = 'org-b-uuid';
 
-const USER_SUPER  = 'user-super-admin';
+const USER_SUPER = 'user-super-admin';
 const USER_ADMIN_A = 'user-admin-org-a';
 const USER_EDITOR_A = 'user-editor-org-a';
 const USER_MEMBER_B = 'user-member-org-b';
-const USER_ANON   = null; // unauthenticated
+const USER_ANON = null; // unauthenticated
 
-const PLATFORM_ROLES = [
-  { userId: USER_SUPER, role: 'super_admin' },
-];
+const PLATFORM_ROLES = [{ userId: USER_SUPER, role: 'super_admin' }];
 
 const ORG_MEMBERS: OrgMember[] = [
-  { organizationId: ORG_A, userId: USER_ADMIN_A,  role: 'admin' },
+  { organizationId: ORG_A, userId: USER_ADMIN_A, role: 'admin' },
   { organizationId: ORG_A, userId: USER_EDITOR_A, role: 'editor' },
   { organizationId: ORG_B, userId: USER_MEMBER_B, role: 'admin' },
 ];
 
-const EVENT_A_DRAFT: Event     = { id: 'event-a-draft',     organizationId: ORG_A, status: 'draft' };
-const EVENT_A_PUBLISHED: Event = { id: 'event-a-published', organizationId: ORG_A, status: 'published' };
-const EVENT_B_DRAFT: Event     = { id: 'event-b-draft',     organizationId: ORG_B, status: 'draft' };
-const EVENT_B_PUBLISHED: Event = { id: 'event-b-published', organizationId: ORG_B, status: 'published' };
+const EVENT_A_DRAFT: Event = { id: 'event-a-draft', organizationId: ORG_A, status: 'draft' };
+const EVENT_A_PUBLISHED: Event = {
+  id: 'event-a-published',
+  organizationId: ORG_A,
+  status: 'published',
+};
+const EVENT_B_DRAFT: Event = { id: 'event-b-draft', organizationId: ORG_B, status: 'draft' };
+const EVENT_B_PUBLISHED: Event = {
+  id: 'event-b-published',
+  organizationId: ORG_B,
+  status: 'published',
+};
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('RLS policy logic — cross-tenant leak prevention', () => {
-
   // ── 1. Anonymous cannot see draft events ─────────────────────────────────
   it('1. anonymous cannot SELECT a draft event', () => {
     expect(canSelectEvent(USER_ANON, EVENT_A_DRAFT, ORG_MEMBERS, PLATFORM_ROLES)).toBe(false);
@@ -127,12 +155,16 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
 
   // ── 5. Org B member cannot UPDATE Org A event ────────────────────────────
   it('5. org-B member cannot UPDATE org-A event (cross-tenant write leak)', () => {
-    expect(canUpdateEvent(USER_MEMBER_B, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(false);
+    expect(canUpdateEvent(USER_MEMBER_B, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+      false,
+    );
   });
 
   // ── 6. Org A editor cannot UPDATE events (needs admin) ───────────────────
   it('6. org-A editor cannot UPDATE event (insufficient role)', () => {
-    expect(canUpdateEvent(USER_EDITOR_A, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(false);
+    expect(canUpdateEvent(USER_EDITOR_A, EVENT_A_PUBLISHED, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+      false,
+    );
   });
 
   // ── 7. Org A admin CAN UPDATE their own event ────────────────────────────

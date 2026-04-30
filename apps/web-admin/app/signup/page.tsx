@@ -98,7 +98,10 @@ export default function SignupPage() {
   function handleStep1(e: React.FormEvent) {
     e.preventDefault();
     const err = validateStep1();
-    if (err) { setError(err); return; }
+    if (err) {
+      setError(err);
+      return;
+    }
     setError(null);
     setStep(2);
   }
@@ -107,9 +110,18 @@ export default function SignupPage() {
 
   async function handleStep2(e: React.FormEvent) {
     e.preventDefault();
-    if (!orgName.trim()) { setError('Organization name required'); return; }
-    if (!orgSlug || orgSlug.length < 3) { setError('Slug must be at least 3 characters'); return; }
-    if (slugStatus.available === false) { setError('Please choose a different slug'); return; }
+    if (!orgName.trim()) {
+      setError('Organization name required');
+      return;
+    }
+    if (!orgSlug || orgSlug.length < 3) {
+      setError('Slug must be at least 3 characters');
+      return;
+    }
+    if (slugStatus.available === false) {
+      setError('Please choose a different slug');
+      return;
+    }
     setError(null);
     setLoading(true);
 
@@ -154,14 +166,14 @@ export default function SignupPage() {
           </h1>
           {done.type === 'magic_link' ? (
             <p className="text-gray-600">
-              We sent a signup link to <strong>{email}</strong>.
-              Click it to activate your account and access your organization dashboard.
+              We sent a signup link to <strong>{email}</strong>. Click it to activate your account
+              and access your organization dashboard.
             </p>
           ) : (
             <>
               <p className="text-gray-600">
-                Your account has been created. Please verify your email address before
-                creating events.
+                Your account has been created. Please verify your email address before creating
+                events.
               </p>
               <p className="mt-3 text-gray-600">
                 We sent a verification link to <strong>{email}</strong>.
@@ -193,10 +205,16 @@ export default function SignupPage() {
         {step === 1 && (
           <form onSubmit={handleStep1} className="flex flex-col gap-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-1">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium mb-1">
+                Email
+              </label>
               <input
-                id="email" type="email" required autoComplete="email"
-                value={email} onChange={(e) => setEmail(e.target.value)}
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
               />
@@ -207,8 +225,11 @@ export default function SignupPage() {
                 Display name
               </label>
               <input
-                id="displayName" type="text" required
-                value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+                id="displayName"
+                type="text"
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Jean Dupont"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
               />
@@ -242,10 +263,16 @@ export default function SignupPage() {
             {method === 'password' && (
               <>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium mb-1">Password</label>
+                  <label htmlFor="password" className="block text-sm font-medium mb-1">
+                    Password
+                  </label>
                   <input
-                    id="password" type="password" required minLength={8}
-                    value={password} onChange={(e) => setPassword(e.target.value)}
+                    id="password"
+                    type="password"
+                    required
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="Min. 8 characters"
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
@@ -255,8 +282,11 @@ export default function SignupPage() {
                     Confirm password
                   </label>
                   <input
-                    id="passwordConfirm" type="password" required
-                    value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)}
+                    id="passwordConfirm"
+                    type="password"
+                    required
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
                     placeholder="Repeat password"
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
@@ -264,7 +294,11 @@ export default function SignupPage() {
               </>
             )}
 
-            {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+            {error && (
+              <p className="text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            )}
 
             <button
               type="submit"
@@ -275,27 +309,40 @@ export default function SignupPage() {
 
             <p className="text-center text-sm text-gray-500">
               Already have an account?{' '}
-              <a href="/login" className="text-red-700 hover:underline">Log in</a>
+              <a href="/login" className="text-red-700 hover:underline">
+                Log in
+              </a>
             </p>
           </form>
         )}
 
         {/* ── Step 2: Organization ── */}
         {step === 2 && (
-          <form onSubmit={(e) => { void handleStep2(e); }} className="flex flex-col gap-4">
+          <form
+            onSubmit={(e) => {
+              void handleStep2(e);
+            }}
+            className="flex flex-col gap-4"
+          >
             <div>
               <label htmlFor="orgName" className="block text-sm font-medium mb-1">
                 Organization name
               </label>
               <input
-                id="orgName" type="text" required
-                value={orgName} onChange={(e) => { setOrgName(e.target.value); setOrgSlug(slugify(e.target.value)); }}
+                id="orgName"
+                type="text"
+                required
+                value={orgName}
+                onChange={(e) => {
+                  setOrgName(e.target.value);
+                  setOrgSlug(slugify(e.target.value));
+                }}
                 placeholder="Lyon AMHE"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
               />
               <p className="text-xs text-gray-400 mt-1">
-                This is the public name people will see when browsing your events.
-                You can change it later in settings.
+                This is the public name people will see when browsing your events. You can change it
+                later in settings.
               </p>
             </div>
 
@@ -319,9 +366,13 @@ export default function SignupPage() {
                   admin.myclash.fr/org/
                 </span>
                 <input
-                  id="orgSlug" type="text" required
+                  id="orgSlug"
+                  type="text"
+                  required
                   value={orgSlug}
-                  onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  onChange={(e) =>
+                    setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                  }
                   placeholder="lyon-amhe"
                   className="flex-1 px-3 py-2 text-sm focus:outline-none"
                 />
@@ -331,12 +382,19 @@ export default function SignupPage() {
               </p>
             </div>
 
-            {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+            {error && (
+              <p className="text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            )}
 
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setStep(1); setError(null); }}
+                onClick={() => {
+                  setStep(1);
+                  setError(null);
+                }}
                 className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-gray-300 text-gray-700 hover:border-gray-400 transition-colors"
               >
                 ← Back

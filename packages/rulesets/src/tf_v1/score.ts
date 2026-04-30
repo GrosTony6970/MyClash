@@ -185,7 +185,7 @@ export function computeMatchScore(
   return {
     redScore,
     blueScore,
-    redWins: 0,   // wins determined at match end, not from exchanges
+    redWins: 0, // wins determined at match end, not from exchanges
     blueWins: 0,
     redTargetPoints,
     blueTargetPoints,

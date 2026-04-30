@@ -13,13 +13,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AdminOrganizationsService } from './admin-organizations.service';
 import {
@@ -70,10 +64,7 @@ export class OrganizationsAdminController {
   @Patch(':id/suspend')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Suspend organization (super admin)' })
-  async suspend(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: FastifyRequest,
-  ) {
+  async suspend(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     await this.service.suspendOrganization(id, getActorId(req));
   }
 
@@ -84,10 +75,7 @@ export class OrganizationsAdminController {
   @Patch(':id/reactivate')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Reactivate organization (super admin)' })
-  async reactivate(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: FastifyRequest,
-  ) {
+  async reactivate(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     await this.service.reactivateOrganization(id, getActorId(req));
   }
 
@@ -98,10 +86,7 @@ export class OrganizationsAdminController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Hard delete organization (super admin)' })
-  async delete(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: FastifyRequest,
-  ) {
+  async delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     await this.service.deleteOrganization(id, getActorId(req));
   }
 
@@ -127,10 +112,7 @@ export class OrganizationsAdminController {
   @Post('../users/promote-super-admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Promote user to super_admin (super admin)' })
-  async promoteSuperAdmin(
-    @Body() dto: PromoteSuperAdminDto,
-    @Req() req: FastifyRequest,
-  ) {
+  async promoteSuperAdmin(@Body() dto: PromoteSuperAdminDto, @Req() req: FastifyRequest) {
     await this.service.promoteSuperAdmin(dto, getActorId(req));
   }
 }

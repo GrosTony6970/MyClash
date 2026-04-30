@@ -1,10 +1,7 @@
 import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  type NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
@@ -38,9 +35,9 @@ async function bootstrap(): Promise<void> {
   // ── Global validation pipe ───────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,       // strip unknown properties
+      whitelist: true, // strip unknown properties
       forbidNonWhitelisted: true,
-      transform: true,       // auto-transform payloads to DTO instances
+      transform: true, // auto-transform payloads to DTO instances
     }),
   );
 
@@ -69,9 +66,7 @@ async function bootstrap(): Promise<void> {
   if (process.env['NODE_ENV'] !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('MyClash API')
-      .setDescription(
-        'Free, open-source platform for HEMA event management — REST API',
-      )
+      .setDescription('Free, open-source platform for HEMA event management — REST API')
       .setVersion('1.0')
       .addBearerAuth()
       .addCookieAuth('sb-access-token')

@@ -32,32 +32,25 @@ import postgres from 'postgres';
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const DATABASE_URL =
-  process.env['DATABASE_URL'] ??
-  'postgres://postgres:dev-password@localhost:5432/myclash';
+  process.env['DATABASE_URL'] ?? 'postgres://postgres:dev-password@localhost:5432/myclash';
 
-const SUPABASE_URL =
-  process.env['SUPABASE_URL'] ?? 'http://localhost:8000';
+const SUPABASE_URL = process.env['SUPABASE_URL'] ?? 'http://localhost:8000';
 
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
 
-const ADMIN_EMAIL =
-  process.env['SEED_ADMIN_EMAIL'] ?? 'admin@myclash.fr';
+const ADMIN_EMAIL = process.env['SEED_ADMIN_EMAIL'] ?? 'admin@myclash.fr';
 
-const ADMIN_PASSWORD =
-  process.env['SEED_ADMIN_PASSWORD'] ?? 'ChangeMe123!';
+const ADMIN_PASSWORD = process.env['SEED_ADMIN_PASSWORD'] ?? 'ChangeMe123!';
 
-const ORG_NAME =
-  process.env['SEED_ORG_NAME'] ?? 'MyClash HQ';
+const ORG_NAME = process.env['SEED_ORG_NAME'] ?? 'MyClash HQ';
 
-const ORG_SLUG =
-  process.env['SEED_ORG_SLUG'] ?? 'myclash-hq';
+const ORG_SLUG = process.env['SEED_ORG_SLUG'] ?? 'myclash-hq';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const ok   = (m: string) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
+const ok = (m: string) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const warn = (m: string) => console.log(`\x1b[33m!\x1b[0m ${m}`);
-const hdr  = (m: string) => console.log(`\n\x1b[36m\x1b[1m── ${m} ──\x1b[0m`);
+const hdr = (m: string) => console.log(`\n\x1b[36m\x1b[1m── ${m} ──\x1b[0m`);
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 

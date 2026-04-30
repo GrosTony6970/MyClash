@@ -54,10 +54,7 @@ export class LicesService {
   }
 
   async delete(liceId: string) {
-    const { error } = await this.supabase.service
-      .from('lices')
-      .delete()
-      .eq('id', liceId);
+    const { error } = await this.supabase.service.from('lices').delete().eq('id', liceId);
 
     if (error) throw new BadRequestException(error.message);
   }

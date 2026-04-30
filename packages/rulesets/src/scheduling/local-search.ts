@@ -60,7 +60,7 @@ export function computeCost(
       for (const count of clubCounts.values()) {
         if (count > 1) {
           // Each same-club pair costs 100
-          cost += (count * (count - 1)) / 2 * 100;
+          cost += ((count * (count - 1)) / 2) * 100;
         }
       }
     }
@@ -202,7 +202,8 @@ export function buildCostReport(
     return rated.reduce((sum, f) => sum + (f.skillRating ?? 0), 0) / rated.length;
   });
   const overallMean = poolMeans.reduce((s, m) => s + m, 0) / poolMeans.length;
-  const skillVariance = poolMeans.reduce((s, m) => s + (m - overallMean) ** 2, 0) / poolMeans.length;
+  const skillVariance =
+    poolMeans.reduce((s, m) => s + (m - overallMean) ** 2, 0) / poolMeans.length;
 
   const totalSameClubPairs = sameClubPairsPerPool.reduce((s, p) => s + p.count, 0);
 

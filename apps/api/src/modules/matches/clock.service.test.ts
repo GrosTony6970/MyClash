@@ -32,7 +32,7 @@ describe('ClockService.computeClockState', () => {
   it('halted state after start + halt, activeMs = elapsed', () => {
     const state = service.computeClockState('m1', [
       { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',  reason: null, occurred_at: T1 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
     ]);
     expect(state.status).toBe('halted');
     expect(state.activeMs).toBe(3 * 60 * 1000); // 3 minutes
@@ -41,8 +41,8 @@ describe('ClockService.computeClockState', () => {
 
   it('running again after resume, accumulates previous interval', () => {
     const state = service.computeClockState('m1', [
-      { id: 'e1', type: 'start',  reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',   reason: null, occurred_at: T1 }, // +3 min
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 }, // +3 min
       { id: 'e3', type: 'resume', reason: null, occurred_at: T2 }, // resume at +5 min
     ]);
     expect(state.status).toBe('running');
@@ -52,10 +52,10 @@ describe('ClockService.computeClockState', () => {
 
   it('ended state accumulates all intervals', () => {
     const state = service.computeClockState('m1', [
-      { id: 'e1', type: 'start',  reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',   reason: null, occurred_at: T1 }, // 3 min
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 }, // 3 min
       { id: 'e3', type: 'resume', reason: null, occurred_at: T2 }, // resume
-      { id: 'e4', type: 'end',    reason: null, occurred_at: T3 }, // +3 more min
+      { id: 'e4', type: 'end', reason: null, occurred_at: T3 }, // +3 more min
     ]);
     expect(state.status).toBe('ended');
     // 3 min (T0→T1) + 3 min (T2→T3) = 6 min
@@ -65,8 +65,8 @@ describe('ClockService.computeClockState', () => {
 
   it('reset_clock clears accumulated time', () => {
     const state = service.computeClockState('m1', [
-      { id: 'e1', type: 'start',       reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',        reason: null, occurred_at: T1 }, // 3 min
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 }, // 3 min
       { id: 'e3', type: 'reset_clock', reason: null, occurred_at: T2 }, // reset
     ]);
     expect(state.status).toBe('halted');
@@ -76,10 +76,10 @@ describe('ClockService.computeClockState', () => {
 
   it('multiple halt/resume cycles accumulate correctly', () => {
     const state = service.computeClockState('m1', [
-      { id: 'e1', type: 'start',  reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',   reason: null, occurred_at: T1 }, // 3 min
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 }, // 3 min
       { id: 'e3', type: 'resume', reason: null, occurred_at: T2 }, // resume at 5 min
-      { id: 'e4', type: 'halt',   reason: null, occurred_at: T3 }, // +3 min = 6 min total
+      { id: 'e4', type: 'halt', reason: null, occurred_at: T3 }, // +3 min = 6 min total
       { id: 'e5', type: 'resume', reason: null, occurred_at: T4 }, // resume at 10 min
     ]);
     expect(state.status).toBe('running');
@@ -91,7 +91,7 @@ describe('ClockService.computeClockState', () => {
   it('same events always produce same state (deterministic / reload-safe)', () => {
     const events = [
       { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',  reason: null, occurred_at: T1 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
     ];
     const s1 = service.computeClockState('m1', events);
     const s2 = service.computeClockState('m1', events);
@@ -111,7 +111,7 @@ describe('ClockService.computeClockState', () => {
   it('totalActiveMs === activeMs when halted (no current interval)', () => {
     const state = service.computeClockState('m1', [
       { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
-      { id: 'e2', type: 'halt',  reason: null, occurred_at: T1 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
     ]);
     expect(state.totalActiveMs).toBe(state.activeMs);
   });

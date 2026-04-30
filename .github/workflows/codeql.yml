@@ -7,7 +7,7 @@ on:
     branches: [main]
   schedule:
     # Run weekly on Monday at 03:00 UTC (off-peak)
-    - cron: "0 3 * * 1"
+    - cron: '0 3 * * 1'
 
 concurrency:
   group: codeql-${{ github.ref }}
@@ -44,11 +44,11 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: "9.12.0"
+          version: '9.12.0'
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
 
       - name: Install dependencies
@@ -57,4 +57,4 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{ matrix.language }}"
+          category: '/language:${{ matrix.language }}'

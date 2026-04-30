@@ -34,5 +34,9 @@ export { doublePenalty, computeScore, computeAggregates } from './tf_v1/score';
 export { TF_v1_no_afterblow } from './tf_v1_no_afterblow';
 
 // Generic_PointsCap ruleset
-export { Generic_PointsCap, GenericPointsCapConfigSchema, GenericPointsCapDefaultConfig } from './generic_points_cap';
+export {
+  Generic_PointsCap,
+  GenericPointsCapConfigSchema,
+  GenericPointsCapDefaultConfig,
+} from './generic_points_cap';
 export type { GenericPointsCapConfig } from './generic_points_cap';

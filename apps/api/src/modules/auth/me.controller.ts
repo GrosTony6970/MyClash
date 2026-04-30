@@ -23,10 +23,7 @@ export class MeController {
   @Get('me')
   @ApiOperation({ summary: 'Get current identity (claimed / guest / anonymous)' })
   @ApiResponse({ status: 200, type: MeResponseDto })
-  async getMe(
-    @Req() req: FastifyRequest,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
+  async getMe(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const result = await this.auth.getMe(req, reply);
     void reply.status(200).send(result);
   }

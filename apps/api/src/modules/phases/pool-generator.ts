@@ -67,11 +67,13 @@ export class PoolGeneratorService {
     // Fetch registrations with skill data
     const { data: regs, error } = await this.supabase.service
       .from('registrations')
-      .select(`
+      .select(
+        `
         id, seed, bib_number,
         persons(club_id),
         fighters(hema_ratings_id)
-      `)
+      `,
+      )
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
 
@@ -144,10 +146,10 @@ export class PoolGeneratorService {
 
     this.logger.log(
       `Generated ${poolCount} pools (target size ${targetSize}) for tournament ${tournamentId}: ` +
-      `sizes=[${actualSizes.join(',')}], ` +
-      `cost=${costReport.totalCost.toFixed(2)}, ` +
-      `sameClub=${costReport.sameClubPairsPerPool.reduce((s: number, p: { count: number }) => s + p.count, 0)}, ` +
-      `skillVar=${costReport.skillVariance.toFixed(3)}`,
+        `sizes=[${actualSizes.join(',')}], ` +
+        `cost=${costReport.totalCost.toFixed(2)}, ` +
+        `sameClub=${costReport.sameClubPairsPerPool.reduce((s: number, p: { count: number }) => s + p.count, 0)}, ` +
+        `skillVar=${costReport.skillVariance.toFixed(3)}`,
     );
 
     return { pools, poolCount, targetSize, actualSizes, costReport };

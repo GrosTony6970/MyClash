@@ -1,12 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsIn,
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 /** Reserved slugs that cannot be used as organization slugs. */
 export const RESERVED_SLUGS = [

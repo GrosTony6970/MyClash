@@ -4,16 +4,27 @@ import { registry } from '../registry';
 import type { Exchange, Match } from '../types';
 
 const BASE_MATCH: Match = {
-  id: 'm1', redRegistrationId: 'reg-red', blueRegistrationId: 'reg-blue',
-  rulesetCode: 'Generic_PointsCap', rulesetVersion: '1.0.0', status: 'running',
+  id: 'm1',
+  redRegistrationId: 'reg-red',
+  blueRegistrationId: 'reg-blue',
+  rulesetCode: 'Generic_PointsCap',
+  rulesetVersion: '1.0.0',
+  status: 'running',
 };
 
 function makeEx(overrides: Partial<Exchange>): Exchange {
   return {
-    id: 'e1', clientUuid: 'u1', matchId: 'm1', sequence: 1,
-    type: 'clean', occurredAt: new Date().toISOString(),
-    firstStrikerColor: 'red', firstStrikeValue: 1,
-    afterblowValue: null, noExchangeReason: null, voided: false,
+    id: 'e1',
+    clientUuid: 'u1',
+    matchId: 'm1',
+    sequence: 1,
+    type: 'clean',
+    occurredAt: new Date().toISOString(),
+    firstStrikerColor: 'red',
+    firstStrikeValue: 1,
+    afterblowValue: null,
+    noExchangeReason: null,
+    voided: false,
     ...overrides,
   };
 }
@@ -100,8 +111,11 @@ describe('Generic_PointsCap', () => {
         { id: 'r2', seed: 2, bibNumber: null },
       ];
       const match = {
-        id: 'm1', redRegistrationId: 'r1', blueRegistrationId: 'r2',
-        rulesetCode: 'Generic_PointsCap', rulesetVersion: '1.0.0',
+        id: 'm1',
+        redRegistrationId: 'r1',
+        blueRegistrationId: 'r2',
+        rulesetCode: 'Generic_PointsCap',
+        rulesetVersion: '1.0.0',
         status: 'completed' as const,
         winnerRegistrationId: 'r1',
         exchanges: [

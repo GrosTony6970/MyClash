@@ -47,8 +47,8 @@ export default function ScoringLoginPage() {
           <div className="text-5xl mb-6">⚔️</div>
           <h1 className="text-2xl font-bold mb-4">Check your email</h1>
           <p className="text-gray-400">
-            We sent a login link to <strong className="text-white">{email}</strong>.
-            Click it to access your Lice assignments.
+            We sent a login link to <strong className="text-white">{email}</strong>. Click it to
+            access your Lice assignments.
           </p>
           <p className="mt-4 text-sm text-gray-500">The link expires in 1 hour.</p>
         </div>
@@ -65,7 +65,12 @@ export default function ScoringLoginPage() {
           <p className="text-gray-400 text-sm mt-1">Scorekeeper access</p>
         </div>
 
-        <form onSubmit={(e) => { void handleSubmit(e); }} className="flex flex-col gap-4">
+        <form
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+          className="flex flex-col gap-4"
+        >
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
               Email address
@@ -83,7 +88,9 @@ export default function ScoringLoginPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-400" role="alert">{error}</p>
+            <p className="text-sm text-red-400" role="alert">
+              {error}
+            </p>
           )}
 
           <button

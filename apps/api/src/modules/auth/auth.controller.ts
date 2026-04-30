@@ -1,20 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Query,
-  Req,
-  Res,
-} from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
@@ -38,12 +23,13 @@ export class AuthController {
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a magic link (login or claim)' })
-  @ApiResponse({ status: 200, description: 'Magic link sent (or silently dropped if email unknown)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Magic link sent (or silently dropped if email unknown)',
+  })
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
-  async requestMagicLink(
-    @Body() dto: RequestMagicLinkDto,
-  ): Promise<{ message: string }> {
+  async requestMagicLink(@Body() dto: RequestMagicLinkDto): Promise<{ message: string }> {
     return this.authService.requestMagicLink(dto);
   }
 

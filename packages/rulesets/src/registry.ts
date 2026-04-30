@@ -47,9 +47,7 @@ class RulesetRegistry {
    */
   list(): Ruleset[] {
     return [...this.store.values()].sort((a, b) =>
-      a.code !== b.code
-        ? a.code.localeCompare(b.code)
-        : a.version.localeCompare(b.version),
+      a.code !== b.code ? a.code.localeCompare(b.code) : a.version.localeCompare(b.version),
     );
   }
 

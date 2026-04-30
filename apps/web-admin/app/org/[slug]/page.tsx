@@ -26,8 +26,8 @@ export default async function OrgDashboardPage({ params }: Props) {
         <p className="text-4xl mb-4">🏆</p>
         <h2 className="text-xl font-semibold mb-2">Create your first event</h2>
         <p className="text-gray-500 max-w-sm mb-6">
-          An event is the gathering — FAL 2026, Swordfish 2027. Inside it you
-          create tournaments, workshops, and manage your roster.
+          An event is the gathering — FAL 2026, Swordfish 2027. Inside it you create tournaments,
+          workshops, and manage your roster.
         </p>
         <button
           disabled
