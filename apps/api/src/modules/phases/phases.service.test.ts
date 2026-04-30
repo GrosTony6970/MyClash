@@ -36,8 +36,22 @@ function makeChain(result: unknown) {
  * awaits the chain directly (no terminal method call).
  */
 function makeAwaitableChain(result: unknown) {
-  const base = makeChain(result);
-  return Object.assign(Promise.resolve(result), base);
+  const promise = Promise.resolve(result);
+  // Attach chain methods that return the promise itself (so await works after chaining)
+  const chain = Object.assign(promise, {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    insert: vi.fn(),
+    delete: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+    single: vi.fn().mockResolvedValue(result),
+  });
+  // All builder methods return the chain (Promise) itself
+  for (const key of ['select', 'eq', 'in', 'insert', 'delete']) {
+    (chain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+  }
+  return chain;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────

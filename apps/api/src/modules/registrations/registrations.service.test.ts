@@ -37,8 +37,23 @@ function makeChain(result: unknown) {
  * Used for `const { data, error } = await q` patterns.
  */
 function makeAwaitableChain(result: unknown) {
-  const base = makeChain(result);
-  return Object.assign(Promise.resolve(result), base);
+  const promise = Promise.resolve(result);
+  const chain = Object.assign(promise, {
+    select: vi.fn(),
+    eq: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    nullsFirst: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+    single: vi.fn().mockResolvedValue(result),
+  });
+  for (const key of ['select', 'eq', 'order', 'limit', 'insert', 'update', 'delete', 'nullsFirst']) {
+    (chain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+  }
+  return chain;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────

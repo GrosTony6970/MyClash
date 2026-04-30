@@ -55,8 +55,25 @@ function makeChain(result: ChainResult) {
  * The Promise is assigned via Object.assign — NOT spread — so ESLint is happy.
  */
 function makeAwaitableChain(result: ChainResult) {
-  const base = makeChain(result);
-  return Object.assign(Promise.resolve(result), base);
+  const promise = Promise.resolve(result);
+  const chain = Object.assign(promise, {
+    select: vi.fn(),
+    eq: vi.fn(),
+    ilike: vi.fn(),
+    update: vi.fn(),
+    insert: vi.fn(),
+    delete: vi.fn(),
+    upsert: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    in: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+    single: vi.fn().mockResolvedValue(result),
+  });
+  for (const key of ['select', 'eq', 'ilike', 'update', 'insert', 'delete', 'upsert', 'order', 'limit', 'in']) {
+    (chain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+  }
+  return chain;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
