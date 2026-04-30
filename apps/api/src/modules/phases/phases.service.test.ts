@@ -49,7 +49,7 @@ function makeAwaitableChain(result: unknown) {
   });
   // All builder methods return the chain (Promise) itself
   for (const key of ['select', 'eq', 'in', 'insert', 'delete']) {
-    (chain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+    (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
 }

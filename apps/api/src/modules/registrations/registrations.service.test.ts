@@ -51,7 +51,7 @@ function makeAwaitableChain(result: unknown) {
     single: vi.fn().mockResolvedValue(result),
   });
   for (const key of ['select', 'eq', 'order', 'limit', 'insert', 'update', 'delete', 'nullsFirst']) {
-    (chain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+    (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
 }
