@@ -29,20 +29,22 @@ export default function LiceMatchPage({ params }: Props) {
   const [liceId, setLiceId] = useState<string | null>(null);
   const [currentMatch, setCurrentMatch] = useState<MatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>('online');
+  // Initialize from browser API synchronously — avoids a flash of wrong state
+  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
+    typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
+  );
 
   // Resolve params
   useEffect(() => {
     void params.then(({ liceId: id }) => setLiceId(id));
   }, [params]);
 
-  // Network status monitoring
+  // Network status monitoring — only subscribe to changes, initial value set above
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
     const handleOffline = () => setNetworkStatus('offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    setNetworkStatus(navigator.onLine ? 'online' : 'offline');
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);

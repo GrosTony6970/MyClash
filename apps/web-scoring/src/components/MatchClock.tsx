@@ -67,8 +67,9 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
     }
   }, [matchId, apiUrl, onStateChange]);
 
-  // Load on mount
+  // Load on mount — fetchState is async, setState calls happen inside the async fn
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState in callback
     void fetchState();
   }, [fetchState]);
 
@@ -86,6 +87,7 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
         tickRef.current = null;
       }
       if (clockState) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- sync update to display time when clock stops
         setDisplayMs(computeDisplayMs(clockState));
       }
     }
