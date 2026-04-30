@@ -265,3 +265,9 @@ User asked why `git push` showed an error message. Explained: not an error — P
 
 ## 12:00:00_30-04-2026
 User requested memory file update before stopping work. Session paused at T-404 (Realtime broadcast). Updated MEMORY.md (P3 completed, P4 in-progress table, Phase P4 implementation notes, scheduling algorithms section expanded with T-304/T-305/T-403 details, removed duplicate Ruleset engine section), LESSONS_LEARNED.md (Vitest mock chain ESLint-safe patterns, React hooks v5 rules), PROMPT_LOG.md (this entry). Current HEAD: 709b429. Next task when resuming: T-404 · Realtime broadcast (server).
+
+## 13:00:00_30-04-2026
+User ran `pnpm turbo run typecheck` — 3 errors in `@myclash/api` test files. All same root cause: `(chain as Record<string, unknown>)` fails when `chain` is a `Promise & {...}` intersection type (TS2352 — types don't overlap enough for direct cast). Fixed by casting through `unknown` first: `(chain as unknown as Record<string, unknown>)`. Affected: admin-organizations.service.test.ts, phases.service.test.ts, registrations.service.test.ts. Committed `8ed78ed`, pushed to main. Typecheck now passes across all 12 packages.
+
+## 14:00:00_30-04-2026
+User requested memory file update before stopping. Session paused. Next task when resuming: T-404 · Realtime broadcast (server).

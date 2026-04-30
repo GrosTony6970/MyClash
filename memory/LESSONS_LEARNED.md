@@ -130,7 +130,7 @@ When in doubt about a deploy/ops convention: look at the MyFAL scripts first. Th
 - **Two mock chain patterns** — choose based on how the service uses the chain:
   1. **Plain chain** (service calls `.maybeSingle()` or `.single()` as terminal): `makeChain(result)` returns a plain object with all builder methods returning `this`. Terminal methods return `Promise.resolve(result)`.
   2. **Awaitable chain** (service does `const { data } = await q` with no terminal call): `makeAwaitableChain(result)` = `Object.assign(Promise.resolve(result), methods)` where every builder method returns the Promise object itself (not a separate base object). This is the critical fix — if builder methods return a different object, `await chain.select().eq()` awaits the wrong thing and resolves to `undefined`.
-- **`makeAwaitableChain` implementation**: create the Promise first, then `Object.assign` the methods onto it, then loop over builder method names and set each to `vi.fn().mockReturnValue(chain)` where `chain` is the Promise object. Do NOT call `makeChain()` and then assign — the base chain's methods return the base object, not the Promise.
+- **`makeAwaitableChain` double-cast**: when assigning to keys of a `Promise & {...}` intersection type, TypeScript rejects `(chain as Record<string, unknown>)` with TS2352 because the types don't overlap enough. Always cast through `unknown` first: `(chain as unknown as Record<string, unknown>)[key] = ...`. This applies any time you use `Object.assign(Promise.resolve(...), methods)` and then try to mutate the result's properties in a loop.
 
 ## React hooks ESLint rules (eslint-plugin-react-hooks v5+)
 

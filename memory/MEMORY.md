@@ -261,7 +261,7 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-403 · Exchange entry UI | `709b429` | ✅ done |
 | T-404 · Realtime broadcast (server) | — | ⏳ next |
 
-**Current HEAD**: `709b429`
+**Current HEAD**: `8ed78ed`
 **Next task**: T-404 · Realtime broadcast (server)
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 
