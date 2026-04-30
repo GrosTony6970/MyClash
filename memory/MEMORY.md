@@ -239,7 +239,7 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-205 · TF_v1_no_afterblow + Generic_PointsCap | `3897f73` | ✅ done |
 | T-206 · Server-side scoring service | `814013f` | ✅ done |
 
-## Build progress (Phase P3 — in progress)
+## Build progress (Phase P3 — completed 30-04-2026)
 
 | Task | Commit | Status |
 |---|---|---|
@@ -250,10 +250,20 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-303 · Configurable bracket size | `17f9ae7` | ✅ done |
 | Lint fix (no-misused-promises, no-unused-vars, web-admin) | `1d5d028` | ✅ done |
 | T-304 · Match-to-Lice scheduler | `87506b5` | ✅ done |
-| T-305 · Phases API | — | ⏳ next |
+| T-305 · Phases API | `709b429` | ✅ done |
 
-**Current HEAD**: `87506b5`
-**Next task**: T-305 · Phases API
+## Build progress (Phase P4 — in progress, paused 30-04-2026)
+
+| Task | Commit | Status |
+|---|---|---|
+| T-401 · Scoring app shell | `(prev session)` | ✅ done |
+| T-402 · Match clock component | `c758d60` | ✅ done |
+| T-403 · Exchange entry UI | `709b429` | ✅ done |
+| T-404 · Realtime broadcast (server) | — | ⏳ next |
+
+**Current HEAD**: `709b429`
+**Next task**: T-404 · Realtime broadcast (server)
+**Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 
 ## Tech decisions locked in during implementation
 
@@ -316,11 +326,15 @@ Required for the API to start:
 - **Pool generation** (`packages/rulesets/src/scheduling/`): snake seeding + local search. Accepts `poolCount` (explicit) or `targetSize` (e.g. 8 fighters/pool → auto-compute count). Default `targetSize=8`. Actual sizes balanced within ±1.
 - **Berger tables** (`berger.ts`): circle method round-robin. `bergerSchedule(n, options)` → `BergerMatch[]`. Labels: `L{lice}-P{pool}-M{seq}`. Odd N handled with bye.
 - **Single-elim bracket** (`single-elim.ts`): `singleElimBracket(n, options?)`. Default bracket size = next power of 2. Override with `options.bracketSize` (must be power of 2 and ≥ n). Standard seeding: 1 vs size, 2 vs size-1, etc. Byes protect top seeds.
+- **Match-to-Lice scheduler** (`apps/api/src/modules/schedule/match-scheduler.ts`): pure function, no DB. Greedy earliest-slot algorithm. Respects `minRestMinutes` (default 10) per fighter. Balances load across Lices (imbalancePercent ≤ 5%). Returns `scheduledAt` + `estimatedEndAt` per match. Configurable: `minRestMinutes`, `defaultMatchDurationMinutes`, `startTime`, `transitionMinutes`.
 - All scheduling functions are **pure** (no DB, no I/O) and **deterministic** (seeded PRNG for local search).
 - Subpath export: `@myclash/rulesets/dist/scheduling/index` (API uses `moduleResolution: node` so must use dist path, not subpath export).
+- **Phases API** (`apps/api/src/modules/phases/`): `POST /tournaments/:tournamentId/generate-pools` and `POST /tournaments/:tournamentId/generate-bracket`. Both idempotent (409 if exists, `?force=true` to regenerate). `PhasesModule` registered in `AppModule`.
 
-## Ruleset engine
+## Phase P4 implementation notes
 
-- The `@myclash/rulesets` package must be **built** (`pnpm --filter @myclash/rulesets build`) before the API can typecheck against it. The API uses `moduleResolution: node` which resolves to `dist/`. In CI, the `build-packages` job runs before `typecheck`.
-- The TF_v1 golden test (T-204) is sacred — if it fails, fix the engine, not the fixture. Two entries in the FAL 2026 fixture have `_published_score` notes where the source page shows a different value than the formula produces (rounding boundary artifacts at 1.545 and 1.645).
-- `doublePenalty(0)` returns `-0` in JavaScript if implemented as `n*(n-1)/3`. Guard with `if (n <= 1) return 0` to avoid `-0 !== 0` test failures.
+- **T-401 Scoring app shell** (`apps/web-scoring/`): PWA with manifest, service worker stub, login page, Lice picker, network status bar (online/offline indicator).
+- **T-402 Match clock** (`apps/web-scoring/src/components/MatchClock.tsx`, `apps/api/src/modules/matches/clock.service.ts`): clock state persisted as `match_events` rows. Reload-safe (recomputes from timeline). Drift correction on every render. Actions: start/halt/resume/end/reset_clock.
+- **T-403 Exchange entry UI** (`apps/web-scoring/src/components/ExchangePad.tsx`): tap-driven, multi-step flow. Clean hit → choose striker → choose value → POST. Afterblow → choose striker → first value → afterblow value → POST. Double → single tap → POST. No-exchange → reason picker → POST. Undo within 30s window (PATCH /exchanges/:id/void). Big buttons (min-h-[80px]) for glove use. Integrated into lice match page.
+- **ESLint pattern for Supabase mock chains in Vitest**: use `makeChain()` returning a plain object (NOT a Promise) with `vi.fn().mockReturnValue(chain)` on each builder method. For `await q` patterns (no terminal call), use `makeAwaitableChain()` = `Object.assign(Promise.resolve(result), {...methods that return the Promise itself})`. Never use a `then` property on mock objects — triggers `no-misused-promises`. Never spread a Promise — also triggers `no-misused-promises`.
+- **`react-hooks/set-state-in-effect` rule**: do NOT call `setState` synchronously in a `useEffect` body. Move all state updates into async callbacks (`.then()`, `setTimeout`, etc.) or restructure with a `refreshKey` state + AbortController pattern for data fetching.

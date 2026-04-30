@@ -122,3 +122,19 @@ When in doubt about a deploy/ops convention: look at the MyFAL scripts first. Th
 - **Bracket seeding algorithm**: the standard recursive bracket seeding (1 vs size, 2 vs size-1) is built by starting with `[1]` and repeatedly inserting `complement - seed` after each seed, where `complement = currentLength * 2 + 1`. The naive "positions = [1,2]; double by inserting size+1-pos" approach produces wrong pairings.
 - **Configurable sizes**: always expose both `poolCount` and `targetSize` for pool generation, and `bracketSize` for elimination brackets. Organizers think in target sizes, not counts.
 - **Pure scheduling functions**: keep all scheduling algorithms in `packages/rulesets/src/scheduling/` as pure functions. The NestJS service layer (`pool-generator.ts`) handles DB access and orchestration. This makes the algorithms independently testable and usable client-side (Web Worker).
+
+## Vitest mock chains for Supabase (ESLint-safe pattern)
+
+- **Never put a `then` property on a mock chain object.** ESLint's `no-misused-promises` rule treats any object with a `then` method as a Promise, and flags it when spread (`{ ...chain }`) or used in certain async contexts. The `then` property was used to make chains awaitable — remove it entirely.
+- **Never spread a Promise** (`{ ...somePromise, extra: ... }`). This also triggers `no-misused-promises`. Use `Object.assign(promise, extraMethods)` instead.
+- **Two mock chain patterns** — choose based on how the service uses the chain:
+  1. **Plain chain** (service calls `.maybeSingle()` or `.single()` as terminal): `makeChain(result)` returns a plain object with all builder methods returning `this`. Terminal methods return `Promise.resolve(result)`.
+  2. **Awaitable chain** (service does `const { data } = await q` with no terminal call): `makeAwaitableChain(result)` = `Object.assign(Promise.resolve(result), methods)` where every builder method returns the Promise object itself (not a separate base object). This is the critical fix — if builder methods return a different object, `await chain.select().eq()` awaits the wrong thing and resolves to `undefined`.
+- **`makeAwaitableChain` implementation**: create the Promise first, then `Object.assign` the methods onto it, then loop over builder method names and set each to `vi.fn().mockReturnValue(chain)` where `chain` is the Promise object. Do NOT call `makeChain()` and then assign — the base chain's methods return the base object, not the Promise.
+
+## React hooks ESLint rules (eslint-plugin-react-hooks v5+)
+
+- **`react-hooks/set-state-in-effect`**: do NOT call `setState` synchronously in a `useEffect` body. All state updates must happen inside async callbacks (`.then()`, `setTimeout`, event handlers). For data fetching, use the AbortController + `.then()/.catch()` pattern with a `cancelled` flag. For triggering re-fetches, use a `refreshKey` state incremented by a `refresh` callback.
+- **`react-hooks/purity`**: do NOT call impure functions like `Date.now()` directly in the render body or in derived values computed during render. Move them into `useEffect` or `useCallback`.
+- **`react-hooks/refs`**: do NOT write to `ref.current` during render (`ref.current = value` in the component body). Use `useEffect(() => { ref.current = value; }, [value])` instead.
+- **`@next/next/no-html-link-for-pages`**: always use `<Link href="...">` from `next/link` for internal navigation. Never use `<a href="...">` for same-app routes.

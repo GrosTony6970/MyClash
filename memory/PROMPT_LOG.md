@@ -259,3 +259,9 @@ User requested memory file update before next session. Updated MEMORY.md (P3 bui
 
 ## 00:00:00_30-04-2026
 Context transfer session. Continuing lint fix work: fix `no-misused-promises` (remove `then` from makeChain helpers in test files) and `no-unused-vars` (remove unused imports from source files). Then continue with T-304 and remaining tasks. Also fix new web-admin lint errors: `@next/next/no-html-link-for-pages` and `react-hooks/set-state-in-effect`.
+
+## 11:00:00_30-04-2026
+User asked why `git push` showed an error message. Explained: not an error — PowerShell writes git's informational stderr output as red `NativeCommandError` text, but the push succeeded (exit code 0, confirmed by `87506b5..709b429 main -> main` in the output).
+
+## 12:00:00_30-04-2026
+User requested memory file update before stopping work. Session paused at T-404 (Realtime broadcast). Updated MEMORY.md (P3 completed, P4 in-progress table, Phase P4 implementation notes, scheduling algorithms section expanded with T-304/T-305/T-403 details, removed duplicate Ruleset engine section), LESSONS_LEARNED.md (Vitest mock chain ESLint-safe patterns, React hooks v5 rules), PROMPT_LOG.md (this entry). Current HEAD: 709b429. Next task when resuming: T-404 · Realtime broadcast (server).
