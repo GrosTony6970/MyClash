@@ -27,7 +27,14 @@
     "rollback:prod": "tsx scripts/rollback.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:min": "tsx scripts/seed-min.ts",
-    "gen:api-client": "tsx scripts/gen-api-client.ts"
+    "gen:api-client": "tsx scripts/gen-api-client.ts",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,yml,yaml}": "prettier --write"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
@@ -37,8 +44,10 @@
     "dotenv": "^17.4.2",
     "eslint": "^9.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "lint-staged": "^16.4.0",
     "postgres": "^3.4.5",
     "prettier": "^3.3.0",
+    "simple-git-hooks": "^2.13.1",
     "tsx": "^4.19.0",
     "turbo": "^2.1.0",
     "typescript": "^5.6.0",
