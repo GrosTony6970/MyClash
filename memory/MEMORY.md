@@ -270,7 +270,7 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-403 · Exchange entry UI           | `709b429`        | ✅ done |
 | T-404 · Realtime broadcast (server) | —                | ⏳ next |
 
-**Current HEAD**: `8ed78ed`
+**Current HEAD**: `aa4fbe5`
 **Next task**: T-404 · Realtime broadcast (server)
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 
@@ -341,7 +341,11 @@ Required for the API to start:
 - Subpath export: `@myclash/rulesets/dist/scheduling/index` (API uses `moduleResolution: node` so must use dist path, not subpath export).
 - **Phases API** (`apps/api/src/modules/phases/`): `POST /tournaments/:tournamentId/generate-pools` and `POST /tournaments/:tournamentId/generate-bracket`. Both idempotent (409 if exists, `?force=true` to regenerate). `PhasesModule` registered in `AppModule`.
 
-## Phase P4 implementation notes
+## CI & formatting
+
+- **Prettier is enforced at commit time** via lint-staged + simple-git-hooks. `prettier --write` runs automatically on all staged `*.ts/tsx/js/jsx/json/md/yml/yaml` files before every commit. After a fresh clone, `pnpm install` triggers the `prepare` script which re-registers the hook.
+- **`format:check` is in CI** inside the `lint` job (runs after `pnpm turbo run lint`). It will always pass because files are formatted at commit time.
+- **Never run a bulk `prettier --write` on the whole repo again** — it's now handled per-file at commit time. The one-time bulk pass (`5ad7900`) was the last time this was needed.
 
 - **T-401 Scoring app shell** (`apps/web-scoring/`): PWA with manifest, service worker stub, login page, Lice picker, network status bar (online/offline indicator).
 - **T-402 Match clock** (`apps/web-scoring/src/components/MatchClock.tsx`, `apps/api/src/modules/matches/clock.service.ts`): clock state persisted as `match_events` rows. Reload-safe (recomputes from timeline). Drift correction on every render. Actions: start/halt/resume/end/reset_clock.

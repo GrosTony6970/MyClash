@@ -139,3 +139,10 @@ _(New lessons added below as they are learned.)_
 - **`react-hooks/purity`**: do NOT call impure functions like `Date.now()` directly in the render body or in derived values computed during render. Move them into `useEffect` or `useCallback`.
 - **`react-hooks/refs`**: do NOT write to `ref.current` during render (`ref.current = value` in the component body). Use `useEffect(() => { ref.current = value; }, [value])` instead.
 - **`@next/next/no-html-link-for-pages`**: always use `<Link href="...">` from `next/link` for internal navigation. Never use `<a href="...">` for same-app routes.
+
+## Prettier / formatting
+
+- **Always run `pnpm format` (prettier --write) before the first commit on a new repo or after adding many new files.** The CI `format:check` step will fail if files were never formatted. A one-time bulk pass fixes it; after that, lint-staged keeps everything clean automatically.
+- **Use lint-staged + simple-git-hooks for pre-commit auto-format**, not a CI auto-commit step. CI committing back to branches is fragile and creates merge conflicts. Pre-commit hooks are the right layer.
+- **After a fresh clone, run `pnpm install`** — the `prepare` script re-registers the git hooks via `simple-git-hooks`. Without this, the pre-commit hook won't fire on a new machine.
+- **TypeScript TS2352 on `Promise & {...}` intersections**: casting a `Promise<T> & { methods... }` intersection directly to `Record<string, unknown>` fails because the types don't overlap enough. Always cast through `unknown` first: `(chain as unknown as Record<string, unknown>)`.

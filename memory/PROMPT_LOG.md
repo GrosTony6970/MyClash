@@ -310,3 +310,15 @@ User ran `pnpm turbo run typecheck` — 3 errors in `@myclash/api` test files. A
 ## 14:00:00_30-04-2026
 
 User requested memory file update before stopping. Session paused. Next task when resuming: T-404 · Realtime broadcast (server).
+
+## 15:00:00_30-04-2026
+
+`pnpm turbo run typecheck` — 3 errors (TS2352) in makeAwaitableChain: `(chain as Record<string, unknown>)` fails on `Promise & {...}` intersection. Fixed with double cast: `(chain as unknown as Record<string, unknown>)`. Committed `8ed78ed`.
+
+## 16:00:00_30-04-2026
+
+`pnpm format:check` — 142 files with Prettier formatting issues (repo had never had a bulk format pass). Fixed with `pnpm exec prettier --write "**/*.{ts,tsx,js,jsx,json,md,yml,yaml}"`. Committed `5ad7900`. format:check was already in CI (inside the lint job) from a previous session.
+
+## 17:00:00_30-04-2026
+
+User asked to add prettier --write to CI so it never fails again. Added lint-staged + simple-git-hooks: prettier --write runs automatically on staged files before every commit. `prepare` script re-registers the hook after `pnpm install`. Committed `aa4fbe5`. Current HEAD: `aa4fbe5`. Next task: T-404 · Realtime broadcast (server).
