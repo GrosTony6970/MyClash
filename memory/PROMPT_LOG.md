@@ -256,3 +256,6 @@ User said "go" — proceeded to Phase P3. Completed T-301 (pool generation: snak
 
 ## 10:00:00_30-04-2026
 User requested memory file update before next session. Updated MEMORY.md (P3 build progress, scheduling algorithms section, ruleset engine section), LESSONS_LEARNED.md (scheduling lessons), PROMPT_LOG.md (this entry).
+
+## 00:00:00_30-04-2026
+Context transfer session. Continuing lint fix work: fix `no-misused-promises` (remove `then` from makeChain helpers in test files) and `no-unused-vars` (remove unused imports from source files). Then continue with T-304 and remaining tasks. Also fix new web-admin lint errors: `@next/next/no-html-link-for-pages` and `react-hooks/set-state-in-effect`.

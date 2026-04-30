@@ -9,19 +9,36 @@ const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
 
 function makeChain(result: unknown) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    nullsFirst: vi.fn().mockReturnThis(),
+  const chain = {
+    select: vi.fn() as ReturnType<typeof vi.fn>,
+    eq: vi.fn() as ReturnType<typeof vi.fn>,
+    order: vi.fn() as ReturnType<typeof vi.fn>,
+    limit: vi.fn() as ReturnType<typeof vi.fn>,
+    insert: vi.fn() as ReturnType<typeof vi.fn>,
+    update: vi.fn() as ReturnType<typeof vi.fn>,
+    delete: vi.fn() as ReturnType<typeof vi.fn>,
+    nullsFirst: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
-    then: (resolve: (v: unknown) => void) => resolve(result),
   };
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  chain.insert.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
+  chain.delete.mockReturnValue(chain);
+  chain.nullsFirst.mockReturnValue(chain);
+  return chain;
+}
+
+/**
+ * Creates a chain that is also awaitable (resolves to `result`).
+ * Used for `const { data, error } = await q` patterns.
+ */
+function makeAwaitableChain(result: unknown) {
+  const base = makeChain(result);
+  return Object.assign(Promise.resolve(result), base);
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -39,25 +56,24 @@ describe('RegistrationsService', () => {
 
   describe('updateStatus — status transition enforcement', () => {
     it('allows registered → checked_in', async () => {
+      const fetchChain = makeChain({ data: null, error: null });
+      fetchChain.maybeSingle.mockResolvedValue({ data: { id: 'reg-1', status: 'registered' }, error: null });
+
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'reg-1', status: 'checked_in' }, error: null });
+
       fromMock
-        .mockReturnValueOnce({
-          ...makeChain({ data: null, error: null }),
-          maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'registered' }, error: null }),
-        })
-        .mockReturnValueOnce({
-          ...makeChain({ data: null, error: null }),
-          single: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'checked_in' }, error: null }),
-        });
+        .mockReturnValueOnce(fetchChain)
+        .mockReturnValueOnce(updateChain);
 
       const result = await service.updateStatus('reg-1', 'checked_in');
       expect((result as { status: string }).status).toBe('checked_in');
     });
 
     it('blocks registered → done (cannot skip checked_in)', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'registered' }, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: { id: 'reg-1', status: 'registered' }, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(
         service.updateStatus('reg-1', 'done'),
@@ -65,10 +81,9 @@ describe('RegistrationsService', () => {
     });
 
     it('blocks checked_in → registered (no going back)', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'checked_in' }, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: { id: 'reg-1', status: 'checked_in' }, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(
         service.updateStatus('reg-1', 'registered'),
@@ -76,25 +91,24 @@ describe('RegistrationsService', () => {
     });
 
     it('allows checked_in → done', async () => {
+      const fetchChain = makeChain({ data: null, error: null });
+      fetchChain.maybeSingle.mockResolvedValue({ data: { id: 'reg-1', status: 'checked_in' }, error: null });
+
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'reg-1', status: 'done' }, error: null });
+
       fromMock
-        .mockReturnValueOnce({
-          ...makeChain({ data: null, error: null }),
-          maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'checked_in' }, error: null }),
-        })
-        .mockReturnValueOnce({
-          ...makeChain({ data: null, error: null }),
-          single: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'done' }, error: null }),
-        });
+        .mockReturnValueOnce(fetchChain)
+        .mockReturnValueOnce(updateChain);
 
       const result = await service.updateStatus('reg-1', 'done');
       expect((result as { status: string }).status).toBe('done');
     });
 
     it('blocks done → any (terminal state)', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'reg-1', status: 'done' }, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: { id: 'reg-1', status: 'done' }, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(
         service.updateStatus('reg-1', 'checked_in'),
@@ -102,10 +116,9 @@ describe('RegistrationsService', () => {
     });
 
     it('throws NotFoundException for nonexistent registration', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(
         service.updateStatus('nonexistent', 'checked_in'),
@@ -117,22 +130,17 @@ describe('RegistrationsService', () => {
 
   describe('create — bib auto-assign', () => {
     it('auto-assigns bib_number = max + 1 when not provided', async () => {
-      // nextBibNumber query returns max=5
-      const bibChain = {
-        ...makeChain({ data: null, error: null }),
-        then: (resolve: (v: unknown) => void) =>
-          resolve({ data: [{ bib_number: 5 }], error: null }),
-      };
-      const insertChain = {
-        ...makeChain({ data: null, error: null }),
-        single: vi.fn().mockResolvedValue({
-          data: { id: 'reg-new', bib_number: 6, status: 'registered' },
-          error: null,
-        }),
-      };
+      // nextBibNumber query returns max=5 (awaitable chain)
+      const bibChain = makeAwaitableChain({ data: [{ bib_number: 5 }], error: null });
+
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'reg-new', bib_number: 6, status: 'registered' },
+        error: null,
+      });
 
       fromMock
-        .mockReturnValueOnce(bibChain)   // nextBibNumber
+        .mockReturnValueOnce(bibChain)    // nextBibNumber
         .mockReturnValueOnce(insertChain); // insert
 
       const result = await service.create('tournament-1', { personId: 'person-1' });
@@ -140,13 +148,11 @@ describe('RegistrationsService', () => {
     });
 
     it('uses provided bib_number when given', async () => {
-      const insertChain = {
-        ...makeChain({ data: null, error: null }),
-        single: vi.fn().mockResolvedValue({
-          data: { id: 'reg-new', bib_number: 42, status: 'registered' },
-          error: null,
-        }),
-      };
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'reg-new', bib_number: 42, status: 'registered' },
+        error: null,
+      });
       fromMock.mockReturnValue(insertChain);
 
       const result = await service.create('tournament-1', { personId: 'person-1', bibNumber: 42 });

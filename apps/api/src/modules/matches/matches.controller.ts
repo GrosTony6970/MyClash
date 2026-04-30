@@ -2,7 +2,7 @@ import {
   Body, Controller, Get, HttpCode, HttpStatus,
   Param, ParseUUIDPipe, Patch, Post, Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
 import type { FastifyRequest } from 'fastify';
 import { ClockService, type ClockAction } from './clock.service';

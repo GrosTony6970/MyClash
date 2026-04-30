@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { GuestJwtService } from './guest-jwt.service';
 import { GuestJwtGuard } from './guest-jwt.guard';

@@ -8,19 +8,27 @@ const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
 
 function makeChain(result: unknown) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
-    ilike: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
+  const chain = {
+    select: vi.fn() as ReturnType<typeof vi.fn>,
+    eq: vi.fn() as ReturnType<typeof vi.fn>,
+    or: vi.fn() as ReturnType<typeof vi.fn>,
+    ilike: vi.fn() as ReturnType<typeof vi.fn>,
+    order: vi.fn() as ReturnType<typeof vi.fn>,
+    insert: vi.fn() as ReturnType<typeof vi.fn>,
+    update: vi.fn() as ReturnType<typeof vi.fn>,
+    delete: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
-    then: (resolve: (v: unknown) => void) => resolve(result),
   };
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.or.mockReturnValue(chain);
+  chain.ilike.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
+  chain.insert.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
+  chain.delete.mockReturnValue(chain);
+  return chain;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -36,10 +44,9 @@ describe('FightersService', () => {
 
   describe('promote', () => {
     it('throws NotFoundException when person does not exist', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(
         service.promote({ personId: 'nonexistent-person' }, 'user-1'),
@@ -47,21 +54,20 @@ describe('FightersService', () => {
     });
 
     it('throws ForbiddenException when claimed user does not own the Person', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: {
-            id: 'person-1',
-            given_name: 'Jean',
-            family_name: 'Dupont',
-            email: 'jean@example.com',
-            club_id: null,
-            claimed_by_user_id: 'user-A',  // owned by user-A
-            global_fighter_id: null,
-          },
-          error: null,
-        }),
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'person-1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          email: 'jean@example.com',
+          club_id: null,
+          claimed_by_user_id: 'user-A',  // owned by user-A
+          global_fighter_id: null,
+        },
+        error: null,
       });
+      fromMock.mockReturnValue(chain);
 
       // user-B tries to promote person owned by user-A
       await expect(
@@ -70,35 +76,28 @@ describe('FightersService', () => {
     });
 
     it('creates a Fighter when claimed user owns the Person', async () => {
-      const personChain = {
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: {
-            id: 'person-1',
-            given_name: 'Jean',
-            family_name: 'Dupont',
-            email: 'jean@example.com',
-            club_id: null,
-            claimed_by_user_id: 'user-1',
-            global_fighter_id: null,
-          },
-          error: null,
-        }),
-      };
-      const insertChain = {
-        ...makeChain({ data: null, error: null }),
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { id: 'fighter-new', slug: 'jean-dupont-abc', display_name: 'Jean Dupont' },
-          error: null,
-        }),
-      };
-      const updateChain = {
-        ...makeChain({ data: null, error: null }),
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-      };
+      const personChain = makeChain({ data: null, error: null });
+      personChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'person-1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          email: 'jean@example.com',
+          club_id: null,
+          claimed_by_user_id: 'user-1',
+          global_fighter_id: null,
+        },
+        error: null,
+      });
+
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'fighter-new', slug: 'jean-dupont-abc', display_name: 'Jean Dupont' },
+        error: null,
+      });
+
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.eq.mockResolvedValue({ data: null, error: null });
 
       fromMock
         .mockReturnValueOnce(personChain)   // persons select
@@ -110,28 +109,25 @@ describe('FightersService', () => {
     });
 
     it('returns existing Fighter if Person already promoted', async () => {
-      const personChain = {
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: {
-            id: 'person-1',
-            given_name: 'Jean',
-            family_name: 'Dupont',
-            email: 'jean@example.com',
-            club_id: null,
-            claimed_by_user_id: 'user-1',
-            global_fighter_id: 'fighter-existing',
-          },
-          error: null,
-        }),
-      };
-      const existingFighterChain = {
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: { id: 'fighter-existing', slug: 'jean-dupont-old' },
-          error: null,
-        }),
-      };
+      const personChain = makeChain({ data: null, error: null });
+      personChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'person-1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          email: 'jean@example.com',
+          club_id: null,
+          claimed_by_user_id: 'user-1',
+          global_fighter_id: 'fighter-existing',
+        },
+        error: null,
+      });
+
+      const existingFighterChain = makeChain({ data: null, error: null });
+      existingFighterChain.maybeSingle.mockResolvedValue({
+        data: { id: 'fighter-existing', slug: 'jean-dupont-old' },
+        error: null,
+      });
 
       fromMock
         .mockReturnValueOnce(personChain)
@@ -144,15 +140,11 @@ describe('FightersService', () => {
 
   describe('slugify (via create)', () => {
     it('generates a unique slug on create', async () => {
-      const insertChain = {
-        ...makeChain({ data: null, error: null }),
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({
-          data: { id: 'f-1', slug: 'jean-dupont-abc123', display_name: 'Jean Dupont' },
-          error: null,
-        }),
-      };
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'f-1', slug: 'jean-dupont-abc123', display_name: 'Jean Dupont' },
+        error: null,
+      });
       fromMock.mockReturnValue(insertChain);
 
       const result = await service.create({

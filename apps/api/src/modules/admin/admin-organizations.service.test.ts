@@ -13,22 +13,50 @@ const mockSupabase = {
 
 type ChainResult = { data: unknown; error: unknown };
 
+/**
+ * Creates a mock Supabase query chain.
+ * Returns a plain object (NOT a Promise) so spreading it is ESLint-safe.
+ * For `await chain` patterns, the service uses `.maybeSingle()` / `.single()`
+ * as terminal calls — those return Promises.
+ *
+ * For `const { data, error } = await q` where `q` is the chain itself
+ * (no terminal call), we use a real Promise via `Object.assign` but only
+ * in the admin service's `listOrganizations` which catches all errors.
+ */
 function makeChain(result: ChainResult) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    ilike: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-    upsert: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
+  const chain = {
+    select: vi.fn() as ReturnType<typeof vi.fn>,
+    eq: vi.fn() as ReturnType<typeof vi.fn>,
+    ilike: vi.fn() as ReturnType<typeof vi.fn>,
+    update: vi.fn() as ReturnType<typeof vi.fn>,
+    insert: vi.fn() as ReturnType<typeof vi.fn>,
+    delete: vi.fn() as ReturnType<typeof vi.fn>,
+    upsert: vi.fn() as ReturnType<typeof vi.fn>,
+    order: vi.fn() as ReturnType<typeof vi.fn>,
+    limit: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
-    // Make the chain itself awaitable (for .update().eq() patterns)
-    then: (resolve: (v: ChainResult) => void) => resolve(result),
   };
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.ilike.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
+  chain.insert.mockReturnValue(chain);
+  chain.delete.mockReturnValue(chain);
+  chain.upsert.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  return chain;
+}
+
+/**
+ * Creates a chain that is also awaitable (resolves to `result`).
+ * Used for `await q` patterns where no terminal method is called.
+ * The Promise is assigned via Object.assign — NOT spread — so ESLint is happy.
+ */
+function makeAwaitableChain(result: ChainResult) {
+  const base = makeChain(result);
+  return Object.assign(Promise.resolve(result), base);
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -44,14 +72,10 @@ describe('AdminOrganizationsService', () => {
 
   describe('listOrganizations', () => {
     it('returns empty array when table does not exist', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        ilike: vi.fn().mockReturnThis(),
-        then: (_: unknown, reject: (e: Error) => void) =>
-          reject(new Error('relation "organizations" does not exist')),
-      });
+      // Simulate a DB error — the service catches and returns []
+      fromMock.mockReturnValue(
+        makeAwaitableChain({ data: null, error: { message: 'relation "organizations" does not exist' } }),
+      );
 
       const result = await service.listOrganizations({});
       expect(result).toEqual([]);
@@ -69,14 +93,7 @@ describe('AdminOrganizationsService', () => {
           events: [{ id: 'e1' }, { id: 'e2' }],
         },
       ];
-      fromMock.mockReturnValue({
-        ...makeChain({ data: mockOrgs, error: null }),
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        ilike: vi.fn().mockReturnThis(),
-        then: (resolve: (v: ChainResult) => void) =>
-          resolve({ data: mockOrgs, error: null }),
-      });
+      fromMock.mockReturnValue(makeAwaitableChain({ data: mockOrgs, error: null }));
 
       const result = await service.listOrganizations({});
       expect(result).toHaveLength(1);
@@ -120,11 +137,9 @@ describe('AdminOrganizationsService', () => {
 
   describe('getOrganization', () => {
     it('throws NotFoundException when org not found', async () => {
-      fromMock.mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(service.getOrganization('nonexistent-id')).rejects.toThrow(
         NotFoundException,
@@ -134,11 +149,9 @@ describe('AdminOrganizationsService', () => {
 
   describe('reassignOwner', () => {
     it('throws BadRequestException when new owner is not a member', async () => {
-      fromMock.mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(
         service.reassignOwner(

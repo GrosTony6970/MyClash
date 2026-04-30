@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 interface OrgListItem {
@@ -26,35 +27,52 @@ export default function AdminOrganizationsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchOrgs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set('q', search);
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      params.set('sortBy', sortField === 'member_count' || sortField === 'event_count' ? 'created_at' : sortField);
-      params.set('order', sortOrder);
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-      const res = await fetch(`${apiUrl}/api/v1/admin/organizations?${params}`, {
-        credentials: 'include',
+  useEffect(() => {
+    let cancelled = false;
+
+    const params = new URLSearchParams();
+    if (search) params.set('q', search);
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    params.set('sortBy', sortField === 'member_count' || sortField === 'event_count' ? 'created_at' : sortField);
+    params.set('order', sortOrder);
+
+    const controller = new AbortController();
+
+    fetch(`${apiUrl}/api/v1/admin/organizations?${params}`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (res.status === 401 || res.status === 403) {
+          setError('Access denied. Super admin required.');
+          setLoading(false);
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to load organizations');
+        const data = (await res.json()) as OrgListItem[];
+        if (!cancelled) {
+          setOrgs(data);
+          setError(null);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setLoading(false);
+        }
       });
-      if (res.status === 401 || res.status === 403) {
-        setError('Access denied. Super admin required.');
-        return;
-      }
-      if (!res.ok) throw new Error('Failed to load organizations');
-      setOrgs((await res.json()) as OrgListItem[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  }, [apiUrl, search, statusFilter, sortField, sortOrder]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState in callback
-  useEffect(() => { void fetchOrgs(); }, [fetchOrgs]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [apiUrl, search, statusFilter, sortField, sortOrder, refreshKey]);
 
   async function handleAction(orgId: string, action: 'suspend' | 'reactivate' | 'delete') {
     const labels = { suspend: 'suspend', reactivate: 'reactivate', delete: 'permanently delete' };
@@ -65,7 +83,7 @@ export default function AdminOrganizationsPage() {
 
     const res = await fetch(url, { method, credentials: 'include' });
     if (res.ok || res.status === 204) {
-      void fetchOrgs();
+      refresh();
     } else {
       alert('Action failed. Please try again.');
     }
@@ -148,9 +166,9 @@ export default function AdminOrganizationsPage() {
               {orgs.map((org) => (
                 <tr key={org.id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-2 pr-4">
-                    <a href={`/admin/organizations/${org.id}`} className="font-medium text-red-700 hover:underline">
+                    <Link href={`/admin/organizations/${org.id}`} className="font-medium text-red-700 hover:underline">
                       {org.name}
-                    </a>
+                    </Link>
                     <span className="ml-2 text-gray-400 text-xs font-mono">{org.slug}</span>
                   </td>
                   <td className="py-2 pr-4 text-gray-600">{org.owner_email ?? '—'}</td>

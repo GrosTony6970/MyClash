@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MatchesService } from './matches.service';
-import { ScoringService } from './scoring.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -10,16 +9,21 @@ const mockSupabase = { service: { from: fromMock }, anon: {} };
 const mockScoring = { recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }) };
 
 function makeChain(result: unknown) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
+  const chain = {
+    select: vi.fn() as ReturnType<typeof vi.fn>,
+    eq: vi.fn() as ReturnType<typeof vi.fn>,
+    order: vi.fn() as ReturnType<typeof vi.fn>,
+    insert: vi.fn() as ReturnType<typeof vi.fn>,
+    update: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
-    then: (resolve: (v: unknown) => void) => resolve(result),
   };
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
+  chain.insert.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
+  return chain;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -40,10 +44,9 @@ describe('MatchesService', () => {
       const existingExchange = { id: 'ex-1', client_uuid: 'uuid-abc', match_id: 'm1', sequence: 1 };
 
       // First call: client_uuid check returns existing
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: existingExchange, error: null }),
-      });
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: existingExchange, error: null });
+      fromMock.mockReturnValue(checkChain);
 
       const result = await service.createExchange('m1', {
         clientUuid: 'uuid-abc',
@@ -64,9 +67,12 @@ describe('MatchesService', () => {
       const newExchange = { id: 'ex-new', client_uuid: 'uuid-new', match_id: 'm1', sequence: 2 };
 
       // client_uuid check: not found
-      const checkChain = { ...makeChain({ data: null, error: null }), maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
       // insert: success
-      const insertChain = { ...makeChain({ data: null, error: null }), single: vi.fn().mockResolvedValue({ data: newExchange, error: null }) };
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({ data: newExchange, error: null });
 
       fromMock
         .mockReturnValueOnce(checkChain)
@@ -94,8 +100,11 @@ describe('MatchesService', () => {
       const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
       const voidedExchange = { id: 'ex-1', match_id: 'm1', voided: true, voided_reason: 'test' };
 
-      const fetchChain = { ...makeChain({ data: null, error: null }), maybeSingle: vi.fn().mockResolvedValue({ data: exchange, error: null }) };
-      const updateChain = { ...makeChain({ data: null, error: null }), single: vi.fn().mockResolvedValue({ data: voidedExchange, error: null }) };
+      const fetchChain = makeChain({ data: null, error: null });
+      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
+
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: voidedExchange, error: null });
 
       fromMock
         .mockReturnValueOnce(fetchChain)
@@ -110,19 +119,17 @@ describe('MatchesService', () => {
 
     it('throws BadRequestException when exchange is already voided', async () => {
       const voidedExchange = { id: 'ex-1', match_id: 'm1', voided: true };
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: voidedExchange, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: voidedExchange, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(service.voidExchange('ex-1', {})).rejects.toThrow(BadRequestException);
     });
 
     it('throws NotFoundException for nonexistent exchange', async () => {
-      fromMock.mockReturnValue({
-        ...makeChain({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      fromMock.mockReturnValue(chain);
 
       await expect(service.voidExchange('nonexistent', {})).rejects.toThrow(NotFoundException);
     });
@@ -132,8 +139,11 @@ describe('MatchesService', () => {
 
   describe('score recomputation', () => {
     it('recomputeMatchScore is called after every new exchange insert', async () => {
-      const checkChain = { ...makeChain({ data: null, error: null }), maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
-      const insertChain = { ...makeChain({ data: null, error: null }), single: vi.fn().mockResolvedValue({ data: { id: 'ex-1' }, error: null }) };
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
 
       fromMock
         .mockReturnValueOnce(checkChain)
@@ -159,8 +169,12 @@ describe('MatchesService', () => {
       const start = Date.now();
 
       for (let i = 0; i < N; i++) {
-        const checkChain = { ...makeChain({ data: null, error: null }), maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
-        const insertChain = { ...makeChain({ data: null, error: null }), single: vi.fn().mockResolvedValue({ data: { id: `ex-${i}` }, error: null }) };
+        const checkChain = makeChain({ data: null, error: null });
+        checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+        const insertChain = makeChain({ data: null, error: null });
+        insertChain.single.mockResolvedValue({ data: { id: `ex-${i}` }, error: null });
+
         fromMock
           .mockReturnValueOnce(checkChain)
           .mockReturnValueOnce(insertChain);
