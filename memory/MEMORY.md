@@ -261,17 +261,18 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-304 · Match-to-Lice scheduler                           | `87506b5` | ✅ done |
 | T-305 · Phases API                                        | `709b429` | ✅ done |
 
-## Build progress (Phase P4 — in progress, paused 30-04-2026)
+## Build progress (Phase P4 — in progress)
 
-| Task                                | Commit           | Status  |
-| ----------------------------------- | ---------------- | ------- |
-| T-401 · Scoring app shell           | `(prev session)` | ✅ done |
-| T-402 · Match clock component       | `c758d60`        | ✅ done |
-| T-403 · Exchange entry UI           | `709b429`        | ✅ done |
-| T-404 · Realtime broadcast (server) | —                | ⏳ next |
+| Task                                | Commit    | Status  |
+| ----------------------------------- | --------- | ------- |
+| T-401 · Scoring app shell           | `(prev)`  | ✅ done |
+| T-402 · Match clock component       | `c758d60` | ✅ done |
+| T-403 · Exchange entry UI           | `709b429` | ✅ done |
+| T-404 · Realtime broadcast (server) | `fe15da0` | ✅ done |
+| T-405 · Public live match view      | —         | ⏳ next |
 
-**Current HEAD**: `aa4fbe5`
-**Next task**: T-404 · Realtime broadcast (server)
+**Current HEAD**: `fe15da0`
+**Next task**: T-405 · Public live match view
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 
 ## Tech decisions locked in during implementation
@@ -346,6 +347,8 @@ Required for the API to start:
 - **Prettier is enforced at commit time** via lint-staged + simple-git-hooks. `prettier --write` runs automatically on all staged `*.ts/tsx/js/jsx/json/md/yml/yaml` files before every commit. After a fresh clone, `pnpm install` triggers the `prepare` script which re-registers the hook.
 - **`format:check` is in CI** inside the `lint` job (runs after `pnpm turbo run lint`). It will always pass because files are formatted at commit time.
 - **Never run a bulk `prettier --write` on the whole repo again** — it's now handled per-file at commit time. The one-time bulk pass (`5ad7900`) was the last time this was needed.
+
+- **T-404 Realtime broadcast** (`packages/db/migrations/0004_realtime.sql`, `apps/api/src/modules/realtime/`): REPLICA IDENTITY FULL on exchanges/matches/match_events + idempotent addition to `supabase_realtime` publication. `Channels.*` factory functions for all 5 channel names. `RealtimeService` wraps `SupabaseService.service.channel().send()` for server-initiated broadcasts (T-405+ will use this for standings and high-level events). **Migration is numbered 0004** — BUILD_ORDER says 0003 but `0003_lookup_functions.sql` already existed; ignore the stale number in BUILD_ORDER.
 
 - **T-401 Scoring app shell** (`apps/web-scoring/`): PWA with manifest, service worker stub, login page, Lice picker, network status bar (online/offline indicator).
 - **T-402 Match clock** (`apps/web-scoring/src/components/MatchClock.tsx`, `apps/api/src/modules/matches/clock.service.ts`): clock state persisted as `match_events` rows. Reload-safe (recomputes from timeline). Drift correction on every render. Actions: start/halt/resume/end/reset_clock.

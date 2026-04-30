@@ -322,3 +322,18 @@ User requested memory file update before stopping. Session paused. Next task whe
 ## 17:00:00_30-04-2026
 
 User asked to add prettier --write to CI so it never fails again. Added lint-staged + simple-git-hooks: prettier --write runs automatically on staged files before every commit. `prepare` script re-registers the hook after `pnpm install`. Committed `aa4fbe5`. Current HEAD: `aa4fbe5`. Next task: T-404 · Realtime broadcast (server).
+
+## 15:05:00_30-04-2026
+
+New session. User: "we are going to work on MyClash, read all memory files so you get the context." Read all memory files (AGENTS.md, MEMORY.md, LESSONS_LEARNED.md, PROMPT_LOG.md, BUILD_ORDER.md). Confirmed next task: T-404 · Realtime broadcast (server). User selected T-404 from the options presented.
+
+T-404 implemented and committed as `fe15da0`:
+
+- `packages/db/migrations/0004_realtime.sql` — REPLICA IDENTITY FULL on exchanges/matches/match_events; idempotent addition to supabase_realtime publication.
+- `apps/api/src/modules/realtime/channels.ts` — typed Channels.\* factory functions for all 5 channel names.
+- `apps/api/src/modules/realtime/realtime.service.ts` — thin broadcast wrapper using SupabaseService.service client.
+- `apps/api/src/modules/realtime/realtime.module.ts` — exports RealtimeService.
+- `apps/api/src/modules/realtime/realtime.module.test.ts` — 5 tests for channel name factories.
+- `apps/api/src/app.module.ts` — RealtimeModule imported.
+
+All AC met. lint + typecheck + test green (15 test files, 115 tests). Note: migration file is 0004 (not 0003 as BUILD_ORDER says) because 0003_lookup_functions.sql already existed. Current HEAD: fe15da0. Next task: T-405 · Public live match view.
