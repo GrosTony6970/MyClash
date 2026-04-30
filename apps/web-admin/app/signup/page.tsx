@@ -52,12 +52,7 @@ export default function SignupPage() {
   const [done, setDone] = useState<{ type: Method; orgSlug: string } | null>(null);
 
   // ── Auto-suggest slug from org name ──────────────────────────────────────
-
-  useEffect(() => {
-    if (orgName) {
-      setOrgSlug(slugify(orgName));
-    }
-  }, [orgName]);
+  // Derived state: computed directly in the onChange handler, no useEffect needed
 
   // ── Real-time slug check (debounced 300ms) ────────────────────────────────
 
@@ -294,7 +289,7 @@ export default function SignupPage() {
               </label>
               <input
                 id="orgName" type="text" required
-                value={orgName} onChange={(e) => setOrgName(e.target.value)}
+                value={orgName} onChange={(e) => { setOrgName(e.target.value); setOrgSlug(slugify(e.target.value)); }}
                 placeholder="Lyon AMHE"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
               />

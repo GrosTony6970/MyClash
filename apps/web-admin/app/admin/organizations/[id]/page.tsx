@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface Member {
@@ -131,9 +132,9 @@ export default function AdminOrgDetailPage({ params }: Props) {
   return (
     <main className="p-8 max-w-4xl">
       <div className="mb-2">
-        <a href="/admin/organizations" className="text-sm text-gray-500 hover:underline">
+        <Link href="/admin/organizations" className="text-sm text-gray-500 hover:underline">
           ← All organizations
-        </a>
+        </Link>
       </div>
 
       <div className="flex items-start justify-between mb-6">

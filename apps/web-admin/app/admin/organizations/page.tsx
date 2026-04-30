@@ -53,6 +53,7 @@ export default function AdminOrganizationsPage() {
     }
   }, [apiUrl, search, statusFilter, sortField, sortOrder]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState in callback
   useEffect(() => { void fetchOrgs(); }, [fetchOrgs]);
 
   async function handleAction(orgId: string, action: 'suspend' | 'reactivate' | 'delete') {
