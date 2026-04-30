@@ -1,8 +1,11 @@
 import {
   Body, Controller, Get, HttpCode, HttpStatus,
-  Param, ParseUUIDPipe, Patch, Post,
+  Param, ParseUUIDPipe, Patch, Post, Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { IsIn, IsOptional, IsString } from 'class-validator';
+import type { FastifyRequest } from 'fastify';
+import { ClockService, type ClockAction } from './clock.service';
 import { MatchesService } from './matches.service';
 import {
   CreateExchangeDto,
@@ -11,11 +14,22 @@ import {
   VoidExchangeDto,
 } from './dto/matches.dto';
 
+class ClockActionDto {
+  @IsIn(['start', 'halt', 'resume', 'end', 'reset_clock'])
+  action!: ClockAction;
+
+  @IsOptional() @IsString()
+  reason?: string;
+}
+
 @ApiTags('matches')
 @ApiBearerAuth()
 @Controller()
 export class MatchesController {
-  constructor(private readonly matches: MatchesService) {}
+  constructor(
+    private readonly matches: MatchesService,
+    private readonly clock: ClockService,
+  ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
 
@@ -95,5 +109,37 @@ export class MatchesController {
     @Body() dto: VoidExchangeDto,
   ) {
     return this.matches.voidExchange(id, dto);
+  }
+
+  // ── Clock endpoints ───────────────────────────────────────────────────────
+
+  /**
+   * GET /api/v1/matches/:id/clock
+   * Returns current clock state computed from match_events timeline.
+   * Reload-safe: always recomputes from server state.
+   */
+  @Get('matches/:id/clock')
+  @ApiOperation({ summary: 'Get clock state (computed from match_events timeline)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getClockState(@Param('id', ParseUUIDPipe) id: string) {
+    return this.clock.getClockState(id);
+  }
+
+  /**
+   * POST /api/v1/matches/:id/clock
+   * Perform a clock action: start | halt | resume | end | reset_clock.
+   * Persists a match_events row and updates match.status.
+   */
+  @Post('matches/:id/clock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clock action: start | halt | resume | end | reset_clock' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async clockAction(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ClockActionDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = (req as FastifyRequest & { userId?: string }).userId;
+    return this.clock.clockAction(id, dto.action, dto.reason, userId);
   }
 }
