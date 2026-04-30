@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface OrgListItem {
   id: string;
@@ -27,7 +27,7 @@ export default function AdminOrganizationsPage() {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  async function fetchOrgs() {
+  const fetchOrgs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -51,9 +51,9 @@ export default function AdminOrganizationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [apiUrl, search, statusFilter, sortField, sortOrder]);
 
-  useEffect(() => { void fetchOrgs(); }, [search, statusFilter, sortField, sortOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void fetchOrgs(); }, [fetchOrgs]);
 
   async function handleAction(orgId: string, action: 'suspend' | 'reactivate' | 'delete') {
     const labels = { suspend: 'suspend', reactivate: 'reactivate', delete: 'permanently delete' };
