@@ -12,6 +12,7 @@ import { LicesModule } from './modules/lices/lices.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
 import { PersonsModule } from './modules/persons/persons.module';
+import { PhasesModule } from './modules/phases/phases.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 
@@ -57,6 +58,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     LicesModule,
     RegistrationsModule,
     MatchesModule,
+    PhasesModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override

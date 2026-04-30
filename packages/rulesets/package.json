@@ -13,6 +13,10 @@
     "./scheduling": {
       "types": "./dist/scheduling/index.d.ts",
       "default": "./dist/scheduling/index.js"
+    },
+    "./dist/scheduling/index": {
+      "types": "./dist/scheduling/index.d.ts",
+      "default": "./dist/scheduling/index.js"
     }
   },
   "scripts": {
