@@ -252,6 +252,9 @@ importers:
       '@myclash/ui':
         specifier: workspace:^
         version: link:../../packages/ui
+      dexie:
+        specifier: ^4.4.2
+        version: 4.4.2
       next:
         specifier: 15.3.2
         version: 15.3.2(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -274,12 +277,18 @@ importers:
       '@types/react-dom':
         specifier: ^19.1.2
         version: 19.2.3(@types/react@19.2.14)
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
       tailwindcss:
         specifier: ^4.1.6
         version: 4.2.4
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)(lightningcss@1.32.0)(terser@5.46.2)
 
   packages/api-client:
     devDependencies:
@@ -349,6 +358,12 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
     devDependencies:
+      '@types/react':
+        specifier: ^19.1.4
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.1.2
+        version: 19.2.3(@types/react@19.2.14)
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -3606,6 +3621,12 @@ packages:
       }
     engines: { node: '>=8' }
 
+  dexie@4.4.2:
+    resolution:
+      {
+        integrity: sha512-zMtV8q79EFE5U8FKZvt0Y/77PCU/Hr/RDxv1EDeo228L+m/HTbeN2AjoQm674rhQCX8n3ljK87lajt7UQuZfvw==,
+      }
+
   dotenv-expand@12.0.3:
     resolution:
       {
@@ -4018,6 +4039,13 @@ packages:
         integrity: sha512-hMQ4CX1p1izmuLYyZqLMO/qGNw10wSv9QDCPfzXfyFrOaCSSoRfqE1Kf1s5an66J5JZC62NewG+mK49jOCtQew==,
       }
     engines: { node: '>=4' }
+
+  fake-indexeddb@6.2.5:
+    resolution:
+      {
+        integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==,
+      }
+    engines: { node: '>=18' }
 
   fast-content-type-parse@1.1.0:
     resolution:
@@ -8213,6 +8241,8 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
+  dexie@4.4.2: {}
+
   dotenv-expand@12.0.3:
     dependencies:
       dotenv: 16.6.1
@@ -8495,6 +8525,8 @@ snapshots:
       chardet: 0.7.0
       iconv-lite: 0.4.24
       tmp: 0.0.33
+
+  fake-indexeddb@6.2.5: {}
 
   fast-content-type-parse@1.1.0: {}
 

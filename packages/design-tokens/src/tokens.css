@@ -1,0 +1,71 @@
+/**
+ * tokens.css — MyClash CSS custom properties
+ *
+ * Import in app globals.css:
+ *   @import '@myclash/design-tokens/tokens.css';
+ *
+ * All values mirror tokens.ts — single source of truth is tokens.ts;
+ * this file is generated/maintained in sync.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ── Typography ─────────────────────────────────────────────────────── */
+  --font-display: 'Cinzel', 'Georgia', serif;
+  --font-body: 'Inter', 'system-ui', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── Brand colors ───────────────────────────────────────────────────── */
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-red-900: #7f1d1d;
+  --color-red-950: #450a0a;
+
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+  --color-blue-950: #172554;
+
+  --color-gold-50: #fffbeb;
+  --color-gold-100: #fef3c7;
+  --color-gold-200: #fde68a;
+  --color-gold-300: #fcd34d;
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+  --color-gold-600: #d97706;
+  --color-gold-700: #b45309;
+  --color-gold-800: #92400e;
+  --color-gold-900: #78350f;
+  --color-gold-950: #451a03;
+
+  /* ── Semantic ───────────────────────────────────────────────────────── */
+  --color-primary: var(--color-red-700);
+  --color-primary-hover: var(--color-red-800);
+  --color-secondary: var(--color-blue-700);
+  --color-secondary-hover: var(--color-blue-800);
+  --color-accent: var(--color-gold-500);
+
+  /* ── Shadows ────────────────────────────────────────────────────────── */
+  --shadow-gold: 0 0 20px rgb(245 158 11 / 0.3);
+  --shadow-red: 0 0 20px rgb(220 38 38 / 0.4);
+
+  /* ── Transitions ────────────────────────────────────────────────────── */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+}
