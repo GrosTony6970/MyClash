@@ -10,6 +10,7 @@ import { FightersModule } from './modules/fighters/fighters.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { HealthModule } from './modules/health/health.module';
 import { WorkshopsModule } from './modules/workshops/workshops.module';
+import { ScheduleModule } from './modules/schedule/schedule.module';
 import { LicesModule } from './modules/lices/lices.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
@@ -64,6 +65,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     PhasesModule,
     FollowsModule,
     WorkshopsModule,
+    ScheduleModule,
     RealtimeModule,
   ],
   providers: [
