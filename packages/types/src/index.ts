@@ -3,3 +3,4 @@
  */
 
 export * from './persons';
+export * from './scoring-config';

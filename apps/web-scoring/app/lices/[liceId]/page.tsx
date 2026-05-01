@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ExchangePad } from '../../../src/components/ExchangePad';
+import { ScoringPad } from '../../../src/components/ScoringPad';
+import type { TournamentScoringConfig } from '@myclash/types';
+import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 
 interface MatchInfo {
   id: string;
@@ -17,6 +19,7 @@ interface MatchInfo {
   redFighterName?: string;
   blueFighterName?: string;
   weapon?: string;
+  tournamentId?: string;
 }
 
 interface Props {
@@ -111,9 +114,25 @@ export default function LiceMatchPage({ params }: Props) {
 
 function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
   const [nextSequence, setNextSequence] = useState(1);
+  const [scoringConfig, setScoringConfig] =
+    useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
+
+  // Fetch scoring config for this tournament
+  useEffect(() => {
+    if (!match.tournamentId) return;
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/tournaments/${match.tournamentId}/scoring-config`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) setScoringConfig((await res.json()) as TournamentScoringConfig);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [match.tournamentId, apiUrl]);
 
   return (
-    <div className="flex-1 flex flex-col p-6 gap-6">
+    <div className="flex-1 flex flex-col p-4 gap-4">
       {/* Match header */}
       <div className="text-center">
         <p className="text-gray-400 text-sm">{match.matchNumberLabel}</p>
@@ -123,44 +142,18 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
         </p>
       </div>
 
-      {/* Scoreboard */}
-      <div className="grid grid-cols-3 gap-4 items-center">
-        {/* Red fighter */}
-        <div className="text-center">
-          <div className="bg-red-900 border-2 border-red-600 rounded-xl p-4">
-            <p className="text-xs text-red-300 font-bold uppercase tracking-wide mb-1">Rouge</p>
-            <p className="font-bold text-lg leading-tight">{match.redFighterName ?? 'Fighter A'}</p>
-          </div>
-          <div className="mt-3 text-5xl font-black text-red-400">{match.redScore}</div>
-        </div>
-
-        {/* VS */}
-        <div className="text-center">
-          <p className="text-gray-500 text-2xl font-bold">VS</p>
-          <p className="text-xs text-gray-600 mt-1 uppercase tracking-widest">{match.status}</p>
-        </div>
-
-        {/* Blue fighter */}
-        <div className="text-center">
-          <div className="bg-blue-900 border-2 border-blue-600 rounded-xl p-4">
-            <p className="text-xs text-blue-300 font-bold uppercase tracking-wide mb-1">Bleu</p>
-            <p className="font-bold text-lg leading-tight">
-              {match.blueFighterName ?? 'Fighter B'}
-            </p>
-          </div>
-          <div className="mt-3 text-5xl font-black text-blue-400">{match.blueScore}</div>
-        </div>
-      </div>
-
-      {/* Exchange pad — T-403 */}
+      {/* ScoringPad — scoreboard + buttons under each fighter */}
       <div className="flex-1">
-        <ExchangePad
+        <ScoringPad
           matchId={match.id}
           nextSequence={nextSequence}
           apiUrl={apiUrl}
           redName={match.redFighterName ?? 'Rouge'}
           blueName={match.blueFighterName ?? 'Bleu'}
+          redScore={match.redScore}
+          blueScore={match.blueScore}
           scoringEnabled={match.status === 'running'}
+          config={scoringConfig}
           onExchangeRecorded={() => setNextSequence((n) => n + 1)}
         />
       </div>

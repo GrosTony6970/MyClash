@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import type { TournamentScoringConfig } from '@myclash/types';
 
 export class CreateEventDto {
   @ApiProperty({ example: 'FAL 2026' })
@@ -134,4 +144,12 @@ export class UpdateTournamentDto {
   @IsOptional()
   @IsIn(['draft', 'published', 'running', 'completed', 'archived'])
   status?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Tournament scoring configuration (afterblow mode + button config)',
+  })
+  @IsOptional()
+  @IsObject()
+  scoringConfig?: TournamentScoringConfig;
 }

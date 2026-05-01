@@ -201,6 +201,7 @@ export class EventsService {
     if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.status !== undefined) updates['status'] = dto.status;
+    if (dto.scoringConfig !== undefined) updates['scoring_config_json'] = dto.scoringConfig;
 
     const { data, error } = await this.supabase.service
       .from('tournaments')

@@ -138,4 +138,20 @@ export class EventsController {
     const userId = await getUserId(req, this.supabase);
     return this.events.updateTournament(id, dto, userId);
   }
+
+  /** GET /api/v1/tournaments/:id/scoring-config — used by scoring app */
+  @Get('tournaments/:id/scoring-config')
+  @ApiOperation({ summary: 'Get tournament scoring config (afterblow mode + buttons)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getScoringConfig(@Param('id', ParseUUIDPipe) id: string) {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('scoring_config_json')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
+    const config = (data as { scoring_config_json?: unknown } | null)?.scoring_config_json;
+    return config ?? DEFAULT_SCORING_CONFIG;
+  }
 }
