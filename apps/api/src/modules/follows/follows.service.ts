@@ -262,7 +262,7 @@ export class FollowsService {
     };
   }
 
-  private async fetchNextEvent(personId: string, eventId: string): Promise<NextEvent | null> {
+  private async fetchNextEvent(personId: string, _eventId: string): Promise<NextEvent | null> {
     // Find next scheduled match for this person in this event
     const { data: regs } = await this.supabase.service
       .from('registrations')
