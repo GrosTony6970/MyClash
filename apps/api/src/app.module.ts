@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ClubsModule } from './modules/clubs/clubs.module';
 import { EventsModule } from './modules/events/events.module';
 import { FightersModule } from './modules/fighters/fighters.module';
+import { FollowsModule } from './modules/follows/follows.module';
 import { HealthModule } from './modules/health/health.module';
 import { LicesModule } from './modules/lices/lices.module';
 import { MailModule } from './modules/mail/mail.module';
@@ -60,6 +61,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     RegistrationsModule,
     MatchesModule,
     PhasesModule,
+    FollowsModule,
     RealtimeModule,
   ],
   providers: [
