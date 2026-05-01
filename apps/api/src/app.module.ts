@@ -13,6 +13,7 @@ import { WorkshopsModule } from './modules/workshops/workshops.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { RefereesModule } from './modules/referees/referees.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { ExportsModule } from './modules/exports/exports.module';
 import { LicesModule } from './modules/lices/lices.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
@@ -70,6 +71,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     ScheduleModule,
     RefereesModule,
     StatsModule,
+    ExportsModule,
     RealtimeModule,
   ],
   providers: [
