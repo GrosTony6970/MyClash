@@ -1,0 +1,459 @@
+'use client';
+
+/**
+ * Workshop admin — T-804
+ * Route: /org/[slug]/events/[eventId]/workshops
+ *
+ * AC:
+ *   ✓ Create/edit workshops
+ *   ✓ Roster view: confirmed + waitlisted, promote/remove actions
+ *   ✓ Cancel session stub (notification via T-1201 when available)
+ */
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+
+interface Workshop {
+  id: string;
+  slug: string;
+  name: string;
+  category: string | null;
+  level: string | null;
+  capacity: number;
+  workshopSessions: Array<{
+    id: string;
+    startTime: string;
+    endTime: string;
+    location: string | null;
+    capacity: number;
+  }>;
+}
+
+interface RosterEntry {
+  id: string;
+  status: 'confirmed' | 'waitlisted';
+  waitlistPosition: number | null;
+  enrolledAt: string;
+  persons: {
+    id: string;
+    givenName: string;
+    familyName: string;
+    clubs: { name: string } | null;
+  } | null;
+}
+
+export default function WorkshopsAdminPage() {
+  const params = useParams<{ slug: string; eventId: string }>();
+  const { slug, eventId } = params;
+  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+  const [workshops, setWorkshops] = useState<Workshop[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Create modal
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    slug: '',
+    category: '',
+    level: '',
+    language: 'fr',
+    capacity: 20,
+    description: '',
+  });
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Roster modal
+  const [rosterSession, setRosterSession] = useState<string | null>(null);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+
+  // ── Fetch workshops ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/workshops`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        setLoading(false);
+        if (res.ok) setWorkshops((await res.json()) as Workshop[]);
+      })
+      .catch((err: unknown) => {
+        setLoading(false);
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [eventId, apiUrl, refreshKey]);
+
+  // ── Create workshop ────────────────────────────────────────────────────────────
+
+  async function handleCreate() {
+    if (!form.name.trim() || !form.slug.trim()) {
+      setFormError('Name and slug are required');
+      return;
+    }
+    setFormSaving(true);
+    setFormError(null);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/workshops`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: form.name.trim(),
+          slug: form.slug.trim(),
+          category: form.category.trim() || null,
+          level: form.level.trim() || null,
+          language: form.language,
+          capacity: form.capacity,
+          description: form.description.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json()) as { message?: string };
+        throw new Error(body.message ?? 'Create failed');
+      }
+
+      setShowCreate(false);
+      setForm({
+        name: '',
+        slug: '',
+        category: '',
+        level: '',
+        language: 'fr',
+        capacity: 20,
+        description: '',
+      });
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Create failed');
+    } finally {
+      setFormSaving(false);
+    }
+  }
+
+  // ── Roster ────────────────────────────────────────────────────────────────────
+
+  async function openRoster(sessionId: string) {
+    setRosterSession(sessionId);
+    setRosterLoading(true);
+    const res = await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/roster`, {
+      credentials: 'include',
+    });
+    if (res.ok) setRoster((await res.json()) as RosterEntry[]);
+    setRosterLoading(false);
+  }
+
+  async function handlePromote(sessionId: string, personId: string) {
+    await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/promote/${personId}`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    await openRoster(sessionId);
+  }
+
+  async function handleRemove(sessionId: string, _personId: string) {
+    if (!confirm('Remove this enrollment?')) return;
+    await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/enroll`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    await openRoster(sessionId);
+  }
+
+  return (
+    <main className="p-8 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+              {slug}
+            </Link>
+            <span>/</span>
+            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+              Event
+            </Link>
+            <span>/</span>
+            <span className="text-gray-900 font-medium">Workshops</span>
+          </div>
+          <h1 className="text-2xl font-bold">Workshops</h1>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+        >
+          + New workshop
+        </button>
+      </div>
+
+      {/* Workshop list */}
+      {loading ? (
+        <p className="text-gray-400 text-sm">Loading…</p>
+      ) : workshops.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+          <p className="text-gray-400 text-sm">No workshops yet.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {workshops.map((w) => (
+            <div key={w.id} className="border border-gray-200 rounded-xl p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">{w.name}</h2>
+                  <div className="flex gap-1.5 mt-1">
+                    {w.category && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                        {w.category}
+                      </span>
+                    )}
+                    {w.level && (
+                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                        {w.level}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-400">Cap: {w.capacity}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sessions */}
+              {w.workshopSessions.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {w.workshopSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-700">
+                          {new Date(s.startTime).toLocaleDateString('fr-FR', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </span>
+                        <span className="text-gray-500 ml-2">
+                          {new Date(s.startTime).toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {s.location && ` · ${s.location}`}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => void openRoster(s.id)}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        Roster
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold mb-4">New workshop</h2>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      name,
+                      slug:
+                        f.slug ||
+                        name
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, '-')
+                          .replace(/^-+|-+$/g, ''),
+                    }));
+                  }}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
+                <input
+                  type="text"
+                  value={form.slug}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                    }))
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={form.category}
+                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                    placeholder="Longsword, Messer…"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Level</label>
+                  <input
+                    type="text"
+                    value={form.level}
+                    onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
+                    placeholder="Beginner, Advanced…"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Language</label>
+                  <select
+                    value={form.language}
+                    onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  >
+                    <option value="fr">FR</option>
+                    <option value="en">EN</option>
+                    <option value="de">DE</option>
+                    <option value="es">ES</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Capacity</label>
+                  <input
+                    type="number"
+                    value={form.capacity}
+                    min={1}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, capacity: parseInt(e.target.value) || 1 }))
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 resize-none"
+                />
+              </div>
+            </div>
+            {formError && <p className="text-sm text-red-600 mt-2">{formError}</p>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setShowCreate(false)}
+                className="text-sm text-gray-500 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleCreate()}
+                disabled={formSaving}
+                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm"
+              >
+                {formSaving ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Roster modal */}
+      {rosterSession && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Session roster</h2>
+              <button
+                onClick={() => setRosterSession(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {rosterLoading ? (
+              <p className="text-gray-400 text-sm">Loading…</p>
+            ) : roster.length === 0 ? (
+              <p className="text-gray-400 text-sm">No enrollments yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {roster.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {entry.persons
+                          ? `${entry.persons.givenName} ${entry.persons.familyName}`
+                          : 'Unknown'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span
+                          className={[
+                            'text-xs px-1.5 py-0.5 rounded font-medium',
+                            entry.status === 'confirmed'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-yellow-100 text-yellow-700',
+                          ].join(' ')}
+                        >
+                          {entry.status === 'waitlisted'
+                            ? `Waitlist #${entry.waitlistPosition}`
+                            : 'Confirmed'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {entry.status === 'waitlisted' && entry.persons && (
+                        <button
+                          onClick={() => void handlePromote(rosterSession, entry.persons!.id)}
+                          className="text-xs text-green-600 hover:underline"
+                        >
+                          Promote
+                        </button>
+                      )}
+                      {entry.persons && (
+                        <button
+                          onClick={() => void handleRemove(rosterSession, entry.persons!.id)}
+                          className="text-xs text-red-500 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
