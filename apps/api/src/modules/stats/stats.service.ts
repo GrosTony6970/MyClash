@@ -1,0 +1,147 @@
+/**
+ * stats.service.ts — T-1001 + T-1002
+ *
+ * Reads from mv_fighter_exchange_stats materialized view.
+ * Provides tournament stats overview + per-fighter exchange stats.
+ */
+
+import { Injectable } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+
+export interface FighterExchangeStats {
+  registrationId: string;
+  personId: string;
+  givenName: string;
+  familyName: string;
+  clubName: string | null;
+  doubles: number;
+  hitsGiven1: number;
+  afterblowGiven1: number;
+  hitsGiven2: number;
+  afterblowGiven2: number;
+  hitsReceived1: number;
+  afterblowReceived1: number;
+  hitsReceived2: number;
+  afterblowReceived2: number;
+  totalExchanges: number;
+  hitRatio: number | null;
+}
+
+export interface TournamentStatsOverview {
+  tournamentId: string;
+  participantCount: number;
+  matchCount: number;
+  exchangeCount: number;
+  doublesCount: number;
+  doublesPercent: number;
+  clubCount: number;
+  topFighters: Array<{
+    name: string;
+    club: string | null;
+    hitRatio: number | null;
+  }>;
+}
+
+@Injectable()
+export class StatsService {
+  constructor(private readonly supabase: SupabaseService) {}
+
+  // ── Fighter exchange stats ────────────────────────────────────────────────────
+
+  async getFighterStats(tournamentId: string): Promise<FighterExchangeStats[]> {
+    const { data, error } = await this.supabase.service
+      .from('mv_fighter_exchange_stats')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .order('hit_ratio', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      // View may not exist yet (pre-migration) — return empty
+      return [];
+    }
+
+    return (data ?? []).map((r) => this.mapStats(r as Record<string, unknown>));
+  }
+
+  // ── Tournament overview ───────────────────────────────────────────────────────
+
+  async getTournamentOverview(tournamentId: string): Promise<TournamentStatsOverview> {
+    const [statsRows, matchCount, exchangeCount] = await Promise.all([
+      this.getFighterStats(tournamentId),
+      this.countMatches(tournamentId),
+      this.countExchanges(tournamentId),
+    ]);
+
+    const doublesCount = statsRows.reduce((s, r) => s + r.doubles, 0) / 2; // each double counted twice
+    const doublesPercent = exchangeCount > 0 ? Math.round((doublesCount / exchangeCount) * 100) : 0;
+
+    const clubs = new Set(statsRows.map((r) => r.clubName).filter(Boolean));
+
+    const topFighters = statsRows
+      .filter((r) => r.hitRatio !== null)
+      .slice(0, 5)
+      .map((r) => ({
+        name: `${r.givenName} ${r.familyName}`,
+        club: r.clubName,
+        hitRatio: r.hitRatio,
+      }));
+
+    return {
+      tournamentId,
+      participantCount: statsRows.length,
+      matchCount,
+      exchangeCount,
+      doublesCount: Math.round(doublesCount),
+      doublesPercent,
+      clubCount: clubs.size,
+      topFighters,
+    };
+  }
+
+  // ── Refresh materialized view ─────────────────────────────────────────────────
+
+  async refreshStats(): Promise<void> {
+    await this.supabase.service.rpc('refresh_fighter_exchange_stats');
+  }
+
+  // ── Private ───────────────────────────────────────────────────────────────────
+
+  private async countMatches(tournamentId: string): Promise<number> {
+    const { count } = await this.supabase.service
+      .from('matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId)
+      .neq('status', 'voided');
+    return count ?? 0;
+  }
+
+  private async countExchanges(tournamentId: string): Promise<number> {
+    const { count } = await this.supabase.service
+      .from('exchanges')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId)
+      .eq('voided', false);
+    return count ?? 0;
+  }
+
+  private mapStats(r: Record<string, unknown>): FighterExchangeStats {
+    return {
+      registrationId: r['registration_id'] as string,
+      personId: r['person_id'] as string,
+      givenName: r['given_name'] as string,
+      familyName: r['family_name'] as string,
+      clubName: (r['club_name'] as string | null) ?? null,
+      doubles: Number(r['doubles'] ?? 0),
+      hitsGiven1: Number(r['hits_given_1'] ?? 0),
+      afterblowGiven1: Number(r['afterblow_given_1'] ?? 0),
+      hitsGiven2: Number(r['hits_given_2'] ?? 0),
+      afterblowGiven2: Number(r['afterblow_given_2'] ?? 0),
+      hitsReceived1: Number(r['hits_received_1'] ?? 0),
+      afterblowReceived1: Number(r['afterblow_received_1'] ?? 0),
+      hitsReceived2: Number(r['hits_received_2'] ?? 0),
+      afterblowReceived2: Number(r['afterblow_received_2'] ?? 0),
+      totalExchanges: Number(r['total_exchanges'] ?? 0),
+      hitRatio: r['hit_ratio'] != null ? Number(r['hit_ratio']) : null,
+    };
+  }
+}
