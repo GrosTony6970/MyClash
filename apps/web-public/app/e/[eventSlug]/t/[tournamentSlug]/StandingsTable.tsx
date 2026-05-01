@@ -25,7 +25,7 @@ export function StandingsTable({
   poolId,
   poolName,
   initialStandings,
-  tournamentId,
+  tournamentId: _tournamentId,
   apiUrl,
 }: Props) {
   const [standings, setStandings] = useState<StandingRow[]>(initialStandings);

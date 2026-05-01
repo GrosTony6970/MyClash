@@ -65,9 +65,24 @@ export default function LicePage() {
 
   // Initial fetch
   useEffect(() => {
-    void fetchLiceData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventSlug, liceName]);
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventSlug}/lices/${encodeURIComponent(liceName)}/current`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          setData(null);
+          return;
+        }
+        setData((await res.json()) as LiceData);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [eventSlug, liceName, apiUrl]);
 
   // Realtime: re-fetch when any match on this lice changes
   useEffect(() => {
