@@ -146,3 +146,9 @@ _(New lessons added below as they are learned.)_
 - **Use lint-staged + simple-git-hooks for pre-commit auto-format**, not a CI auto-commit step. CI committing back to branches is fragile and creates merge conflicts. Pre-commit hooks are the right layer.
 - **After a fresh clone, run `pnpm install`** — the `prepare` script re-registers the git hooks via `simple-git-hooks`. Without this, the pre-commit hook won't fire on a new machine.
 - **TypeScript TS2352 on `Promise & {...}` intersections**: casting a `Promise<T> & { methods... }` intersection directly to `Record<string, unknown>` fails because the types don't overlap enough. Always cast through `unknown` first: `(chain as unknown as Record<string, unknown>)`.
+
+## Pre-push verification (MANDATORY)
+
+- **Always run `pnpm turbo run typecheck` AND `pnpm turbo run lint` locally before every `git push`.** CI is the second line of defense, not the first. Pushing broken code wastes CI minutes and creates noise.
+- **Never rely on per-package checks alone** (`pnpm --filter X typecheck`). Always run the full turbo pipeline — other packages may be affected by changes in shared packages or imports.
+- **When removing an import from a line**, check whether removing that symbol empties the entire import statement. An empty `import {} from 'module'` or a deleted import line will silently break other symbols from the same module (e.g. removing `useRouter` from `import { useParams, useRouter } from 'next/navigation'` must leave `import { useParams } from 'next/navigation'`, not delete the line).

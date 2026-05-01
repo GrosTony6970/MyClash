@@ -348,3 +348,7 @@ T-404 implemented and committed as `fe15da0`:
 - `apps/api/src/app.module.ts` — RealtimeModule imported.
 
 All AC met. lint + typecheck + test green (15 test files, 115 tests). Note: migration file is 0004 (not 0003 as BUILD_ORDER says) because 0003_lookup_functions.sql already existed. Current HEAD: fe15da0. Next task: T-405 · Public live match view.
+
+## 18:00:00_01-05-2026
+
+User asked to run pnpm turbo run lint + typecheck locally before every push, and add to LESSONS_LEARNED. Added mandatory pre-push verification rule. Updated MEMORY.md HEAD to af6ec3c. Next task: T-703.

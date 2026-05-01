@@ -271,9 +271,10 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-404 · Realtime broadcast (server) | `fe15da0` | ✅ done |
 | T-405 · Public live match view      | `520b903` | ✅ done |
 
-**Current HEAD**: `520b903`
-**Phase P4 complete.**
-**Next phase**: P5 — Offline Scoring (T-501 IndexedDB outbox)
+**Current HEAD**: `af6ec3c`
+**Phase P4 complete. P5 complete. P6 in progress (T-701 ✅, T-702 ✅).**
+**Next task**: T-703 · Persons + registration management
+**Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 
 ## Tech decisions locked in during implementation
