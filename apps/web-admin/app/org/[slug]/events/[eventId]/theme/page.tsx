@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useReducer, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
