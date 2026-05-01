@@ -323,6 +323,17 @@ User requested memory file update before stopping. Session paused. Next task whe
 
 User asked to add prettier --write to CI so it never fails again. Added lint-staged + simple-git-hooks: prettier --write runs automatically on staged files before every commit. `prepare` script re-registers the hook after `pnpm install`. Committed `aa4fbe5`. Current HEAD: `aa4fbe5`. Next task: T-404 · Realtime broadcast (server).
 
+## 12:40:00_01-05-2026
+
+New session. User: "lest go for task T-405". Implemented T-405 · Public live match view:
+
+- Added `@supabase/supabase-js` to `apps/web-public`
+- `apps/web-public/src/lib/supabase.ts` — browser Supabase client singleton
+- `apps/web-public/app/e/[eventSlug]/match/[matchId]/page.tsx` — server component SSR
+- `apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx` — 'use client' Realtime subscriptions
+- `.env.example` updated with NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_API_URL
+  Committed `520b903`. Phase P4 complete. Next: P5 T-501 IndexedDB outbox.
+
 ## 15:05:00_30-04-2026
 
 New session. User: "we are going to work on MyClash, read all memory files so you get the context." Read all memory files (AGENTS.md, MEMORY.md, LESSONS_LEARNED.md, PROMPT_LOG.md, BUILD_ORDER.md). Confirmed next task: T-404 · Realtime broadcast (server). User selected T-404 from the options presented.

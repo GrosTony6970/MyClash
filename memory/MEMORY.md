@@ -269,10 +269,11 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | T-402 · Match clock component       | `c758d60` | ✅ done |
 | T-403 · Exchange entry UI           | `709b429` | ✅ done |
 | T-404 · Realtime broadcast (server) | `fe15da0` | ✅ done |
-| T-405 · Public live match view      | —         | ⏳ next |
+| T-405 · Public live match view      | `520b903` | ✅ done |
 
-**Current HEAD**: `fe15da0`
-**Next task**: T-405 · Public live match view
+**Current HEAD**: `520b903`
+**Phase P4 complete.**
+**Next phase**: P5 — Offline Scoring (T-501 IndexedDB outbox)
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
 
 ## Tech decisions locked in during implementation
@@ -349,6 +350,7 @@ Required for the API to start:
 - **Never run a bulk `prettier --write` on the whole repo again** — it's now handled per-file at commit time. The one-time bulk pass (`5ad7900`) was the last time this was needed.
 
 - **T-404 Realtime broadcast** (`packages/db/migrations/0004_realtime.sql`, `apps/api/src/modules/realtime/`): REPLICA IDENTITY FULL on exchanges/matches/match_events + idempotent addition to `supabase_realtime` publication. `Channels.*` factory functions for all 5 channel names. `RealtimeService` wraps `SupabaseService.service.channel().send()` for server-initiated broadcasts (T-405+ will use this for standings and high-level events). **Migration is numbered 0004** — BUILD_ORDER says 0003 but `0003_lookup_functions.sql` already existed; ignore the stale number in BUILD_ORDER.
+- **T-405 Public live match view** (`apps/web-public/app/e/[eventSlug]/match/[matchId]/`): SSR server component fetches initial match + exchanges from NestJS API. `MatchLiveView` client component subscribes to `postgres_changes` on `exchanges` (INSERT/UPDATE) and `matches` (UPDATE) via Supabase Realtime — new exchange appears in <1s. On reconnect (CLOSED→SUBSCRIBED), re-fetches REST API to catch missed changes. `apps/web-public/src/lib/supabase.ts` is the browser Supabase client singleton. Note: Supabase Realtime payloads use snake_case raw DB column names (not camelCase like the REST API) — conversion handled by `toExchangeRow()`. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL` added to `.env.example`.
 
 - **T-401 Scoring app shell** (`apps/web-scoring/`): PWA with manifest, service worker stub, login page, Lice picker, network status bar (online/offline indicator).
 - **T-402 Match clock** (`apps/web-scoring/src/components/MatchClock.tsx`, `apps/api/src/modules/matches/clock.service.ts`): clock state persisted as `match_events` rows. Reload-safe (recomputes from timeline). Drift correction on every render. Actions: start/halt/resume/end/reset_clock.
