@@ -71,6 +71,16 @@ export class MatchesController {
     return this.matches.updateStatus(id, dto);
   }
 
+  @Patch('matches/:id/schedule')
+  @ApiOperation({ summary: 'Update match scheduled_at and lice_id (organizer+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async scheduleMatch(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { liceId?: string | null; scheduledAt?: string | null },
+  ) {
+    return this.matches.scheduleMatch(id, dto.liceId ?? null, dto.scheduledAt ?? null);
+  }
+
   @Post('matches/:id/void')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Void a match (organizer+)' })

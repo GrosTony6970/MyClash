@@ -93,6 +93,24 @@ export class MatchesService {
     return this.updateStatus(matchId, { status: 'voided' });
   }
 
+  async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    updates['lice_id'] = liceId || null;
+    updates['scheduled_at'] = scheduledAt || null;
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update(updates)
+      .eq('id', matchId)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
   // ── Exchanges ─────────────────────────────────────────────────────────────────
 
   async listExchanges(matchId: string) {
