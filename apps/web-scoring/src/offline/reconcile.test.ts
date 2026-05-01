@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db } from './db';
-import { enqueue, markSynced } from './outbox';
+import { enqueue } from './outbox';
 import { reconcile, type ServerExchange } from './reconcile';
 
 beforeEach(async () => {
