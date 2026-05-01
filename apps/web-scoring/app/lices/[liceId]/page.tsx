@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ScoringPad } from '../../../src/components/ScoringPad';
+import MatchClock from '../../../src/components/MatchClock';
+import type { ClockState } from '../../../src/components/MatchClock';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 
@@ -116,6 +118,7 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
   const [nextSequence, setNextSequence] = useState(1);
   const [scoringConfig, setScoringConfig] =
     useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
+  const [clockState, setClockState] = useState<ClockState | null>(null);
 
   // Fetch scoring config for this tournament
   useEffect(() => {
@@ -142,6 +145,9 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
         </p>
       </div>
 
+      {/* Clock — must be halted before scoring */}
+      <MatchClock matchId={match.id} apiUrl={apiUrl} onStateChange={setClockState} />
+
       {/* ScoringPad — scoreboard + buttons under each fighter */}
       <div className="flex-1">
         <ScoringPad
@@ -152,8 +158,9 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
           blueName={match.blueFighterName ?? 'Bleu'}
           redScore={match.redScore}
           blueScore={match.blueScore}
-          scoringEnabled={match.status === 'running'}
+          scoringEnabled={match.status === 'running' || match.status === 'halted'}
           config={scoringConfig}
+          clockState={clockState}
           onExchangeRecorded={() => setNextSequence((n) => n + 1)}
         />
       </div>

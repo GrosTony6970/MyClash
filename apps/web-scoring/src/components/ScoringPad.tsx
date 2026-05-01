@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AfterblowButton, CleanButton, TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_SCORING_CONFIG, computeAfterblowDeltas } from '@myclash/types';
+import type { ClockState } from './MatchClock';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,8 @@ export interface ScoringPadProps {
   scoringEnabled?: boolean;
   apiUrl?: string;
   config?: TournamentScoringConfig;
+  /** Current clock state — scoring is only allowed when clock is halted */
+  clockState?: ClockState | null;
   onExchangeRecorded?: (exchangeId: string) => void;
   onExchangeVoided?: (exchangeId: string) => void;
 }
@@ -69,6 +72,7 @@ export function ScoringPad({
   scoringEnabled = true,
   apiUrl = 'http://localhost:4000',
   config = DEFAULT_SCORING_CONFIG,
+  clockState = null,
   onExchangeRecorded,
   onExchangeVoided,
 }: ScoringPadProps) {
@@ -104,7 +108,14 @@ export function ScoringPad({
     };
   }, [lastExchangeAt]);
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Clock guard ────────────────────────────────────────────────────────────
+  // Scoring is only allowed when the clock is halted (not running).
+  // This prevents accidental score entry during active fighting.
+  const clockRunning = clockState?.status === 'running';
+  const canScore = scoringEnabled && !clockRunning;
+
+  // Elapsed active ms at the moment of the last halt — recorded on each exchange
+  const clockTimeMs = clockState?.activeMs ?? null;
 
   const submit = useCallback(
     async (exchange: PendingExchange) => {
@@ -120,6 +131,8 @@ export function ScoringPad({
             sequence: sequenceRef.current,
             type: exchange.type,
             occurredAt: new Date().toISOString(),
+            // Record elapsed clock time at moment of exchange entry (ms)
+            clockTimeMs,
             firstStrikerColor: exchange.firstStrikerColor ?? null,
             firstStrikeValue: exchange.firstStrikeValue ?? null,
             afterblowValue: exchange.afterblowValue ?? null,
@@ -140,7 +153,7 @@ export function ScoringPad({
         setSubmitting(false);
       }
     },
-    [matchId, apiUrl, onExchangeRecorded],
+    [matchId, apiUrl, onExchangeRecorded, clockTimeMs],
   );
 
   // ── Undo ───────────────────────────────────────────────────────────────────
@@ -209,6 +222,13 @@ export function ScoringPad({
 
   return (
     <div className="flex flex-col gap-4 select-none">
+      {/* Clock running banner — blocks scoring */}
+      {clockRunning && (
+        <div className="bg-yellow-900 border-2 border-yellow-500 text-yellow-200 rounded-xl px-4 py-3 text-center font-bold animate-pulse">
+          ⏱ Clock running — halt the clock before entering a score
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-200 rounded-lg px-4 py-2 text-sm text-center">
@@ -239,7 +259,7 @@ export function ScoringPad({
                 <button
                   key={btn.label}
                   onClick={() => onClean('red', btn)}
-                  disabled={submitting}
+                  disabled={submitting || !canScore}
                   className="min-h-[56px] rounded-xl border-2 border-red-700 bg-red-950 text-red-200 font-black text-xl
                              hover:bg-red-900 active:bg-red-800 disabled:opacity-40 transition-colors touch-manipulation"
                 >
@@ -256,7 +276,7 @@ export function ScoringPad({
                 <button
                   key={btn.label}
                   onClick={() => onAfterblowBtn('red', btn)}
-                  disabled={submitting}
+                  disabled={submitting || !canScore}
                   className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
                              hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
                   title={
@@ -295,7 +315,7 @@ export function ScoringPad({
                 <button
                   key={btn.label}
                   onClick={() => onClean('blue', btn)}
-                  disabled={submitting}
+                  disabled={submitting || !canScore}
                   className="min-h-[56px] rounded-xl border-2 border-blue-700 bg-blue-950 text-blue-200 font-black text-xl
                              hover:bg-blue-900 active:bg-blue-800 disabled:opacity-40 transition-colors touch-manipulation"
                 >
@@ -312,7 +332,7 @@ export function ScoringPad({
                 <button
                   key={btn.label}
                   onClick={() => onAfterblowBtn('blue', btn)}
-                  disabled={submitting}
+                  disabled={submitting || !canScore}
                   className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
                              hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
                   title={
@@ -338,7 +358,7 @@ export function ScoringPad({
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={onDouble}
-          disabled={submitting}
+          disabled={submitting || !canScore}
           className="min-h-[52px] rounded-xl border-2 border-orange-600 bg-orange-900 text-orange-100 font-bold
                      hover:bg-orange-800 active:bg-orange-700 disabled:opacity-40 transition-colors touch-manipulation"
         >
@@ -347,7 +367,7 @@ export function ScoringPad({
         </button>
         <button
           onClick={() => setShowNoExchange(true)}
-          disabled={submitting}
+          disabled={submitting || !canScore}
           className="min-h-[52px] rounded-xl border-2 border-gray-600 bg-gray-800 text-gray-200 font-bold
                      hover:bg-gray-700 active:bg-gray-600 disabled:opacity-40 transition-colors touch-manipulation"
         >
@@ -365,7 +385,7 @@ export function ScoringPad({
       {undoAvailable && lastExchangeId && (
         <button
           onClick={() => void handleUndo()}
-          disabled={submitting}
+          disabled={submitting || !canScore}
           className="w-full py-3 rounded-xl border-2 border-yellow-600 text-yellow-400 font-bold text-sm
                      hover:bg-yellow-900 active:bg-yellow-800 transition-colors disabled:opacity-50"
         >
