@@ -34,3 +34,6 @@ export type { EmptyStateProps } from './components/EmptyState';
 
 export { PageHeader } from './components/PageHeader';
 export type { PageHeaderProps } from './components/PageHeader';
+
+export { BracketView } from './components/BracketView';
+export type { BracketViewProps, BracketSlotData } from './components/BracketView';

@@ -12,3 +12,12 @@ export type { BergerMatch, BergerScheduleOptions } from './berger';
 
 export { singleElimBracket, totalBracketMatches } from './single-elim';
 export type { BracketSlot, SingleElimBracket, SingleElimOptions } from './single-elim';
+
+export { detectFighterRefereeConflicts } from './conflict-check';
+export type {
+  ScheduledMatch as ConflictScheduledMatch,
+  RefereeAssignment as ConflictRefereeAssignment,
+  RegistrationPersonMap,
+  FighterRefereeConflict,
+  ConflictCheckResult,
+} from './conflict-check';
