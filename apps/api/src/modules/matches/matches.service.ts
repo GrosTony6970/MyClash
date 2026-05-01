@@ -207,6 +207,40 @@ export class MatchesService {
     return data;
   }
 
+  /**
+   * Revert a voided exchange — sets voided=false, clears voided_reason.
+   * Recomputes match score after restore.
+   * AC: "Reverting a void restores the exchange."
+   */
+  async revertVoidExchange(exchangeId: string) {
+    const { data: exchange, error: fetchError } = await this.supabase.service
+      .from('exchanges')
+      .select('id, match_id, voided')
+      .eq('id', exchangeId)
+      .maybeSingle();
+
+    if (fetchError || !exchange) throw new NotFoundException(`Exchange ${exchangeId} not found`);
+
+    const ex = exchange as { id: string; match_id: string; voided: boolean };
+    if (!ex.voided) {
+      throw new BadRequestException('Exchange is not voided');
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('exchanges')
+      .update({ voided: false, voided_reason: null })
+      .eq('id', exchangeId)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    // Recompute authoritative match score
+    await this.scoring.recomputeMatchScore(ex.match_id);
+
+    return data;
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────────
 
   private computeDeltas(dto: CreateExchangeDto): { redDelta: number; blueDelta: number } {

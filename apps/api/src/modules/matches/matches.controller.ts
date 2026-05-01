@@ -111,6 +111,19 @@ export class MatchesController {
     return this.matches.voidExchange(id, dto);
   }
 
+  /**
+   * PATCH /api/v1/exchanges/:id/revert-void
+   * Restores a voided exchange (sets voided=false). Recomputes score.
+   */
+  @Patch('exchanges/:id/revert-void')
+  @ApiOperation({
+    summary: 'Revert a voided exchange (organizer+). Restores and recomputes score.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async revertVoidExchange(@Param('id', ParseUUIDPipe) id: string) {
+    return this.matches.revertVoidExchange(id);
+  }
+
   // ── Clock endpoints ───────────────────────────────────────────────────────
 
   /**
