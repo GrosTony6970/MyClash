@@ -250,3 +250,88 @@ describe('No qualified users for a role', () => {
     expect(missing!.rejectionReasons).toContain('no_qualified_users');
   });
 });
+
+// ── Time overlap: referee cannot be in two pools simultaneously ───────────────
+
+describe('Time overlap: referee cannot referee two simultaneous pools', () => {
+  it('excludes referee already assigned to an overlapping pool', () => {
+    const SAME_TIME = '2026-06-01T10:00:00.000Z';
+    const END_TIME = '2026-06-01T10:30:00.000Z';
+
+    // Two pools running at the same time
+    const poolA: PoolSlot = {
+      poolId: 'pA',
+      poolName: 'Pool A',
+      matches: [],
+      earliestStart: SAME_TIME,
+      latestEnd: END_TIME,
+    };
+    const poolB: PoolSlot = {
+      poolId: 'pB',
+      poolName: 'Pool B',
+      matches: [],
+      earliestStart: SAME_TIME,
+      latestEnd: END_TIME,
+    };
+
+    // Only one qualified referee per role
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('d0', 'Declarant', ['arbitre_declarant']),
+      makeCandidate('a0', 'Assesseur', ['arbitre_assesseur']),
+      makeCandidate('t0', 'Table', ['arbitre_table']),
+    ];
+
+    const result = assignRefereesWithPools([poolA, poolB], candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    // Pool A gets assigned (first pool)
+    const poolAAssignments = result.assignments.filter((a) => a.poolId === 'pA');
+    expect(poolAAssignments).toHaveLength(3);
+
+    // Pool B cannot be assigned — same referee, same time
+    const poolBMissing = result.missing.filter((m) => m.poolId === 'pB');
+    expect(poolBMissing).toHaveLength(3);
+    expect(poolBMissing[0]!.rejectionReasons).toContain(
+      'all_qualified_have_time_conflict_with_other_pool',
+    );
+  });
+
+  it('allows referee to cover sequential (non-overlapping) pools', () => {
+    const POOL_A_START = '2026-06-01T10:00:00.000Z';
+    const POOL_A_END = '2026-06-01T10:30:00.000Z';
+    const POOL_B_START = '2026-06-01T11:00:00.000Z'; // 30 min gap
+    const POOL_B_END = '2026-06-01T11:30:00.000Z';
+
+    const poolA: PoolSlot = {
+      poolId: 'pA',
+      poolName: 'Pool A',
+      matches: [],
+      earliestStart: POOL_A_START,
+      latestEnd: POOL_A_END,
+    };
+    const poolB: PoolSlot = {
+      poolId: 'pB',
+      poolName: 'Pool B',
+      matches: [],
+      earliestStart: POOL_B_START,
+      latestEnd: POOL_B_END,
+    };
+
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('d0', 'Declarant', ['arbitre_declarant']),
+      makeCandidate('a0', 'Assesseur', ['arbitre_assesseur']),
+      makeCandidate('t0', 'Table', ['arbitre_table']),
+    ];
+
+    const result = assignRefereesWithPools([poolA, poolB], candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    // Both pools fully assigned (sequential, no overlap)
+    expect(result.assignments).toHaveLength(6);
+    expect(result.missing).toHaveLength(0);
+  });
+});

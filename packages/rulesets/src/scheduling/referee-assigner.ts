@@ -197,31 +197,50 @@ function assignRole(
 
   // Filter: HARD constraint — fighter cannot referee pool whose time overlaps their match
   const noFighterOverlap = notAlreadyAssigned.filter((c) => {
-    if (c.fighterRegistrationIds.length === 0) return true; // not a fighter
-
-    // Check if any of their matches overlap with this pool's time window
+    // 1. Pool membership check: fighter in this pool cannot referee it
     for (const match of pool.matches) {
       const isFighter =
         c.fighterRegistrationIds.includes(match.redRegistrationId) ||
         c.fighterRegistrationIds.includes(match.blueRegistrationId);
-
-      if (isFighter) {
-        // Fighter is in this pool — cannot referee it (regardless of schedule)
-        return false;
-      }
+      if (isFighter) return false;
     }
-
-    // Also check scheduled time overlap with other pools they fight in
-    if (pool.earliestStart && pool.latestEnd) {
-      // (Time-based overlap check handled by conflict-check.ts at a higher level)
-      // Here we just check pool membership
-    }
-
     return true;
   });
 
   if (noFighterOverlap.length === 0) {
     rejectionReasons.push('all_qualified_are_fighters_in_this_pool');
+    return { assigned: null, warnings, rejectionReasons };
+  }
+
+  // Filter: HARD constraint — referee cannot be assigned to two pools at the same time
+  // A person already assigned to another pool whose time window overlaps this pool is excluded.
+  const noTimeOverlap = noFighterOverlap.filter((c) => {
+    if (!pool.earliestStart || !pool.latestEnd) return true; // pool unscheduled — skip time check
+
+    const poolStart = new Date(pool.earliestStart).getTime();
+    const poolEnd = new Date(pool.latestEnd).getTime();
+
+    // Check all existing assignments for this person
+    for (const existing of existingAssignments) {
+      if (existing.personId !== c.personId) continue;
+
+      // Find the pool they're already assigned to
+      const assignedPool = pools.find((p) => p.poolId === existing.poolId);
+      if (!assignedPool?.earliestStart || !assignedPool?.latestEnd) continue;
+
+      const assignedStart = new Date(assignedPool.earliestStart).getTime();
+      const assignedEnd = new Date(assignedPool.latestEnd).getTime();
+
+      // Overlap check
+      if (poolStart < assignedEnd && assignedStart < poolEnd) {
+        return false; // time conflict — cannot referee both pools simultaneously
+      }
+    }
+    return true;
+  });
+
+  if (noTimeOverlap.length === 0) {
+    rejectionReasons.push('all_qualified_have_time_conflict_with_other_pool');
     return { assigned: null, warnings, rejectionReasons };
   }
 
@@ -231,7 +250,7 @@ function assignRole(
   );
 
   // Score candidates (lower = better)
-  const scored = noFighterOverlap.map((c) => {
+  const scored = noTimeOverlap.map((c) => {
     let score = 0;
     const candidateWarnings: AssignmentWarning[] = [];
 
