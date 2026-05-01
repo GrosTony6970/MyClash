@@ -21,3 +21,15 @@ export type {
   FighterRefereeConflict,
   ConflictCheckResult,
 } from './conflict-check';
+
+export { assignReferees, assignRefereesWithPools } from './referee-assigner';
+export type {
+  RefereeRole,
+  RefereeCandidate,
+  PoolSlot as RefereePoolSlot,
+  AssignmentSettings as RefereeAssignmentSettings,
+  RefereeAssignment,
+  MissingAssignment,
+  AssignmentWarning,
+  AssignmentResult,
+} from './referee-assigner';
