@@ -203,6 +203,9 @@ importers:
       '@myclash/ui':
         specifier: workspace:^
         version: link:../../packages/ui
+      '@supabase/supabase-js':
+        specifier: ^2.105.1
+        version: 2.105.1
       next:
         specifier: 15.3.2
         version: 15.3.2(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
