@@ -15,6 +15,7 @@ export interface FighterExchangeStats {
   familyName: string;
   clubName: string | null;
   doubles: number;
+  // lyonamhe.fr blow columns (mode-independent blow counts)
   hitsGiven1: number;
   afterblowGiven1: number;
   hitsGiven2: number;
@@ -23,8 +24,19 @@ export interface FighterExchangeStats {
   afterblowReceived1: number;
   hitsReceived2: number;
   afterblowReceived2: number;
+  // Extended blow-based columns (always count the blow, regardless of afterblow mode)
+  blowsGiven: number;
+  blowsReceived: number;
+  afterblowsReceivedTotal: number;
+  // Point-based columns (affected by afterblow mode: deductive → defender gets 0 pts)
+  pointsGiven: number;
+  pointsReceived: number;
+  // Totals
   totalExchanges: number;
+  /** Blow-based ratio (mode-independent) — defender afterblow in deductive still counts */
   hitRatio: number | null;
+  /** Point-based ratio (affected by mode) */
+  pointRatio: number | null;
 }
 
 export interface TournamentStatsOverview {
@@ -83,7 +95,10 @@ export class StatsService {
       .map((r) => ({
         name: `${r.givenName} ${r.familyName}`,
         club: r.clubName,
-        hitRatio: r.hitRatio,
+        hitRatio: r.hitRatio, // blow-based (mode-independent)
+        pointRatio: r.pointRatio, // point-based (mode-dependent)
+        blowsGiven: r.blowsGiven,
+        blowsReceived: r.blowsReceived,
       }));
 
     return {
@@ -140,8 +155,14 @@ export class StatsService {
       afterblowReceived1: Number(r['afterblow_received_1'] ?? 0),
       hitsReceived2: Number(r['hits_received_2'] ?? 0),
       afterblowReceived2: Number(r['afterblow_received_2'] ?? 0),
+      blowsGiven: Number(r['blows_given'] ?? 0),
+      blowsReceived: Number(r['blows_received'] ?? 0),
+      afterblowsReceivedTotal: Number(r['afterblows_received_total'] ?? 0),
+      pointsGiven: Number(r['points_given'] ?? 0),
+      pointsReceived: Number(r['points_received'] ?? 0),
       totalExchanges: Number(r['total_exchanges'] ?? 0),
       hitRatio: r['hit_ratio'] != null ? Number(r['hit_ratio']) : null,
+      pointRatio: r['point_ratio'] != null ? Number(r['point_ratio']) : null,
     };
   }
 }
