@@ -16,6 +16,7 @@
     "@myclash/i18n": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
+    "@supabase/supabase-js": "^2.105.1",
     "next": "15.3.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
