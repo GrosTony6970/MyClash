@@ -294,6 +294,7 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | T-610 · Follows module                       | `362e2ba` | ✅ done |
 | T-611 · People search/profile UI             | `362e2ba` | ✅ done |
 | T-612 · Watchlist view                       | `0104d12` | ✅ done |
+| T-613 · Follow notifications scheduler       | current   | ✅ done |
 
 ## Build progress (Phase P7 — completed 02-05-2026)
 
@@ -357,11 +358,11 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | ---------------------------------------- | --------- | ------- |
 | T-1201 · VAPID + subscription endpoints  | `ff8958e` | ✅ done |
 | T-1202 · Scheduled notification triggers | `8de77e2` | ✅ done |
-| T-1203 · Event-driven notifications      | current   | ✅ done |
+| T-1203 · Event-driven notifications      | `6326f05` | ✅ done |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-613 · Follow notifications scheduler
+**Next task**: T-1301 · Super admin dashboard
 
 ## Tech decisions locked in during implementation
 
@@ -457,6 +458,8 @@ Required for the API to start:
 - **T-501–T-505 Offline sync** (`apps/web-scoring/`): IndexedDB outbox (Dexie), service worker, sync engine, reconciliation, sync status UI. Idempotent server-side via `client_uuid`.
 
 - **T-601–T-612 Public app** (`apps/web-public/`): design tokens, theming engine, participant onboarding, persona-aware home, event detail + brackets + standings, lice live view, fighter/club pages, public schedule endpoint, privacy prefs, follows module, people search/profile, watchlist view.
+
+- **T-613 Follow notification scheduler** (`apps/api/src/workers/follow-notification-scheduler.worker.ts`, `apps/api/src/modules/follows/`, `apps/api/src/modules/matches/`): when a match is scheduled or rescheduled, MyClash enqueues delayed notification jobs for claimed followers of the red/blue Persons with `notify_match_start=true`. Jobs use stable IDs `follow:match_starting:<matchId>:<followerUserId>` and replace old pending jobs on reschedule. Guests are ignored because they have no cross-device push. Unfollowing as a claimed user cancels pending match-start jobs for that followed Person. The follows service now uses the actual DB column names: `followed_person_id`, `follower_user_id`, `follower_guest_session_id`, `created_at`.
 
 - **T-701–T-706 Admin app** (`apps/web-admin/`): org dashboard, new event 4-step wizard, theme editor with live preview, persons + registration management, pool & bracket management with fighter/referee conflict detection, manual exchange edit (audit-logged), schedule day-grid.
 

@@ -7,6 +7,7 @@
  */
 
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from '../persons/privacy.service';
 
@@ -40,6 +41,7 @@ export class FollowsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly privacy: PrivacyService,
+    private readonly followNotifications: FollowNotificationSchedulerService,
   ) {}
 
   // ── List ─────────────────────────────────────────────────────────────────────
@@ -49,21 +51,21 @@ export class FollowsService {
       .from('follows')
       .select(
         `
-        id, person_id, followed_at, notify_match_start, notify_workshop_start,
+        id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
         persons ( given_name, family_name, clubs ( name ) )
       `,
       )
       .eq('event_id', eventId);
 
     if (identity.userId) {
-      q = q.eq('user_id', identity.userId) as typeof q;
+      q = q.eq('follower_user_id', identity.userId) as typeof q;
     } else if (identity.guestSessionId) {
-      q = q.eq('guest_session_id', identity.guestSessionId) as typeof q;
+      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
     } else {
       return [];
     }
 
-    const { data } = await q.order('followed_at', { ascending: false });
+    const { data } = await q.order('created_at', { ascending: false });
     if (!data) return [];
 
     const rows = data as Array<Record<string, unknown>>;
@@ -86,18 +88,18 @@ export class FollowsService {
     // Insert
     const insert: Record<string, unknown> = {
       event_id: eventId,
-      person_id: personId,
+      followed_person_id: personId,
       notify_match_start: true,
       notify_workshop_start: false,
     };
-    if (identity.userId) insert['user_id'] = identity.userId;
-    if (identity.guestSessionId) insert['guest_session_id'] = identity.guestSessionId;
+    if (identity.userId) insert['follower_user_id'] = identity.userId;
+    if (identity.guestSessionId) insert['follower_guest_session_id'] = identity.guestSessionId;
 
     const { data } = await this.supabase.service
       .from('follows')
       .insert(insert)
       .select(
-        `id, person_id, followed_at, notify_match_start, notify_workshop_start,
+        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
       )
       .single();
@@ -112,15 +114,18 @@ export class FollowsService {
       .from('follows')
       .delete()
       .eq('event_id', eventId)
-      .eq('person_id', personId);
+      .eq('followed_person_id', personId);
 
     if (identity.userId) {
-      q = q.eq('user_id', identity.userId) as typeof q;
+      q = q.eq('follower_user_id', identity.userId) as typeof q;
     } else if (identity.guestSessionId) {
-      q = q.eq('guest_session_id', identity.guestSessionId) as typeof q;
+      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
     }
 
     await q;
+    if (identity.userId) {
+      await this.followNotifications.cancelForFollowedPerson(personId, identity.userId);
+    }
   }
 
   // ── Update notification prefs ─────────────────────────────────────────────────
@@ -141,12 +146,12 @@ export class FollowsService {
       .from('follows')
       .update(updates)
       .eq('event_id', eventId)
-      .eq('person_id', personId);
+      .eq('followed_person_id', personId);
 
     if (identity.userId) {
-      q = q.eq('user_id', identity.userId) as typeof q;
+      q = q.eq('follower_user_id', identity.userId) as typeof q;
     } else if (identity.guestSessionId) {
-      q = q.eq('guest_session_id', identity.guestSessionId) as typeof q;
+      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
     }
 
     const { data } = await (
@@ -155,7 +160,7 @@ export class FollowsService {
       }
     )
       .select(
-        `id, person_id, followed_at, notify_match_start, notify_workshop_start,
+        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
       )
       .single();
@@ -178,8 +183,8 @@ export class FollowsService {
     // Fetch guest follows
     const { data: guestFollows } = await this.supabase.service
       .from('follows')
-      .select('id, person_id')
-      .eq('guest_session_id', guestSessionId)
+      .select('id, followed_person_id')
+      .eq('follower_guest_session_id', guestSessionId)
       .eq('event_id', eventId);
 
     if (!guestFollows || guestFollows.length === 0) return 0;
@@ -187,25 +192,25 @@ export class FollowsService {
     // Fetch existing user follows to detect duplicates
     const { data: userFollows } = await this.supabase.service
       .from('follows')
-      .select('person_id')
-      .eq('user_id', userId)
+      .select('followed_person_id')
+      .eq('follower_user_id', userId)
       .eq('event_id', eventId);
 
     const userPersonIds = new Set(
-      (userFollows ?? []).map((f) => (f as { person_id: string }).person_id),
+      (userFollows ?? []).map((f) => (f as { followed_person_id: string }).followed_person_id),
     );
 
     let migrated = 0;
 
-    for (const gf of guestFollows as Array<{ id: string; person_id: string }>) {
-      if (userPersonIds.has(gf.person_id)) {
+    for (const gf of guestFollows as Array<{ id: string; followed_person_id: string }>) {
+      if (userPersonIds.has(gf.followed_person_id)) {
         // Duplicate — delete guest follow
         await this.supabase.service.from('follows').delete().eq('id', gf.id);
       } else {
         // Transfer to user
         await this.supabase.service
           .from('follows')
-          .update({ user_id: userId, guest_session_id: null })
+          .update({ follower_user_id: userId, follower_guest_session_id: null })
           .eq('id', gf.id);
         migrated++;
       }
@@ -224,16 +229,16 @@ export class FollowsService {
     let q = this.supabase.service
       .from('follows')
       .select(
-        `id, person_id, followed_at, notify_match_start, notify_workshop_start,
+        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
       )
       .eq('event_id', eventId)
-      .eq('person_id', personId);
+      .eq('followed_person_id', personId);
 
     if (identity.userId) {
-      q = q.eq('user_id', identity.userId) as typeof q;
+      q = q.eq('follower_user_id', identity.userId) as typeof q;
     } else if (identity.guestSessionId) {
-      q = q.eq('guest_session_id', identity.guestSessionId) as typeof q;
+      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
     }
 
     const { data } = await q.maybeSingle();
@@ -247,7 +252,7 @@ export class FollowsService {
       clubs: { name: string } | null;
     } | null;
 
-    const personId = r['person_id'] as string;
+    const personId = r['followed_person_id'] as string;
     const nextEvent = await this.fetchNextEvent(personId, eventId);
 
     return {
@@ -255,7 +260,7 @@ export class FollowsService {
       personId,
       personName: person ? `${person.given_name} ${person.family_name}` : 'Unknown',
       personClub: person?.clubs?.name ?? null,
-      followedAt: r['followed_at'] as string,
+      followedAt: (r['created_at'] ?? r['followed_at']) as string,
       notifyMatchStart: Boolean(r['notify_match_start']),
       notifyWorkshopStart: Boolean(r['notify_workshop_start']),
       nextEvent,

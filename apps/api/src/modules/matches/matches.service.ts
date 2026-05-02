@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ScoringService } from './scoring.service';
@@ -15,6 +16,7 @@ export class MatchesService {
     private readonly supabase: SupabaseService,
     private readonly scoring: ScoringService,
     private readonly notifications: NotificationSchedulerService,
+    private readonly followNotifications: FollowNotificationSchedulerService,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -111,6 +113,7 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
     await this.notifications.scheduleMatchStarting(matchId);
+    await this.followNotifications.scheduleMatchStarting(matchId);
     return data;
   }
 

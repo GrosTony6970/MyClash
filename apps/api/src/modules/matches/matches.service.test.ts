@@ -12,6 +12,9 @@ const mockScoring = {
 const mockNotificationScheduler = {
   scheduleMatchStarting: vi.fn().mockResolvedValue(undefined),
 };
+const mockFollowNotificationScheduler = {
+  scheduleMatchStarting: vi.fn().mockResolvedValue(undefined),
+};
 
 function makeChain(result: unknown) {
   const chain = {
@@ -43,6 +46,7 @@ describe('MatchesService', () => {
       mockSupabase as never,
       mockScoring as never,
       mockNotificationScheduler as never,
+      mockFollowNotificationScheduler as never,
     );
   });
 
@@ -165,7 +169,7 @@ describe('MatchesService', () => {
   });
 
   describe('scheduleMatch', () => {
-    it('reschedules match-starting notifications when scheduled_at changes', async () => {
+    it('reschedules match-starting and follow notifications when scheduled_at changes', async () => {
       const scheduledAt = '2026-05-02T10:30:00.000Z';
       const updateChain = makeChain({
         data: { id: 'match-1', scheduled_at: scheduledAt },
@@ -180,6 +184,7 @@ describe('MatchesService', () => {
       await service.scheduleMatch('match-1', 'lice-1', scheduledAt);
 
       expect(mockNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
+      expect(mockFollowNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
     });
   });
 

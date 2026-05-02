@@ -17,7 +17,12 @@ export type ImmediateNotificationKind =
   | 'waitlist_promoted'
   | 'results_published';
 
-export type NotificationKind = ScheduledNotificationKind | ImmediateNotificationKind;
+export type FollowNotificationKind = 'follow_match_starting';
+
+export type NotificationKind =
+  | ScheduledNotificationKind
+  | ImmediateNotificationKind
+  | FollowNotificationKind;
 
 export type NotificationPreferenceToggle = 'schedule_changes' | 'results_published';
 

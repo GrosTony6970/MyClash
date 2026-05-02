@@ -21,6 +21,9 @@ const mockPrivacy = {
   canSeeWorkshops: vi.fn(),
   update: vi.fn(),
 };
+const mockFollowNotifications = {
+  cancelForFollowedPerson: vi.fn().mockResolvedValue(undefined),
+};
 
 function makeChain(result: unknown) {
   const chain = {
@@ -50,7 +53,11 @@ describe('FollowsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new FollowsService(mockSupabase as never, mockPrivacy as never);
+    service = new FollowsService(
+      mockSupabase as never,
+      mockPrivacy as never,
+      mockFollowNotifications as never,
+    );
   });
 
   // ── Idempotency ───────────────────────────────────────────────────────────────
@@ -59,8 +66,8 @@ describe('FollowsService', () => {
     it('returns existing row when already following (no duplicate insert)', async () => {
       const existingFollow = {
         id: 'follow-1',
-        person_id: 'person-1',
-        followed_at: '2026-01-01T00:00:00Z',
+        followed_person_id: 'person-1',
+        created_at: '2026-01-01T00:00:00Z',
         notify_match_start: true,
         notify_workshop_start: false,
         persons: { given_name: 'Jean', family_name: 'Dupont', clubs: null },
@@ -102,15 +109,29 @@ describe('FollowsService', () => {
     });
   });
 
+  describe('unfollow', () => {
+    it('cancels pending follow notifications for claimed users', async () => {
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValue(deleteChain);
+
+      await service.unfollow('event-1', 'person-1', { userId: 'user-1' });
+
+      expect(mockFollowNotifications.cancelForFollowedPerson).toHaveBeenCalledWith(
+        'person-1',
+        'user-1',
+      );
+    });
+  });
+
   // ── Guest→claimed migration ───────────────────────────────────────────────────
 
   describe('migrateGuestFollows', () => {
     it('transfers guest follows to user, skips duplicates', async () => {
       const guestFollows = [
-        { id: 'f1', person_id: 'person-A' },
-        { id: 'f2', person_id: 'person-B' }, // duplicate — user already follows B
+        { id: 'f1', followed_person_id: 'person-A' },
+        { id: 'f2', followed_person_id: 'person-B' }, // duplicate — user already follows B
       ];
-      const userFollows = [{ person_id: 'person-B' }];
+      const userFollows = [{ followed_person_id: 'person-B' }];
 
       // Awaitable chains for list queries
       function makeAwaitableChain(result: unknown) {
