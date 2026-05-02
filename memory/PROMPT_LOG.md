@@ -379,3 +379,7 @@ read all memory file to get the context (memory and docs folder)"
 ## 14:05:42_02-05-2026
 
 User requested implementation of T-1102 · HEMA Ratings Search & Link UI in registration from the approved plan. Locked behavior: HEMA link stored on global fighters; every registration gets a Fighter; create Fighter without hema_ratings_id when no HEMA profile is selected; show HEMA suggestions in admin registration flow; defer weighted ratings to later enrichment.
+
+## 16:10:05_02-05-2026
+
+User requested implementation of T-1103 plan: enrich linked HEMA Ratings profiles, display Weighted Rating rows on fighter profiles, and use same-weapon non-stale Weighted Rating for pool seeding. Locked: hema_ratings_id is identity only; category displayed but ignored for seeding; ratings stale after 2 years for seeding but still displayed.

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import type {
   CreateFighterDto,
   FighterQueryDto,
@@ -25,7 +26,10 @@ function slugify(name: string): string {
 
 @Injectable()
 export class FightersService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly hemaRatings?: HemaRatingsService,
+  ) {}
 
   // ── List ────────────────────────────────────────────────────────────────────
 
@@ -61,7 +65,26 @@ export class FightersService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
-    return data;
+
+    const row = data as Record<string, unknown>;
+    const hemaRatingsId = row['hema_ratings_id'] as string | null | undefined;
+    if (!hemaRatingsId || !this.hemaRatings) return data;
+
+    try {
+      return {
+        ...row,
+        hemaRatings: await this.hemaRatings.getProfile(hemaRatingsId),
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return {
+          ...row,
+          hemaRatings: null,
+          hemaRatingsPending: true,
+        };
+      }
+      throw error;
+    }
   }
 
   // ── Create ───────────────────────────────────────────────────────────────────

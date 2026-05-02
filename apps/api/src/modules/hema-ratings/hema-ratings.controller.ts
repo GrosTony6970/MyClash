@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { HemaRatingsService } from './hema-ratings.service';
@@ -25,5 +25,11 @@ export class HemaRatingsController {
   async search(@Query() query: HemaRatingsSearchQueryDto) {
     const limit = parseInt(query.limit ?? '5', 10) || 5;
     return this.hemaRatings.search(query.q, limit);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get enriched HEMA Ratings fighter profile' })
+  async getProfile(@Param('id') id: string) {
+    return this.hemaRatings.getProfile(id);
   }
 }

@@ -31,6 +31,7 @@ import {
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from '../referees/settings.service';
+import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { PhasesService } from './phases.service';
 import type { GeneratePoolsDto } from './dto/phases.dto';
 
@@ -41,6 +42,7 @@ export class PoolPopulatorController {
     private readonly supabase: SupabaseService,
     private readonly settings: SettingsService,
     private readonly phases: PhasesService,
+    private readonly hemaRatings: HemaRatingsService,
   ) {}
 
   @Post('events/:eventId/populate-pools')
@@ -58,11 +60,12 @@ export class PoolPopulatorController {
     // Get tournament for this event (first active tournament)
     const { data: tournaments } = await this.supabase.service
       .from('tournaments')
-      .select('id')
+      .select('id, weapon')
       .eq('event_id', eventId)
       .limit(1);
 
-    const tournamentId = (tournaments as Array<{ id: string }> | null)?.[0]?.id;
+    const tournament = (tournaments as Array<{ id: string; weapon: string | null }> | null)?.[0];
+    const tournamentId = tournament?.id;
 
     // Load settings (with tournament override if available)
     const poolSettings = await this.settings.getSettings(eventId, tournamentId);
@@ -70,7 +73,7 @@ export class PoolPopulatorController {
     // Fetch registrations
     const { data: regs } = await this.supabase.service
       .from('registrations')
-      .select('id, seed, bib_number, persons(club_id)')
+      .select('id, seed, bib_number, persons(club_id), fighters(hema_ratings_id)')
       .eq('tournament_id', tournamentId ?? '')
       .in('status', ['registered', 'checked_in']);
 
@@ -90,13 +93,30 @@ export class PoolPopulatorController {
       poolCount = Math.max(1, Math.ceil(fighterCount / targetSize));
     }
 
+    const hemaIds = Array.from(
+      new Set(
+        regList
+          .map((reg) => {
+            const fighter = reg['fighters'] as { hema_ratings_id: string | null } | null;
+            return fighter?.hema_ratings_id ?? null;
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const weightedRatings = await this.hemaRatings.resolveWeightedRatings(
+      hemaIds,
+      tournament?.weapon,
+    );
+
     // Map to Fighter type
     const fighters: Fighter[] = regList.map((reg, idx) => {
       const person = reg['persons'] as { club_id: string | null } | null;
+      const fighter = reg['fighters'] as { hema_ratings_id: string | null } | null;
+      const hemaRatingsId = fighter?.hema_ratings_id ?? null;
       return {
         registrationId: reg['id'] as string,
         clubId: person?.club_id ?? null,
-        skillRating: null,
+        skillRating: hemaRatingsId ? (weightedRatings.get(hemaRatingsId) ?? null) : null,
         seed: (reg['seed'] as number | null) ?? (reg['bib_number'] as number | null) ?? idx + 1,
       };
     });

@@ -12,13 +12,17 @@ import {
   type Fighter,
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
+import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import type { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 
 @Injectable()
 export class PhasesService {
   private readonly logger = new Logger(PhasesService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly hemaRatings?: HemaRatingsService,
+  ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
 
@@ -59,7 +63,7 @@ export class PhasesService {
     // Fetch registrations
     const { data: regs, error: regsError } = await this.supabase.service
       .from('registrations')
-      .select('id, seed, bib_number, persons(club_id)')
+      .select('id, seed, bib_number, persons(club_id), fighters(hema_ratings_id)')
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
 
@@ -69,6 +73,14 @@ export class PhasesService {
     }
 
     const fighterCount = regs.length;
+
+    const { data: tournament, error: tournamentError } = await this.supabase.service
+      .from('tournaments')
+      .select('weapon')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (tournamentError) throw new BadRequestException(tournamentError.message);
+    const tournamentWeapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
 
     // Resolve pool count
     let poolCount: number;
@@ -85,14 +97,32 @@ export class PhasesService {
       );
     }
 
+    const hemaIds = Array.from(
+      new Set(
+        regs
+          .map((reg) => {
+            const r = reg as Record<string, unknown>;
+            const fighter = r['fighters'] as { hema_ratings_id: string | null } | null;
+            return fighter?.hema_ratings_id ?? null;
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const weightedRatings =
+      this.hemaRatings && tournamentWeapon
+        ? await this.hemaRatings.resolveWeightedRatings(hemaIds, tournamentWeapon)
+        : new Map<string, number>();
+
     // Map to Fighter type
     const fighters: Fighter[] = regs.map((reg, idx) => {
       const r = reg as Record<string, unknown>;
       const person = r['persons'] as { club_id: string | null } | null;
+      const fighter = r['fighters'] as { hema_ratings_id: string | null } | null;
+      const hemaRatingsId = fighter?.hema_ratings_id ?? null;
       return {
         registrationId: r['id'] as string,
         clubId: person?.club_id ?? null,
-        skillRating: null,
+        skillRating: hemaRatingsId ? (weightedRatings.get(hemaRatingsId) ?? null) : null,
         seed: (r['seed'] as number | null) ?? (r['bib_number'] as number | null) ?? idx + 1,
       };
     });

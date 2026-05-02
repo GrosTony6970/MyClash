@@ -24,8 +24,41 @@ interface Fighter {
   bio: string | null;
   hemaRatingsId: string | null;
   hemaRatingsScore: number | null;
+  hemaRatings: HemaRatingsProfile | null;
+  hemaRatingsPending: boolean;
   recentMatches: RecentMatch[];
 }
+
+interface HemaRatingsProfile {
+  id: string;
+  name: string;
+  club: string;
+  nationality?: string | null;
+  detailsUrl: string;
+  syncedAt: string;
+  ratings: HemaRatingsRating[];
+}
+
+interface HemaRatingsRating {
+  weapon: string;
+  category: string;
+  rank: number | null;
+  weightedRating: number;
+  lastCompeted: string | null;
+}
+
+type RawFighter = Partial<Fighter> & {
+  display_name?: string;
+  given_name?: string;
+  family_name?: string;
+  club_name?: string | null;
+  club_slug?: string | null;
+  photo_url?: string | null;
+  hema_ratings_id?: string | null;
+  hemaRatings?: HemaRatingsProfile | null;
+  hemaRatingsPending?: boolean;
+  clubs?: { name?: string | null; slug?: string | null } | null;
+};
 
 interface RecentMatch {
   id: string;
@@ -46,7 +79,23 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | nul
       cache: 'no-store',
     });
     if (!res.ok) return null;
-    return (await res.json()) as Fighter;
+    const raw = (await res.json()) as RawFighter;
+    return {
+      id: raw.id ?? '',
+      slug: raw.slug ?? slug,
+      displayName: raw.displayName ?? raw.display_name ?? '',
+      givenName: raw.givenName ?? raw.given_name ?? '',
+      familyName: raw.familyName ?? raw.family_name ?? '',
+      clubName: raw.clubName ?? raw.club_name ?? raw.clubs?.name ?? null,
+      clubSlug: raw.clubSlug ?? raw.club_slug ?? raw.clubs?.slug ?? null,
+      photoUrl: raw.photoUrl ?? raw.photo_url ?? null,
+      bio: raw.bio ?? null,
+      hemaRatingsId: raw.hemaRatingsId ?? raw.hema_ratings_id ?? null,
+      hemaRatingsScore: raw.hemaRatingsScore ?? null,
+      hemaRatings: raw.hemaRatings ?? null,
+      hemaRatingsPending: raw.hemaRatingsPending ?? false,
+      recentMatches: raw.recentMatches ?? [],
+    };
   } catch {
     return null;
   }
@@ -114,6 +163,64 @@ export default async function FighterPage({ params }: Props) {
 
       {/* Bio */}
       {fighter.bio && <p className="text-gray-300 text-sm leading-relaxed mb-6">{fighter.bio}</p>}
+
+      {fighter.hemaRatingsId && (
+        <section className="mb-6 rounded-xl border border-amber-700/50 bg-amber-950/20 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400">
+                HEMA Ratings
+              </h2>
+              <a
+                href={`https://hemaratings.com/fighters/details/${fighter.hemaRatingsId}/`}
+                className="mt-1 inline-block text-sm text-amber-200 underline-offset-4 hover:underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Profile #{fighter.hemaRatingsId}
+              </a>
+            </div>
+            {fighter.hemaRatings?.syncedAt && (
+              <p className="text-right text-[11px] text-gray-500">
+                Synced {new Date(fighter.hemaRatings.syncedAt).toLocaleDateString('en-GB')}
+              </p>
+            )}
+          </div>
+
+          {fighter.hemaRatings?.ratings.length ? (
+            <div className="mt-4 divide-y divide-amber-900/50">
+              {fighter.hemaRatings.ratings.map((rating) => (
+                <div
+                  key={`${rating.weapon}-${rating.category}`}
+                  className="py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{rating.weapon}</p>
+                      <p className="text-xs text-gray-400">{rating.category}</p>
+                      {rating.lastCompeted && (
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          Last competed {new Date(rating.lastCompeted).toLocaleDateString('en-GB')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-black tabular-nums text-amber-300">
+                        {rating.weightedRating.toFixed(1)}
+                      </p>
+                      {rating.rank !== null && (
+                        <p className="text-[11px] text-gray-500">Rank {rating.rank}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-gray-400">Rating details pending next sync.</p>
+          )}
+        </section>
+      )}
 
       {/* Live now */}
       {live.length > 0 && (

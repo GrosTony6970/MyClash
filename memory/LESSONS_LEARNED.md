@@ -53,6 +53,7 @@
 - Guest sessions sign with a separate JWT secret from Supabase auth. Crossing the streams creates an escalation vector — keep them strictly bounded.
 - Mask emails in any endpoint a participant can hit anonymously. `j***@g***.com` is enough to recognize your own email; not enough for an attacker to harvest a roster.
 - Name + club is the disambiguator for HEMA. Two "Jean Dupont" exist; "Jean Dupont · Lyon AMHE" and "Jean Dupont · Cercle PRMD" are distinct enough in 99% of cases.
+- Treat `hema_ratings_id` as an external identity key only. Never use the numeric ID as a skill signal; seeding must use weapon-specific HEMA Weighted Rating rows, with defined staleness fallback.
 - Fuzzy match with `pg_trgm` and `unaccent`. Don't try to do this client-side — accents and typos are language-specific and the index lives where the data lives.
 - Capability boundaries between Guest and Claimed should be drawn at "anything that crosses devices" or "anything that edits." Casual users never need to claim; power users get a one-time magic link.
 - **Migrate user-owned data atomically on claim.** Follow rows, push subscriptions, workshop enrollments, persona selections — all transfer from `guest_session_id` to `user_id` in the same transaction as the claim. Otherwise the user "loses" their state, which is terrible UX.

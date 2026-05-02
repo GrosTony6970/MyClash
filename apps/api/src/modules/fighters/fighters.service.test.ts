@@ -136,6 +136,52 @@ describe('FightersService', () => {
     });
   });
 
+  describe('getBySlug', () => {
+    it('adds HEMA Ratings profile data when Fighter is linked', async () => {
+      const fighterChain = makeChain({ data: null, error: null });
+      fighterChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'fighter-1',
+          slug: 'steven-gallagher',
+          display_name: 'Steven Gallagher',
+          hema_ratings_id: '10458',
+        },
+        error: null,
+      });
+      fromMock.mockReturnValue(fighterChain);
+      const hemaRatings = {
+        getProfile: vi.fn().mockResolvedValue({
+          id: '10458',
+          name: 'Steven Gallagher',
+          club: 'Smart HEMA Clubs',
+          detailsUrl: 'https://hemaratings.com/fighters/details/10458/',
+          syncedAt: '2026-05-02T00:00:00.000Z',
+          ratings: [
+            {
+              weapon: 'Longsword',
+              category: "Mixed & Men's Steel Longsword",
+              rank: 364,
+              weightedRating: 1583.2,
+              lastCompeted: '2026-03-01',
+            },
+          ],
+        }),
+      };
+      service = new FightersService(mockSupabase as never, hemaRatings as never);
+
+      const result = await service.getBySlug('steven-gallagher');
+
+      expect(result).toMatchObject({
+        hema_ratings_id: '10458',
+        hemaRatings: {
+          id: '10458',
+          syncedAt: '2026-05-02T00:00:00.000Z',
+          ratings: [{ weapon: 'Longsword', weightedRating: 1583.2 }],
+        },
+      });
+    });
+  });
+
   describe('slugify (via create)', () => {
     it('generates a unique slug on create', async () => {
       const insertChain = makeChain({ data: null, error: null });

@@ -21,6 +21,10 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import {
+  type HemaRatingsProfile,
+  parseHemaRatingsDetailHtml,
+} from '../modules/hema-ratings/hema-ratings.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,6 +35,10 @@ export interface HemaRatingsFighter {
   name: string;
   /** Club name */
   club: string;
+  /** Enriched profile details for linked MyClash fighters */
+  nationality?: string | null;
+  detailsUrl?: string;
+  ratings?: HemaRatingsProfile['ratings'];
 }
 
 export const HEMA_RATINGS_QUEUE = 'hema-ratings-sync';
@@ -77,8 +85,38 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
     const fighters = await this.fetchFighters();
     this.logger.log(`Fetched ${fighters.length} fighters from hemaratings.com`);
 
-    await this.storeSnapshot(fighters);
-    this.logger.log(`Snapshot stored (${fighters.length} fighters)`);
+    const linkedProfiles = await this.fetchLinkedProfiles();
+    this.logger.log(`Enriched ${linkedProfiles.size} linked HEMA Ratings profiles`);
+
+    const enriched = fighters.map((fighter) => {
+      const profile = fighter.id !== null ? linkedProfiles.get(String(fighter.id)) : undefined;
+      return profile
+        ? {
+            ...fighter,
+            name: profile.name,
+            club: profile.club,
+            nationality: profile.nationality,
+            detailsUrl: profile.detailsUrl,
+            ratings: profile.ratings,
+          }
+        : fighter;
+    });
+
+    for (const [id, profile] of linkedProfiles) {
+      if (!enriched.some((fighter) => String(fighter.id) === id)) {
+        enriched.push({
+          id: parseInt(id, 10),
+          name: profile.name,
+          club: profile.club,
+          nationality: profile.nationality,
+          detailsUrl: profile.detailsUrl,
+          ratings: profile.ratings,
+        });
+      }
+    }
+
+    await this.storeSnapshot(enriched);
+    this.logger.log(`Snapshot stored (${enriched.length} fighters)`);
   }
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -194,6 +232,56 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
     }
 
     return fighters;
+  }
+
+  private async fetchLinkedProfiles(): Promise<Map<string, HemaRatingsProfile>> {
+    const { data, error } = await this.supabase.service
+      .from('fighters')
+      .select('hema_ratings_id')
+      .not('hema_ratings_id', 'is', null);
+
+    if (error) {
+      throw new Error(`Failed to load linked HEMA Ratings IDs: ${error.message}`);
+    }
+
+    const ids = Array.from(
+      new Set(
+        ((data ?? []) as Array<{ hema_ratings_id: string | null }>)
+          .map((fighter) => fighter.hema_ratings_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const profiles = new Map<string, HemaRatingsProfile>();
+    for (const id of ids) {
+      try {
+        profiles.set(id, await this.fetchProfile(id));
+      } catch (error) {
+        this.logger.warn(
+          `Failed to enrich HEMA Ratings profile ${id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+    return profiles;
+  }
+
+  private async fetchProfile(id: string): Promise<HemaRatingsProfile> {
+    const url = `https://hemaratings.com/fighters/details/${id}/`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'MyClash/1.0 (HEMA event management platform; contact: admin@myclash.fr)',
+        Accept: 'text/html',
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`hemaratings.com returned HTTP ${response.status} for ${url}`);
+    }
+
+    return parseHemaRatingsDetailHtml(id, await response.text());
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────
