@@ -283,7 +283,7 @@ export class ExportsService {
    * Resolve the round label for HEMA Ratings export.
    *
    * Pool matches → "Pools"
-   * Bracket matches → "Top 16", "Top 8", "Semi-finals", "Final", "Bronze Medal Match"
+   * Bracket matches → "Top 64", "Top 32", "Top 16", "Quarter-finals", "Semi-finals", "Gold Medal Match", "Bronze Medal Match"
    * Uses match_number_label as fallback.
    */
   private resolveRound(
@@ -296,18 +296,21 @@ export class ExportsService {
     }
 
     if (phaseType === 'single_elim') {
-      // Try to infer from match label (e.g. "F" = Final, "SF1" = Semi-final, "3rd" = Bronze)
+      // Try to infer from match label (e.g. "F" = Gold Medal, "SF1" = Semi-final, "3rd" = Bronze)
       const label = (matchLabel ?? '').toUpperCase();
-      if (label.includes('FINAL') || label === 'F') return 'Final';
+      // Bronze must be checked BEFORE Final (label may contain both "FINAL" and "BRONZE")
       if (label.includes('BRONZE') || label.includes('3RD') || label.includes('3RD PLACE')) {
         return 'Bronze Medal Match';
       }
+      if (label.includes('FINAL') || label === 'F') return 'Gold Medal Match';
       if (label.includes('SF') || label.includes('SEMI')) return 'Semi-finals';
       if (label.includes('QF') || label.includes('QUARTER')) return 'Quarter-finals';
       if (label.includes('R16') || label.includes('TOP16') || label.includes('TOP 16'))
         return 'Top 16';
       if (label.includes('R32') || label.includes('TOP32') || label.includes('TOP 32'))
         return 'Top 32';
+      if (label.includes('R64') || label.includes('TOP64') || label.includes('TOP 64'))
+        return 'Top 64';
       // Fallback: use the label as-is
       return matchLabel ?? 'Elimination';
     }
