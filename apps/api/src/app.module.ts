@@ -19,6 +19,7 @@ import { WorkersModule } from './workers/workers.module';
 import { LicesModule } from './modules/lices/lices.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PersonsModule } from './modules/persons/persons.module';
 import { PhasesModule } from './modules/phases/phases.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -68,6 +69,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     LicesModule,
     RegistrationsModule,
     MatchesModule,
+    NotificationsModule,
     PhasesModule,
     FollowsModule,
     WorkshopsModule,

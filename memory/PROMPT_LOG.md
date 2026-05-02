@@ -383,3 +383,15 @@ User requested implementation of T-1102 · HEMA Ratings Search & Link UI in regi
 ## 16:10:05_02-05-2026
 
 User requested implementation of T-1103 plan: enrich linked HEMA Ratings profiles, display Weighted Rating rows on fighter profiles, and use same-weapon non-stale Weighted Rating for pool seeding. Locked: hema_ratings_id is identity only; category displayed but ignored for seeding; ratings stale after 2 years for seeding but still displayed.
+
+## 18:36:33_02-05-2026
+
+User asked: "next task"
+
+## 18:40:01_02-05-2026
+
+User wants `deploy.sh` to check whether `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` exist in `.env`; if missing, generate them and store them in `.env`; then proceed to T-1201.
+
+## 18:42:25_02-05-2026
+
+User approved the T-1201/deploy VAPID design with: "go".

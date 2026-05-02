@@ -349,11 +349,19 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | ------------------------------------------------ | --------- | ------- |
 | T-1101 · Daily sync job (BullMQ cron + snapshot) | `0fd14a3` | ✅ done |
 | T-1102 · Search & link UI in registration        | `7a60caa` | ✅ done |
-| T-1103 · HEMA Ratings on fighter profile         | current   | ✅ done |
+| T-1103 · HEMA Ratings on fighter profile         | `9ea2f80` | ✅ done |
+
+## Build progress (Phase P12 — in progress)
+
+| Task                                     | Commit  | Status   |
+| ---------------------------------------- | ------- | -------- |
+| T-1201 · VAPID + subscription endpoints  | current | ✅ done  |
+| T-1202 · Scheduled notification triggers | —       | ⬜ next  |
+| T-1203 · Event-driven notifications      | —       | ⬜ later |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1201 · VAPID + subscription endpoints (blocked until O-007 is confirmed)
+**Next task**: T-1202 · Scheduled notification triggers
 
 ## Tech decisions locked in during implementation
 
@@ -463,3 +471,5 @@ Required for the API to start:
 - **T-1102 HEMA Ratings registration link** (`apps/api/src/modules/hema-ratings/`, `apps/api/src/modules/registrations/`, `apps/web-admin/src/components/HemaRatingsSuggest.tsx`): admin registration modal searches latest HEMA Ratings snapshot and can select a profile. Registration creation always resolves a global Fighter: reuses existing `persons.global_fighter_id`, or creates a Fighter from Person data. If a HEMA Ratings profile is selected, `fighters.hema_ratings_id` is set; if not, Fighter is still created without a HEMA ID. Weighted Rating is weapon-category-specific and deferred to T-1103/enrichment.
 
 - **T-1103 HEMA Ratings profile + seeding** (`apps/api/src/modules/hema-ratings/`, `apps/api/src/workers/hema-ratings-sync.worker.ts`, `apps/api/src/modules/phases/`, `apps/web-public/app/fighters/[slug]/page.tsx`): daily sync enriches only linked `fighters.hema_ratings_id` profiles by scraping detail pages. Profile data stores rating rows with weapon/category/rank/Weighted Rating/last competed in the latest snapshot JSON. Public fighter profiles show HEMA profile link, rating rows, and last synced. Pool generation and pool-populator use same-weapon, non-stale (<2 years) Weighted Rating as `skillRating`; category is displayed but ignored for seeding; stale/no-match ratings fall back to seed/bib/registration order.
+
+- **T-1201 VAPID + notification subscriptions** (`scripts/ensure-vapid-env.mjs`, `infra/scripts/deploy.sh`, `apps/api/src/modules/notifications/`, `apps/web-public/app/notifications/`): deploy now checks both `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in `.env`; if either is missing/empty, it generates a new P-256 VAPID pair, updates existing `.env` keys in place, and ensures `VAPID_SUBJECT=mailto:${LETSENCRYPT_EMAIL}` by default. API exposes public `GET /api/v1/notifications/vapid-public-key`, authenticated `POST /api/v1/notifications/subscribe`, and authenticated `DELETE /api/v1/notifications/subscribe/:id`. Public `/notifications` registers `apps/web-public/public/sw.js`, asks browser permission, stores the Push subscription for claimed users, and can disable the browser subscription.

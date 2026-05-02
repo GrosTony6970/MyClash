@@ -98,35 +98,15 @@ fi
 # ── VAPID / Web Push keys ─────────────────────────────────────────
 hdr "Web Push (VAPID) keys"
 
-if [[ -z "${VAPID_PUBLIC_KEY:-}" ]]; then
-  warn "VAPID keys missing — generating..."
-  if command -v node &>/dev/null; then
-    VAPID_KEYS=$(node -e "
-      const e = require('crypto').createECDH('prime256v1');
-      e.generateKeys();
-      const b = (x) => x.toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-      console.log(b(e.getPublicKey()) + ' ' + b(e.getPrivateKey()));
-    " 2>/dev/null || true)
-    if [[ -n "$VAPID_KEYS" ]]; then
-      VAPID_PUBLIC=$(echo "$VAPID_KEYS" | cut -d' ' -f1)
-      VAPID_PRIVATE=$(echo "$VAPID_KEYS" | cut -d' ' -f2)
-      {
-        echo ""
-        echo "# Auto-generated VAPID keys for Web Push notifications"
-        echo "VAPID_PUBLIC_KEY=${VAPID_PUBLIC}"
-        echo "VAPID_PRIVATE_KEY=${VAPID_PRIVATE}"
-        echo "VAPID_SUBJECT=mailto:${LETSENCRYPT_EMAIL}"
-      } >> .env
-      export VAPID_PUBLIC_KEY="$VAPID_PUBLIC"
-      export VAPID_PRIVATE_KEY="$VAPID_PRIVATE"
-      export VAPID_SUBJECT="mailto:${LETSENCRYPT_EMAIL}"
-      ok "VAPID keys generated and saved to .env"
-    else
-      err "Could not generate VAPID keys"; exit 1
-    fi
-  else
-    err "node not found — cannot generate VAPID keys"; exit 1
-  fi
+require_cmd node
+
+VAPID_RESULT=$(node scripts/ensure-vapid-env.mjs .env "$LETSENCRYPT_EMAIL")
+set -a
+source ./.env
+set +a
+
+if [[ "$VAPID_RESULT" == *'"generated":true'* ]]; then
+  ok "VAPID keys generated and saved to .env"
 else
   ok "VAPID keys already configured"
 fi
