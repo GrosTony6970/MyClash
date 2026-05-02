@@ -352,3 +352,17 @@ All AC met. lint + typecheck + test green (15 test files, 115 tests). Note: migr
 ## 18:00:00_01-05-2026
 
 User asked to run pnpm turbo run lint + typecheck locally before every push, and add to LESSONS_LEARNED. Added mandatory pre-push verification rule. Updated MEMORY.md HEAD to af6ec3c. Next task: T-703.
+
+## Session resumed — 02-05-2026
+
+Context transfer from previous long session. Continuing BUILD_ORDER execution.
+T-1101 implemented: HEMA Ratings daily sync job (BullMQ cron + hema_ratings_snapshots table).
+hemaratings.com has no public API — HTML scraping used. Fighter list page contains name + club + numeric ID in href.
+
+## 10:00:00_02-05-2026
+
+New session (context transfer). User: "resume next task according to plan". Resumed at T-1101 (HEMA Ratings sync). Confirmed hemaratings.com has no public API — HTML scraping required. Implemented T-1101: BullMQ daily cron (03:30 UTC), `hema_ratings_snapshots` table (migration 0011), `WorkersModule`, Redis env vars added to `.env.example`. Committed `0fd14a3`. Typecheck + lint green before push.
+
+## 11:00:00_02-05-2026
+
+User: "now update all memory file with the work done". Updated MEMORY.md: fixed remote repo URL, added complete build progress tables for P4–P11 (previously missing P5–P9), rewrote implementation notes section to cover all phases, added Redis env vars to key env vars section, added CI Node.js 24 note. Updated PROMPT_LOG.md (this entry). LESSONS_LEARNED.md already up to date — no changes needed.

@@ -15,7 +15,7 @@
 - **License**: AGPL-3.0
 - **Owner**: Project author (a HEMA practitioner / Solution Architect, based in Bessenay, FR; affiliated with Lyon AMHE).
 - **Local repo path** (Windows, owner's machine): `F:\Github Repo\MyClash`
-- **Remote repo**: GitHub (to be created under the owner's account, similar to https://github.com/GrosTony6970/MyFAL)
+- **Remote repo**: https://github.com/GrosTony6970/MyClash (live, push to `main` directly — owner confirmed)
 - **Production domain**: `myclash.fr` (confirmed; subdomains: `api.`, `admin.`, `scoring.`).
 - **Production hosting**: OVH VPS (same provider as MyFAL — pattern reuse intended).
 - **Authoritative spec**: `docs/ARCHITECTURE.md`.
@@ -198,8 +198,6 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P0 — completed 29-04-2026)
 
-All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
-
 | Task                                                | Commit          | Status  |
 | --------------------------------------------------- | --------------- | ------- |
 | T-001 · Initialize monorepo                         | `e559a40`       | ✅ done |
@@ -253,29 +251,109 @@ All Phase P0 tasks are shipped on `main`. Current HEAD: `814013f`.
 | Task                                                      | Commit    | Status  |
 | --------------------------------------------------------- | --------- | ------- |
 | T-301 · Pool generation (snake seeding + local search)    | `8a51abd` | ✅ done |
-| T-301 · Pool size configuration (poolCount or targetSize) | `5e35187` | ✅ done |
+| T-301 · Pool size configuration (poolCount or targetSize) | `8a51abd` | ✅ done |
 | T-302 · Berger table round-robin match generation         | `e250723` | ✅ done |
 | T-303 · Single-elimination bracket                        | `d6eb633` | ✅ done |
-| T-303 · Configurable bracket size                         | `17f9ae7` | ✅ done |
-| Lint fix (no-misused-promises, no-unused-vars, web-admin) | `1d5d028` | ✅ done |
+| T-303 · Configurable bracket size                         | `d6eb633` | ✅ done |
 | T-304 · Match-to-Lice scheduler                           | `87506b5` | ✅ done |
 | T-305 · Phases API                                        | `709b429` | ✅ done |
 
-## Build progress (Phase P4 — in progress)
+## Build progress (Phase P4 — completed 01-05-2026)
 
 | Task                                | Commit    | Status  |
 | ----------------------------------- | --------- | ------- |
-| T-401 · Scoring app shell           | `(prev)`  | ✅ done |
+| T-401 · Scoring app shell           | `d781fa6` | ✅ done |
 | T-402 · Match clock component       | `c758d60` | ✅ done |
 | T-403 · Exchange entry UI           | `709b429` | ✅ done |
 | T-404 · Realtime broadcast (server) | `fe15da0` | ✅ done |
 | T-405 · Public live match view      | `520b903` | ✅ done |
 
-**Current HEAD**: `af6ec3c`
-**Phase P4 complete. P5 complete. P6 in progress (T-701 ✅, T-702 ✅).**
-**Next task**: T-703 · Persons + registration management
+## Build progress (Phase P5 — completed 01-05-2026)
+
+| Task                                 | Commit    | Status  |
+| ------------------------------------ | --------- | ------- |
+| T-501 · IndexedDB outbox (Dexie)     | `b9b3c30` | ✅ done |
+| T-502 · Service worker offline cache | `7454c0d` | ✅ done |
+| T-503 · Sync engine                  | `7454c0d` | ✅ done |
+| T-504 · Reconciliation               | `c1124cc` | ✅ done |
+| T-505 · Sync status UI               | `c1124cc` | ✅ done |
+
+## Build progress (Phase P6 — completed 01-05-2026)
+
+| Task                                         | Commit    | Status  |
+| -------------------------------------------- | --------- | ------- |
+| T-601 · Design tokens + shared UI components | `214246b` | ✅ done |
+| T-602 · Per-event theming engine             | `14019d7` | ✅ done |
+| T-603 · Participant onboarding               | `50f672c` | ✅ done |
+| T-604 · Persona-aware home                   | `fb2d517` | ✅ done |
+| T-605 · Event detail + brackets + standings  | `3eef6f9` | ✅ done |
+| T-606 · Lice live view                       | `d14c409` | ✅ done |
+| T-607 · Fighter/Club pages                   | `d14c409` | ✅ done |
+| T-608 · Public schedule endpoint             | `81fddce` | ✅ done |
+| T-609 · Privacy preferences                  | `81fddce` | ✅ done |
+| T-610 · Follows module                       | `362e2ba` | ✅ done |
+| T-611 · People search/profile UI             | `362e2ba` | ✅ done |
+| T-612 · Watchlist view                       | `0104d12` | ✅ done |
+
+## Build progress (Phase P7 — completed 02-05-2026)
+
+| Task                                        | Commit    | Status  |
+| ------------------------------------------- | --------- | ------- |
+| T-701 · Org dashboard + New Event wizard    | `673b9f7` | ✅ done |
+| T-702 · Theme editor with live preview      | `327aa6e` | ✅ done |
+| T-703 · Persons + registration management   | `66e8fe6` | ✅ done |
+| T-704 · Pool & bracket management           | `22244a2` | ✅ done |
+| T-705 · Manual exchange edit (audit-logged) | `a02a286` | ✅ done |
+| T-706 · Schedule day-grid                   | `e8e9580` | ✅ done |
+
+## Build progress (Phase P8 — completed 02-05-2026)
+
+| Task                             | Commit    | Status  |
+| -------------------------------- | --------- | ------- |
+| T-801 · Workshops API            | `dfcad5d` | ✅ done |
+| T-802 · Enrollment + waitlist    | `dfcad5d` | ✅ done |
+| T-803 · Workshop public catalog  | `dba9dd9` | ✅ done |
+| T-804 · Workshop admin           | `dba9dd9` | ✅ done |
+| T-805 · My Schedule unified view | `e9b9242` | ✅ done |
+
+## Build progress (Phase P9 — completed 02-05-2026)
+
+| Task                                                  | Commit    | Status  |
+| ----------------------------------------------------- | --------- | ------- |
+| T-901 · Referee qualifications API                    | `f0b9961` | ✅ done |
+| T-902 · Pool assignment settings                      | `f0b9961` | ✅ done |
+| T-903 · Referee auto-assignment engine                | `3c42ceb` | ✅ done |
+| T-903 · Hard constraint: no simultaneous pool overlap | `4e438a2` | ✅ done |
+| T-904 · Pool populator API                            | `7bfbbec` | ✅ done |
+| T-905 · Auto-assign referees endpoint                 | `7bfbbec` | ✅ done |
+| T-906 · Referee admin UI                              | `7bfbbec` | ✅ done |
+| T-907 · Pool populator UI                             | `3dcba59` | ✅ done |
+| T-908 · Referee assignment UI                         | `3dcba59` | ✅ done |
+| T-909 · Referee dashboard (public app)                | `7a47bbf` | ✅ done |
+| T-910 · On-piste referee tools                        | `7a47bbf` | ✅ done |
+
+## Build progress (Phase P10 — completed 02-05-2026)
+
+| Task                                                       | Commit    | Status            |
+| ---------------------------------------------------------- | --------- | ----------------- |
+| T-1001 · Materialized views for fighter exchange stats     | `1a3dfbd` | ✅ done           |
+| T-1002 · Tournament stats overview API                     | `1a3dfbd` | ✅ done           |
+| T-1003 · Stats page UI (public)                            | `a811b8a` | ✅ done           |
+| T-1004 · Exports — CSV / JSON / HEMA Ratings format        | `3b9aab8` | ✅ done           |
+| T-1004 · fix: round labels (Gold Medal Match, Top 32, etc) | `4819dfd` | ✅ done           |
+| T-1005 · PDF export                                        | —         | ⏭ skipped (user) |
+
+## Build progress (Phase P11 — in progress)
+
+| Task                                             | Commit    | Status  |
+| ------------------------------------------------ | --------- | ------- |
+| T-1101 · Daily sync job (BullMQ cron + snapshot) | `0fd14a3` | ✅ done |
+| T-1102 · Search & link UI in registration        | —         | ⬜ next |
+| T-1103 · HEMA Ratings on fighter profile         | —         | ⬜ todo |
+
+**Current HEAD**: `0fd14a3`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
+**Next task**: T-1102 · Search & link UI in registration
 
 ## Tech decisions locked in during implementation
 
@@ -308,6 +386,9 @@ Required for the API to start:
 - `MYCLASH_GUEST_JWT_SECRET` — separate from Supabase secret
 - `POSTGRES_PASSWORD` — Postgres password
 - `DOMAIN` — `myclash.fr` in prod, `myclash.localhost` in dev
+- `REDIS_HOST` — Redis host (default `localhost`; `redis` in Docker)
+- `REDIS_PORT` — Redis port (default `6379`)
+- `REDIS_PASSWORD` — optional; uncomment in `.env.example` if Redis requires auth
 
 ## Themes — see linked thematic notes when they exist
 
@@ -349,12 +430,32 @@ Required for the API to start:
 - **Prettier is enforced at commit time** via lint-staged + simple-git-hooks. `prettier --write` runs automatically on all staged `*.ts/tsx/js/jsx/json/md/yml/yaml` files before every commit. After a fresh clone, `pnpm install` triggers the `prepare` script which re-registers the hook.
 - **`format:check` is in CI** inside the `lint` job (runs after `pnpm turbo run lint`). It will always pass because files are formatted at commit time.
 - **Never run a bulk `prettier --write` on the whole repo again** — it's now handled per-file at commit time. The one-time bulk pass (`5ad7900`) was the last time this was needed.
+- **CI uses Node.js 24** — opted in via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` in the workflow env to avoid deprecation warnings from GitHub Actions runners.
 
-- **T-404 Realtime broadcast** (`packages/db/migrations/0004_realtime.sql`, `apps/api/src/modules/realtime/`): REPLICA IDENTITY FULL on exchanges/matches/match_events + idempotent addition to `supabase_realtime` publication. `Channels.*` factory functions for all 5 channel names. `RealtimeService` wraps `SupabaseService.service.channel().send()` for server-initiated broadcasts (T-405+ will use this for standings and high-level events). **Migration is numbered 0004** — BUILD_ORDER says 0003 but `0003_lookup_functions.sql` already existed; ignore the stale number in BUILD_ORDER.
-- **T-405 Public live match view** (`apps/web-public/app/e/[eventSlug]/match/[matchId]/`): SSR server component fetches initial match + exchanges from NestJS API. `MatchLiveView` client component subscribes to `postgres_changes` on `exchanges` (INSERT/UPDATE) and `matches` (UPDATE) via Supabase Realtime — new exchange appears in <1s. On reconnect (CLOSED→SUBSCRIBED), re-fetches REST API to catch missed changes. `apps/web-public/src/lib/supabase.ts` is the browser Supabase client singleton. Note: Supabase Realtime payloads use snake_case raw DB column names (not camelCase like the REST API) — conversion handled by `toExchangeRow()`. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL` added to `.env.example`.
+## Implementation notes (key decisions per task)
 
-- **T-401 Scoring app shell** (`apps/web-scoring/`): PWA with manifest, service worker stub, login page, Lice picker, network status bar (online/offline indicator).
+- **T-404 Realtime broadcast** (`packages/db/migrations/0004_realtime.sql`, `apps/api/src/modules/realtime/`): REPLICA IDENTITY FULL on exchanges/matches/match_events + idempotent addition to `supabase_realtime` publication. `Channels.*` factory functions for all 5 channel names. `RealtimeService` wraps `SupabaseService.service.channel().send()`. **Migration is numbered 0004** — BUILD_ORDER says 0003 but `0003_lookup_functions.sql` already existed.
+
+- **T-405 Public live match view** (`apps/web-public/app/e/[eventSlug]/match/[matchId]/`): SSR server component + `MatchLiveView` client component subscribes to `postgres_changes` on `exchanges` + `matches` via Supabase Realtime. On reconnect (CLOSED→SUBSCRIBED), re-fetches REST API to catch missed changes. Supabase Realtime payloads use snake_case raw DB column names — conversion handled by `toExchangeRow()`.
+
+- **T-401 Scoring app shell** (`apps/web-scoring/`): PWA with manifest, service worker stub, login page, Lice picker, network status bar.
+
 - **T-402 Match clock** (`apps/web-scoring/src/components/MatchClock.tsx`, `apps/api/src/modules/matches/clock.service.ts`): clock state persisted as `match_events` rows. Reload-safe (recomputes from timeline). Drift correction on every render. Actions: start/halt/resume/end/reset_clock.
-- **T-403 Exchange entry UI** (`apps/web-scoring/src/components/ExchangePad.tsx`): tap-driven, multi-step flow. Clean hit → choose striker → choose value → POST. Afterblow → choose striker → first value → afterblow value → POST. Double → single tap → POST. No-exchange → reason picker → POST. Undo within 30s window (PATCH /exchanges/:id/void). Big buttons (min-h-[80px]) for glove use. Integrated into lice match page.
-- **ESLint pattern for Supabase mock chains in Vitest**: use `makeChain()` returning a plain object (NOT a Promise) with `vi.fn().mockReturnValue(chain)` on each builder method. For `await q` patterns (no terminal call), use `makeAwaitableChain()` = `Object.assign(Promise.resolve(result), {...methods that return the Promise itself})`. Never use a `then` property on mock objects — triggers `no-misused-promises`. Never spread a Promise — also triggers `no-misused-promises`.
-- **`react-hooks/set-state-in-effect` rule**: do NOT call `setState` synchronously in a `useEffect` body. Move all state updates into async callbacks (`.then()`, `setTimeout`, etc.) or restructure with a `refreshKey` state + AbortController pattern for data fetching.
+
+- **T-403 Exchange entry UI** (`apps/web-scoring/src/components/ExchangePad.tsx` → replaced by `ScoringPad.tsx`): tap-driven. Undo within 30s window (PATCH /exchanges/:id/void). Big buttons (min-h-[80px]) for glove use.
+
+- **Afterblow scoring + ScoringPad** (outside BUILD_ORDER, added during P4): configurable afterblow mode (`full` | `deductive`) per tournament. `full` = both fighters score; `deductive` = only attacker scores but defender blow ALWAYS recorded in stats. Score buttons configurable per tournament (label, value, visibility). `ScoringPad` component replaced `ExchangePad` — buttons directly under each fighter, no choose-striker step. Clock guard: scoring blocked when clock is running; `clockTimeMs` recorded on each exchange. Types in `packages/types/src/scoring-config.ts`.
+
+- **T-501–T-505 Offline sync** (`apps/web-scoring/`): IndexedDB outbox (Dexie), service worker, sync engine, reconciliation, sync status UI. Idempotent server-side via `client_uuid`.
+
+- **T-601–T-612 Public app** (`apps/web-public/`): design tokens, theming engine, participant onboarding, persona-aware home, event detail + brackets + standings, lice live view, fighter/club pages, public schedule endpoint, privacy prefs, follows module, people search/profile, watchlist view.
+
+- **T-701–T-706 Admin app** (`apps/web-admin/`): org dashboard, new event 4-step wizard, theme editor with live preview, persons + registration management, pool & bracket management with fighter/referee conflict detection, manual exchange edit (audit-logged), schedule day-grid.
+
+- **T-801–T-805 Workshops** (`apps/api/src/modules/workshops/`): workshops API, enrollment + waitlist, workshop public catalog, workshop admin, My Schedule unified view.
+
+- **T-901–T-910 Referees** (`apps/api/src/modules/referees/`): referee qualifications API, pool assignment settings, referee auto-assignment engine (pure function), pool populator API, auto-assign referees endpoint, referee admin UI, pool populator UI, referee assignment UI, referee dashboard (public app), on-piste referee tools. Hard constraint `enforce_fighter_referee_no_overlap` cannot be disabled — a fighter cannot referee a pool whose time overlaps with their match.
+
+- **T-1001–T-1004 Stats + Exports**: materialized view `mv_fighter_exchange_stats` with separate blow/point tracking. `hit_ratio` is blow-based (mode-independent); `point_ratio` is point-based. HEMA Ratings CSV export: `fighters.csv` (Name, Club, Nationality, Gender empty, HEMA Ratings ID) + `{tournament-slug}.csv` (Fighter1, Fighter2, Result1, Result2, Round). Round labels: `Pools` / `Top 64` / `Top 32` / `Top 16` / `Quarter-finals` / `Semi-finals` / `Gold Medal Match` / `Bronze Medal Match` (Bronze checked before Final in label matching).
+
+- **T-1101 HEMA Ratings sync** (`apps/api/src/workers/hema-ratings-sync.worker.ts`, `packages/db/migrations/0011_hema_ratings.sql`): BullMQ daily cron (03:30 UTC) scrapes `hemaratings.com/fighters/` HTML (no public API exists). Parses fighter name + club + numeric ID from href `/fighters/details/NNN/`. Stores full snapshot as JSONB in `hema_ratings_snapshots` table. `WorkersModule` registered in `AppModule`. Redis connection via `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`. Migration 0011 adds table + GIN full-text index + RLS policies (service_role write, authenticated read).
