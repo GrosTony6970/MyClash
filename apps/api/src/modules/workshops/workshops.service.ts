@@ -12,6 +12,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
+import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface CreateWorkshopDto {
@@ -40,6 +41,7 @@ export interface CreateSessionDto {
   endTime: string; // ISO
   location?: string;
   capacity?: number; // override workshop capacity for this session
+  status?: string;
 }
 
 @Injectable()
@@ -47,6 +49,7 @@ export class WorkshopsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notifications: NotificationSchedulerService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   // ── List workshops for event ──────────────────────────────────────────────────
@@ -196,6 +199,7 @@ export class WorkshopsService {
     if (dto.endTime !== undefined) updates['end_time'] = dto.endTime;
     if (dto.location !== undefined) updates['location'] = dto.location;
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
+    if (dto.status !== undefined) updates['status'] = dto.status;
 
     const { data, error } = await this.supabase.service
       .from('workshop_sessions')
@@ -206,6 +210,9 @@ export class WorkshopsService {
 
     if (error) throw new BadRequestException(error.message);
     await this.notifications.scheduleWorkshopSessionStarting(sessionId);
+    if (dto.status === 'cancelled') {
+      await this.notificationEvents.workshopCancelled(sessionId);
+    }
     return data;
   }
 

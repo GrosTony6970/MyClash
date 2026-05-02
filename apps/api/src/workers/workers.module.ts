@@ -8,6 +8,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { NotificationEventsService } from '../modules/notifications/event-handlers/notification-events.service';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
 import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
 import {
@@ -41,10 +42,11 @@ import {
   ],
   providers: [
     HemaRatingsSyncWorker,
+    NotificationEventsService,
     NotificationSchedulerService,
     NotificationSchedulerWorker,
     WebPushSender,
   ],
-  exports: [BullModule, NotificationSchedulerService],
+  exports: [BullModule, NotificationEventsService, NotificationSchedulerService],
 })
 export class WorkersModule {}

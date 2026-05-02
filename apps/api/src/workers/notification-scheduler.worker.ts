@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import type { Job, Queue } from 'bullmq';
 import * as webPush from 'web-push';
+import { MailService } from '../modules/mail/mail.service';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
@@ -10,13 +11,26 @@ export const NOTIFICATION_SEND_JOB = 'send';
 
 export type ScheduledNotificationKind = 'match_starting' | 'workshop_starting' | 'referee_starting';
 
+export type ImmediateNotificationKind =
+  | 'assignment_changed'
+  | 'workshop_cancelled'
+  | 'waitlist_promoted'
+  | 'results_published';
+
+export type NotificationKind = ScheduledNotificationKind | ImmediateNotificationKind;
+
+export type NotificationPreferenceToggle = 'schedule_changes' | 'results_published';
+
 export interface ScheduledNotificationJob {
-  kind: ScheduledNotificationKind;
+  kind: NotificationKind;
   entityId: string;
   userId: string;
   title: string;
   body: string;
   url: string;
+  email?: string | null;
+  emailSubject?: string | null;
+  preference?: NotificationPreferenceToggle | null;
 }
 
 export interface ReminderInput extends ScheduledNotificationJob {
@@ -37,10 +51,12 @@ interface NotificationPreferenceRow {
   match_starting_minutes_before: string | number | null;
   workshop_starting_minutes_before: string | number | null;
   referee_starting_minutes_before: string | number | null;
+  schedule_changes?: boolean | null;
+  results_published?: boolean | null;
 }
 
 export function buildNotificationJobId(
-  kind: ScheduledNotificationKind,
+  kind: NotificationKind,
   entityId: string,
   userId: string,
 ): string {
@@ -118,6 +134,19 @@ export class NotificationSchedulerService {
       jobId,
       delay: computeNotificationDelayMs(input.startsAt, input.leadMinutes, input.now),
       removeOnComplete: true,
+      removeOnFail: 100,
+    });
+  }
+
+  async sendImmediate(input: ScheduledNotificationJob): Promise<void> {
+    const jobId = buildNotificationJobId(input.kind, input.entityId, input.userId);
+    const existing = await this.queue.getJob(jobId);
+    if (existing) return;
+
+    await this.queue.add(NOTIFICATION_SEND_JOB, input, {
+      jobId,
+      delay: 0,
+      removeOnComplete: { age: 86_400 },
       removeOnFail: 100,
     });
   }
@@ -305,13 +334,17 @@ export class NotificationSchedulerWorker extends WorkerHost {
     private readonly supabase: SupabaseService,
     _config: ConfigService,
     private readonly sender: WebPushSender,
+    private readonly mail: MailService,
   ) {
     super();
   }
 
   async process(job: Job<ScheduledNotificationJob>): Promise<void> {
     const preference = await this.getPreference(job.data.userId);
-    if (preference?.enabled === false) return;
+    if (preference?.enabled === false || this.isDisabledByPreference(job.data, preference)) {
+      await this.sendEmailFallback(job.data);
+      return;
+    }
 
     const { data, error } = await this.supabase.service
       .from('push_subscriptions')
@@ -321,6 +354,14 @@ export class NotificationSchedulerWorker extends WorkerHost {
     if (error) throw new Error(`Failed to load push subscriptions: ${error.message}`);
 
     const subscriptions = (data ?? []) as PushSubscriptionRow[];
+    if (subscriptions.length === 0) {
+      await this.sendEmailFallback(job.data);
+      this.logger.log(
+        `Sent ${job.data.kind} notification for ${job.data.entityId} to 0 subscriptions`,
+      );
+      return;
+    }
+
     await Promise.all(
       subscriptions.map((subscription) =>
         this.sender.send(
@@ -347,12 +388,41 @@ export class NotificationSchedulerWorker extends WorkerHost {
 
   private async getPreference(
     userId: string,
-  ): Promise<Pick<NotificationPreferenceRow, 'enabled'> | null> {
+  ): Promise<Pick<
+    NotificationPreferenceRow,
+    'enabled' | 'schedule_changes' | 'results_published'
+  > | null> {
     const { data } = await this.supabase.service
       .from('notification_preferences')
-      .select('user_id, enabled')
+      .select('user_id, enabled, schedule_changes, results_published')
       .eq('user_id', userId)
       .maybeSingle();
-    return (data as Pick<NotificationPreferenceRow, 'enabled'> | null) ?? null;
+    return (
+      (data as Pick<
+        NotificationPreferenceRow,
+        'enabled' | 'schedule_changes' | 'results_published'
+      > | null) ?? null
+    );
+  }
+
+  private isDisabledByPreference(
+    job: ScheduledNotificationJob,
+    preference: Pick<
+      NotificationPreferenceRow,
+      'enabled' | 'schedule_changes' | 'results_published'
+    > | null,
+  ): boolean {
+    return Boolean(job.preference && preference?.[job.preference] === false);
+  }
+
+  private async sendEmailFallback(job: ScheduledNotificationJob): Promise<void> {
+    if (!job.email) return;
+    await this.mail.sendNotification({
+      to: job.email,
+      subject: job.emailSubject ?? job.title,
+      title: job.title,
+      body: job.body,
+      actionUrl: job.url,
+    });
   }
 }

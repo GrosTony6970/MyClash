@@ -18,7 +18,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { IsInt, IsISO8601, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
@@ -57,6 +57,7 @@ class CreateSessionBody implements CreateSessionDto {
   @IsISO8601() endTime!: string;
   @IsOptional() @IsString() location?: string;
   @IsOptional() @IsInt() @Min(1) capacity?: number;
+  @IsOptional() @IsIn(['scheduled', 'cancelled']) status?: string;
 }
 
 class AddInstructorBody {

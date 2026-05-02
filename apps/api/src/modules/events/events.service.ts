@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import type {
   CreateEventDto,
   CreateTournamentDto,
@@ -19,6 +20,7 @@ export class EventsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -211,6 +213,9 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    if (dto.status === 'completed') {
+      await this.notificationEvents.resultsPublished(tournamentId);
+    }
     return data;
   }
 

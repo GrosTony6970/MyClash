@@ -21,6 +21,7 @@ import {
   type RefereePoolSlot,
 } from '@myclash/rulesets/dist/scheduling/index';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
+import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
 
@@ -31,6 +32,7 @@ export class AutoAssignController {
     private readonly supabase: SupabaseService,
     private readonly settings: SettingsService,
     private readonly notifications: NotificationSchedulerService,
+    private readonly notificationEvents: NotificationEventsService,
   ) {}
 
   // ── Auto-assign ───────────────────────────────────────────────────────────────
@@ -213,9 +215,10 @@ export class AutoAssignController {
     );
 
     await Promise.all(
-      assignmentIds.map((assignmentId) =>
+      assignmentIds.flatMap((assignmentId) => [
         this.notifications.scheduleRefereeAssignmentStarting(assignmentId),
-      ),
+        this.notificationEvents.assignmentChanged(assignmentId),
+      ]),
     );
 
     return { confirmed: assignmentIds.length, notificationsScheduled: assignmentIds.length };

@@ -11,6 +11,23 @@ export interface MagicLinkEmailOptions {
   displayName?: string;
 }
 
+export interface NotificationEmailOptions {
+  to: string;
+  subject: string;
+  title: string;
+  body: string;
+  actionUrl?: string;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -69,5 +86,44 @@ export class MailService {
     }
 
     this.logger.log(`Magic link email (${opts.type}) sent to ${opts.to}`);
+  }
+
+  async sendNotification(opts: NotificationEmailOptions): Promise<void> {
+    const title = escapeHtml(opts.title);
+    const body = escapeHtml(opts.body);
+    const actionUrl = opts.actionUrl ? escapeHtml(opts.actionUrl) : null;
+    const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  <h2 style="font-size:20px;margin-bottom:12px">${title}</h2>
+  <p>${body}</p>
+  ${
+    actionUrl
+      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
+      : ''
+  }
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="color:#999;font-size:12px">MyClash â€” Plateforme libre pour les Ã©vÃ©nements HEMA</p>
+</body>
+</html>`;
+
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: opts.subject,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Failed to send notification email to ${opts.to}: ${JSON.stringify(error)}`,
+      );
+      throw new Error(`Mail delivery failed: ${error.message}`);
+    }
+
+    this.logger.log(`Notification email sent to ${opts.to}`);
   }
 }

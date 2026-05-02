@@ -76,6 +76,7 @@ function createInMemoryService(capacity: number) {
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
+const mockNotificationEvents = { waitlistPromoted: vi.fn().mockResolvedValue(undefined) };
 
 function makeChain(result: unknown) {
   const chain = {
@@ -103,7 +104,7 @@ describe('EnrollmentService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new EnrollmentService(mockSupabase as never);
+    service = new EnrollmentService(mockSupabase as never, mockNotificationEvents as never);
   });
 
   // ── Idempotency ───────────────────────────────────────────────────────────────

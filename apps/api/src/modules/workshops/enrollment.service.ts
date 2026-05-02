@@ -10,6 +10,7 @@
  */
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface EnrollmentResult {
@@ -22,7 +23,10 @@ export interface EnrollmentResult {
 
 @Injectable()
 export class EnrollmentService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly notificationEvents: NotificationEventsService,
+  ) {}
 
   // ── Enroll ────────────────────────────────────────────────────────────────────
 
@@ -169,6 +173,7 @@ export class EnrollmentService {
 
     // Recompact waitlist positions
     await this.recompactWaitlist(sessionId);
+    await this.notificationEvents.waitlistPromoted(sessionId, personId);
   }
 
   // ── Private: promote top waitlisted ──────────────────────────────────────────
@@ -176,7 +181,7 @@ export class EnrollmentService {
   private async promoteNextWaitlisted(sessionId: string): Promise<void> {
     const { data: top } = await this.supabase.service
       .from('workshop_enrollments')
-      .select('id')
+      .select('id, person_id')
       .eq('session_id', sessionId)
       .eq('status', 'waitlisted')
       .order('waitlist_position', { ascending: true })
@@ -184,13 +189,17 @@ export class EnrollmentService {
       .maybeSingle();
 
     if (!top) return; // no one on waitlist
+    const promoted = top as { id: string; person_id?: string | null };
 
     await this.supabase.service
       .from('workshop_enrollments')
       .update({ status: 'confirmed', waitlist_position: null })
-      .eq('id', (top as { id: string }).id);
+      .eq('id', promoted.id);
 
     await this.recompactWaitlist(sessionId);
+    if (promoted.person_id) {
+      await this.notificationEvents.waitlistPromoted(sessionId, promoted.person_id);
+    }
   }
 
   private async recompactWaitlist(sessionId: string): Promise<void> {

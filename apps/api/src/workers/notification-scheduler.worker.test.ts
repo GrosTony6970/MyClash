@@ -82,6 +82,55 @@ describe('notification scheduler jobs', () => {
     );
   });
 
+  it('queues immediate event notifications with delay 0 without replacing duplicates', async () => {
+    const existingJob = { remove: vi.fn().mockResolvedValue(undefined) };
+    const queue = makeQueue();
+    queue.getJob.mockResolvedValueOnce(null).mockResolvedValueOnce(existingJob);
+    const service = new NotificationSchedulerService(
+      queue as never,
+      { service: { from: vi.fn() } } as never,
+    );
+
+    await service.sendImmediate({
+      kind: 'assignment_changed',
+      entityId: 'assignment-1',
+      userId: 'user-1',
+      title: 'Referee assignment updated',
+      body: 'Your referee assignment changed.',
+      url: '/notifications',
+      email: 'user@example.com',
+      emailSubject: 'Referee assignment updated',
+      preference: 'schedule_changes',
+    });
+    await service.sendImmediate({
+      kind: 'assignment_changed',
+      entityId: 'assignment-1',
+      userId: 'user-1',
+      title: 'Referee assignment updated',
+      body: 'Your referee assignment changed.',
+      url: '/notifications',
+      email: 'user@example.com',
+      emailSubject: 'Referee assignment updated',
+      preference: 'schedule_changes',
+    });
+
+    expect(existingJob.remove).not.toHaveBeenCalled();
+    expect(queue.add).toHaveBeenCalledTimes(1);
+    expect(queue.add).toHaveBeenCalledWith(
+      'send',
+      expect.objectContaining({
+        kind: 'assignment_changed',
+        entityId: 'assignment-1',
+        userId: 'user-1',
+        email: 'user@example.com',
+      }),
+      expect.objectContaining({
+        delay: 0,
+        jobId: 'notification:assignment_changed:assignment-1:user-1',
+      }),
+    );
+  });
+
   it('uses each user match lead preference when scheduling a changed match', async () => {
     const queue = makeQueue();
     const from = makeSupabaseFrom({
@@ -238,10 +287,12 @@ describe('notification worker', () => {
       },
     });
     const sender = { send: vi.fn().mockResolvedValue(undefined) };
+    const mail = { sendNotification: vi.fn().mockResolvedValue(undefined) };
     const worker = new NotificationSchedulerWorker(
       { service: { from } } as never,
       new ConfigService({}) as never,
       sender as never,
+      mail as never,
     );
 
     await worker.process({
@@ -267,5 +318,83 @@ describe('notification worker', () => {
         url: '/e/fal/t/longsword',
       },
     );
+  });
+
+  it('falls back to email for immediate jobs when push is disabled', async () => {
+    const from = makeSupabaseFrom({
+      notification_preferences: {
+        data: { user_id: 'user-1', enabled: false },
+        error: null,
+      },
+    });
+    const sender = { send: vi.fn().mockResolvedValue(undefined) };
+    const mail = { sendNotification: vi.fn().mockResolvedValue(undefined) };
+    const worker = new NotificationSchedulerWorker(
+      { service: { from } } as never,
+      new ConfigService({}) as never,
+      sender as never,
+      mail as never,
+    );
+
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'workshop_cancelled',
+        entityId: 'session-1',
+        userId: 'user-1',
+        title: 'Workshop cancelled',
+        body: 'Messer fundamentals was cancelled.',
+        url: '/notifications',
+        email: 'user@example.com',
+        emailSubject: 'Workshop cancelled',
+      },
+    } as never);
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(mail.sendNotification).toHaveBeenCalledWith({
+      to: 'user@example.com',
+      subject: 'Workshop cancelled',
+      title: 'Workshop cancelled',
+      body: 'Messer fundamentals was cancelled.',
+      actionUrl: '/notifications',
+    });
+  });
+
+  it('falls back to email for immediate jobs when no push subscriptions exist', async () => {
+    const from = makeSupabaseFrom({
+      push_subscriptions: {
+        data: [],
+        error: null,
+      },
+      notification_preferences: {
+        data: { user_id: 'user-1', enabled: true },
+        error: null,
+      },
+    });
+    const sender = { send: vi.fn().mockResolvedValue(undefined) };
+    const mail = { sendNotification: vi.fn().mockResolvedValue(undefined) };
+    const worker = new NotificationSchedulerWorker(
+      { service: { from } } as never,
+      new ConfigService({}) as never,
+      sender as never,
+      mail as never,
+    );
+
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'waitlist_promoted',
+        entityId: 'session-1',
+        userId: 'user-1',
+        title: 'Workshop place confirmed',
+        body: 'You have been promoted from the waitlist.',
+        url: '/notifications',
+        email: 'user@example.com',
+        emailSubject: 'Workshop place confirmed',
+      },
+    } as never);
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(mail.sendNotification).toHaveBeenCalledOnce();
   });
 });
