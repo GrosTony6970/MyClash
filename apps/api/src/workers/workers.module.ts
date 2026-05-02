@@ -10,6 +10,12 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
 import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
+import {
+  NOTIFICATION_QUEUE,
+  NotificationSchedulerService,
+  NotificationSchedulerWorker,
+  WebPushSender,
+} from './notification-scheduler.worker';
 
 @Module({
   imports: [
@@ -28,9 +34,17 @@ import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.w
     BullModule.registerQueue({
       name: HEMA_RATINGS_QUEUE,
     }),
+    BullModule.registerQueue({
+      name: NOTIFICATION_QUEUE,
+    }),
     SupabaseModule,
   ],
-  providers: [HemaRatingsSyncWorker],
-  exports: [BullModule],
+  providers: [
+    HemaRatingsSyncWorker,
+    NotificationSchedulerService,
+    NotificationSchedulerWorker,
+    WebPushSender,
+  ],
+  exports: [BullModule, NotificationSchedulerService],
 })
 export class WorkersModule {}

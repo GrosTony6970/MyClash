@@ -11,6 +11,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface CreateWorkshopDto {
@@ -43,7 +44,10 @@ export interface CreateSessionDto {
 
 @Injectable()
 export class WorkshopsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly notifications: NotificationSchedulerService,
+  ) {}
 
   // ── List workshops for event ──────────────────────────────────────────────────
 
@@ -114,6 +118,7 @@ export class WorkshopsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    await this.notifications.scheduleWorkshopSessionStarting((data as { id: string }).id);
     return data;
   }
 
@@ -150,6 +155,7 @@ export class WorkshopsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    await this.notifications.scheduleWorkshopSessionStarting((data as { id: string }).id);
     return data;
   }
 
@@ -178,6 +184,7 @@ export class WorkshopsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    await this.notifications.scheduleWorkshopSessionStarting((data as { id: string }).id);
     return data;
   }
 
@@ -198,6 +205,7 @@ export class WorkshopsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    await this.notifications.scheduleWorkshopSessionStarting(sessionId);
     return data;
   }
 

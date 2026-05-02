@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Req,
   UnauthorizedException,
@@ -14,7 +15,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
-import { SubscribeDto } from './dto/notifications.dto';
+import { SubscribeDto, UpdateNotificationPreferencesDto } from './dto/notifications.dto';
 import { NotificationsService } from './notifications.service';
 
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -56,6 +57,25 @@ export class NotificationsController {
     const userId = await getClaimedUserId(req, this.supabase);
     const userAgent = req.headers['user-agent'];
     return this.notifications.subscribe(userId, dto, userAgent);
+  }
+
+  @Get('preferences')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user notification preferences' })
+  async getPreferences(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.notifications.getPreferences(userId);
+  }
+
+  @Patch('preferences')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current user notification preferences' })
+  async updatePreferences(
+    @Body() dto: UpdateNotificationPreferencesDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.notifications.updatePreferences(userId, dto);
   }
 
   @Delete('subscribe/:id')

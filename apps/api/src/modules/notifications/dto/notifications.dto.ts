@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsString, IsUrl, MinLength, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class PushSubscriptionKeysDto {
   @IsString()
@@ -18,4 +28,36 @@ export class SubscribeDto {
   @ValidateNested()
   @Type(() => PushSubscriptionKeysDto)
   keys!: PushSubscriptionKeysDto;
+}
+
+export class UpdateNotificationPreferencesDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(240)
+  matchStartingMinutesBefore?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(240)
+  workshopStartingMinutesBefore?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(240)
+  refereeStartingMinutesBefore?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  scheduleChanges?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  resultsPublished?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
 }

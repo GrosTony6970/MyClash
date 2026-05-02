@@ -9,6 +9,9 @@ const mockSupabase = { service: { from: fromMock }, anon: {} };
 const mockScoring = {
   recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
 };
+const mockNotificationScheduler = {
+  scheduleMatchStarting: vi.fn().mockResolvedValue(undefined),
+};
 
 function makeChain(result: unknown) {
   const chain = {
@@ -36,7 +39,11 @@ describe('MatchesService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new MatchesService(mockSupabase as never, mockScoring as never);
+    service = new MatchesService(
+      mockSupabase as never,
+      mockScoring as never,
+      mockNotificationScheduler as never,
+    );
   });
 
   // ── Idempotency on client_uuid ────────────────────────────────────────────
@@ -154,6 +161,25 @@ describe('MatchesService', () => {
 
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledOnce();
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('match-1');
+    });
+  });
+
+  describe('scheduleMatch', () => {
+    it('reschedules match-starting notifications when scheduled_at changes', async () => {
+      const scheduledAt = '2026-05-02T10:30:00.000Z';
+      const updateChain = makeChain({
+        data: { id: 'match-1', scheduled_at: scheduledAt },
+        error: null,
+      });
+      updateChain.single.mockResolvedValue({
+        data: { id: 'match-1', scheduled_at: scheduledAt },
+        error: null,
+      });
+      fromMock.mockReturnValue(updateChain);
+
+      await service.scheduleMatch('match-1', 'lice-1', scheduledAt);
+
+      expect(mockNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
     });
   });
 

@@ -353,15 +353,15 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P12 — in progress)
 
-| Task                                     | Commit  | Status   |
-| ---------------------------------------- | ------- | -------- |
-| T-1201 · VAPID + subscription endpoints  | current | ✅ done  |
-| T-1202 · Scheduled notification triggers | —       | ⬜ next  |
-| T-1203 · Event-driven notifications      | —       | ⬜ later |
+| Task                                     | Commit    | Status  |
+| ---------------------------------------- | --------- | ------- |
+| T-1201 · VAPID + subscription endpoints  | `ff8958e` | ✅ done |
+| T-1202 · Scheduled notification triggers | current   | ✅ done |
+| T-1203 · Event-driven notifications      | —         | ⬜ next |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1202 · Scheduled notification triggers
+**Next task**: T-1203 · Event-driven notifications
 
 ## Tech decisions locked in during implementation
 
@@ -473,3 +473,5 @@ Required for the API to start:
 - **T-1103 HEMA Ratings profile + seeding** (`apps/api/src/modules/hema-ratings/`, `apps/api/src/workers/hema-ratings-sync.worker.ts`, `apps/api/src/modules/phases/`, `apps/web-public/app/fighters/[slug]/page.tsx`): daily sync enriches only linked `fighters.hema_ratings_id` profiles by scraping detail pages. Profile data stores rating rows with weapon/category/rank/Weighted Rating/last competed in the latest snapshot JSON. Public fighter profiles show HEMA profile link, rating rows, and last synced. Pool generation and pool-populator use same-weapon, non-stale (<2 years) Weighted Rating as `skillRating`; category is displayed but ignored for seeding; stale/no-match ratings fall back to seed/bib/registration order.
 
 - **T-1201 VAPID + notification subscriptions** (`scripts/ensure-vapid-env.mjs`, `infra/scripts/deploy.sh`, `apps/api/src/modules/notifications/`, `apps/web-public/app/notifications/`): deploy now checks both `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in `.env`; if either is missing/empty, it generates a new P-256 VAPID pair, updates existing `.env` keys in place, and ensures `VAPID_SUBJECT=mailto:${LETSENCRYPT_EMAIL}` by default. API exposes public `GET /api/v1/notifications/vapid-public-key`, authenticated `POST /api/v1/notifications/subscribe`, and authenticated `DELETE /api/v1/notifications/subscribe/:id`. Public `/notifications` registers `apps/web-public/public/sw.js`, asks browser permission, stores the Push subscription for claimed users, and can disable the browser subscription.
+
+- **T-1202 Scheduled notification triggers** (`apps/api/src/workers/notification-scheduler.worker.ts`, `apps/api/src/modules/notifications/`, match/workshop/referee hooks): BullMQ queue `notification-scheduler` schedules delayed Web Push jobs with stable job IDs `notification:<kind>:<entityId>:<userId>` so schedule changes replace old jobs. Supported reminder kinds: `match_starting`, `workshop_starting`, `referee_starting`. Lead times come from `notification_preferences` (`match_starting_minutes_before`, `workshop_starting_minutes_before`, `referee_starting_minutes_before`) with defaults 10/15/10 minutes. `GET/PATCH /api/v1/notifications/preferences` exposes user preference configuration. Delivery uses `web-push` with VAPID keys and current `push_subscriptions`; email fallback remains deferred to T-1203.
