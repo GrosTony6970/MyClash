@@ -294,7 +294,7 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | T-610 · Follows module                       | `362e2ba` | ✅ done |
 | T-611 · People search/profile UI             | `362e2ba` | ✅ done |
 | T-612 · Watchlist view                       | `0104d12` | ✅ done |
-| T-613 · Follow notifications scheduler       | current   | ✅ done |
+| T-613 · Follow notifications scheduler       | `b51a05b` | ✅ done |
 
 ## Build progress (Phase P7 — completed 02-05-2026)
 
