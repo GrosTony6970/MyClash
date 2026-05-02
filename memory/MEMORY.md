@@ -348,12 +348,12 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | Task                                             | Commit    | Status  |
 | ------------------------------------------------ | --------- | ------- |
 | T-1101 · Daily sync job (BullMQ cron + snapshot) | `0fd14a3` | ✅ done |
-| T-1102 · Search & link UI in registration        | —         | ⬜ next |
-| T-1103 · HEMA Ratings on fighter profile         | —         | ⬜ todo |
+| T-1102 · Search & link UI in registration        | pending   | ✅ done |
+| T-1103 · HEMA Ratings on fighter profile         | —         | ⬜ next |
 
-**Current HEAD**: `0fd14a3`
+**Current HEAD**: `45982c8`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1102 · Search & link UI in registration
+**Next task**: T-1103 · HEMA Ratings on fighter profile
 
 ## Tech decisions locked in during implementation
 
@@ -459,3 +459,5 @@ Required for the API to start:
 - **T-1001–T-1004 Stats + Exports**: materialized view `mv_fighter_exchange_stats` with separate blow/point tracking. `hit_ratio` is blow-based (mode-independent); `point_ratio` is point-based. HEMA Ratings CSV export: `fighters.csv` (Name, Club, Nationality, Gender empty, HEMA Ratings ID) + `{tournament-slug}.csv` (Fighter1, Fighter2, Result1, Result2, Round). Round labels: `Pools` / `Top 64` / `Top 32` / `Top 16` / `Quarter-finals` / `Semi-finals` / `Gold Medal Match` / `Bronze Medal Match` (Bronze checked before Final in label matching).
 
 - **T-1101 HEMA Ratings sync** (`apps/api/src/workers/hema-ratings-sync.worker.ts`, `packages/db/migrations/0011_hema_ratings.sql`): BullMQ daily cron (03:30 UTC) scrapes `hemaratings.com/fighters/` HTML (no public API exists). Parses fighter name + club + numeric ID from href `/fighters/details/NNN/`. Stores full snapshot as JSONB in `hema_ratings_snapshots` table. `WorkersModule` registered in `AppModule`. Redis connection via `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`. Migration 0011 adds table + GIN full-text index + RLS policies (service_role write, authenticated read).
+
+- **T-1102 HEMA Ratings registration link** (`apps/api/src/modules/hema-ratings/`, `apps/api/src/modules/registrations/`, `apps/web-admin/src/components/HemaRatingsSuggest.tsx`): admin registration modal searches latest HEMA Ratings snapshot and can select a profile. Registration creation always resolves a global Fighter: reuses existing `persons.global_fighter_id`, or creates a Fighter from Person data. If a HEMA Ratings profile is selected, `fighters.hema_ratings_id` is set; if not, Fighter is still created without a HEMA ID. Weighted Rating is weapon-category-specific and deferred to T-1103/enrichment.

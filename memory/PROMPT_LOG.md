@@ -370,3 +370,12 @@ User: "now update all memory file with the work done". Updated MEMORY.md: fixed 
 ## 13:31:56_02-05-2026
 
 /plugin install superpowers@superpowers-marketplace
+
+## 13:44:51_02-05-2026
+
+User: "we are going to work on this project : F:\Github Repo\MyClash
+read all memory file to get the context (memory and docs folder)"
+
+## 14:05:42_02-05-2026
+
+User requested implementation of T-1102 · HEMA Ratings Search & Link UI in registration from the approved plan. Locked behavior: HEMA link stored on global fighters; every registration gets a Fighter; create Fighter without hema_ratings_id when no HEMA profile is selected; show HEMA suggestions in admin registration flow; defer weighted ratings to later enrichment.

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 // Valid status transitions: registered → checked_in → done
 // Cannot skip steps.
@@ -32,6 +32,11 @@ export class CreateRegistrationDto {
   @IsInt()
   @Min(1)
   bibNumber?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  hemaRatingsId?: string;
 }
 
 export class UpdateRegistrationStatusDto {

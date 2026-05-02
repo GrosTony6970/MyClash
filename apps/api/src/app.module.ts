@@ -9,6 +9,7 @@ import { EventsModule } from './modules/events/events.module';
 import { FightersModule } from './modules/fighters/fighters.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { HealthModule } from './modules/health/health.module';
+import { HemaRatingsModule } from './modules/hema-ratings/hema-ratings.module';
 import { WorkshopsModule } from './modules/workshops/workshops.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { RefereesModule } from './modules/referees/referees.module';
@@ -57,6 +58,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
 
     // ── Feature modules ──────────────────────────────────────────────────
     HealthModule,
+    HemaRatingsModule,
     AuthModule,
     AdminModule,
     PersonsModule,

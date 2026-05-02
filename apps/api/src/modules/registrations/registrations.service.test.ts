@@ -163,6 +163,17 @@ describe('RegistrationsService', () => {
 
   describe('create — bib auto-assign', () => {
     it('auto-assigns bib_number = max + 1 when not provided', async () => {
+      const personChain = makeChain({ data: null, error: null });
+      personChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'person-1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          club_id: null,
+          global_fighter_id: 'fighter-1',
+        },
+        error: null,
+      });
       // nextBibNumber query returns max=5 (awaitable chain)
       const bibChain = makeAwaitableChain({ data: [{ bib_number: 5 }], error: null });
 
@@ -173,6 +184,7 @@ describe('RegistrationsService', () => {
       });
 
       fromMock
+        .mockReturnValueOnce(personChain)
         .mockReturnValueOnce(bibChain) // nextBibNumber
         .mockReturnValueOnce(insertChain); // insert
 
@@ -181,12 +193,23 @@ describe('RegistrationsService', () => {
     });
 
     it('uses provided bib_number when given', async () => {
+      const personChain = makeChain({ data: null, error: null });
+      personChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'person-1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          club_id: null,
+          global_fighter_id: 'fighter-1',
+        },
+        error: null,
+      });
       const insertChain = makeChain({ data: null, error: null });
       insertChain.single.mockResolvedValue({
         data: { id: 'reg-new', bib_number: 42, status: 'registered' },
         error: null,
       });
-      fromMock.mockReturnValue(insertChain);
+      fromMock.mockReturnValueOnce(personChain).mockReturnValueOnce(insertChain);
 
       const result = await service.create('tournament-1', { personId: 'person-1', bibNumber: 42 });
       expect((result as { bib_number: number }).bib_number).toBe(42);

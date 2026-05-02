@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { HemaRatingsSuggest, type HemaRatingsSuggestion } from '@/components/HemaRatingsSuggest';
 
 interface Registration {
   id: string;
@@ -32,9 +33,12 @@ interface Tournament {
 
 interface Person {
   id: string;
-  givenName: string;
-  familyName: string;
-  clubLabel: string | null;
+  givenName?: string;
+  familyName?: string;
+  clubLabel?: string | null;
+  given_name?: string;
+  family_name?: string;
+  club_label?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -44,6 +48,16 @@ const STATUS_COLORS: Record<string, string> = {
   withdrawn: 'bg-red-100 text-red-500',
   disqualified: 'bg-red-200 text-red-700',
 };
+
+function personFullName(person: Person): string {
+  return `${person.givenName ?? person.given_name ?? ''} ${
+    person.familyName ?? person.family_name ?? ''
+  }`.trim();
+}
+
+function personClubLabel(person: Person): string | null {
+  return person.clubLabel ?? person.club_label ?? null;
+}
 
 export default function RegistrationsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -65,6 +79,7 @@ export default function RegistrationsPage() {
   const [addPersonId, setAddPersonId] = useState('');
   const [addSeed, setAddSeed] = useState('');
   const [addBib, setAddBib] = useState('');
+  const [selectedHemaRating, setSelectedHemaRating] = useState<HemaRatingsSuggestion | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
 
@@ -144,6 +159,7 @@ export default function RegistrationsPage() {
         credentials: 'include',
         body: JSON.stringify({
           personId: addPersonId,
+          hemaRatingsId: selectedHemaRating?.id,
           seed: addSeed ? parseInt(addSeed) : undefined,
           bibNumber: addBib ? parseInt(addBib) : undefined,
         }),
@@ -157,6 +173,7 @@ export default function RegistrationsPage() {
       setShowAdd(false);
       setAddPersonId('');
       setPersonSearch('');
+      setSelectedHemaRating(null);
       setAddSeed('');
       setAddBib('');
       refresh();
@@ -367,6 +384,7 @@ export default function RegistrationsPage() {
                   onChange={(e) => {
                     setPersonSearch(e.target.value);
                     setAddPersonId('');
+                    setSelectedHemaRating(null);
                   }}
                   placeholder="Search by name…"
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -378,22 +396,30 @@ export default function RegistrationsPage() {
                         key={p.id}
                         onClick={() => {
                           setAddPersonId(p.id);
-                          setPersonSearch(`${p.givenName} ${p.familyName}`);
+                          setPersonSearch(personFullName(p));
+                          setSelectedHemaRating(null);
                           setPersons([]);
                         }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
                       >
-                        <span className="font-medium">
-                          {p.givenName} {p.familyName}
-                        </span>
-                        {p.clubLabel && (
-                          <span className="text-gray-400 ml-2 text-xs">{p.clubLabel}</span>
+                        <span className="font-medium">{personFullName(p)}</span>
+                        {personClubLabel(p) && (
+                          <span className="text-gray-400 ml-2 text-xs">{personClubLabel(p)}</span>
                         )}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
+
+              {addPersonId && (
+                <HemaRatingsSuggest
+                  apiUrl={apiUrl}
+                  personName={personSearch}
+                  selectedId={selectedHemaRating?.id ?? ''}
+                  onSelect={setSelectedHemaRating}
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -435,6 +461,7 @@ export default function RegistrationsPage() {
                   setShowAdd(false);
                   setAddPersonId('');
                   setPersonSearch('');
+                  setSelectedHemaRating(null);
                 }}
                 className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
               >
