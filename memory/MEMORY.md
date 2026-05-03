@@ -363,11 +363,11 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P13 - in progress)
 
-| Task                           | Commit    | Status       |
-| ------------------------------ | --------- | ------------ |
-| T-1301 - Super admin dashboard | `777ac51` | done         |
-| T-1302 - Fighter merge tool    | `e414bc3` | done         |
-| T-1303 - Audit log UI          | -         | done locally |
+| Task                           | Commit    | Status |
+| ------------------------------ | --------- | ------ |
+| T-1301 - Super admin dashboard | `777ac51` | done   |
+| T-1302 - Fighter merge tool    | `e414bc3` | done   |
+| T-1303 - Audit log UI          | `66b973a` | done   |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
