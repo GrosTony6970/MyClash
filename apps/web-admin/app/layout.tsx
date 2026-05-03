@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { defaultLocale, t } from '@myclash/i18n';
+import { I18nProvider } from '../src/i18n/I18nProvider';
 import '../src/styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'MyClash Admin',
-  description: 'MyClash organizer admin and super admin.',
+  title: t('metadata.adminTitle'),
+  description: t('metadata.adminDescription'),
 };
 
 export default function RootLayout({
@@ -12,8 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang={defaultLocale}>
+      <body>
+        <I18nProvider>{children}</I18nProvider>
+      </body>
     </html>
   );
 }

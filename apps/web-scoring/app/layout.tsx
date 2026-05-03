@@ -1,14 +1,16 @@
 import type { Metadata, Viewport } from 'next';
+import { defaultLocale, t } from '@myclash/i18n';
+import { I18nProvider } from '../src/i18n/I18nProvider';
 import '../src/styles/globals.css';
 
 export const metadata: Metadata = {
-  title: 'MyClash Scoring',
-  description: 'Scorekeeper PWA — offline-first match exchange recording.',
+  title: t('metadata.scoringTitle'),
+  description: t('metadata.scoringDescription'),
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'MyClash Scoring',
+    title: t('metadata.scoringTitle'),
   },
 };
 
@@ -22,13 +24,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr">
+    <html lang={defaultLocale}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-gray-950 text-white min-h-screen">
-        {children}
+        <I18nProvider>{children}</I18nProvider>
         {/* Service worker registration */}
         <script
           dangerouslySetInnerHTML={{

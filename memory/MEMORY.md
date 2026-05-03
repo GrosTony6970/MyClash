@@ -370,9 +370,15 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | T-1303 - Audit log UI          | `66b973a` | done   |
 | T-1304 - Frozen results state  | `437d0c2` | done   |
 
+## Build progress (Phase P14 - in progress)
+
+| Task                         | Commit | Status |
+| ---------------------------- | ------ | ------ |
+| T-1401 - Extract all strings | local  | done   |
+
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1305 - next BUILD_ORDER item
+**Next task**: T-1402 - French translation pass (owner review items O-106/O-107 may block final copy quality)
 
 ## Tech decisions locked in during implementation
 
@@ -498,3 +504,5 @@ Required for the API to start:
 - **T-1303 Audit log UI** (`apps/api/src/modules/admin/admin-audit-log.service.ts`, `apps/web-admin/app/admin/audit-log/`, `packages/db/migrations/0013_audit_log_indexes.sql`): super-admin audit log viewer reads existing `audit_log` rows with exact actor/action/entity type/date filters, server-side pagination, and CSV export capped at 5000 rows. API routes live under `/api/v1/admin/audit-log` and are guarded by `SuperAdminGuard`; no new audit-history table was added.
 
 - **T-1304 Frozen results state** (`apps/api/src/modules/matches/frozen-results.guard.ts`, `apps/api/src/modules/admin/exchange-edit-requests.*`, `apps/web-admin/app/admin/exchange-edit-requests/`, `packages/db/migrations/0014_exchange_edit_requests.sql`): event results freeze when `events.status = 'completed'`. Organizer void/revert exchange actions become `exchange_edit_requests` pending super-admin review; new exchange creation after freeze returns conflict. Super-admin approval applies stored void/revert and recomputes scores; rejection stores reason, audits, and sends `exchange_edit_rejected` notification.
+
+- **T-1401 Extract all strings** (`packages/i18n/`, `eslint-rules/no-literal-string.mjs`, all frontend app layouts): shared i18n runtime exports `Locale`, `defaultLocale`, English/French fallback message trees, `getMessages`, `createTranslator`, and default `t`. Frontend roots now set `html lang` from i18n, wrap children in app-local `I18nProvider`, and use message keys for static metadata. Hardcoded JSX/string-prop lint is enforced in all three frontend apps through a local ESLint rule with a committed baseline for pre-existing literals; new unbaselined JSX text or watched props fail lint.

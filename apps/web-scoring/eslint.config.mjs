@@ -3,6 +3,7 @@ import rootConfig from '../../eslint.config.mjs';
 import tseslint from 'typescript-eslint';
 import nextPlugin from '@next/eslint-plugin-next';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -10,11 +11,17 @@ export default tseslint.config(
     plugins: {
       '@next/next': nextPlugin,
       'react-hooks': reactHooksPlugin,
+      myclash: {
+        rules: {
+          'no-literal-string': noLiteralStringRule,
+        },
+      },
     },
     rules: {
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
       ...reactHooksPlugin.configs.recommended.rules,
+      'myclash/no-literal-string': 'error',
     },
     languageOptions: {
       parserOptions: {

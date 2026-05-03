@@ -455,3 +455,7 @@ User clarified that appending to `docs/notes/glossary.md` is allowed too.
 ## 20:33:46_03-05-2026
 
 User asked to implement T-1304 Frozen Results State: event-completed results freeze, pending organizer exchange correction requests, super-admin approve/reject API + UI, audit logs, rejection notification, tests, and allow existing dirty glossary.md to be included later.
+
+## 20:57:18_03-05-2026
+
+User asked to implement T-1401 Extract All Strings: shared i18n runtime for web-public/web-admin/web-scoring, English dictionaries plus matching French placeholders, app integration, JSX/metadata string extraction, and CI lint enforcement against hardcoded user-facing strings.
