@@ -368,7 +368,7 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | T-1301 - Super admin dashboard | `777ac51` | done   |
 | T-1302 - Fighter merge tool    | `e414bc3` | done   |
 | T-1303 - Audit log UI          | `66b973a` | done   |
-| T-1304 - Frozen results state  | `59f3c0f` | done   |
+| T-1304 - Frozen results state  | `437d0c2` | done   |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
