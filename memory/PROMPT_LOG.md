@@ -435,3 +435,11 @@ User said plan mode is deactivated and changes can now be made.
 ## 14:59:13_03-05-2026
 
 User asked to find the next BUILD_ORDER task and plan for it.
+
+## 15:18:56_03-05-2026
+
+User instructed: for main development until the last planned feature is done, Codex may push directly to the main branch.
+
+## 15:23:03_03-05-2026
+
+User requested implementation of T-1302 Fighter Merge Tool plan.

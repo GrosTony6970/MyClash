@@ -15,6 +15,7 @@
 - **License**: AGPL-3.0
 - **Owner**: Project author (a HEMA practitioner / Solution Architect, based in Bessenay, FR; affiliated with Lyon AMHE).
 - **Local repo path** (Windows, owner's machine): `F:\Github Repo\MyClash`
+- **Main-development push policy**: until the last planned feature is complete, the owner allows direct pushes to `main` for main development work. Keep commits atomic and verified before pushing.
 - **Remote repo**: https://github.com/GrosTony6970/MyClash (live, push to `main` directly — owner confirmed)
 - **Production domain**: `myclash.fr` (confirmed; subdomains: `api.`, `admin.`, `scoring.`).
 - **Production hosting**: OVH VPS (same provider as MyFAL — pattern reuse intended).
@@ -362,13 +363,14 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P13 - in progress)
 
-| Task                           | Commit | Status       |
-| ------------------------------ | ------ | ------------ |
-| T-1301 - Super admin dashboard | -      | done locally |
+| Task                           | Commit    | Status       |
+| ------------------------------ | --------- | ------------ |
+| T-1301 - Super admin dashboard | `777ac51` | done         |
+| T-1302 - Fighter merge tool    | -         | done locally |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1302 - Fighter merge tool
+**Next task**: T-1303 - Audit log UI
 
 ## Tech decisions locked in during implementation
 
@@ -488,3 +490,5 @@ Required for the API to start:
 - **T-1203 Event-driven notifications** (`apps/api/src/modules/notifications/event-handlers/`, `apps/api/src/workers/notification-scheduler.worker.ts`): immediate BullMQ jobs use the same queue with stable IDs `notification:<kind>:<entityId>:<userId>` and delay 0. Supported event kinds: `assignment_changed`, `workshop_cancelled`, `waitlist_promoted`, `results_published`. Delayed reminders replace old jobs, but immediate events suppress duplicates while completed jobs remain in BullMQ for 24h. Worker delivery uses push when enabled and subscriptions exist; otherwise event jobs with an email address fall back to `MailService.sendNotification`. Hooks: referee assignment lock sends assignment-changed + delayed referee reminder, workshop waitlist promotion sends promotion notice, session status `cancelled` sends cancellation notices, and tournament status `completed` sends results-published notices.
 
 - **T-1301 Super admin dashboard** (`apps/api/src/modules/admin/`, `apps/web-admin/app/admin/`, `packages/db/migrations/0001_init.sql`): extends the T-009c super-admin org surface with an explicit organization approve alias, Supabase Auth admin user disable/enable, metadata-only community ruleset moderation, and platform feature flags. New tables: `ruleset_submissions` and `feature_flags`, both super-admin-only via RLS. Community ruleset approval does not execute submitted code; runtime registration remains a code/deploy process.
+
+- **T-1302 Fighter merge tool** (`apps/api/src/modules/fighters/merge.service.ts`, `apps/web-admin/app/admin/fighters/`, `packages/db/migrations/0012_fighter_merge.sql`): super-admin-only fighter merge now soft-deletes source profiles with `merged_into_fighter_id`, `merged_at`, `deleted_at`, and `merge_reverted_at`, moves Person/Registration/workshop instructor references to the kept Fighter, fills blank target profile fields from source, and stores undo snapshots in `audit_log.payload_json`. Revert is audit-driven and allowed for 30 days. The old hard-delete merge endpoint is replaced by guarded controller routes.

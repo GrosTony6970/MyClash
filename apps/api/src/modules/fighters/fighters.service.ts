@@ -9,7 +9,6 @@ import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import type {
   CreateFighterDto,
   FighterQueryDto,
-  MergeFightersDto,
   PromoteFighterDto,
   UpdateFighterDto,
 } from './dto/fighters.dto';
@@ -210,26 +209,5 @@ export class FightersService {
       .eq('id', dto.personId);
 
     return fighter;
-  }
-
-  // ── Merge (super admin) ──────────────────────────────────────────────────────
-
-  async merge(dto: MergeFightersDto) {
-    // Re-point all persons from source → target
-    await this.supabase.service
-      .from('persons')
-      .update({ global_fighter_id: dto.targetId })
-      .eq('global_fighter_id', dto.sourceId);
-
-    // Re-point all registrations from source → target
-    await this.supabase.service
-      .from('registrations')
-      .update({ fighter_id: dto.targetId })
-      .eq('fighter_id', dto.sourceId);
-
-    // Delete source fighter
-    await this.supabase.service.from('fighters').delete().eq('id', dto.sourceId);
-
-    return { merged: true, targetId: dto.targetId };
   }
 }

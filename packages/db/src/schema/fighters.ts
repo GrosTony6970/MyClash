@@ -32,6 +32,10 @@ export const fighters = pgTable('fighters', {
   dateOfBirth: text('date_of_birth'), // stored as ISO date string
   genderCategory: text('gender_category'),
   claimedByUserId: uuid('claimed_by_user_id'),
+  mergedIntoFighterId: uuid('merged_into_fighter_id'),
+  mergedAt: timestamp('merged_at', { withTimezone: true }),
+  mergeRevertedAt: timestamp('merge_reverted_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

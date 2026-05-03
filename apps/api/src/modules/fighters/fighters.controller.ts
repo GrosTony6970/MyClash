@@ -11,11 +11,14 @@ import {
   Query,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FightersService } from './fighters.service';
+import { FighterMergeService } from './merge.service';
 import {
   CreateFighterDto,
   FighterQueryDto,
@@ -47,6 +50,7 @@ async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService):
 export class FightersController {
   constructor(
     private readonly fighters: FightersService,
+    private readonly fighterMerge: FighterMergeService,
     private readonly supabase: SupabaseService,
   ) {}
 
@@ -55,6 +59,14 @@ export class FightersController {
   @ApiOperation({ summary: 'List fighters (public)' })
   async list(@Query() query: FighterQueryDto) {
     return this.fighters.list(query);
+  }
+
+  @Get('merge/audit-log')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'List recent fighter merge audit entries (super admin)' })
+  async mergeAuditLog() {
+    return this.fighterMerge.listMergeAudits();
   }
 
   /** GET /api/v1/fighters/:slug */
@@ -103,8 +115,23 @@ export class FightersController {
   @Post('merge')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
   @ApiOperation({ summary: 'Merge two fighter profiles (super admin)' })
-  async merge(@Body() dto: MergeFightersDto) {
-    return this.fighters.merge(dto);
+  async merge(@Body() dto: MergeFightersDto, @Req() req: FastifyRequest) {
+    const actorUserId = (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
+    return this.fighterMerge.merge(dto, actorUserId);
+  }
+
+  @Post('merge/:auditLogId/revert')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Revert a fighter merge within 30 days (super admin)' })
+  async revertMerge(
+    @Param('auditLogId', ParseUUIDPipe) auditLogId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const actorUserId = (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
+    await this.fighterMerge.revertMerge(auditLogId, actorUserId);
   }
 }

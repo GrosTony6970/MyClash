@@ -12,6 +12,11 @@ const sections = [
     description: 'Review platform accounts and disable abusive users.',
   },
   {
+    href: '/admin/fighters',
+    title: 'Fighters',
+    description: 'Merge duplicate global fighter profiles with undo.',
+  },
+  {
     href: '/admin/rulesets',
     title: 'Rulesets',
     description: 'Moderate community-submitted ruleset metadata.',

@@ -135,4 +135,10 @@ export class MergeFightersDto {
   @ApiProperty({ description: 'Target fighter ID (kept after merge)' })
   @IsUUID()
   targetId!: string;
+
+  @ApiProperty({ required: false, description: 'Reason shown in the merge audit log' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
 }
