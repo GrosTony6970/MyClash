@@ -103,6 +103,8 @@ ALTER TABLE pool_assignment_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clubs                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fighters                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ruleset_submissions     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feature_flags           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_subscriptions      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
@@ -708,6 +710,14 @@ CREATE POLICY "audit_log_select" ON audit_log FOR SELECT
 -- No INSERT policy for authenticated users — they go through the API
 
 -- ── push_subscriptions ────────────────────────────────────────────────────────
+
+CREATE POLICY "ruleset_submissions_super_admin_all" ON ruleset_submissions
+  FOR ALL USING (is_super_admin())
+  WITH CHECK (is_super_admin());
+
+CREATE POLICY "feature_flags_super_admin_all" ON feature_flags
+  FOR ALL USING (is_super_admin())
+  WITH CHECK (is_super_admin());
 
 CREATE POLICY "push_subscriptions_select" ON push_subscriptions FOR SELECT
   USING (is_super_admin() OR user_id = auth.uid());

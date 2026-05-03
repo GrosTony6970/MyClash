@@ -162,6 +162,10 @@ export class AdminOrganizationsService {
     await this.updateStatus(id, 'active', actorUserId, 'org.reactivate');
   }
 
+  async approveOrganization(id: string, actorUserId: string): Promise<void> {
+    await this.updateStatus(id, 'active', actorUserId, 'org.approve');
+  }
+
   // ── Delete (hard) ────────────────────────────────────────────────────────
 
   async deleteOrganization(id: string, actorUserId: string): Promise<void> {

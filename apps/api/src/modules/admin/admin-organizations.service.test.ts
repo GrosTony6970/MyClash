@@ -166,6 +166,37 @@ describe('AdminOrganizationsService', () => {
     });
   });
 
+  describe('approveOrganization', () => {
+    it('calls update with status=active and writes approve audit log', async () => {
+      const updateChain = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+      const insertChain = {
+        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') return updateChain;
+        if (table === 'audit_log') return insertChain;
+        return makeChain({ data: null, error: null });
+      });
+
+      await service.approveOrganization('org-1', 'actor-user');
+
+      expect(updateChain.update).toHaveBeenCalledWith({ status: 'active' });
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor_user_id: 'actor-user',
+          action: 'org.approve',
+          entity_type: 'organization',
+          entity_id: 'org-1',
+          payload_json: { status: 'active' },
+        }),
+      );
+    });
+  });
+
   describe('getOrganization', () => {
     it('throws NotFoundException when org not found', async () => {
       const chain = makeChain({ data: null, error: null });

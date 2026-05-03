@@ -1,0 +1,62 @@
+import Link from 'next/link';
+
+const sections = [
+  {
+    href: '/admin/organizations',
+    title: 'Organizations',
+    description: 'Approve, suspend, inspect, and recover organizer accounts.',
+  },
+  {
+    href: '/admin/users',
+    title: 'Users',
+    description: 'Review platform accounts and disable abusive users.',
+  },
+  {
+    href: '/admin/rulesets',
+    title: 'Rulesets',
+    description: 'Moderate community-submitted ruleset metadata.',
+  },
+  {
+    href: '/admin/feature-flags',
+    title: 'Feature Flags',
+    description: 'Control platform-wide feature switches.',
+  },
+  {
+    href: '/admin/audit-log',
+    title: 'Audit Log',
+    description: 'Review moderation and organizer actions.',
+  },
+];
+
+export default function SuperAdminDashboardPage() {
+  return (
+    <main className="p-8">
+      <div className="mb-7">
+        <h1 className="text-2xl font-bold">Super Admin</h1>
+        <p className="text-gray-500 text-sm mt-1">
+          Platform moderation, operational controls, and recovery tools.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {sections.map((section) => (
+          <Link
+            key={section.href}
+            href={section.href}
+            className="border border-gray-200 rounded-lg p-5 hover:border-red-300 hover:bg-red-50/30 transition-colors"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-gray-950">{section.title}</h2>
+                <p className="text-sm text-gray-500 mt-2 leading-6">{section.description}</p>
+              </div>
+              <span className="text-gray-300 text-lg" aria-hidden="true">
+                -&gt;
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </main>
+  );
+}

@@ -80,6 +80,17 @@ export class OrganizationsAdminController {
   }
 
   /**
+   * PATCH /api/v1/admin/organizations/:id/approve
+   * Explicit BUILD_ORDER T-1301 approval alias for reactivating organizers.
+   */
+  @Patch(':id/approve')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Approve/reactivate organization (super admin)' })
+  async approve(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.service.approveOrganization(id, getActorId(req));
+  }
+
+  /**
    * DELETE /api/v1/admin/organizations/:id
    * Hard delete. Cascades to events; preserves global Fighter profiles.
    */

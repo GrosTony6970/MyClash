@@ -115,6 +115,41 @@ CREATE INDEX IF NOT EXISTS audit_log_actor_idx
   ON audit_log (actor_user_id);
 
 -- ── Events ────────────────────────────────────────────────────────────────────
+-- Platform moderation tables -----------------------------------------------
+CREATE TABLE IF NOT EXISTS ruleset_submissions (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code                 TEXT NOT NULL,
+  version              TEXT NOT NULL,
+  display_name         TEXT NOT NULL,
+  description          TEXT,
+  submitted_by_user_id UUID,
+  package_ref          TEXT,
+  status               TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by_user_id  UUID,
+  reviewed_at          TIMESTAMPTZ,
+  rejection_reason     TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT ruleset_submissions_status_check CHECK (status IN ('pending', 'approved', 'rejected')),
+  CONSTRAINT ruleset_submissions_code_version_unique UNIQUE (code, version)
+);
+
+CREATE INDEX IF NOT EXISTS ruleset_submissions_status_idx
+  ON ruleset_submissions (status);
+
+CREATE TABLE IF NOT EXISTS feature_flags (
+  key                TEXT PRIMARY KEY,
+  description        TEXT,
+  enabled            BOOLEAN NOT NULL DEFAULT false,
+  payload_json       JSONB,
+  updated_by_user_id UUID,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS feature_flags_enabled_idx
+  ON feature_flags (enabled);
+
 CREATE TABLE IF NOT EXISTS events (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id   UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

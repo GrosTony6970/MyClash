@@ -77,8 +77,12 @@ export default function AdminOrganizationsPage() {
     };
   }, [apiUrl, search, statusFilter, sortField, sortOrder, refreshKey]);
 
-  async function handleAction(orgId: string, action: 'suspend' | 'reactivate' | 'delete') {
-    const labels = { suspend: 'suspend', reactivate: 'reactivate', delete: 'permanently delete' };
+  async function handleAction(orgId: string, action: 'suspend' | 'approve' | 'delete') {
+    const labels = {
+      suspend: 'suspend',
+      approve: 'approve/reactivate',
+      delete: 'permanently delete',
+    };
     if (!confirm(`Are you sure you want to ${labels[action]} this organization?`)) return;
 
     const method = action === 'delete' ? 'DELETE' : 'PATCH';
@@ -220,11 +224,11 @@ export default function AdminOrganizationsPage() {
                       ) : (
                         <button
                           onClick={() => {
-                            void handleAction(org.id, 'reactivate');
+                            void handleAction(org.id, 'approve');
                           }}
                           className="text-xs text-green-600 hover:underline"
                         >
-                          Reactivate
+                          Approve
                         </button>
                       )}
                       <button

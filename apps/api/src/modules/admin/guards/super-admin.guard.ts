@@ -43,14 +43,20 @@ export class SuperAdminGuard implements CanActivate {
         .eq('role', 'super_admin')
         .maybeSingle();
 
-      if (data) return true;
+      if (data) {
+        (request as FastifyRequest & { actorUserId?: string }).actorUserId = user.id;
+        return true;
+      }
     } catch {
       // Table not yet created — fall through to JWT claim check
     }
 
     // Fallback: check JWT app_metadata.role claim (set during bootstrap)
     const role = user.app_metadata?.['role'] as string | undefined;
-    if (role === 'super_admin') return true;
+    if (role === 'super_admin') {
+      (request as FastifyRequest & { actorUserId?: string }).actorUserId = user.id;
+      return true;
+    }
 
     throw new ForbiddenException('Super admin access required');
   }
