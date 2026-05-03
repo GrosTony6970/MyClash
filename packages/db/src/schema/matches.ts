@@ -2,7 +2,7 @@
  * Matches, match events, and exchanges.
  * Exchange is the atomic scoring unit — the single source of truth for scores.
  */
-import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { lices } from './events';
 import { pools, registrations } from './tournaments';
 
@@ -80,4 +80,25 @@ export const exchanges = pgTable('exchanges', {
   blueScoreDelta: integer('blue_score_delta').notNull().default(0),
   voided: boolean('voided').notNull().default(false),
   voidedReason: text('voided_reason'),
+});
+
+export const exchangeEditRequests = pgTable('exchange_edit_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventId: uuid('event_id').notNull(),
+  matchId: uuid('match_id')
+    .notNull()
+    .references(() => matches.id, { onDelete: 'cascade' }),
+  exchangeId: uuid('exchange_id')
+    .notNull()
+    .references(() => exchanges.id, { onDelete: 'cascade' }),
+  requestedByUserId: uuid('requested_by_user_id').notNull(),
+  requestType: text('request_type').notNull(),
+  reason: text('reason').notNull(),
+  status: text('status').notNull().default('pending'),
+  requestedPayload: jsonb('requested_payload').notNull().default({}),
+  reviewedByUserId: uuid('reviewed_by_user_id'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

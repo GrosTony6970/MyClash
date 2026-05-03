@@ -31,6 +31,11 @@ const sections = [
     title: 'Audit Log',
     description: 'Review moderation and organizer actions.',
   },
+  {
+    href: '/admin/exchange-edit-requests',
+    title: 'Frozen Results',
+    description: 'Approve or reject post-completion exchange corrections.',
+  },
 ];
 
 export default function SuperAdminDashboardPage() {

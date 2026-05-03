@@ -368,10 +368,11 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | T-1301 - Super admin dashboard | `777ac51` | done   |
 | T-1302 - Fighter merge tool    | `e414bc3` | done   |
 | T-1303 - Audit log UI          | `66b973a` | done   |
+| T-1304 - Frozen results state  | `59f3c0f` | done   |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1304 - Frozen results state
+**Next task**: T-1305 - next BUILD_ORDER item
 
 ## Tech decisions locked in during implementation
 
@@ -495,3 +496,5 @@ Required for the API to start:
 - **T-1302 Fighter merge tool** (`apps/api/src/modules/fighters/merge.service.ts`, `apps/web-admin/app/admin/fighters/`, `packages/db/migrations/0012_fighter_merge.sql`): super-admin-only fighter merge now soft-deletes source profiles with `merged_into_fighter_id`, `merged_at`, `deleted_at`, and `merge_reverted_at`, moves Person/Registration/workshop instructor references to the kept Fighter, fills blank target profile fields from source, and stores undo snapshots in `audit_log.payload_json`. Revert is audit-driven and allowed for 30 days. The old hard-delete merge endpoint is replaced by guarded controller routes.
 
 - **T-1303 Audit log UI** (`apps/api/src/modules/admin/admin-audit-log.service.ts`, `apps/web-admin/app/admin/audit-log/`, `packages/db/migrations/0013_audit_log_indexes.sql`): super-admin audit log viewer reads existing `audit_log` rows with exact actor/action/entity type/date filters, server-side pagination, and CSV export capped at 5000 rows. API routes live under `/api/v1/admin/audit-log` and are guarded by `SuperAdminGuard`; no new audit-history table was added.
+
+- **T-1304 Frozen results state** (`apps/api/src/modules/matches/frozen-results.guard.ts`, `apps/api/src/modules/admin/exchange-edit-requests.*`, `apps/web-admin/app/admin/exchange-edit-requests/`, `packages/db/migrations/0014_exchange_edit_requests.sql`): event results freeze when `events.status = 'completed'`. Organizer void/revert exchange actions become `exchange_edit_requests` pending super-admin review; new exchange creation after freeze returns conflict. Super-admin approval applies stored void/revert and recomputes scores; rejection stores reason, audits, and sends `exchange_edit_rejected` notification.

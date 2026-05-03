@@ -451,3 +451,7 @@ User requested implementation of T-1303 Audit Log UI plan: super-admin audit log
 ## 20:15:18_03-05-2026
 
 User clarified that appending to `docs/notes/glossary.md` is allowed too.
+
+## 20:33:46_03-05-2026
+
+User asked to implement T-1304 Frozen Results State: event-completed results freeze, pending organizer exchange correction requests, super-admin approve/reject API + UI, audit logs, rejection notification, tests, and allow existing dirty glossary.md to be included later.

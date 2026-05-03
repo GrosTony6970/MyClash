@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ScoringService } from './scoring.service';
+import { FrozenResultsGuard } from './frozen-results.guard';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
@@ -17,6 +18,7 @@ export class MatchesService {
     private readonly scoring: ScoringService,
     private readonly notifications: NotificationSchedulerService,
     private readonly followNotifications: FollowNotificationSchedulerService,
+    @Optional() private readonly frozenResults?: FrozenResultsGuard,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -137,7 +139,9 @@ export class MatchesService {
    * AGENTS.md hard rule #1: score is derived from exchanges, never stored
    * as the source of truth.
    */
-  async createExchange(matchId: string, dto: CreateExchangeDto) {
+  async createExchange(matchId: string, dto: CreateExchangeDto, context?: { userId?: string }) {
+    await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
+
     // Idempotency check: if client_uuid already exists, return existing row
     const { data: existing } = await this.supabase.service
       .from('exchanges')
@@ -199,7 +203,11 @@ export class MatchesService {
    *
    * AGENTS.md: "Voiding an exchange must never destroy the row."
    */
-  async voidExchange(exchangeId: string, dto: VoidExchangeDto) {
+  async voidExchange(
+    exchangeId: string,
+    dto: VoidExchangeDto,
+    context?: { userId?: string; bypassFrozenReview?: boolean },
+  ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')
       .select('id, match_id, voided')
@@ -211,6 +219,16 @@ export class MatchesService {
     const ex = exchange as { id: string; match_id: string; voided: boolean };
     if (ex.voided) {
       throw new BadRequestException('Exchange is already voided');
+    }
+
+    if (!context?.bypassFrozenReview) {
+      const pending = await this.frozenResults?.guardExchangeMutation({
+        exchange: ex,
+        requestType: 'void_exchange',
+        reason: dto.reason ?? null,
+        userId: context?.userId,
+      });
+      if (pending) return pending;
     }
 
     const { data, error } = await this.supabase.service
@@ -236,7 +254,10 @@ export class MatchesService {
    * Recomputes match score after restore.
    * AC: "Reverting a void restores the exchange."
    */
-  async revertVoidExchange(exchangeId: string) {
+  async revertVoidExchange(
+    exchangeId: string,
+    context?: { userId?: string; bypassFrozenReview?: boolean },
+  ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')
       .select('id, match_id, voided')
@@ -248,6 +269,16 @@ export class MatchesService {
     const ex = exchange as { id: string; match_id: string; voided: boolean };
     if (!ex.voided) {
       throw new BadRequestException('Exchange is not voided');
+    }
+
+    if (!context?.bypassFrozenReview) {
+      const pending = await this.frozenResults?.guardExchangeMutation({
+        exchange: ex,
+        requestType: 'revert_void_exchange',
+        reason: null,
+        userId: context?.userId,
+      });
+      if (pending) return pending;
     }
 
     const { data, error } = await this.supabase.service
@@ -263,6 +294,29 @@ export class MatchesService {
     await this.scoring.recomputeMatchScore(ex.match_id);
 
     return data;
+  }
+
+  async approveFrozenExchangeEdit(
+    request: {
+      id: string;
+      exchange_id: string;
+      request_type: 'void_exchange' | 'revert_void_exchange';
+      reason: string;
+    },
+    actorUserId: string,
+  ) {
+    const result =
+      request.request_type === 'void_exchange'
+        ? await this.voidExchange(
+            request.exchange_id,
+            { reason: request.reason },
+            { userId: actorUserId, bypassFrozenReview: true },
+          )
+        : await this.revertVoidExchange(request.exchange_id, {
+            userId: actorUserId,
+            bypassFrozenReview: true,
+          });
+    return result;
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────

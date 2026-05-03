@@ -15,7 +15,8 @@ export type ImmediateNotificationKind =
   | 'assignment_changed'
   | 'workshop_cancelled'
   | 'waitlist_promoted'
-  | 'results_published';
+  | 'results_published'
+  | 'exchange_edit_rejected';
 
 export type FollowNotificationKind = 'follow_match_starting';
 

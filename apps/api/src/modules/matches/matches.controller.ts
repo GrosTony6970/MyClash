@@ -9,10 +9,12 @@ import {
   Patch,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { SupabaseService } from '../supabase/supabase.service';
 import { ClockService, type ClockAction } from './clock.service';
 import { MatchesService } from './matches.service';
 import {
@@ -31,6 +33,22 @@ class ClockActionDto {
   reason?: string;
 }
 
+async function getOptionalUserId(
+  req: FastifyRequest,
+  supabase: SupabaseService,
+): Promise<string | undefined> {
+  const authHeader = req.headers['authorization'];
+  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : cookies?.['sb-access-token'];
+  if (!token) return undefined;
+  const {
+    data: { user },
+  } = await supabase.anon.auth.getUser(token);
+  return user?.id;
+}
+
 @ApiTags('matches')
 @ApiBearerAuth()
 @Controller()
@@ -38,6 +56,7 @@ export class MatchesController {
   constructor(
     private readonly matches: MatchesService,
     private readonly clock: ClockService,
+    private readonly supabase: SupabaseService,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -106,8 +125,13 @@ export class MatchesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record an exchange (scorekeeper+, idempotent on client_uuid)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async createExchange(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateExchangeDto) {
-    return this.matches.createExchange(id, dto);
+  async createExchange(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateExchangeDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.matches.createExchange(id, dto, { userId });
   }
 
   /**
@@ -117,8 +141,16 @@ export class MatchesController {
   @Patch('exchanges/:id/void')
   @ApiOperation({ summary: 'Void an exchange (organizer+). Never deletes.' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async voidExchange(@Param('id', ParseUUIDPipe) id: string, @Body() dto: VoidExchangeDto) {
-    return this.matches.voidExchange(id, dto);
+  async voidExchange(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VoidExchangeDto,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    const result = await this.matches.voidExchange(id, dto, { userId });
+    if ((result as { pendingReview?: boolean }).pendingReview) reply.status(HttpStatus.ACCEPTED);
+    return result;
   }
 
   /**
@@ -130,8 +162,15 @@ export class MatchesController {
     summary: 'Revert a voided exchange (organizer+). Restores and recomputes score.',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async revertVoidExchange(@Param('id', ParseUUIDPipe) id: string) {
-    return this.matches.revertVoidExchange(id);
+  async revertVoidExchange(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    const result = await this.matches.revertVoidExchange(id, { userId });
+    if ((result as { pendingReview?: boolean }).pendingReview) reply.status(HttpStatus.ACCEPTED);
+    return result;
   }
 
   // ── Clock endpoints ───────────────────────────────────────────────────────

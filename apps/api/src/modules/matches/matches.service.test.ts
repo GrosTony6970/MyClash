@@ -15,6 +15,10 @@ const mockNotificationScheduler = {
 const mockFollowNotificationScheduler = {
   scheduleMatchStarting: vi.fn().mockResolvedValue(undefined),
 };
+const mockFrozenResults = {
+  assertExchangeCreationAllowed: vi.fn().mockResolvedValue(undefined),
+  guardExchangeMutation: vi.fn().mockResolvedValue(null),
+};
 
 function makeChain(result: unknown) {
   const chain = {
@@ -102,6 +106,36 @@ describe('MatchesService', () => {
       // Score IS recomputed after new insert
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
     });
+
+    it('rejects new exchange creation when event results are frozen', async () => {
+      service = new MatchesService(
+        mockSupabase as never,
+        mockScoring as never,
+        mockNotificationScheduler as never,
+        mockFollowNotificationScheduler as never,
+        mockFrozenResults as never,
+      );
+      mockFrozenResults.assertExchangeCreationAllowed.mockRejectedValueOnce(
+        new BadRequestException('Event results are frozen'),
+      );
+
+      await expect(
+        service.createExchange(
+          'm1',
+          {
+            clientUuid: 'uuid-new',
+            sequence: 2,
+            type: 'clean',
+            occurredAt: new Date().toISOString(),
+            firstStrikerColor: 'red',
+            firstStrikeValue: 1,
+          },
+          { userId: 'organizer-1' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(fromMock).not.toHaveBeenCalled();
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
   });
 
   // ── Void never deletes ────────────────────────────────────────────────────
@@ -142,9 +176,103 @@ describe('MatchesService', () => {
 
       await expect(service.voidExchange('nonexistent', {})).rejects.toThrow(NotFoundException);
     });
+
+    it('creates a pending review request instead of voiding when event results are frozen', async () => {
+      service = new MatchesService(
+        mockSupabase as never,
+        mockScoring as never,
+        mockNotificationScheduler as never,
+        mockFollowNotificationScheduler as never,
+        mockFrozenResults as never,
+      );
+      const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
+      const pending = { pendingReview: true, requestId: 'request-1', status: 'pending' };
+      const fetchChain = makeChain({ data: null, error: null });
+      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
+      fromMock.mockReturnValue(fetchChain);
+      mockFrozenResults.guardExchangeMutation.mockResolvedValueOnce(pending);
+
+      const result = await service.voidExchange(
+        'ex-1',
+        { reason: 'wrong exchange' },
+        { userId: 'organizer-1' },
+      );
+
+      expect(result).toEqual(pending);
+      expect(mockFrozenResults.guardExchangeMutation).toHaveBeenCalledWith({
+        exchange,
+        requestType: 'void_exchange',
+        reason: 'wrong exchange',
+        userId: 'organizer-1',
+      });
+      expect(fetchChain.update).not.toHaveBeenCalled();
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revertVoidExchange', () => {
+    it('creates a pending review request instead of reverting when event results are frozen', async () => {
+      service = new MatchesService(
+        mockSupabase as never,
+        mockScoring as never,
+        mockNotificationScheduler as never,
+        mockFollowNotificationScheduler as never,
+        mockFrozenResults as never,
+      );
+      const exchange = { id: 'ex-1', match_id: 'm1', voided: true };
+      const pending = { pendingReview: true, requestId: 'request-1', status: 'pending' };
+      const fetchChain = makeChain({ data: null, error: null });
+      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
+      fromMock.mockReturnValue(fetchChain);
+      mockFrozenResults.guardExchangeMutation.mockResolvedValueOnce(pending);
+
+      const result = await service.revertVoidExchange('ex-1', { userId: 'organizer-1' });
+
+      expect(result).toEqual(pending);
+      expect(mockFrozenResults.guardExchangeMutation).toHaveBeenCalledWith({
+        exchange,
+        requestType: 'revert_void_exchange',
+        reason: null,
+        userId: 'organizer-1',
+      });
+      expect(fetchChain.update).not.toHaveBeenCalled();
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
   });
 
   // ── Score recomputation ───────────────────────────────────────────────────
+
+  describe('approveFrozenExchangeEdit', () => {
+    it('applies approved void requests without creating another frozen review request', async () => {
+      service = new MatchesService(
+        mockSupabase as never,
+        mockScoring as never,
+        mockNotificationScheduler as never,
+        mockFollowNotificationScheduler as never,
+        mockFrozenResults as never,
+      );
+      const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
+      const voidedExchange = { id: 'ex-1', match_id: 'm1', voided: true };
+      const fetchChain = makeChain({ data: null, error: null });
+      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({ data: voidedExchange, error: null });
+      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
+
+      await service.approveFrozenExchangeEdit(
+        {
+          id: 'request-1',
+          exchange_id: 'ex-1',
+          request_type: 'void_exchange',
+          reason: 'approved correction',
+        },
+        'super-1',
+      );
+
+      expect(mockFrozenResults.guardExchangeMutation).not.toHaveBeenCalled();
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
+    });
+  });
 
   describe('score recomputation', () => {
     it('recomputeMatchScore is called after every new exchange insert', async () => {

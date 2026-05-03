@@ -53,6 +53,12 @@ interface AuditEntry {
   createdAt: string;
 }
 
+interface PendingReviewResponse {
+  pendingReview?: boolean;
+  requestId?: string;
+  status?: string;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function exchangeLabel(ex: Exchange): string {
@@ -86,6 +92,7 @@ export default function MatchDetailPage() {
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
 
   // Void modal state
   const [voidTarget, setVoidTarget] = useState<Exchange | null>(null);
@@ -149,6 +156,12 @@ export default function MatchDetailPage() {
         throw new Error(body.message ?? 'Void failed');
       }
 
+      const body = (await res.json()) as PendingReviewResponse;
+      if (body.pendingReview) {
+        setPendingNotice(`Correction request ${body.requestId ?? ''} submitted for review.`);
+      } else {
+        setPendingNotice(null);
+      }
       setVoidTarget(null);
       setVoidReason('');
       setRefreshKey((k) => k + 1);
@@ -170,6 +183,12 @@ export default function MatchDetailPage() {
     });
 
     if (res.ok) {
+      const body = (await res.json()) as PendingReviewResponse;
+      if (body.pendingReview) {
+        setPendingNotice(`Correction request ${body.requestId ?? ''} submitted for review.`);
+      } else {
+        setPendingNotice(null);
+      }
       setRefreshKey((k) => k + 1);
     } else {
       const body = (await res.json()) as { message?: string };
@@ -219,6 +238,12 @@ export default function MatchDetailPage() {
               {match.redFighterName ?? '?'} vs {match.blueFighterName ?? '?'}
             </p>
           </div>
+        </div>
+      )}
+
+      {pendingNotice && (
+        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {pendingNotice}
         </div>
       )}
 
