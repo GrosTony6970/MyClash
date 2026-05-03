@@ -60,16 +60,66 @@ export const en = {
   },
 } as const satisfies MessageTree;
 
-// T-1402 owns human-reviewed French copy. Until then, keep the exact same key
-// shape and use English fallback values so no UI renders missing-key markers.
-export const fr = en;
+export const fr = {
+  app: {
+    name: 'MyClash',
+  },
+  metadata: {
+    publicTitle: 'MyClash',
+    publicDescription: "Plateforme libre et open-source pour la gestion d'événements d'AMHE.",
+    adminTitle: 'MyClash Admin',
+    adminDescription: 'Administration MyClash pour les organisateurs et super-administrateurs.',
+    scoringTitle: 'MyClash',
+    scoringDescription: 'Tableau de saisie des scores',
+  },
+  actions: {
+    add: 'Ajouter',
+    apply: 'Appliquer',
+    approve: 'Approuver',
+    back: 'Retour',
+    cancel: 'Annuler',
+    clear: 'Effacer',
+    close: 'Fermer',
+    confirm: 'Confirmer',
+    continue: 'Continuer',
+    delete: 'Supprimer',
+    edit: 'Modifier',
+    export: 'Exporter',
+    import: 'Importer',
+    next: 'Suivant',
+    previous: 'Précédent',
+    reject: 'Rejeter',
+    remove: 'Retirer',
+    reset: 'Réinitialiser',
+    revert: 'Rétablir',
+    save: 'Enregistrer',
+    search: 'Rechercher',
+    submit: 'Soumettre',
+    sync: 'Synchroniser',
+    view: 'Voir',
+  },
+  common: {
+    all: 'Tout',
+    loading: 'Chargement...',
+    none: 'Aucun',
+    optional: 'Facultatif',
+    required: 'Obligatoire',
+    unknown: 'Inconnu',
+    yes: 'Oui',
+    no: 'Non',
+  },
+  test: {
+    greeting: 'Bonjour, {name}',
+  },
+} as const satisfies Messages;
 
 export const messages = {
   en,
   fr,
 } as const;
 
-export type Messages = typeof en;
+type DeepString<T> = T extends string ? string : { readonly [K in keyof T]: DeepString<T[K]> };
+export type Messages = DeepString<typeof en>;
 export type TranslationKey = string;
 export type TranslationValues = Record<string, string | number | boolean | null | undefined>;
 
