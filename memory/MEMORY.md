@@ -363,14 +363,15 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P13 - in progress)
 
-| Task                           | Commit    | Status |
-| ------------------------------ | --------- | ------ |
-| T-1301 - Super admin dashboard | `777ac51` | done   |
-| T-1302 - Fighter merge tool    | `e414bc3` | done   |
+| Task                           | Commit    | Status       |
+| ------------------------------ | --------- | ------------ |
+| T-1301 - Super admin dashboard | `777ac51` | done         |
+| T-1302 - Fighter merge tool    | `e414bc3` | done         |
+| T-1303 - Audit log UI          | -         | done locally |
 
 **Current HEAD**: current local `main`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1303 - Audit log UI
+**Next task**: T-1304 - Frozen results state
 
 ## Tech decisions locked in during implementation
 
@@ -492,3 +493,5 @@ Required for the API to start:
 - **T-1301 Super admin dashboard** (`apps/api/src/modules/admin/`, `apps/web-admin/app/admin/`, `packages/db/migrations/0001_init.sql`): extends the T-009c super-admin org surface with an explicit organization approve alias, Supabase Auth admin user disable/enable, metadata-only community ruleset moderation, and platform feature flags. New tables: `ruleset_submissions` and `feature_flags`, both super-admin-only via RLS. Community ruleset approval does not execute submitted code; runtime registration remains a code/deploy process.
 
 - **T-1302 Fighter merge tool** (`apps/api/src/modules/fighters/merge.service.ts`, `apps/web-admin/app/admin/fighters/`, `packages/db/migrations/0012_fighter_merge.sql`): super-admin-only fighter merge now soft-deletes source profiles with `merged_into_fighter_id`, `merged_at`, `deleted_at`, and `merge_reverted_at`, moves Person/Registration/workshop instructor references to the kept Fighter, fills blank target profile fields from source, and stores undo snapshots in `audit_log.payload_json`. Revert is audit-driven and allowed for 30 days. The old hard-delete merge endpoint is replaced by guarded controller routes.
+
+- **T-1303 Audit log UI** (`apps/api/src/modules/admin/admin-audit-log.service.ts`, `apps/web-admin/app/admin/audit-log/`, `packages/db/migrations/0013_audit_log_indexes.sql`): super-admin audit log viewer reads existing `audit_log` rows with exact actor/action/entity type/date filters, server-side pagination, and CSV export capped at 5000 rows. API routes live under `/api/v1/admin/audit-log` and are guarded by `SuperAdminGuard`; no new audit-history table was added.

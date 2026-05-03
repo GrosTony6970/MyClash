@@ -443,3 +443,11 @@ User instructed: for main development until the last planned feature is done, Co
 ## 15:23:03_03-05-2026
 
 User requested implementation of T-1302 Fighter Merge Tool plan.
+
+## 20:14:00_03-05-2026
+
+User requested implementation of T-1303 Audit Log UI plan: super-admin audit log API, CSV export, DB indexes, `/admin/audit-log` UI, tests, verification.
+
+## 20:15:18_03-05-2026
+
+User clarified that appending to `docs/notes/glossary.md` is allowed too.
