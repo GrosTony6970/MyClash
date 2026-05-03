@@ -372,13 +372,14 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P14 - in progress)
 
-| Task                         | Commit | Status |
-| ---------------------------- | ------ | ------ |
-| T-1401 - Extract all strings | local  | done   |
+| Task                         | Commit    | Status |
+| ---------------------------- | --------- | ------ |
+| T-1401 - Extract all strings | `cd036a1` | done   |
+| T-1402 - French translation  | `bdec5bf` | done   |
 
-**Current HEAD**: current local `main`
+**Current HEAD**: `bdec5bf`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1402 - French translation pass (owner review items O-106/O-107 may block final copy quality)
+**Next task**: T-1403 - Accessibility pass (WCAG AA)
 
 ## Tech decisions locked in during implementation
 
@@ -506,3 +507,5 @@ Required for the API to start:
 - **T-1304 Frozen results state** (`apps/api/src/modules/matches/frozen-results.guard.ts`, `apps/api/src/modules/admin/exchange-edit-requests.*`, `apps/web-admin/app/admin/exchange-edit-requests/`, `packages/db/migrations/0014_exchange_edit_requests.sql`): event results freeze when `events.status = 'completed'`. Organizer void/revert exchange actions become `exchange_edit_requests` pending super-admin review; new exchange creation after freeze returns conflict. Super-admin approval applies stored void/revert and recomputes scores; rejection stores reason, audits, and sends `exchange_edit_rejected` notification.
 
 - **T-1401 Extract all strings** (`packages/i18n/`, `eslint-rules/no-literal-string.mjs`, all frontend app layouts): shared i18n runtime exports `Locale`, `defaultLocale`, English/French fallback message trees, `getMessages`, `createTranslator`, and default `t`. Frontend roots now set `html lang` from i18n, wrap children in app-local `I18nProvider`, and use message keys for static metadata. Hardcoded JSX/string-prop lint is enforced in all three frontend apps through a local ESLint rule with a committed baseline for pre-existing literals; new unbaselined JSX text or watched props fail lint.
+
+- **T-1402 French translation** (`packages/i18n/src/index.ts`): replaced `fr = en` alias with full French object reviewed by the native-speaking project author. HEMA → AMHE in French copy (`événements d'AMHE`). `Messages` type changed from `typeof en` (literal string types due to `as const`) to `DeepString<typeof en>` — a mapped type that relaxes leaf types to `string` while preserving key structure — so `fr satisfies Messages` compiles without requiring exact English string literals. `defaultLocale` remains `'en'`. Key-parity enforced at build time via existing `collectKeys` assertion in `index.test.ts`.
