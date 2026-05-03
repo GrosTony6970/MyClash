@@ -4,13 +4,13 @@ Working glossary for translation and consistent in-app copy. Reviewed by the pro
 
 | English           | French                               | Notes                                     |
 | ----------------- | ------------------------------------ | ----------------------------------------- |
-| Lice              | Piste / Lice                         | "Lice" preferred per project convention   |
+| Lice              | Lice                                 | "Lice" preferred per project convention   |
 | Pool              | Poule                                | Round-robin group                         |
 | Bracket           | Tableau d'élimination                |                                           |
-| Clean hit         | Touche nette                         |                                           |
-| Afterblow         | Riposte tardive                      |                                           |
-| Double            | Coup double                          |                                           |
-| Match             | Assaut                               | Or "match" depending on context           |
+| Clean hit         | Touche propre                        |                                           |
+| Afterblow         | Afterblow                            |                                           |
+| Double            | Double                               |                                           |
+| Match             | Match                                | Or "match" depending on context           |
 | Exchange          | Échange                              | The atomic scoring unit                   |
 | Side sword        | Épée de côté                         |                                           |
 | Longsword         | Épée longue / Épée à deux mains      |                                           |
@@ -26,9 +26,9 @@ Working glossary for translation and consistent in-app copy. Reviewed by the pro
 | Arbitre déclarant | (kept in French)                     | Lead/Director referee                     |
 | Arbitre assesseur | (kept in French)                     | Assessor referee                          |
 | Arbitre de table  | (kept in French)                     | Table referee                             |
-| Workshop          | Atelier / Stage                      | "Atelier" for short, "stage" for full-day |
-| Instructor        | Intervenant / Instructeur            |                                           |
+| Workshop          | Atelier                              | "Atelier" for short, "stage" for full-day |
+| Instructor        | Instructeur                          |                                           |
 | Tournament        | Tournoi                              |                                           |
-| Event             | Catégorie / Événement                | Per-weapon-category event = "catégorie"   |
+| Event             | Événement                            |
 
 This is a starting point. Add entries as they come up during translation work (P14).
