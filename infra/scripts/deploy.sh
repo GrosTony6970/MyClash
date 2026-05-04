@@ -54,6 +54,128 @@ EOF
   esac
 done
 
+# ── Prerequisites ────────────────────────────────────────────────
+run_privileged() {
+  if [[ "$EUID" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+require_privilege() {
+  if [[ "$EUID" -ne 0 ]] && ! command -v sudo &>/dev/null; then
+    err "Missing sudo and current user is not root. Cannot install prerequisites."
+    exit 1
+  fi
+}
+
+is_debian() {
+  [[ -r /etc/os-release ]] || return 1
+  # shellcheck disable=SC1091
+  source /etc/os-release
+  [[ "${ID:-}" == "debian" || " ${ID_LIKE:-} " == *" debian "* ]]
+}
+
+install_apt_packages() {
+  local packages=("$@")
+  [[ "${#packages[@]}" -gt 0 ]] || return 0
+  require_privilege
+  warn "Missing Debian packages: ${packages[*]}"
+  confirm "Install missing packages with apt now?" || { err "Prerequisite install declined"; exit 1; }
+  export DEBIAN_FRONTEND=noninteractive
+  run_privileged apt-get update -qq
+  run_privileged apt-get install -y -qq "${packages[@]}"
+}
+
+install_docker_engine() {
+  require_privilege
+  confirm "Install/repair Docker Engine and Compose plugin from Docker's Debian apt repo?" || {
+    err "Docker install declined"
+    exit 1
+  }
+
+  export DEBIAN_FRONTEND=noninteractive
+  run_privileged apt-get update -qq
+  run_privileged apt-get install -y -qq ca-certificates curl gnupg
+  run_privileged install -m 0755 -d /etc/apt/keyrings
+  if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+    curl -fsSL https://download.docker.com/linux/debian/gpg \
+      | run_privileged gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    run_privileged chmod a+r /etc/apt/keyrings/docker.gpg
+  fi
+
+  # shellcheck disable=SC1091
+  source /etc/os-release
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian ${VERSION_CODENAME} stable" \
+    | run_privileged tee /etc/apt/sources.list.d/docker.list >/dev/null
+  run_privileged apt-get update -qq
+  run_privileged apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  if command -v systemctl &>/dev/null; then
+    run_privileged systemctl enable --now docker
+  fi
+}
+
+ensure_docker_access() {
+  if docker info >/dev/null 2>&1; then
+    ok "Docker daemon reachable"
+    return
+  fi
+
+  if [[ "$EUID" -ne 0 ]] && command -v sudo &>/dev/null && sudo docker info >/dev/null 2>&1; then
+    warn "Docker works with sudo, but current user cannot access Docker directly."
+    confirm "Add ${USER:-current user} to the docker group? You must reconnect before deploying." || {
+      err "Docker group update declined"
+      exit 1
+    }
+    run_privileged usermod -aG docker "${USER}"
+    err "Docker group updated. Log out/in or reconnect SSH, then rerun deploy."
+    exit 1
+  fi
+
+  err "Docker daemon is not reachable. Check Docker service status and permissions."
+  exit 1
+}
+
+ensure_prerequisites() {
+  hdr "Checking server prerequisites"
+
+  if ! is_debian; then
+    err "This deploy self-heal path supports Debian only."
+    err "Run the server bootstrap manually or adapt infra/scripts/vps-bootstrap.sh first."
+    exit 1
+  fi
+  ok "Debian-compatible OS detected"
+
+  local missing_packages=()
+  command -v git >/dev/null 2>&1 || missing_packages+=(git)
+  command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
+  command -v node >/dev/null 2>&1 || missing_packages+=(nodejs)
+  command -v gzip >/dev/null 2>&1 || missing_packages+=(gzip)
+  command -v flock >/dev/null 2>&1 || missing_packages+=(util-linux)
+  command -v jq >/dev/null 2>&1 || missing_packages+=(jq)
+  command -v gpg >/dev/null 2>&1 || missing_packages+=(gnupg)
+  command -v lsb_release >/dev/null 2>&1 || missing_packages+=(lsb-release)
+  [[ "${#missing_packages[@]}" -eq 0 ]] || install_apt_packages "${missing_packages[@]}"
+
+  require_cmd git
+  require_cmd curl
+  require_cmd node
+  require_cmd gzip
+  require_cmd flock
+  require_cmd jq
+
+  if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
+    install_docker_engine
+  fi
+  require_cmd docker
+  docker compose version >/dev/null 2>&1 || { err "Docker Compose v2 plugin missing"; exit 1; }
+  ensure_docker_access
+  ok "Prerequisites ready"
+}
+
+ensure_prerequisites
+
 # ── Lock ─────────────────────────────────────────────────────────
 LOCK_FILE="$ROOT_DIR/.deploy.lock"
 exec 9>"$LOCK_FILE"
@@ -66,15 +188,14 @@ trap 'rm -f "$LOCK_FILE"' EXIT
 # ── Validate config ──────────────────────────────────────────────
 hdr "Validating configuration"
 
-require_cmd docker
-require_cmd git
-require_cmd pg_dump
-
-if [[ ! -f .env ]]; then
-  err "Missing .env file. Copy .env.prod.example to .env first."
-  exit 1
-fi
-ok ".env found"
+ENV_RESULT=$(node scripts/ensure-prod-env.mjs .env)
+ok ".env validated/repaired"
+GENERATED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.generated||[]).join(' '))" "$ENV_RESULT")
+PROMPTED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.prompted||[]).join(' '))" "$ENV_RESULT")
+NORMALIZED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.normalized||[]).join(' '))" "$ENV_RESULT")
+[[ -n "$GENERATED_KEYS" ]] && info "Generated secrets: $GENERATED_KEYS"
+[[ -n "$PROMPTED_KEYS" ]] && info "Captured required values: $PROMPTED_KEYS"
+[[ -n "$NORMALIZED_KEYS" ]] && info "Normalized values: $NORMALIZED_KEYS"
 
 set -a
 source ./.env
@@ -83,6 +204,15 @@ set +a
 : "${DOMAIN:?Missing DOMAIN in .env}"
 : "${LETSENCRYPT_EMAIL:?Missing LETSENCRYPT_EMAIL in .env}"
 : "${POSTGRES_PASSWORD:?Missing POSTGRES_PASSWORD in .env}"
+: "${SUPABASE_JWT_SECRET:?Missing SUPABASE_JWT_SECRET in .env}"
+: "${SUPABASE_REALTIME_SECRET:?Missing SUPABASE_REALTIME_SECRET in .env}"
+: "${SUPABASE_ANON_KEY:?Missing SUPABASE_ANON_KEY in .env}"
+: "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY in .env}"
+: "${MYCLASH_GUEST_JWT_SECRET:?Missing MYCLASH_GUEST_JWT_SECRET in .env}"
+: "${COOKIE_SECRET:?Missing COOKIE_SECRET in .env}"
+: "${RESEND_API_KEY:?Missing RESEND_API_KEY in .env}"
+: "${MAIL_FROM:?Missing MAIL_FROM in .env}"
+: "${SMTP_PASS:?Missing SMTP_PASS in .env}"
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"
 

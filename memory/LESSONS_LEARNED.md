@@ -78,6 +78,7 @@
 - Take a `pg_dump` immediately before every production migration. Without this, "rolling back a bad deploy" is a marketing slogan, not a procedure.
 - Don't write a deploy script from scratch when the owner already has a working one for a similar app — read it first, adapt it, document what changed and why.
 - Production deploy stays manual at v1; auto-deploy is for staging only. Friction on prod is a feature, not a bug.
+- Deploy automation may generate cryptographic secrets, but must never invent external/provider-owned configuration such as DNS domains, email addresses, API keys, or OAuth credentials; prompt or fail instead.
 
 ## MyFAL scripting conventions (reused for MyClash)
 

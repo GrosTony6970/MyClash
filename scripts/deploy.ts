@@ -82,6 +82,7 @@ function loadEnv(): DeployEnv {
 function runSSH(env: DeployEnv, remoteCmd: string): Promise<number> {
   return new Promise((resolve) => {
     const args = [
+      ...(process.stdin.isTTY && process.stdout.isTTY ? ['-t'] : []),
       '-i',
       env.sshKeyPath,
       '-o',

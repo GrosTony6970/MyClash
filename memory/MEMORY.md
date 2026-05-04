@@ -63,6 +63,8 @@ The owner runs MyFAL on an OVH VPS using a proven pattern. MyClash deploy script
 - Idempotent file initialization (`[[ -f X ]] || touch X`, `: > log.txt`).
 - Health check loops (RETRIES × DELAY) with clear failure messages.
 - Auto-generation of VAPID keys if missing in `.env`.
+- `deploy.sh` may self-heal safe Debian prerequisites with confirmation (apt basics + Docker Engine/Compose), then validate/repair production `.env` before build/deploy.
+- Production env automation may generate local secrets and Supabase JWT keys, but must prompt for provider-owned values such as domain/email/Resend/SMTP instead of inventing them.
 
 **Compose conventions:**
 
