@@ -34,6 +34,8 @@ const SAMPLE_VALUES = new Map([
   ['NEXT_PUBLIC_SUPABASE_URL', new Set(['http://localhost:8000'])],
   ['NEXT_PUBLIC_SUPABASE_ANON_KEY', new Set(['change-me-anon-jwt'])],
   ['NEXT_PUBLIC_API_URL', new Set(['http://localhost:4000'])],
+  ['SEED_ADMIN_PASSWORD', new Set(['change-me-admin-password'])],
+  ['SEED_ADMIN_EMAIL', new Set(['admin@myclash.fr', ''])],
 ]);
 
 const SECRET_GENERATORS = {
@@ -42,9 +44,12 @@ const SECRET_GENERATORS = {
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
+  // Generate a strong random password for the bootstrap super admin.
+  // Stored in .env so deploy.sh can display it once and the operator saves it.
+  SEED_ADMIN_PASSWORD: () => randomBytes(16).toString('base64url'),
 };
 
-const HUMAN_REQUIRED = ['DOMAIN', 'LETSENCRYPT_EMAIL', 'RESEND_API_KEY', 'MAIL_FROM', 'SMTP_PASS'];
+const HUMAN_REQUIRED = ['DOMAIN', 'LETSENCRYPT_EMAIL', 'RESEND_API_KEY', 'MAIL_FROM', 'SMTP_PASS', 'SEED_ADMIN_EMAIL'];
 
 function base64urlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');

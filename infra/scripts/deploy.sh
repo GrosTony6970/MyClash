@@ -370,6 +370,42 @@ for svc in api web-public web-scoring web-admin; do
   done
 done
 
+# ── Bootstrap super admin (first deploy only) ────────────────────
+hdr "Super admin bootstrap"
+
+BOOTSTRAP_RESULT=$(docker compose --env-file .env "${COMPOSE_FILES[@]}" \
+  run --rm \
+  -e SUPABASE_URL="http://supabase-auth:9999" \
+  -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
+  -e DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
+  -e SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}" \
+  -e SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD}" \
+  api node /app/scripts/bootstrap-super-admin.mjs 2>/dev/null || echo '{"error":"bootstrap failed"}')
+
+BOOTSTRAP_CREATED=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.created?'yes':'no')}catch{console.log('unknown')}" "$BOOTSTRAP_RESULT")
+BOOTSTRAP_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$BOOTSTRAP_RESULT")
+
+if [[ -n "$BOOTSTRAP_ERROR" ]]; then
+  warn "Super admin bootstrap reported an issue: $BOOTSTRAP_ERROR"
+  warn "You can run it manually: docker compose run --rm api node /app/scripts/bootstrap-super-admin.mjs"
+elif [[ "$BOOTSTRAP_CREATED" == "yes" ]]; then
+  # ── Display credentials — operator MUST save these ──────────────
+  echo
+  echo "╔══════════════════════════════════════════════════════════════╗"
+  echo "║          SUPER ADMIN CREDENTIALS — SAVE THESE NOW           ║"
+  echo "╠══════════════════════════════════════════════════════════════╣"
+  printf "║  Email:    %-50s ║\n" "${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}"
+  printf "║  Password: %-50s ║\n" "${SEED_ADMIN_PASSWORD}"
+  echo "╠══════════════════════════════════════════════════════════════╣"
+  echo "║  These are also stored in .env on this server.               ║"
+  echo "║  Change the password after first login.                      ║"
+  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo
+  ok "Super admin account created"
+else
+  ok "Super admin account already exists — no changes made"
+fi
+
 # ── Smoke test ───────────────────────────────────────────────────
 hdr "Smoke test"
 

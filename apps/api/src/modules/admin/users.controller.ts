@@ -1,6 +1,7 @@
 import {
   Controller,
   DefaultValuePipe,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -8,6 +9,7 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   Req,
   UseGuards,
@@ -49,5 +51,27 @@ export class UsersAdminController {
   @ApiOperation({ summary: 'Enable user (super admin)' })
   async enable(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     await this.service.enableUser(id, getActorId(req));
+  }
+
+  // ── Super admin role management ───────────────────────────────────────────
+
+  @Get('super-admins')
+  @ApiOperation({ summary: 'List all super admins (super admin)' })
+  async listSuperAdmins() {
+    return this.service.listSuperAdmins();
+  }
+
+  @Post(':id/promote-super-admin')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Promote user to super admin (super admin)' })
+  async promoteSuperAdmin(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.service.promoteSuperAdmin(id, getActorId(req));
+  }
+
+  @Delete(':id/super-admin')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Revoke super admin role from user (super admin)' })
+  async revokeSuperAdmin(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.service.revokeSuperAdmin(id, getActorId(req));
   }
 }

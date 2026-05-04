@@ -28,6 +28,49 @@ export class AdminUsersService {
     await this.updateBan(userId, 'none', actorUserId, 'user.enable');
   }
 
+  async promoteSuperAdmin(userId: string, actorUserId: string): Promise<void> {
+    // Verify the target user exists
+    const { data: user, error } = await this.supabase.service.auth.admin.getUserById(userId);
+    if (error || !user.user) throw new BadRequestException('User not found');
+
+    // Upsert platform_roles row
+    const { error: dbError } = await this.supabase.service
+      .from('platform_roles')
+      .upsert({ user_id: userId, role: 'super_admin' }, { onConflict: 'user_id' });
+    if (dbError) throw new BadRequestException(dbError.message);
+
+    await this.writeAuditLog(actorUserId, 'user.promote_super_admin', 'user', userId, {
+      target_email: user.user.email,
+    });
+  }
+
+  async revokeSuperAdmin(userId: string, actorUserId: string): Promise<void> {
+    if (userId === actorUserId) {
+      throw new BadRequestException('You cannot revoke your own super admin role');
+    }
+
+    const { error } = await this.supabase.service
+      .from('platform_roles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('role', 'super_admin');
+    if (error) throw new BadRequestException(error.message);
+
+    await this.writeAuditLog(actorUserId, 'user.revoke_super_admin', 'user', userId, {});
+  }
+
+  async listSuperAdmins(): Promise<Array<{ userId: string; createdAt: string }>> {
+    const { data, error } = await this.supabase.service
+      .from('platform_roles')
+      .select('user_id, created_at')
+      .eq('role', 'super_admin');
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []).map((r) => ({
+      userId: r['user_id'] as string,
+      createdAt: r['created_at'] as string,
+    }));
+  }
+
   private async updateBan(
     userId: string,
     banDuration: string,
