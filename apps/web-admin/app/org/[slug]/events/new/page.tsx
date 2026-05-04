@@ -441,7 +441,7 @@ export default function NewEventPage() {
   }
 
   return (
-    <main className="p-8 max-w-xl">
+    <main id="main-content" className="p-8 max-w-xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button

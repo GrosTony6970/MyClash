@@ -75,14 +75,14 @@ export default function LiceMatchPage({ params }: Props) {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main id="main-content" className="flex min-h-screen items-center justify-center">
         <p className="text-gray-400">Loading match…</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main id="main-content" className="min-h-screen flex flex-col">
       {/* Network status bar */}
       <div
         className={`px-4 py-1 text-xs font-bold text-center ${

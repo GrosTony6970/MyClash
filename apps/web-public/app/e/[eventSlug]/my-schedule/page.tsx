@@ -167,7 +167,7 @@ export default function MySchedulePage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main id="main-content" className="flex min-h-screen items-center justify-center">
         <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
       </main>
     );
@@ -175,7 +175,10 @@ export default function MySchedulePage() {
 
   if (!schedule) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4 text-center">
+      <main
+        id="main-content"
+        className="flex min-h-screen items-center justify-center px-4 text-center"
+      >
         <div>
           <p className="text-4xl mb-3">📅</p>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Sign in to see your schedule</h1>
@@ -238,7 +241,7 @@ export default function MySchedulePage() {
   const isEmpty = sorted.length === 0;
 
   return (
-    <main className="px-4 py-6 max-w-lg mx-auto">
+    <main id="main-content" className="px-4 py-6 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1

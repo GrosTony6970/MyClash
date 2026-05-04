@@ -124,14 +124,14 @@ export default function PersonaPage({ params }: Props) {
 
   if (!eventSlug) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main id="main-content" className="flex min-h-screen items-center justify-center">
         <span className="w-8 h-8 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8 max-w-md mx-auto">
+    <main id="main-content" className="flex min-h-screen flex-col px-4 py-8 max-w-md mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h1
