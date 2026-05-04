@@ -36,6 +36,10 @@ const SAMPLE_VALUES = new Map([
   ['NEXT_PUBLIC_API_URL', new Set(['http://localhost:4000'])],
   ['SEED_ADMIN_PASSWORD', new Set(['change-me-admin-password'])],
   ['SEED_ADMIN_EMAIL', new Set(['admin@myclash.fr', ''])],
+  // Scaleway S3 backup — no sample values, just detect empty
+  ['BACKUP_SCW_ACCESS_KEY', new Set([''])],
+  ['BACKUP_SCW_SECRET_KEY', new Set([''])],
+  ['BACKUP_SCW_BUCKET', new Set([''])],
 ]);
 
 const SECRET_GENERATORS = {
@@ -49,7 +53,17 @@ const SECRET_GENERATORS = {
   SEED_ADMIN_PASSWORD: () => randomBytes(16).toString('base64url'),
 };
 
-const HUMAN_REQUIRED = ['DOMAIN', 'LETSENCRYPT_EMAIL', 'RESEND_API_KEY', 'MAIL_FROM', 'SMTP_PASS', 'SEED_ADMIN_EMAIL'];
+const HUMAN_REQUIRED = [
+  'DOMAIN',
+  'LETSENCRYPT_EMAIL',
+  'RESEND_API_KEY',
+  'MAIL_FROM',
+  'SMTP_PASS',
+  'SEED_ADMIN_EMAIL',
+  'BACKUP_SCW_ACCESS_KEY',
+  'BACKUP_SCW_SECRET_KEY',
+  'BACKUP_SCW_BUCKET',
+];
 
 function base64urlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -200,6 +214,10 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['SMTP_PORT', state.values.get('SMTP_PORT') || '587'],
     ['SMTP_USER', state.values.get('SMTP_USER') || 'resend'],
     ['HEMA_RATINGS_SYNC_ENABLED', state.values.get('HEMA_RATINGS_SYNC_ENABLED') || 'true'],
+    // Scaleway S3 defaults
+    ['BACKUP_SCW_REGION', state.values.get('BACKUP_SCW_REGION') || 'fr-par'],
+    ['BACKUP_SCW_ENDPOINT', state.values.get('BACKUP_SCW_ENDPOINT') || 'https://s3.fr-par.scw.cloud'],
+    ['BACKUP_RETENTION_DAYS', state.values.get('BACKUP_RETENTION_DAYS') || '60'],
   ]) {
     if (isSampleOrMissing(key, state.values.get(key))) {
       applyValue(state, key, value, 'normalized');

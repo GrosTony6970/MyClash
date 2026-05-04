@@ -89,8 +89,9 @@ step_system_update() {
     ufw fail2ban \
     unattended-upgrades apt-listchanges \
     htop ncdu \
+    awscli \
     2>/dev/null
-  _ok "System packages installed"
+  _ok "System packages installed (includes awscli for S3 backups)"
 }
 
 step_docker() {
@@ -257,6 +258,26 @@ step_backup_cron() {
   fi
 }
 
+step_s3_credentials() {
+  _hdr "11 · Scaleway S3 credentials for backups"
+  _info "The backup script reads credentials from .env (BACKUP_SCW_ACCESS_KEY etc.)."
+  _info "No separate ~/.aws/credentials file is needed — credentials are passed as env vars."
+  _info ""
+  _info "To verify S3 connectivity after deploy, run:"
+  _info "  source $REPO_DIR/.env"
+  _info "  AWS_ACCESS_KEY_ID=\$BACKUP_SCW_ACCESS_KEY \\"
+  _info "  AWS_SECRET_ACCESS_KEY=\$BACKUP_SCW_SECRET_KEY \\"
+  _info "  aws s3 ls s3://\$BACKUP_SCW_BUCKET/ --endpoint-url \$BACKUP_SCW_ENDPOINT"
+  _info ""
+  _info "Required .env vars:"
+  _info "  BACKUP_SCW_ACCESS_KEY   — Scaleway IAM API key ID"
+  _info "  BACKUP_SCW_SECRET_KEY   — Scaleway IAM API key secret"
+  _info "  BACKUP_SCW_BUCKET       — bucket name (e.g. myclash-backups)"
+  _info "  BACKUP_SCW_REGION       — region (e.g. fr-par)"
+  _info "  BACKUP_SCW_ENDPOINT     — https://s3.fr-par.scw.cloud"
+  _ok "S3 credentials are env-based — no extra config needed on this host"
+}
+
 # ── Step registry ────────────────────────────────────────────────
 STEP_FUNCS=(
   step_system_update
@@ -269,6 +290,7 @@ STEP_FUNCS=(
   step_repo_dir
   step_clone_repo
   step_backup_cron
+  step_s3_credentials
 )
 
 STEP_LABELS=(
@@ -282,6 +304,7 @@ STEP_LABELS=(
   "Repo directory ($REPO_DIR)"
   "Clone repository"
   "Nightly backup cron"
+  "Scaleway S3 credentials info"
 )
 
 # ── Run all (--all flag) ─────────────────────────────────────────
