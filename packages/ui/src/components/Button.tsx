@@ -47,6 +47,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled ?? loading}
+        aria-busy={loading || undefined}
         className={[
           'inline-flex items-center justify-center font-semibold border transition-colors',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900',
