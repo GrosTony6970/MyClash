@@ -134,8 +134,11 @@ function Step1({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Event name *</label>
+        <label htmlFor="wizard-event-name" className="block text-sm font-medium text-gray-700 mb-1">
+          Event name *
+        </label>
         <input
+          id="wizard-event-name"
           type="text"
           value={state.name}
           onChange={(e) => {
@@ -154,12 +157,15 @@ function Step1({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">URL slug *</label>
+        <label htmlFor="wizard-event-slug" className="block text-sm font-medium text-gray-700 mb-1">
+          URL slug *
+        </label>
         <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-red-600">
           <span className="px-3 py-2 bg-gray-50 text-gray-400 text-sm border-r border-gray-300 select-none">
             /e/
           </span>
           <input
+            id="wizard-event-slug"
             type="text"
             value={state.slug}
             onChange={(e) =>
@@ -177,8 +183,14 @@ function Step1({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Start date *</label>
+          <label
+            htmlFor="wizard-start-date"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Start date *
+          </label>
           <input
+            id="wizard-start-date"
             type="date"
             value={state.startDate}
             onChange={(e) =>
@@ -188,8 +200,11 @@ function Step1({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">End date *</label>
+          <label htmlFor="wizard-end-date" className="block text-sm font-medium text-gray-700 mb-1">
+            End date *
+          </label>
           <input
+            id="wizard-end-date"
             type="date"
             value={state.endDate}
             min={state.startDate}
@@ -202,8 +217,11 @@ function Step1({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+        <label htmlFor="wizard-location" className="block text-sm font-medium text-gray-700 mb-1">
+          Location
+        </label>
         <input
+          id="wizard-location"
           type="text"
           value={state.location}
           onChange={(e) =>
@@ -221,9 +239,7 @@ function Step2({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Number of Lices (pistes)
-        </label>
+        <p className="block text-sm font-medium text-gray-700 mb-1">Number of Lices (pistes)</p>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -251,6 +267,7 @@ function Step2({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
             <input
               type="text"
               value={name}
+              aria-label={`Lice ${i + 1} name`}
               onChange={(e) => dispatch({ type: 'SET_LICE_NAME', index: i, value: e.target.value })}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
@@ -265,9 +282,15 @@ function Step3({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Primary color</label>
+        <label
+          htmlFor="wizard-primary-color"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          Primary color
+        </label>
         <div className="flex items-center gap-3">
           <input
+            id="wizard-primary-color"
             type="color"
             value={state.primaryColor}
             onChange={(e) =>
@@ -278,6 +301,7 @@ function Step3({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
           <input
             type="text"
             value={state.primaryColor}
+            aria-label="Color hex value"
             onChange={(e) =>
               dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: e.target.value })
             }
@@ -294,8 +318,11 @@ function Step3({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL (optional)</label>
+        <label htmlFor="wizard-logo-url" className="block text-sm font-medium text-gray-700 mb-1">
+          Logo URL (optional)
+        </label>
         <input
+          id="wizard-logo-url"
           type="url"
           value={state.logoUrl}
           onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'logoUrl', value: e.target.value })}
