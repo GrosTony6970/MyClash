@@ -144,11 +144,12 @@ Can be done in parallel.
   5. Generate an API key.
 - **You'll need**: API key for `SMTP_PASS` in `.env`. `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=587`, `SMTP_USER=resend`.
 
-### ☐ 11. Google OAuth — **SKIP for v1**
+### ☐ 11. Google OAuth — optional v1.1 add-on
 
-- Deferred to v1.1. Magic-link auth (via Resend, step 10) covers the same use case.
-- The Google OAuth verification process can take 2–4 weeks; not worth gating launch on.
-- See O-008 in `docs/OWNER_TASKS.md` for v1.1 setup steps when you're ready.
+- Magic-link auth (via Resend, step 10) remains available.
+- Google Cloud Authorized redirect URI: `https://app.myclash.fr/auth/v1/callback`.
+- MyClash runs self-hosted Supabase Auth, so app callback allow-list entries live in Docker Compose / `.env`, not in a hosted Supabase dashboard.
+- See O-008 in `docs/OWNER_TASKS.md` for setup steps.
 
 ### ☐ 12. Off-site backup target (Backblaze B2 recommended)
 

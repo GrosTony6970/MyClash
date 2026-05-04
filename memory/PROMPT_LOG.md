@@ -471,3 +471,7 @@ next task
 ## 15:56:30_04-05-2026
 
 you can implement the plan
+
+## 16:28:30_04-05-2026
+
+User requested implementation of Google OAuth v1.1 expanded plan: self-hosted GoTrue Google OAuth for organizer login/signup, participant profile claim, workshop attendees, and instructors; preserve magic link/password; update UI, i18n, env/docs, and tests.

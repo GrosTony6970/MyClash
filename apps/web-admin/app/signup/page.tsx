@@ -1,10 +1,14 @@
+/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
+import { useI18n } from '../../src/i18n/I18nProvider';
+import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type Method = 'magic_link' | 'password';
+type Method = 'magic_link' | 'password' | 'google';
 type Step = 1 | 2;
 
 interface SlugStatus {
@@ -28,6 +32,7 @@ function slugify(name: string): string {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function SignupPage() {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   // Step 1 state
@@ -86,6 +91,7 @@ export default function SignupPage() {
   // ── Step 1 validation ─────────────────────────────────────────────────────
 
   function validateStep1(): string | null {
+    if (method === 'google') return null;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Valid email required';
     if (!displayName || displayName.trim().length < 2) return 'Display name required (min 2 chars)';
     if (method === 'password') {
@@ -93,6 +99,35 @@ export default function SignupPage() {
       if (password !== passwordConfirm) return 'Passwords do not match';
     }
     return null;
+  }
+
+  async function handleGoogleSignup() {
+    if (!orgName.trim()) {
+      setError('Organization name required');
+      return;
+    }
+    if (!orgSlug || orgSlug.length < 3) {
+      setError('Slug must be at least 3 characters');
+      return;
+    }
+    if (slugStatus.available === false) {
+      setError('Please choose a different slug');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    savePendingOrganizerSignup({ orgName: orgName.trim(), orgSlug });
+    const next = `/org/${orgSlug}`;
+    const redirectTo = `${window.location.origin}/signup/oauth/callback?next=${encodeURIComponent(next)}`;
+    const { error: oauthError } = await createOAuthSupabaseClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (oauthError) {
+      setError(t('auth.oauth.errors.startFailed'));
+      setLoading(false);
+    }
   }
 
   function handleStep1(e: React.FormEvent) {
@@ -211,7 +246,7 @@ export default function SignupPage() {
               <input
                 id="email"
                 type="email"
-                required
+                required={method !== 'google'}
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -227,7 +262,7 @@ export default function SignupPage() {
               <input
                 id="displayName"
                 type="text"
-                required
+                required={method !== 'google'}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Jean Dupont"
@@ -257,6 +292,17 @@ export default function SignupPage() {
                 }`}
               >
                 Password
+              </button>
+              <button
+                type="button"
+                onClick={() => setMethod('google')}
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium border transition-colors ${
+                  method === 'google'
+                    ? 'bg-red-700 text-white border-red-700'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-red-400'
+                }`}
+              >
+                {t('auth.oauth.google')}
               </button>
             </div>
 
@@ -320,7 +366,12 @@ export default function SignupPage() {
         {step === 2 && (
           <form
             onSubmit={(e) => {
-              void handleStep2(e);
+              if (method === 'google') {
+                e.preventDefault();
+                void handleGoogleSignup();
+              } else {
+                void handleStep2(e);
+              }
             }}
             className="flex flex-col gap-4"
           >
@@ -404,7 +455,11 @@ export default function SignupPage() {
                 disabled={loading || slugStatus.available === false || slugStatus.checking}
                 className="flex-1 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
               >
-                {loading ? 'Creating…' : 'Create account'}
+                {method === 'google'
+                  ? t('auth.oauth.continueWithGoogle')
+                  : loading
+                    ? 'Creating…'
+                    : 'Create account'}
               </button>
             </div>
           </form>

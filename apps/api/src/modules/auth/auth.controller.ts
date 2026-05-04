@@ -3,6 +3,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
+import { OAuthSessionDto } from './dto/oauth-session.dto';
 import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 
 @ApiTags('auth')
@@ -31,6 +32,20 @@ export class AuthController {
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async requestMagicLink(@Body() dto: RequestMagicLinkDto): Promise<{ message: string }> {
     return this.authService.requestMagicLink(dto);
+  }
+
+  @Post('oauth/session')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Accept an OAuth session and set MyClash auth cookies' })
+  @ApiResponse({ status: 200, description: 'OAuth session accepted' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Invalid OAuth session' })
+  @ApiResponse({ status: 403, description: 'OAuth user is not authorized for this flow' })
+  async acceptOAuthSession(
+    @Body() dto: OAuthSessionDto,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    await this.authService.acceptOAuthSession(dto, reply);
   }
 
   /**

@@ -64,6 +64,23 @@ export const en = {
       'No internet connection. Exchanges entered while offline will sync automatically when you reconnect.',
     tryAgain: 'Try again',
   },
+  auth: {
+    oauth: {
+      google: 'Google',
+      continueWithGoogle: 'Continue with Google',
+      completing: 'Completing sign-in',
+      wait: 'Please wait while we finish signing you in.',
+      errorTitle: 'Sign-in failed',
+      errors: {
+        missingCode: 'Google did not return an authorization code.',
+        exchangeFailed: 'Could not complete Google sign-in.',
+        notAuthorized: 'This Google account is not authorized for this action.',
+        personMissing: 'Missing profile claim context.',
+        signupContextMissing: 'Missing organization signup details.',
+        startFailed: 'Could not start Google sign-in.',
+      },
+    },
+  },
   test: {
     greeting: 'Hello, {name}',
   },
@@ -125,6 +142,23 @@ export const fr = {
     description:
       'Pas de connexion internet. Les échanges saisis hors ligne seront synchronisés automatiquement au retour de la connexion.',
     tryAgain: 'Réessayer',
+  },
+  auth: {
+    oauth: {
+      google: 'Google',
+      continueWithGoogle: 'Continuer avec Google',
+      completing: 'Connexion en cours',
+      wait: 'Veuillez patienter pendant la finalisation de la connexion.',
+      errorTitle: 'Connexion impossible',
+      errors: {
+        missingCode: "Google n'a pas renvoyé de code d'autorisation.",
+        exchangeFailed: 'Impossible de terminer la connexion Google.',
+        notAuthorized: "Ce compte Google n'est pas autorisé pour cette action.",
+        personMissing: 'Contexte de profil à confirmer manquant.',
+        signupContextMissing: "Détails d'inscription de l'organisation manquants.",
+        startFailed: 'Impossible de démarrer la connexion Google.',
+      },
+    },
   },
   test: {
     greeting: 'Bonjour, {name}',

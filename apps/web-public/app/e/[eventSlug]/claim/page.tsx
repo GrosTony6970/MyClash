@@ -1,9 +1,13 @@
+/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
 
 function ClaimForm() {
+  const { t } = useI18n();
   const searchParams = useSearchParams();
   const personId = searchParams.get('personId') ?? '';
 
@@ -13,6 +17,25 @@ function ClaimForm() {
   const [loading, setLoading] = useState(false);
 
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+  async function handleGoogleClaim() {
+    if (!personId) {
+      setError(t('auth.oauth.errors.personMissing'));
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const next = searchParams.get('next') ?? '/';
+    const redirectTo = `${window.location.origin}/auth/oauth/callback?mode=person_claim&personId=${encodeURIComponent(personId)}&next=${encodeURIComponent(next)}`;
+    const { error: oauthError } = await createOAuthSupabaseClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (oauthError) {
+      setError(t('auth.oauth.errors.startFailed'));
+      setLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +124,17 @@ function ClaimForm() {
           {loading ? 'Sending…' : 'Send confirmation link'}
         </button>
       </form>
+
+      <button
+        type="button"
+        onClick={() => {
+          void handleGoogleClaim();
+        }}
+        disabled={loading || !personId}
+        className="mt-3 w-full border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+      >
+        {t('auth.oauth.continueWithGoogle')}
+      </button>
 
       <p className="mt-6 text-sm text-gray-500">
         Your email doesn&apos;t match?{' '}

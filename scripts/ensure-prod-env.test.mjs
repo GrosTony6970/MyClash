@@ -180,3 +180,18 @@ test('fails non-interactive mode when human-owned values are missing', async () 
     /DOMAIN is missing or still set to a sample value/,
   );
 });
+
+test('production compose exposes the Google OAuth callback and app allow-list', async () => {
+  const compose = await readFile(
+    path.join(import.meta.dirname, '..', 'infra', 'docker-compose.prod.yml'),
+    'utf8',
+  );
+
+  assert.match(
+    compose,
+    /GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: https:\/\/app\.\$\{DOMAIN\}\/auth\/v1\/callback/,
+  );
+  assert.match(compose, /https:\/\/admin\.\$\{DOMAIN\}\/auth\/oauth\/callback/);
+  assert.match(compose, /https:\/\/app\.\$\{DOMAIN\}\/auth\/oauth\/callback/);
+  assert.match(compose, /https:\/\/admin\.\$\{DOMAIN\}\/signup\/oauth\/callback/);
+});

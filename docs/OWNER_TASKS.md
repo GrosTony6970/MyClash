@@ -124,12 +124,15 @@ Everything else can wait until the relevant dev phase approaches.
   2. Enable OAuth (modern flow, no Google+ API).
   3. Configure OAuth consent screen (External, "Public" mode).
   4. Create OAuth 2.0 Client ID (type: Web application).
-  5. Authorized redirect URIs:
-     - `https://myclash.fr/auth/v1/callback`
-     - `https://admin.myclash.fr/auth/v1/callback`
-     - For local dev: `http://localhost:3001/auth/v1/callback` etc.
-  6. Store `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in secrets.
-  7. Set `GOOGLE_OAUTH_ENABLED=true` in `.env` and redeploy.
+  5. Authorized redirect URIs in Google Cloud:
+     - `https://app.myclash.fr/auth/v1/callback`
+     - Optional local dev only when using local Kong/Auth directly: `http://localhost:8000/auth/v1/callback`
+  6. Self-hosted GoTrue redirect allow-list is configured in compose, not in a hosted Supabase dashboard:
+     - `https://admin.myclash.fr/auth/oauth/callback`
+     - `https://app.myclash.fr/auth/oauth/callback`
+     - `https://admin.myclash.fr/signup/oauth/callback`
+  7. Store `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in secrets.
+  8. Set `GOOGLE_OAUTH_ENABLED=true` in `.env` and redeploy.
 - **Note**: Submit for verification before opening to the public.
 
 ### O-009 · Object storage decision

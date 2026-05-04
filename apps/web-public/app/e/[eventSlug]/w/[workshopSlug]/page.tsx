@@ -1,3 +1,4 @@
+/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 /**
@@ -10,8 +11,10 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
 
 interface Session {
   id: string;
@@ -44,7 +47,9 @@ interface Workshop {
 }
 
 export default function WorkshopDetailPage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string; workshopSlug: string }>();
+  const searchParams = useSearchParams();
   const { eventSlug, workshopSlug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -52,6 +57,7 @@ export default function WorkshopDetailPage() {
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const personId = searchParams.get('personId');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -108,6 +114,24 @@ export default function WorkshopDetailPage() {
       }
     } finally {
       setEnrolling(null);
+    }
+  }
+
+  async function handleGoogleClaim() {
+    if (!personId) {
+      setToast(t('auth.oauth.errors.personMissing'));
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const next = `/e/${eventSlug}/w/${workshopSlug}`;
+    const redirectTo = `${window.location.origin}/auth/oauth/callback?mode=person_claim&personId=${encodeURIComponent(personId)}&next=${encodeURIComponent(next)}`;
+    const { error } = await createOAuthSupabaseClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (error) {
+      setToast(t('auth.oauth.errors.startFailed'));
+      setTimeout(() => setToast(null), 3000);
     }
   }
 
@@ -198,6 +222,18 @@ export default function WorkshopDetailPage() {
       {/* Description */}
       {workshop.description && (
         <p className="text-gray-600 text-sm leading-relaxed mb-6">{workshop.description}</p>
+      )}
+
+      {personId && (
+        <button
+          type="button"
+          onClick={() => {
+            void handleGoogleClaim();
+          }}
+          className="w-full mb-6 border border-gray-300 hover:border-red-500 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+        >
+          {t('auth.oauth.continueWithGoogle')}
+        </button>
       )}
 
       {/* Sessions */}

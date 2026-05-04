@@ -1,14 +1,32 @@
+/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 import { useState } from 'react';
+import { useI18n } from '../../src/i18n/I18nProvider';
+import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+  async function handleGoogleLogin() {
+    setLoading(true);
+    setError(null);
+    const redirectTo = `${window.location.origin}/auth/oauth/callback?next=${encodeURIComponent('/dashboard')}`;
+    const { error: oauthError } = await createOAuthSupabaseClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (oauthError) {
+      setError(t('auth.oauth.errors.startFailed'));
+      setLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,6 +111,17 @@ export default function LoginPage() {
             {loading ? 'Sending…' : 'Send login link'}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={() => {
+            void handleGoogleLogin();
+          }}
+          disabled={loading}
+          className="mt-3 w-full border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+        >
+          {t('auth.oauth.continueWithGoogle')}
+        </button>
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Don&apos;t have an account?{' '}

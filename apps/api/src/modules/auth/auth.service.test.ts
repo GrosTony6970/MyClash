@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
 
@@ -23,6 +23,7 @@ function makeQueryChain(result: unknown) {
   return {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     update: vi.fn().mockReturnThis(),
   };
@@ -43,6 +44,18 @@ const mockConfigService = {
   }),
 };
 
+const mockOnboarding = {
+  completeSignupAfterMagicLink: vi.fn().mockResolvedValue(undefined),
+};
+
+function makeReply() {
+  return {
+    setCookie: vi.fn(),
+    send: vi.fn(),
+    redirect: vi.fn(),
+  };
+}
+
 // Real GuestJwtService for integration-style tests
 const guestJwtService = new GuestJwtService({
   getOrThrow: () => 'test-guest-secret-at-least-32-chars-long',
@@ -62,6 +75,7 @@ describe('AuthService', () => {
       mockMailService as never,
       mockConfigService as never,
       guestJwtService,
+      mockOnboarding as never,
     );
   });
 
@@ -223,6 +237,143 @@ describe('AuthService', () => {
       const result = await service.getMe(mockRequest, mockReply);
       expect(result.type).toBe('claimed');
       expect(clearCookieMock).toHaveBeenCalledWith('mc_guest', { path: '/' });
+    });
+  });
+
+  describe('acceptOAuthSession', () => {
+    it('sets cookies for an existing organizer member', async () => {
+      getUserMock.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'org@example.com' } },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: { role: 'owner' }, error: null }));
+
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'admin_login',
+        },
+        reply as never,
+      );
+
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'access-token',
+        expect.objectContaining({ httpOnly: true }),
+      );
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        'refresh-token',
+        expect.objectContaining({ httpOnly: true }),
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
+    });
+
+    it('rejects admin OAuth when user has no organization or platform role', async () => {
+      getUserMock.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'outsider@example.com' } },
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
+
+      await expect(
+        service.acceptOAuthSession(
+          {
+            accessToken: 'access-token',
+            refreshToken: 'refresh-token',
+            mode: 'admin_login',
+          },
+          makeReply() as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('creates organizer signup membership after Google session validation', async () => {
+      getUserMock.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'new@example.com' } },
+        error: null,
+      });
+      const reply = makeReply();
+
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'organizer_signup',
+          orgName: 'Lyon AMHE',
+          orgSlug: 'lyon-amhe',
+        },
+        reply as never,
+      );
+
+      expect(mockOnboarding.completeSignupAfterMagicLink).toHaveBeenCalledWith(
+        'user-123',
+        'Lyon AMHE',
+        'lyon-amhe',
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/org/lyon-amhe' });
+    });
+
+    it('claims a Person when Google email matches the registered email', async () => {
+      getUserMock.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'jean@example.com' } },
+        error: null,
+      });
+      const personChain = makeQueryChain({
+        data: { id: 'person-1', email: 'jean@example.com', claim_status: 'unclaimed' },
+        error: null,
+      });
+      const updateChain = makeQueryChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(personChain).mockReturnValueOnce(updateChain);
+
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'person_claim',
+          personId: '00000000-0000-0000-0000-000000000001',
+        },
+        reply as never,
+      );
+
+      expect(updateChain.update).toHaveBeenCalledWith({
+        claim_status: 'claimed',
+        claimed_by_user_id: 'user-123',
+      });
+      expect(reply.send).toHaveBeenCalledWith({ next: '/' });
+    });
+
+    it('rejects person claim when Google email does not match', async () => {
+      getUserMock.mockResolvedValue({
+        data: { user: { id: 'user-123', email: 'other@example.com' } },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(
+        makeQueryChain({
+          data: { id: 'person-1', email: 'jean@example.com', claim_status: 'unclaimed' },
+          error: null,
+        }),
+      );
+
+      await expect(
+        service.acceptOAuthSession(
+          {
+            accessToken: 'access-token',
+            refreshToken: 'refresh-token',
+            mode: 'person_claim',
+            personId: '00000000-0000-0000-0000-000000000001',
+          },
+          makeReply() as never,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

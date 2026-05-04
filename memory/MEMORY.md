@@ -17,7 +17,7 @@
 - **Local repo path** (Windows, owner's machine): `F:\Github Repo\MyClash`
 - **Main-development push policy**: until the last planned feature is complete, the owner allows direct pushes to `main` for main development work. Keep commits atomic and verified before pushing.
 - **Remote repo**: https://github.com/GrosTony6970/MyClash (live, push to `main` directly — owner confirmed)
-- **Production domain**: `myclash.fr` (confirmed; subdomains: `api.`, `admin.`, `scoring.`).
+- **Production domain**: `myclash.fr` (confirmed; subdomains: `api.`, `admin.`, `app.`, `scoring.`).
 - **Production hosting**: OVH VPS (same provider as MyFAL — pattern reuse intended).
 - **Authoritative spec**: `docs/ARCHITECTURE.md`.
 - **Reference live beta** (companion app for Lyon AMHE's "Fosse aux Lions"): `https://myfal.lyonamhe.fr/` — confirms personas, "My Schedule" UX, push notifications.
@@ -92,13 +92,20 @@ Trigger: manual deploy from the owner's Windows machine. No auto-deploy in v1.
 
 ## Identity model (two-tier)
 
-**v1 ships without Google OAuth.** Magic-link auth only.
+Magic-link auth remains the baseline. Google OAuth is available as an additional auth method for organizer login/signup and Person claims, through self-hosted Supabase GoTrue.
 
 Three identity states:
 
 - **Anonymous** — no cookie, public reads only. Can follow people via localStorage.
 - **Guest** — typed their name, picked themselves from the organizer's roster, has a `guest_sessions` row + signed cookie. Bound to one Person. Can enroll workshops, mark favorites, follow people (server-side, this device), subscribe to push (this device only). Cannot edit, cannot use second device without re-picking name.
 - **Claimed** — clicked a magic link sent to organizer-registered email. Joins `persons.claimed_by_user_id` to a Supabase `auth.users` row. Cross-device, can edit, can be promoted to global Fighter. Gets push notifications including for followed people.
+
+Google OAuth details:
+
+- Google Cloud Authorized redirect URI points to the self-hosted GoTrue callback: `https://app.myclash.fr/auth/v1/callback`.
+- App callback URLs such as `https://admin.myclash.fr/auth/oauth/callback`, `https://admin.myclash.fr/signup/oauth/callback`, and `https://app.myclash.fr/auth/oauth/callback` belong in `GOTRUE_URI_ALLOW_LIST`, not in Google Cloud.
+- Organizer signup via Google creates only an organization owner account, same as the existing signup flow.
+- Workshop attendees and instructors use the Person-claim flow; they must already exist as organizer-created Persons before OAuth can link them. Do not create free-floating workshop/instructor identities from Google alone.
 
 Key invariants:
 

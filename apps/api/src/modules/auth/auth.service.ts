@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,8 +9,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { MailService } from '../mail/mail.service';
+import { OnboardingService } from '../organizations/onboarding.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { MeResponseDto } from './dto/me-response.dto';
+import type { OAuthSessionDto } from './dto/oauth-session.dto';
 import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { GuestJwtService } from './guest-jwt.service';
 
@@ -25,6 +28,7 @@ export class AuthService {
     private readonly mail: MailService,
     private readonly config: ConfigService,
     private readonly guestJwt?: GuestJwtService,
+    private readonly onboarding?: OnboardingService,
   ) {}
 
   // ── Magic link request ──────────────────────────────────────────────────
@@ -68,6 +72,52 @@ export class AuthService {
 
   // ── Magic link callback ─────────────────────────────────────────────────
 
+  async acceptOAuthSession(dto: OAuthSessionDto, reply: FastifyReply): Promise<void> {
+    const {
+      data: { user },
+      error,
+    } = await this.supabase.anon.auth.getUser(dto.accessToken);
+
+    if (error || !user) {
+      throw new UnauthorizedException('Invalid OAuth session');
+    }
+
+    let destination = this.validateRedirect(dto.next);
+
+    if (dto.mode === 'admin_login') {
+      const allowed = await this.hasAdminAccess(user.id);
+      if (!allowed) {
+        throw new ForbiddenException('No organizer or super admin access for this account');
+      }
+      destination = destination === '/' ? '/dashboard' : destination;
+    }
+
+    if (dto.mode === 'organizer_signup') {
+      if (!dto.orgName?.trim() || !dto.orgSlug?.trim()) {
+        throw new BadRequestException('Organization name and slug are required');
+      }
+      if (!this.onboarding) {
+        throw new BadRequestException('Organizer signup is not available');
+      }
+      await this.onboarding.completeSignupAfterMagicLink(user.id, dto.orgName, dto.orgSlug);
+      destination = destination === '/' ? `/org/${dto.orgSlug}` : destination;
+    }
+
+    if (dto.mode === 'person_claim') {
+      if (!dto.personId) {
+        throw new BadRequestException('personId is required for person claim');
+      }
+      if (!user.email) {
+        throw new ForbiddenException('Google account did not provide an email address');
+      }
+      await this.validatePersonClaim(dto.personId, user.email, true);
+      await this.completeClaim(user.id, dto.personId);
+    }
+
+    this.setAuthCookies(reply, dto.accessToken, dto.refreshToken);
+    void reply.send({ next: destination });
+  }
+
   async handleCallback(
     token: string,
     type: string,
@@ -86,25 +136,12 @@ export class AuthService {
 
     const { session } = data;
 
-    // Set the Supabase session as a secure httpOnly cookie
-    const cookieReply = reply as FastifyReply & {
-      setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
-    };
-    cookieReply.setCookie('sb-access-token', session.access_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: session.expires_in,
-    });
-
-    cookieReply.setCookie('sb-refresh-token', session.refresh_token ?? '', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-    });
+    this.setAuthCookies(
+      reply,
+      session.access_token,
+      session.refresh_token ?? '',
+      session.expires_in,
+    );
 
     // If this was a claim, update the person's claim_status
     if (type === 'claim' && personId) {
@@ -217,7 +254,11 @@ export class AuthService {
 
   // ── Private helpers ─────────────────────────────────────────────────────
 
-  private async validatePersonClaim(personId: string, email: string): Promise<void> {
+  private async validatePersonClaim(
+    personId: string,
+    email: string,
+    strict = false,
+  ): Promise<void> {
     // NOTE: persons table created in T-101. Until then, skip validation.
     try {
       const { data, error } = await this.supabase.service
@@ -226,7 +267,10 @@ export class AuthService {
         .eq('id', personId)
         .maybeSingle();
 
-      if (error) return; // Table not yet created — skip
+      if (error) {
+        if (strict) throw new BadRequestException('Could not validate profile claim');
+        return; // Table not yet created — skip
+      }
 
       if (!data) {
         throw new NotFoundException('Person not found');
@@ -242,6 +286,9 @@ export class AuthService {
     } catch (err) {
       if (err instanceof NotFoundException || err instanceof BadRequestException) {
         throw err;
+      }
+      if (strict) {
+        throw new BadRequestException('Could not validate profile claim');
       }
       // Table not yet created — skip validation
     }
@@ -264,10 +311,65 @@ export class AuthService {
     }
   }
 
+  private async hasAdminAccess(userId: string): Promise<boolean> {
+    try {
+      const { data: platformRole } = await this.supabase.service
+        .from('platform_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'super_admin')
+        .maybeSingle();
+
+      if (platformRole) return true;
+    } catch {
+      // Table may not exist during early bootstrap.
+    }
+
+    try {
+      const { data: membership } = await this.supabase.service
+        .from('organization_members')
+        .select('role')
+        .eq('user_id', userId)
+        .in('role', ['owner', 'admin', 'editor', 'scorekeeper', 'referee', 'workshop_lead'])
+        .maybeSingle();
+
+      return Boolean(membership);
+    } catch {
+      return false;
+    }
+  }
+
   private validateRedirect(redirectTo: string | undefined): string {
     if (!redirectTo) return '/';
     const isAllowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) => redirectTo.startsWith(prefix));
     return isAllowed ? redirectTo : '/';
+  }
+
+  private setAuthCookies(
+    reply: FastifyReply,
+    accessToken: string,
+    refreshToken: string,
+    expiresIn = 3600,
+  ): void {
+    const cookieReply = reply as FastifyReply & {
+      setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
+    };
+
+    cookieReply.setCookie('sb-access-token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: expiresIn,
+    });
+
+    cookieReply.setCookie('sb-refresh-token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
   }
 
   private buildRedirectUrl(path: string, type: string, personId: string | undefined): string {
