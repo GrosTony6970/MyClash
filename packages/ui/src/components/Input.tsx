@@ -11,6 +11,10 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, hint, leftAddon, rightAddon, className = '', id, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
+    const errorId = inputId ? `${inputId}-error` : undefined;
+    const hintId = inputId ? `${inputId}-hint` : undefined;
+    const describedBy =
+      [error && errorId, !error && hint && hintId].filter(Boolean).join(' ') || undefined;
 
     return (
       <div className="flex flex-col gap-1">
@@ -28,6 +32,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
             className={[
               'flex-1 bg-gray-900 border border-gray-700 text-white placeholder-gray-500',
               'px-3 py-2 text-sm',
@@ -45,8 +51,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </span>
           )}
         </div>
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        {hint && !error && <p className="text-xs text-gray-500">{hint}</p>}
+        {error && (
+          <p id={errorId} className="text-xs text-red-400">
+            {error}
+          </p>
+        )}
+        {hint && !error && (
+          <p id={hintId} className="text-xs text-gray-500">
+            {hint}
+          </p>
+        )}
       </div>
     );
   },
