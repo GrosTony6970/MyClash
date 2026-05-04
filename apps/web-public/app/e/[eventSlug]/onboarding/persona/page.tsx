@@ -163,7 +163,9 @@ export default function PersonaPage({ params }: Props) {
               }
               aria-pressed={isSelected}
             >
-              <span className="text-2xl flex-shrink-0">{p.emoji}</span>
+              <span className="text-2xl flex-shrink-0" aria-hidden="true">
+                {p.emoji}
+              </span>
               <div className="flex-1">
                 <p className="font-semibold text-white">{p.label}</p>
                 <p className="text-sm text-gray-400">{p.sublabel}</p>
@@ -180,7 +182,7 @@ export default function PersonaPage({ params }: Props) {
                 }
               >
                 {isSelected && (
-                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
                     <path
                       d="M1 4L3.5 6.5L9 1"
                       stroke="white"
@@ -205,6 +207,7 @@ export default function PersonaPage({ params }: Props) {
       <button
         onClick={() => void handleSave()}
         disabled={saving}
+        aria-busy={saving || undefined}
         className="w-full py-4 rounded-xl font-bold text-lg text-white mb-4 disabled:opacity-50 transition-colors"
         style={{ backgroundColor: 'var(--event-primary, #c0392b)' }}
       >
@@ -224,11 +227,16 @@ export default function PersonaPage({ params }: Props) {
             </p>
             <button
               onClick={() => void handleRequestClaim()}
+              aria-describedby={claimError ? 'claim-error' : undefined}
               className="text-sm underline text-gray-400 hover:text-white transition-colors"
             >
               Send me a login link
             </button>
-            {claimError && <p className="text-xs text-red-400 mt-1">{claimError}</p>}
+            {claimError && (
+              <p id="claim-error" className="text-xs text-red-400 mt-1">
+                {claimError}
+              </p>
+            )}
           </div>
         )}
       </div>
