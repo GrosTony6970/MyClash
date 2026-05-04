@@ -455,14 +455,15 @@ export default function NewEventPage() {
       </div>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-8">
+      <ol aria-label="Wizard steps" className="flex items-center gap-2 mb-8 list-none p-0 m-0">
         {STEP_LABELS.map((label, i) => {
           const n = i + 1;
           const active = n === state.step;
           const done = n < state.step;
           return (
-            <div key={label} className="flex items-center gap-2">
+            <li key={label} className="flex items-center gap-2">
               <div
+                aria-current={active ? 'step' : undefined}
                 className={[
                   'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold',
                   active
@@ -472,7 +473,14 @@ export default function NewEventPage() {
                       : 'bg-gray-200 text-gray-500',
                 ].join(' ')}
               >
-                {done ? '✓' : n}
+                {done ? (
+                  <>
+                    <span aria-hidden="true">✓</span>
+                    <span className="sr-only">done</span>
+                  </>
+                ) : (
+                  n
+                )}
               </div>
               <span
                 className={[
@@ -482,11 +490,13 @@ export default function NewEventPage() {
               >
                 {label}
               </span>
-              {i < STEP_LABELS.length - 1 && <div className="w-6 h-px bg-gray-200 mx-1" />}
-            </div>
+              {i < STEP_LABELS.length - 1 && (
+                <div aria-hidden="true" className="w-6 h-px bg-gray-200 mx-1" />
+              )}
+            </li>
           );
         })}
-      </div>
+      </ol>
 
       {/* Step content */}
       <div className="mb-6">
@@ -530,6 +540,7 @@ export default function NewEventPage() {
           <button
             onClick={() => void handleCreate()}
             disabled={state.submitting}
+            aria-busy={state.submitting || undefined}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
           >
             {state.submitting ? 'Creating…' : 'Create event'}
