@@ -21,16 +21,24 @@ import {
 
 @Module({
   imports: [
-    // Register the BullMQ queue with Redis connection from env
+    // Register the BullMQ queue with Redis connection from env.
+    // Supports both REDIS_URL (Docker Compose) and REDIS_HOST/REDIS_PORT (local dev).
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-          password: config.get<string>('REDIS_PASSWORD') ?? undefined,
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        if (redisUrl) {
+          // Docker Compose injects REDIS_URL=redis://redis:6379
+          return { connection: { url: redisUrl } };
+        }
+        return {
+          connection: {
+            host: config.get<string>('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+            password: config.get<string>('REDIS_PASSWORD') ?? undefined,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     BullModule.registerQueue({
