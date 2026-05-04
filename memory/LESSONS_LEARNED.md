@@ -47,6 +47,7 @@
 - Acceptance criteria are testable assertions. If you can't write the test, the AC is wrong, not the implementation.
 - Run `pnpm lint && pnpm typecheck && pnpm test` before opening every PR. CI is the second line of defense, not the first.
 - When a build task references an `[O-NNN]` owner-side prerequisite that's not done, **stop and notify the user**. Do not improvise around it.
+- For local perf-budget builds of Next apps, allow a non-standalone build mode when standalone Docker output is irrelevant. It keeps budget scripts focused on route assets and avoids Windows/pnpm trace edge cases in local verification.
 
 ## Identity & auth
 

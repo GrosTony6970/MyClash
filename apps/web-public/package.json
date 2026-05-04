@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start --port 3001",
     "lint": "eslint app src --no-cache",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/perf-build.mjs && pnpm --dir ../.. exec tsx apps/web-public/scripts/stats-render.perf.tsx && node scripts/landing-bundle-budget.mjs"
   },
   "dependencies": {
     "@myclash/api-client": "workspace:^",

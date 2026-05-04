@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/a11y',
+  testDir: './tests',
   timeout: 30_000,
   use: { ...devices['Desktop Chrome'] },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

@@ -376,11 +376,12 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | ---------------------------- | --------- | ------ |
 | T-1401 - Extract all strings | `cd036a1` | done   |
 | T-1402 - French translation  | `bdec5bf` | done   |
-| T-1403 - Accessibility pass  | pending   | done   |
+| T-1403 - Accessibility pass  | `089518f` | done   |
+| T-1404 - Performance pass    | pending   | done   |
 
-**Current HEAD**: `bdec5bf`
+**Current HEAD**: `089518f`
 **Repo**: https://github.com/GrosTony6970/MyClash (push to `main` directly — owner confirmed)
-**Next task**: T-1404 - Performance pass
+**Next task**: T-1501 - Pre-event dry-run (`[needs O-201-O-206]`)
 
 ## Tech decisions locked in during implementation
 
@@ -512,3 +513,4 @@ Required for the API to start:
 - **T-1402 French translation** (`packages/i18n/src/index.ts`): replaced `fr = en` alias with full French object reviewed by the native-speaking project author. HEMA → AMHE in French copy (`événements d'AMHE`). `Messages` type changed from `typeof en` (literal string types due to `as const`) to `DeepString<typeof en>` — a mapped type that relaxes leaf types to `string` while preserving key structure — so `fr satisfies Messages` compiles without requiring exact English string literals. `defaultLocale` remains `'en'`. Key-parity enforced at build time via existing `collectKeys` assertion in `index.test.ts`.
 
 - **T-1403 Accessibility pass** (`tests/a11y/`, `apps/web-scoring/app/offline/page.tsx`, `apps/web-public/app/e/[eventSlug]/page.tsx`): Playwright/Axe coverage now checks the five critical BUILD_ORDER flows with color contrast enabled, page/console error capture, and keyboard assertions for skip links and representative controls. Fixed the scoring offline page runtime error by making it a client component and moving offline strings into `@myclash/i18n`; the event placeholder main is focusable for skip-link activation.
+- **T-1404 Performance pass** (`tests/perf/`, `apps/web-public/scripts/`, `apps/web-public/next.config.ts`): Playwright now includes landing and event LCP smoke checks under emulated 4G. `@myclash/web-public` has perf tests that build the app with default Next output for budget measurement, assert the stats page SSR-renders a mocked 100-fighter table in <1s, and enforce the landing JS gzip budget (<200KB; measured 103,127 bytes).
