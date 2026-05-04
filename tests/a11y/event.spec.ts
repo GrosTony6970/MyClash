@@ -1,13 +1,19 @@
 import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { collectPageIssues, expectNoCriticalAxeViolations, expectNoPageIssues } from './helpers';
 
-test('event page — 0 critical axe violations', async ({ page }) => {
+test('event page - axe clean and skip link keyboard operable', async ({ page }) => {
+  const issues = collectPageIssues(page);
+
   await page.goto('http://localhost:3001/e/test-event');
   await page.waitForSelector('main');
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .disableRules(['color-contrast'])
-    .analyze();
-  const critical = results.violations.filter((v) => v.impact === 'critical');
-  expect(critical, JSON.stringify(critical, null, 2)).toEqual([]);
+
+  await expectNoCriticalAxeViolations(page);
+
+  const skipLink = page.getByRole('link', { name: /skip to main content/i });
+  await page.keyboard.press('Tab');
+  await expect(skipLink).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#main-content')).toBeFocused();
+
+  await expectNoPageIssues(issues);
 });

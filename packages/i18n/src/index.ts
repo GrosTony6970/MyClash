@@ -58,6 +58,12 @@ export const en = {
   navigation: {
     skipToMainContent: 'Skip to main content',
   },
+  offline: {
+    title: "You're offline",
+    description:
+      'No internet connection. Exchanges entered while offline will sync automatically when you reconnect.',
+    tryAgain: 'Try again',
+  },
   test: {
     greeting: 'Hello, {name}',
   },
@@ -113,6 +119,12 @@ export const fr = {
   },
   navigation: {
     skipToMainContent: 'Passer au contenu principal',
+  },
+  offline: {
+    title: 'Vous êtes hors ligne',
+    description:
+      'Pas de connexion internet. Les échanges saisis hors ligne seront synchronisés automatiquement au retour de la connexion.',
+    tryAgain: 'Réessayer',
   },
   test: {
     greeting: 'Bonjour, {name}',

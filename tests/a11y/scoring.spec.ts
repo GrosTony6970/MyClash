@@ -1,14 +1,24 @@
 import { test, expect } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import {
+  collectPageIssues,
+  expectNoCriticalAxeViolations,
+  expectNoPageIssues,
+  focusUntil,
+} from './helpers';
 
-test('scoring screen — 0 critical axe violations', async ({ page }) => {
+test('scoring screen - axe clean and keyboard operable', async ({ page }) => {
+  const issues = collectPageIssues(page);
   await page.route('**/api/**', (route) => route.fulfill({ json: {} }));
+
   await page.goto('http://localhost:3002/lices/test-lice');
   await page.waitForSelector('main');
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .disableRules(['color-contrast'])
-    .analyze();
-  const critical = results.violations.filter((v) => v.impact === 'critical');
-  expect(critical, JSON.stringify(critical, null, 2)).toEqual([]);
+
+  await expectNoCriticalAxeViolations(page);
+
+  const licesLink = page.getByRole('button', { name: /lices/i });
+  await focusUntil(page, licesLink);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/lices$/);
+
+  await expectNoPageIssues(issues);
 });

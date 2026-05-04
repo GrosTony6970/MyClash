@@ -13,6 +13,7 @@ export default async function EventPage({ params }: Props) {
   return (
     <main
       id="main-content"
+      tabIndex={-1}
       className="flex min-h-screen flex-col items-center justify-center p-8 text-center"
     >
       <h1

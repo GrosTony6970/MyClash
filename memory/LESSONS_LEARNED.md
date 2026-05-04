@@ -39,6 +39,7 @@
 - Personas are non-exclusive: a single user can be Competitor + Referee + Workshop attendee at the same event. Onboarding must be multi-select.
 - The "My Schedule" view aggregates all of a user's commitments and surfaces conflicts. It is the most-used screen of the public PWA.
 - Never use `localStorage` / `sessionStorage` in artifacts running in Claude.ai (these APIs aren't supported there). For real production code, use IndexedDB for offline state.
+- Accessibility tests should capture page errors, keep color-contrast checks enabled, and assert keyboard activation on representative controls; an Axe-only smoke test can pass while runtime and keyboard regressions still exist.
 
 ## Build process
 
