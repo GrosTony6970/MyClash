@@ -254,6 +254,7 @@ export default function MySchedulePage() {
         {/* Focus toggle */}
         <button
           onClick={() => setFocusMode((f) => !f)}
+          aria-pressed={focusMode}
           className="text-xs border border-gray-300 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-400 transition-colors"
         >
           {focusMode ? 'Show all' : 'Focus on me'}
@@ -262,9 +263,14 @@ export default function MySchedulePage() {
 
       {/* Day filter */}
       {days.length > 1 && (
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+        <div
+          role="group"
+          aria-label="Filter by day"
+          className="flex gap-2 mb-4 overflow-x-auto pb-1"
+        >
           <button
             onClick={() => setDayFilter('all')}
+            aria-pressed={dayFilter === 'all'}
             className={[
               'flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
               dayFilter === 'all'
@@ -279,6 +285,7 @@ export default function MySchedulePage() {
             <button
               key={day}
               onClick={() => setDayFilter(day)}
+              aria-pressed={dayFilter === day}
               className={[
                 'flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
                 dayFilter === day
