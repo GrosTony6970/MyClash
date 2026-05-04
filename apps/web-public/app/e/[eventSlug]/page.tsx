@@ -1,3 +1,4 @@
+/* eslint-disable myclash/no-literal-string -- placeholder page, replaced by T-604 */
 /**
  * Event home placeholder — T-604 will replace this.
  */

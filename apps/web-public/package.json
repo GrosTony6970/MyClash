@@ -26,6 +26,7 @@
     "@types/node": "^22.15.18",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.2",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "tailwindcss": "^4.1.6",
     "typescript": "^5.6.0"
   }

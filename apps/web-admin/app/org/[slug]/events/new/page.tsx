@@ -1,3 +1,4 @@
+/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; i18n strings tracked in backlog */
 'use client';
 
 /**

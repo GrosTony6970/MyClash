@@ -55,6 +55,9 @@ export const en = {
     yes: 'Yes',
     no: 'No',
   },
+  navigation: {
+    skipToMainContent: 'Skip to main content',
+  },
   test: {
     greeting: 'Hello, {name}',
   },
@@ -107,6 +110,9 @@ export const fr = {
     unknown: 'Inconnu',
     yes: 'Oui',
     no: 'Non',
+  },
+  navigation: {
+    skipToMainContent: 'Passer au contenu principal',
   },
   test: {
     greeting: 'Bonjour, {name}',
