@@ -1,12 +1,14 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { t } from '@myclash/i18n';
 
 /**
- * Root page — checks auth and redirects:
- * - Authenticated → /lices
- * - Anonymous → /login
+ * Root page - checks auth and redirects:
+ * - Authenticated -> /lices
+ * - Anonymous -> /login
  */
 export default function RootPage() {
   const router = useRouter();
@@ -23,7 +25,7 @@ export default function RootPage() {
           router.replace('/lices');
         }
       } catch {
-        // Offline or API unreachable — go to login
+        // Offline or API unreachable - go to login
         router.replace('/login');
       }
     })();
@@ -32,8 +34,15 @@ export default function RootPage() {
   return (
     <main className="flex min-h-screen items-center justify-center">
       <div className="text-center">
-        <div className="text-4xl mb-3">⚔️</div>
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <Image
+          src="/brand/Logomini_nobackground.png"
+          alt={t('metadata.scoringTitle')}
+          width={56}
+          height={56}
+          priority
+          className="mx-auto mb-3 h-14 w-14"
+        />
+        <p className="text-gray-400 text-sm">{t('common.loading')}</p>
       </div>
     </main>
   );

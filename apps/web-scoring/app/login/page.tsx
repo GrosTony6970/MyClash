@@ -1,8 +1,11 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
+import { useI18n } from '../../src/i18n/I18nProvider';
 
 export default function ScoringLoginPage() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,13 +47,20 @@ export default function ScoringLoginPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="w-full max-w-sm text-center">
-          <div className="text-5xl mb-6">⚔️</div>
-          <h1 className="text-2xl font-bold mb-4">Check your email</h1>
+          <Image
+            src="/brand/Logomini_nobackground.png"
+            alt={t('metadata.scoringTitle')}
+            width={80}
+            height={80}
+            priority
+            className="mx-auto mb-6 h-20 w-20"
+          />
+          <h1 className="text-2xl font-bold mb-4">{t('scoring.login.checkEmailTitle')}</h1>
           <p className="text-gray-400">
-            We sent a login link to <strong className="text-white">{email}</strong>. Click it to
-            access your Lice assignments.
+            {t('scoring.login.checkEmailPrefix')} <strong className="text-white">{email}</strong>.{' '}
+            {t('scoring.login.checkEmailSuffix')}
           </p>
-          <p className="mt-4 text-sm text-gray-500">The link expires in 1 hour.</p>
+          <p className="mt-4 text-sm text-gray-500">{t('scoring.login.linkExpires')}</p>
         </div>
       </main>
     );
@@ -60,9 +70,16 @@ export default function ScoringLoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">⚔️</div>
-          <h1 className="text-2xl font-bold">MyClash Scoring</h1>
-          <p className="text-gray-400 text-sm mt-1">Scorekeeper access</p>
+          <Image
+            src="/brand/Logomini_nobackground.png"
+            alt={t('metadata.scoringTitle')}
+            width={80}
+            height={80}
+            priority
+            className="mx-auto mb-3 h-20 w-20"
+          />
+          <h1 className="text-2xl font-bold">{t('scoring.login.title')}</h1>
+          <p className="text-gray-400 text-sm mt-1">{t('scoring.login.scorekeeperAccess')}</p>
         </div>
 
         <form
@@ -73,7 +90,7 @@ export default function ScoringLoginPage() {
         >
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-              Email address
+              {t('scoring.login.emailAddress')}
             </label>
             <input
               id="email"
@@ -82,7 +99,7 @@ export default function ScoringLoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t('scoring.login.emailPlaceholder')}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
             />
           </div>
@@ -98,7 +115,7 @@ export default function ScoringLoginPage() {
             disabled={loading}
             className="w-full bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg"
           >
-            {loading ? 'Sending…' : 'Send login link'}
+            {loading ? t('scoring.login.sending') : t('scoring.login.sendLoginLink')}
           </button>
         </form>
       </div>

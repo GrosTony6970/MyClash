@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: t('metadata.scoringTitle'),
   description: t('metadata.scoringDescription'),
   manifest: '/manifest.json',
+  icons: {
+    icon: '/brand/Logomini_nobackground.png',
+    apple: '/brand/Logomini_nobackground.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -26,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang={defaultLocale}>
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/brand/Logomini_nobackground.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-gray-950 text-white min-h-screen">

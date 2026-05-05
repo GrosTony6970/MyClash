@@ -499,3 +499,7 @@ Implement the League System / Tournois Federal plan: cross-event, cross-organize
 ## 18:20:49_05-05-2026
 
 User requested implementation of the Penalty Management / Cartons plan: configurable event/tournament penalty rulesets, built-in FFAMHE CSV ruleset, match penalties, red/black card scoring effects, organizer review for second black card, API/UI integration, i18n, and tests.
+
+## 19:02:46_05-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: MyClash Logo Assets for App Shells. Use Logo_nobackground.png and Logomini_nobackground.png from apps/pictures in web-admin, web-public, and web-scoring app shells; update icons/metadata/PWA icons and visible app shell branding; keep apps/web-marketing/index.html unchanged and do not use Banner.png; run app typechecks and pnpm lint.

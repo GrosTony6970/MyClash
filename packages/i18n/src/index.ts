@@ -11,6 +11,12 @@ export const en = {
   app: {
     name: 'MyClash',
   },
+  publicApp: {
+    home: {
+      description: 'Public / Spectator / Competitor PWA',
+      placeholder: 'Placeholder - T-003 scaffold - port 3001',
+    },
+  },
   metadata: {
     publicTitle: 'MyClash',
     publicDescription: 'Free, open-source platform for HEMA event management.',
@@ -65,6 +71,18 @@ export const en = {
     tryAgain: 'Try again',
   },
   scoring: {
+    login: {
+      checkEmailTitle: 'Check your email',
+      checkEmailPrefix: 'We sent a login link to',
+      checkEmailSuffix: 'Click it to access your Lice assignments.',
+      linkExpires: 'The link expires in 1 hour.',
+      title: 'MyClash Scoring',
+      scorekeeperAccess: 'Scorekeeper access',
+      emailAddress: 'Email address',
+      emailPlaceholder: 'you@example.com',
+      sending: 'Sending...',
+      sendLoginLink: 'Send login link',
+    },
     lice: {
       loadingMatch: 'Loading match...',
       online: 'ONLINE',
@@ -132,6 +150,10 @@ export const en = {
     },
   },
   admin: {
+    home: {
+      description: 'Organizer Admin + Super Admin',
+      placeholder: 'Placeholder - T-003 scaffold - port 3003',
+    },
     dashboard: {
       title: 'Super Admin',
       description: 'Platform moderation, operational controls, and recovery tools.',
@@ -420,6 +442,12 @@ export const fr = {
   app: {
     name: 'MyClash',
   },
+  publicApp: {
+    home: {
+      description: 'PWA public / spectateur / competiteur',
+      placeholder: 'Placeholder - scaffold T-003 - port 3001',
+    },
+  },
   metadata: {
     publicTitle: 'MyClash',
     publicDescription: "Plateforme libre et open-source pour la gestion d'événements d'AMHE.",
@@ -474,6 +502,18 @@ export const fr = {
     tryAgain: 'Réessayer',
   },
   scoring: {
+    login: {
+      checkEmailTitle: 'Verifiez votre email',
+      checkEmailPrefix: 'Nous avons envoye un lien de connexion a',
+      checkEmailSuffix: 'Cliquez dessus pour acceder a vos affectations de lice.',
+      linkExpires: 'Le lien expire dans 1 heure.',
+      title: 'MyClash Scoring',
+      scorekeeperAccess: 'Acces arbitre',
+      emailAddress: 'Adresse email',
+      emailPlaceholder: 'vous@example.com',
+      sending: 'Envoi...',
+      sendLoginLink: 'Envoyer le lien de connexion',
+    },
     lice: {
       loadingMatch: 'Chargement de l assaut...',
       online: 'EN LIGNE',
@@ -541,6 +581,10 @@ export const fr = {
     },
   },
   admin: {
+    home: {
+      description: 'Administration organisateur + super admin',
+      placeholder: 'Placeholder - scaffold T-003 - port 3003',
+    },
     dashboard: {
       title: 'Super Admin',
       description: 'ModÃ©ration, contrÃ´les opÃ©rationnels et outils de reprise de la plateforme.',

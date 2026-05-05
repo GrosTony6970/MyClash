@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
@@ -58,6 +59,14 @@ export default function LoginPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="w-full max-w-sm text-center">
+          <Image
+            src="/brand/Logo_nobackground.png"
+            alt={t('metadata.adminTitle')}
+            width={88}
+            height={88}
+            priority
+            className="mx-auto mb-5 h-20 w-20"
+          />
           <h1 className="text-2xl font-bold mb-4">Check your email</h1>
           <p className="text-gray-600">
             We sent a login link to <strong>{email}</strong>. Click it to access your organizer
@@ -72,6 +81,14 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm">
+        <Image
+          src="/brand/Logo_nobackground.png"
+          alt={t('metadata.adminTitle')}
+          width={88}
+          height={88}
+          priority
+          className="mb-5 h-20 w-20"
+        />
         <h1 className="text-2xl font-bold mb-2">MyClash Admin</h1>
         <p className="text-gray-600 mb-8">Enter your email to receive a login link.</p>
 

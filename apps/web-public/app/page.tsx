@@ -1,9 +1,23 @@
+import Image from 'next/image';
+import { t } from '@myclash/i18n';
+
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <h1 className="text-4xl font-bold">MyClash</h1>
-      <p className="mt-4 text-lg text-gray-600">Public / Spectator / Competitor PWA</p>
-      <p className="mt-2 text-sm text-gray-400">Placeholder — T-003 scaffold · port 3001</p>
+    <main
+      id="main-content"
+      className="flex min-h-screen flex-col items-center justify-center bg-white p-8 text-center text-gray-950"
+    >
+      <Image
+        src="/brand/Logo_nobackground.png"
+        alt={t('app.name')}
+        width={112}
+        height={112}
+        priority
+        className="mb-5 h-28 w-28"
+      />
+      <h1 className="text-4xl font-bold">{t('app.name')}</h1>
+      <p className="mt-4 text-lg text-gray-600">{t('publicApp.home.description')}</p>
+      <p className="mt-2 text-sm text-gray-400">{t('publicApp.home.placeholder')}</p>
     </main>
   );
 }

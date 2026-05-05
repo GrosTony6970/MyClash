@@ -6,6 +6,10 @@ import '../src/styles/globals.css';
 export const metadata: Metadata = {
   title: t('metadata.adminTitle'),
   description: t('metadata.adminDescription'),
+  icons: {
+    icon: '/brand/Logomini_nobackground.png',
+    apple: '/brand/Logomini_nobackground.png',
+  },
 };
 
 export default function RootLayout({
