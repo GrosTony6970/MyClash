@@ -37,6 +37,23 @@ interface Event {
   status: 'draft' | 'published' | 'running' | 'completed' | 'archived';
 }
 
+interface League {
+  id: string;
+  publicVisibility: boolean;
+}
+
+interface LeagueOrgRole {
+  leagueId: string;
+  organizationId: string;
+  role: 'member' | 'admin' | 'owner';
+}
+
+interface LeagueUserRole {
+  leagueId: string;
+  userId: string;
+  role: 'admin' | 'owner';
+}
+
 // Simulates is_super_admin() SQL function
 function isSuperAdmin(
   userId: string | null,
@@ -98,6 +115,41 @@ function canUpdateEvent(
   return hasOrgRole(userId, event.organizationId, 'admin', members);
 }
 
+function canManageLeague(
+  userId: string | null,
+  leagueId: string,
+  members: OrgMember[],
+  platformRoles: Array<{ userId: string; role: string }>,
+  leagueOrgRoles: LeagueOrgRole[],
+  leagueUserRoles: LeagueUserRole[],
+): boolean {
+  if (isSuperAdmin(userId, platformRoles)) return true;
+  if (!userId) return false;
+  if (leagueUserRoles.some((role) => role.leagueId === leagueId && role.userId === userId)) {
+    return true;
+  }
+  return leagueOrgRoles.some((leagueRole) => {
+    if (leagueRole.leagueId !== leagueId || !['admin', 'owner'].includes(leagueRole.role)) {
+      return false;
+    }
+    return hasOrgRole(userId, leagueRole.organizationId, 'admin', members);
+  });
+}
+
+function canSelectLeague(
+  userId: string | null,
+  league: League,
+  members: OrgMember[],
+  platformRoles: Array<{ userId: string; role: string }>,
+  leagueOrgRoles: LeagueOrgRole[],
+  leagueUserRoles: LeagueUserRole[],
+): boolean {
+  return (
+    league.publicVisibility ||
+    canManageLeague(userId, league.id, members, platformRoles, leagueOrgRoles, leagueUserRoles)
+  );
+}
+
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
 const ORG_A = 'org-a-uuid';
@@ -129,6 +181,14 @@ const EVENT_B_PUBLISHED: Event = {
   organizationId: ORG_B,
   status: 'published',
 };
+const LEAGUE_PRIVATE: League = { id: 'league-private', publicVisibility: false };
+const LEAGUE_PUBLIC: League = { id: 'league-public', publicVisibility: true };
+const LEAGUE_ORG_ROLES: LeagueOrgRole[] = [
+  { leagueId: LEAGUE_PRIVATE.id, organizationId: ORG_A, role: 'admin' },
+];
+const LEAGUE_USER_ROLES: LeagueUserRole[] = [
+  { leagueId: LEAGUE_PRIVATE.id, userId: USER_MEMBER_B, role: 'admin' },
+];
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -223,5 +283,54 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
 
   it('18. is_super_admin returns true for super admin user', () => {
     expect(isSuperAdmin(USER_SUPER, PLATFORM_ROLES)).toBe(true);
+  });
+
+  it('19. anonymous users can SELECT public leagues only', () => {
+    expect(
+      canSelectLeague(
+        USER_ANON,
+        LEAGUE_PUBLIC,
+        ORG_MEMBERS,
+        PLATFORM_ROLES,
+        LEAGUE_ORG_ROLES,
+        LEAGUE_USER_ROLES,
+      ),
+    ).toBe(true);
+    expect(
+      canSelectLeague(
+        USER_ANON,
+        LEAGUE_PRIVATE,
+        ORG_MEMBERS,
+        PLATFORM_ROLES,
+        LEAGUE_ORG_ROLES,
+        LEAGUE_USER_ROLES,
+      ),
+    ).toBe(false);
+  });
+
+  it('20. league management allows super admins, league user admins, and league org admins', () => {
+    expect(
+      canManageLeague(USER_SUPER, LEAGUE_PRIVATE.id, ORG_MEMBERS, PLATFORM_ROLES, [], []),
+    ).toBe(true);
+    expect(
+      canManageLeague(
+        USER_MEMBER_B,
+        LEAGUE_PRIVATE.id,
+        ORG_MEMBERS,
+        PLATFORM_ROLES,
+        [],
+        LEAGUE_USER_ROLES,
+      ),
+    ).toBe(true);
+    expect(
+      canManageLeague(
+        USER_ADMIN_A,
+        LEAGUE_PRIVATE.id,
+        ORG_MEMBERS,
+        PLATFORM_ROLES,
+        LEAGUE_ORG_ROLES,
+        [],
+      ),
+    ).toBe(true);
   });
 });

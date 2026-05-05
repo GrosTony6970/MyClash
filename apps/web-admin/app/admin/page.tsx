@@ -47,6 +47,11 @@ const sections = [
     title: t('admin.dashboard.backupsTitle'),
     description: t('admin.dashboard.backupsDescription'),
   },
+  {
+    href: '/admin/leagues',
+    title: t('admin.dashboard.leaguesTitle'),
+    description: t('admin.dashboard.leaguesDescription'),
+  },
 ];
 
 export default function SuperAdminDashboardPage() {

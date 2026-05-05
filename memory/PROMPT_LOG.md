@@ -491,3 +491,7 @@ User asked to implement the Superadmin Backup Management plan: guarded backup st
 ## 13:54:22_05-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Organizer Event/Tournament Archives - add organizer-facing event/tournament archive export, CSV reports, and safe copy-based restore from versioned JSON/ZIP archives.
+
+## 17:24:10_05-05-2026
+
+Implement the League System / Tournois Federal plan: cross-event, cross-organizer leagues with league tables, FFAMHE/custom points, event-closure calculation, admin/public APIs, UI, i18n, tests, and verification.

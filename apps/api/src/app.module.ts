@@ -17,6 +17,7 @@ import { StatsModule } from './modules/stats/stats.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { WorkersModule } from './workers/workers.module';
 import { LicesModule } from './modules/lices/lices.module';
+import { LeaguesModule } from './modules/leagues/leagues.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -67,6 +68,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     FightersModule,
     EventsModule,
     LicesModule,
+    LeaguesModule,
     RegistrationsModule,
     MatchesModule,
     NotificationsModule,

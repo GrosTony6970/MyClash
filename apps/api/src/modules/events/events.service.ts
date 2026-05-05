@@ -7,6 +7,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
+import { LeaguesService } from '../leagues/leagues.service';
 import type {
   CreateEventDto,
   CreateTournamentDto,
@@ -21,6 +22,7 @@ export class EventsService {
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
     private readonly notificationEvents: NotificationEventsService,
+    private readonly leagues?: LeaguesService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -101,6 +103,7 @@ export class EventsService {
     if (dto.startDate !== undefined) updates['start_date'] = dto.startDate;
     if (dto.endDate !== undefined) updates['end_date'] = dto.endDate;
     if (dto.publicLandingMd !== undefined) updates['public_landing_md'] = dto.publicLandingMd;
+    if (dto.status !== undefined) updates['status'] = dto.status;
 
     const { data, error } = await this.supabase.service
       .from('events')
@@ -110,6 +113,9 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    if (dto.status === 'completed') {
+      await this.leagues?.recomputeForEvent(eventId);
+    }
     return data;
   }
 

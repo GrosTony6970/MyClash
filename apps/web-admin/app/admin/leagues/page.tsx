@@ -1,0 +1,236 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { t } from '@myclash/i18n';
+
+interface League {
+  id: string;
+  slug: string;
+  name: string;
+  season_year: number;
+  status: string;
+  public_visibility: boolean;
+  scoring_system: string;
+}
+
+interface TournamentLink {
+  id: string;
+  status: 'requested' | 'approved' | 'rejected' | 'removed';
+  tournaments?: {
+    name?: string | null;
+    weapon?: string | null;
+    category?: string | null;
+    events?: { name?: string | null } | null;
+  } | null;
+}
+
+const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+export default function AdminLeaguesPage() {
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [links, setLinks] = useState<Record<string, TournamentLink[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    slug: '',
+    seasonYear: String(new Date().getFullYear()),
+    scoringSystem: 'ffamhe_tf_2026',
+    rankingDimensions: 'weapon',
+  });
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`${apiUrl}/api/v1/admin/leagues`, { credentials: 'include' })
+      .then((res) => {
+        if (!res.ok) throw new Error(t('admin.leagues.loadError'));
+        return res.json() as Promise<League[]>;
+      })
+      .then((rows) => {
+        setLeagues(rows);
+        setError(null);
+        return Promise.all(
+          rows.map((league) =>
+            fetch(`${apiUrl}/api/v1/admin/leagues/${league.id}/tournament-links`, {
+              credentials: 'include',
+            })
+              .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
+              .then((leagueLinks) => [league.id, leagueLinks] as const),
+          ),
+        );
+      })
+      .then((entries) => setLinks(Object.fromEntries(entries)))
+      .catch(() => setError(t('admin.leagues.loadError')))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    void Promise.resolve().then(load);
+  }, [load]);
+
+  const createLeague = () => {
+    fetch(`${apiUrl}/api/v1/admin/leagues`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: form.name,
+        slug: form.slug,
+        seasonYear: Number(form.seasonYear),
+        scoringSystem: form.scoringSystem,
+        rankingDimensions: form.rankingDimensions,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(t('admin.leagues.createError'));
+        setForm((current) => ({ ...current, name: '', slug: '' }));
+        load();
+      })
+      .catch(() => setError(t('admin.leagues.createError')));
+  };
+
+  const review = (linkId: string, status: 'approved' | 'rejected') => {
+    fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(t('admin.leagues.reviewError'));
+        load();
+      })
+      .catch(() => setError(t('admin.leagues.reviewError')));
+  };
+
+  const recompute = (leagueId: string) => {
+    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/recompute`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(t('admin.leagues.recomputeError'));
+        load();
+      })
+      .catch(() => setError(t('admin.leagues.recomputeError')));
+  };
+
+  return (
+    <main className="p-8">
+      <div className="mb-7">
+        <h1 className="text-2xl font-bold">{t('admin.leagues.title')}</h1>
+        <p className="text-gray-500 text-sm mt-1">{t('admin.leagues.description')}</p>
+      </div>
+
+      <section className="mb-8 border border-gray-200 rounded-lg p-5">
+        <h2 className="font-semibold mb-4">{t('admin.leagues.createTitle')}</h2>
+        <div className="grid gap-3 md:grid-cols-5">
+          <input
+            className="border rounded px-3 py-2 text-sm"
+            placeholder={t('admin.leagues.name')}
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+          />
+          <input
+            className="border rounded px-3 py-2 text-sm"
+            placeholder={t('admin.leagues.slug')}
+            value={form.slug}
+            onChange={(event) => setForm({ ...form, slug: event.target.value })}
+          />
+          <input
+            className="border rounded px-3 py-2 text-sm"
+            placeholder={t('admin.leagues.seasonYear')}
+            value={form.seasonYear}
+            onChange={(event) => setForm({ ...form, seasonYear: event.target.value })}
+          />
+          <select
+            className="border rounded px-3 py-2 text-sm"
+            value={form.rankingDimensions}
+            onChange={(event) => setForm({ ...form, rankingDimensions: event.target.value })}
+          >
+            <option value="weapon">{t('admin.leagues.dimensions.weapon')}</option>
+            <option value="weapon_category">{t('admin.leagues.dimensions.weapon_category')}</option>
+          </select>
+          <button
+            className="bg-gray-950 text-white rounded px-3 py-2 text-sm"
+            onClick={createLeague}
+          >
+            {t('admin.leagues.create')}
+          </button>
+        </div>
+      </section>
+
+      {loading && <p className="text-sm text-gray-500">{t('admin.leagues.loading')}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!loading && leagues.length === 0 && (
+        <p className="text-sm text-gray-500">{t('admin.leagues.empty')}</p>
+      )}
+
+      <div className="grid gap-4">
+        {leagues.map((league) => (
+          <section key={league.id} className="border border-gray-200 rounded-lg p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="font-semibold text-gray-950">{league.name}</h2>
+                <p className="text-sm text-gray-500">
+                  {league.season_year} -{' '}
+                  {league.public_visibility
+                    ? t('admin.leagues.public')
+                    : t('admin.leagues.private')}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link className="text-sm underline" href={`/leagues/${league.slug}`}>
+                  {t('admin.leagues.standings')}
+                </Link>
+                <a
+                  className="text-sm underline"
+                  href={`${apiUrl}/api/v1/leagues/${league.id}/final-report.csv`}
+                >
+                  {t('admin.leagues.csvReport')}
+                </a>
+                <a
+                  className="text-sm underline"
+                  href={`${apiUrl}/api/v1/leagues/${league.id}/final-report.print.html`}
+                >
+                  {t('admin.leagues.printReport')}
+                </a>
+                <button className="text-sm underline" onClick={() => recompute(league.id)}>
+                  {t('admin.leagues.recompute')}
+                </button>
+              </div>
+            </div>
+
+            <h3 className="text-sm font-semibold mt-5 mb-2">{t('admin.leagues.requests')}</h3>
+            <div className="grid gap-2">
+              {(links[league.id] ?? []).map((link) => (
+                <div
+                  key={link.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-100 p-3 text-sm"
+                >
+                  <span>
+                    {link.tournaments?.events?.name} - {link.tournaments?.name}
+                  </span>
+                  <span className="text-gray-500">
+                    {t(`admin.leagues.linkStatuses.${link.status}`)}
+                  </span>
+                  {link.status === 'requested' && (
+                    <span className="flex gap-2">
+                      <button className="underline" onClick={() => review(link.id, 'approved')}>
+                        {t('admin.leagues.approve')}
+                      </button>
+                      <button className="underline" onClick={() => review(link.id, 'rejected')}>
+                        {t('admin.leagues.reject')}
+                      </button>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </main>
+  );
+}

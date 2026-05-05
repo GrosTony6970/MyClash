@@ -73,6 +73,14 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   publicLandingMd?: string;
+
+  @ApiProperty({
+    required: false,
+    enum: ['draft', 'published', 'running', 'completed', 'archived'],
+  })
+  @IsOptional()
+  @IsIn(['draft', 'published', 'running', 'completed', 'archived'])
+  status?: string;
 }
 
 export class EventQueryDto {
