@@ -43,6 +43,36 @@ interface DashboardResponse {
       };
     };
   };
+  refereeStats?: RefereeStats;
+}
+
+interface RefereeStats {
+  totalMatches: number;
+  averageRefereeTimeMs: number;
+  roles: {
+    arbitre_declarant: number;
+    arbitre_assesseur: number;
+    arbitre_table: number;
+  };
+  cards: {
+    yellow: number;
+    red: number;
+    black: number;
+  };
+  bestBuddies: Array<{
+    userId: string;
+    displayName: string | null;
+    matchesTogether: number;
+  }>;
+  history?: Array<{
+    matchId: string;
+    role: string | null;
+    eventName: string | null;
+    tournamentName: string | null;
+    weapon: string | null;
+    scheduledAt: string | null;
+    durationMs: number;
+  }>;
 }
 
 interface FormState {
@@ -111,6 +141,14 @@ function formFromProfile(profile: FighterProfile): FormState {
     previousClubs: clubsByRole(profile.clubs, 'previous'),
     selectedWeapons,
   };
+}
+
+function formatDuration(
+  ms: number,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (ms <= 0) return t('common.none');
+  return t('publicApp.fighterProfile.minutes', { count: Math.round(ms / 60000) });
 }
 
 export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
@@ -390,6 +428,35 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
               value={`${dashboard.career.stats.overall.doubleHitPercentage.toFixed(2)}%`}
             />
           </div>
+          {dashboard.refereeStats && dashboard.refereeStats.totalMatches > 0 && (
+            <div className="mt-5 border-t border-gray-800 pt-4">
+              <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+                {t('publicApp.fighterProfile.refereeing')}
+              </h2>
+              <div className="grid gap-2">
+                <DashboardStat
+                  label={t('publicApp.fighterProfile.refereeMatches')}
+                  value={dashboard.refereeStats.totalMatches}
+                />
+                <DashboardStat
+                  label={t('publicApp.fighterProfile.averageRefereeTime')}
+                  value={formatDuration(dashboard.refereeStats.averageRefereeTimeMs, t)}
+                />
+                <DashboardStat
+                  label={t('publicApp.fighterProfile.yellowCards')}
+                  value={dashboard.refereeStats.cards.yellow}
+                />
+                <DashboardStat
+                  label={t('publicApp.fighterProfile.redCards')}
+                  value={dashboard.refereeStats.cards.red}
+                />
+                <DashboardStat
+                  label={t('publicApp.fighterProfile.blackCards')}
+                  value={dashboard.refereeStats.cards.black}
+                />
+              </div>
+            </div>
+          )}
         </aside>
       )}
     </div>

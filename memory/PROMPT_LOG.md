@@ -531,3 +531,23 @@ Implement the Tournament Match Configuration plan: organizer-configurable point 
 ## 23:35:08_05-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Match Correction, Timer Display, and Match Locking
+
+## 00:05:08_06-05-2026
+
+Replace commercial webpage hero copy with updated HEMA/platform/statistics wording.
+
+## 00:07:59_06-05-2026
+
+Add French marketing hero description for the updated all-in-one platform copy.
+
+## 00:11:55_06-05-2026
+
+For referee statistics, use option 1: credit cards distributed to the assigned arbitre declarant.
+
+## 00:13:30_06-05-2026
+
+Referee stats visibility: public summary and private detail. Referee-only people must be supported, not only fighters.
+
+## 00:15:34_06-05-2026
+
+Approved referee statistics design; proceed with planning and implementation.

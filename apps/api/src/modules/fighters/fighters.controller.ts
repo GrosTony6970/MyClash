@@ -89,6 +89,15 @@ export class FightersController {
     return this.fighters.getMyDashboard(userId);
   }
 
+  /** GET /api/v1/fighters/me/referee-stats */
+  @Get('me/referee-stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get the claimed user referee statistics' })
+  async myRefereeStats(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.fighters.getMyRefereeStats(userId);
+  }
+
   @Get('merge/audit-log')
   @ApiBearerAuth()
   @UseGuards(SuperAdminGuard)
@@ -102,6 +111,13 @@ export class FightersController {
   @ApiOperation({ summary: 'Get public Fighter career history and statistics' })
   async career(@Param('slug') slug: string, @Query() query: { year?: string; weapon?: string }) {
     return this.fighters.getCareerBySlug(slug, query);
+  }
+
+  /** GET /api/v1/fighters/:slug/referee-stats */
+  @Get(':slug/referee-stats')
+  @ApiOperation({ summary: 'Get public Fighter referee statistics' })
+  async refereeStats(@Param('slug') slug: string) {
+    return this.fighters.getRefereeStatsBySlug(slug);
   }
 
   /** GET /api/v1/fighters/:slug */

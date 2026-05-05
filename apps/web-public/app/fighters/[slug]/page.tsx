@@ -125,6 +125,26 @@ interface FighterCareer {
   };
 }
 
+interface RefereeStats {
+  totalMatches: number;
+  averageRefereeTimeMs: number;
+  roles: {
+    arbitre_declarant: number;
+    arbitre_assesseur: number;
+    arbitre_table: number;
+  };
+  cards: {
+    yellow: number;
+    red: number;
+    black: number;
+  };
+  bestBuddies: Array<{
+    userId: string;
+    displayName: string | null;
+    matchesTogether: number;
+  }>;
+}
+
 type RawFighter = Omit<Partial<Fighter>, 'clubs' | 'weapons'> & {
   display_name?: string;
   given_name?: string;
@@ -216,6 +236,18 @@ async function fetchCareer(slug: string, apiUrl: string): Promise<FighterCareer 
   }
 }
 
+async function fetchRefereeStats(slug: string, apiUrl: string): Promise<RefereeStats | null> {
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/fighters/${slug}/referee-stats`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as RefereeStats;
+  } catch {
+    return null;
+  }
+}
+
 function formatDate(date: string | null): string {
   if (!date) return t('common.unknown');
   return new Date(date).toLocaleDateString('en-GB');
@@ -226,6 +258,12 @@ function statValue(value: number | null): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
+function formatDuration(ms: number): string {
+  if (ms <= 0) return t('common.none');
+  const minutes = Math.round(ms / 60000);
+  return t('publicApp.fighterProfile.minutes', { count: minutes });
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   return { title: slug };
@@ -234,9 +272,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function FighterPage({ params }: Props) {
   const { slug } = await params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const [fighter, career] = await Promise.all([
+  const [fighter, career, refereeStats] = await Promise.all([
     fetchFighter(slug, apiUrl),
     fetchCareer(slug, apiUrl),
+    fetchRefereeStats(slug, apiUrl),
   ]);
 
   if (!fighter) {
@@ -418,6 +457,67 @@ export default async function FighterPage({ params }: Props) {
         </section>
       )}
 
+      {refereeStats && refereeStats.totalMatches > 0 && (
+        <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+            {t('publicApp.fighterProfile.refereeing')}
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard
+              label={t('publicApp.fighterProfile.refereeMatches')}
+              value={refereeStats.totalMatches}
+            />
+            <StatCard
+              label={t('publicApp.fighterProfile.averageRefereeTime')}
+              value={formatDuration(refereeStats.averageRefereeTimeMs)}
+            />
+            <StatCard
+              label={t('publicApp.fighterProfile.yellowCards')}
+              value={refereeStats.cards.yellow}
+            />
+            <StatCard
+              label={t('publicApp.fighterProfile.redBlackCards')}
+              value={`${refereeStats.cards.red}/${refereeStats.cards.black}`}
+            />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <ProfilePanel title={t('publicApp.fighterProfile.refereeRoles')}>
+              <RefereeLine
+                label={t('publicApp.fighterProfile.arbitreDeclarant')}
+                value={refereeStats.roles.arbitre_declarant}
+              />
+              <RefereeLine
+                label={t('publicApp.fighterProfile.arbitreAssesseur')}
+                value={refereeStats.roles.arbitre_assesseur}
+              />
+              <RefereeLine
+                label={t('publicApp.fighterProfile.arbitreTable')}
+                value={refereeStats.roles.arbitre_table}
+              />
+            </ProfilePanel>
+            {refereeStats.bestBuddies.length > 0 && (
+              <ProfilePanel title={t('publicApp.fighterProfile.bestRefereeBuddies')}>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  {refereeStats.bestBuddies.slice(0, 3).map((buddy) => (
+                    <li
+                      key={buddy.userId}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-900 px-3 py-2"
+                    >
+                      <span>{buddy.displayName ?? t('common.unknown')}</span>
+                      <span className="text-xs text-gray-500">
+                        {t('publicApp.fighterProfile.matchesTogether', {
+                          count: buddy.matchesTogether,
+                        })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </ProfilePanel>
+            )}
+          </div>
+        </section>
+      )}
+
       {career && (
         <section className="mb-6 grid gap-3 sm:grid-cols-2">
           <CareerList title={t('publicApp.fighterProfile.upcoming')}>
@@ -563,6 +663,15 @@ function ClubLine({ label, clubs }: { label: string; clubs: FighterClubLink[] })
     <p className="mb-2 text-sm text-gray-300 last:mb-0">
       <span className="text-gray-500">{label}: </span>
       {clubs.map((club) => club.clubs?.name ?? t('common.unknown')).join(', ')}
+    </p>
+  );
+}
+
+function RefereeLine({ label, value }: { label: string; value: number }) {
+  return (
+    <p className="mb-2 flex items-center justify-between gap-3 text-sm text-gray-300 last:mb-0">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-semibold tabular-nums text-white">{value}</span>
     </p>
   );
 }

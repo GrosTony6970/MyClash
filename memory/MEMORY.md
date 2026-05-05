@@ -138,6 +138,7 @@ Privacy defaults:
 - A Person can opt out per category: `hide_workshops_publicly`, `allow_being_followed`.
 - Claimed users can edit their own global `fighters` profile metadata, structured club links, and weapon selections, but event-scoped `persons` roster rows remain organizer-controlled.
 - Fighter `date_of_birth` is private: owner/admin APIs may return it, public Fighter profile/career endpoints must not expose it.
+- Referee statistics are attached to claimed user identity, not only Fighter identity, so referee-only users can still view their private referee dashboard. Public Fighter pages can show summarized referee stats when a Fighter can be resolved to a claimed user. Card distribution stats are credited to the assigned `arbitre_declarant` for the match.
 
 Follow tiers:
 

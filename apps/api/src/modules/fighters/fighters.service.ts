@@ -20,6 +20,12 @@ import {
   type CareerMatchInput,
   type CareerRegistrationInput,
 } from './fighter-career';
+import {
+  buildRefereeStats,
+  type RefereeAssignmentInput,
+  type RefereeMatchDurationInput,
+  type RefereePenaltyInput,
+} from './referee-stats';
 
 function slugify(name: string): string {
   return name
@@ -244,7 +250,12 @@ export class FightersService {
     return {
       profile,
       career: await this.getCareerForFighter(String((profile as Row)['id'])),
+      refereeStats: await this.getRefereeStatsForUser(userId, true),
     };
+  }
+
+  async getMyRefereeStats(userId: string) {
+    return this.getRefereeStatsForUser(userId, true);
   }
 
   async getCareerBySlug(slug: string, query: { year?: string; weapon?: string } = {}) {
@@ -257,6 +268,18 @@ export class FightersService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
     return this.getCareerForFighter(String((data as Row)['id']), query);
+  }
+
+  async getRefereeStatsBySlug(slug: string) {
+    const userId = await this.resolveRefereeUserIdForFighterSlug(slug);
+    return userId
+      ? this.getRefereeStatsForUser(userId, false)
+      : buildRefereeStats({
+          userId: '',
+          assignments: [],
+          durations: [],
+          penalties: [],
+        });
   }
 
   async getCareerForFighter(fighterId: string, query: { year?: string; weapon?: string } = {}) {
@@ -602,5 +625,158 @@ export class FightersService {
         group: String(row['ranking_group_key'] ?? ''),
       };
     });
+  }
+
+  private async resolveRefereeUserIdForFighterSlug(slug: string): Promise<string | null> {
+    const { data, error } = await this.supabase.service
+      .from('fighters')
+      .select('id, claimed_by_user_id')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
+    const row = data as Row;
+    if (row['claimed_by_user_id']) return String(row['claimed_by_user_id']);
+
+    const { data: person } = await this.supabase.service
+      .from('persons')
+      .select('claimed_by_user_id')
+      .eq('global_fighter_id', String(row['id']))
+      .not('claimed_by_user_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    return person ? String((person as Row)['claimed_by_user_id']) : null;
+  }
+
+  private async getRefereeStatsForUser(userId: string, includePrivateDetails: boolean) {
+    const assignments = await this.fetchRefereeAssignments(userId);
+    const matchIds = [...new Set(assignments.map((assignment) => assignment.matchId))];
+    if (matchIds.length === 0) {
+      return buildRefereeStats({ userId, assignments: [], durations: [], penalties: [] });
+    }
+
+    const allAssignments = await this.fetchAssignmentsForMatches(matchIds);
+    const durations = await this.fetchRefereeMatchDurations(matchIds);
+    const penalties = await this.fetchRefereePenalties(matchIds);
+    const buddyIds = [...new Set(allAssignments.map((assignment) => assignment.userId))].filter(
+      (id) => id !== userId,
+    );
+    const buddiesByUserId = await this.fetchRefereeBuddyNames(buddyIds);
+
+    return buildRefereeStats({
+      userId,
+      assignments: allAssignments,
+      durations,
+      penalties,
+      buddiesByUserId,
+      includePrivateDetails,
+    });
+  }
+
+  private async fetchRefereeAssignments(userId: string): Promise<RefereeAssignmentInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select(
+        'match_id, user_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
+      )
+      .eq('user_id', userId)
+      .eq('scope_type', 'match')
+      .not('match_id', 'is', null);
+    if (error) throw new BadRequestException(error.message);
+    return this.mapRefereeAssignments(data ?? []);
+  }
+
+  private async fetchAssignmentsForMatches(matchIds: string[]): Promise<RefereeAssignmentInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select(
+        'match_id, user_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
+      )
+      .in('match_id', matchIds)
+      .eq('scope_type', 'match');
+    if (error) throw new BadRequestException(error.message);
+    return this.mapRefereeAssignments(data ?? []);
+  }
+
+  private mapRefereeAssignments(rows: unknown[]): RefereeAssignmentInput[] {
+    return (rows as Row[])
+      .map((row) => {
+        const match = row['matches'] as Row | null;
+        if (match && String(match['status']) !== 'completed') return null;
+        const phase = match?.['phases'] as Row | null;
+        const tournament = phase?.['tournaments'] as Row | null;
+        const event = tournament?.['events'] as Row | null;
+        const assignment: RefereeAssignmentInput = {
+          matchId: String(row['match_id']),
+          userId: String(row['user_id']),
+          role: (row['role'] as string | null) ?? null,
+          eventName: (event?.['name'] as string | null) ?? null,
+          tournamentName: (tournament?.['name'] as string | null) ?? null,
+          weapon: (tournament?.['weapon'] as string | null) ?? null,
+          scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
+        };
+        return assignment;
+      })
+      .filter((assignment): assignment is RefereeAssignmentInput => Boolean(assignment));
+  }
+
+  private async fetchRefereeMatchDurations(
+    matchIds: string[],
+  ): Promise<RefereeMatchDurationInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, duration_active_ms, match_events(type, occurred_at, adjustment_ms)')
+      .in('id', matchIds);
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Row[]).map((row) => ({
+      matchId: String(row['id']),
+      durationActiveMs:
+        row['duration_active_ms'] === null || row['duration_active_ms'] === undefined
+          ? null
+          : Number(row['duration_active_ms']),
+      events: ((row['match_events'] as Row[] | null) ?? []).map((event) => ({
+        type: String(event['type']),
+        occurredAt: String(event['occurred_at']),
+        adjustmentMs:
+          event['adjustment_ms'] === null || event['adjustment_ms'] === undefined
+            ? null
+            : Number(event['adjustment_ms']),
+      })),
+    }));
+  }
+
+  private async fetchRefereePenalties(matchIds: string[]): Promise<RefereePenaltyInput[]> {
+    const { data, error } = await this.supabase.service
+      .from('match_penalties')
+      .select('match_id, card, voided')
+      .in('match_id', matchIds);
+    if (error) return [];
+    return ((data ?? []) as Row[]).map((row) => ({
+      matchId: String(row['match_id']),
+      card: String(row['card']),
+      voided: Boolean(row['voided']),
+    }));
+  }
+
+  private async fetchRefereeBuddyNames(
+    userIds: string[],
+  ): Promise<Record<string, { userId: string; displayName: string | null }>> {
+    if (userIds.length === 0) return {};
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('claimed_by_user_id, given_name, family_name')
+      .in('claimed_by_user_id', userIds);
+    const result: Record<string, { userId: string; displayName: string | null }> = {};
+    for (const userId of userIds) result[userId] = { userId, displayName: null };
+    for (const row of (data ?? []) as Row[]) {
+      const userId = String(row['claimed_by_user_id']);
+      if (result[userId]?.displayName) continue;
+      result[userId] = {
+        userId,
+        displayName:
+          `${String(row['given_name'] ?? '')} ${String(row['family_name'] ?? '')}`.trim(),
+      };
+    }
+    return result;
   }
 }
