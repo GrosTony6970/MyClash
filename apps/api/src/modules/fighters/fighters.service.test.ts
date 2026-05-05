@@ -17,6 +17,8 @@ function makeChain(result: unknown) {
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
     delete: vi.fn() as ReturnType<typeof vi.fn>,
+    in: vi.fn() as ReturnType<typeof vi.fn>,
+    upsert: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
@@ -28,6 +30,8 @@ function makeChain(result: unknown) {
   chain.insert.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
   chain.delete.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
+  chain.upsert.mockReturnValue(chain);
   return chain;
 }
 
@@ -198,6 +202,65 @@ describe('FightersService', () => {
       });
 
       expect((result as { slug: string }).slug).toContain('jean-dupont');
+    });
+  });
+
+  describe('claimed owner profile editing', () => {
+    it('returns the private claimed fighter profile with date of birth for the owner', async () => {
+      const fighterChain = makeChain({ data: null, error: null });
+      fighterChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'fighter-1',
+          slug: 'public-fighter',
+          display_name: 'Public Fighter',
+          claimed_by_user_id: 'user-1',
+          date_of_birth: '1990-01-01',
+        },
+        error: null,
+      });
+      fromMock.mockReturnValue(fighterChain);
+
+      await expect(service.getMyProfile('user-1')).resolves.toMatchObject({
+        id: 'fighter-1',
+        dateOfBirth: '1990-01-01',
+      });
+    });
+
+    it('rejects updates when the claimed user does not own the fighter', async () => {
+      const ownerChain = makeChain({ data: null, error: null });
+      ownerChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'fighter-owned-by-someone-else',
+          claimed_by_user_id: 'user-2',
+        },
+        error: null,
+      });
+      fromMock.mockReturnValue(ownerChain);
+
+      await expect(
+        service.updateMyProfile('user-1', {
+          fighterId: 'fighter-owned-by-someone-else',
+          displayName: 'Not Mine',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('omits date of birth from public fighter profiles', async () => {
+      const fighterChain = makeChain({ data: null, error: null });
+      fighterChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'fighter-1',
+          slug: 'public-fighter',
+          display_name: 'Public Fighter',
+          date_of_birth: '1990-01-01',
+        },
+        error: null,
+      });
+      fromMock.mockReturnValue(fighterChain);
+
+      const result = await service.getBySlug('public-fighter');
+      expect(result).not.toHaveProperty('date_of_birth');
+      expect(result).not.toHaveProperty('dateOfBirth');
     });
   });
 });

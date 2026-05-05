@@ -1,15 +1,34 @@
 /**
- * Global fighter profile — T-607
+ * Global fighter profile - T-607
  * Route: /fighters/[slug]
- *
- * Shows: bio, club, photo, current matches, history, HEMA Ratings.
  */
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 
 interface Props {
   params: Promise<{ slug: string }>;
+}
+
+interface FighterClubLink {
+  role?: string;
+  clubs?: {
+    id?: string;
+    slug?: string | null;
+    name?: string | null;
+    city?: string | null;
+    country_code?: string | null;
+  } | null;
+}
+
+interface FighterWeaponLink {
+  favorite?: boolean;
+  weapon_catalog?: {
+    id?: string;
+    slug?: string | null;
+    name?: string | null;
+  } | null;
 }
 
 interface Fighter {
@@ -20,6 +39,8 @@ interface Fighter {
   familyName: string;
   clubName: string | null;
   clubSlug: string | null;
+  clubs: FighterClubLink[];
+  weapons: FighterWeaponLink[];
   photoUrl: string | null;
   bio: string | null;
   hemaRatingsId: string | null;
@@ -47,7 +68,64 @@ interface HemaRatingsRating {
   lastCompeted: string | null;
 }
 
-type RawFighter = Partial<Fighter> & {
+interface CareerStats {
+  matches: number;
+  wins: number;
+  losses: number;
+  winLossRatio: number | null;
+  doubleHits: number;
+  exchanges: number;
+  doubleHitPercentage: number;
+}
+
+interface CareerRegistration {
+  id: string;
+  tournamentName: string;
+  tournamentSlug: string;
+  weapon: string | null;
+  category: string | null;
+  eventName: string;
+  eventSlug: string;
+  eventStartDate: string | null;
+}
+
+interface CareerEvent {
+  eventId: string;
+  eventName: string;
+  eventSlug: string;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+interface TournamentPlacement {
+  tournamentId: string;
+  tournamentName: string;
+  eventName: string;
+  weapon: string | null;
+  category: string | null;
+  rank: number | null;
+}
+
+interface LeagueRanking {
+  leagueName: string;
+  rank: number;
+  totalPoints: number;
+  group: string;
+}
+
+interface FighterCareer {
+  eventParticipation: CareerEvent[];
+  upcoming: CareerRegistration[];
+  tournamentPlacements: TournamentPlacement[];
+  leagueRankings: LeagueRanking[];
+  stats: {
+    overall: CareerStats;
+    byWeapon: Array<CareerStats & { weapon: string; category: string | null }>;
+    byYear: Array<CareerStats & { year: string }>;
+  };
+}
+
+type RawFighter = Omit<Partial<Fighter>, 'clubs' | 'weapons'> & {
   display_name?: string;
   given_name?: string;
   family_name?: string;
@@ -57,7 +135,8 @@ type RawFighter = Partial<Fighter> & {
   hema_ratings_id?: string | null;
   hemaRatings?: HemaRatingsProfile | null;
   hemaRatingsPending?: boolean;
-  clubs?: { name?: string | null; slug?: string | null } | null;
+  clubs?: FighterClubLink[] | { name?: string | null; slug?: string | null } | null;
+  weapons?: FighterWeaponLink[];
 };
 
 interface RecentMatch {
@@ -73,6 +152,26 @@ interface RecentMatch {
   scheduledAt: string | null;
 }
 
+function toClubLinks(
+  clubs: RawFighter['clubs'],
+  fallbackName: string | null,
+  fallbackSlug: string | null,
+): FighterClubLink[] {
+  if (Array.isArray(clubs)) return clubs;
+  if (clubs?.name || fallbackName) {
+    return [
+      {
+        role: 'main',
+        clubs: {
+          name: clubs?.name ?? fallbackName,
+          slug: clubs?.slug ?? fallbackSlug,
+        },
+      },
+    ];
+  }
+  return [];
+}
+
 async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | null> {
   try {
     const res = await fetch(`${apiUrl}/api/v1/fighters/${slug}`, {
@@ -80,14 +179,18 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | nul
     });
     if (!res.ok) return null;
     const raw = (await res.json()) as RawFighter;
+    const clubName = raw.clubName ?? raw.club_name ?? null;
+    const clubSlug = raw.clubSlug ?? raw.club_slug ?? null;
     return {
       id: raw.id ?? '',
       slug: raw.slug ?? slug,
       displayName: raw.displayName ?? raw.display_name ?? '',
       givenName: raw.givenName ?? raw.given_name ?? '',
       familyName: raw.familyName ?? raw.family_name ?? '',
-      clubName: raw.clubName ?? raw.club_name ?? raw.clubs?.name ?? null,
-      clubSlug: raw.clubSlug ?? raw.club_slug ?? raw.clubs?.slug ?? null,
+      clubName,
+      clubSlug,
+      clubs: toClubLinks(raw.clubs, clubName, clubSlug),
+      weapons: raw.weapons ?? [],
       photoUrl: raw.photoUrl ?? raw.photo_url ?? null,
       bio: raw.bio ?? null,
       hemaRatingsId: raw.hemaRatingsId ?? raw.hema_ratings_id ?? null,
@@ -101,6 +204,28 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | nul
   }
 }
 
+async function fetchCareer(slug: string, apiUrl: string): Promise<FighterCareer | null> {
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/fighters/${slug}/career`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as FighterCareer;
+  } catch {
+    return null;
+  }
+}
+
+function formatDate(date: string | null): string {
+  if (!date) return t('common.unknown');
+  return new Date(date).toLocaleDateString('en-GB');
+}
+
+function statValue(value: number | null): string {
+  if (value === null) return t('publicApp.fighterProfile.unknownRatio');
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   return { title: slug };
@@ -109,67 +234,130 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function FighterPage({ params }: Props) {
   const { slug } = await params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const fighter = await fetchFighter(slug, apiUrl);
+  const [fighter, career] = await Promise.all([
+    fetchFighter(slug, apiUrl),
+    fetchCareer(slug, apiUrl),
+  ]);
 
   if (!fighter) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
-          <p className="text-4xl mb-3">⚔️</p>
-          <h1 className="text-xl font-bold text-white mb-2">Fighter not found</h1>
-          <p className="text-gray-400 text-sm">No fighter with slug &ldquo;{slug}&rdquo;.</p>
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-gray-700 bg-gray-900 text-xl font-black text-gray-300">
+            ?
+          </div>
+          <h1 className="mb-2 text-xl font-bold text-white">
+            {t('publicApp.fighterProfile.notFoundTitle')}
+          </h1>
+          <p className="text-sm text-gray-400">
+            {t('publicApp.fighterProfile.notFoundDescription', { slug })}
+          </p>
         </div>
       </main>
     );
   }
 
-  const live = fighter.recentMatches.filter((m) => m.status === 'running');
-  const history = fighter.recentMatches.filter((m) => m.status === 'completed');
+  const live = fighter.recentMatches.filter((match) => match.status === 'running');
+  const history = fighter.recentMatches.filter((match) => match.status === 'completed');
+  const mainClubs = fighter.clubs.filter((club) => club.role === 'main');
+  const secondaryClubs = fighter.clubs.filter((club) => club.role === 'secondary');
+  const previousClubs = fighter.clubs.filter((club) => club.role === 'previous');
+  const overallStats = career?.stats.overall;
 
   return (
-    <main className="px-4 py-6 max-w-lg mx-auto">
-      {/* Header */}
-      <div className="flex items-start gap-4 mb-6">
+    <main className="mx-auto max-w-3xl px-4 py-6">
+      <div className="mb-6 flex items-start gap-4">
         {fighter.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={fighter.photoUrl}
             alt={fighter.displayName}
-            className="w-20 h-20 rounded-full object-cover border-2 border-gray-700"
+            className="h-20 w-20 rounded-full border-2 border-gray-700 object-cover"
           />
         ) : (
-          <div className="w-20 h-20 rounded-full bg-red-900 border-2 border-red-700 flex items-center justify-center text-2xl font-black text-red-200">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-red-700 bg-red-900 text-2xl font-black text-red-200">
             {fighter.givenName[0]}
             {fighter.familyName[0]}
           </div>
         )}
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-white">{fighter.displayName}</h1>
           {fighter.clubName && (
             <Link
               href={`/clubs/${fighter.clubSlug ?? ''}`}
-              className="text-sm text-gray-400 hover:text-white transition-colors"
+              className="text-sm text-gray-400 transition-colors hover:text-white"
             >
               {fighter.clubName}
             </Link>
           )}
           {fighter.hemaRatingsScore !== null && (
-            <p className="text-xs text-amber-400 mt-1">
-              HEMA Ratings: {fighter.hemaRatingsScore.toFixed(1)}
+            <p className="mt-1 text-xs text-amber-400">
+              {t('publicApp.fighterProfile.hemaRatings')}: {fighter.hemaRatingsScore.toFixed(1)}
             </p>
           )}
         </div>
       </div>
 
-      {/* Bio */}
-      {fighter.bio && <p className="text-gray-300 text-sm leading-relaxed mb-6">{fighter.bio}</p>}
+      {fighter.bio && <p className="mb-6 text-sm leading-relaxed text-gray-300">{fighter.bio}</p>}
+
+      {(fighter.weapons.length > 0 || fighter.clubs.length > 0) && (
+        <section className="mb-6 grid gap-3 sm:grid-cols-2">
+          {fighter.weapons.length > 0 && (
+            <ProfilePanel title={t('publicApp.fighterProfile.weapons')}>
+              <div className="flex flex-wrap gap-2">
+                {fighter.weapons.map((weapon) => (
+                  <span
+                    key={weapon.weapon_catalog?.id ?? weapon.weapon_catalog?.slug}
+                    className="rounded-full border border-gray-700 bg-gray-900 px-2.5 py-1 text-xs text-gray-200"
+                  >
+                    {weapon.weapon_catalog?.name ?? t('common.unknown')}
+                  </span>
+                ))}
+              </div>
+            </ProfilePanel>
+          )}
+          {fighter.clubs.length > 0 && (
+            <ProfilePanel title={t('publicApp.fighterProfile.clubs')}>
+              <ClubLine label={t('publicApp.fighterProfile.mainClub')} clubs={mainClubs} />
+              <ClubLine
+                label={t('publicApp.fighterProfile.secondaryClubs')}
+                clubs={secondaryClubs}
+              />
+              <ClubLine label={t('publicApp.fighterProfile.previousClubs')} clubs={previousClubs} />
+            </ProfilePanel>
+          )}
+        </section>
+      )}
+
+      {overallStats && (
+        <section className="mb-6 rounded-xl border border-gray-800 bg-gray-950 p-4">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+            {t('publicApp.fighterProfile.stats')}
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label={t('publicApp.fighterProfile.totalWins')} value={overallStats.wins} />
+            <StatCard
+              label={t('publicApp.fighterProfile.totalLosses')}
+              value={overallStats.losses}
+            />
+            <StatCard
+              label={t('publicApp.fighterProfile.winLossRatio')}
+              value={statValue(overallStats.winLossRatio)}
+            />
+            <StatCard
+              label={t('publicApp.fighterProfile.doubleHitPercentage')}
+              value={`${overallStats.doubleHitPercentage.toFixed(2)}%`}
+            />
+          </div>
+        </section>
+      )}
 
       {fighter.hemaRatingsId && (
         <section className="mb-6 rounded-xl border border-amber-700/50 bg-amber-950/20 p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400">
-                HEMA Ratings
+                {t('publicApp.fighterProfile.hemaRatings')}
               </h2>
               <a
                 href={`https://hemaratings.com/fighters/details/${fighter.hemaRatingsId}/`}
@@ -177,12 +365,14 @@ export default async function FighterPage({ params }: Props) {
                 target="_blank"
                 rel="noreferrer"
               >
-                Profile #{fighter.hemaRatingsId}
+                #{fighter.hemaRatingsId}
               </a>
             </div>
             {fighter.hemaRatings?.syncedAt && (
               <p className="text-right text-[11px] text-gray-500">
-                Synced {new Date(fighter.hemaRatings.syncedAt).toLocaleDateString('en-GB')}
+                {t('publicApp.fighterProfile.synced', {
+                  date: formatDate(fighter.hemaRatings.syncedAt),
+                })}
               </p>
             )}
           </div>
@@ -200,7 +390,9 @@ export default async function FighterPage({ params }: Props) {
                       <p className="text-xs text-gray-400">{rating.category}</p>
                       {rating.lastCompeted && (
                         <p className="mt-1 text-[11px] text-gray-500">
-                          Last competed {new Date(rating.lastCompeted).toLocaleDateString('en-GB')}
+                          {t('publicApp.fighterProfile.lastCompeted', {
+                            date: formatDate(rating.lastCompeted),
+                          })}
                         </p>
                       )}
                     </div>
@@ -209,7 +401,9 @@ export default async function FighterPage({ params }: Props) {
                         {rating.weightedRating.toFixed(1)}
                       </p>
                       {rating.rank !== null && (
-                        <p className="text-[11px] text-gray-500">Rank {rating.rank}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {t('publicApp.fighterProfile.rank', { rank: rating.rank })}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -217,27 +411,84 @@ export default async function FighterPage({ params }: Props) {
               ))}
             </div>
           ) : (
-            <p className="mt-4 text-sm text-gray-400">Rating details pending next sync.</p>
+            <p className="mt-4 text-sm text-gray-400">
+              {t('publicApp.fighterProfile.ratingPending')}
+            </p>
           )}
         </section>
       )}
 
-      {/* Live now */}
+      {career && (
+        <section className="mb-6 grid gap-3 sm:grid-cols-2">
+          <CareerList title={t('publicApp.fighterProfile.upcoming')}>
+            {career.upcoming.slice(0, 5).map((registration) => (
+              <li key={registration.id}>
+                <Link className="font-medium text-white" href={`/e/${registration.eventSlug}`}>
+                  {registration.eventName}
+                </Link>
+                <p className="text-xs text-gray-500">
+                  {registration.tournamentName} · {formatDate(registration.eventStartDate)}
+                </p>
+              </li>
+            ))}
+          </CareerList>
+          <CareerList title={t('publicApp.fighterProfile.eventParticipation')}>
+            {career.eventParticipation.slice(0, 5).map((event) => (
+              <li key={event.eventId}>
+                <Link className="font-medium text-white" href={`/e/${event.eventSlug}`}>
+                  {event.eventName}
+                </Link>
+                <p className="text-xs text-gray-500">{formatDate(event.startDate)}</p>
+              </li>
+            ))}
+          </CareerList>
+          <CareerList title={t('publicApp.fighterProfile.tournamentPlacements')}>
+            {career.tournamentPlacements.slice(0, 5).map((placement) => (
+              <li key={placement.tournamentId}>
+                <span className="font-medium text-white">{placement.tournamentName}</span>
+                <p className="text-xs text-gray-500">
+                  {placement.eventName} · {placement.weapon ?? t('common.unknown')} ·{' '}
+                  {placement.rank ?? t('publicApp.fighterProfile.dnp')}
+                </p>
+              </li>
+            ))}
+          </CareerList>
+          <CareerList title={t('publicApp.fighterProfile.leagueRankings')}>
+            {career.leagueRankings.slice(0, 5).map((ranking) => (
+              <li key={`${ranking.leagueName}-${ranking.group}`}>
+                <span className="font-medium text-white">{ranking.leagueName}</span>
+                <p className="text-xs text-gray-500">
+                  {ranking.group} · {t('publicApp.fighterProfile.rank', { rank: ranking.rank })} ·{' '}
+                  {ranking.totalPoints}
+                </p>
+              </li>
+            ))}
+          </CareerList>
+        </section>
+      )}
+
       {live.length > 0 && (
         <section className="mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-red-400 mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            Live now
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-red-400">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            {t('publicApp.fighterProfile.liveNow')}
           </h2>
-          {live.map((m) => (
-            <Link key={m.id} href={m.eventSlug ? `/e/${m.eventSlug}/match/${m.id}` : '#'}>
+          {live.map((match) => (
+            <Link
+              key={match.id}
+              href={match.eventSlug ? `/e/${match.eventSlug}/match/${match.id}` : '#'}
+            >
               <div className="rounded-xl border-2 border-red-700 bg-red-950/30 p-4">
-                <p className="text-xs text-gray-400 mb-1">{m.matchNumberLabel}</p>
-                <p className="font-bold text-white">vs {m.opponentName ?? '?'}</p>
-                <p className="text-2xl font-black tabular-nums mt-1">
-                  <span className="text-red-400">{m.isRed ? m.redScore : m.blueScore}</span>
-                  <span className="text-gray-600 mx-1.5">–</span>
-                  <span className="text-blue-400">{m.isRed ? m.blueScore : m.redScore}</span>
+                <p className="mb-1 text-xs text-gray-400">{match.matchNumberLabel}</p>
+                <p className="font-bold text-white">{match.opponentName ?? t('common.unknown')}</p>
+                <p className="mt-1 text-2xl font-black tabular-nums">
+                  <span className="text-red-400">
+                    {match.isRed ? match.redScore : match.blueScore}
+                  </span>
+                  <span className="mx-1.5 text-gray-600">-</span>
+                  <span className="text-blue-400">
+                    {match.isRed ? match.blueScore : match.redScore}
+                  </span>
                 </p>
               </div>
             </Link>
@@ -245,35 +496,41 @@ export default async function FighterPage({ params }: Props) {
         </section>
       )}
 
-      {/* Match history */}
-      {history.length > 0 && (
+      {history.length > 0 ? (
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-3">
-            Recent results
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">
+            {t('publicApp.fighterProfile.recentResults')}
           </h2>
           <div className="flex flex-col gap-2">
-            {history.map((m) => {
-              const myScore = m.isRed ? m.redScore : m.blueScore;
-              const oppScore = m.isRed ? m.blueScore : m.redScore;
+            {history.map((match) => {
+              const myScore = match.isRed ? match.redScore : match.blueScore;
+              const oppScore = match.isRed ? match.blueScore : match.redScore;
               const won = myScore > oppScore;
               return (
-                <Link key={m.id} href={m.eventSlug ? `/e/${m.eventSlug}/match/${m.id}` : '#'}>
-                  <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+                <Link
+                  key={match.id}
+                  href={match.eventSlug ? `/e/${match.eventSlug}/match/${match.id}` : '#'}
+                >
+                  <div className="flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900 px-4 py-3 transition-colors hover:border-gray-600">
                     <div>
-                      <p className="text-sm font-medium text-white">vs {m.opponentName ?? '?'}</p>
-                      <p className="text-xs text-gray-500">{m.eventName ?? m.matchNumberLabel}</p>
+                      <p className="text-sm font-medium text-white">
+                        {match.opponentName ?? t('common.unknown')}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {match.eventName ?? match.matchNumberLabel}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
                         className={[
-                          'text-xs font-bold px-2 py-0.5 rounded-full',
+                          'rounded-full px-2 py-0.5 text-xs font-bold',
                           won ? 'bg-green-900 text-green-300' : 'bg-red-900/50 text-red-400',
                         ].join(' ')}
                       >
                         {won ? 'W' : 'L'}
                       </span>
-                      <p className="text-sm font-mono font-bold text-white tabular-nums">
-                        {myScore}–{oppScore}
+                      <p className="font-mono text-sm font-bold tabular-nums text-white">
+                        {myScore}-{oppScore}
                       </p>
                     </div>
                   </div>
@@ -282,13 +539,48 @@ export default async function FighterPage({ params }: Props) {
             })}
           </div>
         </section>
-      )}
-
-      {fighter.recentMatches.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-sm">No match history yet.</p>
+      ) : (
+        <div className="py-12 text-center">
+          <p className="text-sm text-gray-500">{t('publicApp.fighterProfile.noMatchHistory')}</p>
         </div>
       )}
     </main>
+  );
+}
+
+function ProfilePanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function ClubLine({ label, clubs }: { label: string; clubs: FighterClubLink[] }) {
+  if (clubs.length === 0) return null;
+  return (
+    <p className="mb-2 text-sm text-gray-300 last:mb-0">
+      <span className="text-gray-500">{label}: </span>
+      {clubs.map((club) => club.clubs?.name ?? t('common.unknown')).join(', ')}
+    </p>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900 px-3 py-3">
+      <p className="text-[11px] uppercase tracking-widest text-gray-500">{label}</p>
+      <p className="mt-1 text-xl font-black tabular-nums text-white">{value}</p>
+    </div>
+  );
+}
+
+function CareerList({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-950 p-4">
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-amber-400">{title}</h2>
+      <ul className="space-y-3 text-sm text-gray-300">{children}</ul>
+    </div>
   );
 }

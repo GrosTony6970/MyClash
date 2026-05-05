@@ -503,3 +503,11 @@ User requested implementation of the Penalty Management / Cartons plan: configur
 ## 19:02:46_05-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: MyClash Logo Assets for App Shells. Use Logo_nobackground.png and Logomini_nobackground.png from apps/pictures in web-admin, web-public, and web-scoring app shells; update icons/metadata/PWA icons and visible app shell branding; keep apps/web-marketing/index.html unchanged and do not use Banner.png; run app typechecks and pnpm lint.
+
+## 19:10:33_05-05-2026
+
+User requested a new fighter profile feature: let fighters edit date of birth, nationality, main/secondary/previous clubs, and weapons; let fighters view history across years/events/fights/rankings, upcoming events, and personal statistics including double-hit percentage, win/loss ratio, total wins/losses, and per-weapon/tournament-type stats.
+
+## 19:22:38_05-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fighter Profile Editing, Career History, and Statistics. Add claimed-fighter global profile editing, public/private career views, structured club history, controlled weapon catalog, MyClash-derived history/statistics, owner/public APIs, public profile updates, private dashboard UI, i18n, tests, and verification.

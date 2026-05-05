@@ -134,6 +134,8 @@ Privacy defaults:
 - **Match schedule** + **referee assignments** + **workshop enrollments** are all public by default (they're part of the event's shared experience).
 - **Email** is always masked publicly.
 - A Person can opt out per category: `hide_workshops_publicly`, `allow_being_followed`.
+- Claimed users can edit their own global `fighters` profile metadata, structured club links, and weapon selections, but event-scoped `persons` roster rows remain organizer-controlled.
+- Fighter `date_of_birth` is private: owner/admin APIs may return it, public Fighter profile/career endpoints must not expose it.
 
 Follow tiers:
 

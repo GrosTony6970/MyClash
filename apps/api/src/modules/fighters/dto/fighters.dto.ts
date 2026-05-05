@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateFighterDto {
   @ApiProperty({ example: 'Jean' })
@@ -106,6 +114,67 @@ export class UpdateFighterDto {
   @IsString()
   @MaxLength(2000)
   bio?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+}
+
+export class FighterClubInputDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  clubId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  clubName?: string;
+}
+
+export class FighterWeaponInputDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  weaponId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  weaponName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  favorite?: boolean;
+}
+
+export class UpdateMyFighterProfileDto extends UpdateFighterDto {
+  @ApiProperty({ description: 'Global Fighter profile ID being edited' })
+  @IsUUID()
+  fighterId!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  mainClub?: FighterClubInputDto;
+
+  @ApiProperty({ required: false, type: [FighterClubInputDto] })
+  @IsOptional()
+  @IsArray()
+  secondaryClubs?: FighterClubInputDto[];
+
+  @ApiProperty({ required: false, type: [FighterClubInputDto] })
+  @IsOptional()
+  @IsArray()
+  previousClubs?: FighterClubInputDto[];
+
+  @ApiProperty({ required: false, type: [FighterWeaponInputDto] })
+  @IsOptional()
+  @IsArray()
+  weapons?: FighterWeaponInputDto[];
 }
 
 export class FighterQueryDto {

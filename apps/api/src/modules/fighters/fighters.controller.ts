@@ -24,6 +24,7 @@ import {
   FighterQueryDto,
   MergeFightersDto,
   PromoteFighterDto,
+  UpdateMyFighterProfileDto,
   UpdateFighterDto,
 } from './dto/fighters.dto';
 
@@ -61,12 +62,46 @@ export class FightersController {
     return this.fighters.list(query);
   }
 
+  /** GET /api/v1/fighters/me/profile */
+  @Get('me/profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get the claimed user Fighter profile' })
+  async myProfile(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.fighters.getMyProfile(userId);
+  }
+
+  /** PATCH /api/v1/fighters/me/profile */
+  @Patch('me/profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update the claimed user Fighter profile' })
+  async updateMyProfile(@Body() dto: UpdateMyFighterProfileDto, @Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.fighters.updateMyProfile(userId, dto);
+  }
+
+  /** GET /api/v1/fighters/me/dashboard */
+  @Get('me/dashboard')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get the claimed user Fighter dashboard' })
+  async myDashboard(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.fighters.getMyDashboard(userId);
+  }
+
   @Get('merge/audit-log')
   @ApiBearerAuth()
   @UseGuards(SuperAdminGuard)
   @ApiOperation({ summary: 'List recent fighter merge audit entries (super admin)' })
   async mergeAuditLog() {
     return this.fighterMerge.listMergeAudits();
+  }
+
+  /** GET /api/v1/fighters/:slug */
+  @Get(':slug/career')
+  @ApiOperation({ summary: 'Get public Fighter career history and statistics' })
+  async career(@Param('slug') slug: string, @Query() query: { year?: string; weapon?: string }) {
+    return this.fighters.getCareerBySlug(slug, query);
   }
 
   /** GET /api/v1/fighters/:slug */
@@ -90,8 +125,13 @@ export class FightersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a fighter (organizer+ or claimed owner)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateFighterDto) {
-    return this.fighters.update(id, dto);
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateFighterDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.fighters.updateAsClaimedUser(id, dto, userId);
   }
 
   /**
@@ -133,5 +173,17 @@ export class FightersController {
   ) {
     const actorUserId = (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
     await this.fighterMerge.revertMerge(auditLogId, actorUserId);
+  }
+}
+
+@ApiTags('weapons')
+@Controller('weapons')
+export class WeaponsController {
+  constructor(private readonly fighters: FightersService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List controlled weapon catalog entries' })
+  async list() {
+    return this.fighters.listWeapons();
   }
 }

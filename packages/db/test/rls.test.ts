@@ -61,6 +61,11 @@ interface PenaltyRuleset {
   ownerOrganizationId: string | null;
 }
 
+interface FighterProfileLink {
+  fighterId: string;
+  claimedByUserId: string | null;
+}
+
 // Simulates is_super_admin() SQL function
 function isSuperAdmin(
   userId: string | null,
@@ -181,6 +186,14 @@ function canSelectPenaltyRuleset(
   );
 }
 
+function canManageFighterProfileLink(
+  userId: string | null,
+  link: FighterProfileLink,
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  return isSuperAdmin(userId, platformRoles) || link.claimedByUserId === userId;
+}
+
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
 const ORG_A = 'org-a-uuid';
@@ -190,6 +203,7 @@ const USER_SUPER = 'user-super-admin';
 const USER_ADMIN_A = 'user-admin-org-a';
 const USER_EDITOR_A = 'user-editor-org-a';
 const USER_MEMBER_B = 'user-member-org-b';
+const USER_FIGHTER = 'user-claimed-fighter';
 const USER_ANON = null; // unauthenticated
 
 const PLATFORM_ROLES = [{ userId: USER_SUPER, role: 'super_admin' }];
@@ -231,6 +245,10 @@ const PENALTY_PRIVATE_ORG_A: PenaltyRuleset = {
   builtIn: false,
   publicVisibility: false,
   ownerOrganizationId: ORG_A,
+};
+const CLAIMED_FIGHTER_LINK: FighterProfileLink = {
+  fighterId: 'fighter-claimed',
+  claimedByUserId: USER_FIGHTER,
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -396,5 +414,20 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     expect(
       canManagePenaltyRuleset(USER_MEMBER_B, PENALTY_PRIVATE_ORG_A, ORG_MEMBERS, PLATFORM_ROLES),
     ).toBe(false);
+  });
+
+  it('23. claimed fighters can manage only their own club and weapon links', () => {
+    expect(canManageFighterProfileLink(USER_FIGHTER, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
+      true,
+    );
+    expect(canManageFighterProfileLink(USER_ADMIN_A, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
+      false,
+    );
+  });
+
+  it('24. super admins can manage fighter profile links for moderation', () => {
+    expect(canManageFighterProfileLink(USER_SUPER, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
+      true,
+    );
   });
 });
