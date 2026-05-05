@@ -487,3 +487,7 @@ User approved committing and pushing the Super Admin System Versions feature.
 ## 13:19:26_05-05-2026
 
 User asked to implement the Superadmin Backup Management plan: guarded backup status/list/run/download/upload/restore endpoints, internal ops runner, structured backup metadata, safety locks/confirmation/pre-restore backup, `/admin/backups` UI, i18n strings, and tests.
+
+## 13:54:22_05-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Organizer Event/Tournament Archives - add organizer-facing event/tournament archive export, CSV reports, and safe copy-based restore from versioned JSON/ZIP archives.
