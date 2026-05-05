@@ -475,3 +475,11 @@ you can implement the plan
 ## 16:28:30_04-05-2026
 
 User requested implementation of Google OAuth v1.1 expanded plan: self-hosted GoTrue Google OAuth for organizer login/signup, participant profile claim, workshop attendees, and instructors; preserve magic link/password; update UI, i18n, env/docs, and tests.
+
+## 11:43:27_05-05-2026
+
+User asked to implement the planned Super Admin System Versions page: guarded `/api/v1/admin/system-versions`, deploy-generated `data/system-versions.json`, local manifest fallback, `/admin/system-versions` UI, i18n strings, tests, and verification.
+
+## 12:53:26_05-05-2026
+
+User approved committing and pushing the Super Admin System Versions feature.

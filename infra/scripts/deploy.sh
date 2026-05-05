@@ -317,6 +317,19 @@ else
   git reset --hard origin/main
   ok "Code updated"
 fi
+export GIT_COMMIT="$NEW_COMMIT"
+
+# ── System version manifest ──────────────────────────────────────
+hdr "Generating system version manifest"
+
+node scripts/generate-system-versions.mjs \
+  --output data/system-versions.json \
+  --previous-commit "$CURRENT_COMMIT" \
+  --deployed-commit "$NEW_COMMIT" \
+  --deployed-at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+  --deployed-by "${SUDO_USER:-${USER:-unknown}}" \
+  --backup-file "${BACKUP_FILE:-none}"
+ok "System version manifest written to data/system-versions.json"
 
 # ── Build ────────────────────────────────────────────────────────
 hdr "Building images"

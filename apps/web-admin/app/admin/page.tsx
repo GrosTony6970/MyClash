@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { t } from '@myclash/i18n';
 
 const sections = [
   {
@@ -36,16 +37,19 @@ const sections = [
     title: 'Frozen Results',
     description: 'Approve or reject post-completion exchange corrections.',
   },
+  {
+    href: '/admin/system-versions',
+    title: t('admin.dashboard.systemVersionsTitle'),
+    description: t('admin.dashboard.systemVersionsDescription'),
+  },
 ];
 
 export default function SuperAdminDashboardPage() {
   return (
     <main className="p-8">
       <div className="mb-7">
-        <h1 className="text-2xl font-bold">Super Admin</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Platform moderation, operational controls, and recovery tools.
-        </p>
+        <h1 className="text-2xl font-bold">{t('admin.dashboard.title')}</h1>
+        <p className="text-gray-500 text-sm mt-1">{t('admin.dashboard.description')}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

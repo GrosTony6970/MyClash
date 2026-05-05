@@ -12,6 +12,8 @@ import { FeatureFlagsAdminController } from './feature-flags.controller';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { OrganizationsAdminController } from './organizations.controller';
 import { RulesetsAdminController } from './rulesets.controller';
+import { AdminSystemVersionsService } from './system-versions.service';
+import { SystemVersionsAdminController } from './system-versions.controller';
 import { UsersAdminController } from './users.controller';
 
 @Module({
@@ -23,6 +25,7 @@ import { UsersAdminController } from './users.controller';
     FeatureFlagsAdminController,
     AuditLogAdminController,
     ExchangeEditRequestsAdminController,
+    SystemVersionsAdminController,
   ],
   providers: [
     AdminOrganizationsService,
@@ -31,6 +34,7 @@ import { UsersAdminController } from './users.controller';
     AdminFeatureFlagsService,
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,
+    AdminSystemVersionsService,
     SuperAdminGuard,
   ],
   exports: [SuperAdminGuard],

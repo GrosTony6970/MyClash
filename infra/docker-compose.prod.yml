@@ -232,6 +232,7 @@ services:
       redis: { condition: service_healthy }
     volumes:
       - ./logs/api:/app/logs
+      - ./data/system-versions.json:/app/data/system-versions.json:ro
     networks: [myclash]
     mem_limit: 1g
     cpus: 2
