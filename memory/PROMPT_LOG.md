@@ -515,3 +515,7 @@ PLEASE IMPLEMENT THIS PLAN: Fighter Profile Editing, Career History, and Statist
 ## 20:41:48_05-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Marketing SEO + Wiring Fix. Serve the rich web-marketing landing page from public/, add /en/, copy required picture assets into the served static tree, rewrite image paths, add canonical/hreflang/OG/Twitter/JSON-LD/robots/sitemap, keep Docker/Caddy/Traefik wiring, and verify static SEO/wiring plus marketing typecheck and lint.
+
+## 20:59:29_05-05-2026
+
+User reports the marketing hero and logo are gone and asks to check that the HTML asset paths were changed correctly.
