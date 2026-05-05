@@ -45,6 +45,7 @@ Organization → Event → Tournament → Phase → Match → Exchange
 - `infra/scripts/` — bash scripts that run **on the OVH VPS** (deploy, rollback, start, stop, refresh, status, destroy, backup, restore, vps-bootstrap). All source `infra/scripts/lib/log.sh`.
 - `scripts/` — cross-platform Node scripts that run **on the developer's Windows machine** (e.g. `deploy.ts` SSH wrapper).
 - `apps/` — three Next.js apps + NestJS api (and worker).
+- `apps/web-marketing/` — static Caddy marketing site. Production Docker copies only `apps/web-marketing/public/`, so `public/index.html` is the canonical served homepage; keep root `index.html` only as the editable/source mirror unless the Dockerfile changes.
 - `packages/` — shared workspaces (rulesets, db, ui, types, design-tokens, i18n, api-client).
 - Root: `README.md`, `AGENTS.md`, `myclash.md`, `LICENSE`, `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `.env.deploy.example`, `.gitattributes`.
 

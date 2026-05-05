@@ -511,3 +511,7 @@ User requested a new fighter profile feature: let fighters edit date of birth, n
 ## 19:22:38_05-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fighter Profile Editing, Career History, and Statistics. Add claimed-fighter global profile editing, public/private career views, structured club history, controlled weapon catalog, MyClash-derived history/statistics, owner/public APIs, public profile updates, private dashboard UI, i18n, tests, and verification.
+
+## 20:41:48_05-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Marketing SEO + Wiring Fix. Serve the rich web-marketing landing page from public/, add /en/, copy required picture assets into the served static tree, rewrite image paths, add canonical/hreflang/OG/Twitter/JSON-LD/robots/sitemap, keep Docker/Caddy/Traefik wiring, and verify static SEO/wiring plus marketing typecheck and lint.
