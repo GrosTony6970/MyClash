@@ -51,6 +51,7 @@ export const matchEvents = pgTable('match_events', {
   // start | halt | resume | warning | end | reset_clock
   reason: text('reason'),
   byUserId: uuid('by_user_id'),
+  staffAccountId: uuid('staff_account_id'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -78,6 +79,7 @@ export const exchanges = pgTable('exchanges', {
   // Materialized deltas for fast aggregation (always recomputable from type+values)
   redScoreDelta: integer('red_score_delta').notNull().default(0),
   blueScoreDelta: integer('blue_score_delta').notNull().default(0),
+  staffAccountId: uuid('staff_account_id'),
   voided: boolean('voided').notNull().default(false),
   voidedReason: text('voided_reason'),
 });

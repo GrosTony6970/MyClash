@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { StaffService } from '../staff/staff.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   AssignPenaltyRulesetDto,
@@ -46,6 +47,7 @@ export class PenaltiesController {
   constructor(
     private readonly penalties: PenaltiesService,
     private readonly supabase: SupabaseService,
+    private readonly staff: StaffService,
   ) {}
 
   @Get('penalty-rulesets')
@@ -124,8 +126,8 @@ export class PenaltiesController {
     @Body() dto: CreatePenaltyDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getOptionalUserId(req, this.supabase);
-    return this.penalties.createPenalty(id, dto, { userId });
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.penalties.createPenalty(id, dto, actor);
   }
 
   @Patch('match-penalties/:id/void')
@@ -136,8 +138,8 @@ export class PenaltiesController {
     @Body() dto: VoidPenaltyDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getOptionalUserId(req, this.supabase);
-    return this.penalties.voidPenalty(id, dto, userId);
+    const actor = await this.staff.authorizePenaltyScoring(req, id);
+    return this.penalties.voidPenalty(id, dto, actor);
   }
 
   @Get('tournaments/:id/penalty-reviews')

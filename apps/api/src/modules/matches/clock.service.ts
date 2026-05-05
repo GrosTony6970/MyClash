@@ -68,7 +68,7 @@ export class ClockService {
     matchId: string,
     action: ClockAction,
     reason?: string,
-    byUserId?: string,
+    actor?: { userId?: string; staffAccountId?: string },
   ): Promise<ClockState> {
     // Verify match exists
     const { data: match } = await this.supabase.service
@@ -109,7 +109,8 @@ export class ClockService {
       sequence,
       type: action,
       reason: reason ?? null,
-      by_user_id: byUserId ?? null,
+      by_user_id: actor?.userId ?? null,
+      staff_account_id: actor?.staffAccountId ?? null,
       occurred_at: now,
     });
 

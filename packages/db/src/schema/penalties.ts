@@ -62,6 +62,7 @@ export const matchPenalties = pgTable('match_penalties', {
   scoreDelta: integer('score_delta').notNull().default(0),
   causesMatchForfeit: boolean('causes_match_forfeit').notNull().default(false),
   byUserId: uuid('by_user_id'),
+  staffAccountId: uuid('staff_account_id'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
   recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
   voided: boolean('voided').notNull().default(false),

@@ -24,6 +24,7 @@ interface MatchInfo {
   blueFighterName?: string;
   weapon?: string;
   tournamentId?: string;
+  eventSlug?: string;
 }
 
 interface Props {
@@ -65,16 +66,27 @@ export default function LiceMatchPage({ params }: Props) {
     if (!liceId) return;
     void (async () => {
       try {
-        // TODO T-402+: real endpoint for current match on a Lice
-        // For now, show placeholder
-        setCurrentMatch(null);
+        const res = await fetch(`${apiUrl}/api/v1/staff/lices/${liceId}/current-match`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          router.replace('/login');
+          return;
+        }
+        const payload = (await res.json()) as {
+          current: MatchInfo | null;
+          event?: { slug?: string };
+        };
+        setCurrentMatch(
+          payload.current ? { ...payload.current, eventSlug: payload.event?.slug } : null,
+        );
       } catch {
         // Offline — show last cached state
       } finally {
         setLoading(false);
       }
     })();
-  }, [liceId, apiUrl]);
+  }, [liceId, apiUrl, router]);
 
   if (loading) {
     return (
@@ -121,6 +133,7 @@ export default function LiceMatchPage({ params }: Props) {
 
 function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
   const { t } = useI18n();
+  const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
   const [nextSequence, setNextSequence] = useState(1);
   const [scoringConfig, setScoringConfig] =
     useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
@@ -152,6 +165,16 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
           })}
           {match.weapon ? ` / ${match.weapon}` : ''}
         </p>
+        {match.eventSlug && (
+          <a
+            href={`${publicAppUrl}/e/${match.eventSlug}/match/${match.id}/display`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex rounded-lg border border-gray-700 px-3 py-2 text-sm font-medium text-gray-200 hover:border-red-500 hover:text-white"
+          >
+            {t('scoring.lice.externalDisplay')}
+          </a>
+        )}
       </div>
 
       {/* Clock — must be halted before scoring */}

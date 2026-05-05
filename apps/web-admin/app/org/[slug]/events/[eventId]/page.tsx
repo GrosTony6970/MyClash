@@ -65,6 +65,7 @@ export default function EventDetailPage() {
       icon: 'A',
     },
     { label: t('organizer.eventHub.sections.workshops'), href: 'workshops', icon: 'W' },
+    { label: t('organizer.eventHub.sections.staff'), href: 'staff', icon: 'S' },
     { label: t('organizer.eventHub.sections.theme'), href: 'theme', icon: 'T' },
     { label: t('admin.dashboard.leaguesTitle'), href: 'leagues', icon: 'L' },
     { label: t('organizer.archive.navLabel'), href: 'archive', icon: 'A' },

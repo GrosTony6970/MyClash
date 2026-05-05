@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '../../src/i18n/I18nProvider';
 
 interface LiceAssignment {
   liceId: string;
@@ -13,6 +14,7 @@ interface LiceAssignment {
 
 export default function LicePickerPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [assignments, setAssignments] = useState<LiceAssignment[]>([]);
@@ -22,29 +24,54 @@ export default function LicePickerPage() {
   useEffect(() => {
     void (async () => {
       try {
-        // Check auth first
-        const meRes = await fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' });
-        const me = (await meRes.json()) as { type: string };
-        if (me.type === 'anonymous') {
+        const staffMeRes = await fetch(`${apiUrl}/api/v1/staff-auth/me`, {
+          credentials: 'include',
+        });
+
+        if (!staffMeRes.ok) {
+          const meRes = await fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' });
+          const me = (await meRes.json()) as { type: string };
+          if (me.type !== 'user') {
+            router.replace('/login');
+            return;
+          }
+        }
+
+        const assignmentsRes = await fetch(`${apiUrl}/api/v1/staff/assigned-lices`, {
+          credentials: 'include',
+        });
+        if (!assignmentsRes.ok) {
           router.replace('/login');
           return;
         }
 
-        // Fetch Lice assignments for this scorekeeper
-        // TODO T-402+: real endpoint; for now show placeholder
-        setAssignments([]);
+        const lices = (await assignmentsRes.json()) as Array<{
+          id: string;
+          name: string;
+          event?: { name?: string };
+          currentMatch?: { id?: string; tournamentName?: string | null };
+        }>;
+        setAssignments(
+          lices.map((lice) => ({
+            liceId: lice.id,
+            liceName: lice.name,
+            eventName: lice.event?.name ?? '',
+            tournamentName: lice.currentMatch?.tournamentName ?? '',
+            currentMatchId: lice.currentMatch?.id ?? null,
+          })),
+        );
       } catch {
-        setError('Failed to load assignments. Check your connection.');
+        setError(t('scoring.lice.loadAssignmentsError'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [apiUrl, router]);
+  }, [apiUrl, router, t]);
 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400">Loading your assignments…</p>
+        <p className="text-gray-400">{t('scoring.lice.loadingAssignments')}</p>
       </main>
     );
   }
@@ -58,7 +85,7 @@ export default function LicePickerPage() {
             onClick={() => window.location.reload()}
             className="text-sm text-gray-400 hover:text-white underline"
           >
-            Retry
+            {t('scoring.lice.retry')}
           </button>
         </div>
       </main>
@@ -69,11 +96,8 @@ export default function LicePickerPage() {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center p-8">
         <div className="text-center max-w-sm">
-          <div className="text-5xl mb-4">🏟️</div>
-          <h1 className="text-xl font-bold mb-2">No Lice assigned</h1>
-          <p className="text-gray-400 text-sm">
-            You have no Lice assignments for today. Ask the organizer to assign you to a Lice.
-          </p>
+          <h1 className="text-xl font-bold mb-2">{t('scoring.lice.noAssignedTitle')}</h1>
+          <p className="text-gray-400 text-sm">{t('scoring.lice.noAssignedDescription')}</p>
         </div>
       </main>
     );
@@ -82,30 +106,30 @@ export default function LicePickerPage() {
   return (
     <main className="min-h-screen p-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold">Your Lices</h1>
-        <p className="text-gray-400 text-sm mt-1">Select a Lice to start scoring</p>
+        <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
+        <p className="text-gray-400 text-sm mt-1">{t('scoring.lice.selectLice')}</p>
       </header>
 
       <div className="grid gap-4 max-w-lg">
-        {assignments.map((a) => (
+        {assignments.map((assignment) => (
           <button
-            key={a.liceId}
-            onClick={() => router.push(`/lices/${a.liceId}`)}
+            key={assignment.liceId}
+            onClick={() => router.push(`/lices/${assignment.liceId}`)}
             className="bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl p-5 text-left transition-colors"
           >
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold">{a.liceName}</h2>
+                <h2 className="text-lg font-bold">{assignment.liceName}</h2>
                 <p className="text-gray-400 text-sm">
-                  {a.tournamentName} · {a.eventName}
+                  {[assignment.tournamentName, assignment.eventName].filter(Boolean).join(' - ')}
                 </p>
               </div>
-              {a.currentMatchId ? (
+              {assignment.currentMatchId ? (
                 <span className="bg-red-700 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
-                  LIVE
+                  {t('scoring.lice.live')}
                 </span>
               ) : (
-                <span className="text-gray-500 text-sm">→</span>
+                <span className="text-gray-500 text-sm">-&gt;</span>
               )}
             </div>
           </button>

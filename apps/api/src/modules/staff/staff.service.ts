@@ -1,0 +1,564 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+import type { FastifyRequest } from 'fastify';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SupabaseService } from '../supabase/supabase.service';
+import { StaffJwtService } from './staff-jwt.service';
+import type {
+  CreateStaffAccountDto,
+  ResetStaffPinDto,
+  SetStaffLicesDto,
+  StaffLoginDto,
+  UpdateStaffAccountDto,
+} from './dto';
+
+const scrypt = promisify(scryptCallback);
+export const STAFF_COOKIE_NAME = 'mc_staff';
+
+export interface ScoringActor {
+  userId?: string;
+  staffAccountId?: string;
+}
+
+type EventRow = {
+  id: string;
+  organization_id: string;
+  slug: string;
+  name: string;
+  status: string;
+  end_date: string;
+};
+
+type StaffAccountRow = {
+  id: string;
+  event_id: string;
+  display_name: string;
+  username: string;
+  pin_hash: string;
+  role: string;
+  status: string;
+};
+
+@Injectable()
+export class StaffService {
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+    private readonly jwt: StaffJwtService,
+  ) {}
+
+  async listAccounts(eventId: string, userId: string) {
+    await this.assertCanManageEventStaff(eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .select(
+        'id,event_id,display_name,username,role,status,disabled_at,last_login_at,created_at,updated_at',
+      )
+      .eq('event_id', eventId)
+      .order('display_name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const assignments = await this.listAssignmentsForEvent(eventId);
+    return (data ?? []).map((account) => ({
+      ...account,
+      liceIds: assignments
+        .filter((assignment) => assignment.staff_account_id === account.id)
+        .map((assignment) => assignment.lice_id),
+    }));
+  }
+
+  async createAccount(eventId: string, dto: CreateStaffAccountDto, userId: string) {
+    await this.assertCanManageEventStaff(eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .insert({
+        event_id: eventId,
+        display_name: dto.displayName.trim(),
+        username: this.normalizeUsername(dto.username),
+        pin_hash: await this.hashPin(dto.pin),
+        role: dto.role ?? 'arbitre_table',
+        status: 'active',
+        created_by_user_id: userId,
+      })
+      .select('id,event_id,display_name,username,role,status,created_at,updated_at')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return { ...data, liceIds: [] };
+  }
+
+  async updateAccount(
+    eventId: string,
+    accountId: string,
+    dto: UpdateStaffAccountDto,
+    userId: string,
+  ) {
+    await this.assertCanManageEventStaff(eventId, userId);
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (dto.displayName !== undefined) updates['display_name'] = dto.displayName.trim();
+    if (dto.username !== undefined) updates['username'] = this.normalizeUsername(dto.username);
+    if (dto.role !== undefined) updates['role'] = dto.role;
+    if (dto.status !== undefined) {
+      updates['status'] = dto.status;
+      updates['disabled_at'] = dto.status === 'disabled' ? new Date().toISOString() : null;
+      updates['disabled_by_user_id'] = dto.status === 'disabled' ? userId : null;
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .update(updates)
+      .eq('event_id', eventId)
+      .eq('id', accountId)
+      .select(
+        'id,event_id,display_name,username,role,status,disabled_at,last_login_at,created_at,updated_at',
+      )
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Staff account not found');
+    return data;
+  }
+
+  async resetPin(eventId: string, accountId: string, dto: ResetStaffPinDto, userId: string) {
+    await this.assertCanManageEventStaff(eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .update({ pin_hash: await this.hashPin(dto.pin), updated_at: new Date().toISOString() })
+      .eq('event_id', eventId)
+      .eq('id', accountId)
+      .select('id,event_id,display_name,username,role,status,updated_at')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Staff account not found');
+    return data;
+  }
+
+  async setLices(eventId: string, accountId: string, dto: SetStaffLicesDto, userId: string) {
+    await this.assertCanManageEventStaff(eventId, userId);
+    const account = await this.getAccountForEvent(eventId, accountId);
+    await this.assertLicesBelongToEvent(eventId, dto.liceIds);
+
+    const { error: deleteError } = await this.supabase.service
+      .from('event_staff_lice_assignments')
+      .delete()
+      .eq('staff_account_id', account.id);
+    if (deleteError) throw new BadRequestException(deleteError.message);
+
+    if (dto.liceIds.length > 0) {
+      const { error } = await this.supabase.service.from('event_staff_lice_assignments').insert(
+        dto.liceIds.map((liceId) => ({
+          event_id: eventId,
+          staff_account_id: account.id,
+          lice_id: liceId,
+        })),
+      );
+      if (error) throw new BadRequestException(error.message);
+    }
+
+    return { staffAccountId: account.id, liceIds: dto.liceIds };
+  }
+
+  async login(dto: StaffLoginDto): Promise<{ token: string; expiresAt: Date; me: unknown }> {
+    const event = await this.findEventBySlug(dto.eventSlugOrCode);
+    this.assertEventScorable(event);
+
+    const { data: account, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .select('id,event_id,display_name,username,pin_hash,role,status')
+      .eq('event_id', event.id)
+      .ilike('username', this.normalizeUsername(dto.username))
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!account) throw new UnauthorizedException('Invalid staff credentials');
+
+    const staff = account as StaffAccountRow;
+    if (staff.status !== 'active') throw new ForbiddenException('Staff account is disabled');
+    const valid = await this.verifyPin(dto.pin, staff.pin_hash);
+    if (!valid) throw new UnauthorizedException('Invalid staff credentials');
+
+    await this.supabase.service
+      .from('event_staff_accounts')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', staff.id);
+
+    const expiresAt = this.getStaffSessionExpiry(event);
+    const token = this.jwt.sign({ sub: staff.id, event_id: event.id, type: 'staff' }, expiresAt);
+    return { token, expiresAt, me: await this.getMeForStaff(staff.id) };
+  }
+
+  async getMe(req: FastifyRequest) {
+    const staff = await this.requireStaffFromRequest(req);
+    return this.getMeForStaff(staff.id);
+  }
+
+  async listAssignedLices(req: FastifyRequest) {
+    const staff = await this.requireStaffFromRequest(req);
+    return this.getAssignedLices(staff.id);
+  }
+
+  async getAssignedLiceCurrent(req: FastifyRequest, liceId: string) {
+    const staff = await this.requireStaffFromRequest(req);
+    const assigned = await this.isLiceAssigned(staff.id, liceId);
+    if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
+    return this.getCurrentForLiceId(liceId);
+  }
+
+  async authorizeMatchScoring(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
+    const userId = await this.getSupabaseUserId(req);
+    if (userId) {
+      const match = await this.getMatchContext(matchId);
+      await this.orgs.assertOrgRole(match.organizationId, userId, 'scorekeeper');
+      return { userId };
+    }
+
+    const staff = await this.requireStaffFromRequest(req);
+    const match = await this.getMatchContext(matchId);
+    if (match.eventId !== staff.event_id) throw new ForbiddenException('Wrong staff event');
+    if (!match.liceId) throw new ForbiddenException('Match has no assigned Lice');
+    const assigned = await this.isLiceAssigned(staff.id, match.liceId);
+    if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
+    return { staffAccountId: staff.id };
+  }
+
+  async authorizeExchangeScoring(req: FastifyRequest, exchangeId: string): Promise<ScoringActor> {
+    const { data, error } = await this.supabase.service
+      .from('exchanges')
+      .select('match_id')
+      .eq('id', exchangeId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Exchange not found');
+    return this.authorizeMatchScoring(req, (data as { match_id: string }).match_id);
+  }
+
+  async authorizePenaltyScoring(req: FastifyRequest, penaltyId: string): Promise<ScoringActor> {
+    const { data, error } = await this.supabase.service
+      .from('match_penalties')
+      .select('match_id')
+      .eq('id', penaltyId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Penalty not found');
+    return this.authorizeMatchScoring(req, (data as { match_id: string }).match_id);
+  }
+
+  async getPublicLiceCurrent(eventSlug: string, liceName: string) {
+    const event = await this.findEventBySlug(eventSlug);
+    const { data: lice, error } = await this.supabase.service
+      .from('lices')
+      .select('id,name')
+      .eq('event_id', event.id)
+      .ilike('name', liceName)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!lice) throw new NotFoundException('Lice not found');
+    return this.getCurrentForLiceId((lice as { id: string }).id);
+  }
+
+  async getPublicMatchDisplay(matchId: string) {
+    return this.getMatchDisplayPayload(matchId);
+  }
+
+  private async getMeForStaff(staffAccountId: string) {
+    const { data, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .select('id,event_id,display_name,username,role,status,events(id,slug,name,status)')
+      .eq('id', staffAccountId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new UnauthorizedException('Staff account not found');
+    return { type: 'staff', account: data, lices: await this.getAssignedLices(staffAccountId) };
+  }
+
+  private async getAssignedLices(staffAccountId: string) {
+    const { data, error } = await this.supabase.service
+      .from('event_staff_lice_assignments')
+      .select('lices(id,name,location_label,color_hex,sort_order)')
+      .eq('staff_account_id', staffAccountId);
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as unknown as Array<{
+      lices: {
+        id: string;
+        name: string;
+        location_label?: string | null;
+        color_hex?: string | null;
+        sort_order?: number;
+      };
+    }>;
+    return Promise.all(
+      rows.map(async (row: { lices: { id: string; name: string } }) => {
+        const current = await this.getCurrentForLiceId(row.lices.id);
+        return { ...row.lices, currentMatch: current.current, event: current.event };
+      }),
+    );
+  }
+
+  private async getCurrentForLiceId(liceId: string) {
+    const { data: lice, error: liceError } = await this.supabase.service
+      .from('lices')
+      .select('id,name,event_id,events(id,slug,name,status)')
+      .eq('id', liceId)
+      .maybeSingle();
+    if (liceError) throw new BadRequestException(liceError.message);
+    if (!lice) throw new NotFoundException('Lice not found');
+
+    const { data: matches, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,phases(tournaments(id,name,weapon)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name))',
+      )
+      .eq('lice_id', liceId)
+      .in('status', ['running', 'paused', 'scheduled'])
+      .order('status', { ascending: true })
+      .order('scheduled_at', { ascending: true, nullsFirst: false })
+      .limit(8);
+    if (error) throw new BadRequestException(error.message);
+
+    const mapped = (matches ?? []).map((match) => this.mapCurrentMatch(match));
+    const current =
+      mapped.find((match) => match.status === 'running' || match.status === 'paused') ??
+      mapped[0] ??
+      null;
+    return {
+      liceId: (lice as { id: string }).id,
+      liceName: (lice as { name: string }).name,
+      event: (lice as { events: unknown }).events,
+      current,
+      queue: mapped.filter((match) => match.id !== current?.id).slice(0, 5),
+    };
+  }
+
+  private async getMatchDisplayPayload(matchId: string) {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),phases(tournaments(id,name,weapon))',
+      )
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Match not found');
+    return this.mapDisplayMatch(data);
+  }
+
+  private async getMatchContext(matchId: string) {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id,lice_id,phases!inner(tournaments!inner(event_id,events!inner(organization_id,status)))',
+      )
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Match not found');
+    const row = data as unknown as {
+      lice_id: string | null;
+      phases:
+        | { tournaments: { event_id: string; events: { organization_id: string; status: string } } }
+        | Array<{
+            tournaments:
+              | { event_id: string; events: { organization_id: string; status: string } }
+              | Array<{ event_id: string; events: { organization_id: string; status: string } }>;
+          }>;
+    };
+    const phase = Array.isArray(row.phases) ? row.phases[0] : row.phases;
+    const tournament = Array.isArray(phase?.tournaments)
+      ? phase.tournaments[0]
+      : phase?.tournaments;
+    if (!tournament) throw new NotFoundException('Match tournament not found');
+    if (['completed', 'archived'].includes(tournament.events.status)) {
+      throw new ForbiddenException('Event is not open for staff scoring');
+    }
+    return {
+      liceId: row.lice_id,
+      eventId: tournament.event_id,
+      organizationId: tournament.events.organization_id,
+    };
+  }
+
+  private async requireStaffFromRequest(req: FastifyRequest): Promise<StaffAccountRow> {
+    const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+    const token = cookies?.[STAFF_COOKIE_NAME];
+    if (!token) throw new UnauthorizedException('Staff session required');
+    const payload = this.jwt.verify(token);
+    const account = await this.getAccountForEvent(payload.event_id, payload.sub);
+    if (account.status !== 'active') throw new ForbiddenException('Staff account is disabled');
+    const event = await this.getEventById(account.event_id);
+    this.assertEventScorable(event);
+    return account;
+  }
+
+  private async getSupabaseUserId(req: FastifyRequest): Promise<string | undefined> {
+    const authHeader = req.headers['authorization'];
+    const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : cookies?.['sb-access-token'];
+    if (!token) return undefined;
+    const {
+      data: { user },
+    } = await this.supabase.anon.auth.getUser(token);
+    return user?.id;
+  }
+
+  private async assertCanManageEventStaff(eventId: string, userId: string) {
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'editor');
+  }
+
+  private async getEventById(eventId: string): Promise<EventRow> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('id,organization_id,slug,name,status,end_date')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Event not found');
+    return data as EventRow;
+  }
+
+  private async findEventBySlug(slug: string): Promise<EventRow> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('id,organization_id,slug,name,status,end_date')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Event not found');
+    return data as EventRow;
+  }
+
+  private assertEventScorable(event: EventRow) {
+    if (event.status === 'completed' || event.status === 'archived') {
+      throw new ForbiddenException('Event is not open for staff scoring');
+    }
+  }
+
+  private getStaffSessionExpiry(event: EventRow) {
+    const end = new Date(`${event.end_date}T23:59:59.000Z`);
+    const fallback = new Date(Date.now() + 12 * 60 * 60 * 1000);
+    return Number.isNaN(end.getTime()) || end.getTime() < Date.now() ? fallback : end;
+  }
+
+  private async getAccountForEvent(eventId: string, accountId: string): Promise<StaffAccountRow> {
+    const { data, error } = await this.supabase.service
+      .from('event_staff_accounts')
+      .select('id,event_id,display_name,username,pin_hash,role,status')
+      .eq('event_id', eventId)
+      .eq('id', accountId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Staff account not found');
+    return data as StaffAccountRow;
+  }
+
+  private async assertLicesBelongToEvent(eventId: string, liceIds: string[]) {
+    if (liceIds.length === 0) return;
+    const { data, error } = await this.supabase.service
+      .from('lices')
+      .select('id')
+      .eq('event_id', eventId)
+      .in('id', liceIds);
+    if (error) throw new BadRequestException(error.message);
+    if ((data ?? []).length !== liceIds.length) {
+      throw new BadRequestException('All Lices must belong to the event');
+    }
+  }
+
+  private async listAssignmentsForEvent(eventId: string) {
+    const { data, error } = await this.supabase.service
+      .from('event_staff_lice_assignments')
+      .select('staff_account_id,lice_id')
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  private async isLiceAssigned(staffAccountId: string, liceId: string) {
+    const { data, error } = await this.supabase.service
+      .from('event_staff_lice_assignments')
+      .select('id')
+      .eq('staff_account_id', staffAccountId)
+      .eq('lice_id', liceId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    return Boolean(data);
+  }
+
+  private normalizeUsername(username: string) {
+    return username.trim().toLowerCase();
+  }
+
+  private async hashPin(pin: string) {
+    const salt = randomBytes(16);
+    const key = (await scrypt(pin, salt, 32)) as Buffer;
+    return `scrypt:${salt.toString('base64')}:${key.toString('base64')}`;
+  }
+
+  private async verifyPin(pin: string, hash: string) {
+    const [algorithm, salt, stored] = hash.split(':');
+    if (algorithm !== 'scrypt' || !salt || !stored) return false;
+    const key = (await scrypt(pin, Buffer.from(salt, 'base64'), 32)) as Buffer;
+    const storedKey = Buffer.from(stored, 'base64');
+    return key.length === storedKey.length && timingSafeEqual(key, storedKey);
+  }
+
+  private mapCurrentMatch(match: Record<string, unknown>) {
+    const red = match['red'] as { persons?: { display_name?: string } } | null;
+    const blue = match['blue'] as { persons?: { display_name?: string } } | null;
+    const phase = match['phases'] as {
+      tournaments?: { id?: string; name?: string; weapon?: string };
+    } | null;
+    const tournament = phase?.tournaments ?? null;
+    return {
+      id: match['id'],
+      status: match['status'],
+      scheduledAt: match['scheduled_at'],
+      matchNumberLabel: match['match_number_label'],
+      redRegistrationId: match['red_registration_id'],
+      blueRegistrationId: match['blue_registration_id'],
+      redScore: match['red_score'],
+      blueScore: match['blue_score'],
+      rulesetCode: match['ruleset_code'],
+      rulesetVersion: match['ruleset_version'],
+      redFighterName: red?.persons?.display_name ?? null,
+      blueFighterName: blue?.persons?.display_name ?? null,
+      tournamentId: tournament?.id ?? null,
+      tournamentName: tournament?.name ?? null,
+      weapon: tournament?.weapon ?? null,
+    };
+  }
+
+  private mapDisplayMatch(match: Record<string, unknown>) {
+    const red = match['red'] as { persons?: { display_name?: string } } | null;
+    const blue = match['blue'] as { persons?: { display_name?: string } } | null;
+    const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
+    const phases = match['phases'] as {
+      tournaments?: { id?: string; name?: string; weapon?: string };
+    } | null;
+    return {
+      id: match['id'],
+      status: match['status'],
+      scheduledAt: match['scheduled_at'],
+      startedAt: match['started_at'],
+      endedAt: match['ended_at'],
+      matchNumberLabel: match['match_number_label'],
+      redRegistrationId: match['red_registration_id'],
+      blueRegistrationId: match['blue_registration_id'],
+      redScore: match['red_score'],
+      blueScore: match['blue_score'],
+      rulesetCode: match['ruleset_code'],
+      rulesetVersion: match['ruleset_version'],
+      redFighterName: red?.persons?.display_name ?? null,
+      blueFighterName: blue?.persons?.display_name ?? null,
+      lice: lices,
+      event: lices?.events ?? null,
+      tournament: phases?.tournaments ?? null,
+    };
+  }
+}

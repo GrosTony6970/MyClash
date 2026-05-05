@@ -14,6 +14,7 @@ import { WorkshopsModule } from './modules/workshops/workshops.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { RefereesModule } from './modules/referees/referees.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { StaffModule } from './modules/staff/staff.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { WorkersModule } from './workers/workers.module';
 import { LicesModule } from './modules/lices/lices.module';
@@ -79,6 +80,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     WorkshopsModule,
     ScheduleModule,
     RefereesModule,
+    StaffModule,
     StatsModule,
     ExportsModule,
     WorkersModule,

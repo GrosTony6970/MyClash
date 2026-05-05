@@ -186,9 +186,15 @@ export class PenaltiesService {
     return data ?? [];
   }
 
-  async createPenalty(matchId: string, dto: CreatePenaltyDto, context?: { userId?: string }) {
+  async createPenalty(
+    matchId: string,
+    dto: CreatePenaltyDto,
+    context?: { userId?: string; staffAccountId?: string },
+  ) {
     const match = await this.getMatchContext(matchId);
-    await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
+    if (!context?.staffAccountId) {
+      await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
+    }
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
     if (!dto.rulesetEntryId && !dto.directCard) {
       throw new BadRequestException('Either rulesetEntryId or directCard is required');
@@ -235,6 +241,7 @@ export class PenaltiesService {
       score_delta: sanction.scoreDelta,
       causes_match_forfeit: sanction.causesMatchForfeit,
       by_user_id: context?.userId ?? null,
+      staff_account_id: context?.staffAccountId ?? null,
       occurred_at: dto.occurredAt,
       voided: false,
     };
@@ -281,7 +288,11 @@ export class PenaltiesService {
     return data;
   }
 
-  async voidPenalty(penaltyId: string, dto: VoidPenaltyDto, userId?: string) {
+  async voidPenalty(
+    penaltyId: string,
+    dto: VoidPenaltyDto,
+    context?: { userId?: string; staffAccountId?: string },
+  ) {
     const { data: penalty, error: fetchError } = await this.supabase.service
       .from('match_penalties')
       .select('*')
@@ -291,7 +302,9 @@ export class PenaltiesService {
     if (!penalty) throw new NotFoundException(`Penalty ${penaltyId} not found`);
     const row = penalty as Row;
     const match = await this.getMatchContext(row['match_id'] as string);
-    await this.assertUserCanScoreOrg(match.organizationId, userId);
+    if (!context?.staffAccountId) {
+      await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
+    }
     if (row['voided']) throw new BadRequestException('Penalty is already voided');
 
     const { data, error } = await this.supabase.service

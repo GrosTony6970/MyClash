@@ -29,6 +29,7 @@ const SAMPLE_VALUES = new Map([
   ['SUPABASE_ANON_KEY', new Set(['change-me-anon-jwt'])],
   ['SUPABASE_SERVICE_ROLE_KEY', new Set(['change-me-service-role-jwt'])],
   ['MYCLASH_GUEST_JWT_SECRET', new Set(['change-me-guest-jwt-secret'])],
+  ['MYCLASH_STAFF_JWT_SECRET', new Set(['change-me-staff-jwt-secret'])],
   ['OPS_RUNNER_SECRET', new Set(['change-me-ops-runner-secret'])],
   ['RESEND_API_KEY', new Set(['re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])],
   ['MAIL_FROM', new Set(['noreply@myclash.fr'])],
@@ -49,6 +50,7 @@ const SECRET_GENERATORS = {
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
+  MYCLASH_STAFF_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   OPS_RUNNER_SECRET: () => randomBytes(48).toString('base64url'),
   // Generate a strong random password for the bootstrap super admin.
   // Stored in .env so deploy.sh can display it once and the operator saves it.

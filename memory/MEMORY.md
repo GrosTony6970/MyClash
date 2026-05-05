@@ -113,6 +113,7 @@ Key invariants:
 - Only the organizer creates Persons. Participants cannot self-register.
 - Person uniqueness within an event: `(event_id, lower(email))`.
 - Guest sessions sign with `MYCLASH_GUEST_JWT_SECRET`, distinct from Supabase secret. They can never escalate to Supabase tokens.
+- Event staff local accounts use a separate `mc_staff` httpOnly cookie signed with `MYCLASH_STAFF_JWT_SECRET`; they are event-scoped username+PIN accounts for scoring tablets and can only score assigned Lices.
 - `persons.claim_status` is one of: `unclaimed`, `guest_active`, `claimed`.
 - The lookup endpoint masks email (`j***@g***.com`) and is rate-limited per IP.
 - Fuzzy name search via Postgres `pg_trgm` on `unaccent(given_name)` and `unaccent(family_name)`.

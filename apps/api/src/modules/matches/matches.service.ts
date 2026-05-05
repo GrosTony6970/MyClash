@@ -139,7 +139,11 @@ export class MatchesService {
    * AGENTS.md hard rule #1: score is derived from exchanges, never stored
    * as the source of truth.
    */
-  async createExchange(matchId: string, dto: CreateExchangeDto, context?: { userId?: string }) {
+  async createExchange(
+    matchId: string,
+    dto: CreateExchangeDto,
+    context?: { userId?: string; staffAccountId?: string },
+  ) {
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
 
     // Idempotency check: if client_uuid already exists, return existing row
@@ -173,6 +177,7 @@ export class MatchesService {
         no_exchange_reason: dto.noExchangeReason ?? null,
         red_score_delta: redDelta,
         blue_score_delta: blueDelta,
+        staff_account_id: context?.staffAccountId ?? null,
         voided: false,
       })
       .select('*')
@@ -206,7 +211,7 @@ export class MatchesService {
   async voidExchange(
     exchangeId: string,
     dto: VoidExchangeDto,
-    context?: { userId?: string; bypassFrozenReview?: boolean },
+    context?: { userId?: string; staffAccountId?: string; bypassFrozenReview?: boolean },
   ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')
@@ -256,7 +261,7 @@ export class MatchesService {
    */
   async revertVoidExchange(
     exchangeId: string,
-    context?: { userId?: string; bypassFrozenReview?: boolean },
+    context?: { userId?: string; staffAccountId?: string; bypassFrozenReview?: boolean },
   ) {
     const { data: exchange, error: fetchError } = await this.supabase.service
       .from('exchanges')

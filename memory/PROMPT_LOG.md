@@ -519,3 +519,7 @@ PLEASE IMPLEMENT THIS PLAN: Marketing SEO + Wiring Fix. Serve the rich web-marke
 ## 20:59:29_05-05-2026
 
 User reports the marketing hero and logo are gone and asks to check that the HTML asset paths were changed correctly.
+
+## 21:24:28_05-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Event Staff Local Accounts + Shareable External Display. Add event-scoped local named PIN staff accounts, Lice-scoped scoring authorization, staff auth cookie, scoring/admin/public UI, public read-only per-match and per-Lice display URLs, tests, and verification.

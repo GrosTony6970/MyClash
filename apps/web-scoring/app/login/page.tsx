@@ -7,9 +7,14 @@ import { useI18n } from '../../src/i18n/I18nProvider';
 export default function ScoringLoginPage() {
   const { t } = useI18n();
   const [email, setEmail] = useState('');
+  const [eventSlugOrCode, setEventSlugOrCode] = useState('');
+  const [username, setUsername] = useState('');
+  const [pin, setPin] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [staffError, setStaffError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [staffLoading, setStaffLoading] = useState(false);
 
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -40,6 +45,28 @@ export default function ScoringLoginPage() {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleStaffSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStaffLoading(true);
+    setStaffError(null);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/staff-auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ eventSlugOrCode, username, pin }),
+      });
+
+      if (!res.ok) throw new Error('Staff login failed');
+      window.location.href = '/lices';
+    } catch {
+      setStaffError(t('scoring.login.localLoginError'));
+    } finally {
+      setStaffLoading(false);
     }
   }
 
@@ -81,6 +108,71 @@ export default function ScoringLoginPage() {
           <h1 className="text-2xl font-bold">{t('scoring.login.title')}</h1>
           <p className="text-gray-400 text-sm mt-1">{t('scoring.login.scorekeeperAccess')}</p>
         </div>
+
+        <form
+          onSubmit={(e) => {
+            void handleStaffSubmit(e);
+          }}
+          className="mb-8 flex flex-col gap-4 rounded-xl border border-gray-800 bg-gray-900/60 p-4"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-400">
+            {t('scoring.login.localStaffAccess')}
+          </h2>
+          <div>
+            <label
+              htmlFor="eventSlugOrCode"
+              className="block text-sm font-medium text-gray-300 mb-1"
+            >
+              {t('scoring.login.eventIdentifier')}
+            </label>
+            <input
+              id="eventSlugOrCode"
+              required
+              value={eventSlugOrCode}
+              onChange={(e) => setEventSlugOrCode(e.target.value)}
+              placeholder={t('scoring.login.eventIdentifierPlaceholder')}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="staffUsername" className="block text-sm font-medium text-gray-300 mb-1">
+              {t('scoring.login.username')}
+            </label>
+            <input
+              id="staffUsername"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="staffPin" className="block text-sm font-medium text-gray-300 mb-1">
+              {t('scoring.login.pin')}
+            </label>
+            <input
+              id="staffPin"
+              type="password"
+              inputMode="numeric"
+              required
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent"
+            />
+          </div>
+          {staffError && (
+            <p className="text-sm text-red-400" role="alert">
+              {staffError}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={staffLoading}
+            className="w-full bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg"
+          >
+            {staffLoading ? t('scoring.login.signingIn') : t('scoring.login.signInWithPin')}
+          </button>
+        </form>
 
         <form
           onSubmit={(e) => {

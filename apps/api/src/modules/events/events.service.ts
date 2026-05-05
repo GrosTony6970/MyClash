@@ -44,11 +44,14 @@ export class EventsService {
   }
 
   async getEventBySlug(slug: string) {
-    const { data, error } = await this.supabase.service
+    const query = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug), themes(*), lices(*)')
-      .eq('slug', slug)
-      .maybeSingle();
+      .select('*, organizations(name, slug), themes(*), lices(*)');
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
+    const { data, error } = await (
+      isUuid ? query.eq('id', slug) : query.eq('slug', slug)
+    ).maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Event "${slug}" not found`);

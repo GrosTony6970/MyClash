@@ -246,6 +246,7 @@ services:
       REDIS_URL: redis://redis:6379
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-dev-jwt-secret-change-me}
       MYCLASH_GUEST_JWT_SECRET: ${MYCLASH_GUEST_JWT_SECRET:-dev-guest-secret-change-me}
+      MYCLASH_STAFF_JWT_SECRET: ${MYCLASH_STAFF_JWT_SECRET:-dev-staff-secret-change-me}
       DOMAIN: myclash.localhost
       TZ: ${TZ:-Europe/Paris}
     depends_on:
