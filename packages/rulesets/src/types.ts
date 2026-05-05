@@ -34,6 +34,8 @@ export interface Match {
   rulesetCode: string;
   rulesetVersion: string;
   status: 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
+  phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss';
+  matchNumberLabel?: string | null;
 }
 
 export interface Registration {

@@ -9,6 +9,14 @@
  * score (for clubs that just want simple pool play)."
  */
 import { z } from 'zod';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  MatchFormatConfigSchema,
+  computeMatchFormatScore,
+  getEffectiveMatchTimeLimitSeconds,
+  isPointCapReached,
+  normalizeMatchFormatConfig,
+} from '../match-format';
 import type {
   Exchange,
   Match,
@@ -23,8 +31,11 @@ import type {
 // ── Config ────────────────────────────────────────────────────────────────────
 
 export const GenericPointsCapConfigSchema = z.object({
-  pointsCap: z.number().int().positive().default(5),
-  timeLimitSeconds: z.number().int().positive().nullable().default(180),
+  matchFormat: z
+    .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
+    .default(DEFAULT_MATCH_FORMAT_CONFIG),
+  pointsCap: z.number().int().positive().optional(),
+  timeLimitSeconds: z.number().int().positive().nullable().optional(),
   pointValues: z
     .object({
       hit: z.number().int().positive().default(1),
@@ -36,6 +47,28 @@ export type GenericPointsCapConfig = z.infer<typeof GenericPointsCapConfigSchema
 export const GenericPointsCapDefaultConfig: GenericPointsCapConfig =
   GenericPointsCapConfigSchema.parse({});
 
+function normalizeGenericPointsCapConfig(config: unknown): GenericPointsCapConfig {
+  const parsed = GenericPointsCapConfigSchema.parse(config ?? GenericPointsCapDefaultConfig);
+  if (parsed.pointsCap !== undefined || parsed.timeLimitSeconds !== undefined) {
+    return {
+      ...parsed,
+      matchFormat: normalizeMatchFormatConfig({
+        ...parsed.matchFormat,
+        pointCap: parsed.pointsCap ?? parsed.matchFormat.pointCap,
+        timeLimitsSeconds:
+          parsed.timeLimitSeconds === undefined
+            ? parsed.matchFormat.timeLimitsSeconds
+            : {
+                pool: parsed.timeLimitSeconds,
+                bracket: parsed.timeLimitSeconds,
+                finals: parsed.timeLimitSeconds,
+              },
+      }),
+    };
+  }
+  return parsed;
+}
+
 // ── Score computation ─────────────────────────────────────────────────────────
 
 function computeScore(
@@ -43,40 +76,21 @@ function computeScore(
   exchanges: Exchange[],
   config: GenericPointsCapConfig,
 ): MatchScore {
-  const active = exchanges.filter((e) => !e.voided);
   const hitValue = config.pointValues.hit;
-
-  let redScore = 0;
-  let blueScore = 0;
-  let doubles = 0;
-
-  for (const ex of active) {
-    switch (ex.type) {
-      case 'clean':
-      case 'afterblow':
-        // In Generic_PointsCap, all hits count as flat hitValue
-        if (ex.firstStrikerColor === 'red') redScore += hitValue;
-        else if (ex.firstStrikerColor === 'blue') blueScore += hitValue;
-        break;
-      case 'double':
-        doubles += 1;
-        break;
-      case 'no_exchange':
-        break;
-    }
-  }
-
-  return {
-    redScore,
-    blueScore,
-    redWins: 0,
-    blueWins: 0,
-    redTargetPoints: redScore,
-    blueTargetPoints: blueScore,
-    redTimesHit: blueScore,
-    blueTimesHit: redScore,
-    doubles,
-  };
+  return computeMatchFormatScore(
+    match,
+    exchanges.map((exchange) =>
+      exchange.type === 'clean' || exchange.type === 'afterblow'
+        ? {
+            ...exchange,
+            type: 'clean',
+            firstStrikeValue: hitValue as 1 | 2,
+            afterblowValue: null,
+          }
+        : exchange,
+    ),
+    config.matchFormat,
+  );
 }
 
 // ── Match end ─────────────────────────────────────────────────────────────────
@@ -89,11 +103,12 @@ function matchOver(
 ): MatchEndDecision {
   const score = computeScore(match, exchanges, config);
 
-  if (score.redScore >= config.pointsCap || score.blueScore >= config.pointsCap) {
+  if (isPointCapReached(score, config.matchFormat)) {
     return { isOver: true, reason: 'first_to_points' };
   }
 
-  if (config.timeLimitSeconds !== null && clockMs >= config.timeLimitSeconds * 1000) {
+  const timeLimitSeconds = getEffectiveMatchTimeLimitSeconds(match, config.matchFormat);
+  if (timeLimitSeconds !== null && clockMs >= timeLimitSeconds * 1000) {
     return { isOver: true, reason: 'time_limit' };
   }
 
@@ -172,12 +187,12 @@ export const Generic_PointsCap: Ruleset = {
   configSchema: GenericPointsCapConfigSchema,
 
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {
-    const cfg = GenericPointsCapConfigSchema.parse(config ?? GenericPointsCapDefaultConfig);
+    const cfg = normalizeGenericPointsCapConfig(config);
     return computeScore(match, exchanges, cfg);
   },
 
   isMatchOver(match: Match, exchanges: Exchange[], clockMs: number, config: unknown) {
-    const cfg = GenericPointsCapConfigSchema.parse(config ?? GenericPointsCapDefaultConfig);
+    const cfg = normalizeGenericPointsCapConfig(config);
     return matchOver(match, exchanges, clockMs, cfg);
   },
 
@@ -187,7 +202,7 @@ export const Generic_PointsCap: Ruleset = {
     registrations: Registration[],
     config: unknown,
   ) {
-    const cfg = GenericPointsCapConfigSchema.parse(config ?? GenericPointsCapDefaultConfig);
+    const cfg = normalizeGenericPointsCapConfig(config);
     return standings(pool, matches, registrations, cfg);
   },
 };

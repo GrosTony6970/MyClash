@@ -310,7 +310,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,phases(tournaments(id,name,weapon)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,phases(type,tournaments(id,name,weapon,scoring_config_json)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -337,7 +337,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),phases(tournaments(id,name,weapon))',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),phases(tournaments(id,name,weapon,scoring_config_json))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -512,12 +512,14 @@ export class StaffService {
     const red = match['red'] as { persons?: { display_name?: string } } | null;
     const blue = match['blue'] as { persons?: { display_name?: string } } | null;
     const phase = match['phases'] as {
-      tournaments?: { id?: string; name?: string; weapon?: string };
+      type?: string;
+      tournaments?: { id?: string; name?: string; weapon?: string; scoring_config_json?: unknown };
     } | null;
     const tournament = phase?.tournaments ?? null;
     return {
       id: match['id'],
       status: match['status'],
+      phaseType: phase?.type ?? null,
       scheduledAt: match['scheduled_at'],
       matchNumberLabel: match['match_number_label'],
       redRegistrationId: match['red_registration_id'],
@@ -531,6 +533,7 @@ export class StaffService {
       tournamentId: tournament?.id ?? null,
       tournamentName: tournament?.name ?? null,
       weapon: tournament?.weapon ?? null,
+      scoringConfig: tournament?.scoring_config_json ?? null,
     };
   }
 
@@ -539,7 +542,7 @@ export class StaffService {
     const blue = match['blue'] as { persons?: { display_name?: string } } | null;
     const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
     const phases = match['phases'] as {
-      tournaments?: { id?: string; name?: string; weapon?: string };
+      tournaments?: { id?: string; name?: string; weapon?: string; scoring_config_json?: unknown };
     } | null;
     return {
       id: match['id'],
@@ -559,6 +562,7 @@ export class StaffService {
       lice: lices,
       event: lices?.events ?? null,
       tournament: phases?.tournaments ?? null,
+      scoringConfig: phases?.tournaments?.scoring_config_json ?? null,
     };
   }
 }

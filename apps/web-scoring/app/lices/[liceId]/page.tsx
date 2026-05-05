@@ -7,8 +7,8 @@ import { PenaltyPanel } from '../../../src/components/PenaltyPanel';
 import MatchClock from '../../../src/components/MatchClock';
 import type { ClockState } from '../../../src/components/MatchClock';
 import { useI18n } from '../../../src/i18n/I18nProvider';
-import type { TournamentScoringConfig } from '@myclash/types';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 
 interface MatchInfo {
   id: string;
@@ -25,6 +25,7 @@ interface MatchInfo {
   weapon?: string;
   tournamentId?: string;
   eventSlug?: string;
+  phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
 }
 
 interface Props {
@@ -137,17 +138,25 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
   const [nextSequence, setNextSequence] = useState(1);
   const [scoringConfig, setScoringConfig] =
     useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
+  const [matchFormat, setMatchFormat] = useState<MatchFormatConfig>(DEFAULT_MATCH_FORMAT_CONFIG);
   const [clockState, setClockState] = useState<ClockState | null>(null);
 
   // Fetch scoring config for this tournament
   useEffect(() => {
     if (!match.tournamentId) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${match.tournamentId}/scoring-config`, {
+    fetch(`${apiUrl}/api/v1/tournaments/${match.tournamentId}/match-config`, {
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (res.ok) setScoringConfig((await res.json()) as TournamentScoringConfig);
+        if (res.ok) {
+          const config = (await res.json()) as {
+            scoringConfig: TournamentScoringConfig;
+            matchFormat: MatchFormatConfig;
+          };
+          setScoringConfig(config.scoringConfig);
+          setMatchFormat(config.matchFormat);
+        }
       })
       .catch(() => undefined);
     return () => controller.abort();
@@ -192,6 +201,9 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
           blueScore={match.blueScore}
           scoringEnabled={match.status === 'running' || match.status === 'halted'}
           config={scoringConfig}
+          matchFormat={matchFormat}
+          phaseType={match.phaseType ?? undefined}
+          matchNumberLabel={match.matchNumberLabel}
           clockState={clockState}
           onExchangeRecorded={() => setNextSequence((n) => n + 1)}
         />

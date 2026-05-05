@@ -5,6 +5,58 @@
  */
 
 export type AfterblowMode = 'full' | 'deductive';
+export type ScoringDirection = 'normal' | 'reverse_zero_loses';
+export type TimerMode = 'countdown' | 'countup';
+
+export interface MatchFormatConfig {
+  pointCap: number;
+  scoringDirection: ScoringDirection;
+  timerMode: TimerMode;
+  timeLimitsSeconds: {
+    pool: number | null;
+    bracket: number | null;
+    finals: number | null;
+  };
+  softClockLimitSeconds: number;
+  maxDoubleHits: number | null;
+  maxDoubleHitOutcome: 'double_loss_zero_scores';
+}
+export const TOURNAMENT_SIDE_COLORS = [
+  'white',
+  'black',
+  'grey',
+  'yellow',
+  'red',
+  'blue',
+  'green',
+  'brown',
+  'pink',
+  'orange',
+  'purple',
+] as const;
+
+export type TournamentSideColor = (typeof TOURNAMENT_SIDE_COLORS)[number];
+
+export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = {
+  pointCap: 5,
+  scoringDirection: 'normal',
+  timerMode: 'countdown',
+  timeLimitsSeconds: {
+    pool: 180,
+    bracket: 180,
+    finals: 180,
+  },
+  softClockLimitSeconds: 0,
+  maxDoubleHits: null,
+  maxDoubleHitOutcome: 'double_loss_zero_scores',
+};
+
+export interface TournamentDisplayConfig {
+  sideColors: {
+    red: TournamentSideColor;
+    blue: TournamentSideColor;
+  };
+}
 
 export interface CleanButton {
   /** Display label, e.g. "+2" */
@@ -39,6 +91,8 @@ export interface TournamentScoringConfig {
   afterblowMode: AfterblowMode;
   /** Configurable score entry buttons */
   buttons: ScoringButtonConfig;
+  /** Non-ruleset display configuration used by scoring/public screens */
+  display: TournamentDisplayConfig;
 }
 
 /** Default config — matches TF_v1 standard */
@@ -53,6 +107,12 @@ export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
       { label: '2-1', attackerPts: 2, defenderPts: 1, visible: true },
       { label: '1-1', attackerPts: 1, defenderPts: 1, visible: true },
     ],
+  },
+  display: {
+    sideColors: {
+      red: 'red',
+      blue: 'blue',
+    },
   },
 };
 

@@ -160,4 +160,12 @@ export class UpdateTournamentDto {
   @IsOptional()
   @IsObject()
   scoringConfig?: TournamentScoringConfig;
+
+  @ApiProperty({
+    required: false,
+    description: 'Tournament ruleset configuration, including shared match format settings',
+  })
+  @IsOptional()
+  @IsObject()
+  rulesetConfig?: Record<string, unknown>;
 }

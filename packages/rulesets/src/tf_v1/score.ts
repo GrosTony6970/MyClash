@@ -8,6 +8,12 @@
  * Never store computed scores as the source of truth.
  */
 import type { Exchange, Match, MatchEndDecision, MatchScore } from '../types';
+import {
+  computeMatchFormatScore,
+  getEffectiveMatchTimeLimitSeconds,
+  isPointCapReached,
+  normalizeMatchFormatConfig,
+} from '../match-format';
 import type { TFv1Config } from './config';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -126,73 +132,9 @@ export function computeScore(agg: FighterAggregates): number {
 export function computeMatchScore(
   match: Match,
   exchanges: Exchange[],
-  _config: TFv1Config,
+  config: TFv1Config,
 ): MatchScore {
-  const active = exchanges.filter((e) => !e.voided);
-
-  // Determine winner from current exchange state
-  // (In TF_v1, the match winner is determined by the organizer/referee
-  // at match end — we compute running scores here)
-  let redScore = 0;
-  let blueScore = 0;
-  let redTargetPoints = 0;
-  let blueTargetPoints = 0;
-  let redTimesHit = 0;
-  let blueTimesHit = 0;
-  let doubles = 0;
-
-  for (const ex of active) {
-    switch (ex.type) {
-      case 'clean':
-        if (ex.firstStrikerColor === 'red') {
-          redScore += ex.firstStrikeValue ?? 0;
-          redTargetPoints += ex.firstStrikeValue ?? 0;
-          blueTimesHit += 1;
-        } else if (ex.firstStrikerColor === 'blue') {
-          blueScore += ex.firstStrikeValue ?? 0;
-          blueTargetPoints += ex.firstStrikeValue ?? 0;
-          redTimesHit += 1;
-        }
-        break;
-
-      case 'afterblow':
-        if (ex.firstStrikerColor === 'red') {
-          redScore += ex.firstStrikeValue ?? 0;
-          redTargetPoints += ex.firstStrikeValue ?? 0;
-          // Red struck first → red receives afterblow
-          blueScore += ex.afterblowValue ?? 0;
-          blueTargetPoints += ex.afterblowValue ?? 0;
-          redTimesHit += 1;
-        } else if (ex.firstStrikerColor === 'blue') {
-          blueScore += ex.firstStrikeValue ?? 0;
-          blueTargetPoints += ex.firstStrikeValue ?? 0;
-          // Blue struck first → blue receives afterblow
-          redScore += ex.afterblowValue ?? 0;
-          redTargetPoints += ex.afterblowValue ?? 0;
-          blueTimesHit += 1;
-        }
-        break;
-
-      case 'double':
-        doubles += 1;
-        break;
-
-      case 'no_exchange':
-        break;
-    }
-  }
-
-  return {
-    redScore,
-    blueScore,
-    redWins: 0, // wins determined at match end, not from exchanges
-    blueWins: 0,
-    redTargetPoints,
-    blueTargetPoints,
-    redTimesHit,
-    blueTimesHit,
-    doubles,
-  };
+  return computeMatchFormatScore(match, exchanges, normalizeMatchFormatConfig(config.matchFormat));
 }
 
 // ── Match end decision ────────────────────────────────────────────────────────
@@ -208,29 +150,23 @@ export function isMatchOver(
   config: TFv1Config,
 ): MatchEndDecision {
   const active = exchanges.filter((e) => !e.voided);
+  const matchFormat = normalizeMatchFormatConfig(config.matchFormat);
 
-  // Time limit
-  if (config.matchFormat.timeLimitSeconds !== null) {
-    if (clockMs >= config.matchFormat.timeLimitSeconds * 1000) {
+  const timeLimitSeconds = getEffectiveMatchTimeLimitSeconds(_match, matchFormat);
+  if (timeLimitSeconds !== null) {
+    if (clockMs >= timeLimitSeconds * 1000) {
       return { isOver: true, reason: 'time_limit' };
     }
   }
 
-  // First-to-points
-  if (config.matchFormat.firstToPoints !== null) {
-    const score = computeMatchScore(_match, active, config);
-    if (
-      score.redScore >= config.matchFormat.firstToPoints ||
-      score.blueScore >= config.matchFormat.firstToPoints
-    ) {
-      return { isOver: true, reason: 'first_to_points' };
-    }
+  const score = computeMatchScore(_match, active, config);
+  if (isPointCapReached(score, matchFormat)) {
+    return { isOver: true, reason: 'first_to_points' };
   }
 
-  // Max doubles
-  if (config.matchFormat.maxDoubles !== null) {
+  if (matchFormat.maxDoubleHits !== null) {
     const doubleCount = active.filter((e) => e.type === 'double').length;
-    if (doubleCount >= config.matchFormat.maxDoubles) {
+    if (doubleCount >= matchFormat.maxDoubleHits) {
       return { isOver: true, reason: 'max_doubles' };
     }
   }

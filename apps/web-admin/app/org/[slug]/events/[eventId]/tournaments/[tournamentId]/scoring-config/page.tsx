@@ -12,8 +12,18 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import type { AfterblowButton, CleanButton, TournamentScoringConfig } from '@myclash/types';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import type {
+  AfterblowButton,
+  CleanButton,
+  MatchFormatConfig,
+  TournamentScoringConfig,
+  TournamentSideColor,
+} from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  DEFAULT_SCORING_CONFIG,
+  TOURNAMENT_SIDE_COLORS,
+} from '@myclash/types';
 import { useI18n } from '../../../../../../../../src/i18n/I18nProvider';
 
 interface PenaltyRulesetSummary {
@@ -22,6 +32,11 @@ interface PenaltyRulesetSummary {
   code: string;
   version: string;
   built_in: boolean;
+}
+
+interface TournamentMatchConfigResponse {
+  matchFormat: MatchFormatConfig;
+  scoringConfig: TournamentScoringConfig;
 }
 
 export default function ScoringConfigPage() {
@@ -37,6 +52,9 @@ export default function ScoringConfigPage() {
   const [config, setConfig] = useState<TournamentScoringConfig>(
     structuredClone(DEFAULT_SCORING_CONFIG),
   );
+  const [matchFormat, setMatchFormat] = useState<MatchFormatConfig>(
+    structuredClone(DEFAULT_MATCH_FORMAT_CONFIG),
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -50,13 +68,17 @@ export default function ScoringConfigPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/scoring-config`, {
+    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/match-config`, {
       credentials: 'include',
       signal: controller.signal,
     })
       .then(async (res) => {
         setLoading(false);
-        if (res.ok) setConfig((await res.json()) as TournamentScoringConfig);
+        if (res.ok) {
+          const data = (await res.json()) as TournamentMatchConfigResponse;
+          setConfig(data.scoringConfig);
+          setMatchFormat(data.matchFormat);
+        }
       })
       .catch((err: unknown) => {
         setLoading(false);
@@ -89,7 +111,7 @@ export default function ScoringConfigPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ scoringConfig: config }),
+        body: JSON.stringify({ scoringConfig: config, rulesetConfig: { matchFormat } }),
       });
       if (!res.ok) {
         const b = (await res.json()) as { message?: string };
@@ -227,6 +249,33 @@ export default function ScoringConfigPage() {
     }));
   }
 
+  function updateMatchFormat(patch: Partial<MatchFormatConfig>) {
+    setMatchFormat((prev) => ({ ...prev, ...patch }));
+  }
+
+  function updateTimeLimit(stage: keyof MatchFormatConfig['timeLimitsSeconds'], value: number) {
+    setMatchFormat((prev) => ({
+      ...prev,
+      timeLimitsSeconds: {
+        ...prev.timeLimitsSeconds,
+        [stage]: value,
+      },
+    }));
+  }
+
+  function updateSideColor(side: 'red' | 'blue', color: TournamentSideColor) {
+    setConfig((prev) => ({
+      ...prev,
+      display: {
+        ...prev.display,
+        sideColors: {
+          ...prev.display.sideColors,
+          [side]: color,
+        },
+      },
+    }));
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -276,6 +325,128 @@ export default function ScoringConfigPage() {
           {error}
         </div>
       )}
+
+      <section className="mb-8 rounded-xl border border-gray-200 p-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
+          {t('organizer.scoringConfig.matchFormat')}
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="text-sm font-medium text-gray-700">
+            {t('organizer.scoringConfig.pointCap')}
+            <input
+              type="number"
+              min={1}
+              value={matchFormat.pointCap}
+              onChange={(event) =>
+                updateMatchFormat({ pointCap: parseInt(event.target.value, 10) || 1 })
+              }
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            {t('organizer.scoringConfig.maxDoubleHits')}
+            <input
+              type="number"
+              min={1}
+              value={matchFormat.maxDoubleHits ?? ''}
+              onChange={(event) =>
+                updateMatchFormat({
+                  maxDoubleHits: event.target.value
+                    ? parseInt(event.target.value, 10) || null
+                    : null,
+                })
+              }
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            {t('organizer.scoringConfig.scoringDirection')}
+            <select
+              value={matchFormat.scoringDirection}
+              onChange={(event) =>
+                updateMatchFormat({
+                  scoringDirection: event.target.value as MatchFormatConfig['scoringDirection'],
+                })
+              }
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            >
+              <option value="normal">{t('organizer.scoringConfig.normalScoring')}</option>
+              <option value="reverse_zero_loses">
+                {t('organizer.scoringConfig.reverseScoring')}
+              </option>
+            </select>
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            {t('organizer.scoringConfig.timerMode')}
+            <select
+              value={matchFormat.timerMode}
+              onChange={(event) =>
+                updateMatchFormat({
+                  timerMode: event.target.value as MatchFormatConfig['timerMode'],
+                })
+              }
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            >
+              <option value="countdown">{t('organizer.scoringConfig.countdown')}</option>
+              <option value="countup">{t('organizer.scoringConfig.countup')}</option>
+            </select>
+          </label>
+          {(['pool', 'bracket', 'finals'] as const).map((stage) => (
+            <label key={stage} className="text-sm font-medium text-gray-700">
+              {t(`organizer.scoringConfig.${stage}TimeLimit`)}
+              <input
+                type="number"
+                min={1}
+                value={matchFormat.timeLimitsSeconds[stage] ?? ''}
+                onChange={(event) => updateTimeLimit(stage, parseInt(event.target.value, 10) || 1)}
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+            </label>
+          ))}
+          <label className="text-sm font-medium text-gray-700">
+            {t('organizer.scoringConfig.softClockLimit')}
+            <input
+              type="number"
+              min={0}
+              value={matchFormat.softClockLimitSeconds}
+              onChange={(event) =>
+                updateMatchFormat({
+                  softClockLimitSeconds: parseInt(event.target.value, 10) || 0,
+                })
+              }
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="mb-8 rounded-xl border border-gray-200 p-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
+          {t('organizer.scoringConfig.fighterSideColors')}
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          {(['red', 'blue'] as const).map((side) => (
+            <label key={side} className="text-sm font-medium text-gray-700">
+              {side === 'red'
+                ? t('organizer.scoringConfig.redSide')
+                : t('organizer.scoringConfig.blueSide')}
+              <select
+                value={config.display.sideColors[side]}
+                onChange={(event) =>
+                  updateSideColor(side, event.target.value as TournamentSideColor)
+                }
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              >
+                {TOURNAMENT_SIDE_COLORS.map((color) => (
+                  <option key={color} value={color}>
+                    {t(`organizer.scoringConfig.colors.${color}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </section>
 
       {/* ── Afterblow mode ── */}
       <section className="mb-8 rounded-xl border border-gray-200 p-4">

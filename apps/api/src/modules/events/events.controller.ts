@@ -151,7 +151,43 @@ export class EventsController {
       .maybeSingle();
 
     const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
+    const { normalizeTournamentScoringConfig } = await import('./tournament-config');
     const config = (data as { scoring_config_json?: unknown } | null)?.scoring_config_json;
-    return config ?? DEFAULT_SCORING_CONFIG;
+    return normalizeTournamentScoringConfig(config ?? DEFAULT_SCORING_CONFIG);
+  }
+
+  /** GET /api/v1/tournaments/:id/match-config — effective match and display config */
+  @Get('tournaments/:id/match-config')
+  @ApiOperation({ summary: 'Get tournament match format and display configuration' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getMatchConfig(@Param('id', ParseUUIDPipe) id: string) {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('ruleset_code, ruleset_config, scoring_config_json')
+      .eq('id', id)
+      .maybeSingle();
+
+    const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
+    const { normalizeTournamentScoringConfig, validateTournamentRulesetConfig } =
+      await import('./tournament-config');
+    const row = data as {
+      ruleset_code?: string;
+      ruleset_config?: unknown;
+      scoring_config_json?: unknown;
+    } | null;
+    const rulesetConfig = validateTournamentRulesetConfig(
+      row?.ruleset_code ?? 'TF_v1',
+      row?.ruleset_config ?? {},
+    );
+    const scoringConfig = normalizeTournamentScoringConfig(
+      row?.scoring_config_json ?? DEFAULT_SCORING_CONFIG,
+    );
+
+    return {
+      rulesetConfig,
+      matchFormat: rulesetConfig.matchFormat,
+      scoringConfig,
+      display: scoringConfig.display,
+    };
   }
 }

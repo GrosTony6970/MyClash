@@ -5,7 +5,14 @@
  * ruleset engine. Never store computed scores as the source of truth.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { registry, TF_v1, TF_v1_no_afterblow, Generic_PointsCap } from '@myclash/rulesets';
+import {
+  registry,
+  TF_v1,
+  TF_v1_no_afterblow,
+  Generic_PointsCap,
+  getPointCapWinnerRegistrationId,
+  normalizeMatchFormatConfig,
+} from '@myclash/rulesets';
 import type { Exchange as RulesetExchange, Match as RulesetMatch } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -38,7 +45,7 @@ export class ScoringService {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, ruleset_config, status, winner_registration_id',
+        'id, red_registration_id, blue_registration_id, ruleset_code, ruleset_version, status, winner_registration_id, match_number_label, phases(type, tournaments(ruleset_config))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -71,6 +78,8 @@ export class ScoringService {
       rulesetCode: (m['ruleset_code'] as string) ?? 'TF_v1',
       rulesetVersion: (m['ruleset_version'] as string) ?? '1.0.0',
       status: (m['status'] as RulesetMatch['status']) ?? 'running',
+      phaseType: this.phaseType(m['phases']),
+      matchNumberLabel: (m['match_number_label'] as string | null) ?? null,
     };
 
     const exchanges: RulesetExchange[] = (exchangeRows ?? []).map((e) => {
@@ -103,7 +112,7 @@ export class ScoringService {
       ruleset = TF_v1;
     }
 
-    const config = m['ruleset_config'] ?? {};
+    const config = this.rulesetConfig(m['phases']);
     const score = ruleset.computeMatchScore(match, exchanges, config);
     for (const row of penaltyRows ?? []) {
       const penalty = row as Record<string, unknown>;
@@ -112,16 +121,43 @@ export class ScoringService {
       if (penalty['registration_id'] === match.blueRegistrationId) score.blueScore += delta;
     }
 
+    const matchEndDecision = ruleset.isMatchOver(match, exchanges, 0, config);
+    const matchFormat = normalizeMatchFormatConfig(
+      (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
+    );
+    const winnerRegistrationId =
+      matchEndDecision.reason === 'first_to_points'
+        ? getPointCapWinnerRegistrationId(match, score, matchFormat)
+        : null;
+    const matchUpdates: Record<string, unknown> = {
+      red_score: score.redScore,
+      blue_score: score.blueScore,
+      updated_at: new Date().toISOString(),
+    };
+    if (match.status !== 'completed' && matchEndDecision.isOver) {
+      matchUpdates['status'] = 'completed';
+      matchUpdates['ended_at'] = new Date().toISOString();
+      matchUpdates['winner_registration_id'] = winnerRegistrationId;
+    }
+
     // Persist derived scores back to matches row
-    await this.supabase.service
-      .from('matches')
-      .update({
-        red_score: score.redScore,
-        blue_score: score.blueScore,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', matchId);
+    await this.supabase.service.from('matches').update(matchUpdates).eq('id', matchId);
 
     return { redScore: score.redScore, blueScore: score.blueScore };
+  }
+
+  private phaseType(value: unknown): RulesetMatch['phaseType'] {
+    const phase = Array.isArray(value) ? value[0] : value;
+    const type = (phase as { type?: unknown } | null)?.type;
+    return type === 'pool' || type === 'single_elim' || type === 'double_elim' || type === 'swiss'
+      ? type
+      : undefined;
+  }
+
+  private rulesetConfig(value: unknown): unknown {
+    const phase = Array.isArray(value) ? value[0] : value;
+    const tournaments = (phase as { tournaments?: unknown } | null)?.tournaments;
+    const tournament = Array.isArray(tournaments) ? tournaments[0] : tournaments;
+    return (tournament as { ruleset_config?: unknown } | null)?.ruleset_config ?? {};
   }
 }

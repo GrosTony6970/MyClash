@@ -15,6 +15,10 @@ import type {
   UpdateEventDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
+import {
+  normalizeTournamentScoringConfig,
+  validateTournamentRulesetConfig,
+} from './tournament-config';
 
 @Injectable()
 export class EventsService {
@@ -194,7 +198,7 @@ export class EventsService {
   async updateTournament(tournamentId: string, dto: UpdateTournamentDto, userId: string) {
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
-      .select('event_id')
+      .select('event_id, ruleset_code')
       .eq('id', tournamentId)
       .maybeSingle();
 
@@ -212,7 +216,15 @@ export class EventsService {
     if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.status !== undefined) updates['status'] = dto.status;
-    if (dto.scoringConfig !== undefined) updates['scoring_config_json'] = dto.scoringConfig;
+    if (dto.scoringConfig !== undefined) {
+      updates['scoring_config_json'] = normalizeTournamentScoringConfig(dto.scoringConfig);
+    }
+    if (dto.rulesetConfig !== undefined) {
+      updates['ruleset_config'] = validateTournamentRulesetConfig(
+        (tournament as { ruleset_code?: string }).ruleset_code ?? 'TF_v1',
+        dto.rulesetConfig,
+      );
+    }
 
     const { data, error } = await this.supabase.service
       .from('tournaments')

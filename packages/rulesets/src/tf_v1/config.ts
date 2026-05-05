@@ -8,6 +8,11 @@
  * is a whitelisted key, not an evaluated expression.
  */
 import { z } from 'zod';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  MatchFormatConfigSchema,
+  normalizeMatchFormatConfig,
+} from '../match-format';
 
 export const TFv1ConfigSchema = z.object({
   winBonus: z.number().int().positive().default(3),
@@ -19,12 +24,8 @@ export const TFv1ConfigSchema = z.object({
     })
     .default({ deepTarget: 2, shallowTarget: 1 }),
   matchFormat: z
-    .object({
-      firstToPoints: z.number().int().positive().nullable().default(null),
-      timeLimitSeconds: z.number().int().positive().nullable().default(180),
-      maxDoubles: z.number().int().positive().nullable().default(null),
-    })
-    .default({ firstToPoints: null, timeLimitSeconds: 180, maxDoubles: null }),
+    .preprocess((value) => normalizeMatchFormatConfig(value), MatchFormatConfigSchema)
+    .default(DEFAULT_MATCH_FORMAT_CONFIG),
   /** Whitelisted formula key — never eval'd */
   doublePenaltyFormula: z.literal('n*(n-1)/3').default('n*(n-1)/3'),
 });

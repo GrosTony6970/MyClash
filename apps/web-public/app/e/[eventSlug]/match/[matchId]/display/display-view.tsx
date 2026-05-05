@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { TournamentScoringConfig } from '@myclash/types';
+import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { supabase } from '@/lib/supabase';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
@@ -20,6 +22,7 @@ interface DisplayMatch {
   lice?: { name?: string } | null;
   event?: { name?: string } | null;
   tournament?: { name?: string; weapon?: string } | null;
+  scoringConfig?: TournamentScoringConfig | null;
 }
 
 interface Penalty {
@@ -42,6 +45,20 @@ interface Props {
     blueFighterName: string | null;
   } | null;
 }
+
+const DISPLAY_COLOR_STYLE = {
+  white: '#f8fafc',
+  black: '#f8fafc',
+  grey: '#cbd5e1',
+  yellow: '#facc15',
+  red: '#ef4444',
+  blue: '#60a5fa',
+  green: '#4ade80',
+  brown: '#a16207',
+  pink: '#f472b6',
+  orange: '#fb923c',
+  purple: '#c084fc',
+} as const;
 
 export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, nextMatch }: Props) {
   const { t } = useI18n();
@@ -87,6 +104,8 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
   }, [matchId, refresh]);
 
   const activePenalties = penalties.filter((penalty) => !penalty.voided);
+  const sideColors =
+    match.scoringConfig?.display?.sideColors ?? DEFAULT_SCORING_CONFIG.display.sideColors;
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -110,13 +129,13 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
 
         <section className="grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-10">
           <FighterPanel
-            color="red"
+            color={sideColors.red}
             name={match.redFighterName ?? t('scoring.liveMatch.red')}
             score={match.redScore}
           />
           <div className="text-7xl font-black text-gray-500">-</div>
           <FighterPanel
-            color="blue"
+            color={sideColors.blue}
             name={match.blueFighterName ?? t('scoring.liveMatch.blue')}
             score={match.blueScore}
           />
@@ -160,7 +179,7 @@ function FighterPanel({
   name,
   score,
 }: {
-  color: 'red' | 'blue';
+  color: keyof typeof DISPLAY_COLOR_STYLE;
   name: string;
   score: number;
 }) {
@@ -168,9 +187,8 @@ function FighterPanel({
     <div className="text-center">
       <p className="min-h-24 text-5xl font-black leading-tight">{name}</p>
       <p
-        className={`mt-10 text-[18rem] font-black leading-none tabular-nums ${
-          color === 'red' ? 'text-red-500' : 'text-blue-400'
-        }`}
+        className="mt-10 text-[18rem] font-black leading-none tabular-nums"
+        style={{ color: DISPLAY_COLOR_STYLE[color] }}
       >
         {score}
       </p>

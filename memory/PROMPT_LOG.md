@@ -523,3 +523,7 @@ User reports the marketing hero and logo are gone and asks to check that the HTM
 ## 21:24:28_05-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Event Staff Local Accounts + Shareable External Display. Add event-scoped local named PIN staff accounts, Lice-scoped scoring authorization, staff auth cookie, scoring/admin/public UI, public read-only per-match and per-Lice display URLs, tests, and verification.
+
+## 22:54:24_05-05-2026
+
+Implement the Tournament Match Configuration plan: organizer-configurable point cap, side colors, timer mode, scoring direction, phase-specific time limits, soft clock lockout, max double-hit stop, shared ruleset match-format config, UI/API/scoring/display integration, and verification.

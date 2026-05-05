@@ -22,6 +22,21 @@ export type {
 
 // Registry
 export { registry } from './registry';
+export {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  MatchFormatConfigSchema,
+  ScoringDirectionSchema,
+  TimerModeSchema,
+  computeMatchClockMs,
+  computeMatchFormatScore,
+  getEffectiveMatchTimeLimitSeconds,
+  getPointCapWinnerRegistrationId,
+  isMedalMatch,
+  isPointCapReached,
+  isSoftClockLocked,
+  normalizeMatchFormatConfig,
+} from './match-format';
+export type { MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 // TF_v1 ruleset
 export { TF_v1 } from './tf_v1';
