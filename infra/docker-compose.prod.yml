@@ -215,6 +215,10 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       HEMA_RATINGS_SYNC_ENABLED: ${HEMA_RATINGS_SYNC_ENABLED:-true}
+      OPS_RUNNER_URL: http://ops-runner:4075
+      OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
+      BACKUP_UPLOAD_MAX_BYTES: ${BACKUP_UPLOAD_MAX_BYTES:-1073741824}
+      MULTIPART_MAX_BYTES: ${MULTIPART_MAX_BYTES:-1073741824}
     healthcheck:
       test:
         [
@@ -271,6 +275,35 @@ services:
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.port=5000
       # Shared compression middleware
       - traefik.http.middlewares.myclash-compress.compress=true
+
+  # ── Internal ops runner (backup/restore allowlist) ─────────────
+  ops-runner:
+    build:
+      context: ../
+      dockerfile: infra/ops-runner/Dockerfile
+    container_name: myclash-ops-runner
+    restart: unless-stopped
+    working_dir: /srv/myclash
+    environment:
+      NODE_ENV: production
+      OPS_RUNNER_PORT: 4075
+      OPS_RUNNER_SECRET: ${OPS_RUNNER_SECRET}
+      MYCLASH_ROOT_DIR: /srv/myclash
+      BACKUP_SCW_ACCESS_KEY: ${BACKUP_SCW_ACCESS_KEY:-}
+      BACKUP_SCW_SECRET_KEY: ${BACKUP_SCW_SECRET_KEY:-}
+      BACKUP_SCW_BUCKET: ${BACKUP_SCW_BUCKET:-}
+      BACKUP_SCW_REGION: ${BACKUP_SCW_REGION:-fr-par}
+      BACKUP_SCW_ENDPOINT: ${BACKUP_SCW_ENDPOINT:-}
+      TZ: ${TZ}
+    volumes:
+      - ../:/srv/myclash
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [myclash]
+    mem_limit: 512m
+    cpus: 1
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
   # ── Worker (BullMQ jobs: stats, exports, notifications, ratings) ──
   worker:

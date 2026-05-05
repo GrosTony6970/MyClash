@@ -28,8 +28,11 @@ async function bootstrap(): Promise<void> {
   const fastifyMultipart = require('@fastify/multipart') as {
     default: Parameters<NestFastifyApplication['register']>[0];
   };
+  const multipartMaxBytes = process.env['MULTIPART_MAX_BYTES']
+    ? Number(process.env['MULTIPART_MAX_BYTES'])
+    : 1024 * 1024 * 1024;
   await app.register(fastifyMultipart.default ?? fastifyMultipart, {
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max CSV
+    limits: { fileSize: multipartMaxBytes },
   });
 
   // ── Global validation pipe ───────────────────────────────────────────────

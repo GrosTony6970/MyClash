@@ -29,6 +29,7 @@ const SAMPLE_VALUES = new Map([
   ['SUPABASE_ANON_KEY', new Set(['change-me-anon-jwt'])],
   ['SUPABASE_SERVICE_ROLE_KEY', new Set(['change-me-service-role-jwt'])],
   ['MYCLASH_GUEST_JWT_SECRET', new Set(['change-me-guest-jwt-secret'])],
+  ['OPS_RUNNER_SECRET', new Set(['change-me-ops-runner-secret'])],
   ['RESEND_API_KEY', new Set(['re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])],
   ['MAIL_FROM', new Set(['noreply@myclash.fr'])],
   ['NEXT_PUBLIC_SUPABASE_URL', new Set(['http://localhost:8000'])],
@@ -48,6 +49,7 @@ const SECRET_GENERATORS = {
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
+  OPS_RUNNER_SECRET: () => randomBytes(48).toString('base64url'),
   // Generate a strong random password for the bootstrap super admin.
   // Stored in .env so deploy.sh can display it once and the operator saves it.
   SEED_ADMIN_PASSWORD: () => randomBytes(16).toString('base64url'),
@@ -216,8 +218,13 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['HEMA_RATINGS_SYNC_ENABLED', state.values.get('HEMA_RATINGS_SYNC_ENABLED') || 'true'],
     // Scaleway S3 defaults
     ['BACKUP_SCW_REGION', state.values.get('BACKUP_SCW_REGION') || 'fr-par'],
-    ['BACKUP_SCW_ENDPOINT', state.values.get('BACKUP_SCW_ENDPOINT') || 'https://s3.fr-par.scw.cloud'],
+    [
+      'BACKUP_SCW_ENDPOINT',
+      state.values.get('BACKUP_SCW_ENDPOINT') || 'https://s3.fr-par.scw.cloud',
+    ],
     ['BACKUP_RETENTION_DAYS', state.values.get('BACKUP_RETENTION_DAYS') || '60'],
+    ['BACKUP_UPLOAD_MAX_BYTES', state.values.get('BACKUP_UPLOAD_MAX_BYTES') || '1073741824'],
+    ['MULTIPART_MAX_BYTES', state.values.get('MULTIPART_MAX_BYTES') || '1073741824'],
   ]) {
     if (isSampleOrMissing(key, state.values.get(key))) {
       applyValue(state, key, value, 'normalized');

@@ -5,8 +5,9 @@
 #
 # Usage:
 #   infra/scripts/restore.sh                          # interactive: list local backups
-#   infra/scripts/restore.sh <db-backup-file>         # restore DB only
+#   infra/scripts/restore.sh <db-backup-file>         # restore DB + matching storage if present
 #   infra/scripts/restore.sh --from-s3 <timestamp>   # pull from Scaleway S3 then restore
+#   infra/scripts/restore.sh <db-backup-file> --yes --db-only
 #
 # Examples:
 #   infra/scripts/restore.sh backups/nightly/db-20260501T030000Z.sql.gz
@@ -69,6 +70,15 @@ fi
 # ── --from-s3 mode ───────────────────────────────────────────────
 FROM_S3=0
 TIMESTAMP_ARG=""
+
+AUTO_YES=0
+INCLUDE_STORAGE=1
+for arg in "$@"; do
+  [[ "$arg" == "--yes" ]] && AUTO_YES=1
+  [[ "$arg" == "--db-only" ]] && INCLUDE_STORAGE=0
+  [[ "$arg" == "--include-storage" ]] && INCLUDE_STORAGE=1
+done
+[[ "${MYCLASH_RESTORE_CONFIRM:-}" == "1" ]] && AUTO_YES=1
 
 if [[ "${1:-}" == "--from-s3" ]]; then
   FROM_S3=1
@@ -142,7 +152,11 @@ info "Target DB:      $POSTGRES_DB on db container"
 warn "This will DROP the existing $POSTGRES_DB database and recreate it."
 [[ -n "$STORAGE_FILE" ]] && warn "This will REPLACE data/storage with the backup archive."
 echo
-confirm "Proceed?" || { warn "Aborted."; exit 0; }
+if [[ "$AUTO_YES" -eq 1 ]]; then
+  warn "Proceeding non-interactively because --yes or MYCLASH_RESTORE_CONFIRM=1 was provided."
+else
+  confirm "Proceed?" || { warn "Aborted."; exit 0; }
+fi
 
 # ── Stop app services ────────────────────────────────────────────
 hdr "Stopping app services"
@@ -175,7 +189,7 @@ ok "Postgres restored from $BACKUP_FILE"
 [[ -n "$TEMP_DECRYPTED_DB" ]] && rm -f "$TEMP_DECRYPTED_DB"
 
 # ── Restore Storage volume ───────────────────────────────────────
-if [[ -n "$STORAGE_FILE" && -f "$STORAGE_FILE" ]]; then
+if [[ "$INCLUDE_STORAGE" -eq 1 && -n "$STORAGE_FILE" && -f "$STORAGE_FILE" ]]; then
   hdr "Restoring Storage volume"
 
   RESTORE_STORAGE_FILE="$STORAGE_FILE"

@@ -7,7 +7,7 @@
 # ── MyClash runtime data (matches MyFAL pattern) ─────────────────
 data/
 logs/
-backups/
+/backups/
 .last-deploy.json
 .last-deploy.json.rolled-back-*
 .deploy.lock

@@ -39,6 +39,7 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
       'SUPABASE_ANON_KEY=change-me-anon-jwt',
       'SUPABASE_SERVICE_ROLE_KEY=change-me-service-role-jwt',
       'MYCLASH_GUEST_JWT_SECRET=change-me-guest-jwt-secret',
+      'OPS_RUNNER_SECRET=change-me-ops-runner-secret',
       'RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
       'MAIL_FROM=noreply@myclash.fr',
       'SMTP_HOST=smtp.resend.com',
@@ -65,6 +66,10 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
       RESEND_API_KEY: 're_real_key',
       MAIL_FROM: 'noreply@example.org',
       SMTP_PASS: 're_real_key',
+      SEED_ADMIN_EMAIL: 'admin@example.org',
+      BACKUP_SCW_ACCESS_KEY: 'scw_access',
+      BACKUP_SCW_SECRET_KEY: 'scw_secret',
+      BACKUP_SCW_BUCKET: 'myclash-backups',
     },
   });
 
@@ -75,6 +80,7 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   assert.equal(values.get('NEXT_PUBLIC_API_URL'), 'https://api.example.org');
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
+  assert.notEqual(values.get('OPS_RUNNER_SECRET'), 'change-me-ops-runner-secret');
   assert.ok(values.get('VAPID_PUBLIC_KEY'));
   assert.ok(values.get('VAPID_PRIVATE_KEY'));
 });
@@ -94,9 +100,14 @@ test('generates matching Supabase anon and service-role JWTs', async () => {
       'SUPABASE_ANON_KEY=change-me-anon-jwt',
       'SUPABASE_SERVICE_ROLE_KEY=change-me-service-role-jwt',
       'MYCLASH_GUEST_JWT_SECRET=change-me-guest-jwt-secret',
+      'OPS_RUNNER_SECRET=change-me-ops-runner-secret',
       'RESEND_API_KEY=re_real_key',
       'MAIL_FROM=noreply@example.org',
       'SMTP_PASS=re_real_key',
+      'SEED_ADMIN_EMAIL=admin@example.org',
+      'BACKUP_SCW_ACCESS_KEY=scw_access',
+      'BACKUP_SCW_SECRET_KEY=scw_secret',
+      'BACKUP_SCW_BUCKET=myclash-backups',
       'GOOGLE_OAUTH_ENABLED=false',
       '',
     ].join('\n'),
@@ -135,6 +146,10 @@ test('preserves real existing values', async () => {
       'RESEND_API_KEY=re_real_key',
       'MAIL_FROM=noreply@existing.example',
       'SMTP_PASS=re_real_key',
+      'SEED_ADMIN_EMAIL=admin@existing.example',
+      'BACKUP_SCW_ACCESS_KEY=scw_access',
+      'BACKUP_SCW_SECRET_KEY=scw_secret',
+      'BACKUP_SCW_BUCKET=myclash-backups',
       'GOOGLE_OAUTH_ENABLED=false',
       'VAPID_PUBLIC_KEY=real-vapid-public',
       'VAPID_PRIVATE_KEY=real-vapid-private',

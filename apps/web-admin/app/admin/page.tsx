@@ -42,6 +42,11 @@ const sections = [
     title: t('admin.dashboard.systemVersionsTitle'),
     description: t('admin.dashboard.systemVersionsDescription'),
   },
+  {
+    href: '/admin/backups',
+    title: t('admin.dashboard.backupsTitle'),
+    description: t('admin.dashboard.backupsDescription'),
+  },
 ];
 
 export default function SuperAdminDashboardPage() {

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MatchesModule } from '../matches/matches.module';
 import { AdminAuditLogService } from './admin-audit-log.service';
+import { BackupsAdminController } from './backups.controller';
+import { AdminBackupsService } from './backups.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import { AdminOrganizationsService } from './admin-organizations.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
@@ -26,6 +28,7 @@ import { UsersAdminController } from './users.controller';
     AuditLogAdminController,
     ExchangeEditRequestsAdminController,
     SystemVersionsAdminController,
+    BackupsAdminController,
   ],
   providers: [
     AdminOrganizationsService,
@@ -35,6 +38,7 @@ import { UsersAdminController } from './users.controller';
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,
     AdminSystemVersionsService,
+    AdminBackupsService,
     SuperAdminGuard,
   ],
   exports: [SuperAdminGuard],
