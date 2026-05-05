@@ -32,6 +32,12 @@ export const matches = pgTable('matches', {
   }),
   status: text('status').notNull().default('scheduled'),
   // scheduled | running | paused | completed | voided
+  sideOrder: text('side_order').notNull().default('red_left'),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  lockedByUserId: uuid('locked_by_user_id'),
+  lockedByStaffAccountId: uuid('locked_by_staff_account_id'),
+  lockSource: text('lock_source'),
+  lockReason: text('lock_reason'),
   scorekeeperUserId: uuid('scorekeeper_user_id'),
   rulesetCode: text('ruleset_code').notNull().default('TF_v1'),
   rulesetVersion: text('ruleset_version').notNull().default('1'),
@@ -50,6 +56,7 @@ export const matchEvents = pgTable('match_events', {
   type: text('type').notNull(),
   // start | halt | resume | warning | end | reset_clock
   reason: text('reason'),
+  adjustmentMs: integer('adjustment_ms'),
   byUserId: uuid('by_user_id'),
   staffAccountId: uuid('staff_account_id'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
@@ -80,6 +87,8 @@ export const exchanges = pgTable('exchanges', {
   redScoreDelta: integer('red_score_delta').notNull().default(0),
   blueScoreDelta: integer('blue_score_delta').notNull().default(0),
   staffAccountId: uuid('staff_account_id'),
+  correctedExchangeId: uuid('corrected_exchange_id'),
+  correctionReason: text('correction_reason'),
   voided: boolean('voided').notNull().default(false),
   voidedReason: text('voided_reason'),
 });

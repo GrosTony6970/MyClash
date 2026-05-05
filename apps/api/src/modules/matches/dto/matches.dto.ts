@@ -115,3 +115,67 @@ export class VoidExchangeDto {
   @IsString()
   reason?: string;
 }
+
+export class EditExchangeDto {
+  @ApiProperty({ enum: ['clean', 'afterblow', 'double', 'no_exchange'] })
+  @IsIn(['clean', 'afterblow', 'double', 'no_exchange'])
+  type!: string;
+
+  @ApiProperty({ required: false, enum: ['red', 'blue', null] })
+  @IsOptional()
+  @IsIn(['red', 'blue'])
+  firstStrikerColor?: 'red' | 'blue';
+
+  @ApiProperty({ required: false, enum: [1, 2] })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2)
+  firstStrikeValue?: 1 | 2;
+
+  @ApiProperty({ required: false, enum: [1, 2] })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2)
+  afterblowValue?: 1 | 2;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  noExchangeReason?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class ResetMatchDto {
+  @ApiProperty({ example: 'RESET MATCH' })
+  @IsString()
+  confirmation!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class AdjustClockDto {
+  @ApiProperty({ description: 'Signed time adjustment in milliseconds' })
+  @IsInt()
+  adjustmentMs!: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class LockMatchDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}

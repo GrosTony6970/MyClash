@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable myclash/no-literal-string -- existing match detail page has not been i18n-baselined yet */
 
 /**
  * Match detail + exchange editor — T-705
@@ -41,6 +42,7 @@ interface Match {
   redFighterName: string | null;
   blueFighterName: string | null;
   rulesetCode: string;
+  lockedAt?: string | null;
 }
 
 interface AuditEntry {
@@ -196,6 +198,23 @@ export default function MatchDetailPage() {
     }
   }
 
+  async function handleLockToggle() {
+    if (!match) return;
+    const endpoint = match.lockedAt ? 'unlock' : 'lock';
+    const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ reason: 'Organizer manual lock toggle' }),
+    });
+    if (res.ok) {
+      setRefreshKey((key) => key + 1);
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      alert(body.message ?? 'Lock operation failed');
+    }
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -227,6 +246,9 @@ export default function MatchDetailPage() {
           <div>
             <h1 className="text-2xl font-bold">{match.matchNumberLabel}</h1>
             <p className="text-gray-500 text-sm mt-0.5">{match.rulesetCode}</p>
+            {match.lockedAt && (
+              <p className="mt-1 text-sm font-medium text-yellow-700">Locked for staff scoring</p>
+            )}
           </div>
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums">
@@ -237,6 +259,13 @@ export default function MatchDetailPage() {
             <p className="text-sm text-gray-500 mt-0.5">
               {match.redFighterName ?? '?'} vs {match.blueFighterName ?? '?'}
             </p>
+            <button
+              type="button"
+              onClick={() => void handleLockToggle()}
+              className="mt-3 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-500"
+            >
+              {match.lockedAt ? 'Unlock match' : 'Lock match'}
+            </button>
           </div>
         </div>
       )}

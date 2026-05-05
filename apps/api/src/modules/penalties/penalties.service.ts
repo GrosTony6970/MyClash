@@ -189,9 +189,10 @@ export class PenaltiesService {
   async createPenalty(
     matchId: string,
     dto: CreatePenaltyDto,
-    context?: { userId?: string; staffAccountId?: string },
+    context?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
   ) {
     const match = await this.getMatchContext(matchId);
+    this.assertMatchNotLocked(match, context);
     if (!context?.staffAccountId) {
       await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
     }
@@ -291,7 +292,7 @@ export class PenaltiesService {
   async voidPenalty(
     penaltyId: string,
     dto: VoidPenaltyDto,
-    context?: { userId?: string; staffAccountId?: string },
+    context?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
   ) {
     const { data: penalty, error: fetchError } = await this.supabase.service
       .from('match_penalties')
@@ -302,6 +303,7 @@ export class PenaltiesService {
     if (!penalty) throw new NotFoundException(`Penalty ${penaltyId} not found`);
     const row = penalty as Row;
     const match = await this.getMatchContext(row['match_id'] as string);
+    this.assertMatchNotLocked(match, context);
     if (!context?.staffAccountId) {
       await this.assertUserCanScoreOrg(match.organizationId, context?.userId);
     }
@@ -427,7 +429,7 @@ export class PenaltiesService {
   private async getMatchContext(matchId: string): Promise<MatchContext> {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
-      .select('id, red_registration_id, blue_registration_id, phase_id')
+      .select('id, red_registration_id, blue_registration_id, phase_id, locked_at')
       .eq('id', matchId)
       .maybeSingle();
     if (matchError) throw new BadRequestException(matchError.message);
@@ -462,6 +464,7 @@ export class PenaltiesService {
 
     return {
       id: match['id'] as string,
+      lockedAt: (match['locked_at'] as string | null) ?? null,
       redRegistrationId: match['red_registration_id'] as string,
       blueRegistrationId: match['blue_registration_id'] as string,
       tournamentId: tournament['id'] as string,
@@ -472,6 +475,15 @@ export class PenaltiesService {
         (event['penalty_ruleset_id'] as string | null) ??
         null,
     };
+  }
+
+  private assertMatchNotLocked(
+    match: { lockedAt?: string | null },
+    context?: { canOverrideLocked?: boolean },
+  ) {
+    if (match.lockedAt && !context?.canOverrideLocked) {
+      throw new BadRequestException('Match is locked');
+    }
   }
 
   private async getEventOrganizationId(eventId: string): Promise<string> {
@@ -615,6 +627,7 @@ export class PenaltiesService {
 
 interface MatchContext {
   id: string;
+  lockedAt: string | null;
   redRegistrationId: string;
   blueRegistrationId: string;
   tournamentId: string;

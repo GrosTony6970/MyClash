@@ -26,6 +26,8 @@ interface MatchInfo {
   tournamentId?: string;
   eventSlug?: string;
   phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
+  sideOrder?: 'red_left' | 'blue_left';
+  lockedAt?: string | null;
 }
 
 interface Props {
@@ -40,6 +42,7 @@ export default function LiceMatchPage({ params }: Props) {
   const [liceId, setLiceId] = useState<string | null>(null);
   const [currentMatch, setCurrentMatch] = useState<MatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   // Initialize from browser API synchronously — avoids a flash of wrong state
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
@@ -87,7 +90,7 @@ export default function LiceMatchPage({ params }: Props) {
         setLoading(false);
       }
     })();
-  }, [liceId, apiUrl, router]);
+  }, [liceId, apiUrl, router, refreshKey]);
 
   if (loading) {
     return (
@@ -125,14 +128,33 @@ export default function LiceMatchPage({ params }: Props) {
       </header>
 
       {/* Match content */}
-      {currentMatch ? <MatchView match={currentMatch} apiUrl={apiUrl} /> : <NoMatchView />}
+      {currentMatch ? (
+        <MatchView
+          match={currentMatch}
+          apiUrl={apiUrl}
+          networkStatus={networkStatus}
+          onRefresh={() => setRefreshKey((key) => key + 1)}
+        />
+      ) : (
+        <NoMatchView />
+      )}
     </main>
   );
 }
 
 // ── Match view ────────────────────────────────────────────────────────────────
 
-function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
+function MatchView({
+  match,
+  apiUrl,
+  networkStatus,
+  onRefresh,
+}: {
+  match: MatchInfo;
+  apiUrl: string;
+  networkStatus: 'online' | 'offline';
+  onRefresh: () => void;
+}) {
   const { t } = useI18n();
   const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
   const [nextSequence, setNextSequence] = useState(1);
@@ -187,7 +209,29 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
       </div>
 
       {/* Clock — must be halted before scoring */}
-      <MatchClock matchId={match.id} apiUrl={apiUrl} onStateChange={setClockState} />
+      {match.lockedAt && (
+        <div className="rounded-xl border border-yellow-700 bg-yellow-950 px-4 py-3 text-center text-sm font-bold text-yellow-100">
+          {t('scoring.corrections.matchLocked')}
+        </div>
+      )}
+
+      <MatchClock
+        matchId={match.id}
+        apiUrl={apiUrl}
+        matchFormat={matchFormat}
+        phaseType={match.phaseType ?? undefined}
+        matchNumberLabel={match.matchNumberLabel}
+        disabled={Boolean(match.lockedAt)}
+        onStateChange={setClockState}
+      />
+
+      <CorrectionTools
+        matchId={match.id}
+        apiUrl={apiUrl}
+        online={networkStatus === 'online'}
+        locked={Boolean(match.lockedAt)}
+        onDone={onRefresh}
+      />
 
       {/* ScoringPad — scoreboard + buttons under each fighter */}
       <div className="flex-1">
@@ -199,7 +243,9 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
           blueName={match.blueFighterName ?? t('scoring.lice.blue')}
           redScore={match.redScore}
           blueScore={match.blueScore}
-          scoringEnabled={match.status === 'running' || match.status === 'halted'}
+          scoringEnabled={
+            (match.status === 'running' || match.status === 'halted') && !match.lockedAt
+          }
           config={scoringConfig}
           matchFormat={matchFormat}
           phaseType={match.phaseType ?? undefined}
@@ -216,12 +262,253 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
             blueRegistrationId={match.blueRegistrationId}
             redName={match.redFighterName ?? t('scoring.lice.red')}
             blueName={match.blueFighterName ?? t('scoring.lice.blue')}
-            disabled={match.status !== 'running' && match.status !== 'halted'}
+            disabled={(match.status !== 'running' && match.status !== 'halted') || !!match.lockedAt}
             onPenaltyRecorded={() => setNextSequence((n) => n + 1)}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+interface ExchangeSummary {
+  id: string;
+  sequence: number;
+  type: string;
+  voided: boolean;
+}
+
+function CorrectionTools({
+  matchId,
+  apiUrl,
+  online,
+  locked,
+  onDone,
+}: {
+  matchId: string;
+  apiUrl: string;
+  online: boolean;
+  locked: boolean;
+  onDone: () => void;
+}) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resetText, setResetText] = useState('');
+  const [reason, setReason] = useState('');
+  const [adjustSeconds, setAdjustSeconds] = useState(10);
+  const [exchanges, setExchanges] = useState<ExchangeSummary[]>([]);
+  const [selectedExchangeId, setSelectedExchangeId] = useState('');
+
+  useEffect(() => {
+    if (!online) return;
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          const rows = ((await res.json()) as ExchangeSummary[]).filter((row) => !row.voided);
+          setExchanges(rows);
+          setSelectedExchangeId(rows.at(-1)?.id ?? '');
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [apiUrl, matchId, online]);
+
+  const disabled = busy || !online || locked;
+
+  async function post(path: string, body: Record<string, unknown> = {}) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message ?? t('scoring.corrections.actionFailed'));
+      }
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('scoring.corrections.actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function editSelectedExchange() {
+    if (!selectedExchangeId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/exchanges/${selectedExchangeId}/edit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          reason: reason || t('scoring.corrections.defaultReason'),
+          clientUuid: crypto.randomUUID(),
+          sequence: 0,
+          type: 'no_exchange',
+          occurredAt: new Date().toISOString(),
+          noExchangeReason: 'other',
+        }),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(payload.message ?? t('scoring.corrections.actionFailed'));
+      }
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('scoring.corrections.actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-gray-800 bg-gray-950 p-4 text-gray-100">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-200">
+          {t('scoring.corrections.title')}
+        </h2>
+        {!online && (
+          <span className="text-xs text-red-300">{t('scoring.corrections.onlineOnly')}</span>
+        )}
+        {locked && (
+          <span className="text-xs text-yellow-300">{t('scoring.corrections.locked')}</span>
+        )}
+      </div>
+
+      {error && (
+        <p className="mb-3 rounded-lg bg-red-900 px-3 py-2 text-xs text-red-100">{error}</p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() =>
+            void post(`/api/v1/matches/${matchId}/exchanges/clear-last`, {
+              reason: reason || t('scoring.corrections.defaultReason'),
+            })
+          }
+          className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+        >
+          {t('scoring.corrections.clearLastExchange')}
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => void post(`/api/v1/matches/${matchId}/swap-fighter-color`)}
+          className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+        >
+          {t('scoring.corrections.swapColor')}
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => void post(`/api/v1/matches/${matchId}/swap-fighter-side`)}
+          className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+        >
+          {t('scoring.corrections.swapSide')}
+        </button>
+        <button
+          type="button"
+          disabled={disabled || resetText !== 'RESET MATCH'}
+          onClick={() =>
+            void post(`/api/v1/matches/${matchId}/reset`, {
+              confirmation: resetText,
+              reason: reason || t('scoring.corrections.defaultReason'),
+            })
+          }
+          className="rounded-lg border border-red-700 px-3 py-2 text-sm font-bold text-red-200 disabled:opacity-40"
+        >
+          {t('scoring.corrections.resetMatch')}
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-2">
+        <input
+          type="number"
+          min={1}
+          value={adjustSeconds}
+          onChange={(event) => setAdjustSeconds(parseInt(event.target.value, 10) || 1)}
+          className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm"
+          aria-label={t('scoring.corrections.adjustSeconds')}
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() =>
+            void post(`/api/v1/matches/${matchId}/clock/adjust`, {
+              adjustmentMs: adjustSeconds * 1000,
+              reason: reason || t('scoring.corrections.defaultReason'),
+            })
+          }
+          className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+        >
+          {t('scoring.corrections.addTime')}
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() =>
+            void post(`/api/v1/matches/${matchId}/clock/adjust`, {
+              adjustmentMs: -adjustSeconds * 1000,
+              reason: reason || t('scoring.corrections.defaultReason'),
+            })
+          }
+          className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+        >
+          {t('scoring.corrections.subtractTime')}
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+        <select
+          value={selectedExchangeId}
+          onChange={(event) => setSelectedExchangeId(event.target.value)}
+          className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm"
+        >
+          <option value="">{t('scoring.corrections.selectExchange')}</option>
+          {exchanges.map((exchange) => (
+            <option key={exchange.id} value={exchange.id}>
+              #{exchange.sequence} {exchange.type}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={disabled || !selectedExchangeId}
+          onClick={() => void editSelectedExchange()}
+          className="rounded-lg border border-gray-700 px-3 py-2 text-sm font-bold disabled:opacity-40"
+        >
+          {t('scoring.corrections.editAsNoExchange')}
+        </button>
+      </div>
+
+      <input
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder={t('scoring.corrections.reason')}
+        aria-label={t('scoring.corrections.reason')}
+        className="mt-3 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm"
+      />
+      <input
+        value={resetText}
+        onChange={(event) => setResetText(event.target.value)}
+        placeholder={t('scoring.corrections.resetConfirmation')}
+        aria-label={t('scoring.corrections.resetConfirmation')}
+        className="mt-2 w-full rounded-lg border border-red-900 bg-gray-900 px-3 py-2 text-sm"
+      />
+    </section>
   );
 }
 

@@ -95,6 +95,20 @@ export interface TournamentScoringConfig {
   display: TournamentDisplayConfig;
 }
 
+export interface TournamentLockConfig {
+  autoLockEnabled: boolean;
+  autoLockDelayMinutes: number;
+  autoLockCompletedPools: boolean;
+  autoLockCompletedBrackets: boolean;
+}
+
+export const DEFAULT_TOURNAMENT_LOCK_CONFIG: TournamentLockConfig = {
+  autoLockEnabled: true,
+  autoLockDelayMinutes: 15,
+  autoLockCompletedPools: true,
+  autoLockCompletedBrackets: true,
+};
+
 /** Default config — matches TF_v1 standard */
 export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
   afterblowMode: 'full',

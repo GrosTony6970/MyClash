@@ -16,6 +16,7 @@ import type {
   UpdateTournamentDto,
 } from './dto/events.dto';
 import {
+  normalizeTournamentLockConfig,
   normalizeTournamentScoringConfig,
   validateTournamentRulesetConfig,
 } from './tournament-config';
@@ -218,6 +219,9 @@ export class EventsService {
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.scoringConfig !== undefined) {
       updates['scoring_config_json'] = normalizeTournamentScoringConfig(dto.scoringConfig);
+    }
+    if (dto.lockConfig !== undefined) {
+      updates['lock_config_json'] = normalizeTournamentLockConfig(dto.lockConfig);
     }
     if (dto.rulesetConfig !== undefined) {
       updates['ruleset_config'] = validateTournamentRulesetConfig(

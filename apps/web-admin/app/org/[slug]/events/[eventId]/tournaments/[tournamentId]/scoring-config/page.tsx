@@ -16,12 +16,14 @@ import type {
   AfterblowButton,
   CleanButton,
   MatchFormatConfig,
+  TournamentLockConfig,
   TournamentScoringConfig,
   TournamentSideColor,
 } from '@myclash/types';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
+  DEFAULT_TOURNAMENT_LOCK_CONFIG,
   TOURNAMENT_SIDE_COLORS,
 } from '@myclash/types';
 import { useI18n } from '../../../../../../../../src/i18n/I18nProvider';
@@ -37,6 +39,7 @@ interface PenaltyRulesetSummary {
 interface TournamentMatchConfigResponse {
   matchFormat: MatchFormatConfig;
   scoringConfig: TournamentScoringConfig;
+  lockConfig: TournamentLockConfig;
 }
 
 export default function ScoringConfigPage() {
@@ -54,6 +57,9 @@ export default function ScoringConfigPage() {
   );
   const [matchFormat, setMatchFormat] = useState<MatchFormatConfig>(
     structuredClone(DEFAULT_MATCH_FORMAT_CONFIG),
+  );
+  const [lockConfig, setLockConfig] = useState<TournamentLockConfig>(
+    structuredClone(DEFAULT_TOURNAMENT_LOCK_CONFIG),
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,6 +84,7 @@ export default function ScoringConfigPage() {
           const data = (await res.json()) as TournamentMatchConfigResponse;
           setConfig(data.scoringConfig);
           setMatchFormat(data.matchFormat);
+          setLockConfig(data.lockConfig ?? structuredClone(DEFAULT_TOURNAMENT_LOCK_CONFIG));
         }
       })
       .catch((err: unknown) => {
@@ -111,7 +118,7 @@ export default function ScoringConfigPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ scoringConfig: config, rulesetConfig: { matchFormat } }),
+        body: JSON.stringify({ scoringConfig: config, rulesetConfig: { matchFormat }, lockConfig }),
       });
       if (!res.ok) {
         const b = (await res.json()) as { message?: string };
@@ -276,6 +283,10 @@ export default function ScoringConfigPage() {
     }));
   }
 
+  function updateLockConfig(patch: Partial<TournamentLockConfig>) {
+    setLockConfig((prev) => ({ ...prev, ...patch }));
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -416,6 +427,59 @@ export default function ScoringConfigPage() {
               }
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
+          </label>
+        </div>
+      </section>
+
+      <section className="mb-8 rounded-xl border border-gray-200 p-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
+          {t('organizer.scoringConfig.matchLocking')}
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={lockConfig.autoLockEnabled}
+              onChange={(event) => updateLockConfig({ autoLockEnabled: event.target.checked })}
+              className="rounded"
+            />
+            {t('organizer.scoringConfig.autoLockEnabled')}
+          </label>
+          <label className="text-sm font-medium text-gray-700">
+            {t('organizer.scoringConfig.autoLockDelayMinutes')}
+            <input
+              type="number"
+              min={0}
+              value={lockConfig.autoLockDelayMinutes}
+              onChange={(event) =>
+                updateLockConfig({
+                  autoLockDelayMinutes: Math.max(0, parseInt(event.target.value, 10) || 0),
+                })
+              }
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={lockConfig.autoLockCompletedPools}
+              onChange={(event) =>
+                updateLockConfig({ autoLockCompletedPools: event.target.checked })
+              }
+              className="rounded"
+            />
+            {t('organizer.scoringConfig.autoLockCompletedPools')}
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              checked={lockConfig.autoLockCompletedBrackets}
+              onChange={(event) =>
+                updateLockConfig({ autoLockCompletedBrackets: event.target.checked })
+              }
+              className="rounded"
+            />
+            {t('organizer.scoringConfig.autoLockCompletedBrackets')}
           </label>
         </div>
       </section>

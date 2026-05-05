@@ -74,6 +74,27 @@ describe('ClockService.computeClockState', () => {
     expect(state.runningFrom).toBeNull();
   });
 
+  it('adjust_time adds signed milliseconds to the derived clock', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'adjust_time', reason: null, occurred_at: T2, adjustment_ms: 15_000 },
+    ]);
+    expect(state.status).toBe('halted');
+    expect(state.activeMs).toBe(3 * 60 * 1000 + 15_000);
+  });
+
+  it('reset_match returns the replayed clock to idle', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'reset_match', reason: null, occurred_at: T2 },
+    ]);
+    expect(state.status).toBe('idle');
+    expect(state.activeMs).toBe(0);
+    expect(state.runningFrom).toBeNull();
+  });
+
   it('multiple halt/resume cycles accumulate correctly', () => {
     const state = service.computeClockState('m1', [
       { id: 'e1', type: 'start', reason: null, occurred_at: T0 },

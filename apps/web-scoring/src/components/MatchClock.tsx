@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MatchFormatConfig } from '@myclash/types';
+import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
+import { useI18n } from '../i18n/I18nProvider';
 
 export type ClockStatus = 'idle' | 'running' | 'halted' | 'ended';
 
@@ -15,23 +18,65 @@ export interface ClockState {
 interface MatchClockProps {
   matchId: string;
   apiUrl: string;
-  /** Called after every clock action with the new state */
+  matchFormat?: MatchFormatConfig;
+  phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss';
+  matchNumberLabel?: string | null;
+  disabled?: boolean;
   onStateChange?: (state: ClockState) => void;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatMs(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
+export function formatClockMs(ms: number): string {
+  const clamped = Math.max(0, ms);
+  const totalSeconds = Math.floor(clamped / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const centiseconds = Math.floor((clamped % 1000) / 10);
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
+    centiseconds,
+  ).padStart(2, '0')}`;
 }
 
-/**
- * Compute current display time from server state + local drift correction.
- * This is the key AC: clock recomputes from match_events timeline on every render.
- */
+export function isMedalMatchLabel(label: string | null | undefined) {
+  const normalized = (label ?? '').trim().toUpperCase();
+  return ['F', 'FINAL', 'GOLD', 'GOLD MEDAL MATCH', '3RD', 'BRONZE', 'BRONZE MEDAL MATCH'].includes(
+    normalized,
+  );
+}
+
+export function phaseTimeLimitSeconds(
+  matchFormat: MatchFormatConfig,
+  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
+  matchNumberLabel: string | null | undefined,
+) {
+  if (phaseType === 'pool') return matchFormat.timeLimitsSeconds.pool;
+  if (isMedalMatchLabel(matchNumberLabel)) return matchFormat.timeLimitsSeconds.finals;
+  return matchFormat.timeLimitsSeconds.bracket;
+}
+
+export function displayClockMs(
+  elapsedMs: number,
+  matchFormat: MatchFormatConfig,
+  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
+  matchNumberLabel: string | null | undefined,
+) {
+  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
+  if (matchFormat.timerMode === 'countdown' && limitSeconds !== null) {
+    return Math.max(0, limitSeconds * 1000 - elapsedMs);
+  }
+  return elapsedMs;
+}
+
+export function shouldWarnClock(
+  elapsedMs: number,
+  matchFormat: MatchFormatConfig,
+  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
+  matchNumberLabel: string | null | undefined,
+) {
+  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
+  if (limitSeconds === null) return false;
+  return Math.max(0, limitSeconds * 1000 - elapsedMs) < 10_000;
+}
+
 function computeDisplayMs(state: ClockState): number {
   if (state.status !== 'running' || !state.runningFrom) {
     return state.activeMs;
@@ -40,17 +85,21 @@ function computeDisplayMs(state: ClockState): number {
   return state.activeMs + elapsed;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
-export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchClockProps) {
+export default function MatchClock({
+  matchId,
+  apiUrl,
+  matchFormat = DEFAULT_MATCH_FORMAT_CONFIG,
+  phaseType,
+  matchNumberLabel,
+  disabled = false,
+  onStateChange,
+}: MatchClockProps) {
+  const { t } = useI18n();
   const [clockState, setClockState] = useState<ClockState | null>(null);
   const [displayMs, setDisplayMs] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ── Fetch clock state from server ─────────────────────────────────────────
-  // AC: reload preserves clock state from server
 
   const fetchState = useCallback(async () => {
     try {
@@ -63,31 +112,27 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
       setDisplayMs(computeDisplayMs(state));
       onStateChange?.(state);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load clock');
+      setError(err instanceof Error ? err.message : t('scoring.clock.loadFailed'));
     }
-  }, [matchId, apiUrl, onStateChange]);
+  }, [matchId, apiUrl, onStateChange, t]);
 
-  // Load on mount — fetchState is async, setState calls happen inside the async fn
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch, setState in callback
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch updates state after server response
     void fetchState();
   }, [fetchState]);
-
-  // ── Tick: drift correction every 100ms ────────────────────────────────────
-  // AC: clock recomputes from match_events timeline on every render
 
   useEffect(() => {
     if (clockState?.status === 'running') {
       tickRef.current = setInterval(() => {
         setDisplayMs(computeDisplayMs(clockState));
-      }, 100);
+      }, 50);
     } else {
       if (tickRef.current) {
         clearInterval(tickRef.current);
         tickRef.current = null;
       }
       if (clockState) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- sync update to display time when clock stops
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize displayed time when server clock stops
         setDisplayMs(computeDisplayMs(clockState));
       }
     }
@@ -95,8 +140,6 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
       if (tickRef.current) clearInterval(tickRef.current);
     };
   }, [clockState]);
-
-  // ── Clock action ──────────────────────────────────────────────────────────
 
   const doAction = useCallback(
     async (action: string, reason?: string) => {
@@ -111,53 +154,53 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
         });
         if (!res.ok) {
           const body = (await res.json()) as { message?: string };
-          throw new Error(body.message ?? `Action ${action} failed`);
+          throw new Error(body.message ?? t('scoring.clock.actionFailed'));
         }
         const newState = (await res.json()) as ClockState;
         setClockState(newState);
         setDisplayMs(computeDisplayMs(newState));
         onStateChange?.(newState);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Clock action failed');
+        setError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
       } finally {
         setLoading(false);
       }
     },
-    [matchId, apiUrl, onStateChange],
+    [matchId, apiUrl, onStateChange, t],
   );
-
-  // ── Render ────────────────────────────────────────────────────────────────
 
   if (!clockState) {
     return (
-      <div className="flex items-center justify-center h-32">
-        <p className="text-gray-500 text-sm">Loading clock…</p>
+      <div className="flex h-32 items-center justify-center">
+        <p className="text-sm text-gray-500">{t('scoring.clock.loading')}</p>
       </div>
     );
   }
 
   const { status } = clockState;
+  const warned = shouldWarnClock(displayMs, matchFormat, phaseType, matchNumberLabel);
+  const shownMs = displayClockMs(displayMs, matchFormat, phaseType, matchNumberLabel);
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Clock display */}
       <div
         className={`text-7xl font-black tabular-nums tracking-tight ${
-          status === 'running'
-            ? 'text-white'
-            : status === 'halted'
-              ? 'text-yellow-400'
-              : status === 'ended'
-                ? 'text-gray-500'
-                : 'text-gray-600'
+          warned
+            ? 'text-red-500'
+            : status === 'running'
+              ? 'text-white'
+              : status === 'halted'
+                ? 'text-yellow-400'
+                : status === 'ended'
+                  ? 'text-gray-500'
+                  : 'text-gray-600'
         }`}
       >
-        {formatMs(displayMs)}
+        {formatClockMs(shownMs)}
       </div>
 
-      {/* Status badge */}
       <div
-        className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
+        className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-widest ${
           status === 'running'
             ? 'bg-green-900 text-green-300'
             : status === 'halted'
@@ -170,31 +213,29 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
         {status}
       </div>
 
-      {/* Error */}
-      {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+      {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
-      {/* Action buttons */}
-      <div className="flex gap-3 flex-wrap justify-center">
+      <div className="flex flex-wrap justify-center gap-3">
         {status === 'idle' && (
           <ClockButton
-            label="Start"
+            label={t('scoring.clock.start')}
             color="green"
-            disabled={loading}
+            disabled={loading || disabled}
             onClick={() => void doAction('start')}
           />
         )}
         {status === 'running' && (
           <>
             <ClockButton
-              label="Halt"
+              label={t('scoring.clock.halt')}
               color="yellow"
-              disabled={loading}
+              disabled={loading || disabled}
               onClick={() => void doAction('halt')}
             />
             <ClockButton
-              label="End Match"
+              label={t('scoring.clock.endMatch')}
               color="red"
-              disabled={loading}
+              disabled={loading || disabled}
               onClick={() => void doAction('end')}
             />
           </>
@@ -202,21 +243,21 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
         {status === 'halted' && (
           <>
             <ClockButton
-              label="Resume"
+              label={t('scoring.clock.resume')}
               color="green"
-              disabled={loading}
+              disabled={loading || disabled}
               onClick={() => void doAction('resume')}
             />
             <ClockButton
-              label="End Match"
+              label={t('scoring.clock.endMatch')}
               color="red"
-              disabled={loading}
+              disabled={loading || disabled}
               onClick={() => void doAction('end')}
             />
             <ClockButton
-              label="Reset"
+              label={t('scoring.clock.reset')}
               color="gray"
-              disabled={loading}
+              disabled={loading || disabled}
               onClick={() => void doAction('reset_clock')}
             />
           </>
@@ -225,8 +266,6 @@ export default function MatchClock({ matchId, apiUrl, onStateChange }: MatchCloc
     </div>
   );
 }
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 function ClockButton({
   label,
@@ -250,7 +289,7 @@ function ClockButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${colors[color]} disabled:opacity-40 text-white font-bold py-3 px-6 rounded-xl text-lg transition-colors min-w-[120px]`}
+      className={`${colors[color]} min-w-[120px] rounded-xl px-6 py-3 text-lg font-bold text-white transition-colors disabled:opacity-40`}
     >
       {label}
     </button>

@@ -27,6 +27,8 @@ function makeChain(result: unknown) {
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
+    limit: vi.fn() as ReturnType<typeof vi.fn>,
+    in: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
@@ -35,6 +37,8 @@ function makeChain(result: unknown) {
   chain.order.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
   return chain;
 }
 
@@ -349,6 +353,87 @@ describe('MatchesService', () => {
 
       expect(elapsed).toBeLessThan(1000);
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledTimes(N);
+    });
+  });
+  describe('match correction operations', () => {
+    it('clearLastExchange voids the latest non-voided exchange', async () => {
+      const lockChain = makeChain({ data: null, error: null });
+      lockChain.maybeSingle.mockResolvedValue({
+        data: { id: 'match-1', locked_at: null },
+        error: null,
+      });
+      const latestChain = makeChain({ data: null, error: null });
+      latestChain.maybeSingle.mockResolvedValue({
+        data: { id: 'ex-2', match_id: 'match-1', voided: false },
+        error: null,
+      });
+      const fetchExchangeChain = makeChain({ data: null, error: null });
+      fetchExchangeChain.maybeSingle.mockResolvedValue({
+        data: { id: 'ex-2', match_id: 'match-1', voided: false },
+        error: null,
+      });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({
+        data: { id: 'ex-2', match_id: 'match-1', voided: true },
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(lockChain)
+        .mockReturnValueOnce(latestChain)
+        .mockReturnValueOnce(fetchExchangeChain)
+        .mockReturnValueOnce(updateChain);
+
+      await service.clearLastExchange('match-1', { reason: 'wrong call' });
+
+      expect(latestChain.order).toHaveBeenCalledWith('sequence', { ascending: false });
+      expect(updateChain.update).toHaveBeenCalledWith({
+        voided: true,
+        voided_reason: 'wrong call',
+      });
+      expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('match-1');
+    });
+
+    it('resetMatch requires the exact confirmation phrase', async () => {
+      await expect(
+        service.resetMatch('match-1', { confirmation: 'reset', reason: 'test' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    it('swapFighterSide toggles visual side order only', async () => {
+      const lockChain = makeChain({ data: null, error: null });
+      lockChain.maybeSingle.mockResolvedValue({
+        data: { id: 'match-1', side_order: 'red_left', locked_at: null },
+        error: null,
+      });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({
+        data: { id: 'match-1', side_order: 'blue_left' },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(lockChain).mockReturnValueOnce(updateChain);
+
+      const result = await service.swapFighterSide('match-1');
+
+      expect(updateChain.update).toHaveBeenCalledWith({
+        side_order: 'blue_left',
+        updated_at: expect.any(String),
+      });
+      expect(result).toEqual({ id: 'match-1', side_order: 'blue_left' });
+      expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
+    });
+
+    it('locked matches reject staff correction operations', async () => {
+      const lockChain = makeChain({ data: null, error: null });
+      lockChain.maybeSingle.mockResolvedValue({
+        data: { id: 'match-1', locked_at: '2026-05-05T12:00:00.000Z' },
+        error: null,
+      });
+      fromMock.mockReturnValue(lockChain);
+
+      await expect(
+        service.clearLastExchange('match-1', {}, { staffAccountId: 'staff-1' }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

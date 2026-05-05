@@ -21,6 +21,7 @@ export const tournaments = pgTable('tournaments', {
   rulesetVersion: text('ruleset_version').notNull().default('1'),
   rulesetConfig: jsonb('ruleset_config'),
   scoringConfig: jsonb('scoring_config_json'),
+  lockConfig: jsonb('lock_config_json'),
   penaltyRulesetId: uuid('penalty_ruleset_id'),
   status: text('status').notNull().default('draft'),
   // draft | published | running | completed | archived

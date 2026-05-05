@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import type { TournamentScoringConfig } from '@myclash/types';
+import type { TournamentLockConfig, TournamentScoringConfig } from '@myclash/types';
 
 export class CreateEventDto {
   @ApiProperty({ example: 'FAL 2026' })
@@ -168,4 +168,12 @@ export class UpdateTournamentDto {
   @IsOptional()
   @IsObject()
   rulesetConfig?: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    description: 'Tournament match lock and auto-lock configuration',
+  })
+  @IsOptional()
+  @IsObject()
+  lockConfig?: TournamentLockConfig;
 }

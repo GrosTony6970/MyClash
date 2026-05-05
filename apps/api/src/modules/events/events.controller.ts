@@ -163,17 +163,21 @@ export class EventsController {
   async getMatchConfig(@Param('id', ParseUUIDPipe) id: string) {
     const { data } = await this.supabase.service
       .from('tournaments')
-      .select('ruleset_code, ruleset_config, scoring_config_json')
+      .select('ruleset_code, ruleset_config, scoring_config_json, lock_config_json')
       .eq('id', id)
       .maybeSingle();
 
     const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
-    const { normalizeTournamentScoringConfig, validateTournamentRulesetConfig } =
-      await import('./tournament-config');
+    const {
+      normalizeTournamentLockConfig,
+      normalizeTournamentScoringConfig,
+      validateTournamentRulesetConfig,
+    } = await import('./tournament-config');
     const row = data as {
       ruleset_code?: string;
       ruleset_config?: unknown;
       scoring_config_json?: unknown;
+      lock_config_json?: unknown;
     } | null;
     const rulesetConfig = validateTournamentRulesetConfig(
       row?.ruleset_code ?? 'TF_v1',
@@ -188,6 +192,7 @@ export class EventsController {
       matchFormat: rulesetConfig.matchFormat,
       scoringConfig,
       display: scoringConfig.display,
+      lockConfig: normalizeTournamentLockConfig(row?.lock_config_json),
     };
   }
 }

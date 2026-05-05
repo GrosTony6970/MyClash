@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { TournamentScoringConfig } from '@myclash/types';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { supabase } from '@/lib/supabase';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
@@ -23,6 +23,8 @@ interface DisplayMatch {
   event?: { name?: string } | null;
   tournament?: { name?: string; weapon?: string } | null;
   scoringConfig?: TournamentScoringConfig | null;
+  matchFormat?: MatchFormatConfig | null;
+  sideOrder?: 'red_left' | 'blue_left';
 }
 
 interface Penalty {
@@ -46,6 +48,12 @@ interface Props {
   } | null;
 }
 
+interface ClockState {
+  status: 'idle' | 'running' | 'halted' | 'ended';
+  activeMs: number;
+  runningFrom: string | null;
+}
+
 const DISPLAY_COLOR_STYLE = {
   white: '#f8fafc',
   black: '#f8fafc',
@@ -64,14 +72,22 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
   const { t } = useI18n();
   const [match, setMatch] = useState(initialMatch);
   const [penalties, setPenalties] = useState(initialPenalties);
+  const [clock, setClock] = useState<ClockState | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   const refresh = useCallback(async () => {
-    const [matchRes, penaltyRes] = await Promise.all([
+    const [matchRes, penaltyRes, clockRes] = await Promise.all([
       fetch(`${apiUrl}/api/v1/matches/${matchId}/display`, { cache: 'no-store' }),
       fetch(`${apiUrl}/api/v1/matches/${matchId}/penalties`, { cache: 'no-store' }),
+      fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, { cache: 'no-store' }),
     ]);
     if (matchRes.ok) setMatch((await matchRes.json()) as DisplayMatch);
     if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
+    if (clockRes.ok) {
+      const nextClock = (await clockRes.json()) as ClockState;
+      setClock(nextClock);
+      setElapsedMs(computeElapsedMs(nextClock));
+    }
   }, [apiUrl, matchId]);
 
   useEffect(() => {
@@ -97,6 +113,11 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
         },
         () => void refresh(),
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
+        () => void refresh(),
+      )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
@@ -106,6 +127,32 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
   const activePenalties = penalties.filter((penalty) => !penalty.voided);
   const sideColors =
     match.scoringConfig?.display?.sideColors ?? DEFAULT_SCORING_CONFIG.display.sideColors;
+  const matchFormat = match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
+  const shownMs = formatClockMs(displayClockMs(elapsedMs, matchFormat));
+  const warnClock = shouldWarnClock(elapsedMs, matchFormat);
+  const redPanel = {
+    color: sideColors.red,
+    name: match.redFighterName ?? t('scoring.liveMatch.red'),
+    score: match.redScore,
+  };
+  const bluePanel = {
+    color: sideColors.blue,
+    name: match.blueFighterName ?? t('scoring.liveMatch.blue'),
+    score: match.blueScore,
+  };
+  const panels: [typeof redPanel, typeof bluePanel] =
+    match.sideOrder === 'blue_left' ? [bluePanel, redPanel] : [redPanel, bluePanel];
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async refresh updates state after server responses
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (clock?.status !== 'running') return;
+    const timer = setInterval(() => setElapsedMs(computeElapsedMs(clock)), 50);
+    return () => clearInterval(timer);
+  }, [clock]);
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -127,18 +174,18 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
           </div>
         </header>
 
+        <div
+          className={`mt-8 text-center text-8xl font-black tabular-nums ${
+            warnClock ? 'text-red-500' : 'text-white'
+          }`}
+        >
+          {shownMs}
+        </div>
+
         <section className="grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-10">
-          <FighterPanel
-            color={sideColors.red}
-            name={match.redFighterName ?? t('scoring.liveMatch.red')}
-            score={match.redScore}
-          />
+          <FighterPanel color={panels[0].color} name={panels[0].name} score={panels[0].score} />
           <div className="text-7xl font-black text-gray-500">-</div>
-          <FighterPanel
-            color={sideColors.blue}
-            name={match.blueFighterName ?? t('scoring.liveMatch.blue')}
-            score={match.blueScore}
-          />
+          <FighterPanel color={panels[1].color} name={panels[1].name} score={panels[1].score} />
         </section>
 
         <footer className="grid grid-cols-2 gap-6 border-t border-white/10 pt-6">
@@ -172,6 +219,36 @@ export function DisplayView({ apiUrl, matchId, initialMatch, initialPenalties, n
       </div>
     </main>
   );
+}
+
+function computeElapsedMs(state: ClockState) {
+  if (state.status !== 'running' || !state.runningFrom) return state.activeMs;
+  return state.activeMs + Date.now() - new Date(state.runningFrom).getTime();
+}
+
+function formatClockMs(ms: number): string {
+  const clamped = Math.max(0, ms);
+  const totalSeconds = Math.floor(clamped / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const centiseconds = Math.floor((clamped % 1000) / 10);
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
+    centiseconds,
+  ).padStart(2, '0')}`;
+}
+
+function displayClockMs(elapsedMs: number, matchFormat: MatchFormatConfig) {
+  const limitSeconds = matchFormat.timeLimitsSeconds.bracket;
+  if (matchFormat.timerMode === 'countdown' && limitSeconds !== null) {
+    return Math.max(0, limitSeconds * 1000 - elapsedMs);
+  }
+  return elapsedMs;
+}
+
+function shouldWarnClock(elapsedMs: number, matchFormat: MatchFormatConfig) {
+  const limitSeconds = matchFormat.timeLimitsSeconds.bracket;
+  if (limitSeconds === null) return false;
+  return Math.max(0, limitSeconds * 1000 - elapsedMs) < 10_000;
 }
 
 function FighterPanel({

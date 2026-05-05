@@ -25,6 +25,7 @@ export const STAFF_COOKIE_NAME = 'mc_staff';
 export interface ScoringActor {
   userId?: string;
   staffAccountId?: string;
+  canOverrideLocked?: boolean;
 }
 
 type EventRow = {
@@ -213,7 +214,10 @@ export class StaffService {
     if (userId) {
       const match = await this.getMatchContext(matchId);
       await this.orgs.assertOrgRole(match.organizationId, userId, 'scorekeeper');
-      return { userId };
+      return {
+        userId,
+        canOverrideLocked: await this.canOverrideLockedMatch(match.organizationId, userId),
+      };
     }
 
     const staff = await this.requireStaffFromRequest(req);
@@ -222,7 +226,15 @@ export class StaffService {
     if (!match.liceId) throw new ForbiddenException('Match has no assigned Lice');
     const assigned = await this.isLiceAssigned(staff.id, match.liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
-    return { staffAccountId: staff.id };
+    return { staffAccountId: staff.id, canOverrideLocked: false };
+  }
+
+  async authorizeMatchOrganizer(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
+    const userId = await this.getSupabaseUserId(req);
+    if (!userId) throw new UnauthorizedException('Organizer session required');
+    const match = await this.getMatchContext(matchId);
+    await this.orgs.assertOrgRole(match.organizationId, userId, 'editor');
+    return { userId, canOverrideLocked: true };
   }
 
   async authorizeExchangeScoring(req: FastifyRequest, exchangeId: string): Promise<ScoringActor> {
@@ -310,7 +322,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,phases(type,tournaments(id,name,weapon,scoring_config_json)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,scoring_config_json,ruleset_config_json)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -337,7 +349,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),phases(tournaments(id,name,weapon,scoring_config_json))',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config_json))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -409,6 +421,15 @@ export class StaffService {
   private async assertCanManageEventStaff(eventId: string, userId: string) {
     const event = await this.getEventById(eventId);
     await this.orgs.assertOrgRole(event.organization_id, userId, 'editor');
+  }
+
+  private async canOverrideLockedMatch(organizationId: string, userId: string): Promise<boolean> {
+    try {
+      await this.orgs.assertOrgRole(organizationId, userId, 'editor');
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async getEventById(eventId: string): Promise<EventRow> {
@@ -513,7 +534,13 @@ export class StaffService {
     const blue = match['blue'] as { persons?: { display_name?: string } } | null;
     const phase = match['phases'] as {
       type?: string;
-      tournaments?: { id?: string; name?: string; weapon?: string; scoring_config_json?: unknown };
+      tournaments?: {
+        id?: string;
+        name?: string;
+        weapon?: string;
+        scoring_config_json?: unknown;
+        ruleset_config_json?: { matchFormat?: unknown };
+      };
     } | null;
     const tournament = phase?.tournaments ?? null;
     return {
@@ -526,6 +553,8 @@ export class StaffService {
       blueRegistrationId: match['blue_registration_id'],
       redScore: match['red_score'],
       blueScore: match['blue_score'],
+      sideOrder: match['side_order'] ?? 'red_left',
+      lockedAt: match['locked_at'] ?? null,
       rulesetCode: match['ruleset_code'],
       rulesetVersion: match['ruleset_version'],
       redFighterName: red?.persons?.display_name ?? null,
@@ -534,6 +563,7 @@ export class StaffService {
       tournamentName: tournament?.name ?? null,
       weapon: tournament?.weapon ?? null,
       scoringConfig: tournament?.scoring_config_json ?? null,
+      matchFormat: tournament?.ruleset_config_json?.matchFormat ?? null,
     };
   }
 
@@ -542,7 +572,13 @@ export class StaffService {
     const blue = match['blue'] as { persons?: { display_name?: string } } | null;
     const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
     const phases = match['phases'] as {
-      tournaments?: { id?: string; name?: string; weapon?: string; scoring_config_json?: unknown };
+      tournaments?: {
+        id?: string;
+        name?: string;
+        weapon?: string;
+        scoring_config_json?: unknown;
+        ruleset_config_json?: { matchFormat?: unknown };
+      };
     } | null;
     return {
       id: match['id'],
@@ -555,6 +591,8 @@ export class StaffService {
       blueRegistrationId: match['blue_registration_id'],
       redScore: match['red_score'],
       blueScore: match['blue_score'],
+      sideOrder: match['side_order'] ?? 'red_left',
+      lockedAt: match['locked_at'] ?? null,
       rulesetCode: match['ruleset_code'],
       rulesetVersion: match['ruleset_version'],
       redFighterName: red?.persons?.display_name ?? null,
@@ -563,6 +601,7 @@ export class StaffService {
       event: lices?.events ?? null,
       tournament: phases?.tournaments ?? null,
       scoringConfig: phases?.tournaments?.scoring_config_json ?? null,
+      matchFormat: phases?.tournaments?.ruleset_config_json?.matchFormat ?? null,
     };
   }
 }

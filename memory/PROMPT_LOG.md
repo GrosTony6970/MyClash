@@ -527,3 +527,7 @@ PLEASE IMPLEMENT THIS PLAN: Event Staff Local Accounts + Shareable External Disp
 ## 22:54:24_05-05-2026
 
 Implement the Tournament Match Configuration plan: organizer-configurable point cap, side colors, timer mode, scoring direction, phase-specific time limits, soft clock lockout, max double-hit stop, shared ruleset match-format config, UI/API/scoring/display integration, and verification.
+
+## 23:35:08_05-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Match Correction, Timer Display, and Match Locking

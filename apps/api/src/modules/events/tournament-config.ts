@@ -1,7 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   DEFAULT_SCORING_CONFIG,
+  DEFAULT_TOURNAMENT_LOCK_CONFIG,
   TOURNAMENT_SIDE_COLORS,
+  type TournamentLockConfig,
   type TournamentScoringConfig,
   type TournamentSideColor,
 } from '@myclash/types';
@@ -53,6 +55,29 @@ export function normalizeTournamentScoringConfig(input: unknown): TournamentScor
         blue: parseSideColor(sideColors['blue'], DEFAULT_SCORING_CONFIG.display.sideColors.blue),
       },
     },
+  };
+}
+
+export function normalizeTournamentLockConfig(input: unknown): TournamentLockConfig {
+  const raw = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const delay =
+    typeof raw['autoLockDelayMinutes'] === 'number'
+      ? Math.max(0, Math.floor(raw['autoLockDelayMinutes']))
+      : DEFAULT_TOURNAMENT_LOCK_CONFIG.autoLockDelayMinutes;
+  return {
+    autoLockEnabled:
+      typeof raw['autoLockEnabled'] === 'boolean'
+        ? raw['autoLockEnabled']
+        : DEFAULT_TOURNAMENT_LOCK_CONFIG.autoLockEnabled,
+    autoLockDelayMinutes: delay,
+    autoLockCompletedPools:
+      typeof raw['autoLockCompletedPools'] === 'boolean'
+        ? raw['autoLockCompletedPools']
+        : DEFAULT_TOURNAMENT_LOCK_CONFIG.autoLockCompletedPools,
+    autoLockCompletedBrackets:
+      typeof raw['autoLockCompletedBrackets'] === 'boolean'
+        ? raw['autoLockCompletedBrackets']
+        : DEFAULT_TOURNAMENT_LOCK_CONFIG.autoLockCompletedBrackets,
   };
 }
 

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -7,9 +8,13 @@ import { FrozenResultsGuard } from './frozen-results.guard';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
+  EditExchangeDto,
+  ResetMatchDto,
   UpdateMatchStatusDto,
   VoidExchangeDto,
 } from './dto/matches.dto';
+
+type MatchActor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
 
 @Injectable()
 export class MatchesService {
@@ -139,12 +144,9 @@ export class MatchesService {
    * AGENTS.md hard rule #1: score is derived from exchanges, never stored
    * as the source of truth.
    */
-  async createExchange(
-    matchId: string,
-    dto: CreateExchangeDto,
-    context?: { userId?: string; staffAccountId?: string },
-  ) {
+  async createExchange(matchId: string, dto: CreateExchangeDto, context?: MatchActor) {
     await this.frozenResults?.assertExchangeCreationAllowed(matchId, context?.userId);
+    if (context) await this.assertMatchUnlocked(matchId, context);
 
     // Idempotency check: if client_uuid already exists, return existing row
     const { data: existing } = await this.supabase.service
@@ -225,6 +227,8 @@ export class MatchesService {
     if (ex.voided) {
       throw new BadRequestException('Exchange is already voided');
     }
+    if (context && !context.bypassFrozenReview)
+      await this.assertMatchUnlocked(ex.match_id, context);
 
     if (!context?.bypassFrozenReview) {
       const pending = await this.frozenResults?.guardExchangeMutation({
@@ -275,6 +279,8 @@ export class MatchesService {
     if (!ex.voided) {
       throw new BadRequestException('Exchange is not voided');
     }
+    if (context && !context.bypassFrozenReview)
+      await this.assertMatchUnlocked(ex.match_id, context);
 
     if (!context?.bypassFrozenReview) {
       const pending = await this.frozenResults?.guardExchangeMutation({
@@ -324,6 +330,213 @@ export class MatchesService {
     return result;
   }
 
+  async clearLastExchange(matchId: string, dto: VoidExchangeDto, context?: MatchActor) {
+    await this.assertMatchUnlocked(matchId, context);
+    const { data: exchange, error } = await this.supabase.service
+      .from('exchanges')
+      .select('id, match_id, voided')
+      .eq('match_id', matchId)
+      .eq('voided', false)
+      .order('sequence', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!exchange) throw new NotFoundException('No exchange to clear');
+    return this.voidExchange((exchange as { id: string }).id, dto, context);
+  }
+
+  async editExchange(exchangeId: string, dto: EditExchangeDto, context?: MatchActor) {
+    const { data: original, error: fetchError } = await this.supabase.service
+      .from('exchanges')
+      .select('*')
+      .eq('id', exchangeId)
+      .maybeSingle();
+    if (fetchError) throw new BadRequestException(fetchError.message);
+    if (!original) throw new NotFoundException(`Exchange ${exchangeId} not found`);
+    const row = original as Record<string, unknown>;
+    if (row['voided']) throw new BadRequestException('Exchange is already voided');
+    const matchId = row['match_id'] as string;
+    await this.assertMatchUnlocked(matchId, context);
+
+    const { redDelta, blueDelta } = this.computeDeltas({
+      clientUuid: randomUUID(),
+      sequence: Number(row['sequence'] ?? 1),
+      type: dto.type,
+      occurredAt: new Date().toISOString(),
+      firstStrikerColor: dto.firstStrikerColor,
+      firstStrikeValue: dto.firstStrikeValue,
+      afterblowValue: dto.afterblowValue,
+      noExchangeReason: dto.noExchangeReason,
+    });
+
+    await this.supabase.service
+      .from('exchanges')
+      .update({
+        voided: true,
+        voided_reason: dto.reason ?? 'edited',
+      })
+      .eq('id', exchangeId);
+
+    const sequence = await this.nextExchangeSequence(matchId);
+    const { data, error } = await this.supabase.service
+      .from('exchanges')
+      .insert({
+        client_uuid: randomUUID(),
+        match_id: matchId,
+        sequence,
+        type: dto.type,
+        occurred_at: new Date().toISOString(),
+        recorded_at: new Date().toISOString(),
+        duration_since_prev_ms: row['duration_since_prev_ms'] ?? null,
+        first_striker_color: dto.firstStrikerColor ?? null,
+        first_strike_value: dto.firstStrikeValue ?? null,
+        afterblow_value: dto.afterblowValue ?? null,
+        no_exchange_reason: dto.noExchangeReason ?? null,
+        red_score_delta: redDelta,
+        blue_score_delta: blueDelta,
+        staff_account_id: context?.staffAccountId ?? null,
+        corrected_exchange_id: exchangeId,
+        correction_reason: dto.reason ?? null,
+        voided: false,
+      })
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    await this.scoring.recomputeMatchScore(matchId);
+    return data;
+  }
+
+  async swapFighterColor(matchId: string, context?: MatchActor) {
+    const match = await this.getLockableMatch(matchId);
+    await this.assertMatchUnlocked(matchId, context, match);
+    const updates = {
+      red_registration_id: match.blue_registration_id,
+      blue_registration_id: match.red_registration_id,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update(updates)
+      .eq('id', matchId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    const { data: exchanges, error: exchangeError } = await this.supabase.service
+      .from('exchanges')
+      .select('id, first_striker_color')
+      .eq('match_id', matchId);
+    if (exchangeError) throw new BadRequestException(exchangeError.message);
+    for (const exchange of exchanges ?? []) {
+      const row = exchange as { id: string; first_striker_color: string | null };
+      const next =
+        row.first_striker_color === 'red'
+          ? 'blue'
+          : row.first_striker_color === 'blue'
+            ? 'red'
+            : null;
+      if (next) {
+        await this.supabase.service
+          .from('exchanges')
+          .update({ first_striker_color: next })
+          .eq('id', row.id);
+      }
+    }
+    await this.scoring.recomputeMatchScore(matchId);
+    return data;
+  }
+
+  async swapFighterSide(matchId: string, context?: MatchActor) {
+    const match = await this.getLockableMatch(matchId);
+    await this.assertMatchUnlocked(matchId, context, match);
+    const next = match.side_order === 'blue_left' ? 'red_left' : 'blue_left';
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update({ side_order: next, updated_at: new Date().toISOString() })
+      .eq('id', matchId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async resetMatch(matchId: string, dto: ResetMatchDto, context?: MatchActor) {
+    if (dto.confirmation !== 'RESET MATCH') {
+      throw new BadRequestException('Confirmation phrase must be RESET MATCH');
+    }
+    await this.assertMatchUnlocked(matchId, context);
+    const reason = dto.reason ?? 'match reset';
+    await this.supabase.service
+      .from('exchanges')
+      .update({ voided: true, voided_reason: reason })
+      .eq('match_id', matchId)
+      .eq('voided', false);
+    await this.supabase.service
+      .from('match_penalties')
+      .update({ voided: true, voided_reason: reason })
+      .eq('match_id', matchId)
+      .eq('voided', false);
+    await this.insertMatchEvent(matchId, 'reset_match', reason, context);
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update({
+        status: 'scheduled',
+        red_score: 0,
+        blue_score: 0,
+        winner_registration_id: null,
+        started_at: null,
+        ended_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async lockMatch(
+    matchId: string,
+    reason: string | undefined,
+    context?: MatchActor,
+    source: 'manual' | 'auto' = 'manual',
+  ) {
+    const now = new Date().toISOString();
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update({
+        locked_at: now,
+        locked_by_user_id: context?.userId ?? null,
+        locked_by_staff_account_id: context?.staffAccountId ?? null,
+        lock_source: source,
+        lock_reason: reason ?? null,
+        updated_at: now,
+      })
+      .eq('id', matchId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async unlockMatch(matchId: string, context?: MatchActor) {
+    if (!context?.canOverrideLocked) throw new BadRequestException('Organizer permission required');
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update({
+        locked_at: null,
+        locked_by_user_id: null,
+        locked_by_staff_account_id: null,
+        lock_source: null,
+        lock_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────────
 
   private computeDeltas(dto: CreateExchangeDto): { redDelta: number; blueDelta: number } {
@@ -350,5 +563,62 @@ export class MatchesService {
     }
 
     return { redDelta, blueDelta };
+  }
+
+  private async assertMatchUnlocked(
+    matchId: string,
+    context?: MatchActor,
+    existing?: Record<string, unknown>,
+  ) {
+    const match = existing ?? (await this.getLockableMatch(matchId));
+    if (match['locked_at'] && !context?.canOverrideLocked) {
+      throw new BadRequestException('Match is locked');
+    }
+  }
+
+  private async getLockableMatch(matchId: string): Promise<Record<string, unknown>> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, red_registration_id, blue_registration_id, side_order, locked_at')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+    return data as Record<string, unknown>;
+  }
+
+  private async nextExchangeSequence(matchId: string): Promise<number> {
+    const { data } = await this.supabase.service
+      .from('exchanges')
+      .select('sequence')
+      .eq('match_id', matchId)
+      .order('sequence', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return ((data as { sequence?: number } | null)?.sequence ?? 0) + 1;
+  }
+
+  private async insertMatchEvent(
+    matchId: string,
+    type: string,
+    reason: string,
+    context?: MatchActor,
+  ): Promise<void> {
+    const { data: lastEvent } = await this.supabase.service
+      .from('match_events')
+      .select('sequence')
+      .eq('match_id', matchId)
+      .order('sequence', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    await this.supabase.service.from('match_events').insert({
+      match_id: matchId,
+      sequence: ((lastEvent as { sequence?: number } | null)?.sequence ?? 0) + 1,
+      type,
+      reason,
+      by_user_id: context?.userId ?? null,
+      staff_account_id: context?.staffAccountId ?? null,
+      occurred_at: new Date().toISOString(),
+    });
   }
 }

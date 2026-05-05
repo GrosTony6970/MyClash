@@ -18,8 +18,12 @@ import { StaffService } from '../staff/staff.service';
 import { ClockService, type ClockAction } from './clock.service';
 import { MatchesService } from './matches.service';
 import {
+  AdjustClockDto,
   CreateExchangeDto,
   CreateMatchDto,
+  EditExchangeDto,
+  LockMatchDto,
+  ResetMatchDto,
   UpdateMatchStatusDto,
   VoidExchangeDto,
 } from './dto/matches.dto';
@@ -92,6 +96,26 @@ export class MatchesController {
     return this.matches.voidMatch(id);
   }
 
+  @Post('matches/:id/lock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lock match scoring (organizer+)' })
+  async lockMatch(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: LockMatchDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actor = await this.staff.authorizeMatchOrganizer(req, id);
+    return this.matches.lockMatch(id, dto.reason, actor);
+  }
+
+  @Post('matches/:id/unlock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlock match scoring (organizer+)' })
+  async unlockMatch(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchOrganizer(req, id);
+    return this.matches.unlockMatch(id, actor);
+  }
+
   // ── Exchanges ─────────────────────────────────────────────────────────────────
 
   @Get('matches/:id/exchanges')
@@ -157,6 +181,57 @@ export class MatchesController {
     return result;
   }
 
+  @Post('matches/:id/exchanges/clear-last')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear the latest non-voided exchange (scorekeeper+)' })
+  async clearLastExchange(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VoidExchangeDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.clearLastExchange(id, dto, actor);
+  }
+
+  @Patch('exchanges/:id/edit')
+  @ApiOperation({ summary: 'Edit an exchange by voiding and replacing it (scorekeeper+)' })
+  async editExchange(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: EditExchangeDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actor = await this.staff.authorizeExchangeScoring(req, id);
+    return this.matches.editExchange(id, dto, actor);
+  }
+
+  @Post('matches/:id/swap-fighter-color')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Swap red/blue fighter scoring colors (scorekeeper+)' })
+  async swapFighterColor(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.swapFighterColor(id, actor);
+  }
+
+  @Post('matches/:id/swap-fighter-side')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Swap left/right fighter display sides (scorekeeper+)' })
+  async swapFighterSide(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.swapFighterSide(id, actor);
+  }
+
+  @Post('matches/:id/reset')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset match state after typed confirmation (scorekeeper+)' })
+  async resetMatch(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResetMatchDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.resetMatch(id, dto, actor);
+  }
+
   // ── Clock endpoints ───────────────────────────────────────────────────────
 
   /**
@@ -187,5 +262,17 @@ export class MatchesController {
   ) {
     const actor = await this.staff.authorizeMatchScoring(req, id);
     return this.clock.clockAction(id, dto.action, dto.reason, actor);
+  }
+
+  @Post('matches/:id/clock/adjust')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Adjust match clock by signed milliseconds (scorekeeper+)' })
+  async adjustClock(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdjustClockDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.clock.adjustTime(id, dto.adjustmentMs, dto.reason, actor);
   }
 }
