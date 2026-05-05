@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyClash — HEMA Tournament Manager</title>
+  <title>MyClash — Gestionnaire de Tournois AMHE</title>
   <meta name="description" content="La plateforme tout-en-un pour organiser, scorer et analyser vos compétitions d'arts martiaux historiques européens.">
-  <meta property="og:title" content="MyClash — HEMA Tournament Manager">
-  <meta property="og:description" content="Gérez vos tournois HEMA comme un champion. Gratuit, open-source, puissant.">
-  <meta property="og:image" content="../pictures/Logo.png">
-  <link rel="icon" href="../pictures/Logomini.png" type="image/png">
+  <meta property="og:title" content="MyClash — Gestionnaire de Tournois AMHE">
+  <meta property="og:description" content="Gérez vos tournois AMHE comme un champion. Gratuit, open-source, puissant.">
+  <meta property="og:image" content="../pictures/Logo_nobackground.png">
+  <link rel="icon" href="../pictures/Logomini_nobackground.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garant:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
@@ -703,7 +703,7 @@
       padding-bottom: 2.5rem;
       border-bottom: 1px solid rgba(255,255,255,0.1);
     }
-    .footer__logo img { height: 40px; width: auto; filter: brightness(0) invert(1); opacity: 0.85; }
+    .footer__logo img { height: 40px; width: auto; opacity: 0.9; }
     .footer__links {
       display: flex;
       gap: 2rem;
@@ -824,7 +824,7 @@
   <!-- NAVBAR -->
   <nav class="nav" id="navbar">
     <a href="#" class="nav__logo" aria-label="MyClash accueil">
-      <img src="../pictures/Logo.png" alt="MyClash">
+      <img src="../pictures/Logo_nobackground.png" alt="MyClash">
     </a>
     <ul class="nav__links" id="nav-links">
       <li><a href="#fonctionnalites">Fonctionnalités</a></li>
@@ -842,7 +842,7 @@
     <div class="hero__bg" id="heroBg"></div>
     <div class="hero__overlay"></div>
     <div class="hero__content">
-      <p class="hero__eyebrow">HEMA Tournament Manager</p>
+      <p class="hero__eyebrow">Gestionnaire de Tournois AMHE</p>
       <h1 class="hero__title">
         Gérez vos tournois<br>
         <span>comme un champion</span>
@@ -890,7 +890,7 @@
       <h2 class="section__title" id="features-title">Tout ce dont vous avez besoin</h2>
       <p class="section__lead">
         De la création de l'événement au palmarès final, MyClash couvre chaque étape
-        de votre compétition HEMA.
+        de votre compétition AMHE.
       </p>
     </div>
     <div class="features__grid">
@@ -1008,7 +1008,7 @@
     <h2 class="section__title" id="cta-title">Votre prochain tournoi<br>mérite MyClash</h2>
     <p class="section__lead">
       Gratuit, sans carte bancaire, sans engagement.
-      Rejoignez la communauté HEMA qui fait confiance à MyClash.
+      Rejoignez la communauté AMHE qui fait confiance à MyClash.
     </p>
     <div class="cta-section__actions">
       <a href="https://app.myclash.fr" class="btn-white" target="_blank" rel="noopener">
@@ -1073,7 +1073,7 @@
     <div class="footer__inner">
       <div class="footer__logo">
         <a href="#" aria-label="MyClash accueil">
-          <img src="../pictures/Logo.png" alt="MyClash">
+          <img src="../pictures/Logo_nobackground.png" alt="MyClash">
         </a>
       </div>
       <ul class="footer__links" aria-label="Navigation pied de page">
@@ -1090,10 +1090,13 @@
       </a>
     </div>
     <div class="footer__bottom">
-      <p class="footer__copy">© MyClash 2026 — HEMA Tournament Manager. Tous droits réservés.</p>
+      <div>
+        <p class="footer__copy">© MyClash 2026 — Gestionnaire de Tournois AMHE. Tous droits réservés.</p>
+        <p class="footer__copy" style="margin-top:0.3rem;">MyClash développé par <a href="https://www.helloasso.com/associations/lyon-amhe" target="_blank" rel="noopener" style="color:rgba(255,255,255,0.5);text-decoration:underline;transition:color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.85)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">Lyon AMHE</a></p>
+      </div>
       <div class="footer__badges">
         <span class="footer__badge">Open Source</span>
-        <span class="footer__badge">HEMA</span>
+        <span class="footer__badge">AMHE</span>
         <span class="footer__badge">Made in France</span>
       </div>
     </div>
