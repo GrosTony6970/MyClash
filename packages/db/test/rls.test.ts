@@ -54,6 +54,13 @@ interface LeagueUserRole {
   role: 'admin' | 'owner';
 }
 
+interface PenaltyRuleset {
+  id: string;
+  builtIn: boolean;
+  publicVisibility: boolean;
+  ownerOrganizationId: string | null;
+}
+
 // Simulates is_super_admin() SQL function
 function isSuperAdmin(
   userId: string | null,
@@ -150,6 +157,30 @@ function canSelectLeague(
   );
 }
 
+function canManagePenaltyRuleset(
+  userId: string | null,
+  ruleset: PenaltyRuleset,
+  members: OrgMember[],
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  if (isSuperAdmin(userId, platformRoles)) return true;
+  if (!ruleset.ownerOrganizationId) return false;
+  return hasOrgRole(userId, ruleset.ownerOrganizationId, 'admin', members);
+}
+
+function canSelectPenaltyRuleset(
+  userId: string | null,
+  ruleset: PenaltyRuleset,
+  members: OrgMember[],
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  return (
+    ruleset.builtIn ||
+    ruleset.publicVisibility ||
+    canManagePenaltyRuleset(userId, ruleset, members, platformRoles)
+  );
+}
+
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
 const ORG_A = 'org-a-uuid';
@@ -189,6 +220,18 @@ const LEAGUE_ORG_ROLES: LeagueOrgRole[] = [
 const LEAGUE_USER_ROLES: LeagueUserRole[] = [
   { leagueId: LEAGUE_PRIVATE.id, userId: USER_MEMBER_B, role: 'admin' },
 ];
+const PENALTY_BUILT_IN: PenaltyRuleset = {
+  id: 'penalty-built-in',
+  builtIn: true,
+  publicVisibility: true,
+  ownerOrganizationId: null,
+};
+const PENALTY_PRIVATE_ORG_A: PenaltyRuleset = {
+  id: 'penalty-org-a',
+  builtIn: false,
+  publicVisibility: false,
+  ownerOrganizationId: ORG_A,
+};
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -332,5 +375,26 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
         [],
       ),
     ).toBe(true);
+  });
+
+  it('21. anonymous users can SELECT built-in penalty rulesets but not private custom rulesets', () => {
+    expect(canSelectPenaltyRuleset(USER_ANON, PENALTY_BUILT_IN, ORG_MEMBERS, PLATFORM_ROLES)).toBe(
+      true,
+    );
+    expect(
+      canSelectPenaltyRuleset(USER_ANON, PENALTY_PRIVATE_ORG_A, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(false);
+  });
+
+  it('22. penalty ruleset management allows super admins and owning org admins only', () => {
+    expect(
+      canManagePenaltyRuleset(USER_SUPER, PENALTY_PRIVATE_ORG_A, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(true);
+    expect(
+      canManagePenaltyRuleset(USER_ADMIN_A, PENALTY_PRIVATE_ORG_A, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(true);
+    expect(
+      canManagePenaltyRuleset(USER_MEMBER_B, PENALTY_PRIVATE_ORG_A, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(false);
   });
 });

@@ -136,7 +136,11 @@ export class OrganizationsService {
 
   // ── Helper: assert org role ──────────────────────────────────────────────────
 
-  async assertOrgRole(orgId: string, userId: string, minRole: 'owner' | 'admin' | 'editor') {
+  async assertOrgRole(
+    orgId: string,
+    userId: string,
+    minRole: 'owner' | 'admin' | 'editor' | 'scorekeeper',
+  ) {
     const { data } = await this.supabase.service
       .from('organization_members')
       .select('role')

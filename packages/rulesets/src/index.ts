@@ -40,3 +40,23 @@ export {
   GenericPointsCapDefaultConfig,
 } from './generic_points_cap';
 export type { GenericPointsCapConfig } from './generic_points_cap';
+
+// Penalty rulesets
+export {
+  computeDirectPenaltySanction,
+  computePenaltySanction,
+  normalizePenaltyCard,
+  parsePenaltyRulesetCsv,
+  penaltyCausesMatchForfeit,
+  penaltyScoreDelta,
+} from './penalties';
+export type {
+  ExistingPenaltyForSanction,
+  PenaltyAccumulationScope,
+  PenaltyCard,
+  PenaltyRulesetDefinition,
+  PenaltyRulesetEntry,
+  PenaltyRulesetMetadata,
+  PenaltySanctionResult,
+  PenaltySource,
+} from './penalties';

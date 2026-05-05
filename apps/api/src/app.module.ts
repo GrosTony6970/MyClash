@@ -22,6 +22,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PersonsModule } from './modules/persons/persons.module';
+import { PenaltiesModule } from './modules/penalties/penalties.module';
 import { PhasesModule } from './modules/phases/phases.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
@@ -69,6 +70,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     EventsModule,
     LicesModule,
     LeaguesModule,
+    PenaltiesModule,
     RegistrationsModule,
     MatchesModule,
     NotificationsModule,

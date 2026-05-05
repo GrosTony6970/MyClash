@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ScoringPad } from '../../../src/components/ScoringPad';
+import { PenaltyPanel } from '../../../src/components/PenaltyPanel';
 import MatchClock from '../../../src/components/MatchClock';
 import type { ClockState } from '../../../src/components/MatchClock';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 
@@ -30,6 +32,7 @@ interface Props {
 
 export default function LiceMatchPage({ params }: Props) {
   const router = useRouter();
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [liceId, setLiceId] = useState<string | null>(null);
@@ -76,7 +79,7 @@ export default function LiceMatchPage({ params }: Props) {
   if (loading) {
     return (
       <main id="main-content" className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-400">Loading match…</p>
+        <p className="text-gray-400">{t('scoring.lice.loadingMatch')}</p>
       </main>
     );
   }
@@ -91,7 +94,9 @@ export default function LiceMatchPage({ params }: Props) {
             : 'bg-red-900 text-red-300 animate-pulse'
         }`}
       >
-        {networkStatus === 'online' ? '● ONLINE' : '● OFFLINE — exchanges queued locally'}
+        {networkStatus === 'online'
+          ? `● ${t('scoring.lice.online')}`
+          : `● ${t('scoring.lice.offlineQueued')}`}
       </div>
 
       {/* Header */}
@@ -100,9 +105,9 @@ export default function LiceMatchPage({ params }: Props) {
           onClick={() => router.push('/lices')}
           className="text-gray-400 hover:text-white text-sm"
         >
-          ← Lices
+          ← {t('scoring.lice.backToLices')}
         </button>
-        <h1 className="font-bold text-lg">Lice {liceId}</h1>
+        <h1 className="font-bold text-lg">{t('scoring.lice.title', { liceId })}</h1>
         <div className="w-16" />
       </header>
 
@@ -115,6 +120,7 @@ export default function LiceMatchPage({ params }: Props) {
 // ── Match view ────────────────────────────────────────────────────────────────
 
 function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
+  const { t } = useI18n();
   const [nextSequence, setNextSequence] = useState(1);
   const [scoringConfig, setScoringConfig] =
     useState<TournamentScoringConfig>(DEFAULT_SCORING_CONFIG);
@@ -140,8 +146,11 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
       <div className="text-center">
         <p className="text-gray-400 text-sm">{match.matchNumberLabel}</p>
         <p className="text-xs text-gray-500 mt-0.5">
-          {match.rulesetCode} v{match.rulesetVersion}
-          {match.weapon ? ` · ${match.weapon}` : ''}
+          {t('scoring.lice.rulesetVersion', {
+            code: match.rulesetCode,
+            version: match.rulesetVersion,
+          })}
+          {match.weapon ? ` / ${match.weapon}` : ''}
         </p>
       </div>
 
@@ -154,8 +163,8 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
           matchId={match.id}
           nextSequence={nextSequence}
           apiUrl={apiUrl}
-          redName={match.redFighterName ?? 'Rouge'}
-          blueName={match.blueFighterName ?? 'Bleu'}
+          redName={match.redFighterName ?? t('scoring.lice.red')}
+          blueName={match.blueFighterName ?? t('scoring.lice.blue')}
           redScore={match.redScore}
           blueScore={match.blueScore}
           scoringEnabled={match.status === 'running' || match.status === 'halted'}
@@ -163,19 +172,31 @@ function MatchView({ match, apiUrl }: { match: MatchInfo; apiUrl: string }) {
           clockState={clockState}
           onExchangeRecorded={() => setNextSequence((n) => n + 1)}
         />
+        <div className="mt-4">
+          <PenaltyPanel
+            matchId={match.id}
+            nextSequence={nextSequence}
+            apiUrl={apiUrl}
+            redRegistrationId={match.redRegistrationId}
+            blueRegistrationId={match.blueRegistrationId}
+            redName={match.redFighterName ?? t('scoring.lice.red')}
+            blueName={match.blueFighterName ?? t('scoring.lice.blue')}
+            disabled={match.status !== 'running' && match.status !== 'halted'}
+            onPenaltyRecorded={() => setNextSequence((n) => n + 1)}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
 function NoMatchView() {
+  const { t } = useI18n();
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
       <div className="text-5xl mb-4">⏳</div>
-      <h2 className="text-xl font-bold mb-2">No match in progress</h2>
-      <p className="text-gray-400 text-sm">
-        Waiting for the organizer to assign a match to this Lice.
-      </p>
+      <h2 className="text-xl font-bold mb-2">{t('scoring.lice.noMatchTitle')}</h2>
+      <p className="text-gray-400 text-sm">{t('scoring.lice.noMatchDescription')}</p>
     </div>
   );
 }

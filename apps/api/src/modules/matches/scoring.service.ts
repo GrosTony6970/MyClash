@@ -55,6 +55,12 @@ export class ScoringService {
       .eq('voided', false)
       .order('sequence', { ascending: true });
 
+    const { data: penaltyRows } = await this.supabase.service
+      .from('match_penalties')
+      .select('score_delta, registration_id')
+      .eq('match_id', matchId)
+      .eq('voided', false);
+
     const m = matchData as Record<string, unknown>;
 
     // Map DB rows to ruleset types
@@ -99,6 +105,12 @@ export class ScoringService {
 
     const config = m['ruleset_config'] ?? {};
     const score = ruleset.computeMatchScore(match, exchanges, config);
+    for (const row of penaltyRows ?? []) {
+      const penalty = row as Record<string, unknown>;
+      const delta = (penalty['score_delta'] as number | null) ?? 0;
+      if (penalty['registration_id'] === match.redRegistrationId) score.redScore += delta;
+      if (penalty['registration_id'] === match.blueRegistrationId) score.blueScore += delta;
+    }
 
     // Persist derived scores back to matches row
     await this.supabase.service

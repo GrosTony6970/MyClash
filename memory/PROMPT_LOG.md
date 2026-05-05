@@ -495,3 +495,7 @@ PLEASE IMPLEMENT THIS PLAN: Organizer Event/Tournament Archives - add organizer-
 ## 17:24:10_05-05-2026
 
 Implement the League System / Tournois Federal plan: cross-event, cross-organizer leagues with league tables, FFAMHE/custom points, event-closure calculation, admin/public APIs, UI, i18n, tests, and verification.
+
+## 18:20:49_05-05-2026
+
+User requested implementation of the Penalty Management / Cartons plan: configurable event/tournament penalty rulesets, built-in FFAMHE CSV ruleset, match penalties, red/black card scoring effects, organizer review for second black card, API/UI integration, i18n, and tests.

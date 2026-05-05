@@ -14,8 +14,18 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import type { AfterblowButton, CleanButton, TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import { useI18n } from '../../../../../../../../src/i18n/I18nProvider';
+
+interface PenaltyRulesetSummary {
+  id: string;
+  name: string;
+  code: string;
+  version: string;
+  built_in: boolean;
+}
 
 export default function ScoringConfigPage() {
+  const { t } = useI18n();
   const params = useParams<{
     slug: string;
     eventId: string;
@@ -31,6 +41,10 @@ export default function ScoringConfigPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRulesetSummary[]>([]);
+  const [selectedPenaltyRulesetId, setSelectedPenaltyRulesetId] = useState('');
+  const [penaltyCsv, setPenaltyCsv] = useState('');
+  const [importingPenaltyCsv, setImportingPenaltyCsv] = useState(false);
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +65,19 @@ export default function ScoringConfigPage() {
     return () => controller.abort();
   }, [tournamentId, apiUrl]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) setPenaltyRulesets((await res.json()) as PenaltyRulesetSummary[]);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [apiUrl]);
+
   // ── Save ────────────────────────────────────────────────────────────────────
 
   async function handleSave() {
@@ -66,18 +93,76 @@ export default function ScoringConfigPage() {
       });
       if (!res.ok) {
         const b = (await res.json()) as { message?: string };
-        throw new Error(b.message ?? 'Save failed');
+        throw new Error(b.message ?? t('organizer.scoringConfig.saveFailed'));
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setError(err instanceof Error ? err.message : t('organizer.scoringConfig.saveFailed'));
     } finally {
       setSaving(false);
     }
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  async function handlePenaltyRulesetAssign() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/penalty-ruleset`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ penaltyRulesetId: selectedPenaltyRulesetId || null }),
+      });
+      if (!res.ok) {
+        const b = (await res.json()) as { message?: string };
+        throw new Error(b.message ?? t('organizer.scoringConfig.penaltyRulesetSaveFailed'));
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.scoringConfig.penaltyRulesetSaveFailed'),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePenaltyCsvImport() {
+    if (!penaltyCsv.trim()) return;
+    setImportingPenaltyCsv(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/import-csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          eventId,
+          code: `custom-${Date.now()}`,
+          version: '1',
+          name: t('organizer.scoringConfig.customPenaltyRuleset'),
+          accumulationScope: 'match',
+          csv: penaltyCsv,
+        }),
+      });
+      if (!res.ok) {
+        const b = (await res.json()) as { message?: string };
+        throw new Error(b.message ?? t('organizer.scoringConfig.csvImportFailed'));
+      }
+      const imported = (await res.json()) as PenaltyRulesetSummary;
+      setPenaltyRulesets((prev) => [...prev, imported]);
+      setSelectedPenaltyRulesetId(imported.id);
+      setPenaltyCsv('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.scoringConfig.csvImportFailed'));
+    } finally {
+      setImportingPenaltyCsv(false);
+    }
+  }
 
   function updateCleanBtn(index: number, patch: Partial<CleanButton>) {
     setConfig((prev) => ({
@@ -161,21 +246,27 @@ export default function ScoringConfigPage() {
             </Link>
             <span>/</span>
             <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
-              Event
+              {t('organizer.scoringConfig.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Scoring config</span>
+            <span className="text-gray-900 font-medium">
+              {t('organizer.scoringConfig.breadcrumbScoringConfig')}
+            </span>
           </div>
-          <h1 className="text-2xl font-bold">Scoring configuration</h1>
+          <h1 className="text-2xl font-bold">{t('organizer.scoringConfig.title')}</h1>
         </div>
         <div className="flex items-center gap-3">
-          {saved && <span className="text-sm text-green-600 font-medium">✓ Saved</span>}
+          {saved && (
+            <span className="text-sm text-green-600 font-medium">
+              ✓ {t('organizer.scoringConfig.saved')}
+            </span>
+          )}
           <button
             onClick={() => void handleSave()}
             disabled={saving}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('organizer.scoringConfig.saving') : t('actions.save')}
           </button>
         </div>
       </div>
@@ -187,9 +278,53 @@ export default function ScoringConfigPage() {
       )}
 
       {/* ── Afterblow mode ── */}
+      <section className="mb-8 rounded-xl border border-gray-200 p-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
+          {t('organizer.scoringConfig.penaltyRuleset')}
+        </h2>
+        <div className="flex gap-3">
+          <select
+            value={selectedPenaltyRulesetId}
+            onChange={(event) => setSelectedPenaltyRulesetId(event.target.value)}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          >
+            <option value="">{t('organizer.scoringConfig.useEventDefault')}</option>
+            {penaltyRulesets.map((ruleset) => (
+              <option key={ruleset.id} value={ruleset.id}>
+                {ruleset.name} ({ruleset.code}@{ruleset.version})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => void handlePenaltyRulesetAssign()}
+            disabled={saving}
+            className="bg-gray-900 hover:bg-black disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg text-sm"
+          >
+            {t('organizer.scoringConfig.attach')}
+          </button>
+        </div>
+        <textarea
+          value={penaltyCsv}
+          onChange={(event) => setPenaltyCsv(event.target.value)}
+          placeholder={t('organizer.scoringConfig.penaltyCsvPlaceholder')}
+          className="mt-3 w-full min-h-28 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
+        />
+        <button
+          type="button"
+          onClick={() => void handlePenaltyCsvImport()}
+          disabled={importingPenaltyCsv || !penaltyCsv.trim()}
+          className="mt-2 text-xs text-red-600 hover:underline font-medium disabled:opacity-40"
+        >
+          {importingPenaltyCsv
+            ? t('organizer.scoringConfig.importing')
+            : t('organizer.scoringConfig.importPenaltyCsv')}
+        </button>
+      </section>
+
       <section className="mb-8">
         <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-          Afterblow mode
+          {t('organizer.scoringConfig.afterblowMode')}
         </h2>
         <div className="flex gap-3">
           {(['full', 'deductive'] as const).map((mode) => (
@@ -203,11 +338,15 @@ export default function ScoringConfigPage() {
                   : 'border-gray-200 text-gray-600 hover:border-gray-300',
               ].join(' ')}
             >
-              <p className="font-bold capitalize">{mode}</p>
+              <p className="font-bold capitalize">
+                {mode === 'full'
+                  ? t('organizer.scoringConfig.modeFull')
+                  : t('organizer.scoringConfig.modeDeductive')}
+              </p>
               <p className="text-xs font-normal mt-0.5 opacity-70">
                 {mode === 'full'
-                  ? 'Both fighters score on afterblow'
-                  : 'Only attacker scores (defender gets 0)'}
+                  ? t('organizer.scoringConfig.fullDescription')
+                  : t('organizer.scoringConfig.deductiveDescription')}
               </p>
             </button>
           ))}
@@ -218,13 +357,13 @@ export default function ScoringConfigPage() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
-            Clean hit buttons
+            {t('organizer.scoringConfig.cleanHitButtons')}
           </h2>
           <button
             onClick={addCleanBtn}
             className="text-xs text-red-600 hover:underline font-medium"
           >
-            + Add button
+            + {t('organizer.scoringConfig.addButton')}
           </button>
         </div>
         <div className="flex flex-col gap-3">
@@ -240,17 +379,23 @@ export default function ScoringConfigPage() {
                   onChange={(e) => updateCleanBtn(i, { visible: e.target.checked })}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-600">Visible</span>
+                <span className="text-sm text-gray-600">
+                  {t('organizer.scoringConfig.visible')}
+                </span>
               </label>
               <div className="flex items-center gap-2 flex-1">
-                <label className="text-xs text-gray-500">Label</label>
+                <label className="text-xs text-gray-500">
+                  {t('organizer.scoringConfig.label')}
+                </label>
                 <input
                   type="text"
                   value={btn.label}
                   onChange={(e) => updateCleanBtn(i, { label: e.target.value })}
                   className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
-                <label className="text-xs text-gray-500">Points</label>
+                <label className="text-xs text-gray-500">
+                  {t('organizer.scoringConfig.points')}
+                </label>
                 <input
                   type="number"
                   value={btn.value}
@@ -264,7 +409,7 @@ export default function ScoringConfigPage() {
                 onClick={() => removeCleanBtn(i)}
                 className="text-xs text-red-400 hover:text-red-600"
               >
-                Remove
+                {t('organizer.scoringConfig.remove')}
               </button>
             </div>
           ))}
@@ -275,19 +420,19 @@ export default function ScoringConfigPage() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
-            Afterblow buttons
+            {t('organizer.scoringConfig.afterblowButtons')}
           </h2>
           <button
             onClick={addAfterblowBtn}
             className="text-xs text-red-600 hover:underline font-medium"
           >
-            + Add button
+            + {t('organizer.scoringConfig.addButton')}
           </button>
         </div>
         <p className="text-xs text-gray-400 mb-3">
           {config.afterblowMode === 'deductive'
-            ? 'Deductive mode: defender points are ignored (always 0).'
-            : 'Full mode: both attacker and defender receive points.'}
+            ? t('organizer.scoringConfig.deductiveHelp')
+            : t('organizer.scoringConfig.fullHelp')}
         </p>
         <div className="flex flex-col gap-3">
           {config.buttons.afterblow.map((btn, i) => (
@@ -302,17 +447,23 @@ export default function ScoringConfigPage() {
                   onChange={(e) => updateAfterblowBtn(i, { visible: e.target.checked })}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-600">Visible</span>
+                <span className="text-sm text-gray-600">
+                  {t('organizer.scoringConfig.visible')}
+                </span>
               </label>
               <div className="flex items-center gap-2 flex-1 flex-wrap">
-                <label className="text-xs text-gray-500">Label</label>
+                <label className="text-xs text-gray-500">
+                  {t('organizer.scoringConfig.label')}
+                </label>
                 <input
                   type="text"
                   value={btn.label}
                   onChange={(e) => updateAfterblowBtn(i, { label: e.target.value })}
                   className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
-                <label className="text-xs text-gray-500">Attacker pts</label>
+                <label className="text-xs text-gray-500">
+                  {t('organizer.scoringConfig.attackerPts')}
+                </label>
                 <input
                   type="number"
                   value={btn.attackerPts}
@@ -324,9 +475,11 @@ export default function ScoringConfigPage() {
                   className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
                 <label className="text-xs text-gray-500">
-                  Defender pts
+                  {t('organizer.scoringConfig.defenderPts')}
                   {config.afterblowMode === 'deductive' && (
-                    <span className="ml-1 text-orange-500">(ignored)</span>
+                    <span className="ml-1 text-orange-500">
+                      ({t('organizer.scoringConfig.ignored')})
+                    </span>
                   )}
                 </label>
                 <input
@@ -345,7 +498,7 @@ export default function ScoringConfigPage() {
                 onClick={() => removeAfterblowBtn(i)}
                 className="text-xs text-red-400 hover:text-red-600"
               >
-                Remove
+                {t('organizer.scoringConfig.remove')}
               </button>
             </div>
           ))}
@@ -355,25 +508,27 @@ export default function ScoringConfigPage() {
       {/* ── Live preview ── */}
       <section>
         <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-          Button preview
+          {t('organizer.scoringConfig.buttonPreview')}
         </h2>
         <div className="bg-gray-950 rounded-xl p-4">
           <div className="grid grid-cols-2 gap-4">
-            {(['Rouge', 'Bleu'] as const).map((side) => (
+            {(['red', 'blue'] as const).map((side) => (
               <div key={side} className="flex flex-col gap-2">
                 <div
                   className={[
                     'rounded-xl p-3 text-center border-2',
-                    side === 'Rouge' ? 'bg-red-900 border-red-600' : 'bg-blue-900 border-blue-600',
+                    side === 'red' ? 'bg-red-900 border-red-600' : 'bg-blue-900 border-blue-600',
                   ].join(' ')}
                 >
                   <p
                     className={[
                       'text-xs font-bold uppercase',
-                      side === 'Rouge' ? 'text-red-300' : 'text-blue-300',
+                      side === 'red' ? 'text-red-300' : 'text-blue-300',
                     ].join(' ')}
                   >
-                    {side}
+                    {side === 'red'
+                      ? t('organizer.scoringConfig.red')
+                      : t('organizer.scoringConfig.blue')}
                   </p>
                   <p className="text-3xl font-black text-white mt-1">0</p>
                 </div>
@@ -385,7 +540,7 @@ export default function ScoringConfigPage() {
                         key={b.label}
                         className={[
                           'rounded-lg border-2 py-2 text-center font-black text-lg',
-                          side === 'Rouge'
+                          side === 'red'
                             ? 'border-red-700 bg-red-950 text-red-200'
                             : 'border-blue-700 bg-blue-950 text-blue-200',
                         ].join(' ')}
@@ -414,10 +569,10 @@ export default function ScoringConfigPage() {
           </div>
           <div className="grid grid-cols-2 gap-2 mt-3">
             <div className="rounded-lg border-2 border-orange-600 bg-orange-900 text-orange-100 py-2 text-center font-bold text-sm">
-              Double
+              {t('organizer.scoringConfig.double')}
             </div>
             <div className="rounded-lg border-2 border-gray-600 bg-gray-800 text-gray-200 py-2 text-center font-bold text-sm">
-              No exchange
+              {t('organizer.scoringConfig.noExchange')}
             </div>
           </div>
         </div>

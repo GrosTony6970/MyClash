@@ -11,6 +11,7 @@ export * from './events';
 export * from './persons';
 export * from './tournaments';
 export * from './matches';
+export * from './penalties';
 export * from './workshops';
 export * from './referees';
 export * from './leagues';

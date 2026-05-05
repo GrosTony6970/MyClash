@@ -20,6 +20,7 @@ export const events = pgTable('events', {
   // draft | published | running | completed | archived
   themeId: uuid('theme_id'),
   publicLandingMd: text('public_landing_md'),
+  penaltyRulesetId: uuid('penalty_ruleset_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

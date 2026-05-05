@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import type { ExchangeRow, MatchRow } from './match-live-view';
+import type { ExchangeRow, MatchPenaltyRow, MatchRow } from './match-live-view';
 import { MatchLiveView } from './match-live-view';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -21,6 +21,14 @@ async function fetchExchanges(matchId: string): Promise<ExchangeRow[]> {
   return (await res.json()) as ExchangeRow[];
 }
 
+async function fetchPenalties(matchId: string): Promise<MatchPenaltyRow[]> {
+  const res = await fetch(`${API_URL}/api/v1/matches/${matchId}/penalties`, {
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) return [];
+  return (await res.json()) as MatchPenaltyRow[];
+}
+
 interface Props {
   params: Promise<{ eventSlug: string; matchId: string }>;
 }
@@ -28,7 +36,11 @@ interface Props {
 export default async function MatchPage({ params }: Props) {
   const { matchId } = await params;
 
-  const [match, exchanges] = await Promise.all([fetchMatch(matchId), fetchExchanges(matchId)]);
+  const [match, exchanges, penalties] = await Promise.all([
+    fetchMatch(matchId),
+    fetchExchanges(matchId),
+    fetchPenalties(matchId),
+  ]);
 
   if (!match) notFound();
 
@@ -37,6 +49,7 @@ export default async function MatchPage({ params }: Props) {
       matchId={matchId}
       initialMatch={match}
       initialExchanges={exchanges}
+      initialPenalties={penalties}
       apiUrl={API_URL}
     />
   );
