@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
-type TargetType = 'all' | 'fighters' | 'referees' | 'specific_persons';
+type TargetType = 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 type Severity = 'info' | 'warning' | 'alert';
 
 interface Person {
@@ -34,14 +34,29 @@ const severityClasses: Record<Severity, string> = {
 
 export default function EventNotificationsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
+  const searchParams = useSearchParams();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
 
-  const [targetType, setTargetType] = useState<TargetType>('all');
-  const [severity, setSeverity] = useState<Severity>('info');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const initialTarget = searchParams.get('targetType') as TargetType | null;
+  const initialSeverity = searchParams.get('severity') as Severity | null;
+  const [targetType, setTargetType] = useState<TargetType>(
+    initialTarget &&
+      ['all', 'fighters', 'referees', 'fighters_and_referees', 'specific_persons'].includes(
+        initialTarget,
+      )
+      ? initialTarget
+      : 'all',
+  );
+  const [severity, setSeverity] = useState<Severity>(
+    initialSeverity && ['info', 'warning', 'alert'].includes(initialSeverity)
+      ? initialSeverity
+      : 'info',
+  );
+  const [title, setTitle] = useState(searchParams.get('title') ?? '');
+  const [body, setBody] = useState(searchParams.get('body') ?? '');
+  const [tournamentId] = useState(searchParams.get('tournamentId'));
   const [people, setPeople] = useState<Person[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
@@ -96,6 +111,7 @@ export default function EventNotificationsPage() {
           severity,
           title: title.trim(),
           body: body.trim(),
+          tournamentId: tournamentId ?? undefined,
           personIds: targetType === 'specific_persons' ? Array.from(selected) : undefined,
         }),
       });
@@ -129,6 +145,7 @@ export default function EventNotificationsPage() {
     { value: 'all', label: t('organizer.broadcast.targetAll') },
     { value: 'fighters', label: t('organizer.broadcast.targetFighters') },
     { value: 'referees', label: t('organizer.broadcast.targetReferees') },
+    { value: 'fighters_and_referees', label: t('organizer.broadcast.targetFightersAndReferees') },
     { value: 'specific_persons', label: t('organizer.broadcast.targetSpecific') },
   ];
   const severityOptions: Array<{ value: Severity; label: string }> = [

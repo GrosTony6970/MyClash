@@ -5,9 +5,10 @@ import { PhasesService } from './phases.service';
 import { PoolPopulatorController } from './pool-populator.controller';
 import { RefereesModule } from '../referees/referees.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 
 @Module({
-  imports: [RefereesModule, HemaRatingsModule],
+  imports: [RefereesModule, HemaRatingsModule, OrganizationsModule],
   controllers: [PhasesController, ConflictCheckController, PoolPopulatorController],
   providers: [PhasesService],
   exports: [PhasesService],

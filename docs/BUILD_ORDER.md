@@ -1251,6 +1251,18 @@
   - Claimed users receive Web Push first; push-disabled/no-subscription users and unclaimed roster rows receive email fallback.
   - Public notifications page shows received event broadcasts with severity color.
 
+### T-1205 - Pool and bracket visibility publishing
+
+- **Dep**: T-1204, T-704, T-605
+- **Goal**: Generated pool and bracket phases are hidden from public/participant views until an organizer publishes them; organizers can unpublish with confirmation once matches have started.
+- **Files**: `apps/api/src/modules/phases/**`, `apps/api/src/modules/notifications/**`, `apps/web-admin/app/.../events/[eventId]/{pools,bracket,notifications}/**`, `packages/db/migrations/**`.
+- **AC**:
+  - New generated pool/bracket phases default to `hidden`; existing phases are backfilled as `published`.
+  - Public tournament, schedule, competitor, and referee views only expose published pool/bracket phases; organizer/admin views can still manage hidden phases.
+  - Admin+ organizer can publish/unpublish a phase; unpublishing with running/paused/completed matches returns confirmation counts unless explicitly confirmed.
+  - Publishing exposes a prefilled event broadcast draft for fighters and referees, scoped to the tournament, editable before send.
+  - Visibility changes are audited.
+
 ---
 
 ## Phase P13 — Super Admin

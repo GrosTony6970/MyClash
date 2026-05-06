@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * Bracket management — T-704
  * Route: /org/[slug]/events/[eventId]/bracket
@@ -9,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BracketView, type BracketSlotData } from '@myclash/ui';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface Tournament {
   id: string;
@@ -17,6 +20,7 @@ interface Tournament {
 
 interface BracketResult {
   phaseId: string;
+  visibility?: 'hidden' | 'published';
   bracketSize: number;
   fighterCount: number;
   byeCount: number;
@@ -30,10 +34,13 @@ export default function BracketPage() {
   const { slug, eventId } = params;
   const router = useRouter();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [bracket, setBracket] = useState<BracketResult | null>(null);
+  const [bracketPhaseId, setBracketPhaseId] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<'hidden' | 'published'>('hidden');
   const [existingBracket, setExistingBracket] = useState(false);
 
   // Config
@@ -43,7 +50,10 @@ export default function BracketPage() {
   // UI state
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
+  const [notifyHref, setNotifyHref] = useState<string | null>(null);
 
   // ── Load tournaments ────────────────────────────────────────────────────────
 
@@ -77,6 +87,8 @@ export default function BracketPage() {
         const data = (await res.json()) as BracketResult | null;
         if (data && data.slots?.length > 0) {
           setBracket(data);
+          setBracketPhaseId(data.phaseId);
+          setVisibility(data.visibility ?? 'hidden');
           setExistingBracket(true);
         }
       })
@@ -119,11 +131,54 @@ export default function BracketPage() {
 
       const result = (await res.json()) as BracketResult;
       setBracket(result);
+      setBracketPhaseId(result.phaseId);
+      setVisibility('hidden');
+      setNotifyHref(null);
       setExistingBracket(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function updateVisibility(nextVisibility: 'hidden' | 'published', confirmStarted = false) {
+    if (!bracketPhaseId || visibilityBusy) return;
+    setVisibilityBusy(true);
+    setError(null);
+    setShowUnpublishConfirm(false);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/phases/${bracketPhaseId}/visibility`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ visibility: nextVisibility, confirmStarted }),
+      });
+      if (res.status === 409 && nextVisibility === 'hidden') {
+        setShowUnpublishConfirm(true);
+        return;
+      }
+      if (!res.ok) {
+        const body2 = (await res.json()) as { message?: string };
+        throw new Error(body2.message ?? t('organizer.phaseVisibility.updateError'));
+      }
+      setVisibility(nextVisibility);
+      if (nextVisibility === 'published') {
+        const query = new URLSearchParams({
+          targetType: 'fighters_and_referees',
+          severity: 'info',
+          tournamentId: selectedTournament,
+          title: t('organizer.phaseVisibility.bracketReadyTitle'),
+          body: t('organizer.phaseVisibility.bracketReadyBody'),
+        });
+        setNotifyHref(`/org/${slug}/events/${eventId}/notifications?${query.toString()}`);
+      } else {
+        setNotifyHref(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.phaseVisibility.updateError'));
+    } finally {
+      setVisibilityBusy(false);
     }
   }
 
@@ -152,6 +207,57 @@ export default function BracketPage() {
           ← Pools
         </Link>
       </div>
+
+      {bracketPhaseId && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
+          <span
+            className={[
+              'rounded-full px-2.5 py-1 text-xs font-semibold',
+              visibility === 'published'
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-600',
+            ].join(' ')}
+          >
+            {visibility === 'published'
+              ? t('organizer.phaseVisibility.published')
+              : t('organizer.phaseVisibility.hidden')}
+          </span>
+          <button
+            type="button"
+            disabled={visibilityBusy || visibility === 'published'}
+            onClick={() => void updateVisibility('published')}
+            className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
+          >
+            {t('organizer.phaseVisibility.publishBracket')}
+          </button>
+          <button
+            type="button"
+            disabled={visibilityBusy || visibility === 'hidden'}
+            onClick={() => void updateVisibility('hidden')}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
+          >
+            {t('organizer.phaseVisibility.unpublishBracket')}
+          </button>
+          {notifyHref && (
+            <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
+              {t('organizer.phaseVisibility.notifyParticipants')}
+            </Link>
+          )}
+        </div>
+      )}
+
+      {showUnpublishConfirm && (
+        <div className="mb-6 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+          <p className="font-semibold">{t('organizer.phaseVisibility.unpublishStartedWarning')}</p>
+          <button
+            type="button"
+            onClick={() => void updateVisibility('hidden', true)}
+            className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
+          >
+            {t('organizer.phaseVisibility.confirmUnpublish')}
+          </button>
+        </div>
+      )}
 
       {/* Tournament selector */}
       {tournaments.length > 1 && (

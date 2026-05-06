@@ -68,14 +68,18 @@ export class UpdateNotificationPreferencesDto {
 }
 
 export class SendBroadcastNotificationDto {
-  @IsIn(['all', 'fighters', 'referees', 'specific_persons'])
-  targetType!: 'all' | 'fighters' | 'referees' | 'specific_persons';
+  @IsIn(['all', 'fighters', 'referees', 'fighters_and_referees', 'specific_persons'])
+  targetType!: 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
 
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)
   @IsUUID('4', { each: true })
   personIds?: string[];
+
+  @IsOptional()
+  @IsUUID('4')
+  tournamentId?: string;
 
   @IsIn(['info', 'warning', 'alert'])
   severity!: 'info' | 'warning' | 'alert';

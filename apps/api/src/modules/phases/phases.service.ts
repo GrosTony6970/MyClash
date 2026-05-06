@@ -2,7 +2,14 @@
  * PhasesService — orchestrates pool and bracket generation.
  * Persists phases, pools, pool_members, and matches to the DB.
  */
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import {
   snakeSeed,
   localSearch,
@@ -13,7 +20,12 @@ import {
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
-import type { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
+import { OrganizationsService } from '../organizations/organizations.service';
+import type {
+  GenerateBracketDto,
+  GeneratePoolsDto,
+  UpdatePhaseVisibilityDto,
+} from './dto/phases.dto';
 
 @Injectable()
 export class PhasesService {
@@ -21,7 +33,10 @@ export class PhasesService {
 
   constructor(
     private readonly supabase: SupabaseService,
+    @Optional()
     private readonly hemaRatings?: HemaRatingsService,
+    @Optional()
+    private readonly orgs?: OrganizationsService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -161,6 +176,7 @@ export class PhasesService {
         type: 'pool',
         sort_order: 1,
         status: 'pending',
+        visibility_status: 'hidden',
         config_json: { poolCount, costReport },
       })
       .select('id')
@@ -296,6 +312,7 @@ export class PhasesService {
         type: 'single_elim',
         sort_order: 2,
         status: 'pending',
+        visibility_status: 'hidden',
         config_json: {
           bracketSize: bracket.bracketSize,
           fighterCount: bracket.fighterCount,
@@ -334,6 +351,176 @@ export class PhasesService {
       byeCount: bracket.byeCount,
       rounds: bracket.rounds,
       totalSlots: bracket.slots.length,
+    };
+  }
+
+  async updateVisibility(phaseId: string, actorUserId: string, dto: UpdatePhaseVisibilityDto) {
+    if (!['hidden', 'published'].includes(dto.visibility)) {
+      throw new BadRequestException('Invalid phase visibility');
+    }
+
+    const phase = await this.getPhaseForVisibility(phaseId);
+    const tournament = phase['tournaments'] as Record<string, unknown> | null;
+    const event = tournament?.['events'] as Record<string, unknown> | null;
+    const orgId = event?.['organization_id'];
+    if (!this.orgs || typeof orgId !== 'string') {
+      throw new BadRequestException('Phase organization could not be resolved');
+    }
+    await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+
+    if (dto.visibility === 'hidden' && !dto.confirmStarted) {
+      const started = await this.countStartedMatches(phaseId);
+      if (started.startedMatchCount > 0 || started.completedMatchCount > 0) {
+        throw new ConflictException({
+          requiresConfirmation: true,
+          ...started,
+        });
+      }
+    }
+
+    const patch =
+      dto.visibility === 'published'
+        ? {
+            visibility_status: 'published',
+            published_at: new Date().toISOString(),
+            published_by_user_id: actorUserId,
+          }
+        : {
+            visibility_status: 'hidden',
+            published_at: null,
+            published_by_user_id: null,
+          };
+
+    const { data, error } = await this.supabase.service
+      .from('phases')
+      .update(patch)
+      .eq('id', phaseId)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    await this.supabase.service.from('audit_log').insert({
+      actor_user_id: actorUserId,
+      action:
+        dto.visibility === 'published'
+          ? 'phase.visibility_published'
+          : 'phase.visibility_unpublished',
+      entity_type: 'phase',
+      entity_id: phaseId,
+      payload_json: {
+        visibility: dto.visibility,
+        phaseType: phase['type'],
+        tournamentId: phase['tournament_id'],
+      },
+    });
+
+    return data;
+  }
+
+  async listTournamentPools(tournamentId: string) {
+    const { data: phase, error: phaseError } = await this.supabase.service
+      .from('phases')
+      .select('id, visibility_status')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+    if (phaseError) throw new BadRequestException(phaseError.message);
+    if (!phase) return { phaseId: null, visibility: 'hidden', pools: [] };
+
+    const phaseId = (phase as { id: string }).id;
+    const { data, error } = await this.supabase.service
+      .from('pools')
+      .select(
+        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name))))',
+      )
+      .eq('phase_id', phaseId)
+      .order('sort_order', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+
+    return {
+      phaseId,
+      visibility: (phase as { visibility_status?: string }).visibility_status ?? 'hidden',
+      pools: ((data ?? []) as Array<Record<string, unknown>>).map((pool) => ({
+        id: pool['id'],
+        name: pool['name'],
+        members: ((pool['pool_members'] ?? []) as Array<Record<string, unknown>>).map((member) => {
+          const registration = member['registrations'] as Record<string, unknown> | null;
+          const person = registration?.['persons'] as Record<string, unknown> | null;
+          const club = person?.['clubs'] as Record<string, unknown> | null;
+          return {
+            registrationId: member['registration_id'],
+            personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),
+            clubLabel: (club?.['name'] as string | null) ?? null,
+            seed: member['seed'] ?? 0,
+          };
+        }),
+      })),
+    };
+  }
+
+  async getTournamentBracket(tournamentId: string) {
+    const { data: phase, error: phaseError } = await this.supabase.service
+      .from('phases')
+      .select('id, visibility_status, config_json')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'single_elim')
+      .maybeSingle();
+    if (phaseError) throw new BadRequestException(phaseError.message);
+    if (!phase) return null;
+
+    const phaseId = (phase as { id: string }).id;
+    const { data: slots, error } = await this.supabase.service
+      .from('bracket_slots')
+      .select('id, round, position')
+      .eq('phase_id', phaseId)
+      .order('round', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    const config = ((phase as { config_json?: Record<string, unknown> }).config_json ?? {}) as {
+      bracketSize?: number;
+      fighterCount?: number;
+      byeCount?: number;
+      rounds?: number;
+    };
+    return {
+      phaseId,
+      visibility: (phase as { visibility_status?: string }).visibility_status ?? 'hidden',
+      bracketSize: config.bracketSize ?? 0,
+      fighterCount: config.fighterCount ?? 0,
+      byeCount: config.byeCount ?? 0,
+      rounds: config.rounds ?? 0,
+      totalSlots: (slots ?? []).length,
+      slots: slots ?? [],
+    };
+  }
+
+  private async getPhaseForVisibility(phaseId: string): Promise<Record<string, unknown>> {
+    const { data, error } = await this.supabase.service
+      .from('phases')
+      .select(
+        'id, tournament_id, type, visibility_status, tournaments(event_id, events(organization_id))',
+      )
+      .eq('id', phaseId)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Phase ${phaseId} not found`);
+    return data as Record<string, unknown>;
+  }
+
+  private async countStartedMatches(phaseId: string) {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, status')
+      .eq('phase_id', phaseId)
+      .in('status', ['running', 'paused', 'completed']);
+
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Array<{ status: string }>;
+    return {
+      startedMatchCount: rows.filter((row) => row.status === 'running' || row.status === 'paused')
+        .length,
+      completedMatchCount: rows.filter((row) => row.status === 'completed').length,
     };
   }
 }

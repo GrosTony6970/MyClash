@@ -31,10 +31,10 @@ It is designed around three convictions:
 - Register fighters individually or via CSV import; suggest matches against global fighter database and HEMA Ratings.
 - **Pool populator** with configurable constraints: school separation, skill balancing using HEMA Ratings, manual override.
 - **Referee assignment**: manage referee qualifications (3 roles, per-role rating 1–5), auto-assign with constraint solver, see missing-role report, manually override.
-- Generate single-elimination brackets from pool standings.
+- Generate single-elimination brackets from pool standings, then publish or unpublish pool/bracket visibility independently when ready.
 - Schedule matches and workshops on a unified day grid.
 - Manage workshops: instructors (optional fighter link), descriptions, sessions, capacity, waitlists.
-- Send event-wide notifications to everyone, fighters, referees, or selected people with Info, Warning, and Alert severity.
+- Send event-wide notifications to everyone, fighters, referees, fighters and referees, or selected people with Info, Warning, and Alert severity; pool/bracket publish flows can prefill an editable "ready" broadcast.
 - Publish results, rich statistics, and export to CSV/JSON/PDF/HEMA Ratings format.
 
 ### For scorekeepers
@@ -97,7 +97,7 @@ It is designed around three convictions:
 5. Throughout the day, gets push notifications 10 min before matches.
 6. Between matches: opens My Schedule to see what's next, including their afternoon workshop.
 7. If their contact email changes, opens profile email settings, enters the new address, and confirms the link sent there.
-8. After matches: views their pool standings live; sees their final ranking when published.
+8. After the organizer publishes pools or brackets, views their pool standings live; sees their final ranking when published.
 
 ### Scorekeeper at the piste
 

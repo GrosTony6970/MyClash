@@ -355,7 +355,8 @@ registrations (
 phases (
   id, tournament_id, type,  -- pool | single_elim | double_elim | swiss
   sort_order, config_json,
-  status  -- pending | running | completed
+  status,  -- pending | running | completed
+  visibility_status, published_at, published_by_user_id
 )
 pools (id, phase_id, name, sort_order)
 pool_members (pool_id, registration_id, seed)
@@ -366,6 +367,12 @@ bracket_slots (
   source_b_type, source_b_ref,
   registration_a_id, registration_b_id  -- resolved at runtime
 )
+
+Generated pool and bracket phases default to `visibility_status='hidden'`.
+Organizer/admin reads can see hidden phases; public and participant-facing reads
+only expose phases, pools, standings, bracket slots, and phase match details once
+the phase is `published`. Existing phases were backfilled to `published` when
+this visibility model was introduced.
 
 matches (
   id, phase_id, pool_id, bracket_slot_id, lice_id,
@@ -1030,7 +1037,8 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 - Job picks the user's `push_subscriptions`, sends via `web-push` library with VAPID keys.
 - Offline-tolerant: if a user's device is offline, the push is queued by the OS; delivered on reconnect.
 - Falls back to email for users with `enabled=false` for push but who opted in to email.
-- Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
+- Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, fighters+referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
+- Broadcasts may include `tournamentId` for tournament-scoped fighter/referee targeting. Pool/bracket publish flows use this to open editable "ready" notification drafts without auto-sending.
 
 ---
 
@@ -1655,8 +1663,11 @@ POST   /api/v1/tournaments/:id/phases           [organizer+]
 GET    /api/v1/tournaments/:id/standings        [public]
 GET    /api/v1/tournaments/:id/final-ranking    [public]
 GET    /api/v1/tournaments/:id/stats            [public]
+GET    /api/v1/tournaments/:id/pools            [visibility-filtered]
+GET    /api/v1/tournaments/:id/bracket          [visibility-filtered]
 POST   /api/v1/tournaments/:id/generate-pools   [organizer+]
 POST   /api/v1/tournaments/:id/generate-bracket [organizer+]
+PATCH  /api/v1/phases/:id/visibility            [organizer admin+]
 
 # Matches
 GET    /api/v1/matches/:id
@@ -1732,6 +1743,7 @@ DELETE /api/v1/notifications/subscribe/:id             [authenticated]
 GET    /api/v1/notifications/vapid-public-key          [public]
 GET    /api/v1/notifications/broadcasts                [authenticated]
 POST   /api/v1/events/:eventId/notifications/broadcast [organizer admin+]
+       # targetType all|fighters|referees|fighters_and_referees|specific_persons; optional tournamentId
 GET    /api/v1/events/:eventId/notifications/broadcasts [organizer admin+]
 
 # Exports

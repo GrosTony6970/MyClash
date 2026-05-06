@@ -59,6 +59,10 @@ export const phases = pgTable('phases', {
   configJson: jsonb('config_json'),
   status: text('status').notNull().default('pending'),
   // pending | running | completed
+  visibilityStatus: text('visibility_status').notNull().default('hidden'),
+  // hidden | published
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  publishedByUserId: uuid('published_by_user_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

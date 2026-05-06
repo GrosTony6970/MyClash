@@ -75,3 +75,8 @@ export class GenerateBracketDto {
   @IsUUID()
   poolPhaseId?: string;
 }
+
+export class UpdatePhaseVisibilityDto {
+  visibility!: 'hidden' | 'published';
+  confirmStarted?: boolean;
+}

@@ -559,3 +559,7 @@ PLEASE IMPLEMENT THIS PLAN: Claimed Fighter Email Change Workflow. Build a claim
 ## 16:14:24_06-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Organizer Event Broadcast Notifications. Add organizer event broadcast notifications to all event persons, fighters, referees, or selected Persons with info/warning/alert severity, push plus email fallback, API/UI/tests/docs/memory, commit and push main.
+
+## 16:44:36_06-05-2026
+
+Implement pool/bracket phase visibility publishing: phases hidden by default, organizer publish/unpublish with confirmation after started/completed matches, hide unpublished pool/bracket from participant/public surfaces, add prefilled notification composer, register docs/memory, commit and push main.

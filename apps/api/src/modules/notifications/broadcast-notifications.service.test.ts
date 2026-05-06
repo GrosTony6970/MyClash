@@ -198,4 +198,81 @@ describe('BroadcastNotificationsService', () => {
     expect(from).toHaveBeenCalledWith('registrations');
     expect(scheduler.sendImmediate).toHaveBeenCalledTimes(2);
   });
+
+  it('resolves tournament-scoped fighters and referees without notifying unrelated event people', async () => {
+    const from = vi.fn((table: string) => {
+      const results: Record<string, unknown> = {
+        events: { data: { id: 'event-1', organization_id: 'org-1', slug: 'fal' }, error: null },
+        tournaments: { data: [{ id: 'tournament-1' }], error: null },
+        registrations: {
+          data: [{ person_id: 'fighter-1' }, { person_id: 'fighter-2' }],
+          error: null,
+        },
+        referee_assignments: {
+          data: [
+            { user_id: 'user-2', pool_id: 'pool-1', match_id: null },
+            { user_id: 'user-1', pool_id: 'pool-1', match_id: null },
+            { user_id: 'user-other', pool_id: 'pool-other', match_id: null },
+          ],
+          error: null,
+        },
+        phases: { data: [{ id: 'phase-1' }], error: null },
+        pools: { data: [{ id: 'pool-1' }], error: null },
+        matches: { data: [{ id: 'match-1' }], error: null },
+        persons: {
+          data: [
+            { id: 'fighter-1', claimed_by_user_id: 'user-1', email: 'fighter@example.com' },
+            { id: 'fighter-2', claimed_by_user_id: null, email: 'fighter2@example.com' },
+            { id: 'referee-1', claimed_by_user_id: 'user-2', email: 'ref@example.com' },
+          ],
+          error: null,
+        },
+        event_broadcast_notifications: {
+          data: { id: 'broadcast-1', recipient_count: 3 },
+          error: null,
+        },
+        event_broadcast_recipients: {
+          data: [
+            {
+              id: 'recipient-1',
+              person_id: 'fighter-1',
+              user_id: 'user-1',
+              email: 'fighter@example.com',
+            },
+            {
+              id: 'recipient-2',
+              person_id: 'fighter-2',
+              user_id: null,
+              email: 'fighter2@example.com',
+            },
+            {
+              id: 'recipient-3',
+              person_id: 'referee-1',
+              user_id: 'user-2',
+              email: 'ref@example.com',
+            },
+          ],
+          error: null,
+        },
+        audit_log: { data: { id: 'audit-1' }, error: null },
+      };
+      return makeChain(results[table] ?? { data: null, error: null });
+    });
+    const scheduler = { sendImmediate: vi.fn().mockResolvedValue(undefined) };
+    const service = new BroadcastNotificationsService(
+      { service: { from } } as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      scheduler as never,
+    );
+
+    await service.sendBroadcast('event-1', 'actor-1', {
+      targetType: 'fighters_and_referees',
+      tournamentId: 'tournament-1',
+      severity: 'info',
+      title: 'Pools ready',
+      body: 'Pools are published.',
+    });
+
+    expect(scheduler.sendImmediate).toHaveBeenCalledTimes(3);
+  });
 });

@@ -6,6 +6,7 @@ import { PhasesService } from './phases.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
+const mockOrgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
 
 /**
  * Creates a mock Supabase query chain.
@@ -18,6 +19,7 @@ function makeChain(result: unknown) {
     eq: vi.fn() as ReturnType<typeof vi.fn>,
     in: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
+    update: vi.fn() as ReturnType<typeof vi.fn>,
     delete: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
@@ -26,6 +28,7 @@ function makeChain(result: unknown) {
   chain.eq.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
   chain.delete.mockReturnValue(chain);
   return chain;
 }
@@ -43,12 +46,13 @@ function makeAwaitableChain(result: unknown) {
     eq: vi.fn(),
     in: vi.fn(),
     insert: vi.fn(),
+    update: vi.fn(),
     delete: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   });
   // All builder methods return the chain (Promise) itself
-  for (const key of ['select', 'eq', 'in', 'insert', 'delete']) {
+  for (const key of ['select', 'eq', 'in', 'insert', 'update', 'delete']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -62,7 +66,7 @@ describe('PhasesService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new PhasesService(mockSupabase as never);
+    service = new PhasesService(mockSupabase as never, undefined, mockOrgs as never);
   });
 
   // ── generatePools — idempotency ───────────────────────────────────────────
@@ -98,6 +102,7 @@ describe('PhasesService', () => {
       const regsChain = makeAwaitableChain({ data: regsData, error: null });
 
       // Phase insert
+      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
 
@@ -109,6 +114,7 @@ describe('PhasesService', () => {
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(deleteChain)
         .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(tournamentChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(defaultChain);
 
@@ -116,6 +122,9 @@ describe('PhasesService', () => {
       await expect(
         service.generatePools('tournament-1', { poolCount: 2 }, true),
       ).resolves.toBeDefined();
+      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ visibility_status: 'hidden' }),
+      );
     });
 
     it('throws BadRequestException when fewer than 2 fighters', async () => {
@@ -182,6 +191,9 @@ describe('PhasesService', () => {
         .mockReturnValue(defaultChain);
 
       const result = await service.generateBracket('tournament-1', {}, false);
+      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ visibility_status: 'hidden' }),
+      );
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { rounds: number }).rounds).toBe(3);
       expect((result as { byeCount: number }).byeCount).toBe(0);
@@ -210,6 +222,78 @@ describe('PhasesService', () => {
       const result = await service.generateBracket('tournament-1', { bracketSize: 8 }, false);
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { byeCount: number }).byeCount).toBe(2); // 8-6=2 byes
+    });
+  });
+
+  describe('updateVisibility', () => {
+    it('publishes a phase and writes an audit log', async () => {
+      const phaseChain = makeChain({ data: null, error: null });
+      phaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-1',
+          type: 'pool',
+          visibility_status: 'hidden',
+          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+        },
+        error: null,
+      });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({
+        data: { id: 'phase-1', visibility_status: 'published' },
+        error: null,
+      });
+      const auditChain = makeChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(updateChain)
+        .mockReturnValueOnce(auditChain);
+
+      await expect(
+        service.updateVisibility('phase-1', 'actor-1', { visibility: 'published' }),
+      ).resolves.toMatchObject({ visibility_status: 'published' });
+      expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'actor-1', 'admin');
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          visibility_status: 'published',
+          published_by_user_id: 'actor-1',
+        }),
+      );
+      expect(auditChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'phase.visibility_published' }),
+      );
+    });
+
+    it('requires confirmation before hiding a phase with started or completed matches', async () => {
+      const phaseChain = makeChain({ data: null, error: null });
+      phaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-1',
+          type: 'single_elim',
+          visibility_status: 'published',
+          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+        },
+        error: null,
+      });
+      const matchesChain = makeAwaitableChain({
+        data: [
+          { id: 'match-1', status: 'running' },
+          { id: 'match-2', status: 'completed' },
+        ],
+        error: null,
+      });
+
+      fromMock.mockReturnValueOnce(phaseChain).mockReturnValueOnce(matchesChain);
+
+      await expect(
+        service.updateVisibility('phase-1', 'actor-1', { visibility: 'hidden' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          requiresConfirmation: true,
+          startedMatchCount: 1,
+          completedMatchCount: 1,
+        }),
+      });
     });
   });
 });

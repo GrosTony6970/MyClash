@@ -101,7 +101,7 @@ export class PublicScheduleService {
         red_registration_id, blue_registration_id,
         pools ( name ),
         lices ( name ),
-        phases ( tournaments ( name ) )
+        phases ( visibility_status, tournaments ( name ) )
       `,
       )
       .or(
@@ -111,11 +111,15 @@ export class PublicScheduleService {
 
     if (!matches) return [];
 
-    return (matches as Array<Record<string, unknown>>).map((m) => {
+    return (matches as Array<Record<string, unknown>>).flatMap((m) => {
       const isRed = regIds.includes(m['red_registration_id'] as string);
       const pool = m['pools'] as { name: string } | null;
       const lice = m['lices'] as { name: string } | null;
-      const phase = m['phases'] as { tournaments: { name: string } | null } | null;
+      const phase = m['phases'] as {
+        visibility_status?: string | null;
+        tournaments: { name: string } | null;
+      } | null;
+      if (phase?.visibility_status !== 'published') return [];
 
       return {
         id: m['id'] as string,
@@ -143,7 +147,7 @@ export class PublicScheduleService {
         matches (
           id, match_number_label, scheduled_at,
           pools ( name ),
-          phases ( tournaments ( name ) )
+          phases ( visibility_status, tournaments ( name ) )
         )
       `,
       )
@@ -152,10 +156,14 @@ export class PublicScheduleService {
 
     if (!data) return [];
 
-    return (data as Array<Record<string, unknown>>).map((a) => {
+    return (data as Array<Record<string, unknown>>).flatMap((a) => {
       const match = a['matches'] as Record<string, unknown> | null;
       const pool = match?.['pools'] as { name: string } | null;
-      const phase = match?.['phases'] as { tournaments: { name: string } | null } | null;
+      const phase = match?.['phases'] as {
+        visibility_status?: string | null;
+        tournaments: { name: string } | null;
+      } | null;
+      if (phase?.visibility_status !== 'published') return [];
 
       return {
         matchId: (match?.['id'] as string) ?? '',

@@ -1,12 +1,15 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,13 +20,31 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { PhasesService } from './phases.service';
-import { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
+import { SupabaseService } from '../supabase/supabase.service';
+import { GenerateBracketDto, GeneratePoolsDto, UpdatePhaseVisibilityDto } from './dto/phases.dto';
+import type { FastifyRequest } from 'fastify';
+
+async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
+  const authHeader = req.headers['authorization'];
+  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : cookies?.['sb-access-token'];
+  if (!token) return 'anonymous';
+  const {
+    data: { user },
+  } = await supabase.anon.auth.getUser(token);
+  return user?.id ?? 'anonymous';
+}
 
 @ApiTags('phases')
 @ApiBearerAuth()
 @Controller()
 export class PhasesController {
-  constructor(private readonly phases: PhasesService) {}
+  constructor(
+    private readonly phases: PhasesService,
+    private readonly supabase: SupabaseService,
+  ) {}
 
   /**
    * POST /api/v1/tournaments/:tournamentId/generate-pools
@@ -54,6 +75,13 @@ export class PhasesController {
     return this.phases.generatePools(tournamentId, dto, force === 'true');
   }
 
+  @Get('tournaments/:tournamentId/pools')
+  @ApiOperation({ summary: 'List generated pools for a tournament' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async listPools(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.phases.listTournamentPools(tournamentId);
+  }
+
   /**
    * POST /api/v1/tournaments/:tournamentId/generate-bracket
    *
@@ -80,5 +108,26 @@ export class PhasesController {
     @Query('force') force?: string,
   ) {
     return this.phases.generateBracket(tournamentId, dto, force === 'true');
+  }
+
+  @Get('tournaments/:tournamentId/bracket')
+  @ApiOperation({ summary: 'Get generated bracket for a tournament' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async getBracket(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.phases.getTournamentBracket(tournamentId);
+  }
+
+  @Patch('phases/:phaseId/visibility')
+  @ApiOperation({ summary: 'Publish or hide a tournament phase (org admin+)' })
+  @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Phase visibility updated' })
+  @ApiResponse({ status: 409, description: 'Confirmation required to hide started matches' })
+  async updateVisibility(
+    @Param('phaseId', ParseUUIDPipe) phaseId: string,
+    @Body() dto: UpdatePhaseVisibilityDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.updateVisibility(phaseId, userId, dto);
   }
 }

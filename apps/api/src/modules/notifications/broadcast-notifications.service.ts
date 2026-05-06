@@ -5,7 +5,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 import type { SendBroadcastNotificationDto } from './dto/notifications.dto';
 
 export type BroadcastSeverity = 'info' | 'warning' | 'alert';
-export type BroadcastTargetType = 'all' | 'fighters' | 'referees' | 'specific_persons';
+export type BroadcastTargetType =
+  | 'all'
+  | 'fighters'
+  | 'referees'
+  | 'fighters_and_referees'
+  | 'specific_persons';
 
 interface EventRow {
   id: string;
@@ -27,7 +32,13 @@ interface RecipientRow {
   email: string | null;
 }
 
-const TARGET_TYPES: BroadcastTargetType[] = ['all', 'fighters', 'referees', 'specific_persons'];
+const TARGET_TYPES: BroadcastTargetType[] = [
+  'all',
+  'fighters',
+  'referees',
+  'fighters_and_referees',
+  'specific_persons',
+];
 const SEVERITIES: BroadcastSeverity[] = ['info', 'warning', 'alert'];
 
 @Injectable()
@@ -95,6 +106,7 @@ export class BroadcastNotificationsService {
       broadcastId,
       severity: dto.severity,
       targetType: dto.targetType,
+      tournamentId: dto.tournamentId ?? null,
       recipientCount: recipients.length,
     });
 
@@ -189,8 +201,13 @@ export class BroadcastNotificationsService {
       }
       return persons;
     }
-    if (dto.targetType === 'fighters') return this.getFighterRecipients(eventId);
-    return this.getRefereeRecipients(eventId);
+    if (dto.targetType === 'fighters') return this.getFighterRecipients(eventId, dto.tournamentId);
+    if (dto.targetType === 'referees') return this.getRefereeRecipients(eventId, dto.tournamentId);
+    const [fighters, referees] = await Promise.all([
+      this.getFighterRecipients(eventId, dto.tournamentId),
+      this.getRefereeRecipients(eventId, dto.tournamentId),
+    ]);
+    return [...fighters, ...referees];
   }
 
   private async getPersonsForEvent(eventId: string): Promise<PersonRecipient[]> {
@@ -213,13 +230,33 @@ export class BroadcastNotificationsService {
     return this.mapPersons(data ?? []);
   }
 
-  private async getFighterRecipients(eventId: string): Promise<PersonRecipient[]> {
-    const { data: tournaments, error: tournamentError } = await this.supabase.service
+  private async getTournamentIds(eventId: string, tournamentId?: string): Promise<string[]> {
+    if (tournamentId) {
+      const { data, error } = await this.supabase.service
+        .from('tournaments')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('id', tournamentId);
+      if (error) throw new BadRequestException(error.message);
+      if (!data || (data as Array<unknown>).length === 0) {
+        throw new BadRequestException('Tournament must belong to this event');
+      }
+      return [tournamentId];
+    }
+
+    const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('id')
       .eq('event_id', eventId);
-    if (tournamentError) throw new BadRequestException(tournamentError.message);
-    const tournamentIds = ((tournaments ?? []) as Array<{ id: string }>).map((row) => row.id);
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
+  }
+
+  private async getFighterRecipients(
+    eventId: string,
+    tournamentId?: string,
+  ): Promise<PersonRecipient[]> {
+    const tournamentIds = await this.getTournamentIds(eventId, tournamentId);
     if (tournamentIds.length === 0) return [];
 
     const { data: registrations, error: registrationError } = await this.supabase.service
@@ -240,7 +277,63 @@ export class BroadcastNotificationsService {
     return this.getPersonsByIds(eventId, personIds);
   }
 
-  private async getRefereeRecipients(eventId: string): Promise<PersonRecipient[]> {
+  private async getRefereeRecipients(
+    eventId: string,
+    tournamentId?: string,
+  ): Promise<PersonRecipient[]> {
+    if (tournamentId) {
+      await this.getTournamentIds(eventId, tournamentId);
+      const { data: phases, error: phasesError } = await this.supabase.service
+        .from('phases')
+        .select('id')
+        .eq('tournament_id', tournamentId);
+      if (phasesError) throw new BadRequestException(phasesError.message);
+      const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((row) => row.id);
+      if (phaseIds.length === 0) return [];
+
+      const [{ data: pools, error: poolsError }, { data: matches, error: matchesError }] =
+        await Promise.all([
+          this.supabase.service.from('pools').select('id').in('phase_id', phaseIds),
+          this.supabase.service.from('matches').select('id').in('phase_id', phaseIds),
+        ]);
+      if (poolsError) throw new BadRequestException(poolsError.message);
+      if (matchesError) throw new BadRequestException(matchesError.message);
+      const poolIds = new Set(((pools ?? []) as Array<{ id: string }>).map((row) => row.id));
+      const matchIds = new Set(((matches ?? []) as Array<{ id: string }>).map((row) => row.id));
+
+      const { data: assignments, error } = await this.supabase.service
+        .from('referee_assignments')
+        .select('user_id, pool_id, match_id')
+        .eq('event_id', eventId);
+      if (error) throw new BadRequestException(error.message);
+      const userIds = Array.from(
+        new Set(
+          (
+            (assignments ?? []) as Array<{
+              user_id: string | null;
+              pool_id: string | null;
+              match_id: string | null;
+            }>
+          )
+            .filter(
+              (row) =>
+                (row.pool_id && poolIds.has(row.pool_id)) ||
+                (row.match_id && matchIds.has(row.match_id)),
+            )
+            .map((row) => row.user_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+      if (userIds.length === 0) return [];
+      const { data: persons, error: personsError } = await this.supabase.service
+        .from('persons')
+        .select('id, claimed_by_user_id, email')
+        .eq('event_id', eventId)
+        .in('claimed_by_user_id', userIds);
+      if (personsError) throw new BadRequestException(personsError.message);
+      return this.mapPersons(persons ?? []);
+    }
+
     const [{ data: qualifications, error: qualificationError }, { data: assignments, error }] =
       await Promise.all([
         this.supabase.service

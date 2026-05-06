@@ -60,6 +60,16 @@ export class EventsController {
     return this.events.getEventBySlug(slug);
   }
 
+  /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/standings */
+  @Get('events/:eventSlug/tournaments/:tournamentSlug/standings')
+  @ApiOperation({ summary: 'Get public tournament pools and bracket, respecting phase visibility' })
+  async getPublicTournamentStandings(
+    @Param('eventSlug') eventSlug: string,
+    @Param('tournamentSlug') tournamentSlug: string,
+  ) {
+    return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug);
+  }
+
   /** POST /api/v1/organizations/:orgId/events */
   @Post('organizations/:orgId/events')
   @HttpCode(HttpStatus.CREATED)

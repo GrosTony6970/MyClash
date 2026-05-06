@@ -146,6 +146,52 @@ export class EventsService {
     return data;
   }
 
+  async getPublicTournamentStandings(eventSlug: string, tournamentSlug: string) {
+    const event = await this.getEventBySlug(eventSlug);
+    const eventId = (event as { id: string }).id;
+
+    const { data: tournament, error: tournamentError } = await this.supabase.service
+      .from('tournaments')
+      .select('id, name, weapon, ruleset_code, status')
+      .eq('event_id', eventId)
+      .eq('slug', tournamentSlug)
+      .maybeSingle();
+    if (tournamentError) throw new BadRequestException(tournamentError.message);
+    if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
+
+    const { data: phases, error: phasesError } = await this.supabase.service
+      .from('phases')
+      .select('id, type, visibility_status, config_json')
+      .eq('tournament_id', (tournament as { id: string }).id)
+      .eq('visibility_status', 'published');
+    if (phasesError) throw new BadRequestException(phasesError.message);
+
+    const phaseRows = (phases ?? []) as Array<Record<string, unknown>>;
+    const poolPhase = phaseRows.find((phase) => phase['type'] === 'pool');
+    const bracketPhase = phaseRows.find((phase) => phase['type'] === 'single_elim');
+
+    const pools =
+      poolPhase && typeof poolPhase['id'] === 'string'
+        ? await this.getPublishedPools(poolPhase['id'])
+        : [];
+    const bracket =
+      bracketPhase && typeof bracketPhase['id'] === 'string'
+        ? await this.getPublishedBracket(bracketPhase)
+        : { bracketSlots: [], bracketSize: 0, bracketRounds: 0 };
+
+    return {
+      tournament: {
+        id: tournament['id'],
+        name: tournament['name'],
+        weapon: tournament['weapon'],
+        rulesetCode: tournament['ruleset_code'],
+        status: tournament['status'],
+      },
+      pools,
+      ...bracket,
+    };
+  }
+
   // ── Tournaments ───────────────────────────────────────────────────────────────
 
   async listTournaments(eventId: string) {
@@ -157,6 +203,45 @@ export class EventsService {
 
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
+  }
+
+  private async getPublishedPools(phaseId: string) {
+    const { data, error } = await this.supabase.service
+      .from('pools')
+      .select('id, name')
+      .eq('phase_id', phaseId)
+      .order('sort_order', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Array<Record<string, unknown>>).map((pool) => ({
+      id: pool['id'],
+      name: pool['name'],
+      standings: [],
+    }));
+  }
+
+  private async getPublishedBracket(phase: Record<string, unknown>) {
+    const { data, error } = await this.supabase.service
+      .from('bracket_slots')
+      .select('id, round, position')
+      .eq('phase_id', phase['id'] as string)
+      .order('round', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    const config = (phase['config_json'] ?? {}) as Record<string, unknown>;
+    return {
+      bracketSlots: (data ?? []).map((slot) => ({
+        id: slot['id'],
+        round: slot['round'],
+        position: slot['position'],
+        redFighterName: null,
+        blueFighterName: null,
+        redScore: null,
+        blueScore: null,
+        status: 'scheduled',
+        matchId: null,
+      })),
+      bracketSize: Number(config['bracketSize'] ?? 0),
+      bracketRounds: Number(config['rounds'] ?? 0),
+    };
   }
 
   async createTournament(eventId: string, dto: CreateTournamentDto, userId: string) {
