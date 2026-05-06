@@ -458,9 +458,24 @@
   - `POST /fighters/:id/promote` requires a claimed account whose `persons.id` matches the Person being promoted.
   - OpenAPI spec in `/api/docs` matches.
 
+### T-104f · Claimed Person email change workflow
+
+- **Dep**: T-104d, T-009
+- **Goal**: Claimed fighters can change their login/contact email after confirming a link sent to the new address.
+- **Files**: `apps/api/src/modules/persons/**`, `apps/api/src/modules/mail/mail.service.ts`, `apps/web-public/app/e/[eventSlug]/profile/email/**`, `packages/db/migrations/0020_person_email_change_requests.sql`.
+- **AC**:
+  - Only claimed Supabase users with at least one claimed Person row can request a change.
+  - New email is normalized, validated, and rejected if it matches the current login email.
+  - Before creating a request, every claimed Person event is checked for `(event_id, lower(email))` conflicts against other Persons.
+  - Confirmation tokens are stored only as SHA-256 hashes, expire after 1 hour, and are single-use/cancellable.
+  - Confirming updates Supabase Auth email and all `persons.email` rows where `claimed_by_user_id` matches.
+  - Confirmation writes `audit_log.action = 'person.email_change_confirmed'`.
+  - Public app page `/e/[eventSlug]/profile/email` shows current email, pending state, request form, and cancel action.
+  - Tests cover anonymous/guest rejection, duplicate email rejection, hash-only token storage, request replacement, expired/reused token rejection, successful confirmation, and Auth failure.
+
 ### T-105 · Organizations & Tournaments API
 
-- **Dep**: T-104
+- **Dep**: T-104, T-104f
 - **Goal**: Modules `organizations` and `events` with CRUD.
 - **Files**: `apps/api/src/modules/organizations/**`, `apps/api/src/modules/tournaments/**`.
 - **AC**:
@@ -1364,7 +1379,8 @@ P0.5: T-001 → T-051, T-052
 P1:  T-007 → T-101 → T-102, T-103
      T-101 → T-104 → T-104b → T-104c → T-104d
      T-104 → T-104e
-     T-104e → T-105 → T-106 → T-107
+     T-104d,T-009 → T-104f
+     T-104e,T-104f → T-105 → T-106 → T-107
 
 P2:  T-005 → T-201 → T-202 → T-203 → T-204
      T-202 → T-205, T-206

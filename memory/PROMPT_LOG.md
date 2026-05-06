@@ -551,3 +551,7 @@ Referee stats visibility: public summary and private detail. Referee-only people
 ## 00:15:34_06-05-2026
 
 Approved referee statistics design; proceed with planning and implementation.
+
+## 15:47:40_06-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Claimed Fighter Email Change Workflow. Build a claimed-user-only email change flow for registered fighters/Persons with new-email confirmation, Supabase Auth login email update, all claimed Person emails update, API/UI/mail/tests/docs/memory updates.

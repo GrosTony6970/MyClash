@@ -61,6 +61,7 @@
 - **Migrate user-owned data atomically on claim.** Follow rows, push subscriptions, workshop enrollments, persona selections — all transfer from `guest_session_id` to `user_id` in the same transaction as the claim. Otherwise the user "loses" their state, which is terrible UX.
 - **Default visibility follows the physical reality.** Anything that happens in shared physical space at the event (matches, referee slots, workshops) is public by default — the data just makes visible what's already visible IRL. Personal contact info (email, phone) is private by default. The opt-in/opt-out direction follows from "would the user be surprised to learn this is visible?"
 - **Following relationships are private and one-directional.** Don't notify the followed person. Don't show "X is following you." This isn't a social network; the follow is just a personal bookmark.
+- **Store one-time confirmation tokens as hashes only.** Email-change and similar workflows must persist a SHA-256 token hash, never the raw bearer token.
 
 ## Process & communication
 

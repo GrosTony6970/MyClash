@@ -19,6 +19,15 @@ export interface NotificationEmailOptions {
   actionUrl?: string;
 }
 
+export interface EmailChangeConfirmationOptions {
+  to: string;
+  oldEmail: string;
+  newEmail: string;
+  confirmUrl: string;
+  expiresAt: string;
+  displayName?: string;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -125,5 +134,52 @@ export class MailService {
     }
 
     this.logger.log(`Notification email sent to ${opts.to}`);
+  }
+
+  async sendEmailChangeConfirmation(opts: EmailChangeConfirmationOptions): Promise<void> {
+    const displayName = opts.displayName ? escapeHtml(opts.displayName) : null;
+    const oldEmail = escapeHtml(opts.oldEmail);
+    const newEmail = escapeHtml(opts.newEmail);
+    const confirmUrl = escapeHtml(opts.confirmUrl);
+    const expiresAt = escapeHtml(opts.expiresAt);
+    const greeting = displayName ? `Bonjour ${displayName},` : 'Bonjour,';
+
+    const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  <p>${greeting}</p>
+  <p>Vous avez demande a changer l email de votre compte MyClash de <strong>${oldEmail}</strong> vers <strong>${newEmail}</strong>.</p>
+  <p>You requested to change your MyClash account email from <strong>${oldEmail}</strong> to <strong>${newEmail}</strong>.</p>
+  <p style="margin:32px 0">
+    <a href="${confirmUrl}"
+       style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
+      Confirmer le changement / Confirm email change
+    </a>
+  </p>
+  <p style="color:#666;font-size:13px">Ce lien expire a ${expiresAt}. / This link expires at ${expiresAt}.</p>
+  <p style="color:#666;font-size:13px">Si vous n'avez pas demande ce changement, ignorez cet email. / If you did not request this change, ignore this email.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="color:#999;font-size:12px">MyClash - Plateforme libre pour les evenements HEMA</p>
+</body>
+</html>`;
+
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: 'Confirmer votre email MyClash / Confirm your MyClash email change',
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Failed to send email-change confirmation to ${opts.to}: ${JSON.stringify(error)}`,
+      );
+      throw new Error(`Mail delivery failed: ${error.message}`);
+    }
+
+    this.logger.log(`Email-change confirmation sent to ${opts.to}`);
   }
 }

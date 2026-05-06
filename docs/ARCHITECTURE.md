@@ -480,6 +480,23 @@ guest_sessions (
 -- The claim event is implicit: persons.claim_status='claimed' AND claimed_by_user_id IS NOT NULL.
 -- The claim mechanism is Supabase Auth magic link to the email on file.
 
+-- Claimed-user email change workflow. A claimed participant requests a new
+-- email while logged in; MyClash sends a confirmation link to the new address.
+-- Confirming updates Supabase Auth email and every Person row claimed by that
+-- user, after checking event-level email uniqueness.
+person_email_change_requests (
+  id,
+  user_id,                           -- Supabase auth user id
+  old_email,
+  new_email,
+  token_hash,                        -- SHA-256; raw token never stored
+  expires_at,                        -- default: request time + 1 hour
+  confirmed_at,
+  cancelled_at,
+  created_at,
+  UNIQUE active pending request per user
+)
+
 -- Following: a user (claimed) or guest session tracks Persons within an event.
 -- Event-scoped. A coach who follows Jean at FAL 2027 doesn't automatically
 -- follow Jean at Swordfish 2027 — privacy preferences may differ per event,
@@ -1291,6 +1308,7 @@ MyClash uses a **two-tier identity model**: organizer-created Persons (the canon
 | Subscribe to push notifications             | ❌        | ✅ (this device)  | ✅ (cross-device)    |
 | Use a second device                         | ❌        | ❌ (re-pick name) | ✅ (login link)      |
 | Edit own profile (display name, bio, photo) | ❌        | ❌                | ✅                   |
+| Change login / roster email                 | ❌        | ❌                | ✅ (new-email link)  |
 | Promote Person → global Fighter profile     | ❌        | ❌                | ✅                   |
 | See full email address (instead of mask)    | ❌        | ❌                | ✅ (own only)        |
 | Access organizer admin                      | ❌        | ❌                | ✅ (if granted role) |
@@ -1330,7 +1348,7 @@ This is intentional — preventing self-registration is what makes guest session
 
 **Switching devices as a Guest** — the participant types their name again on the new device. They get a fresh guest session on Person X. Push subscriptions are per-session (per-device), so each device subscribes independently. That's fine — Guest is explicitly "this device only."
 
-**Email typos by the organizer** — if the participant's email in the roster is wrong, they can't claim. The organizer admin has an "edit person" form. Magic-link auth detects "no person with this email" and shows: _Ask the organizer to check your email is correctly registered as `[entered email]`._
+**Email typos by the organizer** — if the participant's email in the roster is wrong, they can't claim. The organizer admin has an "edit person" form. After a participant has claimed a profile, they can change their login/roster email through `/e/<eventSlug>/profile/email`; the new email must confirm by link before Supabase Auth and all claimed Person rows are updated.
 
 ### 12.5 Implementation notes
 
@@ -1563,6 +1581,12 @@ PATCH  /api/v1/follows/:followId                              [guest|claimed]
 GET    /api/v1/persons/me/privacy                             [claimed, owns person]
 PATCH  /api/v1/persons/me/privacy                             [claimed, owns person]
 
+# Claimed-user email change
+GET    /api/v1/persons/me/email-change                         [claimed]
+POST   /api/v1/persons/me/email-change                         [claimed] # body: { newEmail }
+DELETE /api/v1/persons/me/email-change                         [claimed]
+GET    /api/v1/persons/me/email-change/confirm?token=...        [public token]
+
 # Guest sessions (participant's pick-myself flow)
 POST   /api/v1/events/:id/guest-sessions  [public]
                                                # body: { person_id }
@@ -1754,6 +1778,7 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 /e/[eventSlug]/referee/match/[matchId]                  # On-piste referee tools
 /e/[eventSlug]/profile                                  # User profile in event context
 /e/[eventSlug]/profile/privacy                          # Privacy preferences (claimed only)
+/e/[eventSlug]/profile/email                            # Login / roster email change (claimed only)
 /e/[eventSlug]/notifications                            # Notification preferences + history
 ```
 

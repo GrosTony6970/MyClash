@@ -112,6 +112,7 @@ Key invariants:
 
 - Only the organizer creates Persons. Participants cannot self-register.
 - Person uniqueness within an event: `(event_id, lower(email))`.
+- Claimed users can change their Supabase login email and all their claimed `persons.email` rows through a new-email confirmation workflow. Requests are stored in `person_email_change_requests` with SHA-256 token hashes and one active pending request per user.
 - Guest sessions sign with `MYCLASH_GUEST_JWT_SECRET`, distinct from Supabase secret. They can never escalate to Supabase tokens.
 - Event staff local accounts use a separate `mc_staff` httpOnly cookie signed with `MYCLASH_STAFF_JWT_SECRET`; they are event-scoped username+PIN accounts for scoring tablets and can only score assigned Lices.
 - `persons.claim_status` is one of: `unclaimed`, `guest_active`, `claimed`.
@@ -246,6 +247,7 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 | T-104c · Guest session module                  | `0690394` | ✅ done |
 | T-104d · /api/v1/me unified identity           | `1c8481f` | ✅ done |
 | T-104e · Fighters & Clubs API                  | `a9daf10` | ✅ done |
+| T-104f · Claimed Person email change workflow  | —         | ✅ done |
 | T-105 · Organizations & Events/Tournaments API | `e00ae6a` | ✅ done |
 | T-106 · Lices, Registrations API               | `d2a231d` | ✅ done |
 | T-107 · API client scaffold                    | `2060b3c` | ✅ done |

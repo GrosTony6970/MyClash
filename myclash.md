@@ -51,6 +51,7 @@ It is designed around three convictions:
 - Workshop catalog with one-tap enrollment.
 - **My Schedule**: unified view of fights, refereeing, workshops with conflict markers.
 - Push notifications for upcoming matches, workshops, schedule changes.
+- Claimed fighters can change their login/contact email after confirming a link sent to the new address.
 
 ### For referees
 
@@ -94,7 +95,8 @@ It is designed around three convictions:
 4. Lands on Competitor home: "Your next match — Pool A on Lice 1 at 10:30. Check in at registration desk."
 5. Throughout the day, gets push notifications 10 min before matches.
 6. Between matches: opens My Schedule to see what's next, including their afternoon workshop.
-7. After matches: views their pool standings live; sees their final ranking when published.
+7. If their contact email changes, opens profile email settings, enters the new address, and confirms the link sent there.
+8. After matches: views their pool standings live; sees their final ranking when published.
 
 ### Scorekeeper at the piste
 
