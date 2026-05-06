@@ -588,6 +588,15 @@ notification_preferences (
   results_published,                -- bool
   enabled
 )
+event_broadcast_notifications (
+  id, event_id, actor_user_id,
+  severity, target_type, title, body,
+  recipient_count, created_at
+)
+event_broadcast_recipients (
+  id, broadcast_id, person_id, user_id, email,
+  delivery_status, delivered_at, error, created_at
+)
 ```
 
 ### 5.3 Exchange semantics
@@ -1013,6 +1022,7 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 | Workshop you enrolled in cancelled  | immediate         | always on  |
 | Promoted from waitlist to confirmed | immediate         | always on  |
 | Final results published             | immediate         | yes        |
+| Organizer event broadcast           | immediate         | global     |
 
 ### 11ter.3 Implementation
 
@@ -1020,6 +1030,7 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 - Job picks the user's `push_subscriptions`, sends via `web-push` library with VAPID keys.
 - Offline-tolerant: if a user's device is offline, the push is queued by the OS; delivered on reconnect.
 - Falls back to email for users with `enabled=false` for push but who opted in to email.
+- Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
 
 ---
 
@@ -1719,6 +1730,9 @@ POST   /api/v1/notifications/subscribe                 [authenticated]
                                                        # registers push subscription
 DELETE /api/v1/notifications/subscribe/:id             [authenticated]
 GET    /api/v1/notifications/vapid-public-key          [public]
+GET    /api/v1/notifications/broadcasts                [authenticated]
+POST   /api/v1/events/:eventId/notifications/broadcast [organizer admin+]
+GET    /api/v1/events/:eventId/notifications/broadcasts [organizer admin+]
 
 # Exports
 GET    /api/v1/events/:id/export?format=csv|json|hema-ratings|pdf

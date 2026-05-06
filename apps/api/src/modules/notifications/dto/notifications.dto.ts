@@ -1,11 +1,16 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -60,4 +65,28 @@ export class UpdateNotificationPreferencesDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+}
+
+export class SendBroadcastNotificationDto {
+  @IsIn(['all', 'fighters', 'referees', 'specific_persons'])
+  targetType!: 'all' | 'fighters' | 'referees' | 'specific_persons';
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUID('4', { each: true })
+  personIds?: string[];
+
+  @IsIn(['info', 'warning', 'alert'])
+  severity!: 'info' | 'warning' | 'alert';
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  title!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  body!: string;
 }

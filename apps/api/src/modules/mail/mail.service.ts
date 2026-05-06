@@ -19,6 +19,10 @@ export interface NotificationEmailOptions {
   actionUrl?: string;
 }
 
+export interface BroadcastNotificationEmailOptions extends NotificationEmailOptions {
+  severity: 'info' | 'warning' | 'alert';
+}
+
 export interface EmailChangeConfirmationOptions {
   to: string;
   oldEmail: string;
@@ -55,7 +59,11 @@ export class MailService {
         ? 'Confirmez votre profil MyClash / Confirm your MyClash profile'
         : 'Votre lien de connexion MyClash / Your MyClash login link';
 
-    const greeting = opts.displayName ? `Bonjour ${opts.displayName},` : 'Bonjour,';
+    const greeting = opts.displayName ? `Bonjour ${escapeHtml(opts.displayName)},` : 'Bonjour,';
+    const intro =
+      opts.type === 'claim'
+        ? '<p>Cliquez sur le lien ci-dessous pour confirmer votre profil et acceder a votre planning.</p><p>Click the link below to confirm your profile and access your schedule.</p>'
+        : '<p>Cliquez sur le lien ci-dessous pour vous connecter a MyClash.</p><p>Click the link below to log in to MyClash.</p>';
 
     const html = `
 <!DOCTYPE html>
@@ -64,21 +72,17 @@ export class MailService {
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
   <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
   <p>${greeting}</p>
-  ${
-    opts.type === 'claim'
-      ? '<p>Cliquez sur le lien ci-dessous pour confirmer votre profil et accéder à votre planning.</p><p>Click the link below to confirm your profile and access your schedule.</p>'
-      : '<p>Cliquez sur le lien ci-dessous pour vous connecter à MyClash.</p><p>Click the link below to log in to MyClash.</p>'
-  }
+  ${intro}
   <p style="margin:32px 0">
-    <a href="${opts.magicLink}"
+    <a href="${escapeHtml(opts.magicLink)}"
        style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
       ${opts.type === 'claim' ? 'Confirmer mon profil / Confirm my profile' : 'Se connecter / Log in'}
     </a>
   </p>
   <p style="color:#666;font-size:13px">Ce lien expire dans 1 heure. / This link expires in 1 hour.</p>
-  <p style="color:#666;font-size:13px">Si vous n'avez pas demandé ce lien, ignorez cet email. / If you didn't request this link, ignore this email.</p>
+  <p style="color:#666;font-size:13px">Si vous n'avez pas demande ce lien, ignorez cet email. / If you didn't request this link, ignore this email.</p>
   <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-  <p style="color:#999;font-size:12px">MyClash — Plateforme libre pour les événements HEMA</p>
+  <p style="color:#999;font-size:12px">MyClash - Plateforme libre pour les evenements HEMA</p>
 </body>
 </html>`;
 
@@ -98,27 +102,7 @@ export class MailService {
   }
 
   async sendNotification(opts: NotificationEmailOptions): Promise<void> {
-    const title = escapeHtml(opts.title);
-    const body = escapeHtml(opts.body);
-    const actionUrl = opts.actionUrl ? escapeHtml(opts.actionUrl) : null;
-    const html = `
-<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
-  <h2 style="font-size:20px;margin-bottom:12px">${title}</h2>
-  <p>${body}</p>
-  ${
-    actionUrl
-      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
-      : ''
-  }
-  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-  <p style="color:#999;font-size:12px">MyClash â€” Plateforme libre pour les Ã©vÃ©nements HEMA</p>
-</body>
-</html>`;
-
+    const html = this.renderBasicNotification(opts);
     const { error } = await this.resend.emails.send({
       from: this.from,
       to: opts.to,
@@ -134,6 +118,54 @@ export class MailService {
     }
 
     this.logger.log(`Notification email sent to ${opts.to}`);
+  }
+
+  async sendBroadcastNotification(opts: BroadcastNotificationEmailOptions): Promise<void> {
+    const severityLabel =
+      opts.severity === 'alert'
+        ? 'Alerte / Alert'
+        : opts.severity === 'warning'
+          ? 'Attention / Warning'
+          : 'Information / Info';
+    const severityColor =
+      opts.severity === 'alert' ? '#dc2626' : opts.severity === 'warning' ? '#ca8a04' : '#16a34a';
+    const title = escapeHtml(opts.title);
+    const body = escapeHtml(opts.body);
+    const actionUrl = opts.actionUrl ? escapeHtml(opts.actionUrl) : null;
+
+    const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  <p style="display:inline-block;background:${severityColor};color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:bold">${severityLabel}</p>
+  <h2 style="font-size:20px;margin-bottom:12px">${title}</h2>
+  <p>${body}</p>
+  <p style="color:#555;font-size:14px">Message envoye par l'organisation de votre evenement. / Message sent by your event organization.</p>
+  ${
+    actionUrl
+      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
+      : ''
+  }
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="color:#999;font-size:12px">MyClash - Plateforme libre pour les evenements HEMA</p>
+</body>
+</html>`;
+
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: opts.subject,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(`Failed to send broadcast email to ${opts.to}: ${JSON.stringify(error)}`);
+      throw new Error(`Mail delivery failed: ${error.message}`);
+    }
+
+    this.logger.log(`Broadcast notification email sent to ${opts.to}`);
   }
 
   async sendEmailChangeConfirmation(opts: EmailChangeConfirmationOptions): Promise<void> {
@@ -181,5 +213,28 @@ export class MailService {
     }
 
     this.logger.log(`Email-change confirmation sent to ${opts.to}`);
+  }
+
+  private renderBasicNotification(opts: NotificationEmailOptions): string {
+    const title = escapeHtml(opts.title);
+    const body = escapeHtml(opts.body);
+    const actionUrl = opts.actionUrl ? escapeHtml(opts.actionUrl) : null;
+    return `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  <h2 style="font-size:20px;margin-bottom:12px">${title}</h2>
+  <p>${body}</p>
+  ${
+    actionUrl
+      ? `<p style="margin:32px 0"><a href="${actionUrl}" style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">Ouvrir MyClash / Open MyClash</a></p>`
+      : ''
+  }
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="color:#999;font-size:12px">MyClash - Plateforme libre pour les evenements HEMA</p>
+</body>
+</html>`;
   }
 }

@@ -59,4 +59,25 @@ describe('MailService email-change confirmation', () => {
     expect(html).toContain('&lt;Jean &amp; Marie&gt;');
     expect(html).not.toContain('<Jean & Marie>');
   });
+
+  it('sends escaped bilingual organizer broadcast emails with severity label', async () => {
+    const service = new MailService(config as never);
+
+    await service.sendBroadcastNotification({
+      to: 'person@example.com',
+      subject: 'Venue <change>',
+      title: 'Venue <change>',
+      body: 'Use hall & entrance B',
+      actionUrl: 'https://app.myclash.fr/notifications',
+      severity: 'alert',
+    });
+
+    const html = sendMock.mock.calls[0]![0].html as string;
+    expect(html).toContain('Alerte / Alert');
+    expect(html).toContain('Venue &lt;change&gt;');
+    expect(html).toContain('Use hall &amp; entrance B');
+    expect(html).toContain('Message envoye');
+    expect(html).toContain('Message sent');
+    expect(html).not.toContain('Venue <change>');
+  });
 });

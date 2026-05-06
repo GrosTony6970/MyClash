@@ -555,3 +555,7 @@ Approved referee statistics design; proceed with planning and implementation.
 ## 15:47:40_06-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Claimed Fighter Email Change Workflow. Build a claimed-user-only email change flow for registered fighters/Persons with new-email confirmation, Supabase Auth login email update, all claimed Person emails update, API/UI/mail/tests/docs/memory updates.
+
+## 16:14:24_06-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Organizer Event Broadcast Notifications. Add organizer event broadcast notifications to all event persons, fighters, referees, or selected Persons with info/warning/alert severity, push plus email fallback, API/UI/tests/docs/memory, commit and push main.

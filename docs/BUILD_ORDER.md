@@ -1239,6 +1239,18 @@
   - Each event type tested: receives push within 5s of trigger.
   - Email fallback when push disabled.
 
+### T-1204 · Organizer event broadcast notifications
+
+- **Dep**: T-1201, T-703, T-901
+- **Goal**: Event organizers can send immediate Info/Warning/Alert messages to everyone at an event, fighters only, referees only, or selected Persons.
+- **Files**: `apps/api/src/modules/notifications/**`, `apps/web-admin/app/.../events/[eventId]/notifications/**`, `apps/web-public/app/notifications/**`.
+- **AC**:
+  - Admin+ organizer can send a broadcast scoped to one event; non-organizers cannot.
+  - Recipient resolution works for all, fighters, referees, and specific Persons; duplicate claimed users are sent once.
+  - Broadcast history and per-recipient delivery state are persisted.
+  - Claimed users receive Web Push first; push-disabled/no-subscription users and unclaimed roster rows receive email fallback.
+  - Public notifications page shows received event broadcasts with severity color.
+
 ---
 
 ## Phase P13 — Super Admin
@@ -1434,6 +1446,7 @@ P11: T-104 → T-1101 → T-1102, T-1103
 
 P12: T-009 → T-1201 → T-1202, T-1203
      T-610,T-1201 → T-613
+     T-1201,T-703,T-901 → T-1204
 
 P13: T-009 → T-1301
      T-104 → T-1302

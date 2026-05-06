@@ -371,11 +371,12 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P12 — in progress)
 
-| Task                                     | Commit    | Status  |
-| ---------------------------------------- | --------- | ------- |
-| T-1201 · VAPID + subscription endpoints  | `ff8958e` | ✅ done |
-| T-1202 · Scheduled notification triggers | `8de77e2` | ✅ done |
-| T-1203 · Event-driven notifications      | `6326f05` | ✅ done |
+| Task                                     | Commit    | Status              |
+| ---------------------------------------- | --------- | ------------------- |
+| T-1201 · VAPID + subscription endpoints  | `ff8958e` | ✅ done             |
+| T-1202 · Scheduled notification triggers | `8de77e2` | ✅ done             |
+| T-1203 · Event-driven notifications      | `6326f05` | ✅ done             |
+| T-1204 · Organizer event broadcasts      | pending   | implemented locally |
 
 ## Build progress (Phase P13 - in progress)
 
@@ -515,6 +516,8 @@ Required for the API to start:
 - **T-1202 Scheduled notification triggers** (`apps/api/src/workers/notification-scheduler.worker.ts`, `apps/api/src/modules/notifications/`, match/workshop/referee hooks): BullMQ queue `notification-scheduler` schedules delayed Web Push jobs with stable job IDs `notification:<kind>:<entityId>:<userId>` so schedule changes replace old jobs. Supported reminder kinds: `match_starting`, `workshop_starting`, `referee_starting`. Lead times come from `notification_preferences` (`match_starting_minutes_before`, `workshop_starting_minutes_before`, `referee_starting_minutes_before`) with defaults 10/15/10 minutes. `GET/PATCH /api/v1/notifications/preferences` exposes user preference configuration. Delivery uses `web-push` with VAPID keys and current `push_subscriptions`.
 
 - **T-1203 Event-driven notifications** (`apps/api/src/modules/notifications/event-handlers/`, `apps/api/src/workers/notification-scheduler.worker.ts`): immediate BullMQ jobs use the same queue with stable IDs `notification:<kind>:<entityId>:<userId>` and delay 0. Supported event kinds: `assignment_changed`, `workshop_cancelled`, `waitlist_promoted`, `results_published`. Delayed reminders replace old jobs, but immediate events suppress duplicates while completed jobs remain in BullMQ for 24h. Worker delivery uses push when enabled and subscriptions exist; otherwise event jobs with an email address fall back to `MailService.sendNotification`. Hooks: referee assignment lock sends assignment-changed + delayed referee reminder, workshop waitlist promotion sends promotion notice, session status `cancelled` sends cancellation notices, and tournament status `completed` sends results-published notices.
+
+- **T-1204 Organizer event broadcasts** (`packages/db/migrations/0021_event_broadcast_notifications.sql`, `apps/api/src/modules/notifications/broadcast-notifications.*`, `apps/web-admin/app/org/[slug]/events/[eventId]/notifications/`, `apps/web-public/app/notifications/`): organizers with admin+ role can send immediate event broadcasts to all event Persons, fighters, referees, or selected Persons. Broadcasts persist durable history (`event_broadcast_notifications`, `event_broadcast_recipients`) with severity `info|warning|alert`; claimed recipients get push first and disabled/no-subscription/unclaimed recipients use bilingual email fallback. Public `/notifications` now shows claimed-user broadcast history.
 
 - **T-1301 Super admin dashboard** (`apps/api/src/modules/admin/`, `apps/web-admin/app/admin/`, `packages/db/migrations/0001_init.sql`): extends the T-009c super-admin org surface with an explicit organization approve alias, Supabase Auth admin user disable/enable, metadata-only community ruleset moderation, and platform feature flags. New tables: `ruleset_submissions` and `feature_flags`, both super-admin-only via RLS. Community ruleset approval does not execute submitted code; runtime registration remains a code/deploy process.
 

@@ -3,7 +3,9 @@
  * Note: auth.users is managed by Supabase GoTrue — we don't define it here.
  * We define the application-level tables that reference auth.users.
  */
-import { boolean, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { events } from './events';
+import { persons } from './persons';
 
 // ── Platform roles ────────────────────────────────────────────────────────────
 // Super-admin override. A user with role='super_admin' bypasses all org checks.
@@ -34,6 +36,34 @@ export const notificationPreferences = pgTable('notification_preferences', {
   scheduleChanges: boolean('schedule_changes').notNull().default(true),
   resultsPublished: boolean('results_published').notNull().default(true),
   enabled: boolean('enabled').notNull().default(true),
+});
+
+export const eventBroadcastNotifications = pgTable('event_broadcast_notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventId: uuid('event_id')
+    .notNull()
+    .references(() => events.id, { onDelete: 'cascade' }),
+  actorUserId: uuid('actor_user_id').notNull(),
+  severity: text('severity').notNull(),
+  targetType: text('target_type').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  recipientCount: integer('recipient_count').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const eventBroadcastRecipients = pgTable('event_broadcast_recipients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  broadcastId: uuid('broadcast_id')
+    .notNull()
+    .references(() => eventBroadcastNotifications.id, { onDelete: 'cascade' }),
+  personId: uuid('person_id').references(() => persons.id, { onDelete: 'set null' }),
+  userId: uuid('user_id'),
+  email: text('email'),
+  deliveryStatus: text('delivery_status').notNull().default('queued'),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const rulesetSubmissions = pgTable('ruleset_submissions', {

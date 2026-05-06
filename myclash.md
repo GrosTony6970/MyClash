@@ -34,6 +34,7 @@ It is designed around three convictions:
 - Generate single-elimination brackets from pool standings.
 - Schedule matches and workshops on a unified day grid.
 - Manage workshops: instructors (optional fighter link), descriptions, sessions, capacity, waitlists.
+- Send event-wide notifications to everyone, fighters, referees, or selected people with Info, Warning, and Alert severity.
 - Publish results, rich statistics, and export to CSV/JSON/PDF/HEMA Ratings format.
 
 ### For scorekeepers
@@ -126,7 +127,8 @@ It is designed around three convictions:
 2. Watches live dashboard: which matches are running on which Lices, score deltas.
 3. A scorekeeper voids an exchange in error → audit log captures it; super admin approves the void.
 4. Workshop instructor doesn't show — organizer cancels the session; all enrollees get a push notification.
-5. End of day: publishes final results. Statistics page goes live, mirroring the lyonamhe.fr layout.
+5. A room change happens — organizer sends a Warning broadcast to fighters and referees, with email fallback for unclaimed roster entries.
+6. End of day: publishes final results. Statistics page goes live, mirroring the lyonamhe.fr layout.
 
 ---
 

@@ -16,7 +16,8 @@ export type ImmediateNotificationKind =
   | 'workshop_cancelled'
   | 'waitlist_promoted'
   | 'results_published'
-  | 'exchange_edit_rejected';
+  | 'exchange_edit_rejected'
+  | 'organizer_broadcast';
 
 export type FollowNotificationKind = 'follow_match_starting';
 
@@ -31,12 +32,15 @@ export interface ScheduledNotificationJob {
   kind: NotificationKind;
   entityId: string;
   userId: string;
+  recipientId?: string | null;
+  forceEmail?: boolean;
   title: string;
   body: string;
   url: string;
   email?: string | null;
   emailSubject?: string | null;
   preference?: NotificationPreferenceToggle | null;
+  severity?: 'info' | 'warning' | 'alert' | null;
 }
 
 export interface ReminderInput extends ScheduledNotificationJob {
@@ -101,7 +105,7 @@ export class WebPushSender {
 
   async send(
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
-    payload: { title: string; body: string; url: string },
+    payload: { title: string; body: string; url: string; severity?: 'info' | 'warning' | 'alert' },
   ): Promise<void> {
     this.configure();
     await webPush.sendNotification(subscription, JSON.stringify(payload));
@@ -346,22 +350,29 @@ export class NotificationSchedulerWorker extends WorkerHost {
   }
 
   async process(job: Job<ScheduledNotificationJob>): Promise<void> {
-    const preference = await this.getPreference(job.data.userId);
-    if (preference?.enabled === false || this.isDisabledByPreference(job.data, preference)) {
+    const deliveryUserId = job.data.forceEmail ? null : job.data.userId;
+    const preference = deliveryUserId ? await this.getPreference(deliveryUserId) : null;
+    if (
+      !deliveryUserId ||
+      preference?.enabled === false ||
+      this.isDisabledByPreference(job.data, preference)
+    ) {
       await this.sendEmailFallback(job.data);
+      await this.markRecipient(job.data, 'delivered');
       return;
     }
 
     const { data, error } = await this.supabase.service
       .from('push_subscriptions')
       .select('endpoint, p256dh_key, auth_key')
-      .eq('user_id', job.data.userId);
+      .eq('user_id', deliveryUserId);
 
     if (error) throw new Error(`Failed to load push subscriptions: ${error.message}`);
 
     const subscriptions = (data ?? []) as PushSubscriptionRow[];
     if (subscriptions.length === 0) {
       await this.sendEmailFallback(job.data);
+      await this.markRecipient(job.data, 'delivered');
       this.logger.log(
         `Sent ${job.data.kind} notification for ${job.data.entityId} to 0 subscriptions`,
       );
@@ -382,11 +393,13 @@ export class NotificationSchedulerWorker extends WorkerHost {
             title: job.data.title,
             body: job.data.body,
             url: job.data.url,
+            severity: job.data.severity ?? undefined,
           },
         ),
       ),
     );
 
+    await this.markRecipient(job.data, 'delivered');
     this.logger.log(
       `Sent ${job.data.kind} notification for ${job.data.entityId} to ${subscriptions.length} subscriptions`,
     );
@@ -423,6 +436,17 @@ export class NotificationSchedulerWorker extends WorkerHost {
 
   private async sendEmailFallback(job: ScheduledNotificationJob): Promise<void> {
     if (!job.email) return;
+    if (job.kind === 'organizer_broadcast') {
+      await this.mail.sendBroadcastNotification({
+        to: job.email,
+        subject: job.emailSubject ?? job.title,
+        title: job.title,
+        body: job.body,
+        actionUrl: job.url,
+        severity: job.severity ?? 'info',
+      });
+      return;
+    }
     await this.mail.sendNotification({
       to: job.email,
       subject: job.emailSubject ?? job.title,
@@ -430,5 +454,21 @@ export class NotificationSchedulerWorker extends WorkerHost {
       body: job.body,
       actionUrl: job.url,
     });
+  }
+
+  private async markRecipient(
+    job: ScheduledNotificationJob,
+    status: 'delivered' | 'failed',
+    error?: string,
+  ): Promise<void> {
+    if (!job.recipientId) return;
+    await this.supabase.service
+      .from('event_broadcast_recipients')
+      .update({
+        delivery_status: status,
+        delivered_at: status === 'delivered' ? new Date().toISOString() : null,
+        error: error ?? null,
+      })
+      .eq('id', job.recipientId);
   }
 }

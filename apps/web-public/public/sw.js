@@ -12,8 +12,10 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'MyClash';
   const options = {
     body: payload.body || 'You have a new MyClash notification.',
+    tag: payload.severity ? `myclash-${payload.severity}` : undefined,
     data: {
       url: payload.url || '/',
+      severity: payload.severity || 'info',
     },
   };
 

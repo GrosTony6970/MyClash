@@ -15,6 +15,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
+import { BroadcastNotificationsService } from './broadcast-notifications.service';
 import { SubscribeDto, UpdateNotificationPreferencesDto } from './dto/notifications.dto';
 import { NotificationsService } from './notifications.service';
 
@@ -40,6 +41,7 @@ async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService):
 export class NotificationsController {
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly broadcasts: BroadcastNotificationsService,
     private readonly supabase: SupabaseService,
   ) {}
 
@@ -76,6 +78,14 @@ export class NotificationsController {
   ) {
     const userId = await getClaimedUserId(req, this.supabase);
     return this.notifications.updatePreferences(userId, dto);
+  }
+
+  @Get('broadcasts')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List current user broadcast notification history' })
+  async listUserBroadcasts(@Req() req: FastifyRequest) {
+    const userId = await getClaimedUserId(req, this.supabase);
+    return this.broadcasts.listUserBroadcasts(userId);
   }
 
   @Delete('subscribe/:id')

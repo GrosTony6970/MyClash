@@ -21,11 +21,13 @@ function makeSupabaseFrom(rowsByTable: Record<string, unknown>) {
       select: vi.fn(),
       eq: vi.fn(),
       in: vi.fn(),
+      update: vi.fn(),
       maybeSingle: vi.fn().mockResolvedValue(result),
     });
     chain.select.mockReturnValue(chain);
     chain.eq.mockReturnValue(chain);
     chain.in.mockReturnValue(chain);
+    chain.update.mockReturnValue(chain);
     return chain;
   });
 }
@@ -396,5 +398,94 @@ describe('notification worker', () => {
 
     expect(sender.send).not.toHaveBeenCalled();
     expect(mail.sendNotification).toHaveBeenCalledOnce();
+  });
+
+  it('sends organizer broadcast payload severity and marks recipient delivered', async () => {
+    const from = makeSupabaseFrom({
+      push_subscriptions: {
+        data: [{ endpoint: 'https://push.example/1', p256dh_key: 'p256dh', auth_key: 'auth' }],
+        error: null,
+      },
+      notification_preferences: {
+        data: { user_id: 'user-1', enabled: true },
+        error: null,
+      },
+      event_broadcast_recipients: { data: { id: 'recipient-1' }, error: null },
+    });
+    const sender = { send: vi.fn().mockResolvedValue(undefined) };
+    const mail = {
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      sendBroadcastNotification: vi.fn().mockResolvedValue(undefined),
+    };
+    const worker = new NotificationSchedulerWorker(
+      { service: { from } } as never,
+      new ConfigService({}) as never,
+      sender as never,
+      mail as never,
+    );
+
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'organizer_broadcast',
+        entityId: 'broadcast-1',
+        recipientId: 'recipient-1',
+        userId: 'user-1',
+        title: 'Venue change',
+        body: 'Main hall closes now.',
+        url: '/notifications',
+        email: 'user@example.com',
+        severity: 'alert',
+      },
+    } as never);
+
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ severity: 'alert', title: 'Venue change' }),
+    );
+    const recipientChain = from.mock.results.find((result) => result.value)?.value;
+    expect(recipientChain).toBeDefined();
+  });
+
+  it('uses broadcast email fallback for email-only organizer recipients', async () => {
+    const from = makeSupabaseFrom({
+      event_broadcast_recipients: { data: { id: 'recipient-1' }, error: null },
+    });
+    const sender = { send: vi.fn().mockResolvedValue(undefined) };
+    const mail = {
+      sendNotification: vi.fn().mockResolvedValue(undefined),
+      sendBroadcastNotification: vi.fn().mockResolvedValue(undefined),
+    };
+    const worker = new NotificationSchedulerWorker(
+      { service: { from } } as never,
+      new ConfigService({}) as never,
+      sender as never,
+      mail as never,
+    );
+
+    await worker.process({
+      id: 'job-1',
+      data: {
+        kind: 'organizer_broadcast',
+        entityId: 'broadcast-1',
+        recipientId: 'recipient-1',
+        userId: 'recipient-1',
+        forceEmail: true,
+        title: 'Pools ready',
+        body: 'Check your pool now.',
+        url: '/notifications',
+        email: 'person@example.com',
+        severity: 'info',
+      },
+    } as never);
+
+    expect(sender.send).not.toHaveBeenCalled();
+    expect(mail.sendBroadcastNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'person@example.com',
+        title: 'Pools ready',
+        severity: 'info',
+      }),
+    );
   });
 });
