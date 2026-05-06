@@ -16,6 +16,7 @@ import {
   buildCostReport,
   bergerSchedule,
   singleElimBracket,
+  doubleElimBracket,
   type Fighter,
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -26,6 +27,7 @@ import type {
   GeneratePoolsDto,
   UpdatePhaseVisibilityDto,
 } from './dto/phases.dto';
+import type { BracketAdvanceService } from './bracket-advance.service';
 
 @Injectable()
 export class PhasesService {
@@ -37,6 +39,8 @@ export class PhasesService {
     private readonly hemaRatings?: HemaRatingsService,
     @Optional()
     private readonly orgs?: OrganizationsService,
+    @Optional()
+    private readonly bracketAdvance?: BracketAdvanceService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -255,18 +259,23 @@ export class PhasesService {
    * POST /events/:eventId/generate-bracket
    *
    * Creates:
-   *   - 1 Phase (type='single_elim')
+   *   - 1 Phase (type='single_elim' or 'double_elim')
    *   - bracket_slots rows (one per match slot)
+   *   - Populates seed registrations and creates first-round matches
    *
    * Idempotent: returns 409 if an elim phase already exists, unless force=true.
    */
   async generateBracket(tournamentId: string, dto: GenerateBracketDto, force = false) {
+    const phaseType =
+      (dto as GenerateBracketDto & { phaseType?: string }).phaseType ?? 'single_elim';
+    const isDoubleElim = phaseType === 'double_elim';
+
     // Check for existing elim phase
     const { data: existing } = await this.supabase.service
       .from('phases')
       .select('id')
       .eq('tournament_id', tournamentId)
-      .eq('type', 'single_elim')
+      .in('type', ['single_elim', 'double_elim'])
       .maybeSingle();
 
     if (existing && !force) {
@@ -286,7 +295,6 @@ export class PhasesService {
     let qualifyCount = dto.qualifyCount;
 
     if (!qualifyCount) {
-      // Default: count all checked-in registrations
       const { data: regs } = await this.supabase.service
         .from('registrations')
         .select('id')
@@ -300,25 +308,99 @@ export class PhasesService {
       throw new BadRequestException('Need at least 2 fighters to generate a bracket');
     }
 
+    // Load seeded registrations (sorted by seed / bib_number)
+    const { data: seededRegs } = await this.supabase.service
+      .from('registrations')
+      .select('id, seed, bib_number')
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in', 'done'])
+      .order('seed', { ascending: true, nullsFirst: false });
+
+    const registrationsBySeed = new Map<number, string>();
+    ((seededRegs ?? []) as Array<{ id: string; seed: number | null; bib_number: number | null }>)
+      .slice(0, qualifyCount)
+      .forEach((reg, idx) => {
+        const seedNum = reg.seed ?? reg.bib_number ?? idx + 1;
+        registrationsBySeed.set(seedNum, reg.id);
+      });
+
     // Generate bracket structure
     const bracketOptions = dto.bracketSize !== undefined ? { bracketSize: dto.bracketSize } : {};
-    const bracket = singleElimBracket(qualifyCount, bracketOptions);
+
+    let configJson: Record<string, unknown>;
+    let slotInserts: Array<Record<string, unknown>>;
+    let totalSlots: number;
+    let summaryRounds: number;
+
+    if (isDoubleElim) {
+      const bracket = doubleElimBracket(qualifyCount, bracketOptions);
+      configJson = {
+        bracketSize: bracket.bracketSize,
+        fighterCount: bracket.fighterCount,
+        byeCount: bracket.byeCount,
+        wbRounds: bracket.wbRounds,
+        lbRounds: bracket.lbRounds,
+        autoAdvance: true,
+      };
+      slotInserts = bracket.slots.map((slot) => {
+        const regA =
+          slot.homeSeed != null ? (registrationsBySeed.get(slot.homeSeed) ?? null) : null;
+        const regB =
+          slot.awaySeed != null ? (registrationsBySeed.get(slot.awaySeed) ?? null) : null;
+        return {
+          phase_id: '__PHASE_ID__',
+          round: slot.round,
+          position: slot.position,
+          source_a_type: slot.sourceAType,
+          source_a_ref: slot.homeSource,
+          source_b_type: slot.sourceBType,
+          source_b_ref: slot.awaySource,
+          registration_a_id: regA,
+          registration_b_id: regB,
+        };
+      });
+      totalSlots = bracket.slots.length;
+      summaryRounds = bracket.wbRounds + bracket.lbRounds + 1;
+    } else {
+      const bracket = singleElimBracket(qualifyCount, bracketOptions);
+      configJson = {
+        bracketSize: bracket.bracketSize,
+        fighterCount: bracket.fighterCount,
+        byeCount: bracket.byeCount,
+        rounds: bracket.rounds,
+        autoAdvance: true,
+      };
+      slotInserts = bracket.slots.map((slot) => {
+        const regA =
+          slot.homeSeed != null ? (registrationsBySeed.get(slot.homeSeed) ?? null) : null;
+        const regB =
+          slot.awaySeed != null ? (registrationsBySeed.get(slot.awaySeed) ?? null) : null;
+        return {
+          phase_id: '__PHASE_ID__',
+          round: slot.round,
+          position: slot.position,
+          source_a_type: slot.sourceAType,
+          source_a_ref: slot.homeSource,
+          source_b_type: slot.sourceBType,
+          source_b_ref: slot.awaySource,
+          registration_a_id: regA,
+          registration_b_id: regB,
+        };
+      });
+      totalSlots = bracket.slots.length;
+      summaryRounds = (configJson['rounds'] as number) ?? 0;
+    }
 
     // Create phase
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')
       .insert({
         tournament_id: tournamentId,
-        type: 'single_elim',
+        type: phaseType,
         sort_order: 2,
         status: 'pending',
         visibility_status: 'hidden',
-        config_json: {
-          bracketSize: bracket.bracketSize,
-          fighterCount: bracket.fighterCount,
-          byeCount: bracket.byeCount,
-          rounds: bracket.rounds,
-        },
+        config_json: configJson,
       })
       .select('id')
       .single();
@@ -327,30 +409,27 @@ export class PhasesService {
       throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
     const phaseId = (phase as { id: string }).id;
 
-    // Insert bracket slots
-    const slotInserts = bracket.slots.map((slot) => ({
-      phase_id: phaseId,
-      round: slot.round,
-      position: slot.position,
-      source_a_type: slot.homeSeed !== null ? 'seed' : 'winner_of',
-      source_a_ref: slot.homeSeed !== null ? String(slot.homeSeed) : slot.homeSource,
-      source_b_type: slot.awaySeed !== null ? 'seed' : 'winner_of',
-      source_b_ref: slot.awaySeed !== null ? String(slot.awaySeed) : slot.awaySource,
-    }));
+    // Insert bracket slots with real phase ID
+    const finalInserts = slotInserts.map((s) => ({ ...s, phase_id: phaseId }));
+    await this.supabase.service.from('bracket_slots').insert(finalInserts);
 
-    await this.supabase.service.from('bracket_slots').insert(slotInserts);
+    // Advance bye slots immediately
+    if (this.bracketAdvance) {
+      await this.bracketAdvance.advanceByeSlots(phaseId);
+    }
 
     this.logger.log(
-      `Generated ${bracket.rounds}-round bracket (size ${bracket.bracketSize}, ${bracket.byeCount} byes) for tournament ${tournamentId}`,
+      `Generated ${phaseType} bracket (size ${(configJson['bracketSize'] as number) ?? qualifyCount}, ${(configJson['byeCount'] as number) ?? 0} byes) for tournament ${tournamentId}`,
     );
 
     return {
       phaseId,
-      bracketSize: bracket.bracketSize,
-      fighterCount: bracket.fighterCount,
-      byeCount: bracket.byeCount,
-      rounds: bracket.rounds,
-      totalSlots: bracket.slots.length,
+      phaseType,
+      bracketSize: (configJson['bracketSize'] as number) ?? qualifyCount,
+      fighterCount: qualifyCount,
+      byeCount: (configJson['byeCount'] as number) ?? 0,
+      rounds: summaryRounds,
+      totalSlots,
     };
   }
 
@@ -462,17 +541,20 @@ export class PhasesService {
   async getTournamentBracket(tournamentId: string) {
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')
-      .select('id, visibility_status, config_json')
+      .select('id, type, visibility_status, config_json')
       .eq('tournament_id', tournamentId)
-      .eq('type', 'single_elim')
+      .in('type', ['single_elim', 'double_elim'])
       .maybeSingle();
     if (phaseError) throw new BadRequestException(phaseError.message);
     if (!phase) return null;
 
     const phaseId = (phase as { id: string }).id;
+    const phaseType = (phase as { type: string }).type;
     const { data: slots, error } = await this.supabase.service
       .from('bracket_slots')
-      .select('id, round, position')
+      .select(
+        'id, round, position, source_a_type, source_a_ref, source_b_type, source_b_ref, registration_a_id, registration_b_id',
+      )
       .eq('phase_id', phaseId)
       .order('round', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -481,14 +563,21 @@ export class PhasesService {
       fighterCount?: number;
       byeCount?: number;
       rounds?: number;
+      wbRounds?: number;
+      lbRounds?: number;
+      autoAdvance?: boolean;
     };
     return {
       phaseId,
+      phaseType,
       visibility: (phase as { visibility_status?: string }).visibility_status ?? 'hidden',
       bracketSize: config.bracketSize ?? 0,
       fighterCount: config.fighterCount ?? 0,
       byeCount: config.byeCount ?? 0,
       rounds: config.rounds ?? 0,
+      wbRounds: config.wbRounds ?? null,
+      lbRounds: config.lbRounds ?? null,
+      autoAdvance: config.autoAdvance ?? true,
       totalSlots: (slots ?? []).length,
       slots: slots ?? [],
     };

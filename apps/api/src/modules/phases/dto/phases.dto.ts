@@ -80,3 +80,15 @@ export class UpdatePhaseVisibilityDto {
   visibility!: 'hidden' | 'published';
   confirmStarted?: boolean;
 }
+
+export class UpdateBracketSlotDto {
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  registrationAId?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  registrationBId?: string | null;
+}

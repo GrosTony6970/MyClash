@@ -1197,6 +1197,54 @@ The auto-assign is **one-click + always overridable**. The expected workflow:
 
 ---
 
+## 11sexies. Bracket Auto-Advance
+
+### 11sexies.1 Overview
+
+When a match completes, `BracketAdvanceService.onMatchCompleted(matchId)` fires automatically (fire-and-forget, errors logged). It looks up the match's `bracket_slot_id`, resolves the slot's position within the phase, and writes the winner (and loser, for bronze/LB routes) into downstream `bracket_slots`. When both sides of a slot are filled, a new `scheduled` match is created for that slot. This gives referees a zero-touch experience: complete match → next match appears automatically.
+
+### 11sexies.2 Bracket types
+
+| Type          | Description                                                                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `single_elim` | Standard single-elimination with bronze medal match. `source_a_type = 'loser_of'` on bronze.                                                                                     |
+| `double_elim` | Double-elimination: WB (rounds 1..wbRounds), LB (rounds wbRounds+1..wbRounds+lbRounds), GF (wbRounds+lbRounds+1). Optional reset. `wbRounds`/`lbRounds` in `phases.config_json`. |
+
+### 11sexies.3 Ref string format
+
+Slot references stored in `bracket_slots.source_a_ref` / `source_b_ref`:
+
+| Phase type          | Format                                | Example   |
+| ------------------- | ------------------------------------- | --------- |
+| `single_elim`       | `R{r}P{p}`                            | `R2P3`    |
+| `double_elim` WB    | `WBR{r}P{p}`                          | `WBR1P4`  |
+| `double_elim` LB    | `LBR{k}P{p}` (k = LB-round 1-indexed) | `LBR2P1`  |
+| `double_elim` GF    | `GF`                                  | `GF`      |
+| `double_elim` Reset | `GFRESET`                             | `GFRESET` |
+
+`BracketAdvanceService.buildSelfRef()` constructs the current slot's ref; `advanceFromSlot()` queries `bracket_slots WHERE source_a_ref='winner of {ref}' OR source_b_ref='loser of {ref}'`.
+
+### 11sexies.4 Configuration flags (`phases.config_json`)
+
+- `autoAdvance` (boolean, default `true`): when `false`, the service exits immediately — every slot must be filled via the override endpoint.
+- `grandFinalReset` (boolean, default `false`): when `true`, a RESET slot is generated in the double_elim bracket structure.
+- `wbRounds`, `lbRounds` (numbers): stored at bracket generation time for double_elim phases.
+
+### 11sexies.5 Override endpoint
+
+```
+PATCH /api/v1/bracket-slots/:slotId   [organizer+]
+Body: { registrationAId?: string | null, registrationBId?: string | null }
+```
+
+Setting a value to `null` cancels the assignment and voids the downstream match if it hasn't started. This gives organisers full control on top of automatic advancement.
+
+### 11sexies.6 Bye handling
+
+Bye slots (`source_b_type = 'bye'`) have `registration_a_id` pre-filled by the generator. `advanceByeSlots(phaseId)` runs immediately after bracket generation to propagate seeded fighters into their downstream slots so round-2 matches can form as soon as the other seed completes.
+
+---
+
 ## 11quinquies. Following & Public Profiles
 
 A user — anonymous, guest, or claimed — can search for any fighter or referee in the event, view their schedule and results, and follow them to build a personal "watchlist." This is the mechanism behind the **Accompanist** persona and is also useful for any user who wants to track friends, students, or rivals.
@@ -1668,6 +1716,7 @@ GET    /api/v1/tournaments/:id/bracket          [visibility-filtered]
 POST   /api/v1/tournaments/:id/generate-pools   [organizer+]
 POST   /api/v1/tournaments/:id/generate-bracket [organizer+]
 PATCH  /api/v1/phases/:id/visibility            [organizer admin+]
+PATCH  /api/v1/bracket-slots/:id               [organizer+]  # manual slot override
 
 # Matches
 GET    /api/v1/matches/:id

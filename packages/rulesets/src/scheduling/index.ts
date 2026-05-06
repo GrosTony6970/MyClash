@@ -13,6 +13,14 @@ export type { BergerMatch, BergerScheduleOptions } from './berger';
 export { singleElimBracket, totalBracketMatches } from './single-elim';
 export type { BracketSlot, SingleElimBracket, SingleElimOptions } from './single-elim';
 
+export { doubleElimBracket } from './double-elim';
+export type {
+  DoubleElimBracket,
+  DoubleElimSlot,
+  DoubleElimOptions,
+  SlotSourceType,
+} from './double-elim';
+
 export { detectFighterRefereeConflicts } from './conflict-check';
 export type {
   ScheduledMatch as ConflictScheduledMatch,

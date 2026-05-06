@@ -32,6 +32,10 @@ export interface BracketSlot {
   /** Source description for bracket display */
   homeSource: string;
   awaySource: string;
+  /** Source type for the home/top slot */
+  sourceAType: 'seed' | 'winner_of' | 'loser_of' | 'bye';
+  /** Source type for the away/bottom slot */
+  sourceBType: 'seed' | 'winner_of' | 'loser_of' | 'bye';
 }
 
 export interface SingleElimBracket {
@@ -58,6 +62,11 @@ export interface SingleElimOptions {
    * If not provided, defaults to nextPowerOf2(fighterCount).
    */
   bracketSize?: number;
+  /**
+   * Whether to include a bronze medal match (3rd place).
+   * Default: true when bracketSize >= 4.
+   */
+  includeBronze?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -115,7 +124,7 @@ function buildSeedingOrder(size: number): Array<[number, number]> {
  * Generate a single-elimination bracket for N fighters.
  *
  * @param fighterCount  Number of qualified fighters
- * @param options       Optional: override bracket size
+ * @param options       Optional: override bracket size, include bronze match
  * @returns             Complete bracket structure
  */
 export function singleElimBracket(
@@ -156,6 +165,9 @@ export function singleElimBracket(
     const awayIsBye = awaySeed > fighterCount;
     const isBye = homeIsBye || awayIsBye;
 
+    const sourceAType: BracketSlot['sourceAType'] = homeIsBye ? 'bye' : 'seed';
+    const sourceBType: BracketSlot['sourceBType'] = awayIsBye ? 'bye' : 'seed';
+
     slots.push({
       round: 1,
       position: pos + 1,
@@ -164,6 +176,8 @@ export function singleElimBracket(
       isBye,
       homeSource: homeIsBye ? 'bye' : `seed ${homeSeed}`,
       awaySource: awayIsBye ? 'bye' : `seed ${awaySeed}`,
+      sourceAType,
+      sourceBType,
     });
   }
 
@@ -181,8 +195,25 @@ export function singleElimBracket(
         isBye: false,
         homeSource: `winner of R${round - 1}P${prevPos1}`,
         awaySource: `winner of R${round - 1}P${prevPos2}`,
+        sourceAType: 'winner_of',
+        sourceBType: 'winner_of',
       });
     }
+  }
+
+  // ── Bronze match (3rd place) ─────────────────────────────────────────────
+  if (bracketSize >= 4 && options.includeBronze !== false) {
+    slots.push({
+      round: rounds,
+      position: 2,
+      homeSeed: null,
+      awaySeed: null,
+      isBye: false,
+      homeSource: `loser of R${rounds - 1}P1`,
+      awaySource: `loser of R${rounds - 1}P2`,
+      sourceAType: 'loser_of',
+      sourceBType: 'loser_of',
+    });
   }
 
   return { bracketSize, fighterCount, byeCount, rounds, slots };

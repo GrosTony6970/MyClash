@@ -3,14 +3,14 @@
 /* eslint-disable myclash/no-literal-string */
 
 /**
- * Bracket management — T-704
+ * Bracket management — T-704 / auto-advance
  * Route: /org/[slug]/events/[eventId]/bracket
  */
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BracketView, type BracketSlotData } from '@myclash/ui';
+import { BracketView, type BracketSlotData, type BracketConfig } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface Tournament {
@@ -20,13 +20,23 @@ interface Tournament {
 
 interface BracketResult {
   phaseId: string;
+  phaseType?: string;
   visibility?: 'hidden' | 'published';
   bracketSize: number;
   fighterCount: number;
   byeCount: number;
   rounds: number;
+  wbRounds?: number | null;
+  lbRounds?: number | null;
+  autoAdvance?: boolean;
   totalSlots: number;
   slots: BracketSlotData[];
+}
+
+interface OverrideModalState {
+  slotId: string;
+  regAId: string;
+  regBId: string;
 }
 
 export default function BracketPage() {
@@ -46,6 +56,13 @@ export default function BracketPage() {
   // Config
   const [qualifyCount, setQualifyCount] = useState<number | ''>('');
   const [bracketSize, setBracketSize] = useState<number | ''>('');
+  const [phaseType, setPhaseType] = useState<'single_elim' | 'double_elim'>('single_elim');
+  const [grandFinalReset, setGrandFinalReset] = useState(false);
+
+  // Override modal
+  const [overrideModal, setOverrideModal] = useState<OverrideModalState | null>(null);
+  const [overriding, setOverriding] = useState(false);
+  const [overrideError, setOverrideError] = useState<string | null>(null);
 
   // UI state
   const [generating, setGenerating] = useState(false);
@@ -65,9 +82,9 @@ export default function BracketPage() {
     })
       .then(async (res) => {
         if (!res.ok) return;
-        const t = (await res.json()) as Tournament[];
-        setTournaments(t);
-        if (t.length > 0) setTimeout(() => setSelectedTournament(t[0]!.id), 0);
+        const tournaments = (await res.json()) as Tournament[];
+        setTournaments(tournaments);
+        if (tournaments.length > 0) setTimeout(() => setSelectedTournament(tournaments[0]!.id), 0);
       })
       .catch(() => undefined);
     return () => controller.abort();
@@ -90,6 +107,7 @@ export default function BracketPage() {
           setBracketPhaseId(data.phaseId);
           setVisibility(data.visibility ?? 'hidden');
           setExistingBracket(true);
+          if (data.phaseType === 'double_elim') setPhaseType('double_elim');
         }
       })
       .catch(() => undefined);
@@ -105,9 +123,10 @@ export default function BracketPage() {
     setShowForceConfirm(false);
 
     try {
-      const body: Record<string, unknown> = {};
+      const body: Record<string, unknown> = { phaseType };
       if (qualifyCount !== '') body['qualifyCount'] = qualifyCount;
       if (bracketSize !== '') body['bracketSize'] = bracketSize;
+      if (phaseType === 'double_elim') body['grandFinalReset'] = grandFinalReset;
 
       const res = await fetch(
         `${apiUrl}/api/v1/tournaments/${selectedTournament}/generate-bracket${force ? '?force=true' : ''}`,
@@ -125,8 +144,8 @@ export default function BracketPage() {
       }
 
       if (!res.ok) {
-        const body2 = (await res.json()) as { message?: string };
-        throw new Error(body2.message ?? 'Generation failed');
+        const errBody = (await res.json()) as { message?: string };
+        throw new Error(errBody.message ?? 'Generation failed');
       }
 
       const result = (await res.json()) as BracketResult;
@@ -159,8 +178,8 @@ export default function BracketPage() {
         return;
       }
       if (!res.ok) {
-        const body2 = (await res.json()) as { message?: string };
-        throw new Error(body2.message ?? t('organizer.phaseVisibility.updateError'));
+        const errBody = (await res.json()) as { message?: string };
+        throw new Error(errBody.message ?? t('organizer.phaseVisibility.updateError'));
       }
       setVisibility(nextVisibility);
       if (nextVisibility === 'published') {
@@ -181,6 +200,50 @@ export default function BracketPage() {
       setVisibilityBusy(false);
     }
   }
+
+  async function submitOverride() {
+    if (!overrideModal) return;
+    setOverriding(true);
+    setOverrideError(null);
+    try {
+      const body: Record<string, string | null> = {};
+      if (overrideModal.regAId !== '') body['registrationAId'] = overrideModal.regAId || null;
+      if (overrideModal.regBId !== '') body['registrationBId'] = overrideModal.regBId || null;
+
+      const res = await fetch(`${apiUrl}/api/v1/bracket-slots/${overrideModal.slotId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errBody = (await res.json()) as { message?: string };
+        throw new Error(errBody.message ?? 'Override failed');
+      }
+      setOverrideModal(null);
+      // Refresh bracket
+      const refreshRes = await fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/bracket`, {
+        credentials: 'include',
+      });
+      if (refreshRes.ok) {
+        const data = (await refreshRes.json()) as BracketResult;
+        if (data) setBracket(data);
+      }
+    } catch (err) {
+      setOverrideError(err instanceof Error ? err.message : 'Override failed');
+    } finally {
+      setOverriding(false);
+    }
+  }
+
+  const bracketConfig: BracketConfig | undefined = bracket
+    ? {
+        phaseType: (bracket.phaseType as 'single_elim' | 'double_elim') ?? 'single_elim',
+        rounds: bracket.rounds,
+        wbRounds: bracket.wbRounds ?? undefined,
+        lbRounds: bracket.lbRounds ?? undefined,
+      }
+    : undefined;
 
   return (
     <main className="p-8 max-w-5xl">
@@ -243,6 +306,11 @@ export default function BracketPage() {
               {t('organizer.phaseVisibility.notifyParticipants')}
             </Link>
           )}
+          {bracket?.autoAdvance === false && (
+            <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700">
+              Manual mode
+            </span>
+          )}
         </div>
       )}
 
@@ -281,6 +349,17 @@ export default function BracketPage() {
         <h2 className="text-sm font-bold text-gray-700 mb-4">Bracket configuration</h2>
         <div className="flex flex-wrap gap-6 items-end">
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
+            <select
+              value={phaseType}
+              onChange={(e) => setPhaseType(e.target.value as 'single_elim' | 'double_elim')}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            >
+              <option value="single_elim">Single elimination</option>
+              <option value="double_elim">Double elimination</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Qualify count (top N from pools)
             </label>
@@ -314,6 +393,17 @@ export default function BracketPage() {
               ))}
             </select>
           </div>
+          {phaseType === 'double_elim' && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={grandFinalReset}
+                onChange={(e) => setGrandFinalReset(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-gray-700">Grand final reset</span>
+            </label>
+          )}
           <button
             onClick={() => void generate(false)}
             disabled={generating || !selectedTournament}
@@ -357,6 +447,57 @@ export default function BracketPage() {
         </div>
       )}
 
+      {/* Override modal */}
+      {overrideModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold mb-4">Override slot</h2>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Registration A (UUID, blank to clear)
+                </label>
+                <input
+                  type="text"
+                  value={overrideModal.regAId}
+                  onChange={(e) => setOverrideModal({ ...overrideModal, regAId: e.target.value })}
+                  placeholder="Leave blank to clear"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Registration B (UUID, blank to clear)
+                </label>
+                <input
+                  type="text"
+                  value={overrideModal.regBId}
+                  onChange={(e) => setOverrideModal({ ...overrideModal, regBId: e.target.value })}
+                  placeholder="Leave blank to clear"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                />
+              </div>
+            </div>
+            {overrideError && <p className="text-red-600 text-sm mb-3">{overrideError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOverrideModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void submitOverride()}
+                disabled={overriding}
+                className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold rounded-lg text-sm"
+              >
+                {overriding ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bracket preview */}
       {bracket && (
         <div>
@@ -368,14 +509,22 @@ export default function BracketPage() {
             <span>{bracket.byeCount} byes</span>
             <span>·</span>
             <span>{bracket.totalSlots} match slots</span>
+            {bracket.phaseType === 'double_elim' && (
+              <>
+                <span>·</span>
+                <span className="text-blue-500">Double elim</span>
+              </>
+            )}
           </div>
           <div className="bg-gray-950 rounded-xl p-4">
             <BracketView
               slots={bracket.slots}
               rounds={bracket.rounds}
+              bracketConfig={bracketConfig}
               onMatchClick={(matchId) => {
                 if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
               }}
+              onOverrideSlot={(slotId) => setOverrideModal({ slotId, regAId: '', regBId: '' })}
             />
           </div>
         </div>

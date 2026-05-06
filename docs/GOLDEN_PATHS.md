@@ -19,7 +19,10 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 6. Assign fighters to pools (auto-populate)
 7. Publish the event → public URL generated
 8. **Expected result:** Public spectator page is live at `/e/[eventSlug]` with fighter list and pool draw visible
-9. After matches complete: timing stats per match (fight time, total time, judging overhead = total − active) are available via the phase match list in the organiser dashboard
+9. After pools complete: navigate to Bracket management → choose format (single or double elimination) → Generate bracket → confirm bracket slots appear with seeds pre-filled
+10. Complete a first-round match → **auto-advance**: winner slot in round 2 fills automatically, new match created for that slot without organiser action
+11. Override a slot manually via the pencil icon → confirm override persists and downstream match updates
+12. After matches complete: timing stats per match (fight time, total time, judging overhead = total − active) are available via the phase match list in the organiser dashboard
 
 ---
 

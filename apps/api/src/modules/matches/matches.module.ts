@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { WorkersModule } from '../../workers/workers.module';
 import { StaffModule } from '../staff/staff.module';
+import { PhasesModule } from '../phases/phases.module';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { MatchAutoLockService } from './match-auto-lock.service';
@@ -9,7 +10,7 @@ import { MatchesService } from './matches.service';
 import { ScoringService } from './scoring.service';
 
 @Module({
-  imports: [WorkersModule, StaffModule],
+  imports: [WorkersModule, StaffModule, PhasesModule],
   controllers: [MatchesController],
   providers: [
     MatchesService,

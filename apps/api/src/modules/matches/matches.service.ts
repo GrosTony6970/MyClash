@@ -5,6 +5,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { SupabaseService } from '../supabase/supabase.service';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
+import type { BracketAdvanceService } from '../phases/bracket-advance.service';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
@@ -24,6 +25,7 @@ export class MatchesService {
     private readonly notifications: NotificationSchedulerService,
     private readonly followNotifications: FollowNotificationSchedulerService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
+    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -97,6 +99,11 @@ export class MatchesService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    if (dto.status === 'completed' && this.bracketAdvance) {
+      void this.bracketAdvance.onMatchCompleted(matchId);
+    }
+
     return data;
   }
 

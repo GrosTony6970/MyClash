@@ -36,4 +36,4 @@ export { PageHeader } from './components/PageHeader';
 export type { PageHeaderProps } from './components/PageHeader';
 
 export { BracketView } from './components/BracketView';
-export type { BracketViewProps, BracketSlotData } from './components/BracketView';
+export type { BracketViewProps, BracketSlotData, BracketConfig } from './components/BracketView';
