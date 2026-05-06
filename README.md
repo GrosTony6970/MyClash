@@ -22,15 +22,18 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 
 ## Documentation
 
-| Document                                                         | Audience               | Purpose                                                     |
-| ---------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
-| [`myclash.md`](./myclash.md)                                     | Anyone                 | Product / functional / UX overview                          |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                 | Developers & AI agents | Master technical specification                              |
-| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                   | AI coding agent        | Sequenced task list with acceptance criteria                |
-| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                   | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
-| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md) | Project owner          | Flat ordered checklist for first production deploy          |
-| [`AGENTS.md`](./AGENTS.md)                                       | AI coding agent        | Coder rules + persistent-memory protocol                    |
-| [`memory/MEMORY.md`](./memory/MEMORY.md)                         | AI coding agent        | Persistent project memory (thematic)                        |
+| Document                                                                     | Audience               | Purpose                                                     |
+| ---------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| [`myclash.md`](./myclash.md)                                                 | Anyone                 | Product / functional / UX overview                          |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                             | Developers & AI agents | Master technical specification                              |
+| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                               | AI coding agent        | Sequenced task list with acceptance criteria                |
+| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)                             | Developers & QA        | End-to-end golden paths for manual and automated testing    |
+| [`docs/decisions/`](./docs/decisions/)                                       | Developers             | Architecture Decision Records (ADRs)                        |
+| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                               | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
+| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md)             | Project owner          | Flat ordered checklist for first production deploy          |
+| [`docs/pre-production-review-plan.md`](./docs/pre-production-review-plan.md) | Tech lead              | Staged review plan before production ship                   |
+| [`AGENTS.md`](./AGENTS.md)                                                   | AI coding agent        | Coder rules + persistent-memory protocol                    |
+| [`memory/MEMORY.md`](./memory/MEMORY.md)                                     | AI coding agent        | Persistent project memory (thematic)                        |
 
 ---
 
@@ -39,17 +42,18 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 ```bash
 # Prereqs: Node 20+, pnpm 9+, Docker Desktop
 pnpm install
-cp .env.example .env       # edit values
-docker compose -f infra/docker-compose.dev.yml up -d
+cp .env.example .env       # edit values — at minimum set POSTGRES_PASSWORD and SUPABASE_JWT_SECRET
+docker compose --env-file .env -f infra/docker-compose.dev.yml up -d db redis supabase-auth supabase-rest supabase-realtime supabase-storage kong
 pnpm dev
 ```
 
 Local URLs (after `pnpm dev`):
 
-- `http://localhost:3000` — public PWA
-- `http://localhost:3001` — admin SPA
-- `http://localhost:3002` — scoring PWA
+- `http://localhost:3001` — web-public (spectator / competitor PWA)
+- `http://localhost:3002` — web-scoring (scorekeeper PWA)
+- `http://localhost:3003` — web-admin (organiser + super-admin)
 - `http://localhost:4000` — NestJS API
+- `http://localhost:4000/api/docs` — Swagger UI (dev only)
 
 ---
 
@@ -57,11 +61,12 @@ Local URLs (after `pnpm dev`):
 
 ```
 myclash/
-├── apps/                # Three Next.js apps + NestJS api
+├── apps/                # Four Next.js apps + NestJS api
 │   ├── api/             # NestJS — domain logic, REST + WebSocket
 │   ├── web-public/      # Mobile-first PWA (public/spectator/competitor)
 │   ├── web-scoring/     # Tablet-first PWA (offline-first scoring)
-│   └── web-admin/       # Desktop-first admin app
+│   ├── web-admin/       # Desktop-first admin app (organiser + super-admin)
+│   └── web-marketing/   # Static marketing/landing site (myclash.fr apex)
 ├── packages/            # Shared workspaces
 │   ├── rulesets/        # @myclash/rulesets — TF_v1, etc.
 │   ├── db/              # Drizzle schema + migrations

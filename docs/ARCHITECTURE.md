@@ -85,7 +85,7 @@ It replaces the workflow people currently piece together with `hemaScorecard` + 
 
 ## 2. Product Surfaces
 
-MyClash is **four distinct surfaces** sharing one backend:
+MyClash is **five distinct surfaces** sharing one backend:
 
 ### 2.1 Public/Spectator App (PWA, mobile-first)
 
@@ -140,6 +140,17 @@ Platform-level admin (you). Functions:
 - Manage rulesets (approve community-submitted rulesets).
 - Platform-wide stats and monitoring.
 - Feature flags.
+
+### 2.5 Marketing Site (static, apex domain)
+
+`myclash.fr` — commercial landing page served as a static HTML file. No build step required. Content:
+
+- Product pitch and feature overview.
+- How-it-works flow.
+- Donation / support section (HelloAsso link).
+- Login CTA → `app.myclash.fr`.
+
+App: `apps/web-marketing/index.html`. Served by Caddy/nginx or directly by Traefik file server. No Next.js runtime.
 
 ---
 
@@ -1811,12 +1822,30 @@ WS     /ws  (channels: subscribe to event:{id}, lice:{id}, match:{id})
 
 ## 16. Internationalization
 
-- v1.0: **English** only.
-- v1.1: French.
-- Library: `next-intl` for the public app, `i18next` for admin/scoring.
-- Translation files in `apps/*/messages/{locale}.json`.
-- All user-facing strings extracted from day 1 (no hardcoded English).
-- Event-specific content (landing, history pages) is per-locale Markdown.
+**Status (as of v0.14):** English and French both shipped.
+
+### Library
+
+Custom `@myclash/i18n` package (`packages/i18n/`) — not `next-intl` or `i18next`. Rationale: shared across all apps (Next.js + NestJS) without a React dependency in the core translation layer.
+
+- `packages/i18n/src/en.ts` — English strings (source of truth)
+- `packages/i18n/src/fr.ts` — French strings (`fr = en` alias pattern; all keys must exist)
+- `packages/i18n/src/index.ts` — `t(key, locale)` helper + `DeepString<T>` type
+- `packages/i18n/src/I18nProvider.tsx` — React context provider used in Next.js apps
+
+### ESLint enforcement
+
+Custom `no-literal-string` rule in `eslint-rules/no-literal-string.js` — fails the build on any hardcoded user-facing string not routed through `t()`. A `// i18n-ignore` escape hatch exists for technical strings (error codes, test IDs).
+
+### Locale routing
+
+Each Next.js app wraps its root layout with `<I18nProvider locale={defaultLocale}>`. Locale is currently hardcoded to `fr` for the French-first audience; multi-locale URL routing is deferred to v2.
+
+### Adding a string
+
+1. Add the key to `packages/i18n/src/en.ts`
+2. Add the French translation to `packages/i18n/src/fr.ts`
+3. Use `t('key')` in the component via `useI18n()` hook
 
 ---
 
@@ -1988,9 +2017,10 @@ myclash/
 │   │   │   ├── workers/
 │   │   │   └── main.ts
 │   │   └── test/
-│   ├── web-public/             # Next.js
-│   ├── web-scoring/            # Next.js (PWA, offline-first)
-│   └── web-admin/              # Next.js
+│   ├── web-public/             # Next.js (PWA, mobile-first — spectator/competitor)
+│   ├── web-scoring/            # Next.js (PWA, offline-first — scorekeeper)
+│   ├── web-admin/              # Next.js (SPA — organiser + super-admin)
+│   └── web-marketing/          # Static HTML — marketing site (myclash.fr apex)
 ├── packages/
 │   ├── ui/                     # Shared shadcn/ui components + design tokens
 │   ├── design-tokens/          # Cinzel + Inter, color palette, spacing

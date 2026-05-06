@@ -27,19 +27,17 @@ What does this make easy? What does this make hard? What are we now committed to
 What did we look at and reject? Why?
 ```
 
-## Pre-seeded list (from `docs/OWNER_TASKS.md` Appendix A)
+## Decision log
 
-These are decisions made during planning that should be captured as ADRs once the project starts:
-
-- ADR-001: License — AGPL-3.0
-- ADR-002: App name — MyClash
-- ADR-003: Hosting region — EU (OVH VPS)
-- ADR-004: Domain — myclash.fr
-- ADR-005: Object storage at v1 — Supabase Storage
-- ADR-006: No paid sponsorship/branding on the platform at v1
-- ADR-007: Funding model — donations only at v1
-- ADR-008: Identity model — guest sessions + claimed accounts (no Google OAuth at v1)
-- ADR-009: Versioning — SemVer
-- ADR-010: Default visibility for personal data — follows the physical reality of the venue
-
-The agent should backfill these as PR-sized tasks once the repo is bootstrapped.
+| ADR                                              | Title                                                       | Status   |
+| ------------------------------------------------ | ----------------------------------------------------------- | -------- |
+| [ADR-001](./ADR-001-license.md)                  | License: AGPL-3.0                                           | Accepted |
+| [ADR-002](./ADR-002-app-name.md)                 | App name: MyClash                                           | Accepted |
+| [ADR-003](./ADR-003-hosting-region.md)           | Hosting region: EU (OVH VPS)                                | Accepted |
+| [ADR-004](./ADR-004-domain.md)                   | Domain: myclash.fr                                          | Accepted |
+| [ADR-005](./ADR-005-object-storage.md)           | Object storage at v1: Supabase Storage                      | Accepted |
+| [ADR-006](./ADR-006-no-sponsorship.md)           | No paid sponsorship/branding at v1                          | Accepted |
+| [ADR-007](./ADR-007-funding-model.md)            | Funding model: donations only at v1                         | Accepted |
+| [ADR-008](./ADR-008-identity-model.md)           | Identity model: guest sessions + claimed accounts           | Accepted |
+| [ADR-009](./ADR-009-versioning.md)               | Versioning: SemVer                                          | Accepted |
+| [ADR-010](./ADR-010-personal-data-visibility.md) | Default visibility for personal data: follows venue reality | Accepted |
