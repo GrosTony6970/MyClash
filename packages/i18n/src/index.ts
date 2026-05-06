@@ -211,6 +211,7 @@ export const en = {
       resume: 'Resume',
       endMatch: 'End match',
       reset: 'Reset',
+      totalTime: 'Total time',
     },
     liveMatch: {
       status: {
@@ -852,6 +853,7 @@ export const fr = {
       resume: 'Reprendre',
       endMatch: 'Terminer le match',
       reset: 'Reinitialiser',
+      totalTime: 'Temps total',
     },
     liveMatch: {
       status: {

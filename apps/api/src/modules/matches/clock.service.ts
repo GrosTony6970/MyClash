@@ -31,6 +31,8 @@ export interface ClockState {
   runningFrom: string | null;
   /** Computed total active time including current interval (if running) */
   totalActiveMs: number;
+  /** Wall-clock origin: ISO timestamp of the first 'start' event; null until match starts; resets on reset_match */
+  startedAt: string | null;
   events: Array<{
     id: string;
     type: ClockAction;
@@ -81,7 +83,7 @@ export class ClockService {
     // Verify match exists
     const { data: match } = await this.supabase.service
       .from('matches')
-      .select('id, status, locked_at')
+      .select('id, status, locked_at, started_at')
       .eq('id', matchId)
       .maybeSingle();
 
@@ -134,9 +136,22 @@ export class ClockService {
     } else if (action === 'halt') {
       await this.supabase.service.from('matches').update({ status: 'paused' }).eq('id', matchId);
     } else if (action === 'end') {
+      let finalActiveMs = current.activeMs;
+      if (current.status === 'running' && current.runningFrom) {
+        finalActiveMs += new Date(now).getTime() - new Date(current.runningFrom).getTime();
+      }
+      const matchStartedAt = (match as { started_at?: string | null }).started_at;
+      const durationTotalMs = matchStartedAt
+        ? new Date(now).getTime() - new Date(matchStartedAt).getTime()
+        : null;
       await this.supabase.service
         .from('matches')
-        .update({ status: 'completed', ended_at: now })
+        .update({
+          status: 'completed',
+          ended_at: now,
+          duration_active_ms: finalActiveMs,
+          ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
+        })
         .eq('id', matchId);
     }
 
@@ -196,12 +211,14 @@ export class ClockService {
     let status: ClockState['status'] = 'idle';
     let activeMs = 0;
     let runningFrom: string | null = null;
+    let startedAt: string | null = null;
 
     for (const ev of events) {
       switch (ev.type) {
         case 'start':
           status = 'running';
           runningFrom = ev.occurredAt;
+          if (startedAt === null) startedAt = ev.occurredAt;
           break;
 
         case 'halt':
@@ -240,6 +257,7 @@ export class ClockService {
           activeMs = 0;
           runningFrom = null;
           status = 'idle';
+          startedAt = null;
           break;
       }
     }
@@ -256,6 +274,7 @@ export class ClockService {
       activeMs,
       runningFrom,
       totalActiveMs,
+      startedAt,
       events,
     };
   }

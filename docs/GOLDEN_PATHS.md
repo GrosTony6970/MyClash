@@ -19,6 +19,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 6. Assign fighters to pools (auto-populate)
 7. Publish the event → public URL generated
 8. **Expected result:** Public spectator page is live at `/e/[eventSlug]` with fighter list and pool draw visible
+9. After matches complete: timing stats per match (fight time, total time, judging overhead = total − active) are available via the phase match list in the organiser dashboard
 
 ---
 

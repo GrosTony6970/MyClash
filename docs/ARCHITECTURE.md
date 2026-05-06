@@ -605,10 +605,13 @@ This must be implemented as a materialized view or a denormalized aggregation ta
 
 From `match_events` and `exchanges`:
 
-- **Match duration (active)**: sum of intervals between `start`/`resume` and `halt`/`end`.
-- **Match duration (total)**: `ended_at - started_at`.
+- **Match duration (active)**: sum of intervals between `start`/`resume` and `halt`/`end`. Persisted as `matches.duration_active_ms` when the `end` clock action fires.
+- **Match duration (total)**: `ended_at - started_at`. Persisted as `matches.duration_total_ms` when the `end` clock action fires.
+- **Judging overhead**: `duration_total_ms − duration_active_ms` — time spent outside active fighting (deliberation, cards, border calls). Available to organisers via the match list (`GET /api/v1/matches?phaseId=...`).
 - **Time between exchanges**: `exchanges.duration_since_prev_ms`, computed at insert.
 - **Currently running matches**: `matches WHERE status='running'`, indexed for the live view.
+
+The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace.
 
 ---
 

@@ -136,4 +136,37 @@ describe('ClockService.computeClockState', () => {
     ]);
     expect(state.totalActiveMs).toBe(state.activeMs);
   });
+
+  // ── AC: startedAt (wall-clock origin) ────────────────────────────────────
+  it('startedAt is null before match starts', () => {
+    const state = service.computeClockState('m1', []);
+    expect(state.startedAt).toBeNull();
+  });
+
+  it('startedAt set to first start event timestamp', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+    ]);
+    expect(state.startedAt).toBe(T0);
+  });
+
+  it('startedAt persists across halt/resume cycles', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'resume', reason: null, occurred_at: T2 },
+      { id: 'e4', type: 'halt', reason: null, occurred_at: T3 },
+    ]);
+    expect(state.startedAt).toBe(T0);
+  });
+
+  it('startedAt reset to null after reset_match, then set to new start', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 },
+      { id: 'e3', type: 'reset_match', reason: null, occurred_at: T2 },
+      { id: 'e4', type: 'start', reason: null, occurred_at: T3 },
+    ]);
+    expect(state.startedAt).toBe(T3); // new wall-clock origin after reset
+  });
 });

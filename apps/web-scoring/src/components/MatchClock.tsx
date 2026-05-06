@@ -13,6 +13,7 @@ export interface ClockState {
   activeMs: number;
   runningFrom: string | null;
   totalActiveMs: number;
+  startedAt: string | null;
 }
 
 interface MatchClockProps {
@@ -85,6 +86,11 @@ function computeDisplayMs(state: ClockState): number {
   return state.activeMs + elapsed;
 }
 
+function computeWallElapsedMs(state: ClockState): number {
+  if (!state.startedAt) return 0;
+  return Date.now() - new Date(state.startedAt).getTime();
+}
+
 export default function MatchClock({
   matchId,
   apiUrl,
@@ -97,6 +103,7 @@ export default function MatchClock({
   const { t } = useI18n();
   const [clockState, setClockState] = useState<ClockState | null>(null);
   const [displayMs, setDisplayMs] = useState(0);
+  const [wallElapsedMs, setWallElapsedMs] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -122,9 +129,13 @@ export default function MatchClock({
   }, [fetchState]);
 
   useEffect(() => {
-    if (clockState?.status === 'running') {
+    // Tick when running (fight clock) or when started-but-not-ended (wall clock keeps going when halted)
+    const shouldTick =
+      clockState?.startedAt && clockState.status !== 'idle' && clockState.status !== 'ended';
+    if (shouldTick) {
       tickRef.current = setInterval(() => {
         setDisplayMs(computeDisplayMs(clockState));
+        setWallElapsedMs(computeWallElapsedMs(clockState));
       }, 50);
     } else {
       if (tickRef.current) {
@@ -134,6 +145,7 @@ export default function MatchClock({
       if (clockState) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize displayed time when server clock stops
         setDisplayMs(computeDisplayMs(clockState));
+        setWallElapsedMs(computeWallElapsedMs(clockState));
       }
     }
     return () => {
@@ -212,6 +224,13 @@ export default function MatchClock({
       >
         {status}
       </div>
+
+      {clockState.startedAt && clockState.status !== 'idle' && (
+        <div className="flex items-center gap-2 text-gray-500">
+          <span className="text-xs uppercase tracking-widest">{t('scoring.clock.totalTime')}</span>
+          <span className="font-mono text-sm tabular-nums">{formatClockMs(wallElapsedMs)}</span>
+        </div>
+      )}
 
       {error && <p className="text-center text-sm text-red-400">{error}</p>}
 
