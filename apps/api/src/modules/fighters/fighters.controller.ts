@@ -13,8 +13,14 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -233,6 +239,42 @@ export class GlobalPersonsController {
   @ApiOperation({ summary: 'Create an unclaimed global person (organizer+)' })
   async create(@Body() dto: CreateGlobalPersonDto) {
     return this.fighters.createGlobalPerson(dto);
+  }
+
+  /**
+   * POST /api/v1/global-persons/import
+   * Bulk-import global persons from CSV (super admin only).
+   * Deduplicates by case-insensitive full name; creates unverified clubs as needed.
+   */
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({ summary: 'Bulk import global persons from CSV (super admin)' })
+  async importGlobalPersons(@Req() req: FastifyRequest) {
+    let buffer: Buffer | null = null;
+    try {
+      const data = await (
+        req as FastifyRequest & {
+          file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
+        }
+      ).file();
+      if (data) buffer = await data.toBuffer();
+    } catch {
+      // no file
+    }
+
+    if (!buffer) {
+      return { created: 0, skipped: 0, invalid: 1, newClubs: [] };
+    }
+    return this.fighters.importGlobalPersons(buffer);
   }
 
   /** PATCH /api/v1/global-persons/:id/roles */

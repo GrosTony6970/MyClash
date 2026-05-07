@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 interface FighterRow {
   id: string;
   slug: string;
@@ -17,6 +19,7 @@ interface FighterRow {
   gender_category: string | null;
   merged_into_id?: string | null;
   deleted_at?: string | null;
+  clubs?: { name: string; slug: string } | null;
 }
 
 interface MergeAuditEntry {
@@ -36,6 +39,26 @@ interface MergeAuditEntry {
     };
   };
 }
+
+interface ClubSearchResult {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+}
+
+interface NewProfileForm {
+  givenName: string;
+  familyName: string;
+  displayName: string;
+  clubQuery: string;
+  clubId: string;
+  clubName: string;
+  isFighter: boolean;
+  isReferee: boolean;
+  isWorkshopParticipant: boolean;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function canRevert(createdAt: string, nowMs: number): boolean {
   return nowMs - new Date(createdAt).getTime() <= 30 * 24 * 60 * 60 * 1000;
@@ -86,9 +109,108 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
   );
 }
 
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+type Tab = 'profiles' | 'create' | 'merge';
+
 export default function AdminFightersPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const [tab, setTab] = useState<Tab>('profiles');
 
+  // ── Global persons list ──────────────────────────────────────────────────────
+  const [personQuery, setPersonQuery] = useState('');
+  const [persons, setPersons] = useState<FighterRow[]>([]);
+  const [personsLoading, setPersonsLoading] = useState(false);
+
+  async function searchPersons(q: string) {
+    setPersonsLoading(true);
+    const res = await fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(q.trim())}`, {
+      credentials: 'include',
+    });
+    setPersonsLoading(false);
+    if (res.ok) setPersons((await res.json()) as FighterRow[]);
+  }
+
+  useEffect(() => {
+    void searchPersons('');
+  }, []);
+
+  // ── Create profile ───────────────────────────────────────────────────────────
+  const [form, setForm] = useState<NewProfileForm>({
+    givenName: '',
+    familyName: '',
+    displayName: '',
+    clubQuery: '',
+    clubId: '',
+    clubName: '',
+    isFighter: true,
+    isReferee: false,
+    isWorkshopParticipant: false,
+  });
+  const [clubResults, setClubResults] = useState<ClubSearchResult[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+
+  async function searchClubs(q: string) {
+    if (!q.trim()) {
+      setClubResults([]);
+      return;
+    }
+    const res = await fetch(
+      `${apiUrl}/api/v1/clubs?q=${encodeURIComponent(q.trim())}&searchAbv=true`,
+      { credentials: 'include' },
+    );
+    if (res.ok) setClubResults((await res.json()) as ClubSearchResult[]);
+  }
+
+  async function createProfile() {
+    setCreating(true);
+    setCreateError(null);
+    setCreateSuccess(null);
+    try {
+      const displayName =
+        form.displayName.trim() || `${form.givenName.trim()} ${form.familyName.trim()}`;
+      const res = await fetch(`${apiUrl}/api/v1/global-persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          givenName: form.givenName.trim(),
+          familyName: form.familyName.trim(),
+          displayName,
+          clubId: form.clubId || undefined,
+          isFighter: form.isFighter,
+          isReferee: form.isReferee,
+          isWorkshopParticipant: form.isWorkshopParticipant,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? 'Creation failed');
+      }
+      setCreateSuccess(`Profile created: ${displayName}`);
+      setForm({
+        givenName: '',
+        familyName: '',
+        displayName: '',
+        clubQuery: '',
+        clubId: '',
+        clubName: '',
+        isFighter: true,
+        isReferee: false,
+        isWorkshopParticipant: false,
+      });
+      setClubResults([]);
+      void searchPersons('');
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Creation failed');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  // ── Merge ────────────────────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
   const [fighters, setFighters] = useState<FighterRow[]>([]);
   const [source, setSource] = useState<FighterRow | null>(null);
@@ -96,7 +218,7 @@ export default function AdminFightersPage() {
   const [reason, setReason] = useState('');
   const [confirmName, setConfirmName] = useState('');
   const [audits, setAudits] = useState<MergeAuditEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [mergeError, setMergeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -120,7 +242,7 @@ export default function AdminFightersPage() {
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setMergeError(err instanceof Error ? err.message : 'Something went wrong');
         }
       });
     return () => controller.abort();
@@ -129,13 +251,13 @@ export default function AdminFightersPage() {
   async function searchFighters() {
     if (!query.trim()) return;
     setLoading(true);
-    setError(null);
+    setMergeError(null);
     const res = await fetch(`${apiUrl}/api/v1/fighters?q=${encodeURIComponent(query.trim())}`, {
       credentials: 'include',
     });
     setLoading(false);
     if (!res.ok) {
-      setError('Fighter search failed.');
+      setMergeError('Fighter search failed.');
       return;
     }
     setFighters((await res.json()) as FighterRow[]);
@@ -144,11 +266,11 @@ export default function AdminFightersPage() {
   async function mergeFighters() {
     if (!source || !target) return;
     if (source.id === target.id) {
-      setError('Source and target must be different fighters.');
+      setMergeError('Source and target must be different fighters.');
       return;
     }
     if (confirmName !== source.display_name) {
-      setError('Typed confirmation must match the source display name.');
+      setMergeError('Typed confirmation must match the source display name.');
       return;
     }
 
@@ -168,9 +290,8 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-
     const body = (await res.json().catch(() => ({}))) as { message?: string };
-    setError(body.message ?? 'Merge failed.');
+    setMergeError(body.message ?? 'Merge failed.');
   }
 
   async function revertMerge(auditId: string) {
@@ -183,8 +304,10 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setError('Merge revert failed.');
+    setMergeError('Merge revert failed.');
   }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <main className="p-8">
@@ -193,170 +316,425 @@ export default function AdminFightersPage() {
           Back to admin
         </Link>
       </div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Fighter Merge</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Merge duplicate global fighter profiles with 30-day undo.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Global Profiles</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Manage global fighter, referee, and workshop participant profiles.
+          </p>
+        </div>
+        <Link
+          href="/admin/global-persons/import"
+          className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg"
+        >
+          CSV import
+        </Link>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
-          {error}
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 mb-6 gap-0">
+        {(
+          [
+            { key: 'profiles', label: 'Profiles' },
+            { key: 'create', label: 'New profile' },
+            { key: 'merge', label: 'Merge' },
+          ] as { key: Tab; label: string }[]
+        ).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={[
+              'py-2 px-5 text-sm font-medium border-b-2 -mb-px transition-colors',
+              tab === key
+                ? 'border-red-700 text-red-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700',
+            ].join(' ')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Profiles ── */}
+      {tab === 'profiles' && (
+        <div>
+          <div className="flex gap-2 mb-4">
+            <input
+              value={personQuery}
+              onChange={(e) => setPersonQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void searchPersons(personQuery);
+              }}
+              placeholder="Search by name…"
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-72"
+            />
+            <button
+              onClick={() => void searchPersons(personQuery)}
+              disabled={personsLoading}
+              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            >
+              Search
+            </button>
+          </div>
+          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-500 text-xs uppercase tracking-wide">
+                  <th className="py-3 px-4">Name</th>
+                  <th className="py-3 px-4">Club</th>
+                  <th className="py-3 px-4">Roles</th>
+                  <th className="py-3 px-4">Country</th>
+                </tr>
+              </thead>
+              <tbody>
+                {persons.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-400 text-sm">
+                      {personsLoading ? 'Loading…' : 'No profiles found.'}
+                    </td>
+                  </tr>
+                )}
+                {persons.map((p) => (
+                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-2.5 px-4">
+                      <p className="font-medium text-gray-900">{p.display_name}</p>
+                      <p className="text-xs text-gray-400">
+                        {p.given_name} {p.family_name}
+                      </p>
+                    </td>
+                    <td className="py-2.5 px-4 text-gray-600 text-sm">
+                      {(p.clubs as { name: string } | null)?.name ?? '—'}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <div className="flex gap-1 flex-wrap">
+                        {p.clubs && (
+                          <>
+                            {(p as unknown as Record<string, unknown>)['is_fighter'] && (
+                              <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                                fighter
+                              </span>
+                            )}
+                            {(p as unknown as Record<string, unknown>)['is_referee'] && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                                referee
+                              </span>
+                            )}
+                            {(p as unknown as Record<string, unknown>)[
+                              'is_workshop_participant'
+                            ] && (
+                              <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                                workshop
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-4 text-gray-500 text-sm">{p.country_code ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {persons.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2">{persons.length} profiles</p>
+          )}
         </div>
       )}
 
-      <section className="border border-gray-200 rounded-lg p-4 mb-6">
-        <div className="flex gap-2">
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void searchFighters();
-            }}
-            placeholder="Search fighters by name"
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-80"
-          />
-          <button
-            onClick={() => {
-              void searchFighters();
-            }}
-            disabled={loading}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-          >
-            Search
-          </button>
-        </div>
-        {fighters.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-left text-gray-500">
-                  <th className="py-2 pr-4">Fighter</th>
-                  <th className="py-2 pr-4">HEMA Ratings</th>
-                  <th className="py-2">Select</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fighters.map((fighter) => (
-                  <tr key={fighter.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 pr-4">
-                      <p className="font-medium">{fighter.display_name}</p>
-                      <p className="font-mono text-xs text-gray-500">{fighter.id}</p>
-                    </td>
-                    <td className="py-2 pr-4 text-gray-500">{fighter.hema_ratings_id ?? '-'}</td>
-                    <td className="py-2">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSource(fighter)}
-                          className="text-xs text-red-700 hover:underline"
-                        >
-                          Source
-                        </button>
-                        <button
-                          onClick={() => setTarget(fighter)}
-                          className="text-xs text-green-700 hover:underline"
-                        >
-                          Target
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {/* ── Tab: Create profile ── */}
+      {tab === 'create' && (
+        <div className="max-w-lg">
+          {createError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+              {createError}
+            </div>
+          )}
+          {createSuccess && (
+            <div className="bg-green-50 border border-green-200 text-green-700 rounded-md px-4 py-3 mb-4 text-sm">
+              {createSuccess}
+            </div>
+          )}
 
-      <div className="grid gap-4 lg:grid-cols-2 mb-6">
-        <FighterCard label="Source: profile to merge away" fighter={source} />
-        <FighterCard label="Target: profile to keep" fighter={target} />
-      </div>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Given name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  value={form.givenName}
+                  onChange={(e) => setForm((f) => ({ ...f, givenName: e.target.value }))}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Family name <span className="text-red-600">*</span>
+                </label>
+                <input
+                  value={form.familyName}
+                  onChange={(e) => setForm((f) => ({ ...f, familyName: e.target.value }))}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+            </div>
 
-      <section className="border border-gray-200 rounded-lg p-4 mb-8">
-        <h2 className="text-base font-semibold mb-4">Confirm merge</h2>
-        <div className="grid gap-3 lg:grid-cols-2">
-          <input
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Reason"
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          />
-          <input
-            value={confirmName}
-            onChange={(event) => setConfirmName(event.target.value)}
-            placeholder={source ? `Type: ${source.display_name}` : 'Select a source fighter first'}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          />
-        </div>
-        <button
-          onClick={() => {
-            void mergeFighters();
-          }}
-          disabled={!source || !target || confirmName !== source?.display_name}
-          className="mt-3 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-        >
-          Merge source into target
-        </button>
-      </section>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Display name (leave blank to auto-generate)
+              </label>
+              <input
+                value={form.displayName}
+                onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
+                placeholder={
+                  form.givenName || form.familyName
+                    ? `${form.givenName} ${form.familyName}`.trim()
+                    : undefined
+                }
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+            </div>
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Recent merges</h2>
-        {audits.length === 0 ? (
-          <p className="text-gray-400 text-sm">No fighter merges yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-left text-gray-500">
-                  <th className="py-2 pr-4">Merge</th>
-                  <th className="py-2 pr-4">Reason</th>
-                  <th className="py-2 pr-4">Created</th>
-                  <th className="py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audits.map((audit) => (
-                  <tr key={audit.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 pr-4">
-                      <p>
-                        {audit.payload_json.source?.display_name ??
-                          audit.payload_json.source?.id ??
-                          audit.entity_id}
-                        {' -> '}
-                        {audit.payload_json.target?.display_name ??
-                          audit.payload_json.target?.id ??
-                          '-'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Persons {audit.payload_json.moved?.personIds?.length ?? 0}, registrations{' '}
-                        {audit.payload_json.moved?.registrationIds?.length ?? 0}, instructors{' '}
-                        {audit.payload_json.moved?.workshopInstructorIds?.length ?? 0}
-                      </p>
-                    </td>
-                    <td className="py-2 pr-4 text-gray-600">{audit.payload_json.reason ?? '-'}</td>
-                    <td className="py-2 pr-4 text-gray-500">
-                      {new Date(audit.created_at).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="py-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Club</label>
+              <div className="relative">
+                <input
+                  value={form.clubQuery}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, clubQuery: e.target.value, clubId: '', clubName: '' }));
+                    void searchClubs(e.target.value);
+                  }}
+                  placeholder="Search clubs by name or abbreviation…"
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+                {form.clubId && (
+                  <p className="text-xs text-green-700 mt-1">Selected: {form.clubName}</p>
+                )}
+                {clubResults.length > 0 && !form.clubId && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                    {clubResults.map((c) => (
                       <button
+                        key={c.id}
                         onClick={() => {
-                          void revertMerge(audit.id);
+                          setForm((f) => ({
+                            ...f,
+                            clubId: c.id,
+                            clubName: c.name,
+                            clubQuery: c.name,
+                          }));
+                          setClubResults([]);
                         }}
-                        disabled={nowMs === null || !canRevert(audit.created_at, nowMs)}
-                        className="text-xs text-red-700 hover:underline disabled:text-gray-300"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
                       >
-                        Revert
+                        <span>{c.name}</span>
+                        {c.abbreviation && (
+                          <span className="text-xs text-gray-400 font-mono">{c.abbreviation}</span>
+                        )}
                       </button>
-                    </td>
-                  </tr>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">Roles</label>
+              <div className="flex gap-4">
+                {(
+                  [
+                    { key: 'isFighter', label: 'Fighter' },
+                    { key: 'isReferee', label: 'Referee' },
+                    { key: 'isWorkshopParticipant', label: 'Workshop' },
+                  ] as { key: keyof NewProfileForm; label: string }[]
+                ).map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form[key] as boolean}
+                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))}
+                      className="accent-red-700"
+                    />
+                    {label}
+                  </label>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            <button
+              onClick={() => void createProfile()}
+              disabled={!form.givenName.trim() || !form.familyName.trim() || creating}
+              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm self-start"
+            >
+              {creating ? 'Creating…' : 'Create profile'}
+            </button>
           </div>
-        )}
-      </section>
+        </div>
+      )}
+
+      {/* ── Tab: Merge ── */}
+      {tab === 'merge' && (
+        <div>
+          {mergeError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+              {mergeError}
+            </div>
+          )}
+
+          <section className="border border-gray-200 rounded-lg p-4 mb-6">
+            <div className="flex gap-2">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void searchFighters();
+                }}
+                placeholder="Search fighters by name"
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-80"
+              />
+              <button
+                onClick={() => void searchFighters()}
+                disabled={loading}
+                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+              >
+                Search
+              </button>
+            </div>
+            {fighters.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-gray-500">
+                      <th className="py-2 pr-4">Fighter</th>
+                      <th className="py-2 pr-4">HEMA Ratings</th>
+                      <th className="py-2">Select</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fighters.map((fighter) => (
+                      <tr key={fighter.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 pr-4">
+                          <p className="font-medium">{fighter.display_name}</p>
+                          <p className="font-mono text-xs text-gray-500">{fighter.id}</p>
+                        </td>
+                        <td className="py-2 pr-4 text-gray-500">
+                          {fighter.hema_ratings_id ?? '-'}
+                        </td>
+                        <td className="py-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setSource(fighter)}
+                              className="text-xs text-red-700 hover:underline"
+                            >
+                              Source
+                            </button>
+                            <button
+                              onClick={() => setTarget(fighter)}
+                              className="text-xs text-green-700 hover:underline"
+                            >
+                              Target
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-2 mb-6">
+            <FighterCard label="Source: profile to merge away" fighter={source} />
+            <FighterCard label="Target: profile to keep" fighter={target} />
+          </div>
+
+          <section className="border border-gray-200 rounded-lg p-4 mb-8">
+            <h2 className="text-base font-semibold mb-4">Confirm merge</h2>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Reason"
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+              <input
+                value={confirmName}
+                onChange={(e) => setConfirmName(e.target.value)}
+                placeholder={
+                  source ? `Type: ${source.display_name}` : 'Select a source fighter first'
+                }
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+            </div>
+            <button
+              onClick={() => void mergeFighters()}
+              disabled={!source || !target || confirmName !== source?.display_name}
+              className="mt-3 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            >
+              Merge source into target
+            </button>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold mb-3">Recent merges</h2>
+            {audits.length === 0 ? (
+              <p className="text-gray-400 text-sm">No fighter merges yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-gray-500">
+                      <th className="py-2 pr-4">Merge</th>
+                      <th className="py-2 pr-4">Reason</th>
+                      <th className="py-2 pr-4">Created</th>
+                      <th className="py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audits.map((audit) => (
+                      <tr key={audit.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 pr-4">
+                          <p>
+                            {audit.payload_json.source?.display_name ??
+                              audit.payload_json.source?.id ??
+                              audit.entity_id}
+                            {' -> '}
+                            {audit.payload_json.target?.display_name ??
+                              audit.payload_json.target?.id ??
+                              '-'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Persons {audit.payload_json.moved?.personIds?.length ?? 0},
+                            registrations {audit.payload_json.moved?.registrationIds?.length ?? 0},
+                            instructors{' '}
+                            {audit.payload_json.moved?.workshopInstructorIds?.length ?? 0}
+                          </p>
+                        </td>
+                        <td className="py-2 pr-4 text-gray-600">
+                          {audit.payload_json.reason ?? '-'}
+                        </td>
+                        <td className="py-2 pr-4 text-gray-500">
+                          {new Date(audit.created_at).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="py-2">
+                          <button
+                            onClick={() => void revertMerge(audit.id)}
+                            disabled={nowMs === null || !canRevert(audit.created_at, nowMs)}
+                            className="text-xs text-red-700 hover:underline disabled:text-gray-300"
+                          >
+                            Revert
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }

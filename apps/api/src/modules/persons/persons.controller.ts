@@ -21,12 +21,44 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import type { ImportDecision } from '@myclash/types';
 import { PersonsService } from './persons.service';
 import { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
 /** Extract authenticated user ID from request (set by Supabase JWT). */
 function getUserId(req: FastifyRequest): string {
   return (req as FastifyRequest & { userId?: string }).userId ?? 'unknown';
+}
+
+/** Read all multipart parts, returning file buffer + any JSON fields. */
+async function readMultipart(
+  req: FastifyRequest,
+): Promise<{ buffer: Buffer | null; fields: Record<string, string> }> {
+  const fields: Record<string, string> = {};
+  let buffer: Buffer | null = null;
+
+  try {
+    const parts = (
+      req as FastifyRequest & {
+        parts: () => AsyncIterable<
+          | { type: 'file'; fieldname: string; toBuffer: () => Promise<Buffer> }
+          | { type: 'field'; fieldname: string; value: string }
+        >;
+      }
+    ).parts();
+
+    for await (const part of parts) {
+      if (part.type === 'file' && part.fieldname === 'file') {
+        buffer = await part.toBuffer();
+      } else if (part.type === 'field') {
+        fields[part.fieldname] = part.value;
+      }
+    }
+  } catch {
+    // no multipart body
+  }
+
+  return { buffer, fields };
 }
 
 @ApiTags('persons')
@@ -66,9 +98,50 @@ export class PersonsController {
   }
 
   /**
+   * POST /api/v1/events/:eventId/persons/import/preview
+   * Dry-run CSV import — no DB writes.
+   * Returns per-row resolution info including club matches and global person candidates.
+   */
+  @Post('events/:eventId/persons/import/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({ summary: 'Preview CSV import (dry run)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Preview report' })
+  async previewImport(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const { buffer } = await readMultipart(req);
+    if (!buffer) {
+      return {
+        summary: { toCreate: 0, toLink: 0, duplicates: 0, invalid: 1 },
+        newClubs: [],
+        rows: [
+          {
+            index: 0,
+            givenName: '',
+            familyName: '',
+            status: 'invalid',
+            invalidReason: 'No file uploaded',
+            defaultAction: 'create_new',
+          },
+        ],
+      };
+    }
+    return this.persons.previewImport(eventId, buffer);
+  }
+
+  /**
    * POST /api/v1/events/:eventId/persons/import
    * CSV bulk import (organizer only).
-   * Accepts multipart/form-data with a 'file' field containing the CSV.
+   * Accepts multipart/form-data with a 'file' field (CSV) and optional 'decisions' JSON field.
    */
   @Post('events/:eventId/persons/import')
   @HttpCode(HttpStatus.OK)
@@ -78,6 +151,7 @@ export class PersonsController {
       type: 'object',
       properties: {
         file: { type: 'string', format: 'binary' },
+        decisions: { type: 'string', description: 'JSON array of ImportDecision' },
       },
     },
   })
@@ -85,20 +159,7 @@ export class PersonsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Import report' })
   async importCsv(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    // Read multipart file via @fastify/multipart
-    let buffer: Buffer | null = null;
-    try {
-      const data = await (
-        req as FastifyRequest & {
-          file: () => Promise<{ toBuffer: () => Promise<Buffer> } | null>;
-        }
-      ).file();
-      if (data) {
-        buffer = await data.toBuffer();
-      }
-    } catch {
-      // no file
-    }
+    const { buffer, fields } = await readMultipart(req);
 
     if (!buffer) {
       return {
@@ -109,7 +170,17 @@ export class PersonsController {
         invalid: [{ row: 0, reason: 'No file uploaded', raw: '' }],
       };
     }
-    return this.persons.importCsv(eventId, buffer, getUserId(req));
+
+    let decisions: ImportDecision[] = [];
+    if (fields['decisions']) {
+      try {
+        decisions = JSON.parse(fields['decisions']) as ImportDecision[];
+      } catch {
+        // invalid JSON — proceed with no decisions (all defaults)
+      }
+    }
+
+    return this.persons.importCsv(eventId, buffer, getUserId(req), decisions);
   }
 
   /**

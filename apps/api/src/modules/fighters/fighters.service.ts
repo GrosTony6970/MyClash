@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
+import { CsvImportService } from '../persons/csv-import.service';
 import type {
   CreateFighterDto,
   CreateGlobalPersonDto,
@@ -60,6 +61,7 @@ const DEFAULT_WEAPONS = [
 export class FightersService {
   constructor(
     private readonly supabase: SupabaseService,
+    private readonly csvImport: CsvImportService,
     private readonly hemaRatings?: HemaRatingsService,
   ) {}
 
@@ -838,6 +840,123 @@ export class FightersService {
     }
 
     return data;
+  }
+
+  async importGlobalPersons(
+    buffer: Buffer,
+  ): Promise<{ created: number; skipped: number; invalid: number; newClubs: string[] }> {
+    const { rows, invalid } = this.csvImport.parse(buffer);
+
+    if (rows.length === 0) {
+      return { created: 0, skipped: 0, invalid: invalid.length, newClubs: [] };
+    }
+
+    // Fetch existing names for deduplication
+    const { data: existing } = await this.supabase.service
+      .from('global_persons')
+      .select('given_name, family_name')
+      .is('deleted_at', null);
+
+    const existingKeys = new Set(
+      ((existing ?? []) as Row[]).map(
+        (p) =>
+          `${String(p['given_name']).toLowerCase().trim()} ${String(p['family_name']).toLowerCase().trim()}`,
+      ),
+    );
+
+    const newClubs: string[] = [];
+    let created = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      const key = `${row.given_name.toLowerCase()} ${row.family_name.toLowerCase()}`;
+      if (existingKeys.has(key)) {
+        skipped++;
+        continue;
+      }
+
+      let clubId: string | null = null;
+      if (row.club || row.club_abv) {
+        clubId = await this.resolveOrCreateClubForImport(
+          { name: row.club, abv: row.club_abv, city: row.club_city },
+          newClubs,
+        );
+      }
+
+      const displayName = row.display_name || `${row.given_name} ${row.family_name}`;
+      const baseSlug = slugify(displayName);
+      const slug = `${baseSlug}-${Date.now().toString(36)}`;
+
+      const isFighter = row.is_fighter === 'true' || row.is_fighter === '1';
+      const isReferee = row.is_referee === 'true' || row.is_referee === '1';
+      const isWorkshopParticipant =
+        row.is_workshop_participant === 'true' || row.is_workshop_participant === '1';
+
+      const { error } = await this.supabase.service.from('global_persons').insert({
+        slug,
+        display_name: displayName,
+        given_name: row.given_name,
+        family_name: row.family_name,
+        club_id: clubId,
+        hema_ratings_id: row.hema_ratings_id ?? null,
+        is_fighter: isFighter || null,
+        is_referee: isReferee || null,
+        is_workshop_participant: isWorkshopParticipant || null,
+      });
+
+      if (!error) {
+        created++;
+        existingKeys.add(key);
+      }
+    }
+
+    return { created, skipped, invalid: invalid.length, newClubs: [...new Set(newClubs)] };
+  }
+
+  private async resolveOrCreateClubForImport(
+    club: { name?: string; abv?: string; city?: string },
+    newClubs: string[],
+  ): Promise<string | null> {
+    // Try exact abbreviation match first
+    if (club.abv) {
+      const { data: byAbv } = await this.supabase.service
+        .from('clubs')
+        .select('id')
+        .ilike('abbreviation', club.abv.trim())
+        .maybeSingle();
+      if (byAbv) return String((byAbv as Row)['id']);
+    }
+
+    // Try exact name match
+    if (club.name) {
+      const { data: byName } = await this.supabase.service
+        .from('clubs')
+        .select('id')
+        .ilike('name', club.name.trim())
+        .maybeSingle();
+      if (byName) return String((byName as Row)['id']);
+    }
+
+    // Create unverified club
+    const name = club.name || club.abv || '';
+    if (!name) return null;
+
+    const slug = `${slugify(name)}-${Date.now().toString(36)}`;
+    const { data, error } = await this.supabase.service
+      .from('clubs')
+      .insert({
+        name,
+        slug,
+        abbreviation: club.abv?.trim().toUpperCase() ?? null,
+        city: club.city ?? null,
+        unverified: 'true',
+      })
+      .select('id')
+      .single();
+
+    if (error) return null;
+    newClubs.push(name);
+    return String((data as Row)['id']);
   }
 
   async setRoles(id: string, dto: FighterRolesDto) {

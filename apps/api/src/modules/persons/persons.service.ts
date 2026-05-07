@@ -6,9 +6,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { CsvImportReport, Person } from '@myclash/types';
+import type {
+  ClubResolution,
+  CsvImportReport,
+  GlobalPersonCandidate,
+  ImportDecision,
+  ImportPreviewResponse,
+  Person,
+  PreviewRow,
+} from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CsvImportService } from './csv-import.service';
+import type { CsvRow } from './csv-import.service';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
 @Injectable()
@@ -26,18 +35,12 @@ export class PersonsService {
   async listPersons(eventId: string): Promise<Person[]> {
     const { data, error } = await this.supabase.service
       .from('persons')
-      .select(
-        `
-        *,
-        clubs ( name )
-      `,
-      )
+      .select(`*, clubs ( name )`)
       .eq('event_id', eventId)
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-
     return (data ?? []).map((p) => this.mapPerson(p as Record<string, unknown>));
   }
 
@@ -52,7 +55,6 @@ export class PersonsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Person ${personId} not found`);
-
     return this.mapPerson(data as Record<string, unknown>);
   }
 
@@ -63,20 +65,22 @@ export class PersonsService {
     dto: CreatePersonDto,
     createdByUserId: string,
   ): Promise<Person> {
-    const email = dto.email.toLowerCase().trim();
+    const email = dto.email ? dto.email.toLowerCase().trim() : null;
 
-    // Check uniqueness within event
-    const { data: existing } = await this.supabase.service
-      .from('persons')
-      .select('id')
-      .eq('event_id', eventId)
-      .ilike('email', email)
-      .maybeSingle();
+    // Check email uniqueness within event when email is provided
+    if (email) {
+      const { data: existing } = await this.supabase.service
+        .from('persons')
+        .select('id')
+        .eq('event_id', eventId)
+        .ilike('email', email)
+        .maybeSingle();
 
-    if (existing) {
-      throw new ConflictException(
-        `A person with email ${this.csv.maskEmail(email)} already exists in this event`,
-      );
+      if (existing) {
+        throw new ConflictException(
+          `A person with email ${this.csv.maskEmail(email)} already exists in this event`,
+        );
+      }
     }
 
     const { data, error } = await this.supabase.service
@@ -107,7 +111,8 @@ export class PersonsService {
     const updates: Record<string, unknown> = {};
     if (dto.givenName !== undefined) updates['given_name'] = dto.givenName.trim();
     if (dto.familyName !== undefined) updates['family_name'] = dto.familyName.trim();
-    if (dto.email !== undefined) updates['email'] = dto.email.toLowerCase().trim();
+    if (dto.email !== undefined)
+      updates['email'] = dto.email ? dto.email.toLowerCase().trim() : null;
     if (dto.clubId !== undefined) updates['club_id'] = dto.clubId;
     if (dto.hemaRatingsId !== undefined) updates['hema_ratings_id'] = dto.hemaRatingsId;
     if (dto.dateOfBirth !== undefined) updates['date_of_birth'] = dto.dateOfBirth;
@@ -124,14 +129,12 @@ export class PersonsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Person ${personId} not found`);
-
     return this.mapPerson(data as Record<string, unknown>);
   }
 
   // ── Delete ──────────────────────────────────────────────────────────────────
 
   async deletePerson(personId: string): Promise<void> {
-    // Check for registrations — cannot delete if registered to a tournament
     const { data: regs } = await this.supabase.service
       .from('registrations')
       .select('id')
@@ -145,16 +148,105 @@ export class PersonsService {
     }
 
     const { error } = await this.supabase.service.from('persons').delete().eq('id', personId);
-
     if (error) throw new BadRequestException(error.message);
   }
 
-  // ── CSV import ───────────────────────────────────────────────────────────────
+  // ── Import preview (dry run) ─────────────────────────────────────────────────
+
+  async previewImport(eventId: string, buffer: Buffer): Promise<ImportPreviewResponse> {
+    const { rows, invalid } = this.csv.parse(buffer);
+
+    const existingPersons = await this.fetchExistingPersons(eventId);
+    const existingByEmail = this.indexByEmail(existingPersons);
+    const existingByName = this.indexByName(existingPersons);
+
+    const previewRows: PreviewRow[] = [];
+
+    // Intra-batch tracking (no DB writes)
+    const batchEmails = new Set<string>();
+    const batchNames = new Set<string>();
+
+    for (const inv of invalid) {
+      previewRows.push({
+        index: inv.row - 2, // convert back to 0-based
+        givenName: '',
+        familyName: '',
+        status: 'invalid',
+        invalidReason: inv.reason,
+        defaultAction: 'create_new',
+      });
+    }
+
+    for (const row of rows) {
+      const nameKey = this.nameKey(row.given_name, row.family_name);
+      const emailKey = row.email?.toLowerCase();
+
+      // Duplicate detection: email first, then name
+      const isDuplicateByEmail =
+        emailKey && (existingByEmail.has(emailKey) || batchEmails.has(emailKey));
+      const isDuplicateByName =
+        !emailKey && (existingByName.has(nameKey) || batchNames.has(nameKey));
+
+      if (isDuplicateByEmail || isDuplicateByName) {
+        previewRows.push({
+          index: row.rowNumber - 2,
+          givenName: row.given_name,
+          familyName: row.family_name,
+          email: row.email,
+          status: 'duplicate',
+          defaultAction: 'create_new',
+        });
+        continue;
+      }
+
+      // Club resolution (read-only: no DB writes during preview)
+      const clubResolution =
+        row.club || row.club_abv
+          ? await this.resolveClubPreview(row.club, row.club_abv, row.club_city)
+          : undefined;
+
+      // Global person match
+      const globalPersonMatch = await this.findGlobalPersonMatch(row.given_name, row.family_name);
+
+      previewRows.push({
+        index: row.rowNumber - 2,
+        givenName: row.given_name,
+        familyName: row.family_name,
+        email: row.email,
+        status: 'ok',
+        clubResolution,
+        globalPersonMatch: globalPersonMatch ?? undefined,
+        defaultAction: globalPersonMatch ? 'link' : 'create_new',
+      });
+
+      if (emailKey) batchEmails.add(emailKey);
+      batchNames.add(nameKey);
+    }
+
+    const okRows = previewRows.filter((r) => r.status === 'ok');
+    const toLink = okRows.filter((r) => r.defaultAction === 'link').length;
+
+    return {
+      summary: {
+        toCreate: okRows.length - toLink,
+        toLink,
+        duplicates: previewRows.filter((r) => r.status === 'duplicate').length,
+        invalid: previewRows.filter((r) => r.status === 'invalid').length,
+      },
+      newClubs: okRows
+        .filter((r) => r.clubResolution?.confidence === 'new')
+        .map((r) => r.clubResolution!.resolvedName),
+      rows: previewRows,
+    };
+  }
+
+  // ── Import commit ────────────────────────────────────────────────────────────
 
   async importCsv(
     eventId: string,
     buffer: Buffer,
     createdByUserId: string,
+    decisions: ImportDecision[] = [],
   ): Promise<CsvImportReport> {
     const { rows, invalid } = this.csv.parse(buffer);
 
@@ -166,42 +258,37 @@ export class PersonsService {
       newClubsForReview: [],
     };
 
-    // Fetch existing persons for this event (for duplicate detection)
-    const { data: existingPersons } = await this.supabase.service
-      .from('persons')
-      .select('id, email, given_name, family_name')
-      .eq('event_id', eventId);
+    const existingPersons = await this.fetchExistingPersons(eventId);
+    const existingByEmail = this.indexByEmail(existingPersons);
+    const existingByName = this.indexByName(existingPersons);
 
-    const existingByEmail = new Map<
-      string,
-      { id: string; givenName: string; familyName: string }
-    >();
-    for (const p of existingPersons ?? []) {
-      const ep = p as { id: string; email: string; given_name: string; family_name: string };
-      existingByEmail.set(ep.email.toLowerCase(), {
-        id: ep.id,
-        givenName: ep.given_name,
-        familyName: ep.family_name,
-      });
+    // Index decisions by row index for O(1) lookup
+    const decisionByIndex = new Map<number, ImportDecision>();
+    for (const d of decisions) {
+      decisionByIndex.set(d.rowIndex, d);
     }
 
     for (const row of rows) {
-      const email = row.email.toLowerCase();
-      const existing = existingByEmail.get(email);
+      const emailKey = row.email?.toLowerCase();
+      const nameKey = this.nameKey(row.given_name, row.family_name);
+      const rowIndex = row.rowNumber - 2;
 
-      if (existing) {
+      const isDuplicate = emailKey ? existingByEmail.has(emailKey) : existingByName.has(nameKey);
+
+      if (isDuplicate) {
+        const ep = emailKey ? existingByEmail.get(emailKey) : existingByName.get(nameKey);
         report.duplicates.push({
           row: row.rowNumber,
           name: `${row.given_name} ${row.family_name}`,
-          existingEmail: this.csv.maskEmail(email),
+          existingEmail: ep?.email ? this.csv.maskEmail(ep.email) : '(no email)',
         });
         continue;
       }
 
       // Resolve or create club
       let clubId: string | null = null;
-      if (row.club) {
-        clubId = await this.resolveOrCreateClub(row.club, report);
+      if (row.club || row.club_abv) {
+        clubId = await this.resolveOrCreateClub(row.club, row.club_abv, row.club_city, report);
       }
 
       // Insert person
@@ -211,7 +298,7 @@ export class PersonsService {
           event_id: eventId,
           given_name: row.given_name,
           family_name: row.family_name,
-          email,
+          email: emailKey ?? null,
           club_id: clubId,
           hema_ratings_id: row.hema_ratings_id ?? null,
           claim_status: 'unclaimed',
@@ -224,14 +311,28 @@ export class PersonsService {
         report.invalid.push({
           row: row.rowNumber,
           reason: `DB error: ${error.message}`,
-          raw: `${row.given_name},${row.family_name},${email}`,
+          raw: `${row.given_name},${row.family_name},${emailKey ?? ''}`,
         });
         continue;
       }
 
-      // Add to local map to catch intra-batch duplicates
-      existingByEmail.set(email, {
-        id: (newPerson as { id: string }).id,
+      const personId = (newPerson as { id: string }).id;
+
+      // Handle global person decision
+      const decision = decisionByIndex.get(rowIndex);
+      await this.applyGlobalPersonDecision(personId, row, decision, clubId, createdByUserId);
+
+      // Track for intra-batch dedup
+      if (emailKey)
+        existingByEmail.set(emailKey, {
+          id: personId,
+          email: emailKey,
+          givenName: row.given_name,
+          familyName: row.family_name,
+        });
+      existingByName.set(nameKey, {
+        id: personId,
+        email: emailKey ?? null,
         givenName: row.given_name,
         familyName: row.family_name,
       });
@@ -244,24 +345,151 @@ export class PersonsService {
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  private async resolveOrCreateClub(
-    clubName: string,
-    report: CsvImportReport,
-  ): Promise<string | null> {
-    // Try fuzzy match using pg_trgm similarity
+  private async fetchExistingPersons(eventId: string) {
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('id, email, given_name, family_name')
+      .eq('event_id', eventId);
+    return (data ?? []) as Array<{
+      id: string;
+      email: string | null;
+      given_name: string;
+      family_name: string;
+    }>;
+  }
+
+  private indexByEmail(
+    persons: Array<{ id: string; email: string | null; given_name: string; family_name: string }>,
+  ) {
+    const map = new Map<
+      string,
+      { id: string; email: string | null; givenName: string; familyName: string }
+    >();
+    for (const p of persons) {
+      if (p.email)
+        map.set(p.email.toLowerCase(), {
+          id: p.id,
+          email: p.email,
+          givenName: p.given_name,
+          familyName: p.family_name,
+        });
+    }
+    return map;
+  }
+
+  private indexByName(
+    persons: Array<{ id: string; email: string | null; given_name: string; family_name: string }>,
+  ) {
+    const map = new Map<
+      string,
+      { id: string; email: string | null; givenName: string; familyName: string }
+    >();
+    for (const p of persons) {
+      map.set(this.nameKey(p.given_name, p.family_name), {
+        id: p.id,
+        email: p.email,
+        givenName: p.given_name,
+        familyName: p.family_name,
+      });
+    }
+    return map;
+  }
+
+  private nameKey(givenName: string, familyName: string): string {
+    return `${givenName.toLowerCase().trim()} ${familyName.toLowerCase().trim()}`;
+  }
+
+  /** Read-only club resolution for preview (no DB writes). */
+  private async resolveClubPreview(
+    clubName?: string,
+    clubAbv?: string,
+    clubCity?: string,
+  ): Promise<ClubResolution> {
+    const searchTerm = clubAbv ?? clubName ?? '';
     const { data: matches } = await this.supabase.service
-      .rpc('find_club_by_name', { search_name: clubName, threshold: 0.4 })
+      .rpc('find_club_by_name', { search_name: searchTerm, threshold: 0.4 })
       .limit(1);
 
-    if (matches && (matches as Array<{ id: string }>).length > 0) {
-      return (matches as Array<{ id: string }>)[0]!.id;
+    const first = (
+      matches as Array<{
+        id: string;
+        name: string;
+        abbreviation: string | null;
+        city: string | null;
+        match_score: number;
+        confidence: string;
+      }> | null
+    )?.[0];
+
+    if (first) {
+      return {
+        confidence: first.confidence as ClubResolution['confidence'],
+        resolvedName: first.name,
+        abbreviation: first.abbreviation ?? undefined,
+      };
     }
 
-    // No match — create new club marked as unverified
-    const slug = clubName
+    // If only abbreviation was provided and no match, fall back to full name search
+    if (clubAbv && clubName) {
+      const { data: nameMatches } = await this.supabase.service
+        .rpc('find_club_by_name', { search_name: clubName, threshold: 0.4 })
+        .limit(1);
+      const nameFirst = (
+        nameMatches as Array<{
+          id: string;
+          name: string;
+          abbreviation: string | null;
+          match_score: number;
+          confidence: string;
+        }> | null
+      )?.[0];
+      if (nameFirst) {
+        return {
+          confidence: nameFirst.confidence as ClubResolution['confidence'],
+          resolvedName: nameFirst.name,
+          abbreviation: nameFirst.abbreviation ?? undefined,
+        };
+      }
+    }
+
+    return {
+      confidence: 'new',
+      resolvedName: clubName ?? clubAbv ?? '',
+      abbreviation: clubAbv,
+    };
+  }
+
+  /** Resolve or create club (writes to DB — used during commit). */
+  private async resolveOrCreateClub(
+    clubName: string | undefined,
+    clubAbv: string | undefined,
+    clubCity: string | undefined,
+    report: CsvImportReport,
+  ): Promise<string | null> {
+    const searchTerm = clubAbv ?? clubName ?? '';
+
+    const { data: matches } = await this.supabase.service
+      .rpc('find_club_by_name', { search_name: searchTerm, threshold: 0.4 })
+      .limit(1);
+
+    const first = (matches as Array<{ id: string; name: string; confidence: string }> | null)?.[0];
+    if (first) return first.id;
+
+    // Fallback: search by full name if abbreviation didn't match
+    if (clubAbv && clubName) {
+      const { data: nameMatches } = await this.supabase.service
+        .rpc('find_club_by_name', { search_name: clubName, threshold: 0.4 })
+        .limit(1);
+      const nameFirst = (nameMatches as Array<{ id: string }> | null)?.[0];
+      if (nameFirst) return nameFirst.id;
+    }
+
+    // Create new unverified club
+    const name = clubName ?? clubAbv ?? '';
+    const slug = name
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 50);
@@ -270,20 +498,153 @@ export class PersonsService {
 
     const { data: newClub, error } = await this.supabase.service
       .from('clubs')
-      .insert({ name: clubName, slug: uniqueSlug, unverified: 'true' })
+      .insert({
+        name,
+        slug: uniqueSlug,
+        abbreviation: clubAbv?.toUpperCase() ?? null,
+        city: clubCity ?? null,
+        unverified: 'true',
+      })
       .select('id')
       .single();
 
     if (error) {
-      this.logger.warn(`Could not create club "${clubName}": ${error.message}`);
+      this.logger.warn(`Could not create club "${name}": ${error.message}`);
       return null;
     }
 
-    if (!report.newClubsForReview.includes(clubName)) {
-      report.newClubsForReview.push(clubName);
+    if (!report.newClubsForReview.includes(name)) {
+      report.newClubsForReview.push(name);
     }
 
     return (newClub as { id: string }).id;
+  }
+
+  /** Query global_persons for a name match (threshold 0.85). */
+  private async findGlobalPersonMatch(
+    givenName: string,
+    familyName: string,
+  ): Promise<GlobalPersonCandidate | null> {
+    const fullName = `${givenName} ${familyName}`;
+
+    const { data } = await this.supabase.service
+      .from('global_persons')
+      .select(
+        `
+        id,
+        given_name,
+        family_name,
+        display_name,
+        clubs ( name, abbreviation )
+      `,
+      )
+      .limit(5);
+
+    if (!data) return null;
+
+    // Filter by trigram similarity in JS (Supabase JS client doesn't expose similarity() directly)
+    // We rely on the index for speed; filter by threshold client-side from the small result set.
+    // For production scale, switch to an RPC function.
+    const threshold = 0.85;
+    type GpRow = {
+      id: string;
+      given_name: string;
+      family_name: string;
+      display_name: string;
+      clubs: { name: string; abbreviation: string | null } | null;
+    };
+
+    const normalizedQuery = fullName.toLowerCase().trim();
+    const candidates = (data as unknown as GpRow[]).filter((gp) => {
+      const gpName = `${gp.given_name} ${gp.family_name}`.toLowerCase();
+      return this.jaccardSimilarity(normalizedQuery, gpName) >= threshold;
+    });
+
+    if (candidates.length === 0) return null;
+
+    const best = candidates[0]!;
+
+    // Fetch a representative email from any linked person record
+    const { data: linkedPerson } = await this.supabase.service
+      .from('persons')
+      .select('email')
+      .eq('global_person_id', best.id)
+      .not('email', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      id: best.id,
+      displayName: best.display_name,
+      clubName: best.clubs?.name ?? null,
+      abbreviation: best.clubs?.abbreviation ?? null,
+      email: (linkedPerson as { email: string | null } | null)?.email ?? null,
+    };
+  }
+
+  /** Trigram-like Jaccard similarity on character bigrams. */
+  private jaccardSimilarity(a: string, b: string): number {
+    const bigrams = (s: string) => {
+      const set = new Set<string>();
+      for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+      return set;
+    };
+    const setA = bigrams(a);
+    const setB = bigrams(b);
+    if (setA.size === 0 && setB.size === 0) return 1;
+    let intersection = 0;
+    for (const bg of setA) if (setB.has(bg)) intersection++;
+    return intersection / (setA.size + setB.size - intersection);
+  }
+
+  /** Apply global person link or creation after person insert. */
+  private async applyGlobalPersonDecision(
+    personId: string,
+    row: CsvRow,
+    decision: ImportDecision | undefined,
+    clubId: string | null,
+    createdByUserId: string,
+  ): Promise<void> {
+    const action = decision?.action ?? 'create_new';
+
+    if (action === 'link' && decision?.globalPersonId) {
+      await this.supabase.service
+        .from('persons')
+        .update({ global_person_id: decision.globalPersonId })
+        .eq('id', personId);
+      return;
+    }
+
+    // create_new: auto-create a global_persons record (same as registration flow)
+    const displayName = `${row.given_name} ${row.family_name}`;
+    const slug =
+      `${row.given_name.toLowerCase()}-${row.family_name.toLowerCase()}-${Date.now().toString(36)}`
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+
+    const { data: gp } = await this.supabase.service
+      .from('global_persons')
+      .insert({
+        slug,
+        display_name: displayName,
+        given_name: row.given_name,
+        family_name: row.family_name,
+        club_id: clubId,
+        is_fighter: true,
+        claimed_by_user_id: null,
+      })
+      .select('id')
+      .single();
+
+    if (gp) {
+      await this.supabase.service
+        .from('persons')
+        .update({ global_person_id: (gp as { id: string }).id })
+        .eq('id', personId);
+    }
   }
 
   private mapPerson(p: Record<string, unknown>): Person {
@@ -293,7 +654,7 @@ export class PersonsService {
       eventId: p['event_id'] as string,
       givenName: p['given_name'] as string,
       familyName: p['family_name'] as string,
-      email: p['email'] as string,
+      email: (p['email'] as string | null) ?? null,
       clubId: (p['club_id'] as string | null) ?? null,
       clubLabel: club?.name ?? null,
       hemaRatingsId: (p['hema_ratings_id'] as string | null) ?? null,

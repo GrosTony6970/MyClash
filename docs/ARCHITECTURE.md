@@ -337,7 +337,7 @@ referee_profiles (
   global_person_id PK, certifications jsonb, notes,
   created_at, updated_at
 )
-clubs (id, slug, name, city, country_code, website, logo_url)
+clubs (id, slug, name, abbreviation, city, country_code, website, logo_url, unverified)
 
 -- Hierarchy: Organization → Event → Tournament → Phase → Match → Exchange
 -- See docs/HIERARCHY.md for the canonical vocabulary.
@@ -1540,30 +1540,68 @@ The Claimed-Participant and Organizer paths can converge: a Person who claims th
 
 ### 12.8 CSV import for the organizer roster
 
-The organizer admin imports persons via CSV. Format:
+The organizer admin imports persons via a two-pass wizard:
+
+1. **Preview** (`POST /api/v1/events/:eventId/persons/import/preview`) — dry run, no writes.
+2. **Commit** (`POST /api/v1/events/:eventId/persons/import`) — applies, accepts optional `decisions[]` JSON field.
+
+**CSV columns (email optional since T-1208):**
 
 ```csv
-given_name,family_name,email,club,hema_ratings_id,event_codes,roles
-Jean,Dupont,jean@example.com,Lyon AMHE,12345,longsword-open,competitor
-Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open;sidesword,competitor;referee
-Pierre,Martin,pierre@example.com,,,,referee
+given_name,family_name,email,club,club_abv,club_city,hema_ratings_id,event_codes,roles
+Jean,Dupont,jean@example.com,Lyon AMHE,LAMHE,Lyon,12345,longsword-open,competitor
+Marie,Lefèvre,,Cercle PRMD,CPRMD,,,,competitor
+Pierre,Martin,,,,,,,referee
 ```
 
-- `email` is required and is the unique key within the event.
+- `email` is **optional**; when absent, duplicate detection falls back to case-insensitive full-name match.
+- `club_abv` — short abbreviation (e.g. `DFDA`). Club lookup: exact abbreviation match > trigram name similarity ≥ 0.85 (`high`) > ≥ 0.40 (`medium`) > auto-create unverified.
+- `club_city` — stored on auto-created clubs.
 - `event_codes` are semicolon-separated event slugs; auto-creates a registration row per code.
-- `roles` semicolon-separated set: `competitor`, `referee`, `workshop_lead`. Workshop attendees opt in themselves later by enrolling.
-- `club` is matched fuzzily against `clubs.name`; new clubs get a row marked `unverified=true` for organizer review.
-- `hema_ratings_id` populates the link if known; otherwise the post-import HEMA Ratings suggester (T-1102) helps fill it in.
+- `roles` semicolon-separated set: `competitor`, `referee`, `workshop_lead`.
 
-**Import returns a structured report:**
+**Preview response shape (`ImportPreviewResponse`):**
 
 ```json
 {
-  "created": 47,
-  "updated": 3,
-  "duplicates": [{ "row": 12, "name": "Jean Dupont", "existing_email": "j***@gmail.com" }],
-  "invalid": [{ "row": 18, "reason": "Missing email", "raw": "Pierre,Martin,,,,," }],
-  "new_clubs_for_review": ["Hammaborg", "Indes"]
+  "summary": { "toCreate": 42, "toLink": 3, "duplicates": 1, "invalid": 1 },
+  "newClubs": ["Hammaborg"],
+  "rows": [
+    {
+      "index": 0,
+      "givenName": "Jean",
+      "familyName": "Dupont",
+      "email": "jean@example.com",
+      "status": "ok",
+      "clubResolution": {
+        "confidence": "exact_abv",
+        "resolvedName": "Lyon AMHE",
+        "abbreviation": "LAMHE"
+      },
+      "globalPersonMatch": {
+        "id": "...",
+        "displayName": "Jean Dupont",
+        "clubName": "Lyon AMHE",
+        "abbreviation": "LAMHE",
+        "email": "j***@gmail.com"
+      },
+      "defaultAction": "link"
+    }
+  ]
+}
+```
+
+When a row has `globalPersonMatch`, the organizer can override `defaultAction` (`link` | `create_new`) before committing. The `decisions[]` array is sent as a JSON form field alongside the re-uploaded file.
+
+**Commit response shape (`CsvImportReport`):**
+
+```json
+{
+  "created": 44,
+  "updated": 0,
+  "duplicates": [{ "row": 12, "name": "Jean Dupont", "existingEmail": "j***@gmail.com" }],
+  "invalid": [{ "row": 18, "reason": "Missing given_name", "raw": ",Martin,,,,," }],
+  "newClubsForReview": ["Hammaborg"]
 }
 ```
 
@@ -1625,7 +1663,8 @@ GET    /api/v1/me                              # returns claimed user OR active 
 # Persons (organizer roster — pre-event)
 GET    /api/v1/events/:id/persons         [organizer+]
 POST   /api/v1/events/:id/persons         [organizer+]   # manual create
-POST   /api/v1/events/:id/persons/import  [organizer+]   # CSV upload
+POST   /api/v1/events/:id/persons/import/preview  [organizer+]   # CSV dry-run (no writes)
+POST   /api/v1/events/:id/persons/import         [organizer+]   # CSV commit (accepts decisions[])
 GET    /api/v1/persons/:id                     [organizer+ or self]
 PATCH  /api/v1/persons/:id                     [organizer+]
 DELETE /api/v1/persons/:id                     [organizer+]   # only if no registrations
@@ -1694,10 +1733,17 @@ POST   /api/v1/fighters/:id/promote        [claimed]
                                                # promotes a Person → global Fighter
 POST   /api/v1/fighters/merge              [super_admin]
 
+# Global persons
+GET    /api/v1/global-persons?q=...&roles=fighter
+POST   /api/v1/global-persons              [organizer+]
+PATCH  /api/v1/global-persons/:id/roles    [organizer+]
+POST   /api/v1/global-persons/import       [super_admin]   # bulk CSV import (dedup by name)
+
 # Clubs
-GET    /api/v1/clubs?q=...&country=...
+GET    /api/v1/clubs?q=...&country=...&searchAbv=true
 GET    /api/v1/clubs/:slug
 POST   /api/v1/clubs                       [organizer+]
+PATCH  /api/v1/clubs/:id                   [super_admin]   # edit name, abbreviation, city, country
 
 # Organizations
 GET    /api/v1/organizations               [super_admin]

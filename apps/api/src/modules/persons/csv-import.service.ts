@@ -5,11 +5,17 @@ import type { CsvImportReport } from '@myclash/types';
 export interface CsvRow {
   given_name: string;
   family_name: string;
-  email: string;
+  display_name?: string;
+  email?: string;
   club?: string;
+  club_abv?: string;
+  club_city?: string;
   hema_ratings_id?: string;
   event_codes?: string;
   roles?: string;
+  is_fighter?: string;
+  is_referee?: string;
+  is_workshop_participant?: string;
 }
 
 export interface ParsedCsvResult {
@@ -20,6 +26,9 @@ export interface ParsedCsvResult {
 /**
  * Parses a CSV buffer into validated rows.
  * Handles: BOM, quoted commas, accented characters, missing optional columns.
+ * Email is optional. Club is expected but absence is valid (Unaffiliated).
+ * Accepted columns: given_name, family_name, email, club, club_abv, club_city,
+ *                   hema_ratings_id, event_codes, roles
  */
 @Injectable()
 export class CsvImportService {
@@ -64,9 +73,8 @@ export class CsvImportService {
 
       const givenName = (normalized['given_name'] ?? '').trim();
       const familyName = (normalized['family_name'] ?? '').trim();
-      const email = (normalized['email'] ?? '').trim().toLowerCase();
+      const rawEmail = (normalized['email'] ?? '').trim().toLowerCase();
 
-      // Validate required fields
       if (!givenName) {
         invalid.push({ row: rowNumber, reason: 'Missing given_name', raw: rawStr });
         return;
@@ -75,12 +83,10 @@ export class CsvImportService {
         invalid.push({ row: rowNumber, reason: 'Missing family_name', raw: rawStr });
         return;
       }
-      if (!email) {
-        invalid.push({ row: rowNumber, reason: 'Missing email', raw: rawStr });
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        invalid.push({ row: rowNumber, reason: `Invalid email: ${email}`, raw: rawStr });
+
+      // Email is optional — validate format only when present
+      if (rawEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+        invalid.push({ row: rowNumber, reason: `Invalid email: ${rawEmail}`, raw: rawStr });
         return;
       }
 
@@ -88,11 +94,17 @@ export class CsvImportService {
         rowNumber,
         given_name: givenName,
         family_name: familyName,
-        email,
+        display_name: (normalized['display_name'] ?? '').trim() || undefined,
+        email: rawEmail || undefined,
         club: (normalized['club'] ?? '').trim() || undefined,
+        club_abv: (normalized['club_abv'] ?? '').trim() || undefined,
+        club_city: (normalized['club_city'] ?? '').trim() || undefined,
         hema_ratings_id: (normalized['hema_ratings_id'] ?? '').trim() || undefined,
         event_codes: (normalized['event_codes'] ?? '').trim() || undefined,
         roles: (normalized['roles'] ?? '').trim() || undefined,
+        is_fighter: (normalized['is_fighter'] ?? '').trim() || undefined,
+        is_referee: (normalized['is_referee'] ?? '').trim() || undefined,
+        is_workshop_participant: (normalized['is_workshop_participant'] ?? '').trim() || undefined,
       });
     });
 

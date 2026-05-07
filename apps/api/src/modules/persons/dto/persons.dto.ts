@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreatePersonDto {
   @ApiProperty({ example: 'Jean' })
@@ -14,9 +23,10 @@ export class CreatePersonDto {
   @MaxLength(100)
   familyName!: string;
 
-  @ApiProperty({ example: 'jean.dupont@example.com' })
+  @ApiProperty({ required: false, example: 'jean.dupont@example.com' })
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -90,4 +100,19 @@ export class UpdatePersonDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+}
+
+export class ImportDecisionDto {
+  @ApiProperty({ description: 'Zero-based row index from preview' })
+  @IsNumber()
+  rowIndex!: number;
+
+  @ApiProperty({ enum: ['link', 'create_new'] })
+  @IsIn(['link', 'create_new'])
+  action!: 'link' | 'create_new';
+
+  @ApiProperty({ required: false, description: 'Required when action is link' })
+  @IsOptional()
+  @IsUUID()
+  globalPersonId?: string;
 }

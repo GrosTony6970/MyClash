@@ -43,7 +43,7 @@ describe('FightersService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new FightersService(mockSupabase as never);
+    service = new FightersService(mockSupabase as never, {} as never);
   });
 
   describe('promote', () => {

@@ -12,6 +12,7 @@ export const clubs = pgTable('clubs', {
   countryCode: text('country_code'),
   website: text('website'),
   logoUrl: text('logo_url'),
+  abbreviation: text('abbreviation'),
   unverified: text('unverified').default('false'), // 'true' when auto-created from CSV
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

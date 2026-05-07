@@ -14,7 +14,7 @@ export const persons = pgTable('persons', {
     .references(() => events.id, { onDelete: 'cascade' }),
   givenName: text('given_name').notNull(),
   familyName: text('family_name').notNull(),
-  email: text('email').notNull(),
+  email: text('email'),
   clubId: uuid('club_id').references(() => clubs.id, { onDelete: 'set null' }),
   hemaRatingsId: text('hema_ratings_id'),
   dateOfBirth: text('date_of_birth'),

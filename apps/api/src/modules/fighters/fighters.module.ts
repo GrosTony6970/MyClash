@@ -8,11 +8,12 @@ import {
 import { FightersService } from './fighters.service';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { FighterMergeService } from './merge.service';
+import { CsvImportService } from '../persons/csv-import.service';
 
 @Module({
   imports: [HemaRatingsModule, AdminModule],
   controllers: [FightersController, WeaponsController, GlobalPersonsController],
-  providers: [FightersService, FighterMergeService],
+  providers: [FightersService, FighterMergeService, CsvImportService],
   exports: [FightersService],
 })
 export class FightersModule {}

@@ -10,7 +10,7 @@ export interface Person {
   eventId: string;
   givenName: string;
   familyName: string;
-  email: string;
+  email: string | null;
   clubId: string | null;
   clubLabel: string | null; // denormalized for display
   hemaRatingsId: string | null;
@@ -37,7 +37,7 @@ export interface PersonPublic {
 export interface CreatePersonDto {
   givenName: string;
   familyName: string;
-  email: string;
+  email?: string;
   clubId?: string;
   hemaRatingsId?: string;
   dateOfBirth?: string;
@@ -76,4 +76,44 @@ export interface CsvImportReport {
   duplicates: CsvImportDuplicate[];
   invalid: CsvImportInvalid[];
   newClubsForReview: string[];
+}
+
+// ── Import preview (two-pass flow) ───────────────────────────────────────────
+
+export interface ClubResolution {
+  confidence: 'exact_abv' | 'high' | 'medium' | 'new';
+  resolvedName: string;
+  abbreviation?: string;
+}
+
+export interface GlobalPersonCandidate {
+  id: string;
+  displayName: string;
+  clubName: string | null;
+  abbreviation: string | null;
+  email: string | null;
+}
+
+export interface PreviewRow {
+  index: number;
+  givenName: string;
+  familyName: string;
+  email?: string;
+  status: 'ok' | 'duplicate' | 'invalid';
+  invalidReason?: string;
+  clubResolution?: ClubResolution;
+  globalPersonMatch?: GlobalPersonCandidate;
+  defaultAction: 'link' | 'create_new';
+}
+
+export interface ImportPreviewResponse {
+  summary: { toCreate: number; toLink: number; duplicates: number; invalid: number };
+  newClubs: string[];
+  rows: PreviewRow[];
+}
+
+export interface ImportDecision {
+  rowIndex: number;
+  action: 'link' | 'create_new';
+  globalPersonId?: string;
 }
