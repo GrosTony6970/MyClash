@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
+import { LiveNowBanner } from './live-now-banner';
 
 export default function SchedulePage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -44,6 +45,8 @@ export default function SchedulePage() {
           </button>
         ))}
       </div>
+
+      <LiveNowBanner eventId={eventId} />
 
       {tab === 'programme' ? (
         <ProgrammePlanner eventId={eventId} onGenerateDone={() => setTab('grid')} />

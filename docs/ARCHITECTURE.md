@@ -2433,4 +2433,45 @@ POST   /api/v1/events/:eventId/programme/generate  run scheduler + create worksh
 
 ---
 
+## 15. Live Schedule View (T-1211)
+
+Real-time display of the current programme block and active fights, visible to all event participants without login.
+
+### 15.1 Overview
+
+Two surfaces:
+
+- **web-admin banner** — collapsible "Now Playing" strip above the Schedule tab showing current block and per-lice match state. Refreshes every 15 seconds via polling.
+- **web-public `/e/[eventSlug]/live`** — phone-friendly public page with overview (all lices) and drill-down (single lice). Updates via Supabase Realtime `postgres_changes` on the `matches` table + 30s clock timer for block transitions.
+
+### 15.2 API
+
+```text
+GET /api/v1/events/:eventId/live-state   accepts UUID or human-readable slug; public
+```
+
+Response:
+
+```ts
+{
+  currentBlock: ProgrammeBlock | null; // block whose start_time ≤ now ≤ end_time for today
+  nextBlock: ProgrammeBlock | null; // next upcoming block today
+  lices: Array<{
+    lice: { id; name; sortOrder };
+    runningMatch: LiveMatch | null; // status = 'running'
+    nextMatch: LiveMatch | null; // earliest scheduled match after now
+  }>;
+}
+```
+
+Block detection: converts `day_index` offset from `event.start_date` + block `start_time`/`end_time` to wall-clock comparison against `now()`. No new database table.
+
+### 15.3 Frontend
+
+- **`schedule/live-now-banner.tsx`** — polls live-state every 15s; shows LIVE badge + block name + per-lice current/next match. Collapsible.
+- **`apps/web-public/app/e/[eventSlug]/live/page.tsx`** — overview: card grid per lice; drill-down via `?lice=<id>` query param showing full match details and up-next list. Realtime via `postgres_changes` subscription per lice.
+- Event home (`/e/[eventSlug]`) — "Live schedule →" link added.
+
+---
+
 _End of MyClash Architecture v1.0 specification._
