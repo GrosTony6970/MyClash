@@ -26,6 +26,7 @@ import { PersonsModule } from './modules/persons/persons.module';
 import { CompensationModule } from './modules/compensation/compensation.module';
 import { PenaltiesModule } from './modules/penalties/penalties.module';
 import { PhasesModule } from './modules/phases/phases.module';
+import { ProgrammeModule } from './modules/programme/programme.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
@@ -78,6 +79,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     MatchesModule,
     NotificationsModule,
     PhasesModule,
+    ProgrammeModule,
     FollowsModule,
     WorkshopsModule,
     ScheduleModule,

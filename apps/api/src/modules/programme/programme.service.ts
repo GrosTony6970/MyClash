@@ -1,0 +1,587 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type {
+  GenerateResult,
+  ProgrammeBlock,
+  ProgrammeSuggestion,
+  SuggestConfig,
+} from '@myclash/types';
+import { SupabaseService } from '../supabase/supabase.service';
+import { scheduleMatches } from '../schedule/match-scheduler';
+import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
+
+function timeToMin(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function minToTime(min: number): string {
+  const clamped = Math.max(0, Math.min(min, 23 * 60 + 59));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function computeNeededMin(
+  matchCount: number,
+  parallelLice: number,
+  durationMin: number,
+  gapSec: number,
+): number {
+  if (matchCount === 0 || parallelLice === 0) return 0;
+  return Math.ceil(matchCount / parallelLice) * (durationMin + gapSec / 60);
+}
+
+@Injectable()
+export class ProgrammeService {
+  constructor(private readonly supabase: SupabaseService) {}
+
+  // ── List ───────────────────────────────────────────────────────────────────
+
+  async listBlocks(eventId: string): Promise<ProgrammeBlock[]> {
+    const { data, error } = await this.supabase.service
+      .from('event_programme_blocks')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('day_index', { ascending: true })
+      .order('sort_order', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
+  }
+
+  // ── Save (bulk replace) ────────────────────────────────────────────────────
+
+  async saveBlocks(eventId: string, dto: SaveProgrammeDto): Promise<ProgrammeBlock[]> {
+    const { error: delError } = await this.supabase.service
+      .from('event_programme_blocks')
+      .delete()
+      .eq('event_id', eventId);
+    if (delError) throw new BadRequestException(delError.message);
+
+    if (dto.blocks.length === 0) return [];
+
+    const inserts = dto.blocks.map((b, i) => {
+      const row: Record<string, unknown> = {
+        event_id: eventId,
+        day_index: b.dayIndex,
+        sort_order: i,
+        block_type: b.blockType,
+        label: b.label,
+        competition_id: b.competitionId ?? null,
+        competition_phase: b.competitionPhase ?? null,
+        workshop_id: b.workshopId ?? null,
+        lice_count: b.liceCount,
+        start_time: b.startTime,
+        end_time: b.endTime,
+        match_gap_seconds: b.matchGapSeconds,
+        match_duration_minutes: b.matchDurationMinutes,
+      };
+      if (b.id && !b.id.startsWith('new-')) row['id'] = b.id;
+      return row;
+    });
+
+    const { data, error } = await this.supabase.service
+      .from('event_programme_blocks')
+      .insert(inserts)
+      .select('*');
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
+  }
+
+  // ── Suggest ────────────────────────────────────────────────────────────────
+
+  async suggest(eventId: string, dto: SuggestProgrammeDto): Promise<ProgrammeSuggestion> {
+    const config: SuggestConfig = {
+      dayStartTime: dto.dayStartTime,
+      dayEndTime: dto.dayEndTime,
+      parallelLiceCount: dto.parallelLiceCount,
+      matchDurationMinutes: dto.matchDurationMinutes,
+      matchGapSeconds: dto.matchGapSeconds,
+      breakBetweenSessionsMinutes: dto.breakBetweenSessionsMinutes,
+      middayBreakStart: dto.middayBreakStart,
+      middayBreakEnd: dto.middayBreakEnd,
+      registrationDurationMinutes: dto.registrationDurationMinutes,
+      gearCheckDurationMinutes: dto.gearCheckDurationMinutes,
+      refereeMeetingDurationMinutes: dto.refereeMeetingDurationMinutes,
+    };
+    return this.buildSuggestion(eventId, config);
+  }
+
+  private async buildSuggestion(eventId: string, cfg: SuggestConfig): Promise<ProgrammeSuggestion> {
+    // Load lice count for defaults
+    const { data: licesData } = await this.supabase.service
+      .from('lices')
+      .select('id')
+      .eq('event_id', eventId);
+    const liceCount = (licesData ?? []).length || 1;
+    const parallelLice = Math.min(cfg.parallelLiceCount || liceCount, liceCount);
+
+    // Load tournaments
+    const { data: tournamentsData } = await this.supabase.service
+      .from('tournaments')
+      .select('id, name')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true });
+    const tournaments = (tournamentsData ?? []) as Array<{ id: string; name: string }>;
+
+    // Count matches per tournament per phase type
+    interface TournamentStats {
+      id: string;
+      name: string;
+      poolMatchCount: number;
+      bracketMatchCount: number;
+    }
+    const tournamentStats: TournamentStats[] = [];
+
+    for (const t of tournaments) {
+      const { data: phasesData } = await this.supabase.service
+        .from('phases')
+        .select('id, type')
+        .eq('tournament_id', t.id);
+      const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
+
+      const poolPhaseIds = phases.filter((p) => p.type === 'pool').map((p) => p.id);
+      const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
+
+      let poolMatchCount = 0;
+      if (poolPhaseIds.length > 0) {
+        const { data: poolsData } = await this.supabase.service
+          .from('pools')
+          .select('id')
+          .in('phase_id', poolPhaseIds);
+        const poolIds = (poolsData ?? []).map((p) => (p as Record<string, string>)['id']);
+        if (poolIds.length > 0) {
+          const { count } = await this.supabase.service
+            .from('matches')
+            .select('id', { count: 'exact', head: true })
+            .in('pool_id', poolIds);
+          poolMatchCount = count ?? 0;
+        }
+      }
+
+      let bracketMatchCount = 0;
+      if (bracketPhaseIds.length > 0) {
+        const { count } = await this.supabase.service
+          .from('matches')
+          .select('id', { count: 'exact', head: true })
+          .in('phase_id', bracketPhaseIds);
+        bracketMatchCount = count ?? 0;
+      }
+
+      tournamentStats.push({ id: t.id, name: t.name, poolMatchCount, bracketMatchCount });
+    }
+
+    // Load workshops with duration
+    const { data: workshopsData } = await this.supabase.service
+      .from('workshops')
+      .select('id, title, duration_minutes')
+      .eq('event_id', eventId);
+    const workshops = (workshopsData ?? []) as Array<{
+      id: string;
+      title: string;
+      duration_minutes: number | null;
+    }>;
+
+    // Build blocks with simple sequential placement
+    const blocks: ProgrammeBlock[] = [];
+    const warnings: Array<{
+      blockId: string;
+      message: string;
+      suggestedEndTime: string;
+      overflowMinutes: number;
+    }> = [];
+    let cursor = timeToMin(cfg.dayStartTime);
+    const dayEndMin = timeToMin(cfg.dayEndTime);
+    const middayStartMin = timeToMin(cfg.middayBreakStart);
+    const middayEndMin = timeToMin(cfg.middayBreakEnd);
+    let dayIndex = 0;
+    let sortOrder = 0;
+    let middayInserted = false;
+
+    const push = (
+      partial: Omit<ProgrammeBlock, 'id' | 'eventId' | 'sortOrder' | 'generatedAt'>,
+      neededMin = 0,
+    ): void => {
+      const b: ProgrammeBlock = {
+        id: `new-${sortOrder}`,
+        eventId,
+        sortOrder: sortOrder++,
+        generatedAt: null,
+        ...partial,
+      };
+      blocks.push(b);
+      if (neededMin > 0) {
+        const allocated = timeToMin(partial.endTime) - timeToMin(partial.startTime);
+        if (allocated < neededMin) {
+          const overflow = Math.ceil(neededMin - allocated);
+          warnings.push({
+            blockId: b.id,
+            message: `Needs ${overflow} more minutes`,
+            suggestedEndTime: minToTime(timeToMin(partial.startTime) + Math.ceil(neededMin)),
+            overflowMinutes: overflow,
+          });
+        }
+      }
+    };
+
+    const advance = (min: number): void => {
+      cursor += min;
+      if (cursor >= dayEndMin) {
+        dayIndex++;
+        cursor = timeToMin(cfg.dayStartTime);
+        middayInserted = false;
+      }
+    };
+
+    const maybeInsertMidday = (): void => {
+      if (!middayInserted && cursor >= middayStartMin) {
+        const duration = middayEndMin - middayStartMin;
+        const end = Math.min(cursor + duration, dayEndMin);
+        push({
+          dayIndex,
+          blockType: 'break',
+          label: 'Lunch Break',
+          competitionId: null,
+          competitionPhase: null,
+          workshopId: null,
+          liceCount: 0,
+          startTime: minToTime(cursor),
+          endTime: minToTime(end),
+          matchGapSeconds: 0,
+          matchDurationMinutes: 0,
+        });
+        cursor = end;
+        middayInserted = true;
+      }
+    };
+
+    // Admin blocks (day 1 only)
+    const regMin = cfg.registrationDurationMinutes + cfg.gearCheckDurationMinutes;
+    push({
+      dayIndex: 0,
+      blockType: 'admin',
+      label: 'Registration & Gear Check',
+      competitionId: null,
+      competitionPhase: null,
+      workshopId: null,
+      liceCount: 0,
+      startTime: minToTime(cursor),
+      endTime: minToTime(cursor + regMin),
+      matchGapSeconds: 0,
+      matchDurationMinutes: 0,
+    });
+    advance(regMin);
+
+    push({
+      dayIndex: 0,
+      blockType: 'admin',
+      label: 'Referee Meeting',
+      competitionId: null,
+      competitionPhase: null,
+      workshopId: null,
+      liceCount: 0,
+      startTime: minToTime(cursor),
+      endTime: minToTime(cursor + cfg.refereeMeetingDurationMinutes),
+      matchGapSeconds: 0,
+      matchDurationMinutes: 0,
+    });
+    advance(cfg.refereeMeetingDurationMinutes);
+
+    // Pool sessions
+    for (const t of tournamentStats) {
+      if (t.poolMatchCount === 0) continue;
+      maybeInsertMidday();
+      const neededMin = computeNeededMin(
+        t.poolMatchCount,
+        parallelLice,
+        cfg.matchDurationMinutes,
+        cfg.matchGapSeconds,
+      );
+      const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
+      push(
+        {
+          dayIndex,
+          blockType: 'competition',
+          label: `${t.name} — Pools`,
+          competitionId: t.id,
+          competitionPhase: 'pool',
+          workshopId: null,
+          liceCount: parallelLice,
+          startTime: minToTime(cursor),
+          endTime: minToTime(cursor + alloc),
+          matchGapSeconds: cfg.matchGapSeconds,
+          matchDurationMinutes: cfg.matchDurationMinutes,
+        },
+        neededMin,
+      );
+      advance(Math.ceil(neededMin));
+      // Break after pool
+      push({
+        dayIndex,
+        blockType: 'break',
+        label: 'Break',
+        competitionId: null,
+        competitionPhase: null,
+        workshopId: null,
+        liceCount: 0,
+        startTime: minToTime(cursor),
+        endTime: minToTime(cursor + cfg.breakBetweenSessionsMinutes),
+        matchGapSeconds: 0,
+        matchDurationMinutes: 0,
+      });
+      advance(cfg.breakBetweenSessionsMinutes);
+    }
+
+    // Bracket sessions
+    for (const t of tournamentStats) {
+      if (t.bracketMatchCount === 0) continue;
+      maybeInsertMidday();
+      const neededMin = computeNeededMin(
+        t.bracketMatchCount,
+        parallelLice,
+        cfg.matchDurationMinutes,
+        cfg.matchGapSeconds,
+      );
+      const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
+      push(
+        {
+          dayIndex,
+          blockType: 'competition',
+          label: `${t.name} — Bracket`,
+          competitionId: t.id,
+          competitionPhase: 'bracket',
+          workshopId: null,
+          liceCount: parallelLice,
+          startTime: minToTime(cursor),
+          endTime: minToTime(cursor + alloc),
+          matchGapSeconds: cfg.matchGapSeconds,
+          matchDurationMinutes: cfg.matchDurationMinutes,
+        },
+        neededMin,
+      );
+      advance(Math.ceil(neededMin));
+    }
+
+    // Workshops
+    for (const w of workshops) {
+      const durationMin = w.duration_minutes ?? 60;
+      maybeInsertMidday();
+      push({
+        dayIndex,
+        blockType: 'workshop',
+        label: w.title ?? 'Workshop',
+        competitionId: null,
+        competitionPhase: null,
+        workshopId: w.id,
+        liceCount: 0,
+        startTime: minToTime(cursor),
+        endTime: minToTime(cursor + durationMin),
+        matchGapSeconds: 0,
+        matchDurationMinutes: 0,
+      });
+      advance(durationMin);
+    }
+
+    return { blocks, warnings };
+  }
+
+  // ── Generate ───────────────────────────────────────────────────────────────
+
+  async generate(eventId: string): Promise<GenerateResult> {
+    const { data: blocksData, error: blocksErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('day_index', { ascending: true })
+      .order('sort_order', { ascending: true });
+    if (blocksErr) throw new BadRequestException(blocksErr.message);
+
+    const { data: eventData } = await this.supabase.service
+      .from('events')
+      .select('start_date')
+      .eq('id', eventId)
+      .single();
+    if (!eventData) throw new NotFoundException('Event not found');
+
+    const startDate = new Date((eventData as Record<string, string>)['start_date'] ?? '');
+
+    const { data: licesData } = await this.supabase.service
+      .from('lices')
+      .select('id, name')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true });
+    const allLices = (licesData ?? []) as Array<{ id: string; name: string }>;
+
+    let matchesScheduled = 0;
+    let workshopSessionsCreated = 0;
+    const warnings: Array<{
+      blockId: string;
+      message: string;
+      suggestedEndTime: string;
+      overflowMinutes: number;
+    }> = [];
+
+    for (const rawBlock of blocksData ?? []) {
+      const block = this.mapBlock(rawBlock as Record<string, unknown>);
+
+      if (block.blockType === 'competition' && block.competitionId) {
+        const dayDate = new Date(startDate);
+        dayDate.setDate(dayDate.getDate() + block.dayIndex);
+
+        const [sh, sm] = block.startTime.split(':').map(Number);
+        const [eh, em] = block.endTime.split(':').map(Number);
+
+        const blockStartDt = new Date(dayDate);
+        blockStartDt.setHours(sh ?? 0, sm ?? 0, 0, 0);
+        const blockEndDt = new Date(dayDate);
+        blockEndDt.setHours(eh ?? 0, em ?? 0, 0, 0);
+
+        const matches = await this.fetchCompetitionMatches(
+          block.competitionId,
+          block.competitionPhase,
+        );
+        if (matches.length === 0) continue;
+
+        const blockLices = allLices.slice(0, block.liceCount);
+        if (blockLices.length === 0) continue;
+
+        const result = scheduleMatches(
+          matches.map((m) => ({
+            id: m.id,
+            redRegistrationId: m.red_registration_id,
+            blueRegistrationId: m.blue_registration_id,
+          })),
+          blockLices,
+          {
+            startTime: blockStartDt.toISOString(),
+            defaultMatchDurationMinutes: block.matchDurationMinutes,
+            transitionMinutes: block.matchGapSeconds / 60,
+          },
+        );
+
+        if (result.scheduledMatches.length > 0) {
+          const lastEnd =
+            result.scheduledMatches[result.scheduledMatches.length - 1]?.estimatedEndAt;
+          if (lastEnd && new Date(lastEnd) > blockEndDt) {
+            const overflowMin = Math.ceil(
+              (new Date(lastEnd).getTime() - blockEndDt.getTime()) / 60000,
+            );
+            warnings.push({
+              blockId: block.id,
+              message: `Schedule overflows by ${overflowMin} minutes`,
+              suggestedEndTime: minToTime(timeToMin(block.endTime) + overflowMin),
+              overflowMinutes: overflowMin,
+            });
+          }
+        }
+
+        for (const sm of result.scheduledMatches) {
+          await this.supabase.service
+            .from('matches')
+            .update({ scheduled_at: sm.scheduledAt, lice_id: sm.liceId })
+            .eq('id', sm.matchId);
+        }
+        matchesScheduled += result.scheduledMatches.length;
+      }
+
+      if (block.blockType === 'workshop' && block.workshopId) {
+        const dayDate = new Date(startDate);
+        dayDate.setDate(dayDate.getDate() + block.dayIndex);
+
+        const [sh, sm] = block.startTime.split(':').map(Number);
+        const [eh, em] = block.endTime.split(':').map(Number);
+
+        const startsAt = new Date(dayDate);
+        startsAt.setHours(sh ?? 0, sm ?? 0, 0, 0);
+        const endsAt = new Date(dayDate);
+        endsAt.setHours(eh ?? 0, em ?? 0, 0, 0);
+
+        await this.supabase.service.from('workshop_sessions').upsert(
+          {
+            workshop_id: block.workshopId,
+            starts_at: startsAt.toISOString(),
+            ends_at: endsAt.toISOString(),
+          },
+          { onConflict: 'workshop_id' },
+        );
+        workshopSessionsCreated++;
+      }
+    }
+
+    await this.supabase.service
+      .from('event_programme_blocks')
+      .update({ generated_at: new Date().toISOString() })
+      .eq('event_id', eventId);
+
+    return { matchesScheduled, workshopSessionsCreated, warnings };
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  private async fetchCompetitionMatches(
+    tournamentId: string,
+    phase: string | null,
+  ): Promise<Array<{ id: string; red_registration_id: string; blue_registration_id: string }>> {
+    const { data: phasesData } = await this.supabase.service
+      .from('phases')
+      .select('id, type')
+      .eq('tournament_id', tournamentId);
+    const phases = (phasesData ?? []) as Array<{ id: string; type: string }>;
+
+    if (phase === 'pool') {
+      const poolPhaseIds = phases.filter((p) => p.type === 'pool').map((p) => p.id);
+      if (poolPhaseIds.length === 0) return [];
+
+      const { data: poolsData } = await this.supabase.service
+        .from('pools')
+        .select('id')
+        .in('phase_id', poolPhaseIds);
+      const poolIds = (poolsData ?? []).map((p) => (p as Record<string, string>)['id']);
+      if (poolIds.length === 0) return [];
+
+      const { data: matchesData } = await this.supabase.service
+        .from('matches')
+        .select('id, red_registration_id, blue_registration_id')
+        .in('pool_id', poolIds)
+        .order('match_number_label', { ascending: true });
+      return (matchesData ?? []) as Array<{
+        id: string;
+        red_registration_id: string;
+        blue_registration_id: string;
+      }>;
+    } else {
+      const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
+      if (bracketPhaseIds.length === 0) return [];
+
+      const { data: matchesData } = await this.supabase.service
+        .from('matches')
+        .select('id, red_registration_id, blue_registration_id')
+        .in('phase_id', bracketPhaseIds)
+        .order('match_number_label', { ascending: true });
+      return (matchesData ?? []) as Array<{
+        id: string;
+        red_registration_id: string;
+        blue_registration_id: string;
+      }>;
+    }
+  }
+
+  private mapBlock(raw: Record<string, unknown>): ProgrammeBlock {
+    return {
+      id: raw['id'] as string,
+      eventId: raw['event_id'] as string,
+      dayIndex: raw['day_index'] as number,
+      sortOrder: raw['sort_order'] as number,
+      blockType: raw['block_type'] as ProgrammeBlock['blockType'],
+      label: raw['label'] as string,
+      competitionId: (raw['competition_id'] as string | null) ?? null,
+      competitionPhase: (raw['competition_phase'] as ProgrammeBlock['competitionPhase']) ?? null,
+      workshopId: (raw['workshop_id'] as string | null) ?? null,
+      liceCount: raw['lice_count'] as number,
+      startTime: raw['start_time'] as string,
+      endTime: raw['end_time'] as string,
+      matchGapSeconds: raw['match_gap_seconds'] as number,
+      matchDurationMinutes: raw['match_duration_minutes'] as number,
+      generatedAt: (raw['generated_at'] as string | null) ?? null,
+    };
+  }
+}

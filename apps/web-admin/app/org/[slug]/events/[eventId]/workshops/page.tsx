@@ -67,6 +67,7 @@ export default function WorkshopsAdminPage() {
     level: '',
     language: 'fr',
     capacity: 20,
+    durationMinutes: '' as string | number,
     description: '',
   });
   const [formSaving, setFormSaving] = useState(false);
@@ -121,6 +122,7 @@ export default function WorkshopsAdminPage() {
           level: form.level.trim() || null,
           language: form.language,
           capacity: form.capacity,
+          durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
           description: form.description.trim() || null,
         }),
       });
@@ -138,6 +140,7 @@ export default function WorkshopsAdminPage() {
         level: '',
         language: 'fr',
         capacity: 20,
+        durationMinutes: '',
         description: '',
       });
       setRefreshKey((k) => k + 1);
@@ -394,6 +397,19 @@ export default function WorkshopsAdminPage() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, capacity: parseInt(e.target.value) || 1 }))
                     }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Duration (min, optional)
+                  </label>
+                  <input
+                    type="number"
+                    value={form.durationMinutes}
+                    min={1}
+                    placeholder="e.g. 90"
+                    onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>

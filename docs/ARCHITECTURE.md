@@ -2392,4 +2392,45 @@ The report is always computed fresh from live `referee_assignments` data. Pool a
 
 ---
 
+## 14. Event Schedule Planner (T-1210)
+
+A two-layer scheduling tool for tournament organisers.
+
+### 14.1 Overview
+
+**Layer 1 — Programme** (`event_programme_blocks`): organisers build a high-level day plan as ordered blocks (Registration, Pool Session, Break, Workshop…). An auto-suggest algorithm builds the plan from event parameters. Blocks can be dragged to reorder.
+
+**Layer 2 — Grid** (existing T-706): after pressing "Generate schedule", matches get `scheduledAt` + `liceId` assigned within each block's time window, and workshop sessions get `startsAt`/`endsAt`. The organiser fine-tunes on the 5-minute drag-drop grid.
+
+The Schedule tab splits into two sub-tabs: **Programme** and **Grid**.
+
+### 14.2 Database
+
+`event_programme_blocks` — stores blocks per event per day, ordered by `day_index` + `sort_order`. Columns: `block_type` (`admin|competition|workshop|break`), `label`, `competition_id`, `competition_phase`, `workshop_id`, `lice_count`, `start_time`, `end_time`, `match_gap_seconds` (default 15s), `match_duration_minutes`, `generated_at`.
+
+`workshops.duration_minutes` — optional column added to hold workshop duration for planning purposes.
+
+`workshop_sessions.starts_at`/`ends_at` — made nullable; filled by the programme generator.
+
+### 14.3 API
+
+```text
+GET    /api/v1/events/:eventId/programme           list saved blocks
+PUT    /api/v1/events/:eventId/programme           bulk save (replace all)
+POST   /api/v1/events/:eventId/programme/suggest   auto-suggest (no DB write)
+POST   /api/v1/events/:eventId/programme/generate  run scheduler + create workshop sessions
+```
+
+**Suggest algorithm:** places admin blocks (Registration+GearCheck, Referee Meeting) at Day 1 start, then competition pool blocks (in tournament `sort_order`), breaks between each, midday break at configured window, bracket blocks, then workshops. Returns `BlockWarning[]` for blocks whose time window is shorter than needed.
+
+**Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. For workshop blocks, upserts `workshop_sessions` with `startsAt`/`endsAt`.
+
+### 14.4 Frontend
+
+- **Schedule tab** — split into Programme (new) + Grid (existing) sub-tabs.
+- **Programme planner** (`schedule/programme.tsx`) — collapsible config bar, day tabs, drag-drop block list, overflow warnings with "Suggest fit" / "Override" actions, "Generate schedule" button with confirmation modal.
+- **Workshop creation** — optional `Duration (min)` field used by the programme planner for block sizing.
+
+---
+
 _End of MyClash Architecture v1.0 specification._
