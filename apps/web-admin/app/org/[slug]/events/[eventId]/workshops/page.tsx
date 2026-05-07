@@ -30,11 +30,17 @@ interface Workshop {
   }>;
 }
 
+interface GlobalPersonResult {
+  id: string;
+  display_name: string;
+}
+
 interface RosterEntry {
   id: string;
   status: 'confirmed' | 'waitlisted';
   waitlistPosition: number | null;
   enrolledAt: string;
+  global_person_id?: string | null;
   persons: {
     id: string;
     givenName: string;
@@ -70,6 +76,9 @@ export default function WorkshopsAdminPage() {
   const [rosterSession, setRosterSession] = useState<string | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [linkingEnrollmentId, setLinkingEnrollmentId] = useState<string | null>(null);
+  const [gpSearch, setGpSearch] = useState('');
+  const [gpResults, setGpResults] = useState<GlobalPersonResult[]>([]);
 
   // ── Fetch workshops ────────────────────────────────────────────────────────────
 
@@ -166,6 +175,42 @@ export default function WorkshopsAdminPage() {
       credentials: 'include',
     });
     await openRoster(sessionId);
+  }
+
+  // ── Global person search for enrollment linking ────────────────────────────
+
+  useEffect(() => {
+    if (gpSearch.trim().length < 2) {
+      setGpResults([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(gpSearch)}`, {
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (res.ok) setGpResults((await res.json()) as GlobalPersonResult[]);
+        })
+        .catch(() => undefined);
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [gpSearch, apiUrl]);
+
+  async function linkEnrollmentToGlobalPerson(enrollmentId: string, globalPersonId: string) {
+    await fetch(`${apiUrl}/api/v1/global-persons/${globalPersonId}/link-workshop-enrollment`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ enrollmentId }),
+    });
+    setLinkingEnrollmentId(null);
+    setGpSearch('');
+    setGpResults([]);
+    if (rosterSession) await openRoster(rosterSession);
   }
 
   return (
@@ -427,6 +472,52 @@ export default function WorkshopsAdminPage() {
                             ? `Waitlist #${entry.waitlistPosition}`
                             : 'Confirmed'}
                         </span>
+                        {entry.global_person_id ? (
+                          <span className="text-xs text-emerald-600 font-medium">Linked</span>
+                        ) : linkingEnrollmentId === entry.id ? (
+                          <div className="relative">
+                            <input
+                              autoFocus
+                              type="search"
+                              value={gpSearch}
+                              onChange={(e) => setGpSearch(e.target.value)}
+                              placeholder="Search global person…"
+                              className="border border-gray-300 rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                            {gpResults.length > 0 && (
+                              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow text-xs max-h-28 overflow-y-auto z-10 w-48">
+                                {gpResults.map((gp) => (
+                                  <button
+                                    key={gp.id}
+                                    onClick={() =>
+                                      void linkEnrollmentToGlobalPerson(entry.id, gp.id)
+                                    }
+                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                  >
+                                    {gp.display_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => {
+                                setLinkingEnrollmentId(null);
+                                setGpSearch('');
+                                setGpResults([]);
+                              }}
+                              className="ml-1 text-xs text-gray-400"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setLinkingEnrollmentId(entry.id)}
+                            className="text-xs text-amber-600 hover:text-amber-800"
+                          >
+                            Link
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">

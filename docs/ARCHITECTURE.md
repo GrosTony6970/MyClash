@@ -302,21 +302,39 @@ users (id, email, display_name, avatar_url, locale, created_at)
                   -- mirrors auth.users, RLS-enforced
 platform_roles (user_id, role)  -- super_admin override
 
--- Fighters (global cross-event identity)
+-- Global persons (global cross-event identity)
 --
--- A Fighter is the cross-event aggregate. Created lazily:
---   - On first claim, persons.global_fighter_id is set to a new fighters row.
---   - Or, the super admin manually merges multiple persons → one fighter.
--- A Fighter is what shows up at /fighters/<slug> across events.
+-- global_persons is the cross-event aggregate for any real-world person.
+-- Role flags determine which domains a person belongs to:
+--   is_fighter              → competes in tournaments
+--   is_referee              → qualifies as referee at events
+--   is_workshop_participant → attends workshops as a participant
+-- A single row covers fighter+referee overlap (common in HEMA).
 --
--- Persons within a single event are the operational unit; Fighters are
--- the historical/cross-event unit. They MUST stay aligned via global_fighter_id.
-fighters (
+-- Created lazily:
+--   - On first fighter claim, persons.global_person_id is set to a new row (is_fighter=true).
+--   - Or, an organiser creates a global profile for a referee/workshop attendee.
+--   - Or, the super admin manually merges multiple persons → one row.
+--
+-- referee_profiles(global_person_id PK) is a 1:1 extension for referee-specific data
+-- (certifications, notes). Created automatically when is_referee is set to true.
+--
+-- Event-scoped tables (referee_qualifications, workshop_enrollments) carry a nullable
+-- global_person_id FK so event entries can be linked to the global identity over time.
+-- Persons within a single event are the operational unit; global_persons are
+-- the historical/cross-event unit. They MUST stay aligned via persons.global_person_id.
+global_persons (
   id, slug, display_name, given_name, family_name,
   club_id, country_code,
+  is_fighter, is_referee, is_workshop_participant,
   hema_ratings_id, photo_url,
   bio, date_of_birth, gender_category,
   claimed_by_user_id,  -- if a user has linked this profile
+  merged_into_id, merged_at, merge_reverted_at, deleted_at,
+  created_at, updated_at
+)
+referee_profiles (
+  global_person_id PK, certifications jsonb, notes,
   created_at, updated_at
 )
 clubs (id, slug, name, city, country_code, website, logo_url)
@@ -347,7 +365,7 @@ tournaments (
 )
 registrations (
   id, tournament_id, person_id,        -- person from event roster, registered to a specific tournament
-  fighter_id,                          -- nullable; populated when person.global_fighter_id set
+  fighter_id,                          -- nullable; populated when person.global_person_id set (references global_persons)
   seed, status,                        -- registered | checked_in | withdrawn | disqualified
   bib_number
 )
@@ -462,7 +480,7 @@ persons (
   notes,                             -- organizer-only notes
   claim_status,                      -- 'unclaimed' | 'guest_active' | 'claimed'
   claimed_by_user_id,                -- nullable; set when claimed via magic link
-  global_fighter_id,                 -- nullable; set when promoted to global profile
+  global_person_id,                 -- nullable; FK → global_persons(id), set when promoted to global profile
   created_by_user_id,                -- the organizer who added them
   created_at, updated_at,
   UNIQUE(event_id, email)

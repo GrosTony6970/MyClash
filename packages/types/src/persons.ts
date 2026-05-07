@@ -19,7 +19,7 @@ export interface Person {
   notes: string | null;
   claimStatus: ClaimStatus;
   claimedByUserId: string | null;
-  globalFighterId: string | null;
+  globalPersonId: string | null;
   createdByUserId: string | null;
   createdAt: string;
   updatedAt: string;

@@ -67,7 +67,7 @@ describe('FightersService', () => {
           email: 'jean@example.com',
           club_id: null,
           claimed_by_user_id: 'user-A', // owned by user-A
-          global_fighter_id: null,
+          global_person_id: null,
         },
         error: null,
       });
@@ -89,7 +89,7 @@ describe('FightersService', () => {
           email: 'jean@example.com',
           club_id: null,
           claimed_by_user_id: 'user-1',
-          global_fighter_id: null,
+          global_person_id: null,
         },
         error: null,
       });
@@ -122,7 +122,7 @@ describe('FightersService', () => {
           email: 'jean@example.com',
           club_id: null,
           claimed_by_user_id: 'user-1',
-          global_fighter_id: 'fighter-existing',
+          global_person_id: 'fighter-existing',
         },
         error: null,
       });

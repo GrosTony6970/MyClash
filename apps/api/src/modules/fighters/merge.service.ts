@@ -7,7 +7,7 @@ const REVERT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 type FighterRow = Record<string, unknown> & {
   id: string;
   display_name?: string | null;
-  merged_into_fighter_id?: string | null;
+  merged_into_id?: string | null;
   deleted_at?: string | null;
 };
 
@@ -59,11 +59,11 @@ export class FighterMergeService {
     const source = await this.loadFighter(dto.sourceId, 'source');
     const target = await this.loadFighter(dto.targetId, 'target');
 
-    if (target.merged_into_fighter_id || target.deleted_at) {
+    if (target.merged_into_id || target.deleted_at) {
       throw new BadRequestException('Target fighter cannot be a merged/deleted profile');
     }
 
-    const personIds = await this.selectReferenceIds('persons', 'global_fighter_id', dto.sourceId);
+    const personIds = await this.selectReferenceIds('persons', 'global_person_id', dto.sourceId);
     const registrationIds = await this.selectReferenceIds(
       'registrations',
       'fighter_id',
@@ -71,29 +71,29 @@ export class FighterMergeService {
     );
     const workshopInstructorIds = await this.selectReferenceIds(
       'workshop_instructors',
-      'fighter_id',
+      'global_person_id',
       dto.sourceId,
     );
 
     await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .update(fillTargetFields(source, target))
       .eq('id', dto.targetId);
 
-    await this.updateReferences('persons', 'global_fighter_id', personIds, dto.targetId);
+    await this.updateReferences('persons', 'global_person_id', personIds, dto.targetId);
     await this.updateReferences('registrations', 'fighter_id', registrationIds, dto.targetId);
     await this.updateReferences(
       'workshop_instructors',
-      'fighter_id',
+      'global_person_id',
       workshopInstructorIds,
       dto.targetId,
     );
 
     const now = new Date().toISOString();
     await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .update({
-        merged_into_fighter_id: dto.targetId,
+        merged_into_id: dto.targetId,
         merged_at: now,
         merge_reverted_at: null,
         deleted_at: now,
@@ -148,7 +148,7 @@ export class FighterMergeService {
     const sourceId = payload.source.id;
     await this.updateReferences(
       'persons',
-      'global_fighter_id',
+      'global_person_id',
       payload.moved.personIds ?? [],
       sourceId,
     );
@@ -160,16 +160,16 @@ export class FighterMergeService {
     );
     await this.updateReferences(
       'workshop_instructors',
-      'fighter_id',
+      'global_person_id',
       payload.moved.workshopInstructorIds ?? [],
       sourceId,
     );
 
     const now = new Date().toISOString();
     await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .update({
-        merged_into_fighter_id: null,
+        merged_into_id: null,
         merged_at: null,
         deleted_at: null,
         merge_reverted_at: now,
@@ -186,7 +186,7 @@ export class FighterMergeService {
 
   private async loadFighter(id: string, role: 'source' | 'target'): Promise<FighterRow> {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('*')
       .eq('id', id)
       .maybeSingle();

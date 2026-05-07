@@ -60,7 +60,7 @@ describe('FighterMergeService', () => {
       bio: 'source bio',
       country_code: 'FR',
       gender_category: 'open',
-      merged_into_fighter_id: null,
+      merged_into_id: null,
       deleted_at: null,
     };
     const target = {
@@ -72,7 +72,7 @@ describe('FighterMergeService', () => {
       bio: null,
       country_code: 'BE',
       gender_category: null,
-      merged_into_fighter_id: null,
+      merged_into_id: null,
       deleted_at: null,
     };
 
@@ -100,7 +100,7 @@ describe('FighterMergeService', () => {
 
     const fighterChains = [sourceChain, targetChain];
     fromMock.mockImplementation((table: string) => {
-      if (table === 'fighters') return fighterChains.shift() ?? fighterUpdate;
+      if (table === 'global_persons') return fighterChains.shift() ?? fighterUpdate;
       if (table === 'persons')
         return personsSelect.select.mock.calls.length ? personsUpdate : personsSelect;
       if (table === 'registrations') {
@@ -140,12 +140,12 @@ describe('FighterMergeService', () => {
         }),
       }),
     );
-    expect(personsUpdate.update).toHaveBeenCalledWith({ global_fighter_id: 'target' });
+    expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
     expect(registrationsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'target' });
-    expect(instructorsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'target' });
+    expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
     expect(fighterUpdateCalls).toContainEqual([
       expect.objectContaining({
-        merged_into_fighter_id: 'target',
+        merged_into_id: 'target',
         merge_reverted_at: null,
       }),
     ]);
@@ -200,18 +200,18 @@ describe('FighterMergeService', () => {
       if (table === 'persons') return personsUpdate;
       if (table === 'registrations') return registrationsUpdate;
       if (table === 'workshop_instructors') return instructorsUpdate;
-      if (table === 'fighters') return sourceUpdate;
+      if (table === 'global_persons') return sourceUpdate;
       return makeChain({ data: null, error: null });
     });
 
     await service.revertMerge('audit-1', 'actor-user');
 
-    expect(personsUpdate.update).toHaveBeenCalledWith({ global_fighter_id: 'source' });
+    expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
     expect(registrationsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'source' });
     expect(instructorsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'source' });
     expect(sourceUpdate.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        merged_into_fighter_id: null,
+        merged_into_id: null,
         merged_at: null,
         deleted_at: null,
       }),

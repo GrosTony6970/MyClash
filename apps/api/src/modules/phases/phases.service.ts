@@ -82,7 +82,7 @@ export class PhasesService {
     // Fetch registrations
     const { data: regs, error: regsError } = await this.supabase.service
       .from('registrations')
-      .select('id, seed, bib_number, persons(club_id), fighters(hema_ratings_id)')
+      .select('id, seed, bib_number, persons(club_id), global_persons(hema_ratings_id)')
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
 
@@ -121,7 +121,7 @@ export class PhasesService {
         regs
           .map((reg) => {
             const r = reg as Record<string, unknown>;
-            const fighter = r['fighters'] as { hema_ratings_id: string | null } | null;
+            const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
             return fighter?.hema_ratings_id ?? null;
           })
           .filter((id): id is string => Boolean(id)),
@@ -136,7 +136,7 @@ export class PhasesService {
     const fighters: Fighter[] = regs.map((reg, idx) => {
       const r = reg as Record<string, unknown>;
       const person = r['persons'] as { club_id: string | null } | null;
-      const fighter = r['fighters'] as { hema_ratings_id: string | null } | null;
+      const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
       const hemaRatingsId = fighter?.hema_ratings_id ?? null;
       return {
         registrationId: r['id'] as string,

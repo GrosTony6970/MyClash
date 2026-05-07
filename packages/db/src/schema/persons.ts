@@ -23,7 +23,7 @@ export const persons = pgTable('persons', {
   claimStatus: text('claim_status').notNull().default('unclaimed'),
   // unclaimed | guest_active | claimed
   claimedByUserId: uuid('claimed_by_user_id'),
-  globalFighterId: uuid('global_fighter_id'),
+  globalPersonId: uuid('global_person_id'),
   createdByUserId: uuid('created_by_user_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

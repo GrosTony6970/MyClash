@@ -328,7 +328,7 @@ export class LeaguesService {
     }
     let q = this.supabase.service
       .from('league_rankings')
-      .select('*, fighters(display_name, clubs(name, city))')
+      .select('*, global_persons(display_name, clubs(name, city))')
       .eq('league_id', leagueId)
       .order('ranking_group_key', { ascending: true })
       .order('rank', { ascending: true });
@@ -355,7 +355,7 @@ export class LeaguesService {
       'ranking_group,league_rank,fighter,total_points,participation_count,medal_count,double_hit_average',
     ];
     for (const row of standings.rows as Row[]) {
-      const fighter = row['fighters'] as Row | null;
+      const fighter = row['global_persons'] as Row | null;
       lines.push(
         [
           csv(row['ranking_group_key']),
@@ -376,7 +376,7 @@ export class LeaguesService {
     const league = standings.league as Row;
     const rows = (standings.rows as Row[])
       .map((row) => {
-        const fighter = row['fighters'] as Row | null;
+        const fighter = row['global_persons'] as Row | null;
         return `<tr><td>${escapeHtml(row['ranking_group_key'])}</td><td>${escapeHtml(row['rank'])}</td><td>${escapeHtml(fighter?.['display_name'] ?? row['fighter_id'])}</td><td>${escapeHtml(row['total_points'])}</td></tr>`;
       })
       .join('');
@@ -454,7 +454,7 @@ export class LeaguesService {
       })
       .map(({ registration }, index) => {
         const person = registration['persons'] as Row | null;
-        const fighter = registration['fighters'] as Row | null;
+        const fighter = registration['global_persons'] as Row | null;
         const name =
           String(fighter?.['display_name'] ?? '').trim() ||
           `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim() ||

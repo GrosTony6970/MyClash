@@ -302,7 +302,7 @@ export class PersonsService {
       notes: (p['notes'] as string | null) ?? null,
       claimStatus: (p['claim_status'] as 'unclaimed' | 'guest_active' | 'claimed') ?? 'unclaimed',
       claimedByUserId: (p['claimed_by_user_id'] as string | null) ?? null,
-      globalFighterId: (p['global_fighter_id'] as string | null) ?? null,
+      globalPersonId: (p['global_person_id'] as string | null) ?? null,
       createdByUserId: (p['created_by_user_id'] as string | null) ?? null,
       createdAt: p['created_at'] as string,
       updatedAt: p['updated_at'] as string,

@@ -8,8 +8,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import type {
   CreateFighterDto,
+  CreateGlobalPersonDto,
   FighterQueryDto,
+  FighterRolesDto,
+  GlobalPersonQueryDto,
   PromoteFighterDto,
+  RefereeProfileDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
 } from './dto/fighters.dto';
@@ -63,7 +67,7 @@ export class FightersService {
 
   async list(query: FighterQueryDto) {
     let q = this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('*, clubs(name, slug)')
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true });
@@ -86,7 +90,7 @@ export class FightersService {
 
   async getBySlug(slug: string) {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('*, clubs(name, slug, city, country_code)')
       .eq('slug', slug)
       .maybeSingle();
@@ -123,7 +127,7 @@ export class FightersService {
     const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .insert({
         slug,
         display_name: dto.displayName.trim(),
@@ -136,6 +140,7 @@ export class FightersService {
         bio: dto.bio ?? null,
         date_of_birth: dto.dateOfBirth ?? null,
         gender_category: dto.genderCategory ?? null,
+        is_fighter: true,
       })
       .select('*')
       .single();
@@ -160,7 +165,7 @@ export class FightersService {
     updates['updated_at'] = new Date().toISOString();
 
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .update(updates)
       .eq('id', id)
       .select('*')
@@ -198,7 +203,7 @@ export class FightersService {
 
   async getMyProfile(userId: string) {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('*, clubs(name, slug, city, country_code)')
       .eq('claimed_by_user_id', userId)
       .maybeSingle();
@@ -260,7 +265,7 @@ export class FightersService {
 
   async getCareerBySlug(slug: string, query: { year?: string; weapon?: string } = {}) {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('id, slug, display_name')
       .eq('slug', slug)
       .maybeSingle();
@@ -304,7 +309,7 @@ export class FightersService {
     // Verify the claimed user owns this Person
     const { data: person, error: personError } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, email, club_id, claimed_by_user_id, global_fighter_id')
+      .select('id, given_name, family_name, email, club_id, claimed_by_user_id, global_person_id')
       .eq('id', dto.personId)
       .maybeSingle();
 
@@ -319,19 +324,19 @@ export class FightersService {
       email: string;
       club_id: string | null;
       claimed_by_user_id: string | null;
-      global_fighter_id: string | null;
+      global_person_id: string | null;
     };
 
     if (p.claimed_by_user_id !== claimedUserId) {
       throw new ForbiddenException('You can only promote your own Person profile to a Fighter');
     }
 
-    if (p.global_fighter_id) {
+    if (p.global_person_id) {
       // Already promoted — return existing fighter
       const { data: existing } = await this.supabase.service
-        .from('fighters')
+        .from('global_persons')
         .select('*')
-        .eq('id', p.global_fighter_id)
+        .eq('id', p.global_person_id)
         .maybeSingle();
       return existing;
     }
@@ -342,7 +347,7 @@ export class FightersService {
     const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
     const { data: fighter, error: fighterError } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .insert({
         slug,
         display_name: displayName,
@@ -350,6 +355,7 @@ export class FightersService {
         family_name: p.family_name,
         club_id: p.club_id,
         claimed_by_user_id: claimedUserId,
+        is_fighter: true,
       })
       .select('*')
       .single();
@@ -363,7 +369,7 @@ export class FightersService {
     // Link Person → Fighter
     await this.supabase.service
       .from('persons')
-      .update({ global_fighter_id: f.id })
+      .update({ global_person_id: f.id })
       .eq('id', dto.personId);
 
     return fighter;
@@ -385,7 +391,7 @@ export class FightersService {
 
   private async assertFighterOwner(fighterId: string, userId: string): Promise<void> {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('id, claimed_by_user_id')
       .eq('id', fighterId)
       .maybeSingle();
@@ -401,7 +407,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('fighter_clubs')
       .select('role, sort_order, clubs(id, slug, name, city, country_code)')
-      .eq('fighter_id', fighterId)
+      .eq('global_person_id', fighterId)
       .order('sort_order', { ascending: true });
 
     if (error) return [];
@@ -412,7 +418,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('fighter_weapons')
       .select('favorite, sort_order, weapon_catalog(id, slug, name)')
-      .eq('fighter_id', fighterId)
+      .eq('global_person_id', fighterId)
       .order('favorite', { ascending: false })
       .order('sort_order', { ascending: true });
 
@@ -451,7 +457,7 @@ export class FightersService {
     secondaryClubs: Array<{ clubId?: string; clubName?: string }> = [],
     previousClubs: Array<{ clubId?: string; clubName?: string }> = [],
   ): Promise<void> {
-    await this.supabase.service.from('fighter_clubs').delete().eq('fighter_id', fighterId);
+    await this.supabase.service.from('fighter_clubs').delete().eq('global_person_id', fighterId);
     const rows: Row[] = [];
     const add = async (
       role: 'main' | 'secondary' | 'previous',
@@ -461,7 +467,7 @@ export class FightersService {
       if (!input) return;
       const clubId = await this.resolveClubInput(input);
       if (!clubId) return;
-      rows.push({ fighter_id: fighterId, club_id: clubId, role, sort_order: sortOrder });
+      rows.push({ global_person_id: fighterId, club_id: clubId, role, sort_order: sortOrder });
     };
 
     await add('main', mainClub, 0);
@@ -502,13 +508,13 @@ export class FightersService {
     fighterId: string,
     weapons: Array<{ weaponId?: string; weaponName?: string; favorite?: boolean }>,
   ): Promise<void> {
-    await this.supabase.service.from('fighter_weapons').delete().eq('fighter_id', fighterId);
+    await this.supabase.service.from('fighter_weapons').delete().eq('global_person_id', fighterId);
     const rows: Row[] = [];
     for (const [index, weapon] of weapons.entries()) {
       const weaponId = await this.resolveWeaponInput(weapon);
       if (!weaponId) continue;
       rows.push({
-        fighter_id: fighterId,
+        global_person_id: fighterId,
         weapon_id: weaponId,
         favorite: Boolean(weapon.favorite),
         sort_order: index,
@@ -534,7 +540,7 @@ export class FightersService {
         )
       `,
       )
-      .eq('fighter_id', fighterId);
+      .eq('global_person_id', fighterId);
     if (query.weapon) request = request.eq('tournaments.weapon', query.weapon) as typeof request;
 
     const { data, error } = await request;
@@ -613,7 +619,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('league_rankings')
       .select('rank, total_points, ranking_group_key, leagues(name)')
-      .eq('fighter_id', fighterId);
+      .eq('global_person_id', fighterId);
     if (error) return [];
 
     return ((data ?? []) as Row[]).map((row) => {
@@ -629,7 +635,7 @@ export class FightersService {
 
   private async resolveRefereeUserIdForFighterSlug(slug: string): Promise<string | null> {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('id, claimed_by_user_id')
       .eq('slug', slug)
       .maybeSingle();
@@ -641,7 +647,7 @@ export class FightersService {
     const { data: person } = await this.supabase.service
       .from('persons')
       .select('claimed_by_user_id')
-      .eq('global_fighter_id', String(row['id']))
+      .eq('global_person_id', String(row['id']))
       .not('claimed_by_user_id', 'is', null)
       .limit(1)
       .maybeSingle();
@@ -778,5 +784,137 @@ export class FightersService {
       };
     }
     return result;
+  }
+
+  // ── Global-persons new methods ────────────────────────────────────────────────
+
+  async listGlobalPersons(query: GlobalPersonQueryDto) {
+    let q = this.supabase.service
+      .from('global_persons')
+      .select('*')
+      .order('family_name', { ascending: true })
+      .order('given_name', { ascending: true });
+
+    if (query.q) {
+      q = q.or(
+        `given_name.ilike.%${query.q}%,family_name.ilike.%${query.q}%,display_name.ilike.%${query.q}%`,
+      ) as typeof q;
+    }
+    if (query.roles) {
+      for (const role of query.roles) {
+        q = q.eq(`is_${role}`, true) as typeof q;
+      }
+    }
+
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  async createGlobalPerson(dto: CreateGlobalPersonDto) {
+    const baseSlug = slugify(dto.displayName || `${dto.givenName}-${dto.familyName}`);
+    const slug = `${baseSlug}-${Date.now().toString(36)}`;
+
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .insert({
+        slug,
+        display_name: dto.displayName.trim(),
+        given_name: dto.givenName.trim(),
+        family_name: dto.familyName.trim(),
+        is_fighter: dto.isFighter ?? false,
+        is_referee: dto.isReferee ?? false,
+        is_workshop_participant: dto.isWorkshopParticipant ?? false,
+      })
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    if (dto.isReferee) {
+      await this.supabase.service
+        .from('referee_profiles')
+        .insert({ global_person_id: (data as Row)['id'] });
+    }
+
+    return data;
+  }
+
+  async setRoles(id: string, dto: FighterRolesDto) {
+    const updates: Record<string, unknown> = {};
+    if (dto.isFighter !== undefined) updates['is_fighter'] = dto.isFighter;
+    if (dto.isReferee !== undefined) updates['is_referee'] = dto.isReferee;
+    if (dto.isWorkshopParticipant !== undefined)
+      updates['is_workshop_participant'] = dto.isWorkshopParticipant;
+    updates['updated_at'] = new Date().toISOString();
+
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .update(updates)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Global person ${id} not found`);
+
+    if (dto.isReferee === true) {
+      await this.supabase.service
+        .from('referee_profiles')
+        .upsert(
+          { global_person_id: id },
+          { onConflict: 'global_person_id', ignoreDuplicates: true },
+        );
+    }
+
+    return data;
+  }
+
+  async getRefereeProfile(id: string) {
+    const { data, error } = await this.supabase.service
+      .from('referee_profiles')
+      .select('*')
+      .eq('global_person_id', id)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`No referee profile for global person ${id}`);
+    return data;
+  }
+
+  async upsertRefereeProfile(id: string, dto: RefereeProfileDto) {
+    const { data, error } = await this.supabase.service
+      .from('referee_profiles')
+      .upsert({
+        global_person_id: id,
+        certifications: dto.certifications ?? [],
+        notes: dto.notes ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async linkRefereeQualification(qualificationId: string, globalPersonId: string) {
+    const { error } = await this.supabase.service
+      .from('referee_qualifications')
+      .update({ global_person_id: globalPersonId })
+      .eq('id', qualificationId)
+      .is('global_person_id', null);
+
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  async linkWorkshopEnrollment(enrollmentId: string, globalPersonId: string) {
+    const { error } = await this.supabase.service
+      .from('workshop_enrollments')
+      .update({ global_person_id: globalPersonId })
+      .eq('id', enrollmentId)
+      .is('global_person_id', null);
+
+    if (error) throw new BadRequestException(error.message);
   }
 }

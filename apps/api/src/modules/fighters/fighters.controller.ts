@@ -13,6 +13,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
@@ -21,9 +22,15 @@ import { FightersService } from './fighters.service';
 import { FighterMergeService } from './merge.service';
 import {
   CreateFighterDto,
+  CreateGlobalPersonDto,
   FighterQueryDto,
+  FighterRolesDto,
+  GlobalPersonQueryDto,
+  LinkEnrollmentDto,
+  LinkQualificationDto,
   MergeFightersDto,
   PromoteFighterDto,
+  RefereeProfileDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
 } from './dto/fighters.dto';
@@ -201,5 +208,85 @@ export class WeaponsController {
   @ApiOperation({ summary: 'List controlled weapon catalog entries' })
   async list() {
     return this.fighters.listWeapons();
+  }
+}
+
+@ApiTags('global-persons')
+@Controller('global-persons')
+export class GlobalPersonsController {
+  constructor(
+    private readonly fighters: FightersService,
+    private readonly supabase: SupabaseService,
+  ) {}
+
+  /** GET /api/v1/global-persons?q=...&roles=referee */
+  @Get()
+  @ApiOperation({ summary: 'List global persons (public)' })
+  async list(@Query() query: GlobalPersonQueryDto) {
+    return this.fighters.listGlobalPersons(query);
+  }
+
+  /** POST /api/v1/global-persons */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create an unclaimed global person (organizer+)' })
+  async create(@Body() dto: CreateGlobalPersonDto) {
+    return this.fighters.createGlobalPerson(dto);
+  }
+
+  /** PATCH /api/v1/global-persons/:id/roles */
+  @Patch(':id/roles')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set role flags on a global person (organizer+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async setRoles(@Param('id', ParseUUIDPipe) id: string, @Body() dto: FighterRolesDto) {
+    return this.fighters.setRoles(id, dto);
+  }
+
+  /** GET /api/v1/global-persons/:id/referee-profile */
+  @Get(':id/referee-profile')
+  @ApiOperation({ summary: 'Get referee profile for a global person' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getRefereeProfile(@Param('id', ParseUUIDPipe) id: string) {
+    return this.fighters.getRefereeProfile(id);
+  }
+
+  /** PATCH /api/v1/global-persons/:id/referee-profile */
+  @Patch(':id/referee-profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upsert referee profile (organizer+ or claimed owner)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async upsertRefereeProfile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RefereeProfileDto,
+  ) {
+    return this.fighters.upsertRefereeProfile(id, dto);
+  }
+
+  /** PATCH /api/v1/global-persons/:id/link-referee-qualification */
+  @Patch(':id/link-referee-qualification')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Link a referee qualification to a global person (organizer+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async linkRefereeQualification(
+    @Param('id', ParseUUIDPipe) globalPersonId: string,
+    @Body() dto: LinkQualificationDto,
+  ) {
+    await this.fighters.linkRefereeQualification(dto.qualificationId, globalPersonId);
+    return { linked: true };
+  }
+
+  /** PATCH /api/v1/global-persons/:id/link-workshop-enrollment */
+  @Patch(':id/link-workshop-enrollment')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Link a workshop enrollment to a global person (organizer+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async linkWorkshopEnrollment(
+    @Param('id', ParseUUIDPipe) globalPersonId: string,
+    @Body() dto: LinkEnrollmentDto,
+  ) {
+    await this.fighters.linkWorkshopEnrollment(dto.enrollmentId, globalPersonId);
+    return { linked: true };
   }
 }

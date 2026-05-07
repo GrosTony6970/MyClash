@@ -393,7 +393,7 @@ export class ArchiveService {
     this.mapFk(next, 'lice_id', maps.lices);
     this.mapFk(next, 'person_id', maps.persons);
     this.mapFk(next, 'fighter_id', maps.fighters);
-    this.mapFk(next, 'global_fighter_id', maps.fighters);
+    this.mapFk(next, 'global_person_id', maps.fighters);
     this.mapFk(next, 'tournament_id', maps.tournaments, targets.targetTournamentId);
     this.mapFk(next, 'registration_id', maps.registrations);
     this.mapFk(next, 'red_registration_id', maps.registrations);

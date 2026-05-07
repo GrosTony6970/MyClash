@@ -28,11 +28,19 @@ interface Qualification {
   rating: number | null;
 }
 
+interface GlobalPersonResult {
+  id: string;
+  given_name: string;
+  family_name: string;
+  display_name: string;
+}
+
 interface RefereeEntry {
   personId: string;
   personName: string;
   clubLabel: string | null;
   qualifications: Qualification[];
+  globalPersonId: string | null;
 }
 
 interface PersonResult {
@@ -79,6 +87,9 @@ export default function RefereesPage() {
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [saving, setSaving] = useState<string | null>(null);
+  const [linkingPersonId, setLinkingPersonId] = useState<string | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalResults, setGlobalResults] = useState<GlobalPersonResult[]>([]);
 
   // ── Fetch qualifications ────────────────────────────────────────────────────
 
@@ -107,6 +118,7 @@ export default function RefereesPage() {
             personName: q.persons ? `${q.persons.given_name} ${q.persons.family_name}` : q.personId,
             clubLabel: q.persons?.clubs?.name ?? null,
             qualifications: [],
+            globalPersonId: (q as { global_person_id?: string | null }).global_person_id ?? null,
           };
           existing.qualifications.push({ id: q.id, role: q.role, rating: q.rating });
           byPerson.set(q.personId, existing);
@@ -179,6 +191,62 @@ export default function RefereesPage() {
       credentials: 'include',
     });
     setRefreshKey((k) => k + 1);
+  }
+
+  // ── Global person search ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (globalSearch.trim().length < 2) {
+      setGlobalResults([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}&roles=referee`, {
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (res.ok) setGlobalResults((await res.json()) as GlobalPersonResult[]);
+        })
+        .catch(() => undefined);
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [globalSearch, apiUrl]);
+
+  async function linkToGlobalPerson(qualificationId: string, globalPersonId: string) {
+    await fetch(`${apiUrl}/api/v1/global-persons/${globalPersonId}/link-referee-qualification`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ qualificationId }),
+    });
+    setLinkingPersonId(null);
+    setGlobalSearch('');
+    setGlobalResults([]);
+    setRefreshKey((k) => k + 1);
+  }
+
+  async function createAndLinkGlobalPerson(ref: RefereeEntry) {
+    const [givenName, ...rest] = ref.personName.split(' ');
+    const familyName = rest.join(' ') || (givenName ?? '');
+    const res = await fetch(`${apiUrl}/api/v1/global-persons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        givenName: givenName ?? ref.personName,
+        familyName,
+        displayName: ref.personName,
+        isReferee: true,
+      }),
+    });
+    if (!res.ok) return;
+    const gp = (await res.json()) as { id: string };
+    const qualId = ref.qualifications[0]?.id;
+    if (qualId) await linkToGlobalPerson(qualId, gp.id);
   }
 
   return (
@@ -280,6 +348,67 @@ export default function RefereesPage() {
                   <td className="py-3 pr-4">
                     <p className="font-medium text-gray-900">{ref.personName}</p>
                     {ref.clubLabel && <p className="text-xs text-gray-400">{ref.clubLabel}</p>}
+                    {ref.globalPersonId ? (
+                      <span className="text-xs text-emerald-600 font-medium">
+                        Global profile linked
+                      </span>
+                    ) : (
+                      <div className="mt-1">
+                        {linkingPersonId === ref.personId ? (
+                          <div className="flex flex-col gap-1">
+                            <input
+                              autoFocus
+                              type="search"
+                              value={globalSearch}
+                              onChange={(e) => setGlobalSearch(e.target.value)}
+                              placeholder="Search global persons…"
+                              className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                            {globalResults.length > 0 && (
+                              <div className="bg-white border border-gray-200 rounded shadow text-xs max-h-32 overflow-y-auto">
+                                {globalResults.map((gp) => (
+                                  <button
+                                    key={gp.id}
+                                    onClick={() => {
+                                      const qualId = ref.qualifications[0]?.id;
+                                      if (qualId) void linkToGlobalPerson(qualId, gp.id);
+                                    }}
+                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                  >
+                                    {gp.display_name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => void createAndLinkGlobalPerson(ref)}
+                                className="text-xs text-amber-600 hover:text-amber-800"
+                              >
+                                + Create global profile
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setLinkingPersonId(null);
+                                  setGlobalSearch('');
+                                  setGlobalResults([]);
+                                }}
+                                className="text-xs text-gray-400 hover:text-gray-600"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setLinkingPersonId(ref.personId)}
+                            className="text-xs text-amber-600 hover:text-amber-800"
+                          >
+                            Link global profile
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                   {ROLES.map((role) => {
                     const qual = ref.qualifications.find((q) => q.role === role.id);

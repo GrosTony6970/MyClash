@@ -170,7 +170,7 @@ describe('RegistrationsService', () => {
           given_name: 'Jean',
           family_name: 'Dupont',
           club_id: null,
-          global_fighter_id: 'fighter-1',
+          global_person_id: 'fighter-1',
         },
         error: null,
       });
@@ -200,7 +200,7 @@ describe('RegistrationsService', () => {
           given_name: 'Jean',
           family_name: 'Dupont',
           club_id: null,
-          global_fighter_id: 'fighter-1',
+          global_person_id: 'fighter-1',
         },
         error: null,
       });

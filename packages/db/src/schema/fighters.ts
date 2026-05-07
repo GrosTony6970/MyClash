@@ -16,9 +16,9 @@ export const clubs = pgTable('clubs', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ── Fighters ──────────────────────────────────────────────────────────────────
-// Global cross-event identity. Created lazily when a Person claims their profile.
-export const fighters = pgTable('fighters', {
+// ── Global Persons ────────────────────────────────────────────────────────────
+// Global cross-event identity (renamed from fighters). Role flags allow overlap.
+export const fighters = pgTable('global_persons', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),
   displayName: text('display_name').notNull(),
@@ -32,7 +32,10 @@ export const fighters = pgTable('fighters', {
   dateOfBirth: text('date_of_birth'), // stored as ISO date string
   genderCategory: text('gender_category'),
   claimedByUserId: uuid('claimed_by_user_id'),
-  mergedIntoFighterId: uuid('merged_into_fighter_id'),
+  isFighter: text('is_fighter'),
+  isReferee: text('is_referee'),
+  isWorkshopParticipant: text('is_workshop_participant'),
+  mergedIntoId: uuid('merged_into_id'),
   mergedAt: timestamp('merged_at', { withTimezone: true }),
   mergeRevertedAt: timestamp('merge_reverted_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),

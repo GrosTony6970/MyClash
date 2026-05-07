@@ -236,7 +236,7 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
 
   private async fetchLinkedProfiles(): Promise<Map<string, HemaRatingsProfile>> {
     const { data, error } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .select('hema_ratings_id')
       .not('hema_ratings_id', 'is', null);
 

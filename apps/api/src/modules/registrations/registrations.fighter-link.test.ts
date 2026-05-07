@@ -55,7 +55,7 @@ describe('RegistrationsService fighter linking', () => {
         given_name: 'Jean',
         family_name: 'Dupont',
         club_id: 'club-1',
-        global_fighter_id: null,
+        global_person_id: null,
       },
       error: null,
     });
@@ -106,7 +106,7 @@ describe('RegistrationsService fighter linking', () => {
         given_name: 'Jean',
         family_name: 'Dupont',
         club_id: 'club-1',
-        global_fighter_id: null,
+        global_person_id: null,
       },
       error: null,
     });
@@ -150,7 +150,7 @@ describe('RegistrationsService fighter linking', () => {
         given_name: 'Jean',
         family_name: 'Dupont',
         club_id: 'club-1',
-        global_fighter_id: 'fighter-1',
+        global_person_id: 'fighter-1',
       },
       error: null,
     });

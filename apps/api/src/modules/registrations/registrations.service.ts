@@ -29,7 +29,7 @@ export class RegistrationsService {
         `
         *,
         persons(id, given_name, family_name, email, club_id),
-        fighters(id, slug, display_name)
+        global_persons(id, slug, display_name)
       `,
       )
       .eq('tournament_id', tournamentId)
@@ -202,7 +202,7 @@ export class RegistrationsService {
     if (dto.fighterId) {
       if (dto.hemaRatingsId) {
         await this.supabase.service
-          .from('fighters')
+          .from('global_persons')
           .update({ hema_ratings_id: dto.hemaRatingsId })
           .eq('id', dto.fighterId);
       }
@@ -211,7 +211,7 @@ export class RegistrationsService {
 
     const { data: person, error } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, club_id, global_fighter_id')
+      .select('id, given_name, family_name, club_id, global_person_id')
       .eq('id', dto.personId)
       .maybeSingle();
 
@@ -223,17 +223,17 @@ export class RegistrationsService {
       given_name: string;
       family_name: string;
       club_id: string | null;
-      global_fighter_id: string | null;
+      global_person_id: string | null;
     };
 
-    if (p.global_fighter_id) {
+    if (p.global_person_id) {
       if (dto.hemaRatingsId) {
         await this.supabase.service
-          .from('fighters')
+          .from('global_persons')
           .update({ hema_ratings_id: dto.hemaRatingsId })
-          .eq('id', p.global_fighter_id);
+          .eq('id', p.global_person_id);
       }
-      return p.global_fighter_id;
+      return p.global_person_id;
     }
 
     const displayName = `${p.given_name} ${p.family_name}`;
@@ -241,7 +241,7 @@ export class RegistrationsService {
     const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
     const { data: fighter, error: fighterError } = await this.supabase.service
-      .from('fighters')
+      .from('global_persons')
       .insert({
         slug,
         display_name: displayName,
@@ -249,6 +249,7 @@ export class RegistrationsService {
         family_name: p.family_name,
         club_id: p.club_id,
         hema_ratings_id: dto.hemaRatingsId ?? null,
+        is_fighter: true,
       })
       .select('id')
       .single();
@@ -261,7 +262,7 @@ export class RegistrationsService {
 
     await this.supabase.service
       .from('persons')
-      .update({ global_fighter_id: fighterId })
+      .update({ global_person_id: fighterId })
       .eq('id', p.id);
 
     return fighterId;

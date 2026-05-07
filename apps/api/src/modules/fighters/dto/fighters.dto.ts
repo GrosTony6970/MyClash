@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -210,4 +211,99 @@ export class MergeFightersDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+}
+
+export class CreateGlobalPersonDto {
+  @ApiProperty({ example: 'Jean' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  givenName!: string;
+
+  @ApiProperty({ example: 'Dupont' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  familyName!: string;
+
+  @ApiProperty({ example: 'Jean Dupont' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  displayName!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isFighter?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isReferee?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isWorkshopParticipant?: boolean;
+}
+
+export class FighterRolesDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isFighter?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isReferee?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isWorkshopParticipant?: boolean;
+}
+
+export class GlobalPersonQueryDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    enum: ['fighter', 'referee', 'workshop_participant'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(['fighter', 'referee', 'workshop_participant'], { each: true })
+  roles?: string[];
+}
+
+export class RefereeProfileDto {
+  @ApiProperty({ required: false, type: [Object] })
+  @IsOptional()
+  @IsArray()
+  certifications?: object[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class LinkQualificationDto {
+  @ApiProperty({ description: 'Referee qualification ID to link to this global person' })
+  @IsUUID()
+  qualificationId!: string;
+}
+
+export class LinkEnrollmentDto {
+  @ApiProperty({ description: 'Workshop enrollment ID to link to this global person' })
+  @IsUUID()
+  enrollmentId!: string;
 }

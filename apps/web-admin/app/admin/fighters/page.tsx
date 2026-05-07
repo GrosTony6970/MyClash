@@ -15,7 +15,7 @@ interface FighterRow {
   photo_url: string | null;
   bio: string | null;
   gender_category: string | null;
-  merged_into_fighter_id?: string | null;
+  merged_into_id?: string | null;
   deleted_at?: string | null;
 }
 
