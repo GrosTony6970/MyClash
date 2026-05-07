@@ -2345,4 +2345,51 @@ These are intentionally **not** in scope for v1.0 but are tracked here:
 
 ---
 
+## 13. Referee Financial Compensation (T-1209)
+
+### 13.1 Overview
+
+Organisations can compensate referees using a token-based system. Referees earn points per completed match based on their role and the competition phase. Tokens are converted to a monetary amount via configurable tiered brackets.
+
+### 13.2 Database (migration `0027_referee_compensation.sql`)
+
+| Table                                 | Purpose                                                                                  |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `referee_compensation_plans`          | Named plans; `built_in=true` for the FFAMHE default, `organization_id=null` for built-in |
+| `referee_compensation_role_rates`     | Token rate per (`plan_id`, `referee_role`, `compensation_phase`)                         |
+| `referee_compensation_tiers`          | Token → money conversion brackets per plan                                               |
+| `referee_compensation_event_settings` | Which plan + optional cap is active for an event                                         |
+| `referee_compensation_payments`       | Payment tracking per (`event_id`, `user_id`); partial index on `WHERE paid = false`      |
+
+All tables have RLS enabled. FK columns have explicit indexes. Money columns use `NUMERIC(10,2)`.
+
+**Roles:** `arbitre_declarant`, `arbitre_assesseur`, `arbitre_table`  
+**Compensation phases:** `pool`, `bracket`, `finals`  
+**Finals detection:** application-side via `match_number_label` regex: `/FINAL|^F$|GOLD|BRONZE|3RD/i`
+
+### 13.3 API (`CompensationModule`)
+
+```text
+GET    /api/v1/compensation-plans                                   list (built-in + org + public)
+POST   /api/v1/organizations/:orgId/compensation-plans              create org plan
+PATCH  /api/v1/compensation-plans/:planId                           update name/description/visibility
+DELETE /api/v1/compensation-plans/:planId                           delete own plan
+PUT    /api/v1/compensation-plans/:planId/role-rates                replace all role rates
+PUT    /api/v1/compensation-plans/:planId/tiers                     replace all tiers
+
+GET    /api/v1/events/:eventId/compensation/settings                get plan + cap
+PUT    /api/v1/events/:eventId/compensation/settings                set plan + cap
+GET    /api/v1/events/:eventId/compensation/report                  compute live report
+PATCH  /api/v1/events/:eventId/compensation/payments/:userId        toggle paid status
+```
+
+The report is always computed fresh from live `referee_assignments` data. Pool assignments expand to all completed matches in the pool; lice assignments split matches by label into `bracket` vs `finals`; match-level assignments count as 1.
+
+### 13.4 Frontend
+
+- **Event page** (`/org/[slug]/events/[eventId]/compensation`) — plan selector, compensation table with expandable per-referee breakdowns, grand total, paid checkboxes.
+- **Org settings** (`/org/[slug]/settings/compensation`) — list built-in plans (read-only), create/edit/delete org plans, rates grid (3 roles × 3 phases), tiers table.
+
+---
+
 _End of MyClash Architecture v1.0 specification._

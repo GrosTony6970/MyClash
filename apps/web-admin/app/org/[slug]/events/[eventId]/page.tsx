@@ -64,6 +64,11 @@ export default function EventDetailPage() {
       href: 'referee-assignments',
       icon: 'A',
     },
+    {
+      label: t('organizer.eventHub.sections.compensation'),
+      href: 'compensation',
+      icon: '€',
+    },
     { label: t('organizer.eventHub.sections.workshops'), href: 'workshops', icon: 'W' },
     { label: t('organizer.eventHub.sections.staff'), href: 'staff', icon: 'S' },
     { label: t('organizer.eventHub.sections.notifications'), href: 'notifications', icon: 'N' },
