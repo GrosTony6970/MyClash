@@ -35,6 +35,7 @@ export default function OrgAISettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,7 +101,7 @@ export default function OrgAISettingsPage() {
       });
       setConfig(null);
     } catch {
-      // silent
+      setRemoveError('Failed to remove key');
     } finally {
       setRemoving(false);
     }
@@ -124,7 +125,7 @@ export default function OrgAISettingsPage() {
           {slug}
         </Link>
         <span>/</span>
-        <Link href={`/org/${slug}/settings/compensation`} className="hover:text-gray-700">
+        <Link href={`/org/${slug}/settings/ai`} className="hover:text-gray-700">
           Settings
         </Link>
         <span>/</span>
@@ -164,10 +165,15 @@ export default function OrgAISettingsPage() {
       )}
 
       {config && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 mb-6 text-sm flex items-center justify-between">
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 mb-2 text-sm flex items-center justify-between">
           <span>
             <strong>{PROVIDERS.find((p) => p.id === config.provider)?.label}</strong> key saved —
-            updated {new Date(config.updatedAt).toLocaleDateString('fr-FR')}
+            updated{' '}
+            {new Date(config.updatedAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
           </span>
           <button
             onClick={() => void handleRemove()}
@@ -178,6 +184,8 @@ export default function OrgAISettingsPage() {
           </button>
         </div>
       )}
+
+      {removeError && <p className="text-sm text-red-600 mb-4">{removeError}</p>}
 
       <form
         onSubmit={(e) => void handleSave(e)}

@@ -120,7 +120,12 @@ export default function EventDetailPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ aiSpendCapEur: spendCap === '' ? null : parseFloat(spendCap) }),
+        body: JSON.stringify({
+          aiSpendCapEur: (() => {
+            const p = parseFloat(spendCap);
+            return spendCap === '' || isNaN(p) ? null : p;
+          })(),
+        }),
       });
       // Re-fetch usage to update meter
       const r = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
