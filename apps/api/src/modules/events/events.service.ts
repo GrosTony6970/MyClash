@@ -112,6 +112,7 @@ export class EventsService {
     if (dto.endDate !== undefined) updates['end_date'] = dto.endDate;
     if (dto.publicLandingMd !== undefined) updates['public_landing_md'] = dto.publicLandingMd;
     if (dto.status !== undefined) updates['status'] = dto.status;
+    if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
 
     const { data, error } = await this.supabase.service
       .from('events')

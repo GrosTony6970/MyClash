@@ -1,12 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsIn,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 import type { TournamentLockConfig, TournamentScoringConfig } from '@myclash/types';
@@ -81,6 +83,15 @@ export class UpdateEventDto {
   @IsOptional()
   @IsIn(['draft', 'published', 'running', 'completed', 'archived'])
   status?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'AI spend cap in EUR for this event (null = no cap)',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  aiSpendCapEur?: number | null;
 }
 
 export class EventQueryDto {

@@ -52,6 +52,14 @@ export class OrganizationsController {
     return this.orgs.list();
   }
 
+  /** GET /api/v1/organizations/slug/:slug */
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get organization by slug' })
+  @ApiParam({ name: 'slug', type: 'string' })
+  async getBySlug(@Param('slug') slug: string) {
+    return this.orgs.getBySlug(slug);
+  }
+
   /** GET /api/v1/organizations/:id */
   @Get(':id')
   @ApiOperation({ summary: 'Get organization by ID' })

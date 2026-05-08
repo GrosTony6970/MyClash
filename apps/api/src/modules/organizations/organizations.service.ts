@@ -42,6 +42,18 @@ export class OrganizationsService {
     return data;
   }
 
+  async getBySlug(slug: string) {
+    const { data, error } = await this.supabase.service
+      .from('organizations')
+      .select('id, name, slug, status')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Organization "${slug}" not found`);
+    return data;
+  }
+
   // ── Create ───────────────────────────────────────────────────────────────────
   // Creates with status='pending_approval' per T-105 AC.
   // (T-009b creates with status='active' for self-service signup — different path)

@@ -26,6 +26,8 @@ import { PersonsModule } from './modules/persons/persons.module';
 import { CompensationModule } from './modules/compensation/compensation.module';
 import { PenaltiesModule } from './modules/penalties/penalties.module';
 import { PhasesModule } from './modules/phases/phases.module';
+import { AIProvidersModule } from './modules/ai-providers/ai-providers.module';
+import { AIUsageModule } from './modules/ai-usage/ai-usage.module';
 import { ProgrammeModule } from './modules/programme/programme.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
@@ -80,6 +82,8 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     NotificationsModule,
     PhasesModule,
     ProgrammeModule,
+    AIProvidersModule,
+    AIUsageModule,
     FollowsModule,
     WorkshopsModule,
     ScheduleModule,
