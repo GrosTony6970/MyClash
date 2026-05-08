@@ -54,8 +54,8 @@ export class AnthropicAdapter implements ProviderAdapter {
       ? { name: toolBlock.name, arguments: toolBlock.input as Record<string, unknown> }
       : undefined;
 
-    const inputTokens = response.usage.input_tokens;
-    const outputTokens = response.usage.output_tokens;
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
     const pricing = PRICING[request.model] ?? DEFAULT_PRICING;
     const costEur = inputTokens * pricing.input + outputTokens * pricing.output;
 

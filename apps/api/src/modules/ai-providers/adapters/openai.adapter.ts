@@ -54,12 +54,17 @@ export class OpenAIAdapter implements ProviderAdapter {
       rawToolCallEntry && 'function' in rawToolCallEntry
         ? (rawToolCallEntry as ChatCompletionMessageFunctionToolCall)
         : undefined;
-    const toolCall = rawToolCall
-      ? {
+    let toolCall: { name: string; arguments: Record<string, unknown> } | undefined;
+    if (rawToolCall && 'function' in rawToolCall) {
+      try {
+        toolCall = {
           name: rawToolCall.function.name,
           arguments: JSON.parse(rawToolCall.function.arguments) as Record<string, unknown>,
-        }
-      : undefined;
+        };
+      } catch {
+        toolCall = { name: rawToolCall.function.name, arguments: {} };
+      }
+    }
 
     const inputTokens = response.usage?.prompt_tokens ?? 0;
     const outputTokens = response.usage?.completion_tokens ?? 0;
