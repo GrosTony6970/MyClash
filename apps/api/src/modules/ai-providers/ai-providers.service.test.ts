@@ -67,10 +67,9 @@ describe('AIProvidersService', () => {
     fromMock.mockReturnValue(chain);
     await service.saveKey('org-1', 'anthropic', 'sk-test-key');
     expect(chain.upsert).toHaveBeenCalledOnce();
-    const upsertArg = (chain.upsert as ReturnType<typeof vi.fn>).mock.calls[0][0] as Record<
-      string,
-      unknown
-    >;
+    const upsertArg = (
+      (chain.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as unknown[]
+    )[0] as Record<string, unknown>;
     expect(upsertArg['organization_id']).toBe('org-1');
     expect(upsertArg['provider']).toBe('anthropic');
     // Ciphertext must not contain the raw key
