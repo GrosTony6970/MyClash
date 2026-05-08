@@ -2474,4 +2474,70 @@ Block detection: converts `day_index` offset from `event.start_date` + block `st
 
 ---
 
+---
+
+## 16. AI Infrastructure (T-1212)
+
+Shared AI layer required by all AI-powered features (NLQ, Recap Generator, etc.). Provides LLM provider abstraction, encrypted BYOK API key storage at org level, per-event spend caps, and a settings UI.
+
+### 16.1 Database
+
+**`organization_ai_settings`** — one row per org, stores provider name + AES-256-GCM ciphertext + IV. RLS: owner/admin read; writes via service_role only.
+
+**`ai_usage_log`** — one row per LLM call with `event_id`, `organization_id`, `feature`, token counts, and `cost_eur`. Indexed on `event_id` and `organization_id`. RLS: owner/admin read.
+
+**`events.ai_spend_cap_eur`** — nullable `NUMERIC(10,4)` column added via migration `0029_ai_infrastructure.sql`. NULL = no cap.
+
+### 16.2 `ai-providers` NestJS Module
+
+**Location:** `apps/api/src/modules/ai-providers/`
+
+**Public API:**
+
+```ts
+saveKey(orgId, provider, rawKey): Promise<void>        // AES-256-GCM encrypt + upsert
+deleteKey(orgId): Promise<void>
+getProviderConfig(orgId): Promise<{ provider, hasKey: true, updatedAt } | null>
+generate(orgId, request): Promise<GenerationResult>    // decrypt key → adapter → normalised result
+```
+
+**Encryption:** AES-256-GCM via Node `crypto`. Secret derived from `AI_KEY_SECRET` env var (32-byte hex, 64 chars). Module init throws `Error('AI_KEY_SECRET env var is required')` if absent. IV is 12 random bytes generated per save; auth tag appended to ciphertext; both stored as base64.
+
+**Provider adapters** (`adapters/`): `AnthropicAdapter`, `OpenAIAdapter`, `MistralAdapter` — each implements `ProviderAdapter.generate(apiKey, request)`. Tool-call response normalisation and per-model EUR cost calculation included.
+
+**API endpoints:**
+
+```text
+GET    /api/v1/organizations/:orgId/ai-settings   → { provider, hasKey, updatedAt } | null
+PUT    /api/v1/organizations/:orgId/ai-settings   → { provider, hasKey }  (saves encrypted key)
+DELETE /api/v1/organizations/:orgId/ai-settings   → 204
+```
+
+### 16.3 `ai-usage` NestJS Module
+
+**Location:** `apps/api/src/modules/ai-usage/`
+
+**Public API:**
+
+```ts
+generateWithCap(orgId, eventId, feature, request): Promise<GenerationResult>
+getUsageSummary(eventId): Promise<{ totalSpendEur, cap, remainingEur, callCount }>
+```
+
+`generateWithCap()` checks `events.ai_spend_cap_eur`; sums `ai_usage_log.cost_eur` for the event; throws `SpendCapExceededException` (HTTP 402) when `sum >= cap`; otherwise calls `AIProvidersService.generate()` and inserts one usage log row.
+
+**API endpoint:**
+
+```text
+GET /api/v1/events/:eventId/ai-usage   → { totalSpendEur, cap, remainingEur, callCount }
+```
+
+### 16.4 Frontend
+
+**Org AI settings** (`/org/[slug]/settings/ai`) — provider radio selector, password API key input, masked key-saved banner with date, Remove button, disabled-features amber banner when no key configured. Navigation tab added alongside "Compensation".
+
+**Event hub AI budget card** (`/org/[slug]/events/[eventId]`) — collapsible, shown only when org has AI key configured. Spend cap number input saved via `PATCH /events/:eventId`. Read-only spend meter with progress bar (cap set) or plain spend total (no cap).
+
+---
+
 _End of MyClash Architecture v1.0 specification._
