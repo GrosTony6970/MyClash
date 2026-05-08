@@ -13,8 +13,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.1",
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^10.0.0",
+    "@mistralai/mistralai": "^2.2.1",
     "@myclash/rulesets": "workspace:^",
     "@myclash/types": "workspace:^",
     "@nestjs/bullmq": "^11.0.4",
@@ -34,6 +36,7 @@
     "csv-parse": "^6.2.1",
     "fastify": "^4.28.0",
     "jsonwebtoken": "^9.0.3",
+    "openai": "^6.37.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.2",
     "rxjs": "^7.8.1",
