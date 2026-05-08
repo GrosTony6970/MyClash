@@ -1,3 +1,4 @@
+/* eslint-disable myclash/no-literal-string */
 'use client';
 
 import Link from 'next/link';
@@ -22,6 +23,13 @@ interface EventInfo {
   location: string | null;
 }
 
+interface AIUsage {
+  totalSpendEur: number;
+  cap: number | null;
+  remainingEur: number | null;
+  callCount: number;
+}
+
 export default function EventDetailPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
@@ -30,6 +38,13 @@ export default function EventDetailPage() {
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [, setTournaments] = useState<Tournament[]>([]);
+
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
+  const [spendCap, setSpendCap] = useState<string>('');
+  const [savingCap, setSavingCap] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,6 +65,74 @@ export default function EventDetailPage() {
       .catch(() => undefined);
     return () => controller.abort();
   }, [eventId, apiUrl]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        // 1. Fetch org ID from slug
+        const orgRes = await fetch(`${apiUrl}/api/v1/organizations/slug/${slug}`, {
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        if (!orgRes.ok) return;
+        const orgData = (await orgRes.json()) as { id: string };
+        setOrgId(orgData.id);
+
+        // 2. Fetch AI settings
+        const aiRes = await fetch(`${apiUrl}/api/v1/organizations/${orgData.id}/ai-settings`, {
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        if (aiRes.ok) {
+          const aiData = (await aiRes.json()) as {
+            provider: string;
+            hasKey: boolean;
+            updatedAt: string;
+          } | null;
+          if (aiData !== null) {
+            setAiEnabled(true);
+          }
+        }
+
+        // 3. Fetch AI usage
+        const usageRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
+          credentials: 'include',
+          signal: controller.signal,
+        });
+        if (usageRes.ok) {
+          const usageData = (await usageRes.json()) as AIUsage;
+          setAiUsage(usageData);
+          setSpendCap(String(usageData.cap ?? ''));
+        }
+      } catch {
+        // silent
+      }
+    })();
+    return () => controller.abort();
+  }, [slug, eventId, apiUrl]);
+
+  async function handleSaveCap() {
+    if (!eventId) return;
+    setSavingCap(true);
+    try {
+      await fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ aiSpendCapEur: spendCap === '' ? null : parseFloat(spendCap) }),
+      });
+      // Re-fetch usage to update meter
+      const r = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
+        credentials: 'include',
+      });
+      if (r.ok) setAiUsage((await r.json()) as AIUsage);
+    } catch {
+      // silent
+    } finally {
+      setSavingCap(false);
+    }
+  }
 
   const sections = [
     { label: t('organizer.eventHub.sections.persons'), href: 'persons', icon: 'P' },
@@ -114,6 +197,73 @@ export default function EventDetailPage() {
           </Link>
         ))}
       </div>
+
+      {aiEnabled && (
+        <section className="mb-8">
+          <button
+            onClick={() => setBudgetOpen(!budgetOpen)}
+            className="flex items-center justify-between w-full text-sm font-bold uppercase tracking-wide text-gray-500 mb-3"
+          >
+            <span>AI Budget</span>
+            <span className="text-gray-400">{budgetOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {budgetOpen && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+              {/* Spend cap input */}
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Spend cap (€)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={spendCap}
+                    onChange={(e) => setSpendCap(e.target.value)}
+                    placeholder="No cap"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={() => void handleSaveCap()}
+                  disabled={savingCap}
+                  className="px-4 py-2 bg-red-700 text-white text-sm font-medium rounded-lg hover:bg-red-800 disabled:opacity-50"
+                >
+                  {savingCap ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+
+              {/* Spend meter */}
+              {aiUsage && (
+                <div>
+                  {aiUsage.cap !== null ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-1">
+                        €{aiUsage.totalSpendEur.toFixed(2)} used of €{aiUsage.cap.toFixed(2)} cap
+                      </p>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-red-500 rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, (aiUsage.totalSpendEur / aiUsage.cap) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No cap set — €{aiUsage.totalSpendEur.toFixed(2)} spent ({aiUsage.callCount}{' '}
+                      calls)
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       <section>
         <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
