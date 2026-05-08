@@ -226,6 +226,20 @@ export default function OrgCompensationPlansPage() {
 
   return (
     <main className="p-8 max-w-4xl">
+      <div className="flex gap-4 mb-6 border-b border-gray-200 pb-1">
+        <Link
+          href={`/org/${slug}/settings/compensation`}
+          className="pb-2 text-sm font-medium border-b-2 border-red-600 text-red-700"
+        >
+          Compensation
+        </Link>
+        <Link
+          href={`/org/${slug}/settings/ai`}
+          className="pb-2 text-sm font-medium text-gray-500 hover:text-gray-700"
+        >
+          AI
+        </Link>
+      </div>
       <div className="mb-2">
         <Link href={`/org/${slug}`} className="text-sm text-gray-500 hover:underline">
           ← Back to {slug}
