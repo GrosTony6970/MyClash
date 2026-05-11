@@ -16,10 +16,12 @@ import { IsIn, IsOptional, IsString } from 'class-validator';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StaffService } from '../staff/staff.service';
 import { ClockService, type ClockAction } from './clock.service';
+import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesService } from './matches.service';
 import {
   AdjustClockDto,
   CreateExchangeDto,
+  CreateMatchForfeitDto,
   CreateMatchDto,
   EditExchangeDto,
   LockMatchDto,
@@ -43,6 +45,7 @@ class ClockActionDto {
 export class MatchesController {
   constructor(
     private readonly matches: MatchesService,
+    private readonly forfeits: MatchForfeitsService,
     private readonly clock: ClockService,
     private readonly staff: StaffService,
   ) {}
@@ -94,6 +97,25 @@ export class MatchesController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async voidMatch(@Param('id', ParseUUIDPipe) id: string) {
     return this.matches.voidMatch(id);
+  }
+
+  @Post('matches/:id/forfeit')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Record a match forfeit (scorekeeper+)' })
+  async createForfeit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateMatchForfeitDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.forfeits.createForfeit(id, dto, actor);
+  }
+
+  @Patch('match-forfeits/:id/void')
+  @ApiOperation({ summary: 'Void a match forfeit when downstream state allows it' })
+  async voidForfeit(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeForfeitOrganizer(req, id);
+    return this.forfeits.voidForfeit(id, actor);
   }
 
   @Post('matches/:id/lock')

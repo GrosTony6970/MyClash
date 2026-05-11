@@ -259,6 +259,17 @@ export class StaffService {
     return this.authorizeMatchScoring(req, (data as { match_id: string }).match_id);
   }
 
+  async authorizeForfeitOrganizer(req: FastifyRequest, forfeitId: string): Promise<ScoringActor> {
+    const { data, error } = await this.supabase.service
+      .from('match_forfeits')
+      .select('match_id')
+      .eq('id', forfeitId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Forfeit not found');
+    return this.authorizeMatchOrganizer(req, (data as { match_id: string }).match_id);
+  }
+
   async getPublicLiceCurrent(eventSlug: string, liceName: string) {
     const event = await this.findEventBySlug(eventSlug);
     const { data: lice, error } = await this.supabase.service

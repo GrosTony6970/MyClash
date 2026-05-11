@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { doubleElimBracket } from './double-elim';
+import { MAX_DOUBLE_ELIM_BRACKET_SIZE, doubleElimBracket } from './double-elim';
 
 describe('doubleElimBracket', () => {
   describe('structure: 8 fighters', () => {
@@ -177,6 +177,11 @@ describe('doubleElimBracket', () => {
 
     it('throws if bracketSize < fighterCount', () => {
       expect(() => doubleElimBracket(10, { bracketSize: 8 })).toThrow();
+    });
+
+    it('caps bracket size at 128', () => {
+      expect(() => doubleElimBracket(MAX_DOUBLE_ELIM_BRACKET_SIZE + 1)).toThrow('128');
+      expect(() => doubleElimBracket(16, { bracketSize: 256 })).toThrow('128');
     });
   });
 });

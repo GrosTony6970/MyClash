@@ -565,6 +565,17 @@
   - Voiding an exchange recomputes score correctly and never deletes the row.
   - 50+ exchanges/sec throughput on a single match.
 
+### T-206b · Configurable fighter forfeit workflow
+
+- **Dep**: T-206, T-704, penalty management/cartons
+- **Goal**: Ruleset-configurable, reversible fighter forfait handling for injury, voluntary, black cards, and conduct violations.
+- **Files**: `packages/rulesets/src/forfeits.ts`, `apps/api/src/modules/matches/**`, `apps/web-scoring/src/components/ForfeitPanel.tsx`.
+- **AC**:
+  - FFAMHE defaults support injury keep-points, voluntary/black/conduct 0-6, and can-continue prompts where required.
+  - Match forfeits are durable rows, not fake exchanges, and can be voided before downstream dependent matches start.
+  - Pool cannot-continue forfeits auto-forfeit later unstarted pool matches.
+  - Play-ins and later bracket rounds use walkover advancement; main bracket round 1 replacement is supported before match start.
+
 ---
 
 ## Phase P3 — Pools & Brackets
@@ -614,6 +625,7 @@
   - Play-in winners feed the corresponding low-seed positions in the main bracket via `winner of R0P#`.
   - Exact powers of two remain unchanged.
   - Explicit `bracketSize` preserves legacy power-of-two bye-slot behavior.
+  - Main elimination bracket size is capped at 128 slots in both UI and API generation.
 
 ### T-304 · Match-to-Lice scheduler
 

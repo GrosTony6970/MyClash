@@ -5,6 +5,7 @@ import { PhasesModule } from '../phases/phases.module';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { MatchAutoLockService } from './match-auto-lock.service';
+import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
 import { ScoringService } from './scoring.service';
@@ -18,7 +19,8 @@ import { ScoringService } from './scoring.service';
     ClockService,
     FrozenResultsGuard,
     MatchAutoLockService,
+    MatchForfeitsService,
   ],
-  exports: [MatchesService, ScoringService, ClockService, FrozenResultsGuard],
+  exports: [MatchesService, ScoringService, ClockService, FrozenResultsGuard, MatchForfeitsService],
 })
 export class MatchesModule {}

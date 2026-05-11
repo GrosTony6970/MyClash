@@ -13,6 +13,7 @@ import {
   MatchFormatConfigSchema,
   normalizeMatchFormatConfig,
 } from '../match-format';
+import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
 
 export const TFv1ConfigSchema = z.object({
   winBonus: z.number().int().positive().default(3),
@@ -28,6 +29,7 @@ export const TFv1ConfigSchema = z.object({
     .default(DEFAULT_MATCH_FORMAT_CONFIG),
   /** Whitelisted formula key — never eval'd */
   doublePenaltyFormula: z.literal('n*(n-1)/3').default('n*(n-1)/3'),
+  forfeitPolicy: ForfeitPolicySchema.default(DEFAULT_FORFEIT_POLICY),
 });
 
 export type TFv1Config = z.infer<typeof TFv1ConfigSchema>;

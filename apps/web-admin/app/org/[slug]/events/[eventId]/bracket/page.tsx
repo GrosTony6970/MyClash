@@ -41,6 +41,9 @@ interface OverrideModalState {
   regBId: string;
 }
 
+const MAX_BRACKET_SIZE = 128;
+const BRACKET_SIZE_OPTIONS = [4, 8, 16, 32, 64, 128];
+
 export default function BracketPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
@@ -381,10 +384,15 @@ export default function BracketPage() {
               min="2"
               className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
+            <p className="mt-1 max-w-xs text-xs text-gray-500">
+              {phaseType === 'single_elim'
+                ? `Auto uses play-ins for non-power-of-two counts. Main bracket size is capped at ${MAX_BRACKET_SIZE}.`
+                : `Double elimination bracket size is capped at ${MAX_BRACKET_SIZE}.`}
+            </p>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              Bracket size override (power of 2)
+              Bracket size override (power of 2, max {MAX_BRACKET_SIZE})
             </label>
             <select
               value={bracketSize}
@@ -394,7 +402,7 @@ export default function BracketPage() {
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             >
               <option value="">Auto</option>
-              {[4, 8, 16, 32, 64].map((n) => (
+              {BRACKET_SIZE_OPTIONS.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -510,7 +518,7 @@ export default function BracketPage() {
       {bracket && (
         <div>
           <div className="flex items-center gap-4 mb-4 text-sm text-gray-500">
-            <span>{bracket.bracketSize}-fighter bracket</span>
+            <span>{bracket.bracketSize}-slot main bracket</span>
             <span>·</span>
             <span>{bracket.rounds} rounds</span>
             <span>·</span>

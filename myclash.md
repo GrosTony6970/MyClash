@@ -33,6 +33,7 @@ It is designed around three convictions:
 - **Referee assignment**: manage referee qualifications (3 roles, per-role rating 1–5), auto-assign with constraint solver, see missing-role report, manually override.
 - AI setup assistant creates reviewed drafts for tournament configuration, pool plans, brackets, exact match-grid scheduling, and referee assignments using the organizer's BYOK key.
 - Generate single-elimination brackets from pool standings, including arbitrary-size fields with play-in matches for low seeds, then publish or unpublish pool/bracket visibility independently when ready.
+- Record fighter forfeits from scoring/admin with ruleset-configurable behavior for injury, voluntary withdrawal, black cards, and conduct violations, including pool auto-forfeits and bracket walkovers/replacements.
 - Schedule matches and workshops on a unified day grid.
 - Manage workshops: instructors (optional fighter link), descriptions, sessions, capacity, waitlists.
 - Send event-wide notifications to everyone, fighters, referees, fighters and referees, or selected people with Info, Warning, and Alert severity; pool/bracket publish flows can prefill an editable "ready" broadcast.

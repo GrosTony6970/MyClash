@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class CreateMatchDto {
   @ApiProperty()
@@ -160,6 +170,28 @@ export class ResetMatchDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+export class CreateMatchForfeitDto {
+  @ApiProperty()
+  @IsUUID()
+  forfeitingRegistrationId!: string;
+
+  @ApiProperty({
+    enum: ['injury', 'voluntary', 'black_card_1', 'black_card_2', 'conduct_violation'],
+  })
+  @IsIn(['injury', 'voluntary', 'black_card_1', 'black_card_2', 'conduct_violation'])
+  reason!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  canContinue?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 export class AdjustClockDto {

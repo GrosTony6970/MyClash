@@ -46,6 +46,44 @@ export const matches = pgTable('matches', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const matchForfeits = pgTable('match_forfeits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  matchId: uuid('match_id')
+    .notNull()
+    .references(() => matches.id, { onDelete: 'cascade' }),
+  tournamentId: uuid('tournament_id').notNull(),
+  forfeitingRegistrationId: uuid('forfeiting_registration_id')
+    .notNull()
+    .references(() => registrations.id, { onDelete: 'restrict' }),
+  winnerRegistrationId: uuid('winner_registration_id')
+    .notNull()
+    .references(() => registrations.id, { onDelete: 'restrict' }),
+  reason: text('reason').notNull(),
+  scorePolicy: text('score_policy').notNull(),
+  forfeitingScore: integer('forfeiting_score'),
+  opponentScore: integer('opponent_score'),
+  canContinue: boolean('can_continue'),
+  autoCreated: boolean('auto_created').notNull().default(false),
+  parentForfeitId: uuid('parent_forfeit_id'),
+  replacementRegistrationId: uuid('replacement_registration_id').references(
+    () => registrations.id,
+    {
+      onDelete: 'set null',
+    },
+  ),
+  previousMatchState: jsonb('previous_match_state').notNull().default({}),
+  previousRegistrationState: jsonb('previous_registration_state').notNull().default({}),
+  downstreamMatchIds: jsonb('downstream_match_ids').notNull().default([]),
+  note: text('note'),
+  byUserId: uuid('by_user_id'),
+  staffAccountId: uuid('staff_account_id'),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+  voidedByUserId: uuid('voided_by_user_id'),
+  voidedByStaffAccountId: uuid('voided_by_staff_account_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Match events (timeline) ───────────────────────────────────────────────────
 export const matchEvents = pgTable('match_events', {
   id: uuid('id').primaryKey().defaultRandom(),

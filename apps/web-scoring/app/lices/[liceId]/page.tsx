@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ScoringPad } from '../../../src/components/ScoringPad';
 import { PenaltyPanel } from '../../../src/components/PenaltyPanel';
+import { ForfeitPanel } from '../../../src/components/ForfeitPanel';
 import MatchClock from '../../../src/components/MatchClock';
 import type { ClockState } from '../../../src/components/MatchClock';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -264,6 +265,18 @@ function MatchView({
             blueName={match.blueFighterName ?? t('scoring.lice.blue')}
             disabled={(match.status !== 'running' && match.status !== 'halted') || !!match.lockedAt}
             onPenaltyRecorded={() => setNextSequence((n) => n + 1)}
+          />
+        </div>
+        <div className="mt-4">
+          <ForfeitPanel
+            matchId={match.id}
+            apiUrl={apiUrl}
+            redRegistrationId={match.redRegistrationId}
+            blueRegistrationId={match.blueRegistrationId}
+            redName={match.redFighterName ?? t('scoring.lice.red')}
+            blueName={match.blueFighterName ?? t('scoring.lice.blue')}
+            disabled={(match.status !== 'running' && match.status !== 'halted') || !!match.lockedAt}
+            onForfeitRecorded={onRefresh}
           />
         </div>
       </div>

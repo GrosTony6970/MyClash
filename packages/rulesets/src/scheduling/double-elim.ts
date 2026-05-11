@@ -66,6 +66,8 @@ export interface DoubleElimOptions {
   grandFinalReset?: boolean;
 }
 
+export const MAX_DOUBLE_ELIM_BRACKET_SIZE = 128;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function nextPowerOf2(n: number): number {
@@ -127,6 +129,10 @@ export function doubleElimBracket(
     }
   } else {
     bracketSize = nextPowerOf2(fighterCount);
+  }
+
+  if (bracketSize > MAX_DOUBLE_ELIM_BRACKET_SIZE) {
+    throw new Error(`bracketSize must be <= ${MAX_DOUBLE_ELIM_BRACKET_SIZE} (got ${bracketSize})`);
   }
 
   const byeCount = bracketSize - fighterCount;

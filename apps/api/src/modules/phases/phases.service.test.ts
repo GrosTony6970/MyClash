@@ -174,6 +174,18 @@ describe('PhasesService', () => {
       );
     });
 
+    it('throws BadRequestException when generated bracket would exceed 128 slots', async () => {
+      const phaseCheckChain = makeChain({ data: null, error: null });
+      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const seededRegsChain = makeAwaitableChain({ data: [], error: null });
+
+      fromMock.mockReturnValueOnce(phaseCheckChain).mockReturnValueOnce(seededRegsChain);
+
+      await expect(
+        service.generateBracket('tournament-1', { qualifyCount: 256 }, false),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('creates bracket with correct structure for 8 fighters', async () => {
       const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
 

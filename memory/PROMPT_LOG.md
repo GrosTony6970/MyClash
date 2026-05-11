@@ -591,3 +591,15 @@ Implement scoped web-admin lint debt cleanup for admin clubs, organization compe
 ## 17:27:56_11-05-2026
 
 Implement the web-admin blocking lint error cleanup plan: fix all remaining ESLint errors in the eight listed web-admin files, move blocking literal strings to i18n, fix hook errors, keep warning-only debt out of scope, and verify package lint/typecheck.
+
+## 17:38:39_11-05-2026
+
+Make the bracket UI reflect the recent play-in change and block the maximum bracket size at 128.
+
+## 18:21:28_11-05-2026
+
+Implement the configurable fighter forfeit workflow plan: ruleset-configurable injury/voluntary/black-card/conduct forfait behavior, durable reversible forfeit records, match API, pool auto-forfeits, bracket walkovers/replacement behavior, scoring/admin UI, docs, and memory.
+
+## 18:39:09_11-05-2026
+
+Commit and push the current implementation work.

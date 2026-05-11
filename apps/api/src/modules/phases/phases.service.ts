@@ -333,7 +333,12 @@ export class PhasesService {
     let summaryRounds: number;
 
     if (isDoubleElim) {
-      const bracket = doubleElimBracket(qualifyCount, bracketOptions);
+      let bracket: ReturnType<typeof doubleElimBracket>;
+      try {
+        bracket = doubleElimBracket(qualifyCount, bracketOptions);
+      } catch (error) {
+        throw new BadRequestException(error instanceof Error ? error.message : 'Invalid bracket');
+      }
       configJson = {
         bracketSize: bracket.bracketSize,
         mainBracketSize: bracket.bracketSize,
@@ -366,7 +371,12 @@ export class PhasesService {
       totalSlots = bracket.slots.length;
       summaryRounds = bracket.wbRounds + bracket.lbRounds + 1;
     } else {
-      const bracket = singleElimBracket(qualifyCount, bracketOptions);
+      let bracket: ReturnType<typeof singleElimBracket>;
+      try {
+        bracket = singleElimBracket(qualifyCount, bracketOptions);
+      } catch (error) {
+        throw new BadRequestException(error instanceof Error ? error.message : 'Invalid bracket');
+      }
       configJson = {
         bracketSize: bracket.bracketSize,
         mainBracketSize: bracket.mainBracketSize,

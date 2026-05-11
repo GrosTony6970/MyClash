@@ -36,13 +36,24 @@ interface Exchange {
 interface Match {
   id: string;
   matchNumberLabel: string;
+  match_number_label?: string;
   status: string;
   redScore: number;
+  red_score?: number;
   blueScore: number;
+  blue_score?: number;
+  redRegistrationId?: string;
+  red_registration_id?: string;
+  blueRegistrationId?: string;
+  blue_registration_id?: string;
   redFighterName: string | null;
+  red_fighter_name?: string | null;
   blueFighterName: string | null;
+  blue_fighter_name?: string | null;
   rulesetCode: string;
+  ruleset_code?: string;
   lockedAt?: string | null;
+  locked_at?: string | null;
 }
 
 interface AuditEntry {
@@ -101,6 +112,10 @@ export default function MatchDetailPage() {
   const [voidReason, setVoidReason] = useState('');
   const [voidSaving, setVoidSaving] = useState(false);
   const [voidError, setVoidError] = useState<string | null>(null);
+  const [forfeitReason, setForfeitReason] = useState('injury');
+  const [forfeitSide, setForfeitSide] = useState<'red' | 'blue'>('red');
+  const [forfeitCanContinue, setForfeitCanContinue] = useState(true);
+  const [forfeitSaving, setForfeitSaving] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -215,6 +230,37 @@ export default function MatchDetailPage() {
     }
   }
 
+  async function handleForfeit() {
+    if (!match) return;
+    const redId = match.redRegistrationId ?? match.red_registration_id;
+    const blueId = match.blueRegistrationId ?? match.blue_registration_id;
+    const forfeitingRegistrationId = forfeitSide === 'red' ? redId : blueId;
+    if (!forfeitingRegistrationId) {
+      alert('Missing registration id for this side');
+      return;
+    }
+    setForfeitSaving(true);
+    const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        forfeitingRegistrationId,
+        reason: forfeitReason,
+        canContinue: ['injury', 'voluntary', 'black_card_1'].includes(forfeitReason)
+          ? forfeitCanContinue
+          : undefined,
+      }),
+    });
+    setForfeitSaving(false);
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      alert(body.message ?? 'Forfeit failed');
+      return;
+    }
+    setRefreshKey((key) => key + 1);
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -274,6 +320,55 @@ export default function MatchDetailPage() {
         <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {pendingNotice}
         </div>
+      )}
+
+      {match && (
+        <section className="mb-6 rounded-xl border border-red-100 bg-red-50 p-4">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-red-700">
+            Record forfeit
+          </h2>
+          <div className="grid gap-3 md:grid-cols-4">
+            <select
+              value={forfeitSide}
+              onChange={(event) => setForfeitSide(event.target.value as 'red' | 'blue')}
+              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="red">{match.redFighterName ?? match.red_fighter_name ?? 'Red'}</option>
+              <option value="blue">
+                {match.blueFighterName ?? match.blue_fighter_name ?? 'Blue'}
+              </option>
+            </select>
+            <select
+              value={forfeitReason}
+              onChange={(event) => setForfeitReason(event.target.value)}
+              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="injury">Injury</option>
+              <option value="voluntary">Voluntary</option>
+              <option value="black_card_1">Black card</option>
+              <option value="black_card_2">Second black card</option>
+              <option value="conduct_violation">Conduct violation</option>
+            </select>
+            {['injury', 'voluntary', 'black_card_1'].includes(forfeitReason) && (
+              <label className="flex items-center gap-2 text-sm text-red-900">
+                <input
+                  type="checkbox"
+                  checked={forfeitCanContinue}
+                  onChange={(event) => setForfeitCanContinue(event.target.checked)}
+                />
+                Can continue
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleForfeit()}
+              disabled={forfeitSaving}
+              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {forfeitSaving ? 'Recording...' : 'Record forfeit'}
+            </button>
+          </div>
+        </section>
       )}
 
       <div className="grid grid-cols-2 gap-8">

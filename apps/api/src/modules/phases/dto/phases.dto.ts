@@ -60,13 +60,13 @@ export class GenerateBracketDto {
   qualifyCount?: number;
 
   /**
-   * Explicit bracket size (must be power of 2 and ≥ qualifyCount).
-   * Defaults to next power of 2 ≥ qualifyCount.
+   * Explicit bracket size (must be power of 2, ≥ qualifyCount, and ≤ 128).
    */
   @ApiProperty({ required: false, example: 16 })
   @IsOptional()
   @IsInt()
   @Min(2)
+  @Max(128)
   bracketSize?: number;
 
   /** Phase ID of the pool phase to read standings from */

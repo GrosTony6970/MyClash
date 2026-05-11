@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { MatchForfeitsService } from '../matches/match-forfeits.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import type {
   AssignPenaltyRulesetDto,
@@ -45,6 +46,7 @@ export class PenaltiesService {
     @Optional() private readonly scoring?: ScoringService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly orgs?: OrganizationsService,
+    @Optional() private readonly forfeits?: MatchForfeitsService,
   ) {}
 
   async listRulesets() {
@@ -274,15 +276,28 @@ export class PenaltiesService {
     await this.scoring?.recomputeMatchScore(matchId);
 
     if (sanction.causesMatchForfeit) {
-      await this.supabase.service
-        .from('matches')
-        .update({
-          status: 'completed',
-          ended_at: new Date().toISOString(),
-          winner_registration_id: opponentRegistrationId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', matchId);
+      if (this.forfeits) {
+        await this.forfeits.createForfeit(
+          matchId,
+          {
+            forfeitingRegistrationId: dto.registrationId,
+            reason: 'black_card_1',
+            canContinue: true,
+            note: dto.reason ?? 'Black card',
+          },
+          context,
+        );
+      } else {
+        await this.supabase.service
+          .from('matches')
+          .update({
+            status: 'completed',
+            ended_at: new Date().toISOString(),
+            winner_registration_id: opponentRegistrationId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', matchId);
+      }
       await this.createSecondBlackCardReviewIfNeeded(match.tournamentId, dto.registrationId);
     }
 

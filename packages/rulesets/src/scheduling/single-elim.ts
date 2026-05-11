@@ -77,6 +77,8 @@ export interface SingleElimOptions {
   includeBronze?: boolean;
 }
 
+export const MAX_SINGLE_ELIM_BRACKET_SIZE = 128;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Next power of 2 ≥ n */
@@ -160,6 +162,10 @@ export function singleElimBracket(
     }
   } else {
     bracketSize = isPowerOf2(fighterCount) ? fighterCount : highestPowerOf2Below(fighterCount);
+  }
+
+  if (bracketSize > MAX_SINGLE_ELIM_BRACKET_SIZE) {
+    throw new Error(`bracketSize must be <= ${MAX_SINGLE_ELIM_BRACKET_SIZE} (got ${bracketSize})`);
   }
 
   const playInMatchCount =

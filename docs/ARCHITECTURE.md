@@ -739,6 +739,8 @@ Implementation must reproduce these scores byte-for-byte.
 
 `double_penalty_formula` is a whitelisted expression key; the engine maps it to a server function (no `eval`).
 
+Forfeits are ruleset behavior, not fake exchanges. TF/FFAMHE defaults are: injury keeps current points and asks whether the fighter can continue; voluntary and first black card award a 0-6 loss and ask whether the fighter can continue; second black card and conduct/violence award a 0-6 loss and disqualify the registration. Active forfeits are stored in `match_forfeits`, drive `matches.status/winner_registration_id`, and may be voided only before downstream dependent matches start. In pools, `canContinue=false` auto-forfeits later unstarted pool matches. In brackets, play-ins and round 2+ become walkovers; main bracket round 1 can replace an unstarted forfeiting fighter with the next eligible pool-ranked non-qualifier.
+
 ---
 
 ## 7. Scoring Engine & Ruleset Plugin System
@@ -1223,7 +1225,7 @@ When a match completes, `BracketAdvanceService.onMatchCompleted(matchId)` fires 
 
 ### 11sexies.2 Bracket types
 
-Single-elimination defaults to arbitrary-size play-ins for non-power-of-two fields. For `n` qualified fighters, the main bracket is the largest power of two below `n`; `n - p` round-0 play-in matches are created from the lowest seeds, and the highest `p - (n - p)` seeds enter the main bracket directly. Example: 18 fighters create two play-ins (`15v18`, `16v17`) feeding the seed-15 and seed-16 slots in the Round of 16. Explicit `bracketSize` keeps the legacy power-of-two bye-slot behavior.
+Single-elimination defaults to arbitrary-size play-ins for non-power-of-two fields. For `n` qualified fighters, the main bracket is the largest power of two below `n`; `n - p` round-0 play-in matches are created from the lowest seeds, and the highest `p - (n - p)` seeds enter the main bracket directly. Example: 18 fighters create two play-ins (`15v18`, `16v17`) feeding the seed-15 and seed-16 slots in the Round of 16. Explicit `bracketSize` keeps the legacy power-of-two bye-slot behavior. Main elimination brackets are capped at 128 slots.
 
 | Type          | Description                                                                                                                                                                      |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

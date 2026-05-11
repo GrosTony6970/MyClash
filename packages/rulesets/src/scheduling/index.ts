@@ -10,10 +10,14 @@ export type { PoolAssignmentSettings, CostReport } from './local-search';
 export { bergerSchedule, totalMatches, totalRounds } from './berger';
 export type { BergerMatch, BergerScheduleOptions } from './berger';
 
-export { singleElimBracket, totalBracketMatches } from './single-elim';
+export {
+  MAX_SINGLE_ELIM_BRACKET_SIZE,
+  singleElimBracket,
+  totalBracketMatches,
+} from './single-elim';
 export type { BracketSlot, SingleElimBracket, SingleElimOptions } from './single-elim';
 
-export { doubleElimBracket } from './double-elim';
+export { MAX_DOUBLE_ELIM_BRACKET_SIZE, doubleElimBracket } from './double-elim';
 export type {
   DoubleElimBracket,
   DoubleElimSlot,

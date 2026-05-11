@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { singleElimBracket, totalBracketMatches } from './single-elim';
+import {
+  MAX_SINGLE_ELIM_BRACKET_SIZE,
+  singleElimBracket,
+  totalBracketMatches,
+} from './single-elim';
 
 describe('totalBracketMatches', () => {
   it('always returns N-1 because every match eliminates one fighter', () => {
@@ -189,6 +193,15 @@ describe('singleElimBracket', () => {
   it('explicit bracketSize validates power-of-two and lower-than-field errors', () => {
     expect(() => singleElimBracket(20, { bracketSize: 16 })).toThrow('bracketSize');
     expect(() => singleElimBracket(8, { bracketSize: 12 })).toThrow('power of 2');
+  });
+
+  it('caps the main bracket size at 128 while still allowing play-ins below that cap', () => {
+    const bracket = singleElimBracket(MAX_SINGLE_ELIM_BRACKET_SIZE + 2);
+
+    expect(bracket.bracketSize).toBe(MAX_SINGLE_ELIM_BRACKET_SIZE);
+    expect(bracket.playInMatchCount).toBe(2);
+    expect(() => singleElimBracket(MAX_SINGLE_ELIM_BRACKET_SIZE * 2)).toThrow('128');
+    expect(() => singleElimBracket(16, { bracketSize: 256 })).toThrow('128');
   });
 
   it('all actual seeds appear exactly once across initial playable slots', () => {

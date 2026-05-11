@@ -38,6 +38,17 @@ export {
 } from './match-format';
 export type { MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
+// Forfeit policies
+export {
+  DEFAULT_FORFEIT_POLICY,
+  ForfeitPolicySchema,
+  ForfeitReasonPolicySchema,
+  ForfeitReasonSchema,
+  normalizeForfeitPolicy,
+  resolveForfeitPolicy,
+} from './forfeits';
+export type { ForfeitPolicy, ForfeitReason, ForfeitReasonPolicy } from './forfeits';
+
 // TF_v1 ruleset
 export { TF_v1 } from './tf_v1';
 export { TFv1ConfigSchema, TFv1DefaultConfig } from './tf_v1/config';
