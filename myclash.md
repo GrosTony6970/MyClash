@@ -32,6 +32,7 @@ It is designed around three convictions:
 - **Pool populator** with configurable constraints: school separation, skill balancing using HEMA Ratings, manual override.
 - **Referee assignment**: manage referee qualifications (3 roles, per-role rating 1–5), auto-assign with constraint solver, see missing-role report, manually override.
 - AI setup assistant creates reviewed drafts for tournament configuration, pool plans, brackets, exact match-grid scheduling, and referee assignments using the organizer's BYOK key.
+- Natural-language tournament query lets organizers ask French or English questions such as "Quelles pistes sont en retard ?" or "Top 5 fighters by win rate"; AI selects a typed read-only tool and deterministic backend code renders the answer.
 - Generate single-elimination brackets from pool standings, including arbitrary-size fields with play-in matches for low seeds, then publish or unpublish pool/bracket visibility independently when ready.
 - Record fighter forfeits from scoring/admin with ruleset-configurable behavior for injury, voluntary withdrawal, black cards, and conduct violations, including pool auto-forfeits and bracket walkovers/replacements.
 - Schedule matches and workshops on a unified day grid.
@@ -118,11 +119,12 @@ It is designed around three convictions:
 2. Adds 4 Lices, 3 events (Longsword Open, Sidesword Open, Longsword Women's).
 3. Imports 80 fighters from CSV; system suggests HEMA Ratings links.
 4. Opens the AI setup assistant to draft tournament configuration, pool size assumptions, match-grid timing, and referee assignment suggestions; reviews each draft before applying.
-5. Goes to Pool Populator: 4 pools per event, school separation on, skill balance on. Clicks generate. Reviews. Two clubs have 3 fighters each in the same pool — drags one out manually, cost recomputes. Saves.
-6. Goes to Referees → Pool: adds 12 qualified users, sets ratings per role.
-7. Clicks Auto-assign Referees. Engine returns: 32 cells assigned, 1 missing (Pool C arbitre_assesseur — no qualified candidate available; rejection_reason: no_qualified_users). Organizer manually invites another referee, then re-runs.
-8. Locks assignments. Notifications go out automatically (assigned referees get a push).
-9. Day before event: publishes the event site.
+5. Uses the natural-language query panel to check "Combien de combats restent dans chaque poule ?" or "Are we on schedule?" without writing reports manually.
+6. Goes to Pool Populator: 4 pools per event, school separation on, skill balance on. Clicks generate. Reviews. Two clubs have 3 fighters each in the same pool — drags one out manually, cost recomputes. Saves.
+7. Goes to Referees → Pool: adds 12 qualified users, sets ratings per role.
+8. Clicks Auto-assign Referees. Engine returns: 32 cells assigned, 1 missing (Pool C arbitre_assesseur — no qualified candidate available; rejection_reason: no_qualified_users). Organizer manually invites another referee, then re-runs.
+9. Locks assignments. Notifications go out automatically (assigned referees get a push).
+10. Day before event: publishes the event site.
 
 ### Organizer on event day
 
@@ -144,20 +146,21 @@ It is designed around three convictions:
 
 ## Key components
 
-| Component                     | What it does                                                                                                                  |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Public PWA**                | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators.                                 |
-| **Scoring PWA**               | Tablet-first offline-first per-exchange entry.                                                                                |
-| **Admin SPA**                 | Desktop-first organizer toolset and super admin.                                                                              |
-| **Ruleset engine**            | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback. |
-| **Pool populator**            | Constraint-driven pool generation (school separation, skill balance).                                                         |
-| **Referee assigner**          | Constraint-driven 3-role assignment with feasibility report.                                                                  |
-| **Statistics engine**         | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout.                                             |
-| **Realtime layer**            | Supabase Realtime broadcasts row changes to subscribed clients.                                                               |
-| **Offline outbox**            | IndexedDB queue on the scoring app, with idempotent server reconciliation.                                                    |
-| **Notification scheduler**    | BullMQ-driven web push for matches, workshops, schedule changes.                                                              |
-| **Organizer AI assistant**    | Organization-BYOK draft-and-review assistant for tournament setup, pools, brackets, scheduling, and referee assignments.      |
-| **AI data-quality assistant** | Super-admin review queue for duplicate people, referees, clubs, and identity gaps using separate platform BYOK.               |
+| Component                      | What it does                                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Public PWA**                 | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators.                                    |
+| **Scoring PWA**                | Tablet-first offline-first per-exchange entry.                                                                                   |
+| **Admin SPA**                  | Desktop-first organizer toolset and super admin.                                                                                 |
+| **Ruleset engine**             | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback.    |
+| **Pool populator**             | Constraint-driven pool generation (school separation, skill balance).                                                            |
+| **Referee assigner**           | Constraint-driven 3-role assignment with feasibility report.                                                                     |
+| **Statistics engine**          | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout.                                                |
+| **Realtime layer**             | Supabase Realtime broadcasts row changes to subscribed clients.                                                                  |
+| **Offline outbox**             | IndexedDB queue on the scoring app, with idempotent server reconciliation.                                                       |
+| **Notification scheduler**     | BullMQ-driven web push for matches, workshops, schedule changes.                                                                 |
+| **Organizer AI assistant**     | Organization-BYOK draft-and-review assistant for tournament setup, pools, brackets, scheduling, and referee assignments.         |
+| **Tournament query assistant** | Organization-BYOK natural-language read-only query surface for tournament stats, lices, pools, brackets, schedule, and referees. |
+| **AI data-quality assistant**  | Super-admin review queue for duplicate people, referees, clubs, and identity gaps using separate platform BYOK.                  |
 
 ---
 

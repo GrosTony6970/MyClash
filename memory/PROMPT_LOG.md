@@ -619,3 +619,11 @@ Approved updating the HEMA Ratings parser so it retrieves all current table-form
 ## 18:58:41_11-05-2026
 
 Commit and push the HEMA Ratings parser update.
+
+## 22:06:46_11-05-2026
+
+Implement the AI Infrastructure Plan Execution Reconciliation: harden organizer AI settings and event AI usage authorization, clean focused web-admin accessibility warnings, leave the stale untracked AI infrastructure plan file untouched, and verify focused tests/typechecks/lint.
+
+## 22:41:33_11-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Natural-Language Tournament Query with bilingual French/English input and answers; add tournament query API, persistence, 13 deterministic tools, LLM orchestration, web-admin UI, docs/memory updates, and verification.

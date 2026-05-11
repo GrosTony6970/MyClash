@@ -2581,13 +2581,39 @@ PATCH /api/v1/admin/data-quality/findings/:id
 
 All routes are guarded by `SuperAdminGuard`. Scan behavior is rules-first: deterministic matching creates candidate bundles for duplicate global Persons, referee identity/link gaps, and duplicate clubs/schools. Only minimized evidence is sent to the configured LLM, which must return strict JSON ranking/explanation. Invalid AI output leaves a deterministic finding with `AI summary unavailable.` V1 is review-only and never auto-merges or auto-edits records.
 
-### 16.6 Frontend
+### 16.6 Natural-Language Tournament Query (T-1214)
+
+Organizer tournament queries use organization BYOK (`organization_ai_settings`) and event spend caps (`ai_usage_log`). They never use `platform_ai_settings`.
+
+**`tournament_query_settings`** - per-tournament access policy and per-user hourly rate limit. Default access is `organizers_only`, with optional broader event-day policies for head judges, coaches, or anyone with tournament access.
+
+**`tournament_query_history`** - per-user query history for the selected tournament. Stores the question for that user's own history plus language, tool, summary, cost, and timestamp. Technical logs must not store raw question/result content.
+
+**Read-only views** - `vw_tournament_query_fighters`, `vw_tournament_query_pools`, `vw_tournament_query_matches`, `vw_tournament_query_exchange_summary`, and `vw_tournament_query_referees` provide the deterministic query surface. Tool implementations query these views; the LLM never sees SQL.
+
+**API endpoints:**
+
+```text
+POST  /api/v1/tournaments/:tournamentId/query/estimate
+POST  /api/v1/tournaments/:tournamentId/query
+GET   /api/v1/tournaments/:tournamentId/query/history
+GET   /api/v1/tournaments/:tournamentId/query/settings
+PATCH /api/v1/tournaments/:tournamentId/query/settings
+```
+
+The LLM call receives a narrowed tool schema for the current tournament's weapons, pools, lices, and divisions. It must return exactly one tool call, a clarification, or a refusal. French aliases such as `piste`, `poule`, `tireur`, and `arbitre` normalize to canonical internal terms before tool selection.
+
+V1 tools cover fighter search/stats, match search, pool standings, lice status, fighter rankings, judge stats, club comparison, bracket status, tournament summary, pool completion estimates, schedule status, and lagging pools with referees.
+
+### 16.7 Frontend
 
 **Org AI settings** (`/org/[slug]/settings/ai`) — provider radio selector, password API key input, masked key-saved banner with date, Remove button, disabled-features amber banner when no key configured. Navigation tab added alongside "Compensation".
 
 **Event hub AI budget card** (`/org/[slug]/events/[eventId]`) — collapsible, shown only when org has AI key configured. Spend cap number input saved via `PATCH /events/:eventId`. Read-only spend meter with progress bar (cap set) or plain spend total (no cap).
 
 **Organizer AI assistant** (`/org/[slug]/events/[eventId]/ai-assistant`) - event setup assistant with persisted draft history, editable structured actions, and step-by-step apply. Existing tournament, pools, bracket, schedule, and referee pages link into it with prefilled draft type context.
+
+**Natural-language tournament query** (`/org/[slug]/events/[eventId]`) - event hub query panel shown when org AI is configured. Organizer selects a tournament, asks English/French questions, sees rendered table/list/card/comparison/summary/empty results, can inspect tool metadata, rerun recent personal queries, and configure per-tournament access/rate settings.
 
 **Super-admin AI settings** (`/admin/ai-settings`) - shared platform BYOK provider/key management for super-admin AI tools only.
 

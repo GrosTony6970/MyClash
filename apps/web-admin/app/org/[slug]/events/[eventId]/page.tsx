@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { TournamentQueryPanel } from './TournamentQueryPanel';
 
 interface Tournament {
   id: string;
@@ -37,7 +38,7 @@ export default function EventDetailPage() {
   const { t } = useI18n();
 
   const [event, setEvent] = useState<EventInfo | null>(null);
-  const [, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
 
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
@@ -201,6 +202,8 @@ export default function EventDetailPage() {
           </Link>
         ))}
       </div>
+
+      {aiEnabled && <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} />}
 
       {aiEnabled && (
         <section className="mb-8">

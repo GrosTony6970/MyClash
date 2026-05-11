@@ -1303,6 +1303,18 @@
   - Draft application routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
   - Admin UI provides an event setup assistant page and inline AI entry points on relevant setup pages.
 
+### T-1214 - Natural-language tournament query
+
+- **Dep**: T-1212, T-1213, T-704, T-908
+- **Goal**: Tournament-scoped natural-language query bar for organizers, with French/English questions routed to deterministic read-only query tools.
+- **Files**: `apps/api/src/modules/tournament-query/**`, `apps/web-admin/app/.../events/[eventId]/TournamentQueryPanel.tsx`, `packages/db/migrations/*_tournament_query.sql`.
+- **AC**:
+  - Uses organization `organization_ai_settings` and event AI spend caps; never uses super-admin `platform_ai_settings`.
+  - LLM can only choose one whitelisted typed tool and arguments; it never writes SQL or returns fabricated data.
+  - Query tools are scoped to the selected tournament and backed by read-only database views.
+  - French and English questions, clarifications, refusals, summaries, and suggested queries are supported.
+  - Per-user rate limit and per-tournament access policy are enforced before LLM calls.
+
 ---
 
 ## Phase P13 - Super Admin

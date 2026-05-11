@@ -33,6 +33,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
+import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/org
     AIProvidersModule,
     AIUsageModule,
     OrganizerAIAssistantModule,
+    TournamentQueryModule,
     FollowsModule,
     WorkshopsModule,
     ScheduleModule,
