@@ -583,3 +583,7 @@ Implement the Organizer AI Tournament Setup Assistant plan: organizer-only draft
 ## 16:42:58_11-05-2026
 
 Implement arbitrary-size single-elimination brackets with default play-in rounds for non-power-of-two qualified counts, keeping explicit bracketSize legacy behavior; register in docs and memory.
+
+## 17:09:14_11-05-2026
+
+Implement scoped web-admin lint debt cleanup for admin clubs, organization compensation settings, and event compensation pages; move literals to i18n, fix accessibility labels, fix clubs useEffect set-state lint, and verify targeted lint/typecheck.

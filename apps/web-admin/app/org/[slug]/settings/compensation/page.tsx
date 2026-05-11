@@ -1,21 +1,18 @@
 'use client';
 
+import { t } from '@myclash/i18n';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationPlan, RefereeRole, CompensationPhase } from '@myclash/types';
 
-const ROLES: { id: RefereeRole; label: string }[] = [
-  { id: 'arbitre_declarant', label: 'Déclarant' },
-  { id: 'arbitre_assesseur', label: 'Assesseur' },
-  { id: 'arbitre_table', label: 'Table' },
+const ROLES: { id: RefereeRole }[] = [
+  { id: 'arbitre_declarant' },
+  { id: 'arbitre_assesseur' },
+  { id: 'arbitre_table' },
 ];
 
-const PHASES: { id: CompensationPhase; label: string }[] = [
-  { id: 'pool', label: 'Poule' },
-  { id: 'bracket', label: 'Tableau' },
-  { id: 'finals', label: 'Finales' },
-];
+const PHASES: { id: CompensationPhase }[] = [{ id: 'pool' }, { id: 'bracket' }, { id: 'finals' }];
 
 type RatesGrid = Record<string, Record<string, string>>;
 
@@ -133,7 +130,7 @@ export default function OrgCompensationPlansPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to create plan');
+        throw new Error(body.message ?? t('organizer.compensationSettings.createError'));
       }
       const plan = (await res.json()) as CompensationPlan;
       setPlans((prev) => [...prev, plan]);
@@ -143,14 +140,16 @@ export default function OrgCompensationPlansPage() {
       setNewPublic(false);
       expandPlan(plan);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create');
+      setError(
+        err instanceof Error ? err.message : t('organizer.compensationSettings.createError'),
+      );
     } finally {
       setCreating(false);
     }
   }
 
   async function deletePlan(planId: string) {
-    if (!confirm('Delete this plan?')) return;
+    if (!confirm(t('organizer.compensationSettings.deleteConfirm'))) return;
     try {
       await fetch(`${apiUrl}/api/v1/compensation-plans/${planId}`, {
         method: 'DELETE',
@@ -182,12 +181,14 @@ export default function OrgCompensationPlansPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to save rates');
+        throw new Error(body.message ?? t('organizer.compensationSettings.saveRatesError'));
       }
       const updated = (await res.json()) as CompensationPlan;
       setPlans((prev) => prev.map((p) => (p.id === planId ? updated : p)));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save rates');
+      setSaveError(
+        err instanceof Error ? err.message : t('organizer.compensationSettings.saveRatesError'),
+      );
     } finally {
       setSavingRates(false);
     }
@@ -210,12 +211,14 @@ export default function OrgCompensationPlansPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to save tiers');
+        throw new Error(body.message ?? t('organizer.compensationSettings.saveTiersError'));
       }
       const updated = (await res.json()) as CompensationPlan;
       setPlans((prev) => prev.map((p) => (p.id === planId ? updated : p)));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save tiers');
+      setSaveError(
+        err instanceof Error ? err.message : t('organizer.compensationSettings.saveTiersError'),
+      );
     } finally {
       setSavingTiers(false);
     }
@@ -231,23 +234,23 @@ export default function OrgCompensationPlansPage() {
           href={`/org/${slug}/settings/compensation`}
           className="pb-2 text-sm font-medium border-b-2 border-red-600 text-red-700"
         >
-          Compensation
+          {t('organizer.compensationSettings.navCompensation')}
         </Link>
         <Link
           href={`/org/${slug}/settings/ai`}
           className="pb-2 text-sm font-medium text-gray-500 hover:text-gray-700"
         >
-          AI
+          {t('organizer.compensationSettings.navAi')}
         </Link>
       </div>
       <div className="mb-2">
         <Link href={`/org/${slug}`} className="text-sm text-gray-500 hover:underline">
-          ← Back to {slug}
+          {t('organizer.compensationSettings.backToOrg', { slug })}
         </Link>
       </div>
-      <h1 className="text-2xl font-bold mb-1">Compensation plans</h1>
+      <h1 className="text-2xl font-bold mb-1">{t('organizer.compensationSettings.title')}</h1>
       <p className="text-gray-500 text-sm mb-6">
-        Manage token rates and conversion tiers for referee compensation.
+        {t('organizer.compensationSettings.description')}
       </p>
 
       {error && (
@@ -256,13 +259,13 @@ export default function OrgCompensationPlansPage() {
         </div>
       )}
 
-      {loading && <p className="text-gray-400 text-sm">Loading…</p>}
+      {loading && <p className="text-gray-400 text-sm">{t('common.loading')}</p>}
 
       {/* Built-in plans */}
       {builtInPlans.length > 0 && (
         <section className="mb-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
-            Built-in plans
+            {t('organizer.compensationSettings.builtInPlans')}
           </h2>
           <div className="flex flex-col gap-2">
             {builtInPlans.map((plan) => (
@@ -274,7 +277,7 @@ export default function OrgCompensationPlansPage() {
                       <span className="ml-2 text-xs text-gray-400">{plan.description}</span>
                     )}
                     <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                      built-in
+                      {t('organizer.compensationSettings.builtIn')}
                     </span>
                   </div>
                   <button
@@ -283,7 +286,7 @@ export default function OrgCompensationPlansPage() {
                     }
                     className="text-sm text-gray-500 hover:text-gray-700"
                   >
-                    {expandedId === plan.id ? 'Hide' : 'View'}
+                    {expandedId === plan.id ? t('actions.close') : t('actions.view')}
                   </button>
                 </div>
                 {expandedId === plan.id && <PlanDetails plan={plan} readonly />}
@@ -297,40 +300,51 @@ export default function OrgCompensationPlansPage() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Your plans
+            {t('organizer.compensationSettings.yourPlans')}
           </h2>
           <button
             onClick={() => setShowNewForm(true)}
             className="text-sm bg-red-700 hover:bg-red-800 text-white font-semibold py-1.5 px-3 rounded-md transition-colors"
           >
-            + New plan
+            {t('organizer.compensationSettings.newPlanAction')}
           </button>
         </div>
 
         {showNewForm && (
           <div className="border border-gray-200 rounded-xl p-4 mb-3 bg-amber-50">
-            <p className="text-sm font-medium text-gray-700 mb-3">New plan</p>
+            <p className="text-sm font-medium text-gray-700 mb-3">
+              {t('organizer.compensationSettings.newPlan')}
+            </p>
             <div className="flex flex-col gap-3">
               <input
+                id="compensation-new-plan-name"
+                aria-label={t('organizer.compensationSettings.planName')}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Plan name"
+                placeholder={t('organizer.compensationSettings.planName')}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
               />
               <input
+                id="compensation-new-plan-description"
+                aria-label={t('organizer.compensationSettings.planDescription')}
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Description (optional)"
+                placeholder={t('organizer.compensationSettings.planDescription')}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
               />
-              <label className="flex items-center gap-2 text-sm text-gray-600">
+              <label
+                htmlFor="compensation-new-plan-public"
+                className="flex items-center gap-2 text-sm text-gray-600"
+              >
                 <input
+                  id="compensation-new-plan-public"
+                  aria-label={t('organizer.compensationSettings.publicVisibility')}
                   type="checkbox"
                   checked={newPublic}
                   onChange={(e) => setNewPublic(e.target.checked)}
                   className="accent-red-700"
                 />
-                Make publicly visible (other orgs can see this plan)
+                {t('organizer.compensationSettings.publicVisibility')}
               </label>
               <div className="flex gap-2">
                 <button
@@ -338,13 +352,13 @@ export default function OrgCompensationPlansPage() {
                   disabled={!newName.trim() || creating}
                   className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
                 >
-                  {creating ? 'Creating…' : 'Create'}
+                  {creating ? t('organizer.compensationSettings.creating') : t('actions.add')}
                 </button>
                 <button
                   onClick={() => setShowNewForm(false)}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
-                  Cancel
+                  {t('actions.cancel')}
                 </button>
               </div>
             </div>
@@ -353,7 +367,7 @@ export default function OrgCompensationPlansPage() {
 
         {orgPlans.length === 0 && !showNewForm && (
           <p className="text-sm text-gray-400">
-            No custom plans yet. Create one to override the built-in rates.
+            {t('organizer.compensationSettings.emptyCustomPlans')}
           </p>
         )}
 
@@ -365,7 +379,7 @@ export default function OrgCompensationPlansPage() {
                   <span className="font-medium text-gray-900">{plan.name}</span>
                   {plan.publicVisibility && (
                     <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                      public
+                      {t('organizer.compensationSettings.public')}
                     </span>
                   )}
                 </div>
@@ -376,13 +390,13 @@ export default function OrgCompensationPlansPage() {
                     }
                     className="text-sm text-red-700 hover:underline"
                   >
-                    {expandedId === plan.id ? 'Collapse' : 'Edit'}
+                    {expandedId === plan.id ? t('actions.close') : t('actions.edit')}
                   </button>
                   <button
                     onClick={() => void deletePlan(plan.id)}
                     className="text-xs text-gray-400 hover:text-red-600"
                   >
-                    Delete
+                    {t('actions.delete')}
                   </button>
                 </div>
               </div>
@@ -393,19 +407,22 @@ export default function OrgCompensationPlansPage() {
                   {/* Rates grid */}
                   <div className="mb-5">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                      Token rates (pts/match)
+                      {t('organizer.compensationSettings.tokenRates')}
                     </p>
                     <div className="overflow-x-auto">
                       <table className="text-sm border-collapse">
                         <thead>
                           <tr>
-                            <th className="text-left text-xs text-gray-400 font-normal pr-4 pb-2" />
+                            <th
+                              aria-label={t('organizer.compensationSettings.role')}
+                              className="text-left text-xs text-gray-400 font-normal pr-4 pb-2"
+                            />
                             {PHASES.map((p) => (
                               <th
                                 key={p.id}
                                 className="text-center text-xs text-gray-500 font-medium px-3 pb-2"
                               >
-                                {p.label}
+                                {t(`organizer.compensationSettings.phases.${p.id}`)}
                               </th>
                             ))}
                           </tr>
@@ -413,10 +430,16 @@ export default function OrgCompensationPlansPage() {
                         <tbody>
                           {ROLES.map((r) => (
                             <tr key={r.id}>
-                              <td className="text-xs text-gray-600 pr-4 py-1">{r.label}</td>
+                              <td className="text-xs text-gray-600 pr-4 py-1">
+                                {t(`organizer.compensationSettings.roles.${r.id}`)}
+                              </td>
                               {PHASES.map((p) => (
                                 <td key={p.id} className="px-2 py-1">
                                   <input
+                                    aria-label={t('organizer.compensationSettings.rateInputLabel', {
+                                      role: t(`organizer.compensationSettings.roles.${r.id}`),
+                                      phase: t(`organizer.compensationSettings.phases.${p.id}`),
+                                    })}
                                     type="number"
                                     min="0"
                                     step="0.5"
@@ -441,20 +464,22 @@ export default function OrgCompensationPlansPage() {
                       disabled={savingRates}
                       className="mt-2 text-xs bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white px-3 py-1.5 rounded"
                     >
-                      {savingRates ? 'Saving…' : 'Save rates'}
+                      {savingRates
+                        ? t('organizer.compensationSettings.saving')
+                        : t('organizer.compensationSettings.saveRates')}
                     </button>
                   </div>
 
                   {/* Tiers */}
                   <div>
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
-                      Token → money tiers
+                      {t('organizer.compensationSettings.tiers')}
                     </p>
                     <div className="flex flex-col gap-1 mb-2">
                       <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-xs text-gray-400 uppercase tracking-wide mb-1">
-                        <span>Min pts</span>
-                        <span>Max pts</span>
-                        <span>Amount (€)</span>
+                        <span>{t('organizer.compensationSettings.minTokens')}</span>
+                        <span>{t('organizer.compensationSettings.maxTokens')}</span>
+                        <span>{t('organizer.compensationSettings.amount')}</span>
                         <span />
                       </div>
                       {tierRows.map((tier, i) => (
@@ -463,6 +488,9 @@ export default function OrgCompensationPlansPage() {
                           className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center"
                         >
                           <input
+                            aria-label={t('organizer.compensationSettings.minTokensRow', {
+                              row: i + 1,
+                            })}
                             type="number"
                             min="0"
                             value={tier.minTokens}
@@ -476,9 +504,12 @@ export default function OrgCompensationPlansPage() {
                             className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-600"
                           />
                           <input
+                            aria-label={t('organizer.compensationSettings.maxTokensRow', {
+                              row: i + 1,
+                            })}
                             type="number"
                             min="0"
-                            placeholder="∞"
+                            placeholder={t('organizer.compensationSettings.noMaximum')}
                             value={tier.maxTokens}
                             onChange={(e) =>
                               setTierRows((prev) =>
@@ -490,6 +521,9 @@ export default function OrgCompensationPlansPage() {
                             className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-600"
                           />
                           <input
+                            aria-label={t('organizer.compensationSettings.amountRow', {
+                              row: i + 1,
+                            })}
                             type="number"
                             min="0"
                             step="0.01"
@@ -504,10 +538,13 @@ export default function OrgCompensationPlansPage() {
                             className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-red-600"
                           />
                           <button
+                            aria-label={t('organizer.compensationSettings.removeTierRow', {
+                              row: i + 1,
+                            })}
                             onClick={() => setTierRows((prev) => prev.filter((_, j) => j !== i))}
                             className="text-xs text-gray-400 hover:text-red-600"
                           >
-                            ✕
+                            {t('actions.remove')}
                           </button>
                         </div>
                       ))}
@@ -522,14 +559,16 @@ export default function OrgCompensationPlansPage() {
                         }
                         className="text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded px-2 py-1"
                       >
-                        + Add row
+                        {t('organizer.compensationSettings.addRow')}
                       </button>
                       <button
                         onClick={() => void saveTiers(plan.id)}
                         disabled={savingTiers}
                         className="text-xs bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white px-3 py-1.5 rounded"
                       >
-                        {savingTiers ? 'Saving…' : 'Save tiers'}
+                        {savingTiers
+                          ? t('organizer.compensationSettings.saving')
+                          : t('organizer.compensationSettings.saveTiers')}
                       </button>
                     </div>
                   </div>
@@ -550,15 +589,18 @@ function PlanDetails({ plan }: { plan: CompensationPlan; readonly: true }) {
       <div className="grid grid-cols-2 gap-6">
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Token rates
+            {t('organizer.compensationSettings.tokenRatesReadonly')}
           </p>
           <table className="text-xs border-collapse">
             <thead>
               <tr>
-                <th className="text-left text-gray-400 font-normal pr-3 pb-1" />
+                <th
+                  aria-label={t('organizer.compensationSettings.role')}
+                  className="text-left text-gray-400 font-normal pr-3 pb-1"
+                />
                 {PHASES.map((p) => (
                   <th key={p.id} className="text-center text-gray-500 font-medium px-2 pb-1">
-                    {p.label}
+                    {t(`organizer.compensationSettings.phases.${p.id}`)}
                   </th>
                 ))}
               </tr>
@@ -566,7 +608,9 @@ function PlanDetails({ plan }: { plan: CompensationPlan; readonly: true }) {
             <tbody>
               {ROLES.map((r) => (
                 <tr key={r.id}>
-                  <td className="text-gray-600 pr-3 py-0.5">{r.label}</td>
+                  <td className="text-gray-600 pr-3 py-0.5">
+                    {t(`organizer.compensationSettings.roles.${r.id}`)}
+                  </td>
                   {PHASES.map((p) => {
                     const rr = plan.roleRates.find(
                       (x) => x.refereeRole === r.id && x.compensationPhase === p.id,
@@ -583,24 +627,34 @@ function PlanDetails({ plan }: { plan: CompensationPlan; readonly: true }) {
           </table>
         </div>
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tiers</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            {t('organizer.compensationSettings.tiersReadonly')}
+          </p>
           {sortedTiers.length === 0 ? (
-            <p className="text-gray-400">No tiers defined.</p>
+            <p className="text-gray-400">{t('organizer.compensationSettings.noTiers')}</p>
           ) : (
             <table className="text-xs">
               <thead>
                 <tr className="text-gray-400">
-                  <th className="text-left pr-3 pb-1">From</th>
-                  <th className="text-left pr-3 pb-1">To</th>
-                  <th className="text-left pb-1">Amount</th>
+                  <th className="text-left pr-3 pb-1">
+                    {t('organizer.compensationSettings.from')}
+                  </th>
+                  <th className="text-left pr-3 pb-1">{t('organizer.compensationSettings.to')}</th>
+                  <th className="text-left pb-1">
+                    {t('organizer.compensationSettings.amountShort')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {sortedTiers.map((t) => (
-                  <tr key={t.id}>
-                    <td className="pr-3 py-0.5 tabular-nums">{t.minTokens}</td>
-                    <td className="pr-3 py-0.5 tabular-nums">{t.maxTokens ?? '∞'}</td>
-                    <td className="py-0.5 tabular-nums font-medium">{t.amount} €</td>
+                {sortedTiers.map((tier) => (
+                  <tr key={tier.id}>
+                    <td className="pr-3 py-0.5 tabular-nums">{tier.minTokens}</td>
+                    <td className="pr-3 py-0.5 tabular-nums">
+                      {tier.maxTokens ?? t('organizer.compensationSettings.noMaximum')}
+                    </td>
+                    <td className="py-0.5 tabular-nums font-medium">
+                      {t('organizer.compensationSettings.euroAmount', { amount: tier.amount })}
+                    </td>
                   </tr>
                 ))}
               </tbody>

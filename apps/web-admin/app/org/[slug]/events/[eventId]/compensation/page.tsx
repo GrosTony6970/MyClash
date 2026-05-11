@@ -1,20 +1,21 @@
 'use client';
 
+import { t } from '@myclash/i18n';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
 
-const ROLE_LABELS: Record<string, string> = {
-  arbitre_declarant: 'Déclarant',
-  arbitre_assesseur: 'Assesseur',
-  arbitre_table: 'Table',
+const ROLE_LABEL_KEYS: Record<string, string> = {
+  arbitre_declarant: 'organizer.eventCompensation.roles.arbitre_declarant',
+  arbitre_assesseur: 'organizer.eventCompensation.roles.arbitre_assesseur',
+  arbitre_table: 'organizer.eventCompensation.roles.arbitre_table',
 };
 
-const PHASE_LABELS: Record<string, string> = {
-  pool: 'Poule',
-  bracket: 'Tableau',
-  finals: 'Finales',
+const PHASE_LABEL_KEYS: Record<string, string> = {
+  pool: 'organizer.eventCompensation.phases.pool',
+  bracket: 'organizer.eventCompensation.phases.bracket',
+  finals: 'organizer.eventCompensation.phases.finals',
 };
 
 interface PlanOption {
@@ -89,11 +90,13 @@ export default function CompensationPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to load report');
+        throw new Error(body.message ?? t('organizer.eventCompensation.loadReportError'));
       }
       setReport((await res.json()) as CompensationReport);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load report');
+      setError(
+        err instanceof Error ? err.message : t('organizer.eventCompensation.loadReportError'),
+      );
     } finally {
       setLoadingReport(false);
     }
@@ -115,13 +118,15 @@ export default function CompensationPage() {
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to save settings');
+        throw new Error(body.message ?? t('organizer.eventCompensation.saveSettingsError'));
       }
       const data = (await res.json()) as EventSettings;
       setSettings(data);
       await loadReport();
     } catch (err) {
-      setSettingsError(err instanceof Error ? err.message : 'Failed to save');
+      setSettingsError(
+        err instanceof Error ? err.message : t('organizer.eventCompensation.saveSettingsError'),
+      );
     } finally {
       setSavingSettings(false);
     }
@@ -177,25 +182,33 @@ export default function CompensationPage() {
         </Link>
         <span>/</span>
         <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
-          Event
+          {t('organizer.eventCompensation.event')}
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Compensation</span>
+        <span className="text-gray-900 font-medium">
+          {t('organizer.eventCompensation.breadcrumb')}
+        </span>
       </div>
-      <h1 className="text-2xl font-bold mb-6">Referee compensation</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('organizer.eventCompensation.title')}</h1>
 
       {/* Settings panel */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Settings</h2>
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">
+          {t('organizer.eventCompensation.settings')}
+        </h2>
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Compensation plan</label>
+            <span className="block text-xs text-gray-500 mb-1">
+              {t('organizer.eventCompensation.compensationPlan')}
+            </span>
             <select
+              id="event-compensation-plan"
+              aria-label={t('organizer.eventCompensation.compensationPlan')}
               value={selectedPlanId}
               onChange={(e) => setSelectedPlanId(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 bg-white"
             >
-              <option value="">— select a plan —</option>
+              <option value="">{t('organizer.eventCompensation.selectPlan')}</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -204,14 +217,18 @@ export default function CompensationPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Max cap (€, optional)</label>
+            <span className="block text-xs text-gray-500 mb-1">
+              {t('organizer.eventCompensation.maxCap')}
+            </span>
             <input
+              id="event-compensation-cap"
+              aria-label={t('organizer.eventCompensation.maxCap')}
               type="number"
               min="0"
               step="0.01"
               value={maxCap}
               onChange={(e) => setMaxCap(e.target.value)}
-              placeholder="No cap"
+              placeholder={t('organizer.eventCompensation.noCap')}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </div>
@@ -220,7 +237,7 @@ export default function CompensationPage() {
             disabled={!selectedPlanId || savingSettings}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm transition-colors"
           >
-            {savingSettings ? 'Saving…' : 'Save'}
+            {savingSettings ? t('organizer.eventCompensation.saving') : t('actions.save')}
           </button>
         </div>
         {settingsError && <p className="text-xs text-red-600 mt-2">{settingsError}</p>}
@@ -228,7 +245,7 @@ export default function CompensationPage() {
 
       {!settings && (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-4 py-3 text-sm">
-          Select a compensation plan above to generate the report.
+          {t('organizer.eventCompensation.selectPlanHelp')}
         </div>
       )}
 
@@ -241,9 +258,14 @@ export default function CompensationPage() {
       {settings && (
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm text-gray-500">
-            Plan: <span className="font-medium text-gray-700">{settings.planName}</span>
+            {t('organizer.eventCompensation.planLabel')}{' '}
+            <span className="font-medium text-gray-700">{settings.planName}</span>
             {settings.maxCompensationAmount !== null && (
-              <span className="ml-2 text-gray-400">· cap {settings.maxCompensationAmount} €</span>
+              <span className="ml-2 text-gray-400">
+                {t('organizer.eventCompensation.capLabel', {
+                  amount: settings.maxCompensationAmount,
+                })}
+              </span>
             )}
           </p>
           <button
@@ -251,7 +273,7 @@ export default function CompensationPage() {
             disabled={loadingReport}
             className="text-sm text-red-700 hover:underline disabled:opacity-50"
           >
-            {loadingReport ? 'Loading…' : '↻ Refresh'}
+            {loadingReport ? t('common.loading') : t('organizer.eventCompensation.refresh')}
           </button>
         </div>
       )}
@@ -261,33 +283,38 @@ export default function CompensationPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
-                <th className="py-3 px-4">Referee</th>
-                <th className="py-3 px-4 text-right">Pool pts</th>
-                <th className="py-3 px-4 text-right">Bracket pts</th>
-                <th className="py-3 px-4 text-right">Finals pts</th>
-                <th className="py-3 px-4 text-right">Total</th>
-                <th className="py-3 px-4 text-right">Amount</th>
-                <th className="py-3 px-4 text-center">Paid</th>
+                <th className="py-3 px-4">{t('organizer.eventCompensation.referee')}</th>
+                <th className="py-3 px-4 text-right">
+                  {t('organizer.eventCompensation.poolPoints')}
+                </th>
+                <th className="py-3 px-4 text-right">
+                  {t('organizer.eventCompensation.bracketPoints')}
+                </th>
+                <th className="py-3 px-4 text-right">
+                  {t('organizer.eventCompensation.finalsPoints')}
+                </th>
+                <th className="py-3 px-4 text-right">{t('organizer.eventCompensation.total')}</th>
+                <th className="py-3 px-4 text-right">{t('organizer.eventCompensation.amount')}</th>
+                <th className="py-3 px-4 text-center">{t('organizer.eventCompensation.paid')}</th>
               </tr>
             </thead>
             <tbody>
               {report.referees.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-gray-400">
-                    No referee assignments found for this event.
+                    {t('organizer.eventCompensation.empty')}
                   </td>
                 </tr>
               )}
               {report.referees.map((referee) => (
-                <>
+                <Fragment key={referee.userId}>
                   <tr
-                    key={referee.userId}
                     className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                     onClick={() => toggleExpand(referee.userId)}
                   >
                     <td className="py-2.5 px-4 font-medium text-gray-900">
-                      <span className="mr-1 text-gray-400 text-xs">
-                        {expandedRows.has(referee.userId) ? '▾' : '▸'}
+                      <span aria-hidden="true" className="mr-1 text-gray-400 text-xs">
+                        {expandedRows.has(referee.userId) ? 'v' : '>'}
                       </span>
                       {referee.displayName}
                     </td>
@@ -301,13 +328,20 @@ export default function CompensationPage() {
                       {phaseTokens(referee, 'finals')}
                     </td>
                     <td className="py-2.5 px-4 text-right font-semibold text-gray-800 tabular-nums">
-                      {referee.totalTokens.toFixed(1)} pts
+                      {t('organizer.eventCompensation.pointsValue', {
+                        value: referee.totalTokens.toFixed(1),
+                      })}
                     </td>
                     <td className="py-2.5 px-4 text-right font-semibold text-gray-900 tabular-nums">
-                      {referee.amountOwed.toFixed(2)} €
+                      {t('organizer.eventCompensation.euroAmount', {
+                        amount: referee.amountOwed.toFixed(2),
+                      })}
                     </td>
                     <td className="py-2.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <input
+                        aria-label={t('organizer.eventCompensation.paidFor', {
+                          referee: referee.displayName,
+                        })}
                         type="checkbox"
                         checked={referee.paid}
                         onChange={(e) => void togglePaid(referee.userId, e.target.checked)}
@@ -324,50 +358,73 @@ export default function CompensationPage() {
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-gray-400 uppercase tracking-wide">
-                              <th className="text-left pb-1">Role</th>
-                              <th className="text-left pb-1">Phase</th>
-                              <th className="text-right pb-1">Matches</th>
-                              <th className="text-right pb-1">pts/match</th>
-                              <th className="text-right pb-1">Subtotal</th>
+                              <th className="text-left pb-1">
+                                {t('organizer.eventCompensation.role')}
+                              </th>
+                              <th className="text-left pb-1">
+                                {t('organizer.eventCompensation.phase')}
+                              </th>
+                              <th className="text-right pb-1">
+                                {t('organizer.eventCompensation.matches')}
+                              </th>
+                              <th className="text-right pb-1">
+                                {t('organizer.eventCompensation.pointsPerMatch')}
+                              </th>
+                              <th className="text-right pb-1">
+                                {t('organizer.eventCompensation.subtotal')}
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {referee.breakdown.map((line, i) => (
-                              <tr key={i} className="text-gray-600">
-                                <td className="py-0.5">{ROLE_LABELS[line.role] ?? line.role}</td>
-                                <td className="py-0.5">{PHASE_LABELS[line.phase] ?? line.phase}</td>
-                                <td className="py-0.5 text-right tabular-nums">
-                                  {line.matchCount}
-                                </td>
-                                <td className="py-0.5 text-right tabular-nums">
-                                  {line.tokensPerMatch}
-                                </td>
-                                <td className="py-0.5 text-right tabular-nums font-medium">
-                                  {line.subtotal.toFixed(1)}
-                                </td>
-                              </tr>
-                            ))}
+                            {referee.breakdown.map((line, i) => {
+                              const roleLabelKey = ROLE_LABEL_KEYS[line.role];
+                              const phaseLabelKey = PHASE_LABEL_KEYS[line.phase];
+
+                              return (
+                                <tr key={i} className="text-gray-600">
+                                  <td className="py-0.5">
+                                    {roleLabelKey ? t(roleLabelKey) : line.role}
+                                  </td>
+                                  <td className="py-0.5">
+                                    {phaseLabelKey ? t(phaseLabelKey) : line.phase}
+                                  </td>
+                                  <td className="py-0.5 text-right tabular-nums">
+                                    {line.matchCount}
+                                  </td>
+                                  <td className="py-0.5 text-right tabular-nums">
+                                    {line.tokensPerMatch}
+                                  </td>
+                                  <td className="py-0.5 text-right tabular-nums font-medium">
+                                    {line.subtotal.toFixed(1)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                         {referee.paid && referee.paidAt && (
                           <p className="text-xs text-green-600 mt-2">
-                            Paid on {new Date(referee.paidAt).toLocaleDateString('fr-FR')}
+                            {t('organizer.eventCompensation.paidOn', {
+                              date: new Date(referee.paidAt).toLocaleDateString('fr-FR'),
+                            })}
                           </p>
                         )}
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
               {report.referees.length > 0 && (
                 <tr className="bg-gray-50 border-t border-gray-300">
                   <td colSpan={5} className="py-3 px-4 text-sm font-bold text-gray-700 text-right">
-                    Total to pay
+                    {t('organizer.eventCompensation.totalToPay')}
                   </td>
                   <td className="py-3 px-4 text-right font-bold text-gray-900 tabular-nums">
-                    {report.grandTotal.toFixed(2)} €
+                    {t('organizer.eventCompensation.euroAmount', {
+                      amount: report.grandTotal.toFixed(2),
+                    })}
                   </td>
-                  <td />
+                  <td aria-label={t('organizer.eventCompensation.paid')} />
                 </tr>
               )}
             </tbody>
