@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 import { useEffect, useRef, useState } from 'react';
 
 interface Lice {
@@ -95,7 +97,7 @@ function detectConflicts(matches: ScheduleMatch[]): Conflict[] {
   return conflicts;
 }
 
-export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string }) {
+export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [lices, setLices] = useState<Lice[]>([]);

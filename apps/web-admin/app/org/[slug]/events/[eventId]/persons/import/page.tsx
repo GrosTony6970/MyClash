@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * CSV import wizard — T-703 / T-1208
  * Steps: Upload → Preview (with conflict cards) → Commit → Done

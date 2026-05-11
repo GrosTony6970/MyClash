@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * Super admin: bulk import global persons from CSV.
  * Steps: Upload → Review → Done

@@ -587,3 +587,7 @@ Implement arbitrary-size single-elimination brackets with default play-in rounds
 ## 17:09:14_11-05-2026
 
 Implement scoped web-admin lint debt cleanup for admin clubs, organization compensation settings, and event compensation pages; move literals to i18n, fix accessibility labels, fix clubs useEffect set-state lint, and verify targeted lint/typecheck.
+
+## 17:27:56_11-05-2026
+
+Implement the web-admin blocking lint error cleanup plan: fix all remaining ESLint errors in the eight listed web-admin files, move blocking literal strings to i18n, fix hook errors, keep warning-only debt out of scope, and verify package lint/typecheck.

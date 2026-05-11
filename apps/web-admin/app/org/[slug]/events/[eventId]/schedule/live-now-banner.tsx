@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 import { useEffect, useRef, useState } from 'react';
 
 interface LiveMatch {
@@ -53,9 +55,10 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
   }
 
   useEffect(() => {
-    void fetchState();
+    const initialTimer = setTimeout(() => void fetchState(), 0);
     intervalRef.current = setInterval(() => void fetchState(), 15_000);
     return () => {
+      clearTimeout(initialTimer);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

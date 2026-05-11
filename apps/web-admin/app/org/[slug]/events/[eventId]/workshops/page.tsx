@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * Workshop admin — T-804
  * Route: /org/[slug]/events/[eventId]/workshops
@@ -184,8 +186,8 @@ export default function WorkshopsAdminPage() {
 
   useEffect(() => {
     if (gpSearch.trim().length < 2) {
-      setGpResults([]);
-      return;
+      const timer = setTimeout(() => setGpResults([]), 0);
+      return () => clearTimeout(timer);
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {

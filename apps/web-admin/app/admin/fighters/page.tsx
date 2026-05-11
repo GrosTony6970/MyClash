@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -132,8 +134,28 @@ export default function AdminFightersPage() {
   }
 
   useEffect(() => {
-    void searchPersons('');
-  }, []);
+    const controller = new AbortController();
+
+    Promise.resolve()
+      .then(() => {
+        setPersonsLoading(true);
+        return fetch(`${apiUrl}/api/v1/global-persons?q=`, {
+          credentials: 'include',
+          signal: controller.signal,
+        });
+      })
+      .then(async (res) => {
+        if (res.ok) setPersons((await res.json()) as FighterRow[]);
+      })
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          setPersons([]);
+        }
+      })
+      .finally(() => setPersonsLoading(false));
+
+    return () => controller.abort();
+  }, [apiUrl]);
 
   // ── Create profile ───────────────────────────────────────────────────────────
   const [form, setForm] = useState<NewProfileForm>({

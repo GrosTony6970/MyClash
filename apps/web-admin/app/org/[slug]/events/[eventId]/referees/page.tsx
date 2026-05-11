@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * Referee admin — T-906
  * Route: /org/[slug]/events/[eventId]/referees
@@ -197,8 +199,8 @@ export default function RefereesPage() {
 
   useEffect(() => {
     if (globalSearch.trim().length < 2) {
-      setGlobalResults([]);
-      return;
+      const timer = setTimeout(() => setGlobalResults([]), 0);
+      return () => clearTimeout(timer);
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {

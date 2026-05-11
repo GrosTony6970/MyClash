@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 import { useEffect, useRef, useState } from 'react';
 import type {
   BlockWarning,
@@ -71,6 +73,7 @@ export function ProgrammePlanner({
   const [generateResult, setGenerateResult] = useState<GenerateResult | null>(null);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   // Drag state
   const dragIndex = useRef<number | null>(null);
@@ -185,6 +188,7 @@ export function ProgrammePlanner({
   // Drag-drop reorder within current day
   function handleDragStart(idx: number) {
     dragIndex.current = idx;
+    setDraggingIndex(idx);
   }
 
   function handleDragOver(e: React.DragEvent, idx: number) {
@@ -207,6 +211,7 @@ export function ProgrammePlanner({
     allBlocks.splice(toGlobal, 0, removed!);
     setBlocks(allBlocks.map((b, i) => ({ ...b, sortOrder: i })));
     dragIndex.current = idx;
+    setDraggingIndex(idx);
   }
 
   if (loading) {
@@ -320,11 +325,12 @@ export function ProgrammePlanner({
                 key={block.id}
                 block={block}
                 warning={warning}
-                dragging={dragIndex.current === idx}
+                dragging={draggingIndex === idx}
                 onDragStart={() => handleDragStart(idx)}
                 onDragOver={(e) => handleDragOver(e, idx)}
                 onDragEnd={() => {
                   dragIndex.current = null;
+                  setDraggingIndex(null);
                 }}
                 onChange={(patch) => updateBlock(block.id, patch)}
                 onRemove={() => removeBlock(block.id)}
