@@ -1,36 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { singleElimBracket } from '@myclash/rulesets/dist/scheduling/index';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>;
-
-/** Minimal Supabase query builder mock */
-function makeSupabaseMock(responses: Map<string, Row | Row[] | null>) {
-  const chain = {
-    from: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    not: vi.fn().mockReturnThis(),
-    or: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn(),
-    single: vi.fn(),
-  };
-
-  // Route maybeSingle based on the query key stored in `from` + `eq` calls
-  chain.maybeSingle.mockImplementation(() => {
-    return Promise.resolve({ data: null, error: null });
-  });
-  chain.single.mockImplementation(() => {
-    return Promise.resolve({ data: null, error: null });
-  });
-
-  return chain;
-}
 
 // ── buildSelfRef (tested via reflection since it's private) ──────────────────
 

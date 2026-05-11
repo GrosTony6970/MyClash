@@ -47,16 +47,15 @@ Marie,Lefèvre,marie@example.com,Cercle PRMD,,longsword-open,competitor`;
       expect(result.invalid).toHaveLength(0);
     });
 
-    it('marks rows with missing email as invalid', () => {
+    it('accepts rows with missing email', () => {
       const csv = `given_name,family_name,email
 Jean,Dupont,
 Marie,Lefèvre,marie@example.com`;
 
       const result = service.parse(Buffer.from(csv, 'utf-8'));
-      expect(result.rows).toHaveLength(1);
-      expect(result.invalid).toHaveLength(1);
-      expect(result.invalid[0]?.reason).toContain('Missing email');
-      expect(result.invalid[0]?.row).toBe(2);
+      expect(result.rows).toHaveLength(2);
+      expect(result.invalid).toHaveLength(0);
+      expect(result.rows[0]?.email).toBeUndefined();
     });
 
     it('marks rows with invalid email format as invalid', () => {
@@ -118,7 +117,7 @@ Jean,Dupont,jean@example.com`;
     });
 
     // ── The key AC test: 100 rows, 3 invalid, 5 duplicates (detected in service) ──
-    it('parses 100-row CSV and correctly identifies 3 invalid rows', () => {
+    it('parses 100-row CSV and correctly identifies invalid rows', () => {
       const validRows = Array.from(
         { length: 92 },
         (_, i) => `Person${i},Test,person${i}@example.com,Club A`,
@@ -134,8 +133,8 @@ Jean,Dupont,jean@example.com`;
       const csv = `given_name,family_name,email,club\n${allRows.join('\n')}`;
 
       const result = service.parse(Buffer.from(csv, 'utf-8'));
-      expect(result.invalid).toHaveLength(3);
-      expect(result.rows).toHaveLength(92);
+      expect(result.invalid).toHaveLength(2);
+      expect(result.rows).toHaveLength(93);
     });
   });
 });

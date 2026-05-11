@@ -18,6 +18,7 @@ function makeChain(result: unknown) {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
     in: vi.fn() as ReturnType<typeof vi.fn>,
+    order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
     delete: vi.fn() as ReturnType<typeof vi.fn>,
@@ -27,6 +28,7 @@ function makeChain(result: unknown) {
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
   chain.delete.mockReturnValue(chain);
@@ -45,6 +47,7 @@ function makeAwaitableChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    order: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -52,7 +55,7 @@ function makeAwaitableChain(result: unknown) {
     single: vi.fn().mockResolvedValue(result),
   });
   // All builder methods return the chain (Promise) itself
-  for (const key of ['select', 'eq', 'in', 'insert', 'update', 'delete']) {
+  for (const key of ['select', 'eq', 'in', 'order', 'insert', 'update', 'delete']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -178,6 +181,10 @@ describe('PhasesService', () => {
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
+      const seededRegsChain = makeAwaitableChain({
+        data: eightRegs.map((reg, index) => ({ ...reg, seed: index + 1, bib_number: null })),
+        error: null,
+      });
 
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
@@ -187,6 +194,7 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(defaultChain);
 
@@ -197,7 +205,7 @@ describe('PhasesService', () => {
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { rounds: number }).rounds).toBe(3);
       expect((result as { byeCount: number }).byeCount).toBe(0);
-      expect((result as { totalSlots: number }).totalSlots).toBe(7); // 4+2+1
+      expect((result as { totalSlots: number }).totalSlots).toBe(8); // 4+2+1+bronze
     });
 
     it('respects explicit bracketSize option', async () => {
@@ -207,6 +215,10 @@ describe('PhasesService', () => {
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       const regsChain = makeAwaitableChain({ data: sixRegs, error: null });
+      const seededRegsChain = makeAwaitableChain({
+        data: sixRegs.map((reg, index) => ({ ...reg, seed: index + 1, bib_number: null })),
+        error: null,
+      });
 
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
@@ -216,6 +228,7 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(defaultChain);
 

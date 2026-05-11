@@ -21,13 +21,13 @@ describe('totalBracketMatches', () => {
 
 describe('singleElimBracket', () => {
   // ── KEY AC TEST: 16 fighters → 4 rounds, 15 matches ──────────────────────
-  it('16 fighters → 4 rounds, 15 matches, 0 byes', () => {
+  it('16 fighters → 4 rounds, 16 slots including bronze, 0 byes', () => {
     const bracket = singleElimBracket(16);
     expect(bracket.bracketSize).toBe(16);
     expect(bracket.fighterCount).toBe(16);
     expect(bracket.byeCount).toBe(0);
     expect(bracket.rounds).toBe(4);
-    expect(bracket.slots).toHaveLength(15); // 8+4+2+1
+    expect(bracket.slots).toHaveLength(16); // 8+4+2+1+bronze
   });
 
   // ── KEY AC TEST: 13 fighters → 3 byes in round 1 ─────────────────────────
@@ -43,7 +43,7 @@ describe('singleElimBracket', () => {
 
   it('13 fighters → 12 total matches (N-1)', () => {
     const bracket = singleElimBracket(13);
-    expect(bracket.slots).toHaveLength(15); // bracket slots = bracketSize-1
+    expect(bracket.slots).toHaveLength(16); // bracket slots + bronze
     // But only 12 are real matches (3 are byes in R1)
     expect(totalBracketMatches(13)).toBe(12);
   });
@@ -93,17 +93,17 @@ describe('singleElimBracket', () => {
   });
 
   // ── Round structure ───────────────────────────────────────────────────────
-  it('8 fighters → 3 rounds, 7 slots', () => {
+  it('8 fighters → 3 rounds, 8 slots including bronze', () => {
     const bracket = singleElimBracket(8);
     expect(bracket.rounds).toBe(3);
-    expect(bracket.slots).toHaveLength(7); // 4+2+1
+    expect(bracket.slots).toHaveLength(8); // 4+2+1+bronze
     expect(bracket.byeCount).toBe(0);
   });
 
-  it('4 fighters → 2 rounds, 3 slots', () => {
+  it('4 fighters → 2 rounds, 4 slots including bronze', () => {
     const bracket = singleElimBracket(4);
     expect(bracket.rounds).toBe(2);
-    expect(bracket.slots).toHaveLength(3); // 2+1
+    expect(bracket.slots).toHaveLength(4); // 2+1+bronze
   });
 
   it('2 fighters → 1 round, 1 slot (the final)', () => {

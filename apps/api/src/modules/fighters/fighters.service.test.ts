@@ -171,7 +171,11 @@ describe('FightersService', () => {
           ],
         }),
       };
-      service = new FightersService(mockSupabase as never, hemaRatings as never);
+      service = new FightersService(
+        mockSupabase as never,
+        undefined as never,
+        hemaRatings as never,
+      );
 
       const result = await service.getBySlug('steven-gallagher');
 

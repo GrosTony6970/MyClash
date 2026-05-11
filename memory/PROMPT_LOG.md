@@ -567,3 +567,7 @@ Implement pool/bracket phase visibility publishing: phases hidden by default, or
 ## 11:26:01_11-05-2026
 
 Implement AI Data Quality Assistant for Super Admin: separate shared super-admin BYOK key, super-admin scan/review queue for duplicate global persons/referees/clubs and data issues, rules-first plus AI ranking, docs/memory updates, and verification.
+
+## 11:49:30_11-05-2026
+
+Check the remaining pnpm lint/package lint blockers and pnpm test blockers that were reported as pre-existing/unrelated.

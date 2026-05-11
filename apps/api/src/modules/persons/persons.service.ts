@@ -403,7 +403,7 @@ export class PersonsService {
   private async resolveClubPreview(
     clubName?: string,
     clubAbv?: string,
-    clubCity?: string,
+    _clubCity?: string,
   ): Promise<ClubResolution> {
     const searchTerm = clubAbv ?? clubName ?? '';
     const { data: matches } = await this.supabase.service
@@ -603,7 +603,7 @@ export class PersonsService {
     row: CsvRow,
     decision: ImportDecision | undefined,
     clubId: string | null,
-    createdByUserId: string,
+    _createdByUserId: string,
   ): Promise<void> {
     const action = decision?.action ?? 'create_new';
 

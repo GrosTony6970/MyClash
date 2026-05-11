@@ -208,7 +208,7 @@ describe('FighterMergeService', () => {
 
     expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
     expect(registrationsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'source' });
-    expect(instructorsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'source' });
+    expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
     expect(sourceUpdate.update).toHaveBeenCalledWith(
       expect.objectContaining({
         merged_into_id: null,

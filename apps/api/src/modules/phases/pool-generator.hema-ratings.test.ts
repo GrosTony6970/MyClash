@@ -31,28 +31,28 @@ describe('PoolGeneratorService HEMA Ratings seeding', () => {
         seed: 1,
         bib_number: null,
         persons: { club_id: 'club-a' },
-        fighters: { hema_ratings_id: 'hr-low' },
+        global_persons: { hema_ratings_id: 'hr-low' },
       },
       {
         id: 'r2',
         seed: 2,
         bib_number: null,
         persons: { club_id: 'club-b' },
-        fighters: { hema_ratings_id: 'hr-high' },
+        global_persons: { hema_ratings_id: 'hr-high' },
       },
       {
         id: 'r3',
         seed: 3,
         bib_number: null,
         persons: { club_id: 'club-c' },
-        fighters: { hema_ratings_id: 'hr-mid' },
+        global_persons: { hema_ratings_id: 'hr-mid' },
       },
       {
         id: 'r4',
         seed: 4,
         bib_number: null,
         persons: { club_id: 'club-d' },
-        fighters: { hema_ratings_id: null },
+        global_persons: { hema_ratings_id: null },
       },
     ];
     const from = vi
