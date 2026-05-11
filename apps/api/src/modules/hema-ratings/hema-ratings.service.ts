@@ -87,11 +87,89 @@ function htmlToLines(html: string): string[] {
     .filter(Boolean);
 }
 
+function cleanHtmlText(html: string): string {
+  return decodeHtml(
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+}
+
 function monthToIso(month: string | undefined): string | null {
   if (!month) return null;
   const parsed = Date.parse(`${month} 1 UTC`);
   if (Number.isNaN(parsed)) return null;
   return new Date(parsed).toISOString().slice(0, 10);
+}
+
+function parseCurrentRank(value: string): number | null {
+  const match = value.match(/\d+/);
+  return match ? parseInt(match[0], 10) : null;
+}
+
+function parseCurrentWeightedRating(value: string): number | null {
+  const match = value.match(/\d+(?:\.\d+)?/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+function extractProfileTableField(html: string, label: string): string | null {
+  const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let rowMatch: RegExpExecArray | null;
+  while ((rowMatch = rowPattern.exec(html)) !== null) {
+    const row = rowMatch[1] ?? '';
+    const cells = Array.from(row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((match) =>
+      cleanHtmlText(match[1] ?? ''),
+    );
+    if (cells.length < 2) continue;
+    if (cells[0]?.toLowerCase() === label.toLowerCase()) return cells[1] ?? null;
+  }
+  return null;
+}
+
+function parseCurrentRatingsTable(html: string): HemaRatingsRow[] {
+  const ratingsHeading = html.search(/<h3[^>]*>\s*Ratings\s*<\/h3>/i);
+  if (ratingsHeading < 0) return [];
+
+  const tableStart = html.indexOf('<table', ratingsHeading);
+  if (tableStart < 0) return [];
+  const tableEnd = html.indexOf('</table>', tableStart);
+  if (tableEnd < tableStart) return [];
+  const tableHtml = html.slice(tableStart, tableEnd + '</table>'.length);
+
+  const ratings: HemaRatingsRow[] = [];
+  let weapon = '';
+  const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let rowMatch: RegExpExecArray | null;
+  while ((rowMatch = rowPattern.exec(tableHtml)) !== null) {
+    const row = rowMatch[1] ?? '';
+    const weaponMatch = row.match(/<strong[^>]*>([\s\S]*?)<\/strong>/i);
+    if (weaponMatch) {
+      weapon = cleanHtmlText(weaponMatch[1] ?? '');
+      continue;
+    }
+
+    const cells = Array.from(row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((match) =>
+      cleanHtmlText(match[1] ?? ''),
+    );
+    if (cells.length < 4 || !weapon) continue;
+
+    const category = (cells[0] ?? '').replace(/^-\s*/, '').trim();
+    const lastCompeted = monthToIso(cells[1]) ?? null;
+    const rank = parseCurrentRank(cells[2] ?? '');
+    const weightedRating = parseCurrentWeightedRating(cells[3] ?? '');
+    if (!category || weightedRating === null) continue;
+
+    ratings.push({
+      weapon,
+      category,
+      rank,
+      weightedRating,
+      lastCompeted,
+    });
+  }
+
+  return ratings;
 }
 
 function extractHistoryMonths(lines: string[]): Map<string, string> {
@@ -134,7 +212,7 @@ export function parseHemaRatingsDetailHtml(id: string, html: string): HemaRating
   const clubLine = lines.find((line) => line.startsWith('Club '));
   const nationalityLine = lines.find((line) => line.startsWith('Nationality '));
 
-  const ratings: HemaRatingsRow[] = [];
+  const ratings: HemaRatingsRow[] = parseCurrentRatingsTable(html);
   const ratingsHeader = lines.findIndex((line) => line.startsWith('Category Rank'));
   const recordStart = lines.findIndex(
     (line, idx) => idx > ratingsHeader && line.toLowerCase() === 'record',
@@ -145,35 +223,40 @@ export function parseHemaRatingsDetailHtml(id: string, html: string): HemaRating
   );
 
   let weapon = '';
-  for (const line of ratingLines) {
-    if (line.startsWith('Category Rank')) continue;
-    if (!line.startsWith('- ')) {
-      weapon = line;
-      continue;
+  if (ratings.length === 0) {
+    for (const line of ratingLines) {
+      if (line.startsWith('Category Rank')) continue;
+      if (!line.startsWith('- ')) {
+        weapon = line;
+        continue;
+      }
+
+      const row = line
+        .replace(/^-\s*/, '')
+        .match(
+          /^(.+?)\s+(\d+)(?:\s+\([^)]+\))?\s+(\d+(?:\.\d+)?)\s+\d+(?:\s+\([^)]+\))?\s+\d+(?:\.\d+)?/,
+        );
+      if (!row || !row[1] || !row[3]) continue;
+
+      const category = row[1].trim();
+      ratings.push({
+        weapon,
+        category,
+        rank: row[2] ? parseInt(row[2], 10) : null,
+        weightedRating: parseFloat(row[3]),
+        lastCompeted: historyMonths.get(normalizeToken(category)) ?? null,
+      });
     }
-
-    const row = line
-      .replace(/^-\s*/, '')
-      .match(
-        /^(.+?)\s+(\d+)(?:\s+\([^)]+\))?\s+(\d+(?:\.\d+)?)\s+\d+(?:\s+\([^)]+\))?\s+\d+(?:\.\d+)?/,
-      );
-    if (!row || !row[1] || !row[3]) continue;
-
-    const category = row[1].trim();
-    ratings.push({
-      weapon,
-      category,
-      rank: row[2] ? parseInt(row[2], 10) : null,
-      weightedRating: parseFloat(row[3]),
-      lastCompeted: historyMonths.get(normalizeToken(category)) ?? null,
-    });
   }
 
   return {
     id,
     name,
-    club: clubLine?.replace(/^Club\s+/, '') ?? '',
-    nationality: nationalityLine?.replace(/^Nationality\s+/, '') ?? null,
+    club: extractProfileTableField(html, 'Club') ?? clubLine?.replace(/^Club\s+/, '') ?? '',
+    nationality:
+      extractProfileTableField(html, 'Nationality') ??
+      nationalityLine?.replace(/^Nationality\s+/, '') ??
+      null,
     detailsUrl: `https://hemaratings.com/fighters/details/${id}/`,
     ratings,
   };

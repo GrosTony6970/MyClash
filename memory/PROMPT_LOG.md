@@ -603,3 +603,19 @@ Implement the configurable fighter forfeit workflow plan: ruleset-configurable i
 ## 18:39:09_11-05-2026
 
 Commit and push the current implementation work.
+
+## 18:44:39_11-05-2026
+
+Check how HEMA Ratings "weighted ratings" are retrieved in MyClash.
+
+## 18:47:09_11-05-2026
+
+Quick-test HEMA Ratings fighter id 6282 to see what the current parser/retrieval returns.
+
+## 18:51:32_11-05-2026
+
+Approved updating the HEMA Ratings parser so it retrieves all current table-format ratings, club, and nationality.
+
+## 18:58:41_11-05-2026
+
+Commit and push the HEMA Ratings parser update.

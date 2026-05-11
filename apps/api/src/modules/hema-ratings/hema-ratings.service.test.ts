@@ -15,6 +15,113 @@ function makeLatestSnapshotChain(result: unknown) {
 }
 
 describe('HemaRatingsService', () => {
+  it('parses current HEMA detail table layout with club, nationality, and all weighted ratings', () => {
+    const parsed = parseHemaRatingsDetailHtml(
+      '6282',
+      `
+      <h1>Anthony Garnier</h1>
+      <article>
+        <table>
+          <tbody>
+            <tr><td><strong>Club</strong></td><td><a href="/clubs/details/1078/">Lyon AMHE</a></td></tr>
+            <tr><td><strong>Nationality</strong></td><td>France <i class="flag-icon flag-icon-fr" title="France"></i></td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article>
+        <h3>Ratings</h3>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Last competed</th>
+              <th>Rank (current)</th>
+              <th>Weighted Rating (current)</th>
+              <th>Rank (best)</th>
+              <th>Weighted Rating (best)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="6"><strong>Longsword</strong></td></tr>
+            <tr>
+              <td>- <a href="/periods/details/?ratingsetid=1">Mixed &amp; Men&#39;s Steel Longsword</a></td>
+              <td>October 2025</td>
+              <td>523 (top 7%)</td>
+              <td>1532.6</td>
+              <td>456 (February 2022)</td>
+              <td>1543.3 (October 2025)</td>
+            </tr>
+            <tr><td colspan="6"><strong>Sabre</strong></td></tr>
+            <tr>
+              <td>- <a>Mixed &amp; Men&#39;s Steel Sabre</a></td>
+              <td>November 2024</td>
+              <td>896 (top 28%)</td>
+              <td>1286.9</td>
+              <td>193 (March 2022)</td>
+              <td>1306.5 (November 2024)</td>
+            </tr>
+            <tr><td colspan="6"><strong>Rapier and Dagger</strong></td></tr>
+            <tr>
+              <td>- <a>Mixed &amp; Men&#39;s Steel Rapier and Dagger</a></td>
+              <td>October 2025</td>
+              <td>192 (top 13%)</td>
+              <td>1460.9</td>
+              <td>153 (October 2025)</td>
+              <td>1465.9 (October 2025)</td>
+            </tr>
+            <tr><td colspan="6"><strong>Single Rapier</strong></td></tr>
+            <tr>
+              <td>- <a>Mixed &amp; Men&#39;s Steel Single Rapier</a></td>
+              <td>May 2025</td>
+              <td>173 (top 8% of island)</td>
+              <td>1542.2</td>
+              <td>136 (May 2025)</td>
+              <td>1553 (May 2025)</td>
+            </tr>
+            <tr><td colspan="6"><strong>Sword and Buckler</strong></td></tr>
+            <tr>
+              <td>- <a>Mixed &amp; Men&#39;s Steel Sword and Buckler</a></td>
+              <td>November 2019</td>
+              <td>Inactive</td>
+              <td>1268.3</td>
+              <td>72 (September 2018)</td>
+              <td>1492.1 (September 2018)</td>
+            </tr>
+            <tr><td colspan="6"><strong>Sidesword</strong></td></tr>
+            <tr>
+              <td>- <a>Mixed &amp; Men&#39;s Steel Single Sidesword</a></td>
+              <td>May 2025</td>
+              <td>100 (top 11%)</td>
+              <td>1482.9</td>
+              <td>75 (May 2025)</td>
+              <td>1495.1 (May 2025)</td>
+            </tr>
+          </tbody>
+        </table>
+      </article>
+      `,
+    );
+
+    expect(parsed.club).toBe('Lyon AMHE');
+    expect(parsed.nationality).toBe('France');
+    expect(parsed.ratings).toHaveLength(6);
+    expect(parsed.ratings[0]).toEqual({
+      weapon: 'Longsword',
+      category: "Mixed & Men's Steel Longsword",
+      rank: 523,
+      weightedRating: 1532.6,
+      lastCompeted: '2025-10-01',
+    });
+    expect(parsed.ratings.map((rating) => rating.weapon)).toEqual([
+      'Longsword',
+      'Sabre',
+      'Rapier and Dagger',
+      'Single Rapier',
+      'Sword and Buckler',
+      'Sidesword',
+    ]);
+  });
+
   it('parses HEMA detail HTML rating rows with weighted rating and last competed month', () => {
     const parsed = parseHemaRatingsDetailHtml(
       '10458',
