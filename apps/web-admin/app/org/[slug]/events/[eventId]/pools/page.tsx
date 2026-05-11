@@ -304,6 +304,12 @@ export default function PoolsPage() {
           <h1 className="text-2xl font-bold">{t('organizer.phaseVisibility.poolsTitle')}</h1>
         </div>
         <Link
+          href={`/org/${slug}/events/${eventId}/ai-assistant?type=pool_plan${selectedTournament ? `&tournamentId=${selectedTournament}` : ''}`}
+          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+        >
+          {t('organizer.aiAssistant.suggest')}
+        </Link>
+        <Link
           href={`/org/${slug}/events/${eventId}/bracket`}
           className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
         >

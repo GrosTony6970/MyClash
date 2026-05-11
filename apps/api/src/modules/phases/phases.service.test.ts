@@ -236,6 +236,111 @@ describe('PhasesService', () => {
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { byeCount: number }).byeCount).toBe(2); // 8-6=2 byes
     });
+
+    it('persists play-in metadata and creates initial scheduled matches', async () => {
+      const regs = Array.from({ length: 18 }, (_, i) => ({
+        id: `r${i + 1}`,
+        seed: i + 1,
+        bib_number: null,
+      }));
+
+      const phaseCheckChain = makeChain({ data: null, error: null });
+      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      const seededRegsChain = makeAwaitableChain({ data: regs, error: null });
+
+      const phaseInsertChain = makeChain({ data: null, error: null });
+      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
+
+      const bracketSlotInsertChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'slot-playin-1',
+            phase_id: 'phase-new',
+            round: 0,
+            position: 1,
+            source_b_type: 'seed',
+            registration_a_id: 'r15',
+            registration_b_id: 'r18',
+          },
+          {
+            id: 'slot-playin-2',
+            phase_id: 'phase-new',
+            round: 0,
+            position: 2,
+            source_b_type: 'seed',
+            registration_a_id: 'r16',
+            registration_b_id: 'r17',
+          },
+        ],
+        error: null,
+      });
+      const matchInsertChain = makeChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(seededRegsChain)
+        .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValueOnce(bracketSlotInsertChain)
+        .mockReturnValueOnce(matchInsertChain);
+
+      const result = await service.generateBracket('tournament-1', { qualifyCount: 18 }, false);
+
+      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config_json: expect.objectContaining({
+            bracketSize: 16,
+            mainBracketSize: 16,
+            fighterCount: 18,
+            byeCount: 14,
+            byeSeedCount: 14,
+            playInMatchCount: 2,
+            hasPlayInRound: true,
+          }),
+        }),
+      );
+      expect(bracketSlotInsertChain.insert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            round: 0,
+            position: 1,
+            registration_a_id: 'r15',
+            registration_b_id: 'r18',
+          }),
+          expect.objectContaining({
+            round: 1,
+            source_b_ref: 'winner of R0P1',
+          }),
+          expect.objectContaining({
+            round: 1,
+            source_b_ref: 'winner of R0P2',
+          }),
+        ]),
+      );
+      expect(matchInsertChain.insert).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            phase_id: 'phase-new',
+            bracket_slot_id: 'slot-playin-1',
+            red_registration_id: 'r15',
+            blue_registration_id: 'r18',
+            status: 'scheduled',
+          }),
+          expect.objectContaining({
+            phase_id: 'phase-new',
+            bracket_slot_id: 'slot-playin-2',
+            red_registration_id: 'r16',
+            blue_registration_id: 'r17',
+            status: 'scheduled',
+          }),
+        ]),
+      );
+      expect(result).toMatchObject({
+        bracketSize: 16,
+        byeCount: 14,
+        playInMatchCount: 2,
+      });
+    });
   });
 
   describe('updateVisibility', () => {

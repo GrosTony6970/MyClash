@@ -1223,6 +1223,8 @@ When a match completes, `BracketAdvanceService.onMatchCompleted(matchId)` fires 
 
 ### 11sexies.2 Bracket types
 
+Single-elimination defaults to arbitrary-size play-ins for non-power-of-two fields. For `n` qualified fighters, the main bracket is the largest power of two below `n`; `n - p` round-0 play-in matches are created from the lowest seeds, and the highest `p - (n - p)` seeds enter the main bracket directly. Example: 18 fighters create two play-ins (`15v18`, `16v17`) feeding the seed-15 and seed-16 slots in the Round of 16. Explicit `bracketSize` keeps the legacy power-of-two bye-slot behavior.
+
 | Type          | Description                                                                                                                                                                      |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `single_elim` | Standard single-elimination with bronze medal match. `source_a_type = 'loser_of'` on bronze.                                                                                     |
@@ -2532,7 +2534,25 @@ getUsageSummary(eventId): Promise<{ totalSpendEur, cap, remainingEur, callCount 
 GET /api/v1/events/:eventId/ai-usage   → { totalSpendEur, cap, remainingEur, callCount }
 ```
 
-### 16.4 Super-admin AI Data Quality (T-1305)
+### 16.4 Organizer AI Tournament Setup Assistant (T-1213)
+
+Organizer AI tools use the organization-scoped BYOK path (`organization_ai_settings`) and event spend caps (`ai_usage_log`). They must never use `platform_ai_settings`, which is reserved for super-admin tools.
+
+**`organizer_ai_assistant_drafts`** - event-scoped review drafts with actor, optional tournament, draft type, prompt, structured proposed actions, validation state, status (`draft|ready|failed|applied|rejected`), and applied/rejected metadata.
+
+**API endpoints:**
+
+```text
+POST  /api/v1/events/:eventId/ai-assistant/drafts
+GET   /api/v1/events/:eventId/ai-assistant/drafts
+GET   /api/v1/events/:eventId/ai-assistant/drafts/:draftId
+PATCH /api/v1/events/:eventId/ai-assistant/drafts/:draftId
+POST  /api/v1/events/:eventId/ai-assistant/drafts/:draftId/apply
+```
+
+V1 is constrained draft-and-review only. AI returns strict JSON actions for tournament config, pool planning, bracket generation, match-grid scheduling, and referee assignment. Organizers review or edit drafts before applying, and apply routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
+
+### 16.5 Super-admin AI Data Quality (T-1305)
 
 Organizer BYOK keys are event/org scoped and must never power platform-super-admin scans. T-1305 adds a separate shared super-admin BYOK path:
 
@@ -2559,11 +2579,13 @@ PATCH /api/v1/admin/data-quality/findings/:id
 
 All routes are guarded by `SuperAdminGuard`. Scan behavior is rules-first: deterministic matching creates candidate bundles for duplicate global Persons, referee identity/link gaps, and duplicate clubs/schools. Only minimized evidence is sent to the configured LLM, which must return strict JSON ranking/explanation. Invalid AI output leaves a deterministic finding with `AI summary unavailable.` V1 is review-only and never auto-merges or auto-edits records.
 
-### 16.5 Frontend
+### 16.6 Frontend
 
 **Org AI settings** (`/org/[slug]/settings/ai`) — provider radio selector, password API key input, masked key-saved banner with date, Remove button, disabled-features amber banner when no key configured. Navigation tab added alongside "Compensation".
 
 **Event hub AI budget card** (`/org/[slug]/events/[eventId]`) — collapsible, shown only when org has AI key configured. Spend cap number input saved via `PATCH /events/:eventId`. Read-only spend meter with progress bar (cap set) or plain spend total (no cap).
+
+**Organizer AI assistant** (`/org/[slug]/events/[eventId]/ai-assistant`) - event setup assistant with persisted draft history, editable structured actions, and step-by-step apply. Existing tournament, pools, bracket, schedule, and referee pages link into it with prefilled draft type context.
 
 **Super-admin AI settings** (`/admin/ai-settings`) - shared platform BYOK provider/key management for super-admin AI tools only.
 

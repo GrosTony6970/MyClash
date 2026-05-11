@@ -31,6 +31,8 @@ export interface BracketConfig {
 export interface BracketViewProps {
   slots: BracketSlotData[];
   rounds: number;
+  /** Label for round 0 play-in slots. */
+  playInLabel?: string;
   /** Called when a match slot is clicked. Receives matchId (null if no match yet). */
   onMatchClick?: (matchId: string | null, slotId: string) => void;
   /** Called when the pencil override icon is clicked (admin only). */
@@ -148,10 +150,14 @@ function SlotCard({
 function SingleElimLayout({
   slots,
   rounds,
+  playInLabel = 'Play-ins',
   onMatchClick,
   onOverrideSlot,
   accentColor,
-}: Pick<BracketViewProps, 'slots' | 'rounds' | 'onMatchClick' | 'onOverrideSlot' | 'accentColor'>) {
+}: Pick<
+  BracketViewProps,
+  'slots' | 'rounds' | 'playInLabel' | 'onMatchClick' | 'onOverrideSlot' | 'accentColor'
+>) {
   const byRound = new Map<number, BracketSlotData[]>();
   for (const slot of slots) {
     const arr = byRound.get(slot.round) ?? [];
@@ -162,14 +168,16 @@ function SingleElimLayout({
   const roundNumbers = Array.from(byRound.keys()).sort((a, b) => a - b);
 
   const roundLabels: Record<number, string> = {};
-  for (let i = 0; i < roundNumbers.length; i++) {
-    const r = roundNumbers[i]!;
-    const remaining = roundNumbers.length - i;
+  const mainRoundNumbers = roundNumbers.filter((round) => round > 0);
+  for (let i = 0; i < mainRoundNumbers.length; i++) {
+    const r = mainRoundNumbers[i]!;
+    const remaining = mainRoundNumbers.length - i;
     if (remaining === 1) roundLabels[r] = 'Final';
     else if (remaining === 2) roundLabels[r] = 'Semi-finals';
     else if (remaining === 3) roundLabels[r] = 'Quarter-finals';
     else roundLabels[r] = `Round ${r}`;
   }
+  if (roundNumbers.includes(0)) roundLabels[0] = playInLabel;
 
   return (
     <div className="flex gap-6 min-w-max">
@@ -358,6 +366,7 @@ function DoubleElimLayout({
 export function BracketView({
   slots,
   rounds,
+  playInLabel,
   onMatchClick,
   onOverrideSlot,
   bracketConfig,
@@ -382,6 +391,7 @@ export function BracketView({
         <SingleElimLayout
           slots={slots}
           rounds={rounds}
+          playInLabel={playInLabel}
           onMatchClick={onMatchClick}
           onOverrideSlot={onOverrideSlot}
           accentColor={accentColor}

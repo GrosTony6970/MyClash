@@ -32,6 +32,7 @@ import { ProgrammeModule } from './modules/programme/programme.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
+import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
     ProgrammeModule,
     AIProvidersModule,
     AIUsageModule,
+    OrganizerAIAssistantModule,
     FollowsModule,
     WorkshopsModule,
     ScheduleModule,

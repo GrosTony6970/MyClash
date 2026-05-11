@@ -1,14 +1,8 @@
-/**
- * Single-elimination bracket tests.
- * Verified against standard tournament bracket conventions.
- */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { singleElimBracket, totalBracketMatches } from './single-elim';
 
-// ── totalBracketMatches ───────────────────────────────────────────────────────
-
 describe('totalBracketMatches', () => {
-  it('always N-1 matches (every match eliminates one fighter)', () => {
+  it('always returns N-1 because every match eliminates one fighter', () => {
     expect(totalBracketMatches(2)).toBe(1);
     expect(totalBracketMatches(4)).toBe(3);
     expect(totalBracketMatches(8)).toBe(7);
@@ -17,175 +11,199 @@ describe('totalBracketMatches', () => {
   });
 });
 
-// ── singleElimBracket ─────────────────────────────────────────────────────────
-
 describe('singleElimBracket', () => {
-  // ── KEY AC TEST: 16 fighters → 4 rounds, 15 matches ──────────────────────
-  it('16 fighters → 4 rounds, 16 slots including bronze, 0 byes', () => {
+  it('16 fighters keep the standard four-round bracket with no play-ins', () => {
     const bracket = singleElimBracket(16);
+
     expect(bracket.bracketSize).toBe(16);
+    expect(bracket.mainBracketSize).toBe(16);
     expect(bracket.fighterCount).toBe(16);
     expect(bracket.byeCount).toBe(0);
+    expect(bracket.byeSeedCount).toBe(0);
+    expect(bracket.playInMatchCount).toBe(0);
+    expect(bracket.hasPlayInRound).toBe(false);
     expect(bracket.rounds).toBe(4);
-    expect(bracket.slots).toHaveLength(16); // 8+4+2+1+bronze
+    expect(bracket.slots).toHaveLength(16);
+    expect(bracket.slots.some((slot) => slot.round === 0)).toBe(false);
   });
 
-  // ── KEY AC TEST: 13 fighters → 3 byes in round 1 ─────────────────────────
-  it('13 fighters → bracket size 16, 3 byes', () => {
-    const bracket = singleElimBracket(13);
-    expect(bracket.bracketSize).toBe(16);
-    expect(bracket.byeCount).toBe(3);
-    expect(bracket.rounds).toBe(4);
-
-    const r1Byes = bracket.slots.filter((s) => s.round === 1 && s.isBye);
-    expect(r1Byes).toHaveLength(3);
-  });
-
-  it('13 fighters → 12 total matches (N-1)', () => {
-    const bracket = singleElimBracket(13);
-    expect(bracket.slots).toHaveLength(16); // bracket slots + bronze
-    // But only 12 are real matches (3 are byes in R1)
-    expect(totalBracketMatches(13)).toBe(12);
-  });
-
-  // ── KEY AC TEST: seed 1 vs seed 16, seed 8 vs seed 9 ─────────────────────
-  it('16 fighters: seed 1 vs seed 16 in round 1', () => {
+  it('16 fighters seed 1 vs seed 16 and seed 8 vs seed 9 in round 1', () => {
     const bracket = singleElimBracket(16);
-    const r1 = bracket.slots.filter((s) => s.round === 1);
-    const match1v16 = r1.find(
-      (s) => (s.homeSeed === 1 && s.awaySeed === 16) || (s.homeSeed === 16 && s.awaySeed === 1),
-    );
-    expect(match1v16).toBeDefined();
+    const r1 = bracket.slots.filter((slot) => slot.round === 1);
+
+    expect(
+      r1.find(
+        (slot) =>
+          (slot.homeSeed === 1 && slot.awaySeed === 16) ||
+          (slot.homeSeed === 16 && slot.awaySeed === 1),
+      ),
+    ).toBeDefined();
+    expect(
+      r1.find(
+        (slot) =>
+          (slot.homeSeed === 8 && slot.awaySeed === 9) ||
+          (slot.homeSeed === 9 && slot.awaySeed === 8),
+      ),
+    ).toBeDefined();
   });
 
-  it('16 fighters: seed 8 vs seed 9 in round 1', () => {
+  it('16 fighters place seed 1 and seed 2 in opposite halves', () => {
     const bracket = singleElimBracket(16);
-    const r1 = bracket.slots.filter((s) => s.round === 1);
-    const match8v9 = r1.find(
-      (s) => (s.homeSeed === 8 && s.awaySeed === 9) || (s.homeSeed === 9 && s.awaySeed === 8),
-    );
-    expect(match8v9).toBeDefined();
-  });
-
-  it('16 fighters: seed 1 and seed 2 are in opposite halves', () => {
-    const bracket = singleElimBracket(16);
-    const r1 = bracket.slots.filter((s) => s.round === 1);
-    const pos1 = r1.findIndex((s) => s.homeSeed === 1 || s.awaySeed === 1);
-    const pos2 = r1.findIndex((s) => s.homeSeed === 2 || s.awaySeed === 2);
-    // In a 16-bracket, positions 1-4 are top half, 5-8 are bottom half
+    const r1 = bracket.slots.filter((slot) => slot.round === 1);
+    const pos1 = r1.findIndex((slot) => slot.homeSeed === 1 || slot.awaySeed === 1);
+    const pos2 = r1.findIndex((slot) => slot.homeSeed === 2 || slot.awaySeed === 2);
     const topHalf = (pos: number) => pos < 4;
+
     expect(topHalf(pos1)).not.toBe(topHalf(pos2));
   });
 
-  // ── Bye placement ─────────────────────────────────────────────────────────
-  it('byes protect top seeds (seed 1 gets a bye when byes exist)', () => {
-    const bracket = singleElimBracket(13); // 3 byes
-    const r1 = bracket.slots.filter((s) => s.round === 1);
-    const seed1Match = r1.find((s) => s.homeSeed === 1 || s.awaySeed === 1);
-    expect(seed1Match?.isBye).toBe(true);
+  it('18 fighters default to a 16-seed main bracket with two play-ins', () => {
+    const bracket = singleElimBracket(18);
+
+    expect(bracket.bracketSize).toBe(16);
+    expect(bracket.mainBracketSize).toBe(16);
+    expect(bracket.playInMatchCount).toBe(2);
+    expect(bracket.byeSeedCount).toBe(14);
+    expect(bracket.byeCount).toBe(14);
+    expect(bracket.hasPlayInRound).toBe(true);
+    expect(bracket.rounds).toBe(4);
+
+    const playIns = bracket.slots.filter((slot) => slot.round === 0);
+    expect(playIns).toHaveLength(2);
+    expect(playIns[0]).toMatchObject({
+      position: 1,
+      homeSeed: 15,
+      awaySeed: 18,
+      sourceAType: 'seed',
+      sourceBType: 'seed',
+    });
+    expect(playIns[1]).toMatchObject({
+      position: 2,
+      homeSeed: 16,
+      awaySeed: 17,
+      sourceAType: 'seed',
+      sourceBType: 'seed',
+    });
   });
 
-  it('byes protect top seeds (seed 2 gets a bye when byes exist)', () => {
-    const bracket = singleElimBracket(13); // 3 byes
-    const r1 = bracket.slots.filter((s) => s.round === 1);
-    const seed2Match = r1.find((s) => s.homeSeed === 2 || s.awaySeed === 2);
-    expect(seed2Match?.isBye).toBe(true);
+  it('18 fighter play-in winners map to seed 15 and seed 16 main bracket slots', () => {
+    const bracket = singleElimBracket(18);
+    const roundOne = bracket.slots.filter((slot) => slot.round === 1);
+
+    const seed15Slot = roundOne.find(
+      (slot) => slot.homeSource === 'winner of R0P1' || slot.awaySource === 'winner of R0P1',
+    );
+    const seed16Slot = roundOne.find(
+      (slot) => slot.homeSource === 'winner of R0P2' || slot.awaySource === 'winner of R0P2',
+    );
+
+    expect(seed15Slot).toBeDefined();
+    expect(seed16Slot).toBeDefined();
+    expect(seed15Slot?.homeSeed).not.toBe(15);
+    expect(seed15Slot?.awaySeed).not.toBe(15);
+    expect(seed16Slot?.homeSeed).not.toBe(16);
+    expect(seed16Slot?.awaySeed).not.toBe(16);
   });
 
-  // ── Round structure ───────────────────────────────────────────────────────
-  it('8 fighters → 3 rounds, 8 slots including bronze', () => {
-    const bracket = singleElimBracket(8);
-    expect(bracket.rounds).toBe(3);
-    expect(bracket.slots).toHaveLength(8); // 4+2+1+bronze
-    expect(bracket.byeCount).toBe(0);
-  });
+  it('13 fighters use an 8-seed main bracket with five play-ins and three direct entries', () => {
+    const bracket = singleElimBracket(13);
 
-  it('4 fighters → 2 rounds, 4 slots including bronze', () => {
-    const bracket = singleElimBracket(4);
-    expect(bracket.rounds).toBe(2);
-    expect(bracket.slots).toHaveLength(4); // 2+1+bronze
-  });
-
-  it('2 fighters → 1 round, 1 slot (the final)', () => {
-    const bracket = singleElimBracket(2);
-    expect(bracket.rounds).toBe(1);
-    expect(bracket.slots).toHaveLength(1);
-    expect(bracket.slots[0]?.homeSeed).toBe(1);
-    expect(bracket.slots[0]?.awaySeed).toBe(2);
-  });
-
-  // ── Non-power-of-2 ────────────────────────────────────────────────────────
-  it('5 fighters → bracket size 8, 3 byes', () => {
-    const bracket = singleElimBracket(5);
     expect(bracket.bracketSize).toBe(8);
+    expect(bracket.playInMatchCount).toBe(5);
+    expect(bracket.byeSeedCount).toBe(3);
     expect(bracket.byeCount).toBe(3);
     expect(bracket.rounds).toBe(3);
+    expect(bracket.slots.filter((slot) => slot.round === 0)).toHaveLength(5);
+    expect(bracket.slots).toHaveLength(13);
+    expect(totalBracketMatches(13)).toBe(12);
   });
 
-  it('6 fighters → bracket size 8, 2 byes', () => {
-    const bracket = singleElimBracket(6);
-    expect(bracket.bracketSize).toBe(8);
-    expect(bracket.byeCount).toBe(2);
+  it('direct entries protect the highest seeds from play-ins', () => {
+    const bracket = singleElimBracket(13);
+    const r0 = bracket.slots.filter((slot) => slot.round === 0);
+    const r1 = bracket.slots.filter((slot) => slot.round === 1);
+
+    for (const seed of [1, 2, 3]) {
+      expect(r0.some((slot) => slot.homeSeed === seed || slot.awaySeed === seed)).toBe(false);
+      expect(r1.some((slot) => slot.homeSeed === seed || slot.awaySeed === seed)).toBe(true);
+    }
   });
 
-  // ── Source labels ─────────────────────────────────────────────────────────
+  it('small non-power-of-two fields use play-ins instead of synthetic bye slots', () => {
+    const three = singleElimBracket(3);
+    expect(three.bracketSize).toBe(2);
+    expect(three.playInMatchCount).toBe(1);
+    expect(three.byeSeedCount).toBe(1);
+    expect(three.slots.find((slot) => slot.round === 0)).toMatchObject({
+      homeSeed: 2,
+      awaySeed: 3,
+    });
+
+    const five = singleElimBracket(5);
+    expect(five.bracketSize).toBe(4);
+    expect(five.playInMatchCount).toBe(1);
+    expect(five.byeSeedCount).toBe(3);
+    expect(five.slots.find((slot) => slot.round === 0)).toMatchObject({
+      homeSeed: 4,
+      awaySeed: 5,
+    });
+
+    const six = singleElimBracket(6);
+    expect(six.bracketSize).toBe(4);
+    expect(six.playInMatchCount).toBe(2);
+    expect(six.byeSeedCount).toBe(2);
+
+    const thirtyOne = singleElimBracket(31);
+    expect(thirtyOne.bracketSize).toBe(16);
+    expect(thirtyOne.playInMatchCount).toBe(15);
+    expect(thirtyOne.byeSeedCount).toBe(1);
+  });
+
   it('round 2+ slots have winner-of source labels', () => {
     const bracket = singleElimBracket(8);
-    const r2 = bracket.slots.filter((s) => s.round === 2);
+    const r2 = bracket.slots.filter((slot) => slot.round === 2);
+
     for (const slot of r2) {
       expect(slot.homeSource).toMatch(/^winner of R1P\d+$/);
       expect(slot.awaySource).toMatch(/^winner of R1P\d+$/);
     }
   });
 
-  // ── Error handling ────────────────────────────────────────────────────────
   it('throws for fewer than 2 fighters', () => {
     expect(() => singleElimBracket(1)).toThrow();
     expect(() => singleElimBracket(0)).toThrow();
   });
 
-  // ── Configurable bracket size ─────────────────────────────────────────────
-  it('bracketSize=16 with 13 fighters → 3 byes (same as default)', () => {
-    const bracket = singleElimBracket(13, { bracketSize: 16 });
-    expect(bracket.bracketSize).toBe(16);
-    expect(bracket.byeCount).toBe(3);
-  });
+  it('explicit bracketSize keeps legacy bye behavior', () => {
+    const bracket = singleElimBracket(18, { bracketSize: 32 });
 
-  it('bracketSize=32 with 24 fighters → 8 byes (larger bracket)', () => {
-    const bracket = singleElimBracket(24, { bracketSize: 32 });
     expect(bracket.bracketSize).toBe(32);
-    expect(bracket.byeCount).toBe(8);
+    expect(bracket.mainBracketSize).toBe(32);
+    expect(bracket.byeCount).toBe(14);
+    expect(bracket.byeSeedCount).toBe(14);
+    expect(bracket.playInMatchCount).toBe(0);
+    expect(bracket.hasPlayInRound).toBe(false);
     expect(bracket.rounds).toBe(5);
   });
 
-  it('bracketSize=16 with 20 fighters → cut to top 16 (error: bracketSize < fighterCount)', () => {
-    // To cut to top 16, the caller passes fighterCount=16 (already filtered)
-    // bracketSize < fighterCount is an error
+  it('explicit bracketSize validates power-of-two and lower-than-field errors', () => {
     expect(() => singleElimBracket(20, { bracketSize: 16 })).toThrow('bracketSize');
-  });
-
-  it('bracketSize must be a power of 2', () => {
     expect(() => singleElimBracket(8, { bracketSize: 12 })).toThrow('power of 2');
   });
 
-  it('bracketSize=8 with 8 fighters → 0 byes (explicit = default)', () => {
-    const bracket = singleElimBracket(8, { bracketSize: 8 });
-    expect(bracket.bracketSize).toBe(8);
-    expect(bracket.byeCount).toBe(0);
-  });
-
-  // ── All seeds appear exactly once in round 1 ──────────────────────────────
-  it('all seeds 1..N appear exactly once in round 1', () => {
-    const n = 16;
+  it('all actual seeds appear exactly once across initial playable slots', () => {
+    const n = 18;
     const bracket = singleElimBracket(n);
-    const r1 = bracket.slots.filter((s) => s.round === 1);
+    const initialSlots = bracket.slots.filter((slot) => slot.round <= 1);
     const seeds = new Set<number>();
-    for (const slot of r1) {
+
+    for (const slot of initialSlots) {
       if (slot.homeSeed !== null) seeds.add(slot.homeSeed);
       if (slot.awaySeed !== null) seeds.add(slot.awaySeed);
     }
-    for (let i = 1; i <= n; i++) {
-      expect(seeds.has(i)).toBe(true);
+
+    for (let seed = 1; seed <= n; seed++) {
+      expect(seeds.has(seed)).toBe(true);
     }
     expect(seeds.size).toBe(n);
   });

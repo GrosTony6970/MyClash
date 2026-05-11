@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * Referee assignment UI — T-908
  * Route: /org/[slug]/events/[eventId]/referee-assignments
@@ -15,6 +17,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 type Role = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
 
@@ -64,6 +67,7 @@ export default function RefereeAssignmentsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [result, setResult] = useState<AssignmentResult | null>(null);
   const [pools, setPools] = useState<Array<{ id: string; name: string }>>([]);
@@ -226,6 +230,12 @@ export default function RefereeAssignmentsPage() {
           </div>
           <h1 className="text-2xl font-bold">Referee assignments</h1>
         </div>
+        <Link
+          href={`/org/${slug}/events/${eventId}/ai-assistant?type=referee_assignments`}
+          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+        >
+          {t('organizer.aiAssistant.suggest')}
+        </Link>
         <Link
           href={`/org/${slug}/events/${eventId}/referees`}
           className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"

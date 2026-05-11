@@ -39,7 +39,6 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [, setTournaments] = useState<Tournament[]>([]);
 
-  const [orgId, setOrgId] = useState<string | null>(null);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
   const [spendCap, setSpendCap] = useState<string>('');
@@ -68,7 +67,7 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    (async () => {
+    void (async () => {
       try {
         // 1. Fetch org ID from slug
         const orgRes = await fetch(`${apiUrl}/api/v1/organizations/slug/${slug}`, {
@@ -77,7 +76,6 @@ export default function EventDetailPage() {
         });
         if (!orgRes.ok) return;
         const orgData = (await orgRes.json()) as { id: string };
-        setOrgId(orgData.id);
 
         // 2. Fetch AI settings
         const aiRes = await fetch(`${apiUrl}/api/v1/organizations/${orgData.id}/ai-settings`, {
@@ -160,6 +158,7 @@ export default function EventDetailPage() {
     { label: t('organizer.eventHub.sections.workshops'), href: 'workshops', icon: 'W' },
     { label: t('organizer.eventHub.sections.staff'), href: 'staff', icon: 'S' },
     { label: t('organizer.eventHub.sections.notifications'), href: 'notifications', icon: 'N' },
+    { label: t('organizer.eventHub.sections.aiAssistant'), href: 'ai-assistant', icon: 'AI' },
     { label: t('organizer.eventHub.sections.theme'), href: 'theme', icon: 'T' },
     { label: t('admin.dashboard.leaguesTitle'), href: 'leagues', icon: 'L' },
     { label: t('organizer.archive.navLabel'), href: 'archive', icon: 'A' },

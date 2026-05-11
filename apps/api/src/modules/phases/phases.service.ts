@@ -336,8 +336,12 @@ export class PhasesService {
       const bracket = doubleElimBracket(qualifyCount, bracketOptions);
       configJson = {
         bracketSize: bracket.bracketSize,
+        mainBracketSize: bracket.bracketSize,
         fighterCount: bracket.fighterCount,
         byeCount: bracket.byeCount,
+        byeSeedCount: bracket.byeCount,
+        playInMatchCount: 0,
+        hasPlayInRound: false,
         wbRounds: bracket.wbRounds,
         lbRounds: bracket.lbRounds,
         autoAdvance: true,
@@ -365,8 +369,12 @@ export class PhasesService {
       const bracket = singleElimBracket(qualifyCount, bracketOptions);
       configJson = {
         bracketSize: bracket.bracketSize,
+        mainBracketSize: bracket.mainBracketSize,
         fighterCount: bracket.fighterCount,
         byeCount: bracket.byeCount,
+        byeSeedCount: bracket.byeSeedCount,
+        playInMatchCount: bracket.playInMatchCount,
+        hasPlayInRound: bracket.hasPlayInRound,
         rounds: bracket.rounds,
         autoAdvance: true,
       };
@@ -411,7 +419,16 @@ export class PhasesService {
 
     // Insert bracket slots with real phase ID
     const finalInserts = slotInserts.map((s) => ({ ...s, phase_id: phaseId }));
-    await this.supabase.service.from('bracket_slots').insert(finalInserts);
+    const { data: insertedSlots, error: slotInsertError } = await this.supabase.service
+      .from('bracket_slots')
+      .insert(finalInserts)
+      .select('id, phase_id, source_b_type, registration_a_id, registration_b_id');
+
+    if (slotInsertError) {
+      throw new BadRequestException(slotInsertError.message);
+    }
+
+    await this.createInitialBracketMatches(insertedSlots ?? []);
 
     // Advance bye slots immediately
     if (this.bracketAdvance) {
@@ -428,9 +445,40 @@ export class PhasesService {
       bracketSize: (configJson['bracketSize'] as number) ?? qualifyCount,
       fighterCount: qualifyCount,
       byeCount: (configJson['byeCount'] as number) ?? 0,
+      byeSeedCount: (configJson['byeSeedCount'] as number) ?? 0,
+      playInMatchCount: (configJson['playInMatchCount'] as number) ?? 0,
+      hasPlayInRound: (configJson['hasPlayInRound'] as boolean) ?? false,
       rounds: summaryRounds,
       totalSlots,
     };
+  }
+
+  private async createInitialBracketMatches(insertedSlots: unknown[]): Promise<void> {
+    const readySlots = (insertedSlots as Array<Record<string, unknown>>).filter(
+      (slot) =>
+        slot['source_b_type'] !== 'bye' &&
+        typeof slot['id'] === 'string' &&
+        typeof slot['phase_id'] === 'string' &&
+        typeof slot['registration_a_id'] === 'string' &&
+        typeof slot['registration_b_id'] === 'string',
+    );
+
+    if (readySlots.length === 0) return;
+
+    const matchInserts = readySlots.map((slot) => ({
+      phase_id: slot['phase_id'],
+      bracket_slot_id: slot['id'],
+      red_registration_id: slot['registration_a_id'],
+      blue_registration_id: slot['registration_b_id'],
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      status: 'scheduled',
+      red_score: 0,
+      blue_score: 0,
+    }));
+
+    const { error } = await this.supabase.service.from('matches').insert(matchInserts);
+    if (error) throw new BadRequestException(error.message);
   }
 
   async updateVisibility(phaseId: string, actorUserId: string, dto: UpdatePhaseVisibilityDto) {
@@ -560,8 +608,12 @@ export class PhasesService {
     if (error) throw new BadRequestException(error.message);
     const config = ((phase as { config_json?: Record<string, unknown> }).config_json ?? {}) as {
       bracketSize?: number;
+      mainBracketSize?: number;
       fighterCount?: number;
       byeCount?: number;
+      byeSeedCount?: number;
+      playInMatchCount?: number;
+      hasPlayInRound?: boolean;
       rounds?: number;
       wbRounds?: number;
       lbRounds?: number;
@@ -572,8 +624,12 @@ export class PhasesService {
       phaseType,
       visibility: (phase as { visibility_status?: string }).visibility_status ?? 'hidden',
       bracketSize: config.bracketSize ?? 0,
+      mainBracketSize: config.mainBracketSize ?? config.bracketSize ?? 0,
       fighterCount: config.fighterCount ?? 0,
       byeCount: config.byeCount ?? 0,
+      byeSeedCount: config.byeSeedCount ?? 0,
+      playInMatchCount: config.playInMatchCount ?? 0,
+      hasPlayInRound: config.hasPlayInRound ?? false,
       rounds: config.rounds ?? 0,
       wbRounds: config.wbRounds ?? null,
       lbRounds: config.lbRounds ?? null,

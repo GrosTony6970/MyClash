@@ -265,15 +265,16 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Build progress (Phase P3 — completed 30-04-2026)
 
-| Task                                                      | Commit    | Status  |
-| --------------------------------------------------------- | --------- | ------- |
-| T-301 · Pool generation (snake seeding + local search)    | `8a51abd` | ✅ done |
-| T-301 · Pool size configuration (poolCount or targetSize) | `8a51abd` | ✅ done |
-| T-302 · Berger table round-robin match generation         | `e250723` | ✅ done |
-| T-303 · Single-elimination bracket                        | `d6eb633` | ✅ done |
-| T-303 · Configurable bracket size                         | `d6eb633` | ✅ done |
-| T-304 · Match-to-Lice scheduler                           | `87506b5` | ✅ done |
-| T-305 · Phases API                                        | `709b429` | ✅ done |
+| Task                                                      | Commit    | Status              |
+| --------------------------------------------------------- | --------- | ------------------- |
+| T-301 · Pool generation (snake seeding + local search)    | `8a51abd` | ✅ done             |
+| T-301 · Pool size configuration (poolCount or targetSize) | `8a51abd` | ✅ done             |
+| T-302 · Berger table round-robin match generation         | `e250723` | ✅ done             |
+| T-303 · Single-elimination bracket                        | `d6eb633` | ✅ done             |
+| T-303 · Configurable bracket size                         | `d6eb633` | ✅ done             |
+| T-303b · Arbitrary-size single-elim play-ins              | pending   | implemented locally |
+| T-304 · Match-to-Lice scheduler                           | `87506b5` | ✅ done             |
+| T-305 · Phases API                                        | `709b429` | ✅ done             |
 
 ## Build progress (Phase P4 — completed 01-05-2026)
 
@@ -465,7 +466,7 @@ Required for the API to start:
 
 - **Pool generation** (`packages/rulesets/src/scheduling/`): snake seeding + local search. Accepts `poolCount` (explicit) or `targetSize` (e.g. 8 fighters/pool → auto-compute count). Default `targetSize=8`. Actual sizes balanced within ±1.
 - **Berger tables** (`berger.ts`): circle method round-robin. `bergerSchedule(n, options)` → `BergerMatch[]`. Labels: `L{lice}-P{pool}-M{seq}`. Odd N handled with bye.
-- **Single-elim bracket** (`single-elim.ts`): `singleElimBracket(n, options?)`. Default bracket size = next power of 2. Override with `options.bracketSize` (must be power of 2 and ≥ n). Standard seeding: 1 vs size, 2 vs size-1, etc. Byes protect top seeds.
+- **Single-elim bracket** (`single-elim.ts`): `singleElimBracket(n, options?)`. Default non-power-of-two fields use round-0 play-ins into the largest lower power-of-two main bracket (18 -> 16 main, 15v18 and 16v17 play-ins, seeds 1..14 direct). Exact powers stay standard. Explicit `options.bracketSize` keeps legacy power-of-two bye-slot behavior. Standard seeding: 1 vs size, 2 vs size-1, etc.
 - **Match-to-Lice scheduler** (`apps/api/src/modules/schedule/match-scheduler.ts`): pure function, no DB. Greedy earliest-slot algorithm. Respects `minRestMinutes` (default 10) per fighter. Balances load across Lices (imbalancePercent ≤ 5%). Returns `scheduledAt` + `estimatedEndAt` per match. Configurable: `minRestMinutes`, `defaultMatchDurationMinutes`, `startTime`, `transitionMinutes`.
 - All scheduling functions are **pure** (no DB, no I/O) and **deterministic** (seeded PRNG for local search).
 - Subpath export: `@myclash/rulesets/dist/scheduling/index` (API uses `moduleResolution: node` so must use dist path, not subpath export).
@@ -531,6 +532,7 @@ Required for the API to start:
 - **T-1304 Frozen results state** (`apps/api/src/modules/matches/frozen-results.guard.ts`, `apps/api/src/modules/admin/exchange-edit-requests.*`, `apps/web-admin/app/admin/exchange-edit-requests/`, `packages/db/migrations/0014_exchange_edit_requests.sql`): event results freeze when `events.status = 'completed'`. Organizer void/revert exchange actions become `exchange_edit_requests` pending super-admin review; new exchange creation after freeze returns conflict. Super-admin approval applies stored void/revert and recomputes scores; rejection stores reason, audits, and sends `exchange_edit_rejected` notification.
 
 - **T-1305 Super-admin AI data quality assistant** (`apps/api/src/modules/admin/platform-ai-settings.*`, `apps/api/src/modules/admin/ai-data-quality.*`, `apps/web-admin/app/admin/{ai-settings,data-quality}/`, `packages/db/migrations/0030_super_admin_ai_data_quality.sql`): super-admin AI tools use a shared platform BYOK key in `platform_ai_settings`, separate from organizer `organization_ai_settings`. Manual scans create deterministic duplicate/global identity candidates first, send minimized evidence to the configured provider for strict-JSON ranking, persist review-only findings with stable fingerprints, and log usage in `platform_ai_usage_log` with `feature = 'super_admin_data_quality'`.
+- **T-1213 Organizer AI tournament setup assistant** (`apps/api/src/modules/organizer-ai-assistant/`, `apps/web-admin/app/org/[slug]/events/[eventId]/ai-assistant/`, `packages/db/migrations/0031_organizer_ai_assistant.sql`): organizer AI tools use organization BYOK plus event spend caps, never the super-admin platform key. V1 is draft-and-review only: strict-JSON AI drafts persist proposed actions for tournament config, pools, brackets, match-grid schedule, and referee assignments, then organizers apply them through existing deterministic services.
 
 - **T-1401 Extract all strings** (`packages/i18n/`, `eslint-rules/no-literal-string.mjs`, all frontend app layouts): shared i18n runtime exports `Locale`, `defaultLocale`, English/French fallback message trees, `getMessages`, `createTranslator`, and default `t`. Frontend roots now set `html lang` from i18n, wrap children in app-local `I18nProvider`, and use message keys for static metadata. Hardcoded JSX/string-prop lint is enforced in all three frontend apps through a local ESLint rule with a committed baseline for pre-existing literals; new unbaselined JSX text or watched props fail lint.
 

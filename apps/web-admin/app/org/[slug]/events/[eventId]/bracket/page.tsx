@@ -25,6 +25,8 @@ interface BracketResult {
   bracketSize: number;
   fighterCount: number;
   byeCount: number;
+  playInMatchCount?: number;
+  hasPlayInRound?: boolean;
   rounds: number;
   wbRounds?: number | null;
   lbRounds?: number | null;
@@ -263,6 +265,12 @@ export default function BracketPage() {
           </div>
           <h1 className="text-2xl font-bold">Bracket management</h1>
         </div>
+        <Link
+          href={`/org/${slug}/events/${eventId}/ai-assistant?type=bracket_plan${selectedTournament ? `&tournamentId=${selectedTournament}` : ''}`}
+          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+        >
+          {t('organizer.aiAssistant.suggest')}
+        </Link>
         <Link
           href={`/org/${slug}/events/${eventId}/pools`}
           className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
@@ -507,6 +515,16 @@ export default function BracketPage() {
             <span>{bracket.rounds} rounds</span>
             <span>·</span>
             <span>{bracket.byeCount} byes</span>
+            {bracket.hasPlayInRound && (
+              <>
+                <span>Â·</span>
+                <span>
+                  {t('organizer.phaseVisibility.bracketSummaryPlayIns', {
+                    count: bracket.playInMatchCount ?? 0,
+                  })}
+                </span>
+              </>
+            )}
             <span>·</span>
             <span>{bracket.totalSlots} match slots</span>
             {bracket.phaseType === 'double_elim' && (
@@ -525,6 +543,7 @@ export default function BracketPage() {
                 if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
               }}
               onOverrideSlot={(slotId) => setOverrideModal({ slotId, regAId: '', regBId: '' })}
+              playInLabel={t('organizer.phaseVisibility.playIns')}
             />
           </div>
         </div>

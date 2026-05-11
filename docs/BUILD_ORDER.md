@@ -603,6 +603,18 @@
   - 13 → 3 byes in round 1, brackets balanced.
   - Bracket positions seed correctly (1 vs 16, 8 vs 9, etc.).
 
+### T-303b · Arbitrary-size single-elim play-ins
+
+- **Dep**: T-303
+- **Goal**: Default single-elimination generation handles any qualified fighter count with play-in matches instead of expanding to the next power of two.
+- **Files**: `packages/rulesets/src/scheduling/single-elim.ts`, `apps/api/src/modules/phases/**`, bracket renderers.
+- **AC**:
+  - 18 fighters -> main bracket size 16, 2 play-in matches, and 14 high seeds entering directly.
+  - Play-ins pair lowest seeds by seed-slot mapping, e.g. 15v18 and 16v17 for 18 fighters.
+  - Play-in winners feed the corresponding low-seed positions in the main bracket via `winner of R0P#`.
+  - Exact powers of two remain unchanged.
+  - Explicit `bracketSize` preserves legacy power-of-two bye-slot behavior.
+
 ### T-304 · Match-to-Lice scheduler
 
 - **Dep**: T-302
@@ -1265,7 +1277,23 @@
 
 ---
 
-## Phase P13 — Super Admin
+## Phase P12.5 - Organizer AI
+
+### T-1213 - Organizer AI tournament setup assistant
+
+- **Dep**: T-1212, T-704, T-706, T-908
+- **Goal**: Organizer-only draft-and-review AI assistant for tournament configuration, pool planning, bracket generation, match-grid scheduling, and referee assignment.
+- **Files**: `apps/api/src/modules/organizer-ai-assistant/**`, `apps/web-admin/app/.../events/[eventId]/ai-assistant/**`, `packages/db/migrations/*_organizer_ai_assistant.sql`.
+- **AC**:
+  - Uses organization `organization_ai_settings` and event AI spend caps; never uses super-admin `platform_ai_settings`.
+  - Persists assistant drafts with proposed structured actions, validation state, status, and applied/rejected outcome.
+  - V1 is draft-and-review only; organizers must apply each step explicitly.
+  - Draft application routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
+  - Admin UI provides an event setup assistant page and inline AI entry points on relevant setup pages.
+
+---
+
+## Phase P13 - Super Admin
 
 ### T-1301 · Super admin dashboard
 

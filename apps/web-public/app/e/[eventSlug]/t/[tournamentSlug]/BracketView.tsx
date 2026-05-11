@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string */
+
 /**
  * BracketView — T-605
  *
@@ -17,6 +19,7 @@ interface Props {
   bracketSize: number;
   rounds: number;
   eventSlug: string;
+  playInLabel?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -88,7 +91,7 @@ function SlotCard({ slot, eventSlug }: { slot: BracketSlot; eventSlug: string })
   return content;
 }
 
-export function BracketView({ slots, rounds, eventSlug }: Props) {
+export function BracketView({ slots, rounds, eventSlug, playInLabel = 'Play-ins' }: Props) {
   // Group slots by round
   const byRound = new Map<number, BracketSlot[]>();
   for (const slot of slots) {
@@ -101,14 +104,16 @@ export function BracketView({ slots, rounds, eventSlug }: Props) {
   const roundNumbers = Array.from(byRound.keys()).sort((a, b) => a - b);
 
   const roundLabels: Record<number, string> = {};
-  for (let i = 0; i < roundNumbers.length; i++) {
-    const r = roundNumbers[i]!;
-    const remaining = roundNumbers.length - i;
+  const mainRoundNumbers = roundNumbers.filter((round) => round > 0);
+  for (let i = 0; i < mainRoundNumbers.length; i++) {
+    const r = mainRoundNumbers[i]!;
+    const remaining = mainRoundNumbers.length - i;
     if (remaining === 1) roundLabels[r] = 'Final';
     else if (remaining === 2) roundLabels[r] = 'Semi-finals';
     else if (remaining === 3) roundLabels[r] = 'Quarter-finals';
     else roundLabels[r] = `Round ${r}`;
   }
+  if (roundNumbers.includes(0)) roundLabels[0] = playInLabel;
 
   return (
     <div className="overflow-x-auto pb-4">

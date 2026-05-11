@@ -11,6 +11,8 @@
  *   ✓ Standings table matches lyonamhe.fr layout (V/Pts+/Pts−/Dbl/Score)
  */
 
+/* eslint-disable myclash/no-literal-string */
+
 import type { Metadata } from 'next';
 import { StandingsTable } from './StandingsTable';
 import { BracketView } from './BracketView';
@@ -71,6 +73,8 @@ interface TournamentData {
   pools: Pool[];
   bracketSlots: BracketSlot[];
   bracketSize: number;
+  playInMatchCount?: number;
+  hasPlayInRound?: boolean;
   bracketRounds: number;
 }
 

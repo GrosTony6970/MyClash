@@ -571,3 +571,15 @@ Implement AI Data Quality Assistant for Super Admin: separate shared super-admin
 ## 11:49:30_11-05-2026
 
 Check the remaining pnpm lint/package lint blockers and pnpm test blockers that were reported as pre-existing/unrelated.
+
+## 14:07:38_11-05-2026
+
+New feature: implement AI to assist tournament organisers in creating tournaments, pools, brackets, schedules, and assigning fighters/referees. Register the feature in the correct markdown files and use the brainstorming plugin.
+
+## 16:02:55_11-05-2026
+
+Implement the Organizer AI Tournament Setup Assistant plan: organizer-only draft-and-review AI assistant using organization BYOK/event spend cap, persisted drafts, admin UI, docs registration, and tests.
+
+## 16:42:58_11-05-2026
+
+Implement arbitrary-size single-elimination brackets with default play-in rounds for non-power-of-two qualified counts, keeping explicit bracketSize legacy behavior; register in docs and memory.

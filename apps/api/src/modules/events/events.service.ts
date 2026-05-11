@@ -241,6 +241,11 @@ export class EventsService {
         matchId: null,
       })),
       bracketSize: Number(config['bracketSize'] ?? 0),
+      mainBracketSize: Number(config['mainBracketSize'] ?? config['bracketSize'] ?? 0),
+      byeCount: Number(config['byeCount'] ?? 0),
+      byeSeedCount: Number(config['byeSeedCount'] ?? 0),
+      playInMatchCount: Number(config['playInMatchCount'] ?? 0),
+      hasPlayInRound: Boolean(config['hasPlayInRound'] ?? false),
       bracketRounds: Number(config['rounds'] ?? 0),
     };
   }

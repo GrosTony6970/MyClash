@@ -39,12 +39,20 @@ export interface BracketSlot {
 }
 
 export interface SingleElimBracket {
-  /** Total number of fighters (including byes) */
+  /** Main bracket size. Explicit bracketSize mode includes legacy bye slots. */
   bracketSize: number;
+  /** Main bracket size, exposed explicitly for play-in brackets. */
+  mainBracketSize: number;
   /** Number of actual fighters */
   fighterCount: number;
-  /** Number of byes in round 1 */
+  /** Default mode: high seeds entering directly; explicit mode: synthetic bye slots. */
   byeCount: number;
+  /** Number of high seeds entering the main bracket directly. */
+  byeSeedCount: number;
+  /** Number of play-in matches before the main bracket. */
+  playInMatchCount: number;
+  /** True when round 0 play-in slots are present. */
+  hasPlayInRound: boolean;
   /** Number of rounds */
   rounds: number;
   /** All bracket slots, ordered by round then position */
@@ -72,11 +80,15 @@ export interface SingleElimOptions {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Next power of 2 ≥ n */
-function nextPowerOf2(n: number): number {
-  if (n <= 1) return 1;
+/** Highest power of 2 strictly below n. */
+function highestPowerOf2Below(n: number): number {
   let p = 1;
-  while (p < n) p <<= 1;
+  while (p * 2 < n) p <<= 1;
   return p;
+}
+
+function isPowerOf2(n: number): boolean {
+  return n >= 1 && (n & (n - 1)) === 0;
 }
 
 /**
@@ -135,6 +147,7 @@ export function singleElimBracket(
 
   // Resolve bracket size
   let bracketSize: number;
+  const useLegacyByeMode = options.bracketSize !== undefined;
   if (options.bracketSize !== undefined) {
     bracketSize = options.bracketSize;
     // Validate: must be a power of 2
@@ -146,13 +159,41 @@ export function singleElimBracket(
       throw new Error(`bracketSize (${bracketSize}) must be ≥ fighterCount (${fighterCount})`);
     }
   } else {
-    bracketSize = nextPowerOf2(fighterCount);
+    bracketSize = isPowerOf2(fighterCount) ? fighterCount : highestPowerOf2Below(fighterCount);
   }
 
-  const byeCount = bracketSize - fighterCount;
+  const playInMatchCount =
+    useLegacyByeMode || isPowerOf2(fighterCount) ? 0 : fighterCount - bracketSize;
+  const hasPlayInRound = playInMatchCount > 0;
+  const byeSeedCount = useLegacyByeMode
+    ? bracketSize - fighterCount
+    : hasPlayInRound
+      ? bracketSize - playInMatchCount
+      : 0;
+  const byeCount = useLegacyByeMode ? bracketSize - fighterCount : byeSeedCount;
   const rounds = Math.log2(bracketSize);
 
   const slots: BracketSlot[] = [];
+
+  // Round 0: play-ins for non-power-of-two default brackets.
+  if (hasPlayInRound) {
+    for (let pos = 1; pos <= playInMatchCount; pos++) {
+      const seedSlot = byeSeedCount + pos;
+      const opponentSeed = fighterCount - pos + 1;
+
+      slots.push({
+        round: 0,
+        position: pos,
+        homeSeed: seedSlot,
+        awaySeed: opponentSeed,
+        isBye: false,
+        homeSource: `seed ${seedSlot}`,
+        awaySource: `seed ${opponentSeed}`,
+        sourceAType: 'seed',
+        sourceBType: 'seed',
+      });
+    }
+  }
 
   // ── Round 1: seed matchups with byes ────────────────────────────────────
   const seedPairs = buildSeedingOrder(bracketSize);
@@ -160,22 +201,43 @@ export function singleElimBracket(
   for (let pos = 0; pos < seedPairs.length; pos++) {
     const [homeSeed, awaySeed] = seedPairs[pos]!;
 
-    // A seed > fighterCount means it's a bye slot
-    const homeIsBye = homeSeed > fighterCount;
-    const awayIsBye = awaySeed > fighterCount;
+    const homePlayInPos =
+      hasPlayInRound && homeSeed > byeSeedCount ? homeSeed - byeSeedCount : null;
+    const awayPlayInPos =
+      hasPlayInRound && awaySeed > byeSeedCount ? awaySeed - byeSeedCount : null;
+
+    // A seed > fighterCount means it's a legacy explicit-bracket bye slot.
+    const homeIsBye = useLegacyByeMode && homeSeed > fighterCount;
+    const awayIsBye = useLegacyByeMode && awaySeed > fighterCount;
     const isBye = homeIsBye || awayIsBye;
 
-    const sourceAType: BracketSlot['sourceAType'] = homeIsBye ? 'bye' : 'seed';
-    const sourceBType: BracketSlot['sourceBType'] = awayIsBye ? 'bye' : 'seed';
+    const sourceAType: BracketSlot['sourceAType'] = homeIsBye
+      ? 'bye'
+      : homePlayInPos
+        ? 'winner_of'
+        : 'seed';
+    const sourceBType: BracketSlot['sourceBType'] = awayIsBye
+      ? 'bye'
+      : awayPlayInPos
+        ? 'winner_of'
+        : 'seed';
 
     slots.push({
       round: 1,
       position: pos + 1,
-      homeSeed: homeIsBye ? null : homeSeed,
-      awaySeed: awayIsBye ? null : awaySeed,
+      homeSeed: homeIsBye || homePlayInPos ? null : homeSeed,
+      awaySeed: awayIsBye || awayPlayInPos ? null : awaySeed,
       isBye,
-      homeSource: homeIsBye ? 'bye' : `seed ${homeSeed}`,
-      awaySource: awayIsBye ? 'bye' : `seed ${awaySeed}`,
+      homeSource: homeIsBye
+        ? 'bye'
+        : homePlayInPos
+          ? `winner of R0P${homePlayInPos}`
+          : `seed ${homeSeed}`,
+      awaySource: awayIsBye
+        ? 'bye'
+        : awayPlayInPos
+          ? `winner of R0P${awayPlayInPos}`
+          : `seed ${awaySeed}`,
       sourceAType,
       sourceBType,
     });
@@ -216,7 +278,17 @@ export function singleElimBracket(
     });
   }
 
-  return { bracketSize, fighterCount, byeCount, rounds, slots };
+  return {
+    bracketSize,
+    mainBracketSize: bracketSize,
+    fighterCount,
+    byeCount,
+    byeSeedCount,
+    playInMatchCount,
+    hasPlayInRound,
+    rounds,
+    slots,
+  };
 }
 
 /**
