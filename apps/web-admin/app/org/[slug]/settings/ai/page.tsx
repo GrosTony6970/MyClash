@@ -197,6 +197,8 @@ export default function OrgAISettingsPage() {
             {PROVIDERS.map((p) => (
               <label
                 key={p.id}
+                htmlFor={`ai-provider-${p.id}`}
+                aria-label={`Select ${p.label} as AI provider`}
                 className={[
                   'flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors',
                   selectedProvider === p.id
@@ -205,9 +207,11 @@ export default function OrgAISettingsPage() {
                 ].join(' ')}
               >
                 <input
+                  id={`ai-provider-${p.id}`}
                   type="radio"
                   name="provider"
                   value={p.id}
+                  aria-label={p.label}
                   checked={selectedProvider === p.id}
                   onChange={() => setSelectedProvider(p.id)}
                   className="accent-red-600"
@@ -221,19 +225,18 @@ export default function OrgAISettingsPage() {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="apiKey">
-            API Key
-          </label>
+        <label className="block" htmlFor="apiKey">
+          <span className="block text-sm font-medium text-gray-700 mb-1">API Key</span>
           <input
             id="apiKey"
             type="password"
+            aria-label="API key"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={config ? '••••••••  (leave blank to keep current key)' : 'sk-ant-…'}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
           />
-        </div>
+        </label>
 
         {saveError && <p className="text-red-600 text-sm">{saveError}</p>}
 

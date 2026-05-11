@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { AnthropicAdapter } from './adapters/anthropic.adapter';
 import { MistralAdapter } from './adapters/mistral.adapter';
@@ -7,7 +8,7 @@ import { AIProvidersController } from './ai-providers.controller';
 import { AIProvidersService } from './ai-providers.service';
 
 @Module({
-  imports: [SupabaseModule],
+  imports: [SupabaseModule, OrganizationsModule],
   controllers: [AIProvidersController],
   providers: [AIProvidersService, AnthropicAdapter, OpenAIAdapter, MistralAdapter],
   exports: [AIProvidersService],

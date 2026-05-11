@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AIProvidersService } from './ai-providers.service';
 import { SaveAISettingsDto } from './dto/ai-settings.dto';
@@ -36,13 +37,16 @@ export class AIProvidersController {
   constructor(
     private readonly service: AIProvidersService,
     private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   /** GET /api/v1/organizations/:orgId/ai-settings */
   @Get(':orgId/ai-settings')
   @ApiOperation({ summary: 'Get AI provider config for org' })
   @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
-  async getSettings(@Param('orgId', ParseUUIDPipe) orgId: string) {
+  async getSettings(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
     return this.service.getProviderConfig(orgId);
   }
 
@@ -55,7 +59,8 @@ export class AIProvidersController {
     @Body() dto: SaveAISettingsDto,
     @Req() req: FastifyRequest,
   ) {
-    const _userId = await getUserId(req, this.supabase);
+    const userId = await getUserId(req, this.supabase);
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.service.saveKey(orgId, dto.provider, dto.apiKey);
     return this.service.getProviderConfig(orgId);
   }
@@ -66,7 +71,8 @@ export class AIProvidersController {
   @ApiOperation({ summary: 'Remove AI API key for org' })
   @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
   async deleteSettings(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
-    const _userId = await getUserId(req, this.supabase);
+    const userId = await getUserId(req, this.supabase);
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
     await this.service.deleteKey(orgId);
   }
 }

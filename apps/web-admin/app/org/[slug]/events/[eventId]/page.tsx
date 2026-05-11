@@ -216,12 +216,14 @@ export default function EventDetailPage() {
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               {/* Spend cap input */}
               <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                <label className="flex-1" htmlFor="aiSpendCap">
+                  <span className="block text-xs font-medium text-gray-500 mb-1">
                     Spend cap (€)
-                  </label>
+                  </span>
                   <input
+                    id="aiSpendCap"
                     type="number"
+                    aria-label="AI spend cap in euros"
                     min="0"
                     step="0.01"
                     value={spendCap}
@@ -229,7 +231,7 @@ export default function EventDetailPage() {
                     placeholder="No cap"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   />
-                </div>
+                </label>
                 <button
                   onClick={() => void handleSaveCap()}
                   disabled={savingCap}
