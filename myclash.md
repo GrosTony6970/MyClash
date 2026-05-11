@@ -130,22 +130,30 @@ It is designed around three convictions:
 5. A room change happens — organizer sends a Warning broadcast to fighters and referees, with email fallback for unclaimed roster entries.
 6. End of day: publishes final results. Statistics page goes live, mirroring the lyonamhe.fr layout.
 
+### Super admin operations
+
+1. Configures a shared super-admin BYOK key for platform-only AI tools, separate from organizer/event AI keys.
+2. Launches a data-quality scan from `/admin/data-quality`.
+3. Reviews duplicate global Person, referee-link, and club/school findings with deterministic evidence plus AI-ranked explanation.
+4. Opens the relevant merge or club review page and resolves or dismisses each finding manually. V1 never auto-merges or auto-edits records.
+
 ---
 
 ## Key components
 
-| Component                  | What it does                                                                                                                  |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Public PWA**             | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators.                                 |
-| **Scoring PWA**            | Tablet-first offline-first per-exchange entry.                                                                                |
-| **Admin SPA**              | Desktop-first organizer toolset and super admin.                                                                              |
-| **Ruleset engine**         | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback. |
-| **Pool populator**         | Constraint-driven pool generation (school separation, skill balance).                                                         |
-| **Referee assigner**       | Constraint-driven 3-role assignment with feasibility report.                                                                  |
-| **Statistics engine**      | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout.                                             |
-| **Realtime layer**         | Supabase Realtime broadcasts row changes to subscribed clients.                                                               |
-| **Offline outbox**         | IndexedDB queue on the scoring app, with idempotent server reconciliation.                                                    |
-| **Notification scheduler** | BullMQ-driven web push for matches, workshops, schedule changes.                                                              |
+| Component                     | What it does                                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Public PWA**                | Per-event themed mobile experience for competitors, referees, workshop attendees, spectators.                                 |
+| **Scoring PWA**               | Tablet-first offline-first per-exchange entry.                                                                                |
+| **Admin SPA**                 | Desktop-first organizer toolset and super admin.                                                                              |
+| **Ruleset engine**            | Pluggable scoring rulesets (TF_v1 canonical). Pure functions, server-authoritative + client-side mirror for instant feedback. |
+| **Pool populator**            | Constraint-driven pool generation (school separation, skill balance).                                                         |
+| **Referee assigner**          | Constraint-driven 3-role assignment with feasibility report.                                                                  |
+| **Statistics engine**         | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout.                                             |
+| **Realtime layer**            | Supabase Realtime broadcasts row changes to subscribed clients.                                                               |
+| **Offline outbox**            | IndexedDB queue on the scoring app, with idempotent server reconciliation.                                                    |
+| **Notification scheduler**    | BullMQ-driven web push for matches, workshops, schedule changes.                                                              |
+| **AI data-quality assistant** | Super-admin review queue for duplicate people, referees, clubs, and identity gaps using separate platform BYOK.               |
 
 ---
 

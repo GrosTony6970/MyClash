@@ -1307,6 +1307,17 @@
   - Super admin approves/rejects.
   - Rejection notifies the requester with reason.
 
+### T-1305 · Super-admin AI data quality assistant
+
+- **Dep**: T-1212, T-1301, T-1302
+- **Goal**: Super-admin-only AI-assisted review queue for duplicate global Persons, referees, clubs/schools, and identity-link gaps.
+- **Files**: `apps/api/src/modules/admin/**`, `apps/web-admin/app/admin/{ai-settings,data-quality}/**`, `packages/db/migrations/*_super_admin_ai_data_quality.sql`.
+- **AC**:
+  - Shared super-admin BYOK is stored separately from organizer `organization_ai_settings` and never returned raw.
+  - Manual scans create deterministic candidates first, then use AI only to rank/explain minimized evidence.
+  - Findings persist with stable fingerprints and can be marked open, dismissed, or resolved.
+  - V1 never auto-merges or auto-edits records; findings link to existing admin review tools.
+
 ---
 
 ## Phase P14 — i18n & Polish
@@ -1464,6 +1475,7 @@ P13: T-009 → T-1301
      T-104 → T-1302
      T-101 → T-1303
      T-705 → T-1304
+     T-1212 + T-1301 + T-1302 → T-1305
 
 P14: (depends on all UI) → T-1401 → T-1402, T-1403, T-1404
 

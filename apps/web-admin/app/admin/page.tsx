@@ -52,6 +52,16 @@ const sections = [
     title: t('admin.dashboard.leaguesTitle'),
     description: t('admin.dashboard.leaguesDescription'),
   },
+  {
+    href: '/admin/ai-settings',
+    title: t('admin.dashboard.aiSettingsTitle'),
+    description: t('admin.dashboard.aiSettingsDescription'),
+  },
+  {
+    href: '/admin/data-quality',
+    title: t('admin.dashboard.dataQualityTitle'),
+    description: t('admin.dashboard.dataQualityDescription'),
+  },
 ];
 
 export default function SuperAdminDashboardPage() {

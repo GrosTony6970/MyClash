@@ -2532,11 +2532,42 @@ getUsageSummary(eventId): Promise<{ totalSpendEur, cap, remainingEur, callCount 
 GET /api/v1/events/:eventId/ai-usage   → { totalSpendEur, cap, remainingEur, callCount }
 ```
 
-### 16.4 Frontend
+### 16.4 Super-admin AI Data Quality (T-1305)
+
+Organizer BYOK keys are event/org scoped and must never power platform-super-admin scans. T-1305 adds a separate shared super-admin BYOK path:
+
+**`platform_ai_settings`** - singleton row (`setting_key = 'super_admin'`) with provider, AES-256-GCM ciphertext, IV, updater, and updated timestamp. RLS: super-admin only; API writes through guarded super-admin routes.
+
+**`platform_ai_usage_log`** - platform-level LLM usage rows with `feature = 'super_admin_data_quality'`, provider, token counts, cost, and actor. This avoids weakening `ai_usage_log.event_id` and keeps event spend caps org-scoped.
+
+**`ai_data_quality_scans`** - manual scan history with actor, status, candidate/finding counts, errors, and timestamps.
+
+**`ai_data_quality_findings`** - review queue rows with type, severity, confidence, status (`open|dismissed|resolved`), entity IDs, deterministic evidence JSON, AI summary, recommended action, stable fingerprint, and reviewer metadata.
+
+**API endpoints:**
+
+```text
+GET    /api/v1/admin/ai-settings
+PUT    /api/v1/admin/ai-settings
+DELETE /api/v1/admin/ai-settings
+
+POST  /api/v1/admin/data-quality/scans
+GET   /api/v1/admin/data-quality/scans
+GET   /api/v1/admin/data-quality/findings
+PATCH /api/v1/admin/data-quality/findings/:id
+```
+
+All routes are guarded by `SuperAdminGuard`. Scan behavior is rules-first: deterministic matching creates candidate bundles for duplicate global Persons, referee identity/link gaps, and duplicate clubs/schools. Only minimized evidence is sent to the configured LLM, which must return strict JSON ranking/explanation. Invalid AI output leaves a deterministic finding with `AI summary unavailable.` V1 is review-only and never auto-merges or auto-edits records.
+
+### 16.5 Frontend
 
 **Org AI settings** (`/org/[slug]/settings/ai`) — provider radio selector, password API key input, masked key-saved banner with date, Remove button, disabled-features amber banner when no key configured. Navigation tab added alongside "Compensation".
 
 **Event hub AI budget card** (`/org/[slug]/events/[eventId]`) — collapsible, shown only when org has AI key configured. Spend cap number input saved via `PATCH /events/:eventId`. Read-only spend meter with progress bar (cap set) or plain spend total (no cap).
+
+**Super-admin AI settings** (`/admin/ai-settings`) - shared platform BYOK provider/key management for super-admin AI tools only.
+
+**Super-admin data quality** (`/admin/data-quality`) - manual scan launcher, scan history, filters by type/severity/status, evidence viewer, and links to existing fighter merge / club review pages.
 
 ---
 

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MatchesModule } from '../matches/matches.module';
+import { AIDataQualityController } from './ai-data-quality.controller';
+import { AIDataQualityService } from './ai-data-quality.service';
 import { AdminAuditLogService } from './admin-audit-log.service';
 import { BackupsAdminController } from './backups.controller';
 import { AdminBackupsService } from './backups.service';
@@ -13,6 +15,8 @@ import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.servi
 import { FeatureFlagsAdminController } from './feature-flags.controller';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 import { OrganizationsAdminController } from './organizations.controller';
+import { PlatformAISettingsController } from './platform-ai-settings.controller';
+import { PlatformAISettingsService } from './platform-ai-settings.service';
 import { RulesetsAdminController } from './rulesets.controller';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
@@ -29,6 +33,8 @@ import { UsersAdminController } from './users.controller';
     ExchangeEditRequestsAdminController,
     SystemVersionsAdminController,
     BackupsAdminController,
+    PlatformAISettingsController,
+    AIDataQualityController,
   ],
   providers: [
     AdminOrganizationsService,
@@ -39,6 +45,8 @@ import { UsersAdminController } from './users.controller';
     ExchangeEditRequestsAdminService,
     AdminSystemVersionsService,
     AdminBackupsService,
+    PlatformAISettingsService,
+    AIDataQualityService,
     SuperAdminGuard,
   ],
   exports: [SuperAdminGuard],
