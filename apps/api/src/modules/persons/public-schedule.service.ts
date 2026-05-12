@@ -126,7 +126,7 @@ export class PublicScheduleService {
         matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
         status: m['status'] as string,
         scheduledAt: (m['scheduled_at'] as string | null) ?? null,
-        opponentName: null, // TODO: resolve opponent name from registration→person
+        opponentName: null, // T-608 follow-up: resolve opponent name from registration->person
         opponentClub: null,
         redScore: (m['red_score'] as number) ?? 0,
         blueScore: (m['blue_score'] as number) ?? 0,

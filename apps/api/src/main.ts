@@ -4,9 +4,13 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { ApiExceptionFilter } from './common/api-exception.filter';
+import { registerProcessFailureHandlers } from './common/process-failure-handlers';
 import { buildCorsOrigins } from './security/http-security';
 
 const PORT = process.env['PORT'] ? Number(process.env['PORT']) : 4000;
+
+registerProcessFailureHandlers();
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -44,6 +48,7 @@ async function bootstrap(): Promise<void> {
       transform: true, // auto-transform payloads to DTO instances
     }),
   );
+  app.useGlobalFilters(new ApiExceptionFilter());
 
   // ── Global prefix ────────────────────────────────────────────────────────
   app.setGlobalPrefix('api/v1', {

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AIDataQualityService } from './ai-data-quality.service';
 import { UpdateDataQualityFindingDto } from './dto/data-quality.dto';
@@ -19,16 +19,19 @@ export class AIDataQualityController {
   constructor(private readonly service: AIDataQualityService) {}
 
   @Post('scans')
+  @ApiOperation({ summary: 'Start a super-admin data quality scan' })
   startScan(@Req() req: FastifyRequest) {
     return this.service.startScan(getActorId(req));
   }
 
   @Get('scans')
+  @ApiOperation({ summary: 'List super-admin data quality scans' })
   listScans() {
     return this.service.listScans();
   }
 
   @Get('findings')
+  @ApiOperation({ summary: 'List super-admin data quality findings' })
   listFindings(
     @Query('status') status?: string,
     @Query('type') type?: string,
@@ -38,6 +41,7 @@ export class AIDataQualityController {
   }
 
   @Patch('findings/:id')
+  @ApiOperation({ summary: 'Update a super-admin data quality finding status' })
   updateFinding(
     @Param('id') id: string,
     @Body() dto: UpdateDataQualityFindingDto,

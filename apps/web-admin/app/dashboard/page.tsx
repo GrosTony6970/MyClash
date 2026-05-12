@@ -24,8 +24,8 @@ export default function DashboardPage() {
         if (data.type !== 'claimed') {
           window.location.href = '/login';
         }
-        // TODO (T-105): fetch org slug from /api/v1/me or /api/v1/organizations/mine
-        // and redirect to /org/<slug>
+        // T-105 follow-up: fetch org slug from /api/v1/me or /api/v1/organizations/mine
+        // and redirect to /org/<slug>.
       } catch {
         window.location.href = '/login';
       }

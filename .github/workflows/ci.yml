@@ -169,6 +169,9 @@ jobs:
       - name: Check frontend secret boundaries
         run: pnpm security:client-secrets
 
+      - name: Check code quality gates
+        run: pnpm quality:todos && pnpm quality:api-docs && pnpm quality:complexity && pnpm quality:shared-types
+
       - name: Check formatting
         run: pnpm format:check
 

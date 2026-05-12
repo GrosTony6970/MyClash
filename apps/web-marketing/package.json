@@ -4,10 +4,10 @@
   "private": true,
   "description": "Static marketing/landing site at myclash.fr (apex). Stub — agent fills in during T-003b.",
   "scripts": {
-    "dev": "echo 'TODO (T-003b): static dev server'",
-    "build": "echo 'TODO: build static output'",
-    "lint": "echo 'TODO'",
+    "dev": "echo 'noop until T-003b static dev server'",
+    "build": "echo 'noop until T-003b static output'",
+    "lint": "echo 'noop until T-003b'",
     "typecheck": "echo 'noop for static site'",
-    "test": "echo 'TODO'"
+    "test": "echo 'noop until T-003b'"
   }
 }

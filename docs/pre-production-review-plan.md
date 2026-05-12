@@ -99,6 +99,8 @@ If any of the above currently runs only locally, the action item is **move it in
 
 **Skill: `/code-review`.**
 
+**Current status (2026-05-12): Pass with known issues.** Phase 3 now has enforceable gates for TODO/FIXME references, API documentation metadata, complexity baseline drift, and shared/API explicit `any` leaks. The API has a documented global error envelope and process-level unhandled rejection / uncaught exception logging. Remaining complexity hotspots are accepted for v1 in `docs/CODE_QUALITY_REVIEW.md` and guarded by `docs/code-quality-complexity-baseline.json`.
+
 CI already enforces typecheck/lint. Human review focuses on:
 
 - Dead code, TODO/FIXME audit (each TODO has a ticket or is removed)

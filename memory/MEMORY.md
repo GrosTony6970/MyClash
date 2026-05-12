@@ -554,3 +554,10 @@ Required for the API to start:
 
 - **Penalty Management / Cartons** (`packages/rulesets/src/penalties/`, `apps/api/src/modules/penalties/`, `packages/db/migrations/0016_penalties.sql`, `apps/web-scoring/src/components/PenaltyPanel.tsx`): penalty rulesets are first-class event/tournament configuration. Built-in `ffamhe_tf_2026` is seeded from `ffamhe_tf_2026.csv`; custom rulesets can be imported from CSV. Match penalties are immutable timeline rows with `client_uuid`; red cards derive a `-1` score delta, black cards complete the match with the opponent as winner, and the second black card creates a pending tournament review for organizer confirmation.
 - **Forfeit / forfait workflow** (`packages/rulesets/src/forfeits.ts`, `apps/api/src/modules/matches/match-forfeits.service.ts`, `packages/db/migrations/0032_match_forfeits.sql`): forfeits are durable match outcome rows, not fake exchanges. TF/FFAMHE defaults: injury keeps current points and asks can-continue; voluntary and first black card are 0-6 and ask can-continue; second black card and conduct/violence are 0-6 and disqualify. `canContinue=false` in pools auto-forfeits later unstarted matches; bracket play-ins and round 2+ walk over; main bracket round 1 can pull the next eligible pool non-qualifier before match start. Voiding is allowed only before downstream dependent matches start.
+
+## Production review gates
+
+- Phase 3 code quality adds committed gates: `pnpm quality:todos`, `pnpm quality:api-docs`, `pnpm quality:complexity`, and `pnpm quality:shared-types`. CI runs them after lint.
+- API errors are normalized through a global NestJS exception filter returning `{ statusCode, code, message, details?, path, method, timestamp, requestId? }`.
+- API bootstrap registers process-level logging for unhandled promise rejections and uncaught exceptions; uncaught exceptions fail fast after logging.
+- Complexity hotspots are accepted for v1 only through `docs/code-quality-complexity-baseline.json`; new unreviewed files over 400 lines or functions over 50 lines fail the quality gate.
