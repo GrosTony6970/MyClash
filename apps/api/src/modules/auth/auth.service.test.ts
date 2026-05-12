@@ -236,7 +236,10 @@ describe('AuthService', () => {
 
       const result = await service.getMe(mockRequest, mockReply);
       expect(result.type).toBe('claimed');
-      expect(clearCookieMock).toHaveBeenCalledWith('mc_guest', { path: '/' });
+      expect(clearCookieMock).toHaveBeenCalledWith(
+        'mc_guest',
+        expect.objectContaining({ sameSite: 'lax', path: '/' }),
+      );
     });
   });
 

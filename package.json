@@ -22,6 +22,8 @@
     "test": "turbo run test",
     "coverage": "turbo run coverage",
     "test:e2e": "node scripts/run-e2e.mjs",
+    "security:routes": "node scripts/check-api-route-security.mjs",
+    "security:client-secrets": "node scripts/check-client-secret-boundaries.mjs",
     "security:audit": "pnpm audit --audit-level high",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",

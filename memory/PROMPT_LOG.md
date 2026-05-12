@@ -631,3 +631,7 @@ PLEASE IMPLEMENT THIS PLAN: Natural-Language Tournament Query with bilingual Fre
 ## 16:17:55_12-05-2026
 
 User asked to implement the Phase 1 CI Gates Review + Remediation Plan: fix dependency audit blockers, make lint warning-clean, add coverage gates, wire Playwright/Axe into e2e/CI, add audit/secret/Trivy security CI gates, and verify Phase 1 checks.
+
+## 22:01:31_12-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Phase 2 Security Audit Plan. Run a security review plus targeted remediation pass covering NestJS route auth posture, validation/CORS/throttling, cookies/sessions/CSRF, Supabase auth/service-role boundaries, secrets/env rotation, RLS policy inventory/tests, Dependabot and container supply-chain posture, update docs/pre-production-review-plan.md with Phase 2 status, add focused security docs/tests/scripts, and run security/full gates where practical.

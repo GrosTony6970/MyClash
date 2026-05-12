@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
+import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -173,7 +174,10 @@ export class AuthService {
           const cookieReply = reply as FastifyReply & {
             clearCookie: (name: string, opts: Record<string, unknown>) => void;
           };
-          cookieReply.clearCookie('mc_guest', { path: '/' });
+          cookieReply.clearCookie(
+            'mc_guest',
+            buildClearCookieOptions(this.config.get<string>('NODE_ENV')),
+          );
         }
 
         let person: MeResponseDto['person'] | undefined;
@@ -355,21 +359,23 @@ export class AuthService {
       setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
     };
 
-    cookieReply.setCookie('sb-access-token', accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: expiresIn,
-    });
+    cookieReply.setCookie(
+      'sb-access-token',
+      accessToken,
+      buildSessionCookieOptions({
+        env: this.config.get<string>('NODE_ENV'),
+        maxAge: expiresIn,
+      }),
+    );
 
-    cookieReply.setCookie('sb-refresh-token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-    });
+    cookieReply.setCookie(
+      'sb-refresh-token',
+      refreshToken,
+      buildSessionCookieOptions({
+        env: this.config.get<string>('NODE_ENV'),
+        maxAge: 60 * 60 * 24 * 30,
+      }),
+    );
   }
 
   private buildRedirectUrl(path: string, type: string, personId: string | undefined): string {

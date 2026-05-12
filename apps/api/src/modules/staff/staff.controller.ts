@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateStaffAccountDto,
@@ -114,13 +115,11 @@ export class StaffController {
     const cookieReply = reply as FastifyReply & {
       setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
     };
-    cookieReply.setCookie(STAFF_COOKIE_NAME, result.token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env['NODE_ENV'] === 'production',
-      path: '/',
-      expires: result.expiresAt,
-    });
+    cookieReply.setCookie(
+      STAFF_COOKIE_NAME,
+      result.token,
+      buildSessionCookieOptions({ expires: result.expiresAt }),
+    );
     return result.me;
   }
 
@@ -131,7 +130,7 @@ export class StaffController {
     const cookieReply = reply as FastifyReply & {
       clearCookie: (name: string, opts: Record<string, unknown>) => void;
     };
-    cookieReply.clearCookie(STAFF_COOKIE_NAME, { path: '/' });
+    cookieReply.clearCookie(STAFF_COOKIE_NAME, buildClearCookieOptions());
     return { ok: true };
   }
 

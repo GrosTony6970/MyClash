@@ -16,6 +16,7 @@ import { IsUUID } from 'class-validator';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { GuestJwtService } from './guest-jwt.service';
 
 class CreateGuestSessionDto {
@@ -106,17 +107,17 @@ export class GuestSessionsController {
     );
 
     // 6. Set httpOnly cookie
-    const isProduction = this.config.get('NODE_ENV') === 'production';
     const cookieReply = reply as FastifyReply & {
       setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
     };
-    cookieReply.setCookie(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      expires: expiresAt,
-    });
+    cookieReply.setCookie(
+      COOKIE_NAME,
+      token,
+      buildSessionCookieOptions({
+        env: this.config.get<string>('NODE_ENV'),
+        expires: expiresAt,
+      }),
+    );
 
     const p = person as {
       id: string;
@@ -170,7 +171,10 @@ export class GuestSessionsController {
     const cookieReply = reply as FastifyReply & {
       clearCookie: (name: string, opts: Record<string, unknown>) => void;
     };
-    cookieReply.clearCookie(COOKIE_NAME, { path: '/' });
+    cookieReply.clearCookie(
+      COOKIE_NAME,
+      buildClearCookieOptions(this.config.get<string>('NODE_ENV')),
+    );
     void reply.status(204).send();
   }
 

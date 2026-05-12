@@ -49,6 +49,13 @@ If any of the above currently runs only locally, the action item is **move it in
 
 **Skill: `/security-review`.**
 
+**Current status (2026-05-12): Pass with known issues.** Local code review found no unresolved blocker after the Phase 2 remediation pass. The security posture is documented in [`docs/SECURITY_POSTURE.md`](./SECURITY_POSTURE.md), and CI now includes controller-classification and frontend secret-boundary checks. Known issues that remain before final production sign-off:
+
+- Live Supabase/Postgres RLS verification still needs to run against the production-like database during Phase 4/final review.
+- MFA is documented as roadmap for organizer and super-admin accounts.
+- App Docker base images are still mutable `node:22-alpine` style tags; pin by digest before final sign-off if zero supply-chain exceptions are required.
+- GitHub required status checks must be confirmed in repository settings after the CI run is green.
+
 ### Application-layer
 
 - Every NestJS route has an auth guard or is explicitly marked public (no implicit public)

@@ -66,6 +66,22 @@ interface FighterProfileLink {
   claimedByUserId: string | null;
 }
 
+interface EventScopedRow {
+  eventId: string;
+  organizationId: string;
+}
+
+interface PlatformAiRow {
+  id: string;
+}
+
+interface TournamentQueryHistoryRow {
+  tournamentId: string;
+  userId: string;
+}
+
+type DatabaseRole = 'anon' | 'authenticated' | 'service_role';
+
 // Simulates is_super_admin() SQL function
 function isSuperAdmin(
   userId: string | null,
@@ -194,6 +210,45 @@ function canManageFighterProfileLink(
   return isSuperAdmin(userId, platformRoles) || link.claimedByUserId === userId;
 }
 
+function serviceRoleOnlyWrite(databaseRole: DatabaseRole): boolean {
+  return databaseRole === 'service_role';
+}
+
+function canReadPlatformAiSettings(
+  userId: string | null,
+  _row: PlatformAiRow,
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  return isSuperAdmin(userId, platformRoles);
+}
+
+function canReadOrgAdminEventScopedRow(
+  userId: string | null,
+  row: EventScopedRow,
+  members: OrgMember[],
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  return (
+    isSuperAdmin(userId, platformRoles) || hasOrgRole(userId, row.organizationId, 'admin', members)
+  );
+}
+
+function canReadOrgMemberEventScopedRow(
+  userId: string | null,
+  row: EventScopedRow,
+  members: OrgMember[],
+  platformRoles: Array<{ userId: string; role: string }>,
+): boolean {
+  return isSuperAdmin(userId, platformRoles) || isOrgMember(userId, row.organizationId, members);
+}
+
+function canReadOwnTournamentQueryHistory(
+  userId: string | null,
+  row: TournamentQueryHistoryRow,
+): boolean {
+  return Boolean(userId) && row.userId === userId;
+}
+
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
 const ORG_A = 'org-a-uuid';
@@ -249,6 +304,15 @@ const PENALTY_PRIVATE_ORG_A: PenaltyRuleset = {
 const CLAIMED_FIGHTER_LINK: FighterProfileLink = {
   fighterId: 'fighter-claimed',
   claimedByUserId: USER_FIGHTER,
+};
+const EVENT_A_SCOPED_ROW: EventScopedRow = {
+  eventId: EVENT_A_PUBLISHED.id,
+  organizationId: ORG_A,
+};
+const PLATFORM_AI_SETTINGS_ROW: PlatformAiRow = { id: 'platform-ai-settings' };
+const USER_ADMIN_A_QUERY_HISTORY: TournamentQueryHistoryRow = {
+  tournamentId: 'tournament-a',
+  userId: USER_ADMIN_A,
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -429,5 +493,78 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     expect(canManageFighterProfileLink(USER_SUPER, CLAIMED_FIGHTER_LINK, PLATFORM_ROLES)).toBe(
       true,
     );
+  });
+
+  it('25. recent service-role-only tables reject anon and authenticated writes', () => {
+    const serviceRoleOnlyTables = [
+      'match_forfeits',
+      'event_broadcast_notifications',
+      'event_broadcast_recipients',
+      'platform_ai_settings',
+      'platform_ai_usage_log',
+      'ai_data_quality_scans',
+      'ai_data_quality_findings',
+    ];
+
+    for (const _tableName of serviceRoleOnlyTables) {
+      expect(serviceRoleOnlyWrite('anon')).toBe(false);
+      expect(serviceRoleOnlyWrite('authenticated')).toBe(false);
+      expect(serviceRoleOnlyWrite('service_role')).toBe(true);
+    }
+  });
+
+  it('26. platform AI settings are readable only by super admins', () => {
+    expect(canReadPlatformAiSettings(USER_SUPER, PLATFORM_AI_SETTINGS_ROW, PLATFORM_ROLES)).toBe(
+      true,
+    );
+    expect(canReadPlatformAiSettings(USER_ADMIN_A, PLATFORM_AI_SETTINGS_ROW, PLATFORM_ROLES)).toBe(
+      false,
+    );
+    expect(canReadPlatformAiSettings(USER_ANON, PLATFORM_AI_SETTINGS_ROW, PLATFORM_ROLES)).toBe(
+      false,
+    );
+  });
+
+  it('27. org AI settings and event AI usage require org admin or super admin reads', () => {
+    expect(
+      canReadOrgAdminEventScopedRow(USER_ADMIN_A, EVENT_A_SCOPED_ROW, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(true);
+    expect(
+      canReadOrgAdminEventScopedRow(USER_EDITOR_A, EVENT_A_SCOPED_ROW, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(false);
+    expect(
+      canReadOrgAdminEventScopedRow(USER_MEMBER_B, EVENT_A_SCOPED_ROW, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(false);
+    expect(
+      canReadOrgAdminEventScopedRow(USER_SUPER, EVENT_A_SCOPED_ROW, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(true);
+  });
+
+  it('28. broadcast recipients are event-org member readable but not cross-tenant readable', () => {
+    expect(
+      canReadOrgMemberEventScopedRow(
+        USER_EDITOR_A,
+        EVENT_A_SCOPED_ROW,
+        ORG_MEMBERS,
+        PLATFORM_ROLES,
+      ),
+    ).toBe(true);
+    expect(
+      canReadOrgMemberEventScopedRow(
+        USER_MEMBER_B,
+        EVENT_A_SCOPED_ROW,
+        ORG_MEMBERS,
+        PLATFORM_ROLES,
+      ),
+    ).toBe(false);
+    expect(
+      canReadOrgMemberEventScopedRow(USER_ANON, EVENT_A_SCOPED_ROW, ORG_MEMBERS, PLATFORM_ROLES),
+    ).toBe(false);
+  });
+
+  it('29. tournament query history is user-private by default', () => {
+    expect(canReadOwnTournamentQueryHistory(USER_ADMIN_A, USER_ADMIN_A_QUERY_HISTORY)).toBe(true);
+    expect(canReadOwnTournamentQueryHistory(USER_EDITOR_A, USER_ADMIN_A_QUERY_HISTORY)).toBe(false);
+    expect(canReadOwnTournamentQueryHistory(USER_ANON, USER_ADMIN_A_QUERY_HISTORY)).toBe(false);
   });
 });
