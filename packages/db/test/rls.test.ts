@@ -80,6 +80,12 @@ interface TournamentQueryHistoryRow {
   userId: string;
 }
 
+interface InternalTablePolicy {
+  tableName: string;
+  serviceRoleOnlyWrite: true;
+  authenticatedWritePolicy: false;
+}
+
 type DatabaseRole = 'anon' | 'authenticated' | 'service_role';
 
 // Simulates is_super_admin() SQL function
@@ -314,6 +320,49 @@ const USER_ADMIN_A_QUERY_HISTORY: TournamentQueryHistoryRow = {
   tournamentId: 'tournament-a',
   userId: USER_ADMIN_A,
 };
+const RECENT_INTERNAL_TABLE_POLICIES: InternalTablePolicy[] = [
+  { tableName: 'match_forfeits', serviceRoleOnlyWrite: true, authenticatedWritePolicy: false },
+  {
+    tableName: 'event_broadcast_notifications',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'event_broadcast_recipients',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'platform_ai_settings',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'platform_ai_usage_log',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'ai_data_quality_scans',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'ai_data_quality_findings',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'organizer_ai_assistant_drafts',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+  {
+    tableName: 'tournament_query_history',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
+];
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -496,17 +545,8 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
   });
 
   it('25. recent service-role-only tables reject anon and authenticated writes', () => {
-    const serviceRoleOnlyTables = [
-      'match_forfeits',
-      'event_broadcast_notifications',
-      'event_broadcast_recipients',
-      'platform_ai_settings',
-      'platform_ai_usage_log',
-      'ai_data_quality_scans',
-      'ai_data_quality_findings',
-    ];
-
-    for (const _tableName of serviceRoleOnlyTables) {
+    for (const policy of RECENT_INTERNAL_TABLE_POLICIES) {
+      expect(policy.serviceRoleOnlyWrite, policy.tableName).toBe(true);
       expect(serviceRoleOnlyWrite('anon')).toBe(false);
       expect(serviceRoleOnlyWrite('authenticated')).toBe(false);
       expect(serviceRoleOnlyWrite('service_role')).toBe(true);
@@ -566,5 +606,11 @@ describe('RLS policy logic — cross-tenant leak prevention', () => {
     expect(canReadOwnTournamentQueryHistory(USER_ADMIN_A, USER_ADMIN_A_QUERY_HISTORY)).toBe(true);
     expect(canReadOwnTournamentQueryHistory(USER_EDITOR_A, USER_ADMIN_A_QUERY_HISTORY)).toBe(false);
     expect(canReadOwnTournamentQueryHistory(USER_ANON, USER_ADMIN_A_QUERY_HISTORY)).toBe(false);
+  });
+
+  it('30. service-role-only internal tables have no modeled authenticated write policy', () => {
+    for (const policy of RECENT_INTERNAL_TABLE_POLICIES) {
+      expect(policy.authenticatedWritePolicy, policy.tableName).toBe(false);
+    }
   });
 });

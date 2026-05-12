@@ -639,3 +639,7 @@ PLEASE IMPLEMENT THIS PLAN: Phase 2 Security Audit Plan. Run a security review p
 ## 23:19:16_12-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Phase 3 Code Quality Review + Remediation. Add measurable quality gates for TODO/FIXME, API docs, complexity, and shared type leaks; standardize API error responses with a global NestJS exception filter; add process-level unhandled rejection/uncaught exception logging; document code-quality review findings; update pre-production Phase 3 status; run focused and full verification.
+
+## 23:43:26_12-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Phase 4 Database Review + Remediation. Add database review docs, fresh migration replay/check scripts, synthetic performance fixture and EXPLAIN report tooling, extend RLS tests, document PITR/restore rollback, current direct connection pooling, pg_stat_statements review, and run focused/full verification.

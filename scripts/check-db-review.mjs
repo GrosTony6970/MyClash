@@ -1,0 +1,120 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+
+const root = process.cwd();
+const migrationsDir = join(root, 'packages', 'db', 'migrations');
+const requiredFiles = [
+  'docs/DATABASE_REVIEW.md',
+  'packages/db/fixtures/phase4_synthetic.sql',
+  'packages/db/fixtures/phase4_explain.sql',
+  'scripts/replay-db-migrations.mjs',
+  'scripts/db-synthetic-fixture.mjs',
+  'scripts/db-explain-report.mjs',
+];
+
+function normalize(path) {
+  return relative(root, path).split(sep).join('/');
+}
+
+function migrationFiles() {
+  return readdirSync(migrationsDir)
+    .filter((name) => /^\d{4}_.+\.sql$/.test(name))
+    .sort();
+}
+
+function objectName(matchValue) {
+  return matchValue.split('.').pop()?.replaceAll('"', '') ?? matchValue;
+}
+
+const files = migrationFiles();
+const allSql = files.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n');
+const errors = [];
+const warnings = [];
+
+for (const file of requiredFiles) {
+  const fullPath = join(root, file);
+  if (!statSync(fullPath, { throwIfNoEntry: false })) {
+    errors.push(`Missing required Phase 4 artifact: ${file}`);
+  }
+}
+
+const prefixes = files.map((file) => Number(file.slice(0, 4)));
+const duplicatePrefixes = prefixes.filter((prefix, index) => prefixes.indexOf(prefix) !== index);
+if (duplicatePrefixes.length > 0) {
+  errors.push(`Duplicate migration prefixes: ${[...new Set(duplicatePrefixes)].join(', ')}`);
+}
+for (let i = 1; i < prefixes.length; i += 1) {
+  if ((prefixes[i] ?? 0) <= (prefixes[i - 1] ?? 0)) {
+    errors.push(
+      `Migration ordering is not strictly ascending around ${files[i - 1]} / ${files[i]}`,
+    );
+  }
+}
+
+const tables = [...allSql.matchAll(/CREATE TABLE IF NOT EXISTS\s+((?:"?\w+"?\.)?"?\w+"?)/gi)].map(
+  (match) => objectName(match[1] ?? ''),
+);
+const rlsTables = [
+  ...allSql.matchAll(/ALTER TABLE\s+((?:"?\w+"?\.)?"?\w+"?)\s+ENABLE ROW LEVEL SECURITY/gi),
+].map((match) => objectName(match[1] ?? ''));
+
+const missingRls = tables.filter((table) => !rlsTables.includes(table));
+if (missingRls.length > 0) {
+  errors.push(`Tables without ENABLE ROW LEVEL SECURITY: ${[...new Set(missingRls)].join(', ')}`);
+}
+
+const nonIdempotentTables = [
+  ...allSql.matchAll(/CREATE TABLE\s+(?!IF NOT EXISTS)((?:"?\w+"?\.)?"?\w+"?)/gi),
+].map((match) => objectName(match[1] ?? ''));
+if (nonIdempotentTables.length > 0) {
+  warnings.push(
+    `Existing tables without IF NOT EXISTS should be reviewed before replay: ${nonIdempotentTables.join(', ')}`,
+  );
+}
+
+const nonIdempotentIndexes = [
+  ...allSql.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?!IF NOT EXISTS)([\w"]+)/gi),
+].map((match) => match[1]?.replaceAll('"', '') ?? '');
+if (nonIdempotentIndexes.length > 0) {
+  warnings.push(
+    `Existing indexes without IF NOT EXISTS should be reviewed before replay: ${nonIdempotentIndexes.join(', ')}`,
+  );
+}
+
+for (const extension of ['uuid-ossp', 'pg_trgm', 'unaccent', 'pg_stat_statements']) {
+  if (!new RegExp(`CREATE EXTENSION IF NOT EXISTS\\s+"?${extension}"?`, 'i').test(allSql)) {
+    errors.push(`Missing required extension migration: ${extension}`);
+  }
+}
+
+const fkColumns = [
+  ...allSql.matchAll(/^\s+([a-zA-Z_]\w*_id)\s+UUID\s+(?:NOT NULL\s+)?REFERENCES/gim),
+].map((match) => match[1] ?? '');
+const indexedColumns = new Set(
+  [...allSql.matchAll(/ON\s+\w+\s*\(([^)]+)\)/gi)]
+    .flatMap((match) => (match[1] ?? '').split(','))
+    .map((column) => column.trim().split(/\s+/)[0]?.replaceAll('"', '') ?? ''),
+);
+const unindexedFkColumns = [...new Set(fkColumns.filter((column) => !indexedColumns.has(column)))];
+if (unindexedFkColumns.length > 0) {
+  warnings.push(
+    `Foreign-key column names needing manual index review: ${unindexedFkColumns.join(', ')}`,
+  );
+}
+
+console.log(`Reviewed ${files.length} migrations and ${tables.length} table declarations.`);
+console.log(`RLS enabled for ${rlsTables.length} table declarations.`);
+if (warnings.length > 0) {
+  console.warn('Database review warnings:');
+  for (const warning of warnings) console.warn(`  - ${warning}`);
+}
+
+if (errors.length > 0) {
+  console.error('Database review blockers:');
+  for (const error of errors) console.error(`  - ${error}`);
+  process.exit(1);
+}
+
+console.log(
+  `Database review artifacts present: ${requiredFiles.map((file) => normalize(join(root, file))).join(', ')}`,
+);

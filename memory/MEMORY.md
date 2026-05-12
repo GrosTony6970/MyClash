@@ -561,3 +561,4 @@ Required for the API to start:
 - API errors are normalized through a global NestJS exception filter returning `{ statusCode, code, message, details?, path, method, timestamp, requestId? }`.
 - API bootstrap registers process-level logging for unhandled promise rejections and uncaught exceptions; uncaught exceptions fail fast after logging.
 - Complexity hotspots are accepted for v1 only through `docs/code-quality-complexity-baseline.json`; new unreviewed files over 400 lines or functions over 50 lines fail the quality gate.
+- Phase 4 database review adds `pnpm db:review`, `pnpm db:perf:fixture`, live `pnpm db:migrations:replay`, and live `pnpm db:perf:explain`. Rollback policy is PITR/restore via backup/restore scripts, not down migrations; PgBouncer is deferred for v1 unless connection pressure appears.

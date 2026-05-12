@@ -116,6 +116,8 @@ CI already enforces typecheck/lint. Human review focuses on:
 
 **Skill: `/supabase-postgres-best-practices`.**
 
+**Current status (2026-05-12): Pass with known issues.** Repo-local Phase 4 gates now cover migration/RLS review, synthetic performance fixture drift, and DB RLS logic tests. Rollback is explicitly PITR/restore rather than down migrations; live PITR proof, timed restore drill, and production `pg_stat_statements` top-N evidence remain owner-side staging/VPS evidence before final sign-off. See `docs/DATABASE_REVIEW.md`.
+
 - Migrations apply cleanly on a fresh DB
 - **Migration rollback path verified** — either down migrations exist and work, or PITR is the documented rollback strategy with tested restore
 - Indexes on foreign keys and search columns, validated with `EXPLAIN ANALYZE` on realistic data volume
