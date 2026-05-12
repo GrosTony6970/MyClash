@@ -87,7 +87,7 @@ export default function EventStaffPage() {
     return () => {
       cancelled = true;
     };
-  }, [eventId, apiUrl]);
+  }, [eventId, apiUrl, t]);
 
   async function createAccount(event: React.FormEvent) {
     event.preventDefault();

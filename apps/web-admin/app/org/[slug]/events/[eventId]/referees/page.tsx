@@ -359,7 +359,6 @@ export default function RefereesPage() {
                         {linkingPersonId === ref.personId ? (
                           <div className="flex flex-col gap-1">
                             <input
-                              autoFocus
                               type="search"
                               value={globalSearch}
                               onChange={(e) => setGlobalSearch(e.target.value)}

@@ -495,7 +495,6 @@ export default function WorkshopsAdminPage() {
                         ) : linkingEnrollmentId === entry.id ? (
                           <div className="relative">
                             <input
-                              autoFocus
                               type="search"
                               value={gpSearch}
                               onChange={(e) => setGpSearch(e.target.value)}

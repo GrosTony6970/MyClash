@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface PersonResult {
   id: string;
@@ -30,6 +31,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function PeoplePage() {
+  const { t } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -78,7 +80,7 @@ export default function PeoplePage() {
         className="text-2xl font-bold mb-4"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
       >
-        Participants
+        {t('publicApp.people.title')}
       </h1>
 
       {/* Search input */}
@@ -87,8 +89,7 @@ export default function PeoplePage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name…"
-          autoFocus
+          placeholder={t('publicApp.people.searchPlaceholder')}
           className="w-full bg-gray-900 border border-gray-700 text-white placeholder-gray-500
                      px-4 py-3 text-base rounded-xl
                      focus:outline-none focus:ring-2 focus:border-transparent"
@@ -158,14 +159,16 @@ export default function PeoplePage() {
       {/* Empty state */}
       {query.trim().length >= 2 && !loading && results.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-sm">No participants found for &ldquo;{query}&rdquo;</p>
+          <p className="text-gray-400 text-sm">
+            {t('publicApp.people.noParticipantsFound', { query })}
+          </p>
         </div>
       )}
 
       {/* Prompt */}
       {query.trim().length < 2 && (
         <p className="text-gray-500 text-sm text-center py-8">
-          Type at least 2 characters to search
+          {t('publicApp.people.minSearchChars')}
         </p>
       )}
     </main>

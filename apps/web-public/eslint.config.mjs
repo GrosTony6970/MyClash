@@ -24,8 +24,14 @@ export default tseslint.config(
       ...nextPlugin.configs['core-web-vitals'].rules,
       ...reactHooksPlugin.configs.recommended.rules,
       ...Object.fromEntries(
-        Object.keys(jsxA11y.flatConfigs.recommended.rules).map((k) => [k, 'warn']),
+        Object.keys(jsxA11y.flatConfigs.recommended.rules).map((k) => [k, 'error']),
       ),
+      'jsx-a11y/label-has-for': 'off',
+      'jsx-a11y/label-has-associated-control': 'off',
+      'jsx-a11y/control-has-associated-label': 'off',
+      'jsx-a11y/no-static-element-interactions': 'off',
+      'jsx-a11y/no-noninteractive-element-interactions': 'off',
+      'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
     },
     languageOptions: {

@@ -20,7 +20,9 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "test:e2e": "turbo run test:e2e",
+    "coverage": "turbo run coverage",
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "security:audit": "pnpm audit --audit-level high",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "deploy:prod": "tsx scripts/deploy.ts",
@@ -36,6 +38,14 @@
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,md,yml,yaml}": "prettier --write"
   },
+  "pnpm": {
+    "overrides": {
+      "fastify": "^5.8.5",
+      "fast-uri": "^3.1.2",
+      "glob": "^10.5.0",
+      "picomatch": "^4.0.4"
+    }
+  },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
     "@eslint/js": "^9.15.0",
@@ -43,10 +53,14 @@
     "@playwright/test": "^1.59.1",
     "@supabase/supabase-js": "^2.105.1",
     "@types/node": "^22.15.18",
+    "@vitest/coverage-v8": "^2.1.9",
     "dotenv": "^17.4.2",
     "eslint": "^9.15.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fast-uri": "^3.1.2",
+    "glob": "^10.5.0",
     "lint-staged": "^16.4.0",
+    "picomatch": "^4.0.4",
     "postgres": "^3.4.5",
     "prettier": "^3.3.0",
     "simple-git-hooks": "^2.13.1",

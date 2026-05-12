@@ -23,7 +23,8 @@
     "build": "tsc --project tsconfig.json",
     "lint": "echo 'lint: no sources yet'",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "coverage": "vitest run --coverage --passWithNoTests"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

@@ -168,6 +168,7 @@ Follows are event-scoped (not global). The "watchlist view" at `/e/<eventSlug>/f
 - **Line endings**: enforce LF via `.gitattributes` (`* text=auto eol=lf`) to prevent Windows-checkout corrupting Docker entrypoint shell scripts.
 - **Scripts that _must_ be bash** (e.g. server-side deploy scripts running on the OVH VPS) live in `infra/scripts/` and are clearly labeled.
 - **CI** runs on Ubuntu (GitHub Actions default).
+- **Phase 1 pre-production gates** now enforce strict lint (`--max-warnings 0` for API + active web apps), high/critical `pnpm audit`, Vitest coverage (`pnpm coverage`), Playwright/Axe (`pnpm test:e2e`), Gitleaks, and Trivy image scans in CI. Local e2e uses `scripts/run-e2e.mjs` to manage Next dev server lifecycle on Windows because Playwright's built-in `webServer` teardown hung after tests passed. Current coverage thresholds are scoped to exercised implementation files (API excludes Nest structural files; web-scoring covers offline code), so all-files coverage remains a production-review follow-up decision.
 
 ## Domain language (HEMA-specific)
 

@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useI18n } from '../i18n/I18nProvider';
 
 export interface PersonMatch {
   id: string;
@@ -49,6 +50,7 @@ export function PersonLookup({
   onNotInList,
   placeholder = 'Type your name…',
 }: PersonLookupProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PersonMatch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,14 +112,12 @@ export function PersonLookup({
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
           autoComplete="off"
-          autoFocus
           className="w-full bg-gray-900 border border-gray-700 text-white placeholder-gray-500
                      px-4 py-3 text-lg rounded-xl
                      focus:outline-none focus:ring-2 focus:border-transparent"
           style={{ '--tw-ring-color': 'var(--event-primary, #c0392b)' } as React.CSSProperties}
-          aria-label="Search for your name"
+          aria-label={t('publicApp.personLookup.searchAria')}
           aria-autocomplete="list"
-          aria-expanded={showResults && results.length > 0}
         />
         {loading && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -135,9 +135,9 @@ export function PersonLookup({
 
       {/* Results */}
       {showResults && (
-        <ul className="flex flex-col gap-2" role="listbox" aria-label="Search results">
+        <ul className="flex flex-col gap-2">
           {results.map((person) => (
-            <li key={person.id} role="option" aria-selected={false}>
+            <li key={person.id}>
               <button
                 onClick={() => onSelect(person)}
                 className="w-full text-left bg-gray-900 border border-gray-700 rounded-xl px-4 py-3
@@ -155,13 +155,13 @@ export function PersonLookup({
           ))}
 
           {/* Not in list CTA — always shown when results visible */}
-          <li role="option" aria-selected={false}>
+          <li>
             <button
               onClick={onNotInList}
               className="w-full text-left px-4 py-3 text-gray-500 hover:text-gray-300
                          border border-dashed border-gray-800 rounded-xl transition-colors text-sm"
             >
-              I&apos;m none of these →
+              {t('publicApp.personLookup.notInList')}
             </button>
           </li>
         </ul>
@@ -170,12 +170,14 @@ export function PersonLookup({
       {/* No results state */}
       {showResults && !loading && results.length === 0 && !error && (
         <div className="text-center py-6">
-          <p className="text-gray-400 text-sm mb-3">No matches found for &ldquo;{query}&rdquo;</p>
+          <p className="text-gray-400 text-sm mb-3">
+            {t('publicApp.personLookup.noMatchesFound', { query })}
+          </p>
           <button
             onClick={onNotInList}
             className="text-sm text-gray-500 hover:text-gray-300 underline"
           >
-            I&apos;m not in the list
+            {t('publicApp.personLookup.notInListShort')}
           </button>
         </div>
       )}

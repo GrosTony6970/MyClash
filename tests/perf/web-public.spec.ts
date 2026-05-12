@@ -53,6 +53,7 @@ async function measureLcp(page: Page, path: string): Promise<number> {
     downloadThroughput: -1,
     uploadThroughput: -1,
   });
+  await client.detach();
 
   return lcp;
 }

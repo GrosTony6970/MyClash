@@ -324,6 +324,8 @@ export default function RefereeAssignmentsPage() {
                     return (
                       <td key={role.id} className="py-3 px-3">
                         <div
+                          role="button"
+                          tabIndex={0}
                           className={[
                             'border rounded-lg px-3 py-2 text-xs cursor-pointer transition-colors',
                             assignment
@@ -339,6 +341,16 @@ export default function RefereeAssignmentsPage() {
                           onClick={() =>
                             setOverrideCell({ poolId: pool.id, poolName: pool.name, role: role.id })
                           }
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setOverrideCell({
+                                poolId: pool.id,
+                                poolName: pool.name,
+                                role: role.id,
+                              });
+                            }
+                          }}
                           title={warnings.map((w) => w.detail).join('; ')}
                         >
                           {assignment ? (

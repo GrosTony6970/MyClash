@@ -107,6 +107,18 @@ export const en = {
       invalidEmail: 'Enter a valid email address.',
       accessRequired: 'Sign in with your claimed Fighter account to change your email.',
     },
+    people: {
+      title: 'Participants',
+      searchPlaceholder: 'Search by name...',
+      noParticipantsFound: 'No participants found for "{query}"',
+      minSearchChars: 'Type at least 2 characters to search',
+    },
+    personLookup: {
+      searchAria: 'Search for your name',
+      notInList: "I'm none of these ->",
+      noMatchesFound: 'No matches found for "{query}"',
+      notInListShort: "I'm not in the list",
+    },
     notifications: {
       title: 'Notifications',
       description:
@@ -1169,6 +1181,18 @@ export const fr = {
       invalidEmail: 'Saisissez une adresse email valide.',
       accessRequired:
         'Connectez-vous avec votre compte de combattant revendique pour changer votre email.',
+    },
+    people: {
+      title: 'Participants',
+      searchPlaceholder: 'Chercher par nom...',
+      noParticipantsFound: 'Aucun participant trouve pour "{query}"',
+      minSearchChars: 'Saisissez au moins 2 caracteres pour chercher',
+    },
+    personLookup: {
+      searchAria: 'Chercher votre nom',
+      notInList: 'Je ne suis aucune de ces personnes ->',
+      noMatchesFound: 'Aucune correspondance trouvee pour "{query}"',
+      notInListShort: 'Je ne suis pas dans la liste',
     },
     notifications: {
       title: 'Notifications',

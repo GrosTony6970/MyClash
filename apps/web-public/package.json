@@ -7,7 +7,7 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "lint": "eslint app src --no-cache",
+    "lint": "eslint app src --no-cache --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/perf-build.mjs && pnpm --dir ../.. exec tsx apps/web-public/scripts/stats-render.perf.tsx && node scripts/landing-bundle-budget.mjs"
   },
@@ -18,15 +18,15 @@
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
     "@supabase/supabase-js": "^2.105.1",
-    "next": "15.3.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "next": "15.5.18",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.6",
     "@types/node": "^22.15.18",
-    "@types/react": "^19.1.4",
-    "@types/react-dom": "^19.1.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "tailwindcss": "^4.1.6",
     "typescript": "^5.6.0"
