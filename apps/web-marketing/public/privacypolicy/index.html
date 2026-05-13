@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Politique de Confidentialité — MyClash</title>
+  <meta name="description" content="Politique de confidentialité de MyClash — comment nous collectons, utilisons et protégeons vos données personnelles conformément au RGPD.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://myclash.fr/privacypolicy">
+  <link rel="alternate" hreflang="fr" href="https://myclash.fr/privacypolicy">
+  <link rel="alternate" hreflang="en" href="https://myclash.fr/en/privacypolicy">
+  <meta name="theme-color" content="#0f172a">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="MyClash">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:title" content="Politique de Confidentialité — MyClash">
+  <meta property="og:url" content="https://myclash.fr/privacypolicy">
+  <link rel="icon" href="/assets/Logomini_nobackground.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/Logomini_nobackground.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garant:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:        #1d4ed8;
+      --blue-dark:   #1e40af;
+      --blue-light:  #3b82f6;
+      --red:         #dc2626;
+      --red-dark:    #b91c1c;
+      --gold:        #f59e0b;
+      --white:       #ffffff;
+      --grey-light:  #f1f5f9;
+      --grey-mid:    #e2e8f0;
+      --grey:        #64748b;
+      --dark:        #0f172a;
+      --dark-mid:    #1e293b;
+      --font-display: 'Cinzel', serif;
+      --font-body:    'Cormorant Garant', serif;
+      --nav-h:       72px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      font-size: 18px;
+      background: var(--dark);
+      color: var(--grey-light);
+      overflow-x: hidden;
+    }
+
+    /* ── NAVBAR ───────────────────────────────────── */
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: var(--nav-h);
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--grey-mid);
+      display: flex;
+      align-items: center;
+      padding: 0 5%;
+      gap: 2rem;
+      transition: box-shadow 0.3s;
+    }
+    .nav.scrolled { box-shadow: 0 4px 24px rgba(15,23,42,0.12); }
+    .nav__logo { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+    .nav__logo img { height: 44px; width: auto; }
+    .nav__links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+      margin-left: auto;
+    }
+    .nav__links a {
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--dark-mid);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav__links a:hover { color: var(--blue); }
+    .nav__cta {
+      margin-left: 1rem;
+      padding: 0.6rem 1.5rem;
+      background: var(--blue);
+      color: var(--white);
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-decoration: none;
+      border-radius: 4px;
+      transition: background 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .nav__cta:hover { background: var(--blue-dark); transform: translateY(-1px); }
+    .nav__burger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      margin-left: auto;
+      padding: 4px;
+      background: none;
+      border: none;
+    }
+    .nav__burger span {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background: var(--dark);
+      border-radius: 2px;
+      transition: 0.3s;
+    }
+
+    /* ── FOOTER ───────────────────────────────────── */
+    .footer {
+      background: var(--dark);
+      color: rgba(255,255,255,0.6);
+      padding: 3.5rem 5% 2rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .footer__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 3rem;
+      align-items: center;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .footer__logo img { height: 40px; width: auto; opacity: 0.9; }
+    .footer__links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .footer__links a {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer__links a:hover { color: var(--white); }
+    .footer__contact {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.2rem;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .footer__contact:hover { border-color: var(--white); color: var(--white); }
+    .footer__bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 1.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .footer__copy {
+      font-size: 0.85rem;
+      font-style: italic;
+      color: rgba(255,255,255,0.35);
+    }
+    .footer__badges { display: flex; gap: 0.6rem; }
+    .footer__badge {
+      font-family: var(--font-display);
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ── POLICY ───────────────────────────────────── */
+    .policy { min-height: calc(100vh - var(--nav-h)); }
+
+    .policy__container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: calc(var(--nav-h) + 4rem) 5% 6rem;
+    }
+
+    .policy__title {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 700;
+      color: var(--white);
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
+    }
+
+    .policy__lang-toggle { margin-bottom: 0.4rem; }
+    .policy__lang-toggle a {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      color: var(--grey);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .policy__lang-toggle a:hover { color: var(--blue-light); }
+
+    .policy__date {
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-style: italic;
+      color: var(--grey);
+      margin-bottom: 2.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .policy h2 {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--blue-light);
+      margin: 3rem 0 1rem;
+    }
+
+    .policy h3 {
+      font-family: var(--font-display);
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.85);
+      margin: 2rem 0 0.8rem;
+    }
+
+    .policy p {
+      font-family: var(--font-body);
+      font-size: 1.05rem;
+      color: var(--grey-light);
+      line-height: 1.85;
+      margin-bottom: 1rem;
+    }
+
+    .policy ul, .policy ol {
+      font-family: var(--font-body);
+      font-size: 1.05rem;
+      color: var(--grey-light);
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+    }
+    .policy li { margin-bottom: 0.35rem; }
+
+    .policy strong { color: var(--white); }
+    .policy a { color: var(--blue-light); text-decoration: underline; }
+    .policy a:hover { color: var(--white); }
+
+    .policy table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-family: var(--font-body);
+      font-size: 0.98rem;
+    }
+    .policy th {
+      background: var(--dark-mid);
+      color: var(--white);
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .policy td {
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--grey-light);
+      padding: 0.65rem 1rem;
+      line-height: 1.65;
+      vertical-align: top;
+    }
+    .policy tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .policy blockquote {
+      border-left: 3px solid var(--blue);
+      padding: 1rem 1.2rem;
+      margin: 1.2rem 0;
+      background: rgba(29,78,216,0.06);
+      border-radius: 0 6px 6px 0;
+    }
+    .policy blockquote p {
+      color: var(--grey);
+      font-size: 0.95rem;
+      margin-bottom: 0;
+    }
+
+    .policy hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      margin: 2.5rem 0;
+    }
+
+    /* ── RESPONSIVE ───────────────────────────────── */
+    @media (max-width: 900px) {
+      .nav__links { display: none; }
+      .nav__burger { display: flex; }
+      .nav__cta { display: none; }
+      .nav__links.open {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: var(--nav-h);
+        left: 0; right: 0;
+        background: var(--white);
+        padding: 1.5rem 5%;
+        border-bottom: 1px solid var(--grey-mid);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        gap: 1.2rem;
+      }
+      .nav__links.open + .nav__cta {
+        display: block;
+        position: fixed;
+        top: calc(var(--nav-h) + 10rem);
+        left: 5%; right: 5%;
+        text-align: center;
+      }
+      .footer__inner { grid-template-columns: 1fr; gap: 1.5rem; text-align: center; }
+      .footer__links { justify-content: center; }
+      .footer__contact { margin: 0 auto; }
+      .footer__bottom { justify-content: center; text-align: center; }
+    }
+    @media (max-width: 600px) {
+      .policy__container { padding: calc(var(--nav-h) + 2rem) 5% 4rem; }
+      .policy table { font-size: 0.85rem; }
+      .policy th, .policy td { padding: 0.5rem 0.65rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav class="nav" id="navbar">
+    <a href="/" class="nav__logo" aria-label="MyClash accueil">
+      <img src="/assets/Logo_nobackground.png" alt="MyClash">
+    </a>
+    <ul class="nav__links" id="nav-links">
+      <li><a href="/#fonctionnalites">Fonctionnalités</a></li>
+      <li><a href="/#comment">Comment ça marche</a></li>
+      <li><a href="/#soutenir">Soutenir</a></li>
+    </ul>
+    <button class="nav__burger" id="burger" aria-label="Menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <a href="https://app.myclash.fr" class="nav__cta" target="_blank" rel="noopener">Connexion</a>
+  </nav>
+
+  <!-- POLICY CONTENT -->
+  <main class="policy">
+    <div class="policy__container">
+
+      <h1 class="policy__title">Politique de Confidentialité</h1>
+      <p class="policy__lang-toggle"><a href="/en/privacypolicy">🇬🇧 Read in English</a></p>
+      <p class="policy__date">Dernière mise à jour : 13 mai 2026</p>
+
+      <!-- 1 -->
+      <h2>1. Qui sommes-nous ?</h2>
+      <p><strong>MyClash</strong> est une application développée et exploitée par :</p>
+      <blockquote>
+        <p>
+          <strong>Association de Recherche et Développement des Arts Martiaux Historiques Européens à Lyon (LYON AMHE)</strong><br>
+          Bâtiment 15, Résidence du Parc, 2 avenue Raymond de Veyssière, 69130 Écully<br>
+          SIRET : 924 695 455 00015<br>
+          Email : <a href="mailto:lyon.amhe@gmail.com">lyon.amhe@gmail.com</a>
+        </p>
+      </blockquote>
+      <p>Ci-après désignée « <strong>nous</strong> », « <strong>notre</strong> » ou « <strong>le Responsable de traitement</strong> ».</p>
+      <p>Pour toute question relative à la présente politique ou à vos données personnelles, vous pouvez nous contacter à : <strong><a href="mailto:lyon.amhe@gmail.com">lyon.amhe@gmail.com</a></strong></p>
+
+      <!-- 2 -->
+      <h2>2. Quelles données collectons-nous ?</h2>
+      <p>Nous collectons uniquement les données strictement nécessaires au fonctionnement de l'application.</p>
+
+      <h3>2.1 Données que vous nous fournissez directement</h3>
+      <table>
+        <thead><tr><th>Catégorie</th><th>Exemples</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Données d'identification</strong></td><td>Nom d'utilisateur, adresse e-mail, mot de passe (chiffré)</td></tr>
+          <tr><td><strong>Données de profil</strong></td><td>Photo de profil, pseudonyme</td></tr>
+          <tr><td><strong>Données de jeu / compétition</strong></td><td>Scores, classements, historiques de parties, pseudonymes en jeu</td></tr>
+          <tr><td><strong>Communications</strong></td><td>Messages envoyés via le support ou les fonctionnalités sociales de l'app</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2.2 Données collectées automatiquement</h3>
+      <table>
+        <thead><tr><th>Catégorie</th><th>Exemples</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Données techniques</strong></td><td>Adresse IP, type d'appareil, système d'exploitation, version de l'app</td></tr>
+          <tr><td><strong>Données d'utilisation</strong></td><td>Pages/écrans consultés, durée de session, actions effectuées dans l'app</td></tr>
+          <tr><td><strong>Données de localisation</strong></td><td>Pays/région (dérivés de l'IP, pas de géolocalisation précise)</td></tr>
+          <tr><td><strong>Cookies et traceurs</strong></td><td>Voir section 7</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2.3 Données que nous ne collectons pas</h3>
+      <p>Nous ne collectons <strong>aucune donnée sensible</strong> au sens de l'article 9 du RGPD (origine ethnique, opinions politiques, données de santé, données biométriques, etc.).</p>
+
+      <!-- 3 -->
+      <h2>3. Pourquoi collectons-nous ces données ?</h2>
+      <p>Chaque traitement repose sur une <strong>base légale</strong> conformément à l'article 6 du RGPD.</p>
+      <table>
+        <thead><tr><th>Finalité</th><th>Base légale</th></tr></thead>
+        <tbody>
+          <tr><td>Créer et gérer votre compte</td><td><strong>Exécution du contrat</strong> (CGU)</td></tr>
+          <tr><td>Faire fonctionner les fonctionnalités de jeu et de compétition</td><td><strong>Exécution du contrat</strong></td></tr>
+          <tr><td>Assurer la sécurité de l'application et prévenir la fraude</td><td><strong>Intérêt légitime</strong></td></tr>
+          <tr><td>Répondre à vos demandes de support</td><td><strong>Exécution du contrat</strong> / <strong>Intérêt légitime</strong></td></tr>
+          <tr><td>Améliorer l'application (analyses d'usage anonymisées)</td><td><strong>Intérêt légitime</strong></td></tr>
+          <tr><td>Vous envoyer des communications marketing</td><td><strong>Consentement</strong> (opt-in explicite)</td></tr>
+          <tr><td>Respecter nos obligations légales</td><td><strong>Obligation légale</strong></td></tr>
+        </tbody>
+      </table>
+
+      <!-- 4 -->
+      <h2>4. Combien de temps conservons-nous vos données ?</h2>
+      <table>
+        <thead><tr><th>Type de données</th><th>Durée de conservation</th></tr></thead>
+        <tbody>
+          <tr><td>Données de compte actif</td><td>Pendant toute la durée de votre inscription</td></tr>
+          <tr><td>Données de compte supprimé</td><td>30 jours après la suppression (délai de rétractation), puis suppression définitive</td></tr>
+          <tr><td>Logs techniques et de sécurité</td><td>12 mois</td></tr>
+          <tr><td>Données de facturation / transactions</td><td>10 ans (obligation comptable légale)</td></tr>
+          <tr><td>Données analytiques anonymisées</td><td>Durée indéterminée (non rattachées à une personne)</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 5 -->
+      <h2>5. Avec qui partageons-nous vos données ?</h2>
+      <p>Nous ne <strong>vendons jamais</strong> vos données personnelles. Nous pouvons les partager avec :</p>
+
+      <h3>5.1 Sous-traitants techniques (dans le strict cadre de leurs missions)</h3>
+      <table>
+        <thead><tr><th>Prestataire</th><th>Rôle</th><th>Localisation</th></tr></thead>
+        <tbody>
+          <tr><td><strong>OVHcloud</strong></td><td>Hébergement &amp; infrastructure serveurs</td><td>France (UE)</td></tr>
+          <tr><td><strong>Scaleway</strong></td><td>Hébergement &amp; infrastructure cloud</td><td>France (UE)</td></tr>
+          <tr><td><strong>Supabase</strong> <em>(self-hosted)</em></td><td>Base de données &amp; authentification</td><td>Hébergé sur notre infrastructure OVH/Scaleway (UE) — aucun transfert vers Supabase Inc.</td></tr>
+          <tr><td><strong>Sentry</strong> <em>(self-hosted)</em></td><td>Monitoring et journalisation des erreurs</td><td>Hébergé sur notre infrastructure OVH/Scaleway (UE)</td></tr>
+        </tbody>
+      </table>
+      <blockquote>
+        <p><strong>Note importante :</strong> Supabase et Sentry étant déployés en mode <strong>self-hosted</strong> sur notre propre infrastructure européenne, aucune donnée personnelle n'est transmise aux sociétés éditrices de ces logiciels (Supabase Inc. / Functional Software Inc.). Ces logiciels sont utilisés comme des outils open source, sans communication de données vers leurs serveurs.</p>
+      </blockquote>
+      <p>Tous nos sous-traitants sont contractuellement tenus de respecter le RGPD et de ne traiter vos données qu'aux fins que nous leur indiquons.</p>
+
+      <h3>5.2 Autorités légales</h3>
+      <p>Nous pouvons être amenés à divulguer des données aux autorités compétentes sur réquisition légale ou pour protéger nos droits.</p>
+
+      <!-- 6 -->
+      <h2>6. Transferts hors Union Européenne</h2>
+      <p>L'ensemble de notre infrastructure (OVHcloud, Scaleway) est hébergée en <strong>France</strong>, au sein de l'Union Européenne. Nos outils internes (base de données Supabase, monitoring Sentry) fonctionnent en mode self-hosted sur cette même infrastructure.</p>
+      <p><strong>Aucun transfert de données personnelles n'est effectué en dehors de l'Union Européenne.</strong></p>
+
+      <!-- 7 -->
+      <h2>7. Cookies et technologies similaires</h2>
+      <p>L'application MyClash utilise des cookies et technologies similaires. Conformément aux exigences CNIL 2025-2026 et à la réforme ePrivacy (Digital Omnibus Package), notre gestion des cookies respecte les principes suivants :</p>
+      <ul>
+        <li><strong>Pas de dark patterns</strong> : le refus des cookies non essentiels est aussi simple et accessible que leur acceptation.</li>
+        <li><strong>Granularité du consentement</strong> : chaque finalité de traitement dispose d'une option de consentement distincte — aucun regroupement forcé.</li>
+        <li><strong>Aucun accès conditionné</strong> : l'accès à l'application n'est pas subordonné à l'acceptation de cookies non essentiels.</li>
+      </ul>
+      <table>
+        <thead><tr><th>Type de cookie</th><th>Finalité</th><th>Base légale</th><th>Refusable</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cookies essentiels</strong></td><td>Maintien de votre session de connexion, sécurité</td><td>Intérêt légitime / Contrat</td><td>Non (techniques nécessaires)</td></tr>
+          <tr><td><strong>Cookies analytiques</strong></td><td>Mesure d'audience et amélioration de l'app</td><td>Consentement</td><td>Oui</td></tr>
+        </tbody>
+      </table>
+      <p>Vous pouvez gérer ou retirer vos préférences à tout moment via le <strong>panneau de gestion des cookies</strong> accessible depuis l'application ou le site.</p>
+
+      <!-- 8 -->
+      <h2>8. Vos droits</h2>
+      <p>Conformément au RGPD (articles 15 à 22), vous disposez des droits suivants sur vos données personnelles :</p>
+      <table>
+        <thead><tr><th>Droit</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Accès</strong></td><td>Obtenir une copie de vos données</td></tr>
+          <tr><td><strong>Rectification</strong></td><td>Corriger des données inexactes ou incomplètes</td></tr>
+          <tr><td><strong>Effacement</strong></td><td>Demander la suppression de vos données (« droit à l'oubli »)</td></tr>
+          <tr><td><strong>Limitation</strong></td><td>Suspendre le traitement de vos données dans certains cas</td></tr>
+          <tr><td><strong>Portabilité</strong></td><td>Recevoir vos données dans un format structuré et lisible par machine</td></tr>
+          <tr><td><strong>Opposition</strong></td><td>Vous opposer à un traitement basé sur notre intérêt légitime</td></tr>
+          <tr><td><strong>Retrait du consentement</strong></td><td>Retirer votre consentement à tout moment, sans affecter les traitements antérieurs</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Pour exercer vos droits</strong>, contactez-nous à : <strong><a href="mailto:lyon.amhe@gmail.com">lyon.amhe@gmail.com</a></strong></p>
+      <p>Nous nous engageons à répondre dans un délai d'<strong>1 mois</strong> (extensible à 3 mois en cas de demande complexe, avec notification).</p>
+      <p>Vous avez également le droit de déposer une <strong>réclamation auprès de la CNIL</strong> :<br>
+      <a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a> — 3 Place de Fontenoy, 75007 Paris.</p>
+
+      <!-- 9 -->
+      <h2>9. Sécurité des données</h2>
+      <p>Nous mettons en œuvre des mesures techniques et organisationnelles appropriées pour protéger vos données contre tout accès non autorisé, perte ou destruction, conformément aux exigences renforcées de la CNIL (décembre 2025) :</p>
+      <ul>
+        <li><strong>Chiffrement</strong> des données en transit (TLS 1.2+) et au repos</li>
+        <li><strong>Hachage des mots de passe</strong> (bcrypt ou équivalent)</li>
+        <li><strong>Authentification multifactorielle (MFA)</strong> obligatoire pour tout accès aux systèmes critiques et aux bases de données</li>
+        <li><strong>Journalisation des accès</strong> : toute connexion aux données personnelles est tracée (qui, quand, quelles données) afin de détecter les comportements anormaux</li>
+        <li><strong>Infrastructure souveraine</strong> : hébergement exclusif sur OVHcloud et Scaleway (datacenters France)</li>
+        <li><strong>Monitoring des erreurs</strong> via Sentry self-hosted, sans exposition des données à des tiers</li>
+        <li>Accès aux données restreint au <strong>personnel habilité</strong>, sur le principe du moindre privilège</li>
+        <li><strong>Procédure de gestion de crise</strong> en cas de violation de données, avec notification à la CNIL dans les <strong>72 heures</strong> (art. 33 RGPD)</li>
+      </ul>
+
+      <!-- 10 -->
+      <h2>10. Modifications de cette politique</h2>
+      <p>Nous pouvons mettre à jour cette politique pour refléter des évolutions légales, techniques ou fonctionnelles. En cas de modification substantielle, nous vous en informerons via <strong>notification in-app</strong> avant l'entrée en vigueur des changements.</p>
+      <p>La version en vigueur est toujours accessible à l'adresse : <strong><a href="https://myclash.fr/privacypolicy">https://myclash.fr/privacypolicy</a></strong></p>
+
+      <!-- 11 -->
+      <h2>11. Contact</h2>
+      <p>Pour toute question relative à cette politique ou à vos données :</p>
+      <p>
+        📧 <strong><a href="mailto:lyon.amhe@gmail.com">lyon.amhe@gmail.com</a></strong><br>
+        📬 Bâtiment 15, Résidence du Parc, 2 avenue Raymond de Veyssière, 69130 Écully
+      </p>
+      <blockquote>
+        <p>En tant qu'association loi 1901 traitant des données à titre non lucratif, la désignation d'un DPO n'est pas obligatoire pour LYON AMHE au regard du volume et de la nature des traitements effectués. Nous restons néanmoins disponibles pour toute demande relative à vos données personnelles à l'adresse ci-dessus.</p>
+      </blockquote>
+
+      <hr>
+      <p style="font-size:0.9rem;color:var(--grey);font-style:italic;">
+        Cette politique de confidentialité a été rédigée conformément au <strong>Règlement (UE) 2016/679</strong> (RGPD) et à la loi française <strong>Informatique et Libertés</strong> modifiée.
+      </p>
+
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__logo">
+        <a href="/" aria-label="MyClash accueil">
+          <img src="/assets/Logo_nobackground.png" alt="MyClash">
+        </a>
+      </div>
+      <ul class="footer__links" aria-label="Navigation pied de page">
+        <li><a href="/#fonctionnalites">Fonctionnalités</a></li>
+        <li><a href="/#comment">Comment ça marche</a></li>
+        <li><a href="/#soutenir">Soutenir</a></li>
+        <li><a href="https://app.myclash.fr" target="_blank" rel="noopener">Application</a></li>
+        <li><a href="/privacypolicy" aria-current="page">Confidentialité</a></li>
+      </ul>
+      <a href="mailto:admin@myclash.fr" class="footer__contact">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        Contact
+      </a>
+    </div>
+    <div class="footer__bottom">
+      <div>
+        <p class="footer__copy">© MyClash 2026 — Gestionnaire de Tournois AMHE. Tous droits réservés.</p>
+        <p class="footer__copy" style="margin-top:0.3rem;">MyClash développé par <a href="https://www.helloasso.com/associations/lyon-amhe" target="_blank" rel="noopener" style="color:rgba(255,255,255,0.5);text-decoration:underline;transition:color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.85)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">Lyon AMHE</a></p>
+      </div>
+      <div class="footer__badges">
+        <span class="footer__badge">Open Source</span>
+        <span class="footer__badge">AMHE</span>
+        <span class="footer__badge">Made in France</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      navbar.classList.toggle('scrolled', window.scrollY > 20);
+    }, { passive: true });
+
+    const burger = document.getElementById('burger');
+    const navLinks = document.getElementById('nav-links');
+    burger.addEventListener('click', () => {
+      const open = navLinks.classList.toggle('open');
+      burger.setAttribute('aria-expanded', open);
+    });
+  </script>
+</body>
+</html>

@@ -12,6 +12,15 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 - Public documentation (or a link to it).
 - Privacy policy, ToS, contact, attribution.
 
+## Pages
+
+| Path                | File                                 | Language |
+| ------------------- | ------------------------------------ | -------- |
+| `/`                 | `public/index.html`                  | FR       |
+| `/en/`              | `public/en/index.html`               | EN       |
+| `/privacypolicy`    | `public/privacypolicy/index.html`    | FR       |
+| `/en/privacypolicy` | `public/en/privacypolicy/index.html` | EN       |
+
 ## Build
 
 **Static HTML/CSS only.** No build tooling, no JS framework. Authored by hand, served by Caddy in production.
