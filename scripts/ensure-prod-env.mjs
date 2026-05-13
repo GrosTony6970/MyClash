@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureVapidEnv } from './ensure-vapid-env.mjs';
 
 const SAMPLE_VALUES = new Map([
-  ['DOMAIN', new Set(['myclash.fr'])],
+  ['DOMAIN', new Set(['yourdomain.com'])],
   ['LETSENCRYPT_EMAIL', new Set(['webmaster@example.com'])],
   ['COOKIE_SECRET', new Set(['change-me-cookie-secret'])],
   ['SUPABASE_URL', new Set(['http://localhost:8000'])],
@@ -32,12 +32,12 @@ const SAMPLE_VALUES = new Map([
   ['MYCLASH_STAFF_JWT_SECRET', new Set(['change-me-staff-jwt-secret'])],
   ['OPS_RUNNER_SECRET', new Set(['change-me-ops-runner-secret'])],
   ['RESEND_API_KEY', new Set(['re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'])],
-  ['MAIL_FROM', new Set(['noreply@myclash.fr'])],
+  ['MAIL_FROM', new Set(['noreply@yourdomain.com'])],
   ['NEXT_PUBLIC_SUPABASE_URL', new Set(['http://localhost:8000'])],
   ['NEXT_PUBLIC_SUPABASE_ANON_KEY', new Set(['change-me-anon-jwt'])],
   ['NEXT_PUBLIC_API_URL', new Set(['http://localhost:4000'])],
   ['SEED_ADMIN_PASSWORD', new Set(['change-me-admin-password'])],
-  ['SEED_ADMIN_EMAIL', new Set(['admin@myclash.fr', ''])],
+  ['SEED_ADMIN_EMAIL', new Set(['admin@yourdomain.com', ''])],
   // Scaleway S3 backup — no sample values, just detect empty
   ['BACKUP_SCW_ACCESS_KEY', new Set([''])],
   ['BACKUP_SCW_SECRET_KEY', new Set([''])],
@@ -136,7 +136,11 @@ async function askValue(key, currentValue, rl, options) {
   const inputValue = options.answers?.[key];
   if (inputValue !== undefined) return inputValue;
   if (options.nonInteractive) {
-    throw new Error(`${key} is missing or still set to a sample value.`);
+    throw new Error(
+      currentValue
+        ? `${key} is set to a sample value ("${currentValue}"). Update .env with the real value.`
+        : `${key} is required but missing from .env.`
+    );
   }
 
   const hint = currentValue ? 'sample value detected' : 'required';
