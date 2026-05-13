@@ -655,3 +655,7 @@ PLEASE IMPLEMENT THIS PLAN: Phase 6 Observability & Operations. Add Sentry Cloud
 ## 15:34:01_13-05-2026
 
 User reported GitHub CI errors: Trivy production image scan cannot resolve `aquasecurity/trivy-action@0.28.0`, and TypeScript reports deprecated `moduleResolution=node10`; fix the CI/build configuration.
+
+## 15:47:58_13-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Phase 7 Performance + SQL Query Review - production performance readiness pass covering backend latency, SQL correctness/optimization, frontend budgets, Web Vitals, caching, lightweight load testing, repo checks, docs, CI, and Supabase Postgres best-practice SQL review.

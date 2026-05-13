@@ -232,11 +232,20 @@ You cannot run a production service blind. This is the single biggest gap in mos
 
 **Skill: `/supabase-postgres-best-practices` (queries) + `/code-review` (bundle).**
 
+**Current status (2026-05-13): Pass with known issues.** Repo-local Phase 7
+checks now cover the performance review artifact, SQL query review
+classification, DB synthetic EXPLAIN workload presence, bundle-budget scripts,
+Playwright LCP/CLS coverage, and load-test tooling through `pnpm perf:review`.
+Live p95, full 50-concurrent load-test, `pg_stat_statements` top-N query, and
+real INP evidence remain owner-side staging/production evidence before final
+sign-off. See [`docs/PERFORMANCE_REVIEW.md`](./PERFORMANCE_REVIEW.md).
+
 ### Backend
 
 - N+1 detection: documented method (e.g. query log review on a representative session, or `nestjs-query-logger` enabled in staging)
 - Connection pool sizing rationale recorded
 - Hot endpoints have a target p95 latency
+- SQL query review covers raw SQL, Drizzle query builders, read-only views, indexes, pagination, RLS performance, and EXPLAIN evidence
 
 ### Frontend
 

@@ -181,6 +181,9 @@ jobs:
       - name: Check observability review gates
         run: pnpm observability:review
 
+      - name: Check performance review gates
+        run: pnpm perf:review
+
       - name: Check formatting
         run: pnpm format:check
 
