@@ -23,9 +23,10 @@ FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/types/package.json ./packages/types/
+COPY packages/rulesets/package.json ./packages/rulesets/
 # Install with frozen lockfile; cache the pnpm store
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types
+    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
@@ -35,8 +36,10 @@ ENV GIT_COMMIT=${GIT_COMMIT}
 COPY tsconfig.base.json ./
 COPY apps/api/ ./apps/api/
 COPY packages/types/ ./packages/types/
+COPY packages/rulesets/ ./packages/rulesets/
 # Build shared packages first, then the API
 RUN pnpm --filter @myclash/types build
+RUN pnpm --filter @myclash/rulesets build
 RUN pnpm --filter @myclash/api build
 
 # ── runner ────────────────────────────────────────────────────────────────────
@@ -55,6 +58,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./node_modules/@myclash/types/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./node_modules/@myclash/rulesets/dist
 # Bootstrap scripts (run as one-off containers during deploy)
 COPY --chown=nestjs:nodejs scripts/bootstrap-super-admin.mjs ./scripts/bootstrap-super-admin.mjs
 

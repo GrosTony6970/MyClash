@@ -108,6 +108,7 @@ _(New lessons added below as they are learned.)_
 ## Ruleset engine
 
 - **Build before typecheck**: `@myclash/rulesets` must be built (`pnpm --filter @myclash/rulesets build`) before the API can typecheck. The API uses `moduleResolution: node` → resolves to `dist/`. In CI, `build-packages` runs before `typecheck`.
+- **Docker builds must copy workspace package sources, not rely on local `dist/`**: if an app imports a workspace package, its production Dockerfile must copy that package manifest/source and build it inside the image. Local `dist/` output can mask missing Docker build inputs.
 - **`doublePenalty(-0)` trap**: `n*(n-1)/3` returns `-0` for `n=0`. Guard with `if (n <= 1) return 0` to avoid `-0 !== 0` test failures.
 - **FAL 2026 golden test**: 2 entries have `_published_score` notes where the source page shows a different value than the formula produces (rounding boundary at 1.545→1.5 and 1.645→1.6). The fixture stores the formula-correct value. This is expected and documented.
 

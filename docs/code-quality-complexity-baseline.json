@@ -56,7 +56,7 @@
     "packages/ui/src/components/BracketView.tsx"
   ],
   "functions": [
-    "apps/api/src/main.ts:15",
+    "apps/api/src/main.ts:19",
     "apps/api/src/modules/admin/admin-organizations.service.ts:88",
     "apps/api/src/modules/admin/system-versions.service.ts:81",
     "apps/api/src/modules/auth/auth.service.ts:159",
@@ -204,7 +204,7 @@
     "packages/ui/src/components/BracketView.tsx:216",
     "packages/ui/src/components/BracketView.tsx:53",
     "scripts/bootstrap-super-admin.mjs:79",
-    "scripts/ensure-prod-env.mjs:153",
+    "scripts/ensure-prod-env.mjs:159",
     "scripts/gen-api-client.ts:36",
     "scripts/generate-system-versions.mjs:36",
     "scripts/run-e2e.mjs:90",

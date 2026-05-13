@@ -17,6 +17,9 @@ import {
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   assignRefereesWithPools,
+  type AssignmentResult,
+  type AssignmentWarning,
+  type RefereeAssignment,
   type RefereeCandidate,
   type RefereePoolSlot,
 } from '@myclash/rulesets/dist/scheduling/index';
@@ -155,7 +158,7 @@ export class AutoAssignController {
     );
 
     // Run engine
-    const result = assignRefereesWithPools(poolSlots, candidates, {
+    const result: AssignmentResult = assignRefereesWithPools(poolSlots, candidates, {
       enforceRefereeNoBackToBack: poolSettings.enforceRefereeNoBackToBack,
       refereeRestMinSlots: poolSettings.refereeRestMinSlots,
       enforceDedicatedRefereeRest: poolSettings.enforceDedicatedRefereeRest,
@@ -179,7 +182,7 @@ export class AutoAssignController {
 
       // Insert new assignments
       await this.supabase.service.from('referee_assignments').insert(
-        result.assignments.map((a) => ({
+        result.assignments.map((a: RefereeAssignment) => ({
           event_id: eventId,
           pool_id: a.poolId,
           person_id: a.personId,
@@ -187,8 +190,8 @@ export class AutoAssignController {
           auto_assigned: true,
           status: 'assigned',
           conflicts_jsonb: result.warnings
-            .filter((w) => w.personId === a.personId && w.poolId === a.poolId)
-            .map((w) => ({ type: w.type, detail: w.detail })),
+            .filter((w: AssignmentWarning) => w.personId === a.personId && w.poolId === a.poolId)
+            .map((w: AssignmentWarning) => ({ type: w.type, detail: w.detail })),
         })),
       );
     }

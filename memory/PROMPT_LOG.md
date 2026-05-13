@@ -659,3 +659,7 @@ User reported GitHub CI errors: Trivy production image scan cannot resolve `aqua
 ## 15:47:58_13-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Phase 7 Performance + SQL Query Review - production performance readiness pass covering backend latency, SQL correctness/optimization, frontend budgets, Web Vitals, caching, lightweight load testing, repo checks, docs, CI, and Supabase Postgres best-practice SQL review.
+
+## 16:12:35_13-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Remediate GitHub CI #239 for commit e4ce0ba. Fix API Docker build workspace package copying/building, defensively type referee auto-assignment result, update complexity baseline drift, verify picomatch 4.0.4/high audit, and run focused plus broader gates.
