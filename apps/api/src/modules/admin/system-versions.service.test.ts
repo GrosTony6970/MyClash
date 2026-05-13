@@ -31,7 +31,7 @@ describe('AdminSystemVersionsService', () => {
         next: '15.3.2',
         nestjs: '^10.4.0',
         node: '>=20.10.0',
-        pnpm: 'pnpm@9.12.0',
+        pnpm: 'pnpm@10.27.0',
         typescript: '^5.6.0',
       },
       infrastructure: {
@@ -82,7 +82,7 @@ describe('AdminSystemVersionsService', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
     await writeFile(path.join(dir, 'VERSION'), 'v9.9.9\n');
     await writeJson(path.join(dir, 'package.json'), {
-      packageManager: 'pnpm@9.12.0',
+      packageManager: 'pnpm@10.27.0',
       devDependencies: { typescript: '^5.6.0' },
     });
 

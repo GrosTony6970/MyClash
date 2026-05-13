@@ -11,6 +11,7 @@ const ignoredDirs = new Set([
   '.git',
   '.kiro',
   '.next',
+  '.pnpm-store',
   '.turbo',
   'coverage',
   'dist',

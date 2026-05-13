@@ -9,7 +9,7 @@
 #   runner  — minimal production image
 
 ARG NODE_VERSION=22
-ARG PNPM_VERSION=9.12.0
+ARG PNPM_VERSION=10.27.0
 
 # ── base ─────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS base
@@ -42,10 +42,18 @@ RUN pnpm --filter @myclash/types build
 RUN pnpm --filter @myclash/rulesets build
 RUN pnpm --filter @myclash/api build
 
+# Runtime dependencies only. This avoids shipping pnpm, Vite, Vitest, esbuild,
+# and other build/test tooling in the final production image.
+FROM base AS prod-deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/types/package.json ./packages/types/
+COPY packages/rulesets/package.json ./packages/rulesets/
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --prod --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets
+
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
-ARG PNPM_VERSION
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 WORKDIR /app
 
@@ -54,11 +62,17 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nestjs
 
 # Copy only what's needed to run
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./node_modules/@myclash/types/dist
-COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./node_modules/@myclash/rulesets/dist
+COPY --from=prod-deps --chown=nestjs:nodejs /app/package.json ./package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/package.json ./packages/types/package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/package.json ./packages/rulesets/package.json
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./packages/types/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages/rulesets/dist
+RUN ln -s apps/api/dist dist \
+ && chown -h nestjs:nodejs dist
 # Bootstrap scripts (run as one-off containers during deploy)
 COPY --chown=nestjs:nodejs scripts/bootstrap-super-admin.mjs ./scripts/bootstrap-super-admin.mjs
 

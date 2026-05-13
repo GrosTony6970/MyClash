@@ -152,6 +152,7 @@ Follows are event-scoped (not global). The "watchlist view" at `/e/<eventSlug>/f
 ## Architecture quick reference
 
 - **Monorepo**: pnpm + Turborepo.
+- **Package manager**: pnpm 10.27.0 is the pinned toolchain for local, CI, and Docker builds; use `corepack pnpm ...` on Windows if an older global `pnpm` shim is still on PATH.
 - **Stack**: Next.js 15 (3 apps) + NestJS + Postgres (via Supabase) + Redis + Drizzle ORM + Supabase Realtime + Auth + Storage.
 - **Three frontends** (separate Next.js apps in monorepo):
   - `apps/web-public` — public/spectator/competitor PWA (mobile-first)
@@ -410,6 +411,7 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 - **Rate limiting**: `@nestjs/throttler` — global 60/min/IP; auth endpoints 10/hour/IP.
 - **Supabase URL in Docker**: `http://kong:8000` (internal network). In dev without Docker: `http://localhost:8000`.
 - **Next.js**: `output: 'standalone'` set on all three apps for minimal Docker images.
+- **API Docker runtime image**: build shared workspace packages in Docker, install runtime dependencies in a separate prod-only stage, and do not copy full builder `node_modules` into the final image. This keeps pnpm/build tooling such as Vite/Vitest/esbuild out of production Trivy scans.
 - **ESLint**: flat config (`eslint.config.mjs`) at root + per-app configs with `parserOptions.project` for typed linting.
 - **Vitest**: used for all unit tests. `passWithNoTests: true` on packages without tests yet (rulesets, etc.).
 - **NestJS testing in Vitest**: use direct instantiation (`new Service(mockDep1, mockDep2)`) rather than `Test.createTestingModule()` — the NestJS DI container doesn't resolve `useValue` mocks reliably in Vitest without `emitDecoratorMetadata` being active in the test runner.

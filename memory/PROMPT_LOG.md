@@ -663,3 +663,7 @@ PLEASE IMPLEMENT THIS PLAN: Phase 7 Performance + SQL Query Review - production 
 ## 16:12:35_13-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Remediate GitHub CI #239 for commit e4ce0ba. Fix API Docker build workspace package copying/building, defensively type referee auto-assignment result, update complexity baseline drift, verify picomatch 4.0.4/high audit, and run focused plus broader gates.
+
+## 16:30:45_13-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Trivy CVE Remediation For Latest GitHub Build - update pnpm pins to 10.27.0, refresh lockfile, harden API Docker runtime image to avoid build/dev deps, verify audit/build/lint/typecheck/test/format and Docker/Trivy where available.

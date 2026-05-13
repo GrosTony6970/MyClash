@@ -9,10 +9,10 @@
     "type": "git",
     "url": "https://github.com/GrosTony6970/MyClash.git"
   },
-  "packageManager": "pnpm@9.12.0",
+  "packageManager": "pnpm@10.27.0",
   "engines": {
     "node": ">=20.10.0",
-    "pnpm": ">=9.0.0"
+    "pnpm": ">=10.27.0"
   },
   "scripts": {
     "build": "turbo run build",
@@ -58,7 +58,9 @@
     "overrides": {
       "fastify": "^5.8.5",
       "fast-uri": "^3.1.2",
+      "cross-spawn": "^7.0.6",
       "glob": "^10.5.0",
+      "minimatch": "^9.0.9",
       "picomatch": "^4.0.4"
     }
   },
