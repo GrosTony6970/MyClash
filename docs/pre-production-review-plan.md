@@ -136,6 +136,15 @@ CI already enforces typecheck/lint. Human review focuses on:
 
 **Manual (script + config review).**
 
+**Current status (2026-05-13): Pass with known issues.** This Phase 5 pass is
+limited to production containers plus Traefik edge/TLS because VPS hardening is
+owner-confirmed done. Repo-local checks are enforced by `pnpm infra:review` and
+CI. Live TLS evidence still needs to be captured after deploy with
+`pnpm infra:edge -- --domain myclash.fr`. See
+[`docs/INFRASTRUCTURE_REVIEW.md`](./INFRASTRUCTURE_REVIEW.md).
+The 2026-05-13 live probe failed against the current DNS target because the
+MyClash Traefik TLS stack is not serving the domain yet.
+
 ### Containers
 
 - `restart: unless-stopped` on long-running services
@@ -152,6 +161,8 @@ CI already enforces typecheck/lint. Human review focuses on:
 - HSTS header present in production
 
 ### VPS hardening
+
+Owner-confirmed done; excluded from the 2026-05-13 Phase 5 remediation pass.
 
 - Firewall: only 80, 443, 22 open
 - SSH: key-only auth, root login disabled

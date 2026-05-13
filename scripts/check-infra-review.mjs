@@ -1,0 +1,192 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+const rootDir = path.resolve(import.meta.dirname, '..');
+const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
+const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
+const dockerfilePaths = [
+  'apps/api/Dockerfile',
+  'apps/web-admin/Dockerfile',
+  'apps/web-public/Dockerfile',
+  'apps/web-scoring/Dockerfile',
+  'apps/web-marketing/Dockerfile',
+  'infra/ops-runner/Dockerfile',
+];
+
+const composeText = await readFile(composePath, 'utf8');
+const deployText = await readFile(deployPath, 'utf8');
+const dockerfiles = await Promise.all(
+  dockerfilePaths.map(async (filePath) => ({
+    filePath,
+    text: await readFile(path.join(rootDir, filePath), 'utf8'),
+  })),
+);
+
+const errors = [];
+const warnings = [];
+
+const services = parseServices(composeText);
+const requiredServices = [
+  'traefik',
+  'db',
+  'redis',
+  'supabase-auth',
+  'supabase-realtime',
+  'supabase-storage',
+  'api',
+  'ops-runner',
+  'worker',
+  'web-public',
+  'web-marketing',
+  'web-scoring',
+  'web-admin',
+];
+
+for (const serviceName of requiredServices) {
+  const service = services.get(serviceName);
+  if (!service) {
+    errors.push(`Missing service: ${serviceName}`);
+    continue;
+  }
+  requireContains(service, serviceName, 'restart: unless-stopped');
+  requireContains(service, serviceName, 'logging:');
+  requireContains(service, serviceName, 'driver: json-file');
+  requireContains(service, serviceName, "max-size: '10m'");
+
+  if (!['worker'].includes(serviceName)) {
+    requireContains(service, serviceName, 'healthcheck:');
+  }
+
+  if (!['ops-runner'].includes(serviceName)) {
+    requireContains(service, serviceName, 'mem_limit:');
+    requireContains(service, serviceName, 'cpus:');
+  } else {
+    requireContains(service, serviceName, 'mem_limit:');
+    requireContains(service, serviceName, 'cpus:');
+    if (/traefik\.http\.routers\./.test(service)) {
+      errors.push('ops-runner must remain internal-only and must not define Traefik routers.');
+    }
+    requireContains(service, serviceName, '/var/run/docker.sock:/var/run/docker.sock');
+  }
+}
+
+for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {
+  const dockerfile = dockerfiles.find((file) =>
+    file.filePath.includes(serviceName.replace('web-', 'web-')),
+  );
+  if (dockerfile && !/\nUSER\s+\w+/u.test(dockerfile.text)) {
+    errors.push(`${dockerfile.filePath} must set a non-root USER in the runner stage.`);
+  }
+}
+
+const marketingDockerfile = dockerfiles.find(
+  (file) => file.filePath === 'apps/web-marketing/Dockerfile',
+);
+if (marketingDockerfile && !/FROM caddy:/u.test(marketingDockerfile.text)) {
+  warnings.push(
+    'Marketing Dockerfile no longer uses the expected Caddy static image; review non-root behavior.',
+  );
+}
+
+const headers = [
+  'traefik.http.middlewares.myclash-security-headers.headers.stsSeconds=31536000',
+  'traefik.http.middlewares.myclash-security-headers.headers.stsIncludeSubdomains=true',
+  'traefik.http.middlewares.myclash-security-headers.headers.stsPreload=false',
+  'traefik.http.middlewares.myclash-security-headers.headers.contentTypeNosniff=true',
+  'traefik.http.middlewares.myclash-security-headers.headers.frameDeny=true',
+  'traefik.http.middlewares.myclash-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin',
+];
+for (const header of headers) {
+  if (!composeText.includes(header))
+    errors.push(`Missing Traefik security header label: ${header}`);
+}
+for (const expected of [
+  '--entrypoints.web.http.redirections.entrypoint.to=websecure',
+  '--entrypoints.web.http.redirections.entrypoint.scheme=https',
+  '--certificatesresolvers.letsencrypt.acme.storage=/data/acme.json',
+  '--certificatesresolvers.letsencrypt.acme.tlschallenge=true',
+]) {
+  if (!composeText.includes(expected)) errors.push(`Missing Traefik edge setting: ${expected}`);
+}
+if (!deployText.includes('chmod 600 "$ACME_FILE"')) {
+  errors.push('deploy.sh must enforce ACME storage permissions with chmod 600.');
+}
+
+const publicRouters = [
+  'myclash-api',
+  'myclash-auth',
+  'myclash-realtime',
+  'myclash-storage',
+  'myclash-public',
+  'myclash-marketing',
+  'myclash-scoring',
+  'myclash-admin',
+];
+for (const router of publicRouters) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=.*myclash-security-headers@docker`,
+    'u',
+  );
+  if (!pattern.test(composeText)) {
+    errors.push(`Router ${router} must use myclash-security-headers@docker.`);
+  }
+}
+
+const composeImages = [...composeText.matchAll(/^\s+image:\s+([^\s#]+)/gmu)].map(
+  (match) => match[1],
+);
+for (const image of composeImages) {
+  if (!image.includes('@sha256:')) {
+    warnings.push(`Compose image is tag-pinned but not digest-pinned: ${image}`);
+  }
+}
+for (const { filePath, text } of dockerfiles) {
+  for (const match of text.matchAll(/^FROM\s+([^\s]+)/gmu)) {
+    const image = match[1];
+    if (!image.includes('/') && !image.includes(':') && !image.includes('${')) continue;
+    if (!image.includes('@sha256:')) {
+      warnings.push(`${filePath} base image is not digest-pinned: ${image}`);
+    }
+  }
+}
+
+if (warnings.length > 0) {
+  console.warn('Infrastructure review warnings:');
+  for (const warning of new Set(warnings)) console.warn(`  - ${warning}`);
+}
+
+if (errors.length > 0) {
+  console.error('Infrastructure review blockers:');
+  for (const error of errors) console.error(`  - ${error}`);
+  process.exit(1);
+}
+
+console.log(`Infrastructure review passed for ${requiredServices.length} services.`);
+
+function parseServices(text) {
+  const lines = text.split(/\r?\n/u);
+  const result = new Map();
+  let currentName = null;
+  let currentLines = [];
+  for (const line of lines) {
+    const serviceMatch = /^  ([a-zA-Z0-9_-]+):\s*$/u.exec(line);
+    if (serviceMatch && !['networks', 'volumes'].includes(serviceMatch[1])) {
+      if (currentName) result.set(currentName, currentLines.join('\n'));
+      currentName = serviceMatch[1];
+      currentLines = [line];
+      continue;
+    }
+    if (/^(networks|volumes):\s*$/u.test(line)) break;
+    if (currentName) currentLines.push(line);
+  }
+  if (currentName) result.set(currentName, currentLines.join('\n'));
+  return result;
+}
+
+function requireContains(text, serviceName, expected) {
+  if (!text.includes(expected)) errors.push(`${serviceName} is missing ${expected}`);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}

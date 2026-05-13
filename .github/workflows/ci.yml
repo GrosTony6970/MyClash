@@ -175,6 +175,9 @@ jobs:
       - name: Check database review gates
         run: pnpm db:review && pnpm db:perf:fixture
 
+      - name: Check infrastructure review gates
+        run: pnpm infra:review
+
       - name: Check formatting
         run: pnpm format:check
 

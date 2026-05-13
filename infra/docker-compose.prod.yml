@@ -31,6 +31,7 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      - --ping=true
       - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
@@ -46,10 +47,26 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./data/traefik:/data
       - ./logs/traefik:/logs
+    healthcheck:
+      test: ['CMD', 'traefik', 'healthcheck', '--ping']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks: [myclash]
+    mem_limit: 256m
+    cpus: 0.5
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
+    labels:
+      - traefik.enable=true
+      - traefik.http.middlewares.myclash-security-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.myclash-security-headers.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.myclash-security-headers.headers.stsPreload=false
+      - traefik.http.middlewares.myclash-security-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.myclash-security-headers.headers.frameDeny=true
+      - traefik.http.middlewares.myclash-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
@@ -125,8 +142,19 @@ services:
       TZ: ${TZ}
     depends_on:
       db: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://localhost:9999/health >/dev/null 2>&1 || wget -qO- http://localhost:9999/ >/dev/null 2>&1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [myclash]
     mem_limit: 256m
+    cpus: 0.5
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
@@ -152,8 +180,19 @@ services:
       TZ: ${TZ}
     depends_on:
       db: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://localhost:4000/api/tenants/realtime/health >/dev/null 2>&1 || wget -qO- http://localhost:4000/ >/dev/null 2>&1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [myclash]
     mem_limit: 512m
+    cpus: 1
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
@@ -180,8 +219,19 @@ services:
       db: { condition: service_healthy }
     volumes:
       - storage_data:/var/lib/storage
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -qO- http://localhost:5000/status >/dev/null 2>&1 || wget -qO- http://localhost:5000/ >/dev/null 2>&1 || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [myclash]
     mem_limit: 256m
+    cpus: 0.5
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
@@ -250,13 +300,14 @@ services:
       - traefik.http.routers.myclash-api.entrypoints=websecure
       - traefik.http.routers.myclash-api.tls=true
       - traefik.http.routers.myclash-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-api.middlewares=myclash-compress@docker
+      - traefik.http.routers.myclash-api.middlewares=myclash-security-headers@docker,myclash-compress@docker
       - traefik.http.services.myclash-api.loadbalancer.server.port=4000
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
       - traefik.http.routers.myclash-auth.tls=true
       - traefik.http.routers.myclash-auth.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-auth.middlewares=myclash-security-headers@docker
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
       - traefik.http.services.myclash-supabase-auth.loadbalancer.server.port=9999
@@ -264,6 +315,7 @@ services:
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
       - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@docker
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
       - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.port=4000
@@ -271,6 +323,7 @@ services:
       - traefik.http.routers.myclash-storage.entrypoints=websecure
       - traefik.http.routers.myclash-storage.tls=true
       - traefik.http.routers.myclash-storage.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-storage.middlewares=myclash-security-headers@docker
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.port=5000
@@ -299,6 +352,18 @@ services:
     volumes:
       - ../:/srv/myclash
       - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "const http=require('http');const s=process.env.OPS_RUNNER_SECRET;const req=http.get({host:'localhost',port:4075,path:'/status',headers:{authorization:`Bearer ${s}`}},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks: [myclash]
     mem_limit: 512m
     cpus: 1
@@ -387,7 +452,7 @@ services:
       - traefik.http.routers.myclash-public.tls=true
       - traefik.http.routers.myclash-public.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-public.priority=1
-      - traefik.http.routers.myclash-public.middlewares=myclash-compress@docker
+      - traefik.http.routers.myclash-public.middlewares=myclash-security-headers@docker,myclash-compress@docker
       - traefik.http.services.myclash-public.loadbalancer.server.port=3000
 
   # ── web-marketing (static landing site at apex) ───────────────────
@@ -420,7 +485,7 @@ services:
       - traefik.http.routers.myclash-marketing.entrypoints=websecure
       - traefik.http.routers.myclash-marketing.tls=true
       - traefik.http.routers.myclash-marketing.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-marketing.middlewares=myclash-compress@docker,myclash-www-redirect@docker
+      - traefik.http.routers.myclash-marketing.middlewares=myclash-security-headers@docker,myclash-compress@docker,myclash-www-redirect@docker
       - traefik.http.services.myclash-marketing.loadbalancer.server.port=80
       # Redirect www → apex
       - traefik.http.middlewares.myclash-www-redirect.redirectregex.regex=^https?://www\.${DOMAIN}/(.*)
@@ -467,7 +532,7 @@ services:
       - traefik.http.routers.myclash-scoring.entrypoints=websecure
       - traefik.http.routers.myclash-scoring.tls=true
       - traefik.http.routers.myclash-scoring.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-scoring.middlewares=myclash-compress@docker
+      - traefik.http.routers.myclash-scoring.middlewares=myclash-security-headers@docker,myclash-compress@docker
       - traefik.http.services.myclash-scoring.loadbalancer.server.port=3000
 
   # ── web-admin SPA (organizer + super admin) ───────────────────────
@@ -510,7 +575,7 @@ services:
       - traefik.http.routers.myclash-admin.entrypoints=websecure
       - traefik.http.routers.myclash-admin.tls=true
       - traefik.http.routers.myclash-admin.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-admin.middlewares=myclash-compress@docker
+      - traefik.http.routers.myclash-admin.middlewares=myclash-security-headers@docker,myclash-compress@docker
       - traefik.http.services.myclash-admin.loadbalancer.server.port=3000
 
 networks:
