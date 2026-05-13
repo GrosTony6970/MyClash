@@ -20,6 +20,8 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 | `/en/`              | `public/en/index.html`               | EN       |
 | `/privacypolicy`    | `public/privacypolicy/index.html`    | FR       |
 | `/en/privacypolicy` | `public/en/privacypolicy/index.html` | EN       |
+| `/terms`            | `public/terms/index.html`            | FR       |
+| `/en/terms`         | `public/en/terms/index.html`         | EN       |
 
 ## Build
 
