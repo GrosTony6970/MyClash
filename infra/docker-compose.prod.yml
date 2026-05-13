@@ -363,7 +363,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "const http=require('http');const s=process.env.OPS_RUNNER_SECRET;const req=http.get({host:'localhost',port:4075,path:'/status',headers:{authorization:`Bearer ${s}`}},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));",
+          "const http=require('http');const s=process.env.OPS_RUNNER_SECRET;const req=http.get({host:'localhost',port:4075,path:'/status',headers:{authorization:`Bearer $${s}`}},r=>process.exit(r.statusCode===200?0:1));req.on('error',()=>process.exit(1));",
         ]
       interval: 30s
       timeout: 5s

@@ -28,6 +28,7 @@ source "$SCRIPT_DIR/lib/log.sh"
 
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
+DOTENV="$ROOT_DIR/.env"
 
 # ── Arguments ────────────────────────────────────────────────────
 USE_DEV_CERTS=0
@@ -193,13 +194,19 @@ ok ".env validated/repaired"
 GENERATED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.generated||[]).join(' '))" "$ENV_RESULT")
 PROMPTED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.prompted||[]).join(' '))" "$ENV_RESULT")
 NORMALIZED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.normalized||[]).join(' '))" "$ENV_RESULT")
-[[ -n "$GENERATED_KEYS" ]] && info "Generated secrets: $GENERATED_KEYS"
 [[ -n "$PROMPTED_KEYS" ]] && info "Captured required values: $PROMPTED_KEYS"
 [[ -n "$NORMALIZED_KEYS" ]] && info "Normalized values: $NORMALIZED_KEYS"
 
 set -a
 source ./.env
 set +a
+
+if [[ -n "$GENERATED_KEYS" ]]; then
+  warn "Newly generated secrets — save these to your vault:"
+  for key in $GENERATED_KEYS; do
+    printf "    %-40s %s\n" "$key" "${!key}"
+  done
+fi
 
 : "${DOMAIN:?Missing DOMAIN in .env}"
 : "${LETSENCRYPT_EMAIL:?Missing LETSENCRYPT_EMAIL in .env}"
@@ -284,13 +291,13 @@ hdr "Pre-deploy database backup"
 
 if [[ "$SKIP_BACKUP" -eq 1 ]]; then
   warn "Skipping pre-deploy backup (--skip-backup)"
-elif ! docker compose --env-file .env "${COMPOSE_FILES[@]}" ps --status running db 2>/dev/null | grep -q db; then
+elif ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps --status running db 2>/dev/null | grep -q db; then
   warn "Database not running — skipping pre-deploy backup (likely first deploy)"
 else
   TIMESTAMP=$(date -u +"%Y%m%dT%H%M%SZ")
   BACKUP_FILE="backups/pre-deploy/${TIMESTAMP}.sql.gz"
   info "Dumping to $BACKUP_FILE"
-  if docker compose --env-file .env "${COMPOSE_FILES[@]}" exec -T db \
+  if docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" exec -T db \
        pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" 2>/dev/null | gzip > "$BACKUP_FILE"; then
     ok "Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
   else
@@ -335,7 +342,7 @@ ok "System version manifest written to data/system-versions.json"
 # ── Build ────────────────────────────────────────────────────────
 hdr "Building images"
 
-docker compose --env-file .env "${COMPOSE_FILES[@]}" build
+docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" build
 ok "Images built"
 
 # ── Migrations ───────────────────────────────────────────────────
@@ -346,7 +353,7 @@ if [[ "$SKIP_MIGRATIONS" -eq 1 ]]; then
 else
   # Migration runs as a one-off compose run command, not a service.
   # Failure here exits the script before `up` is called — old containers stay up.
-  if ! docker compose --env-file .env "${COMPOSE_FILES[@]}" \
+  if ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
          run --rm api pnpm --filter @myclash/db migrate; then
     err "Migration failed — deploy aborted; previous version is still running"
     err "Investigate, then either fix and re-run, or rollback with: infra/scripts/rollback.sh"
@@ -358,7 +365,7 @@ fi
 # ── Bring up new stack ───────────────────────────────────────────
 hdr "Starting stack"
 
-docker compose --env-file .env "${COMPOSE_FILES[@]}" up -d
+docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d
 ok "Stack started"
 
 # ── Wait for healthchecks ────────────────────────────────────────
@@ -369,7 +376,7 @@ DELAY=3
 for svc in api web-public web-scoring web-admin; do
   for i in $(seq 1 "$RETRIES"); do
     HEALTH=$(docker inspect --format='{{.State.Health.Status}}' \
-              "$(docker compose --env-file .env "${COMPOSE_FILES[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")
+              "$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")
     if [[ "$HEALTH" == "healthy" ]]; then
       ok "$svc healthy"
       break
@@ -387,7 +394,7 @@ done
 # ── Bootstrap super admin (first deploy only) ────────────────────
 hdr "Super admin bootstrap"
 
-BOOTSTRAP_RESULT=$(docker compose --env-file .env "${COMPOSE_FILES[@]}" \
+BOOTSTRAP_RESULT=$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
   run --rm \
   -e SUPABASE_URL="http://supabase-auth:9999" \
   -e SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
@@ -446,7 +453,7 @@ ok "Metadata saved to .last-deploy.json"
 # ── Summary ──────────────────────────────────────────────────────
 hdr "Deploy complete"
 
-docker compose --env-file .env "${COMPOSE_FILES[@]}" ps
+docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps
 
 echo
 ok "Deployed commit ${NEW_COMMIT:0:8} to https://${DOMAIN}"
