@@ -50,7 +50,7 @@ COPY apps/api/package.json ./apps/api/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --prod --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets
+    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
