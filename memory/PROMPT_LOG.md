@@ -651,3 +651,7 @@ User requested implementation of Phase 5 Containers + Edge/TLS Review: add infra
 ## 10:30:33_13-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Phase 6 Observability & Operations. Add Sentry Cloud wiring, external uptime monitoring documentation, API-first structured/redacted logging, observability review docs and repo checks, env/deploy validation keys, CI observability gate, and update pre-production Phase 6 status with known owner-side evidence gaps.
+
+## 15:34:01_13-05-2026
+
+User reported GitHub CI errors: Trivy production image scan cannot resolve `aquasecurity/trivy-action@0.28.0`, and TypeScript reports deprecated `moduleResolution=node10`; fix the CI/build configuration.

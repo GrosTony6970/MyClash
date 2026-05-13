@@ -1,9 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "ignoreDeprecations": "5.0",
+    "module": "Node16",
+    "moduleResolution": "node16",
     "jsx": "react-jsx",
     "outDir": "dist",
     "rootDir": "src",
