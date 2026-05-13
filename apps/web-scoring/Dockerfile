@@ -71,6 +71,8 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-scoring/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-scoring/.next/static     ./apps/web-scoring/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web-scoring/public           ./apps/web-scoring/public
+# Lock file lets Trivy resolve exact installed versions from pnpm overrides
+COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml                  ./pnpm-lock.yaml
 
 USER nextjs
 EXPOSE 3000
