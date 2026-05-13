@@ -94,8 +94,10 @@ describe('ApiExceptionFilter', () => {
 
   it('does not expose stack traces for unknown production errors', () => {
     const { host, send } = makeHost();
+    const report = vi.fn();
+    const error = new Error('database exploded');
 
-    new ApiExceptionFilter().catch(new Error('database exploded'), host);
+    new ApiExceptionFilter(report).catch(error, host);
 
     expect(send).toHaveBeenCalledWith({
       statusCode: 500,
@@ -105,12 +107,19 @@ describe('ApiExceptionFilter', () => {
       method: 'GET',
       timestamp: '2026-05-12T21:30:00.000Z',
     } satisfies ApiErrorResponse);
+    expect(report).toHaveBeenCalledWith(error, {
+      statusCode: 500,
+      path: '/api/v1/test',
+      method: 'GET',
+    });
   });
 
   it('does not expose raw 5xx HTTP exception messages', () => {
-    const { host, send } = makeHost();
+    const { host, send } = makeHost({ requestId: 'req-500' });
+    const report = vi.fn();
+    const exception = new InternalServerErrorException('supabase raw error');
 
-    new ApiExceptionFilter().catch(new InternalServerErrorException('supabase raw error'), host);
+    new ApiExceptionFilter(report).catch(exception, host);
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -120,6 +129,12 @@ describe('ApiExceptionFilter', () => {
       }),
     );
     expect(send.mock.calls[0]?.[0]).not.toHaveProperty('details');
+    expect(report).toHaveBeenCalledWith(exception, {
+      statusCode: 500,
+      path: '/api/v1/test',
+      method: 'GET',
+      requestId: 'req-500',
+    });
   });
 
   it('maps spend-cap style error labels to stable codes', () => {

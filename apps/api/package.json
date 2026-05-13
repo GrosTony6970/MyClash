@@ -27,6 +27,8 @@
     "@nestjs/platform-fastify": "^11.1.19",
     "@nestjs/swagger": "^11.4.2",
     "@nestjs/throttler": "^6.5.0",
+    "@sentry/nestjs": "^10.53.1",
+    "@sentry/node": "^10.53.1",
     "@supabase/supabase-js": "^2.105.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/web-push": "^3.6.4",

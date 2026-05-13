@@ -21,8 +21,15 @@ interface ReplyLike {
   status: (statusCode: number) => { send: (body: ApiErrorResponse) => void };
 }
 
+export type ApiExceptionReporter = (
+  exception: unknown,
+  context: { statusCode: number; path: string; method: string; requestId?: string },
+) => void;
+
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
+  constructor(private readonly reportException?: ApiExceptionReporter) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const request = http.getRequest<RequestLike>();
@@ -31,14 +38,25 @@ export class ApiExceptionFilter implements ExceptionFilter {
       exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     const normalized = normalizeException(exception, statusCode);
     const requestId = firstHeaderValue(request.headers?.['x-request-id']);
+    const path = request.url ?? '';
+    const method = request.method ?? '';
+
+    if (statusCode >= 500) {
+      this.reportException?.(exception, {
+        statusCode,
+        path,
+        method,
+        ...(requestId ? { requestId } : {}),
+      });
+    }
 
     response.status(statusCode).send({
       statusCode,
       code: normalized.code,
       message: normalized.message,
       ...(normalized.details === undefined ? {} : { details: normalized.details }),
-      path: request.url ?? '',
-      method: request.method ?? '',
+      path,
+      method,
       timestamp: new Date().toISOString(),
       ...(requestId ? { requestId } : {}),
     });

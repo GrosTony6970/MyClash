@@ -23,23 +23,35 @@ describe('process failure handlers', () => {
 
   it('logs unhandled rejections with a stable prefix', () => {
     const logger = { error: vi.fn() };
+    const reporter = vi.fn();
+    const error = new Error('async failed');
 
-    logUnhandledRejection(new Error('async failed'), logger);
+    logUnhandledRejection(error, logger, reporter);
 
     expect(logger.error).toHaveBeenCalledWith(
       'Unhandled promise rejection: async failed',
       expect.stringContaining('Error: async failed'),
     );
+    expect(reporter).toHaveBeenCalledWith(error, {
+      type: 'unhandledRejection',
+      message: 'async failed',
+    });
   });
 
   it('logs uncaught exceptions with a stable prefix', () => {
     const logger = { error: vi.fn() };
+    const reporter = vi.fn();
+    const error = new Error('sync failed');
 
-    logUncaughtException(new Error('sync failed'), logger);
+    logUncaughtException(error, logger, reporter);
 
     expect(logger.error).toHaveBeenCalledWith(
       'Uncaught exception: sync failed',
       expect.stringContaining('Error: sync failed'),
     );
+    expect(reporter).toHaveBeenCalledWith(error, {
+      type: 'uncaughtException',
+      message: 'sync failed',
+    });
   });
 });

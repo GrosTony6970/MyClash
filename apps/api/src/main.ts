@@ -5,12 +5,16 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/api-exception.filter';
+import { captureApiException, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
 import { buildCorsOrigins } from './security/http-security';
 
 const PORT = process.env['PORT'] ? Number(process.env['PORT']) : 4000;
 
-registerProcessFailureHandlers();
+initApiSentry();
+registerProcessFailureHandlers(undefined, (reason, context) =>
+  captureApiException(reason, context),
+);
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -48,7 +52,7 @@ async function bootstrap(): Promise<void> {
       transform: true, // auto-transform payloads to DTO instances
     }),
   );
-  app.useGlobalFilters(new ApiExceptionFilter());
+  app.useGlobalFilters(new ApiExceptionFilter(captureApiException));
 
   // ── Global prefix ────────────────────────────────────────────────────────
   app.setGlobalPrefix('api/v1', {

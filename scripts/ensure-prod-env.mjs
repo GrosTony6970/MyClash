@@ -42,6 +42,12 @@ const SAMPLE_VALUES = new Map([
   ['BACKUP_SCW_ACCESS_KEY', new Set([''])],
   ['BACKUP_SCW_SECRET_KEY', new Set([''])],
   ['BACKUP_SCW_BUCKET', new Set([''])],
+  ['SENTRY_DSN_API', new Set([''])],
+  ['NEXT_PUBLIC_SENTRY_DSN_ADMIN', new Set([''])],
+  ['NEXT_PUBLIC_SENTRY_DSN_PUBLIC', new Set([''])],
+  ['NEXT_PUBLIC_SENTRY_DSN_SCORING', new Set([''])],
+  ['SENTRY_RELEASE', new Set([''])],
+  ['NEXT_PUBLIC_SENTRY_RELEASE', new Set([''])],
 ]);
 
 const SECRET_GENERATORS = {
@@ -227,6 +233,20 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['BACKUP_RETENTION_DAYS', state.values.get('BACKUP_RETENTION_DAYS') || '60'],
     ['BACKUP_UPLOAD_MAX_BYTES', state.values.get('BACKUP_UPLOAD_MAX_BYTES') || '1073741824'],
     ['MULTIPART_MAX_BYTES', state.values.get('MULTIPART_MAX_BYTES') || '1073741824'],
+    ['SENTRY_ENVIRONMENT', state.values.get('SENTRY_ENVIRONMENT') || 'production'],
+    ['SENTRY_TRACES_SAMPLE_RATE', state.values.get('SENTRY_TRACES_SAMPLE_RATE') || '0'],
+    [
+      'NEXT_PUBLIC_SENTRY_ENVIRONMENT',
+      state.values.get('NEXT_PUBLIC_SENTRY_ENVIRONMENT') ||
+        state.values.get('SENTRY_ENVIRONMENT') ||
+        'production',
+    ],
+    [
+      'NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE',
+      state.values.get('NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE') ||
+        state.values.get('SENTRY_TRACES_SAMPLE_RATE') ||
+        '0',
+    ],
   ]) {
     if (isSampleOrMissing(key, state.values.get(key))) {
       applyValue(state, key, value, 'normalized');

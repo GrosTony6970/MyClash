@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const nextConfig: NextConfig = {
   // Enable React strict mode for better development warnings
@@ -18,4 +19,20 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  telemetry: false,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+      removeTracing: true,
+    },
+  },
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeTracing: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true,
+  },
+});

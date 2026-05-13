@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -34,6 +34,7 @@ import { RegistrationsModule } from './modules/registrations/registrations.modul
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
+import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
 
 @Module({
   imports: [
@@ -107,4 +108,9 @@ import { TournamentQueryModule } from './modules/tournament-query/tournament-que
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    if (process.env['NODE_ENV'] === 'test') return;
+    consumer.apply(RequestLoggingMiddleware).forRoutes('*');
+  }
+}

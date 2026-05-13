@@ -178,6 +178,9 @@ jobs:
       - name: Check infrastructure review gates
         run: pnpm infra:review
 
+      - name: Check observability review gates
+        run: pnpm observability:review
+
       - name: Check formatting
         run: pnpm format:check
 

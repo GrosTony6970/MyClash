@@ -35,6 +35,7 @@
     "db:perf:explain": "node scripts/db-explain-report.mjs",
     "infra:review": "node scripts/check-infra-review.mjs",
     "infra:edge": "node scripts/check-edge-tls.mjs",
+    "observability:review": "node scripts/check-observability-review.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "deploy:prod": "tsx scripts/deploy.ts",

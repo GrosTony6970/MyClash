@@ -18,6 +18,7 @@
     "@myclash/i18n": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
+    "@sentry/nextjs": "^10.53.1",
     "dexie": "^4.4.2",
     "next": "15.5.18",
     "react": "^19.2.6",

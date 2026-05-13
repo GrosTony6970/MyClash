@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const output = process.env['MYCLASH_NEXT_OUTPUT'] === 'default' ? undefined : 'standalone';
 
@@ -20,4 +21,20 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  telemetry: false,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+      removeTracing: true,
+    },
+  },
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeTracing: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true,
+  },
+});

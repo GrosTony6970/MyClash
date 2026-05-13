@@ -180,6 +180,23 @@ Owner-confirmed done; excluded from the 2026-05-13 Phase 5 remediation pass.
 
 ## Phase 6 — Observability & Operations
 
+**Status: Pass with known issues (repo wiring complete; owner evidence pending).**
+
+Evidence:
+
+- `docs/OBSERVABILITY_REVIEW.md` records Sentry Cloud setup, uptime checks, log retention, PII rules, incident runbooks, and RTO/RPO targets.
+- API has Sentry initialization, 5xx exception capture, process failure capture, and redacted JSON request logging.
+- Admin, public, and scoring Next apps have Sentry SDK initialization and per-app DSN variables.
+- `.env.example`, production compose, Docker build args, and `scripts/ensure-prod-env.mjs` include Sentry/release/environment configuration.
+- `pnpm observability:review` is wired into CI after infrastructure review gates.
+
+Known issues before final production sign-off:
+
+- Owner must provide Sentry DSNs and configure Sentry projects.
+- Owner must configure external uptime checks for apex, API health, app, admin, and scoring.
+- Staging smoke tests must prove API and frontend errors land in Sentry with release/environment.
+- Frontend source-map upload remains owner-side Sentry project/token setup.
+
 **Manual. New phase — was missing from v1.**
 
 You cannot run a production service blind. This is the single biggest gap in most pre-prod reviews.

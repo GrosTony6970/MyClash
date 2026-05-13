@@ -647,3 +647,7 @@ PLEASE IMPLEMENT THIS PLAN: Phase 4 Database Review + Remediation. Add database 
 ## 09:14:41_13-05-2026
 
 User requested implementation of Phase 5 Containers + Edge/TLS Review: add infrastructure review docs, static and live infra checks, harden production compose containers and Traefik headers, exclude VPS hardening, and verify gates.
+
+## 10:30:33_13-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Phase 6 Observability & Operations. Add Sentry Cloud wiring, external uptime monitoring documentation, API-first structured/redacted logging, observability review docs and repo checks, env/deploy validation keys, CI observability gate, and update pre-production Phase 6 status with known owner-side evidence gaps.
