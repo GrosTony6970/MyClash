@@ -280,7 +280,7 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
 const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
   const envPath = process.argv[2] ?? '.env';
-  ensureProdEnv(envPath, { nonInteractive: !process.stdin.isTTY })
+  ensureProdEnv(envPath, { nonInteractive: !process.stdout.isTTY })
     .then((result) => {
       console.log(
         JSON.stringify({
