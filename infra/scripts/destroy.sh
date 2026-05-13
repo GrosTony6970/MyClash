@@ -13,7 +13,8 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
-cd "$(cd "$SCRIPT_DIR/../.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT_DIR"
 
 WIPE_DB=0
 FULL=0
@@ -66,7 +67,7 @@ if [[ "$FULL" -eq 1 ]]; then
   confirm "Confirm full reset?" || { warn "Aborted."; exit 0; }
 fi
 
-COMPOSE=(docker compose --env-file .env -f infra/docker-compose.prod.yml)
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 if [[ "$WIPE_DB" -eq 1 ]]; then
   "${COMPOSE[@]}" down --rmi local --remove-orphans -v

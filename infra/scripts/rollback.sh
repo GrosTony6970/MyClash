@@ -65,7 +65,7 @@ COMPOSE_FILES=(-f infra/docker-compose.prod.yml)
 # ── Stop services (keep db running for restore) ──────────────────
 hdr "Stopping app services"
 
-docker compose --env-file .env "${COMPOSE_FILES[@]}" stop api web-public web-scoring web-admin worker
+docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" stop api web-public web-scoring web-admin worker
 ok "App services stopped"
 
 # ── Restore database ─────────────────────────────────────────────
@@ -73,13 +73,13 @@ if [[ "$BACKUP_FILE" != "none" && -f "$BACKUP_FILE" ]]; then
   hdr "Restoring database from $BACKUP_FILE"
 
   # Drop and recreate the schema cleanly to ensure a deterministic restore
-  docker compose --env-file .env "${COMPOSE_FILES[@]}" exec -T db \
+  docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" exec -T db \
     psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS ${POSTGRES_DB};"
-  docker compose --env-file .env "${COMPOSE_FILES[@]}" exec -T db \
+  docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" exec -T db \
     psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"
 
   gunzip -c "$BACKUP_FILE" | \
-    docker compose --env-file .env "${COMPOSE_FILES[@]}" exec -T db \
+    docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" exec -T db \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
   ok "Database restored"
 fi
@@ -93,13 +93,13 @@ ok "Code reset"
 # ── Rebuild ──────────────────────────────────────────────────────
 hdr "Rebuilding images"
 
-docker compose --env-file .env "${COMPOSE_FILES[@]}" build
+docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" build
 ok "Images built"
 
 # ── Restart ──────────────────────────────────────────────────────
 hdr "Starting stack"
 
-docker compose --env-file .env "${COMPOSE_FILES[@]}" up -d
+docker compose --env-file "$ROOT_DIR/.env" "${COMPOSE_FILES[@]}" up -d
 ok "Stack started"
 
 # ── Smoke test ───────────────────────────────────────────────────

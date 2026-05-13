@@ -67,7 +67,7 @@ BACKUP_DIR="$ROOT_DIR/backups/nightly"
 mkdir -p "$BACKUP_DIR"
 mkdir -p "$ROOT_DIR/logs"
 
-COMPOSE=(docker compose --env-file .env -f infra/docker-compose.prod.yml)
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 # Track files to upload
 UPLOAD_FILES=()

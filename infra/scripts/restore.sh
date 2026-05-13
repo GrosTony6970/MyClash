@@ -24,7 +24,7 @@ set -a; source ./.env; set +a
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"
 
-COMPOSE=(docker compose --env-file .env -f infra/docker-compose.prod.yml)
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 # ── S3 helper ────────────────────────────────────────────────────
 s3_configured() {

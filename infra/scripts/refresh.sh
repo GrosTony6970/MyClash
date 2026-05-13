@@ -9,11 +9,12 @@
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
-cd "$(cd "$SCRIPT_DIR/../.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$ROOT_DIR"
 
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 
-COMPOSE=(docker compose --env-file .env -f infra/docker-compose.prod.yml)
+COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
 
 if [[ $# -eq 0 ]]; then
   SERVICES=(api web-public web-scoring web-admin worker)
