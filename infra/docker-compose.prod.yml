@@ -24,7 +24,8 @@ services:
     restart: unless-stopped
     command:
       - --global.sendanonymoususage=false
-      - --api.dashboard=false
+      - --api=true
+      - --api.dashboard=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
@@ -67,6 +68,15 @@ services:
       - traefik.http.middlewares.myclash-security-headers.headers.contentTypeNosniff=true
       - traefik.http.middlewares.myclash-security-headers.headers.frameDeny=true
       - traefik.http.middlewares.myclash-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      # Dashboard — secured with basic auth; set TRAEFIK_DASHBOARD_AUTH in .env
+      # Generate credentials: echo $(htpasswd -nB admin) | sed -e 's/\$/\$\$/g'
+      - traefik.http.routers.myclash-traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.myclash-traefik-dashboard.entrypoints=websecure
+      - traefik.http.routers.myclash-traefik-dashboard.tls=true
+      - traefik.http.routers.myclash-traefik-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-traefik-dashboard.service=api@internal
+      - traefik.http.routers.myclash-traefik-dashboard.middlewares=myclash-dashboard-auth@docker
+      - traefik.http.middlewares.myclash-dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
