@@ -84,10 +84,10 @@ services:
       - ./logs/db:/var/log/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myclash}']
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 10
+      start_period: 30s
     networks: [myclash]
     mem_limit: 2g
     cpus: 2
