@@ -1,4 +1,4 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Injectable, NestMiddleware, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { isSensitiveRoute, redactHeaders } from './redaction';
 
@@ -38,7 +38,7 @@ export function writeJsonLog(event: RequestLogEvent): void {
 
 @Injectable()
 export class RequestLoggingMiddleware implements NestMiddleware {
-  constructor(private readonly sink: LogSink = writeJsonLog) {}
+  constructor(@Optional() private readonly sink: LogSink = writeJsonLog) {}
 
   use(request: RequestLike, response: ResponseLike, next: () => void): void {
     const startedAt = process.hrtime.bigint();
