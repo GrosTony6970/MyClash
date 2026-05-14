@@ -1,16 +1,16 @@
 -- Supabase cluster-wide roles required by auth, storage, realtime, and postgrest.
 -- Mounted into /docker-entrypoint-initdb.d/ so it runs on every fresh database volume.
--- Uses IF NOT EXISTS so it is safe even if the supabase/postgres image already created them.
+-- CREATE ROLE has no IF NOT EXISTS in PostgreSQL; use DO blocks with duplicate_object guard.
 
-CREATE ROLE IF NOT EXISTS anon                   NOLOGIN NOINHERIT;
-CREATE ROLE IF NOT EXISTS authenticated          NOLOGIN NOINHERIT;
-CREATE ROLE IF NOT EXISTS service_role           NOLOGIN NOINHERIT BYPASSRLS;
-CREATE ROLE IF NOT EXISTS supabase_admin         NOLOGIN SUPERUSER CREATEROLE REPLICATION BYPASSRLS;
-CREATE ROLE IF NOT EXISTS supabase_auth_admin    NOLOGIN;
-CREATE ROLE IF NOT EXISTS supabase_storage_admin NOLOGIN;
-CREATE ROLE IF NOT EXISTS supabase_realtime_admin NOLOGIN;
-CREATE ROLE IF NOT EXISTS pgsodium_keyholder     NOLOGIN;
-CREATE ROLE IF NOT EXISTS dashboard_user         NOLOGIN;
+DO $$ BEGIN CREATE ROLE anon                    NOLOGIN NOINHERIT;          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE authenticated           NOLOGIN NOINHERIT;          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE service_role            NOLOGIN NOINHERIT BYPASSRLS; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE supabase_admin          NOLOGIN SUPERUSER CREATEROLE REPLICATION BYPASSRLS; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE supabase_auth_admin     NOLOGIN;                    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE supabase_storage_admin  NOLOGIN;                    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE supabase_realtime_admin NOLOGIN;                    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE pgsodium_keyholder      NOLOGIN;                    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE dashboard_user          NOLOGIN;                    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 GRANT anon, authenticated, service_role,
       supabase_storage_admin, supabase_auth_admin
