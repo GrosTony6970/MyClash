@@ -7,7 +7,7 @@ ARG PNPM_VERSION=10.27.0
 
 FROM node:${NODE_VERSION}-alpine AS base
 ARG PNPM_VERSION
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+RUN npm install -g corepack && corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
 
 FROM base AS deps
