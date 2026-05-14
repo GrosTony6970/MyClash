@@ -71,6 +71,10 @@ COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod
 
 if [[ "$WIPE_DB" -eq 1 ]]; then
   "${COMPOSE[@]}" down --rmi local --remove-orphans -v
+  # Belt-and-suspenders: compose down -v can silently skip volumes when a container
+  # holds a file lock; remove them explicitly so a partial init never persists.
+  docker volume rm myclash-postgres-data myclash-redis-data myclash-storage-data \
+    2>/dev/null || true
   ok "Containers, images, and Docker volumes removed"
 else
   "${COMPOSE[@]}" down --rmi local --remove-orphans

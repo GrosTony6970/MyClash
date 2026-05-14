@@ -15,3 +15,12 @@ DO $$ BEGIN CREATE ROLE dashboard_user          NOLOGIN;                    EXCE
 GRANT anon, authenticated, service_role,
       supabase_storage_admin, supabase_auth_admin
   TO supabase_admin;
+
+-- Required Supabase schemas
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE SCHEMA IF NOT EXISTS storage;
+CREATE SCHEMA IF NOT EXISTS realtime;
+
+ALTER SCHEMA auth    OWNER TO supabase_auth_admin;
+ALTER SCHEMA storage OWNER TO supabase_storage_admin;
