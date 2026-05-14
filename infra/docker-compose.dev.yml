@@ -148,6 +148,7 @@ services:
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: https://myclash.localhost/auth/v1
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-dev-password}@db:5432/${POSTGRES_DB:-myclash}?search_path=auth
       GOTRUE_SITE_URL: https://myclash.localhost
