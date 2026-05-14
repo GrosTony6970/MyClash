@@ -48,6 +48,7 @@ const SAMPLE_VALUES = new Map([
   ['NEXT_PUBLIC_SENTRY_DSN_SCORING', new Set([''])],
   ['SENTRY_RELEASE', new Set([''])],
   ['NEXT_PUBLIC_SENTRY_RELEASE', new Set([''])],
+  ['AI_KEY_SECRET', new Set([''])],
 ]);
 
 const SECRET_GENERATORS = {
@@ -58,6 +59,7 @@ const SECRET_GENERATORS = {
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   MYCLASH_STAFF_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   OPS_RUNNER_SECRET: () => randomBytes(48).toString('base64url'),
+  AI_KEY_SECRET: () => randomBytes(32).toString('hex'),
   // Generate a strong random password for the bootstrap super admin.
   // Stored in .env so deploy.sh can display it once and the operator saves it.
   SEED_ADMIN_PASSWORD: () => randomBytes(16).toString('base64url'),
