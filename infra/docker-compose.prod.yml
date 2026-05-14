@@ -177,6 +177,9 @@ services:
       JWT_SECRET: ${SUPABASE_JWT_SECRET}
       METRICS_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET}
+      APP_NAME: realtime
+      FLY_ALLOC_ID: fly123
+      FLY_APP_NAME: realtime
       ERL_AFLAGS: '-proto_dist inet_tcp'
       ENABLE_TAILSCALE: 'false'
       DNS_NODES: "''"
