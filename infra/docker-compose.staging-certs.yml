@@ -32,3 +32,11 @@ services:
       - --log=true
       - --log.level=INFO
       - --log.filepath=/logs/traefik.log
+
+  api:
+    environment:
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
+
+  worker:
+    environment:
+      NODE_TLS_REJECT_UNAUTHORIZED: '0'
