@@ -271,6 +271,16 @@ services:
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myclash-rest.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/rest/v1`)
+      - traefik.http.routers.myclash-rest.entrypoints=websecure
+      - traefik.http.routers.myclash-rest.tls=true
+      - traefik.http.routers.myclash-rest.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-rest.middlewares=myclash-security-headers@docker,myclash-rest-strip@docker
+      - traefik.http.routers.myclash-rest.priority=20
+      - traefik.http.services.myclash-rest.loadbalancer.server.port=3000
+      - traefik.http.middlewares.myclash-rest-strip.stripprefix.prefixes=/rest/v1
 
   # ── NestJS API ────────────────────────────────────────────────────
   api:
@@ -369,15 +379,6 @@ services:
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.url=http://supabase-storage:5000
-      - traefik.http.routers.myclash-rest.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/rest/v1`)
-      - traefik.http.routers.myclash-rest.entrypoints=websecure
-      - traefik.http.routers.myclash-rest.tls=true
-      - traefik.http.routers.myclash-rest.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-rest.middlewares=myclash-security-headers@docker,myclash-rest-strip@docker
-      - traefik.http.routers.myclash-rest.priority=20
-      - traefik.http.routers.myclash-rest.service=myclash-supabase-rest
-      - traefik.http.services.myclash-supabase-rest.loadbalancer.server.url=http://supabase-rest:3000
-      - traefik.http.middlewares.myclash-rest-strip.stripprefix.prefixes=/rest/v1
       # Shared compression middleware
       - traefik.http.middlewares.myclash-compress.compress=true
 
