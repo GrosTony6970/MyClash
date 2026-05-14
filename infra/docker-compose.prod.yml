@@ -243,6 +243,35 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
 
+  # ── PostgREST (Supabase REST API) ────────────────────────────────
+  supabase-rest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: myclash-supabase-rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-myclash}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: 'false'
+      PGRST_APP_SETTINGS_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: '3600'
+      TZ: ${TZ}
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks: [myclash]
+    mem_limit: 256m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
   # ── NestJS API ────────────────────────────────────────────────────
   api:
     build:
@@ -323,7 +352,7 @@ services:
       - traefik.http.routers.myclash-auth.middlewares=myclash-security-headers@docker
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
-      - traefik.http.services.myclash-supabase-auth.loadbalancer.server.port=9999
+      - traefik.http.services.myclash-supabase-auth.loadbalancer.server.url=http://supabase-auth:9999
       - traefik.http.routers.myclash-realtime.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/realtime/v1`)
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
@@ -331,7 +360,7 @@ services:
       - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@docker
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
-      - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.port=4000
+      - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.url=http://supabase-realtime:4000
       - traefik.http.routers.myclash-storage.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/storage/v1`)
       - traefik.http.routers.myclash-storage.entrypoints=websecure
       - traefik.http.routers.myclash-storage.tls=true
@@ -339,7 +368,16 @@ services:
       - traefik.http.routers.myclash-storage.middlewares=myclash-security-headers@docker
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
-      - traefik.http.services.myclash-supabase-storage.loadbalancer.server.port=5000
+      - traefik.http.services.myclash-supabase-storage.loadbalancer.server.url=http://supabase-storage:5000
+      - traefik.http.routers.myclash-rest.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/rest/v1`)
+      - traefik.http.routers.myclash-rest.entrypoints=websecure
+      - traefik.http.routers.myclash-rest.tls=true
+      - traefik.http.routers.myclash-rest.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-rest.middlewares=myclash-security-headers@docker,myclash-rest-strip@docker
+      - traefik.http.routers.myclash-rest.priority=20
+      - traefik.http.routers.myclash-rest.service=myclash-supabase-rest
+      - traefik.http.services.myclash-supabase-rest.loadbalancer.server.url=http://supabase-rest:3000
+      - traefik.http.middlewares.myclash-rest-strip.stripprefix.prefixes=/rest/v1
       # Shared compression middleware
       - traefik.http.middlewares.myclash-compress.compress=true
 
