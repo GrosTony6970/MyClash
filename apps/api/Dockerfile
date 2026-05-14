@@ -68,6 +68,7 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/package.json ./apps/ap
 COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/package.json ./packages/types/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/package.json ./packages/rulesets/package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/node_modules ./packages/rulesets/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./packages/types/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages/rulesets/dist
