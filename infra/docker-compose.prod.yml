@@ -82,6 +82,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./logs/db:/var/log/postgresql
+      - ./db/init/01-supabase-roles.sql:/docker-entrypoint-initdb.d/01-supabase-roles.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-myclash}']
       interval: 5s
