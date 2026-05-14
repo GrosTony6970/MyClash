@@ -12,6 +12,7 @@
 
 services:
   traefik:
+    image: traefik:v3.7.1
     command:
       - --global.sendanonymoususage=false
       - --api.dashboard=false
@@ -21,6 +22,7 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      - --ping=true
       - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/data/acme-staging.json
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
