@@ -2,7 +2,7 @@
 # Multi-stage build for the scorekeeper Next.js PWA (offline-first).
 # Build context: repo root. Requires next.config.ts output: 'standalone'.
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=26
 ARG PNPM_VERSION=10.27.0
 
 FROM node:${NODE_VERSION}-alpine AS base

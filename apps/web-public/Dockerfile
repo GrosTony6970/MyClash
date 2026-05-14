@@ -3,7 +3,7 @@
 # Build context: repo root (so shared packages are accessible).
 # Requires next.config.ts to have output: 'standalone'.
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=26
 ARG PNPM_VERSION=10.27.0
 
 # ── base ─────────────────────────────────────────────────────────────────────

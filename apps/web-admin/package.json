@@ -18,7 +18,7 @@
     "@myclash/ui": "workspace:^",
     "@sentry/nextjs": "^10.53.1",
     "@supabase/supabase-js": "^2.105.1",
-    "next": "15.5.18",
+    "next": "16.2.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
