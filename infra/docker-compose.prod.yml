@@ -70,7 +70,7 @@ services:
 
   # ── Postgres (primary data store) ────────────────────────────────
   db:
-    image: supabase/postgres:15.6.1.115
+    image: supabase/postgres:17.6.1.121-mg-1
     container_name: myclash-db
     restart: unless-stopped
     environment:
@@ -96,7 +96,7 @@ services:
 
   # ── Redis (cache + BullMQ + pub/sub) ──────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine3.23
     container_name: myclash-redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -116,7 +116,7 @@ services:
 
   # ── Supabase Auth (GoTrue) ────────────────────────────────────────
   supabase-auth:
-    image: supabase/gotrue:v2.158.1
+    image: supabase/gotrue:v2.189.0
     container_name: myclash-supabase-auth
     restart: unless-stopped
     environment:
@@ -162,7 +162,7 @@ services:
 
   # ── Supabase Realtime ─────────────────────────────────────────────
   supabase-realtime:
-    image: supabase/realtime:v2.30.34
+    image: supabase/realtime:v2.94.1
     container_name: myclash-supabase-realtime
     restart: unless-stopped
     environment:
@@ -200,7 +200,7 @@ services:
 
   # ── Supabase Storage ──────────────────────────────────────────────
   supabase-storage:
-    image: supabase/storage-api:v1.10.0
+    image: supabase/storage-api:v1.58.19
     container_name: myclash-supabase-storage
     restart: unless-stopped
     environment:
