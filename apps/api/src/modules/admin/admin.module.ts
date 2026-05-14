@@ -44,7 +44,7 @@ import { UsersAdminController } from './users.controller';
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,
     { provide: AdminSystemVersionsService, useFactory: () => new AdminSystemVersionsService() },
-    AdminBackupsService,
+    { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
     AIDataQualityService,
     SuperAdminGuard,
