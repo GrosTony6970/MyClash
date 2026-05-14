@@ -277,6 +277,7 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+      AI_KEY_SECRET: ${AI_KEY_SECRET}
     healthcheck:
       test:
         [
@@ -410,6 +411,7 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+      AI_KEY_SECRET: ${AI_KEY_SECRET}
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
