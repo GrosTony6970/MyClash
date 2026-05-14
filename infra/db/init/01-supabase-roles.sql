@@ -24,3 +24,8 @@ CREATE SCHEMA IF NOT EXISTS realtime;
 
 ALTER SCHEMA auth    OWNER TO supabase_auth_admin;
 ALTER SCHEMA storage OWNER TO supabase_storage_admin;
+
+-- PostgREST requires USAGE on the served schema for the anon/authenticated roles,
+-- and membership grants so the connection user (postgres) can SET ROLE to them.
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT anon, authenticated, service_role TO postgres;
