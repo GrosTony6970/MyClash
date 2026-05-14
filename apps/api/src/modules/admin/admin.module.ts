@@ -43,7 +43,7 @@ import { UsersAdminController } from './users.controller';
     AdminFeatureFlagsService,
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,
-    AdminSystemVersionsService,
+    { provide: AdminSystemVersionsService, useFactory: () => new AdminSystemVersionsService() },
     AdminBackupsService,
     PlatformAISettingsService,
     AIDataQualityService,
