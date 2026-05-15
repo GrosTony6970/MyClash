@@ -22,6 +22,7 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/config
       - --ping=true
       - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/data/acme-staging.json
