@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 import { ensureProdEnv, parseEnv } from './ensure-prod-env.mjs';
 
@@ -17,6 +17,13 @@ function verifyHs256(token, secret) {
   return signature === expected;
 }
 
+function verifyHtpasswdSha(storedValue, password) {
+  const [, hash] = storedValue.split(':');
+  assert.ok(hash?.startsWith('{SHA}'));
+  const expected = `{SHA}${createHash('sha1').update(password).digest('base64')}`;
+  return hash === expected;
+}
+
 test('creates .env from sample and replaces generated secrets/default URLs', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'myclash-prod-env-'));
   const envPath = path.join(dir, '.env');
@@ -25,10 +32,11 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   await writeFile(
     examplePath,
     [
-      'DOMAIN=myclash.fr',
+      'DOMAIN=yourdomain.com',
       'LETSENCRYPT_EMAIL=webmaster@example.com',
       'TZ=Europe/Paris',
       'COMPOSE_PROJECT_NAME=myclash',
+      'TRAEFIK_DASHBOARD_AUTH=admin:$$2y$$05$$changeme',
       'COOKIE_SECRET=change-me-cookie-secret',
       'SUPABASE_URL=http://localhost:8000',
       'POSTGRES_USER=postgres',
@@ -36,6 +44,7 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
       'POSTGRES_DB=myclash',
       'SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long',
       'SUPABASE_REALTIME_SECRET=a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here',
+      'SUPABASE_REALTIME_DB_ENC_KEY=change-me-realtime-db-enc-key',
       'SUPABASE_ANON_KEY=change-me-anon-jwt',
       'SUPABASE_SERVICE_ROLE_KEY=change-me-service-role-jwt',
       'MYCLASH_GUEST_JWT_SECRET=change-me-guest-jwt-secret',
@@ -81,6 +90,18 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   assert.equal(values.get('NEXT_PUBLIC_API_URL'), 'https://api.example.org');
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
+  assert.match(values.get('TRAEFIK_DASHBOARD_AUTH'), /^admin:\{SHA\}.+/);
+  assert.equal(result.generatedCredentials.length, 1);
+  assert.deepEqual(result.generatedCredentials[0]?.service, 'TRAEFIK_DASHBOARD');
+  assert.deepEqual(result.generatedCredentials[0]?.username, 'admin');
+  assert.equal(
+    verifyHtpasswdSha(
+      values.get('TRAEFIK_DASHBOARD_AUTH'),
+      result.generatedCredentials[0]?.password,
+    ),
+    true,
+  );
+  assert.notEqual(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'change-me-realtime-db-enc-key');
   assert.notEqual(values.get('OPS_RUNNER_SECRET'), 'change-me-ops-runner-secret');
   assert.ok(values.get('VAPID_PUBLIC_KEY'));
   assert.ok(values.get('VAPID_PRIVATE_KEY'));
@@ -98,6 +119,7 @@ test('generates matching Supabase anon and service-role JWTs', async () => {
       'COOKIE_SECRET=change-me-cookie-secret',
       'SUPABASE_JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long',
       'SUPABASE_REALTIME_SECRET=a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here',
+      'SUPABASE_REALTIME_DB_ENC_KEY=change-me-realtime-db-enc-key',
       'SUPABASE_ANON_KEY=change-me-anon-jwt',
       'SUPABASE_SERVICE_ROLE_KEY=change-me-service-role-jwt',
       'MYCLASH_GUEST_JWT_SECRET=change-me-guest-jwt-secret',
@@ -138,10 +160,12 @@ test('preserves real existing values', async () => {
     [
       'DOMAIN=existing.example',
       'LETSENCRYPT_EMAIL=ops@existing.example',
+      'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
       'SUPABASE_REALTIME_SECRET=real-realtime-secret-with-more-than-64-characters-xxxxxxxxxxxxxxxx',
+      'SUPABASE_REALTIME_DB_ENC_KEY=real-realtime-db-enc-key',
       'SUPABASE_ANON_KEY=real-anon-token',
       'SUPABASE_SERVICE_ROLE_KEY=real-service-token',
       'MYCLASH_GUEST_JWT_SECRET=real-guest-secret',
@@ -165,9 +189,51 @@ test('preserves real existing values', async () => {
   const values = parseEnv(await readFile(envPath, 'utf8'));
 
   assert.equal(values.get('POSTGRES_PASSWORD'), 'real-db-password');
+  assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
+  assert.equal(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'real-realtime-db-enc-key');
   assert.equal(values.get('SUPABASE_ANON_KEY'), 'real-anon-token');
   assert.equal(values.get('VAPID_PUBLIC_KEY'), 'real-vapid-public');
   assert.deepEqual(result.prompted, []);
+  assert.deepEqual(result.generatedCredentials, []);
+});
+
+test('appends generated realtime DB encryption key to existing old env files', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'myclash-prod-env-'));
+  const envPath = path.join(dir, '.env');
+  await writeFile(
+    envPath,
+    [
+      'DOMAIN=existing.example',
+      'LETSENCRYPT_EMAIL=ops@existing.example',
+      'TRAEFIK_DASHBOARD_AUTH=admin:{SHA}realhash',
+      'POSTGRES_PASSWORD=real-db-password',
+      'COOKIE_SECRET=real-cookie-secret',
+      'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
+      'SUPABASE_REALTIME_SECRET=real-realtime-secret-with-more-than-64-characters-xxxxxxxxxxxxxxxx',
+      'SUPABASE_ANON_KEY=real-anon-token',
+      'SUPABASE_SERVICE_ROLE_KEY=real-service-token',
+      'MYCLASH_GUEST_JWT_SECRET=real-guest-secret',
+      'MYCLASH_STAFF_JWT_SECRET=real-staff-secret',
+      'RESEND_API_KEY=re_real_key',
+      'MAIL_FROM=noreply@existing.example',
+      'SMTP_PASS=re_real_key',
+      'SEED_ADMIN_EMAIL=admin@existing.example',
+      'BACKUP_SCW_ACCESS_KEY=scw_access',
+      'BACKUP_SCW_SECRET_KEY=scw_secret',
+      'BACKUP_SCW_BUCKET=myclash-backups',
+      'GOOGLE_OAUTH_ENABLED=false',
+      '',
+    ].join('\n'),
+  );
+
+  const result = await ensureProdEnv(envPath, { nonInteractive: true });
+  const values = parseEnv(await readFile(envPath, 'utf8'));
+
+  assert.ok(values.get('SUPABASE_REALTIME_DB_ENC_KEY'));
+  assert.notEqual(values.get('SUPABASE_REALTIME_DB_ENC_KEY'), 'change-me-realtime-db-enc-key');
+  assert.ok(result.generated.includes('SUPABASE_REALTIME_DB_ENC_KEY'));
+  assert.equal(values.get('TRAEFIK_DASHBOARD_AUTH'), 'admin:{SHA}realhash');
+  assert.deepEqual(result.generatedCredentials, []);
 });
 
 test('fails non-interactive mode when human-owned values are missing', async () => {
@@ -176,12 +242,13 @@ test('fails non-interactive mode when human-owned values are missing', async () 
   await writeFile(
     envPath,
     [
-      'DOMAIN=myclash.fr',
+      'DOMAIN=yourdomain.com',
       'LETSENCRYPT_EMAIL=webmaster@example.com',
       'POSTGRES_PASSWORD=real-db-password',
       'COOKIE_SECRET=real-cookie-secret',
       'SUPABASE_JWT_SECRET=real-supabase-secret-with-more-than-32-characters',
       'SUPABASE_REALTIME_SECRET=real-realtime-secret-with-more-than-64-characters-xxxxxxxxxxxxxxxx',
+      'SUPABASE_REALTIME_DB_ENC_KEY=real-realtime-db-enc-key',
       'SUPABASE_ANON_KEY=real-anon-token',
       'SUPABASE_SERVICE_ROLE_KEY=real-service-token',
       'MYCLASH_GUEST_JWT_SECRET=real-guest-secret',
@@ -196,7 +263,7 @@ test('fails non-interactive mode when human-owned values are missing', async () 
 
   await assert.rejects(
     ensureProdEnv(envPath, { nonInteractive: true }),
-    /DOMAIN is missing or still set to a sample value/,
+    /DOMAIN is set to a sample value/,
   );
 });
 

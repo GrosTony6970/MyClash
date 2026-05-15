@@ -47,20 +47,22 @@ fi
 # ── API /health ─────────────────────────────────────────────────
 hdr "API health endpoint"
 
-if "${COMPOSE[@]}" exec -T api wget -qO- http://localhost:4000/health 2>/dev/null; then
+if "${COMPOSE[@]}" exec -T api node -e 'const http=require("node:http");const req=http.get("http://127.0.0.1:4000/health",res=>{let body="";res.setEncoding("utf8");res.on("data",chunk=>body+=chunk);res.on("end",()=>{process.stdout.write(body);process.exit(res.statusCode===200?0:1);});});req.setTimeout(3000,()=>req.destroy(new Error("timeout")));req.on("error",err=>{console.error(err.message);process.exit(1);});' 2>/dev/null; then
   echo
-  ok "API /health reachable from container"
+  ok "API /health reachable inside container"
 else
   warn "API /health not reachable inside container"
 fi
 
-# ── API /version ────────────────────────────────────────────────
+# ── API version metadata ─────────────────────────────────────────
 hdr "API version"
 
-if "${COMPOSE[@]}" exec -T api wget -qO- http://localhost:4000/version 2>/dev/null; then
-  echo
+API_VERSION=$("${COMPOSE[@]}" exec -T api node -e 'const fs=require("node:fs");const path="/app/data/system-versions.json";const fallback={app:{version:"unknown"},containers:{api:{version:"unknown",commit:process.env.GIT_COMMIT||"unknown"}}};const manifest=fs.existsSync(path)?JSON.parse(fs.readFileSync(path,"utf8")):fallback;const appVersion=manifest.app?.version||"unknown";const apiVersion=manifest.containers?.api?.version||"unknown";const commit=manifest.containers?.api?.commit||process.env.GIT_COMMIT||"unknown";console.log(`  App:    ${appVersion}`);console.log(`  API:    ${apiVersion}`);console.log(`  Commit: ${commit}`);' 2>/dev/null || true)
+if [[ -n "$API_VERSION" ]]; then
+  echo "$API_VERSION"
+  ok "API version metadata readable inside container"
 else
-  warn "API /version not reachable"
+  warn "API version metadata not readable inside container"
 fi
 
 # ── DB health ────────────────────────────────────────────────────

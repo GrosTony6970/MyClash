@@ -3,8 +3,17 @@ import path from 'node:path';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
 const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
+const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
+const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
+const realtimeMigrationPath = path.join(
+  rootDir,
+  'packages',
+  'db',
+  'migrations',
+  '0035_realtime_internal_schema.sql',
+);
 const dockerfilePaths = [
   'apps/api/Dockerfile',
   'apps/web-admin/Dockerfile',
@@ -15,8 +24,11 @@ const dockerfilePaths = [
 ];
 
 const composeText = await readFile(composePath, 'utf8');
+const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
+const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
+const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
 const dockerfiles = await Promise.all(
   dockerfilePaths.map(async (filePath) => ({
     filePath,
@@ -28,6 +40,7 @@ const errors = [];
 const warnings = [];
 
 const services = parseServices(composeText);
+const devServices = parseServices(devComposeText);
 const requiredServices = [
   'traefik',
   'db',
@@ -70,6 +83,41 @@ for (const serviceName of requiredServices) {
     }
     requireContains(service, serviceName, '/var/run/docker.sock:/var/run/docker.sock');
   }
+}
+
+for (const [label, service] of [
+  ['prod supabase-realtime', services.get('supabase-realtime')],
+  ['dev supabase-realtime', devServices.get('supabase-realtime')],
+]) {
+  if (!service) {
+    errors.push(`${label} service is missing.`);
+    continue;
+  }
+  requireContains(service, label, "DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'");
+  requireContains(service, label, 'DB_ENC_KEY:');
+  requireContains(service, label, 'API_JWT_SECRET:');
+  requireContains(service, label, "SEED_SELF_HOST: 'true'");
+  requireContains(service, label, 'SELF_HOST_TENANT_NAME: realtime');
+}
+
+for (const [label, text] of [
+  ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
+  ['packages/db/migrations/0035_realtime_internal_schema.sql', realtimeMigrationText],
+]) {
+  requireContains(text, label, 'CREATE SCHEMA IF NOT EXISTS _realtime');
+}
+requireContains(
+  composeText,
+  'infra/docker-compose.prod.yml',
+  './db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro',
+);
+requireContains(
+  devComposeText,
+  'infra/docker-compose.dev.yml',
+  './db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro',
+);
+if (!deployText.includes('SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIME_DB_ENC_KEY')) {
+  errors.push('deploy.sh must require SUPABASE_REALTIME_DB_ENC_KEY.');
 }
 
 for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {

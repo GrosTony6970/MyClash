@@ -192,6 +192,7 @@ hdr "Validating configuration"
 ENV_RESULT=$(node scripts/ensure-prod-env.mjs .env)
 ok ".env validated/repaired"
 GENERATED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.generated||[]).join(' '))" "$ENV_RESULT")
+GENERATED_CREDENTIALS=$(node -e "const r=JSON.parse(process.argv[1]); for (const c of r.generatedCredentials||[]) console.log([c.service,c.username,c.password].join('\t'))" "$ENV_RESULT")
 PROMPTED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.prompted||[]).join(' '))" "$ENV_RESULT")
 NORMALIZED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.normalized||[]).join(' '))" "$ENV_RESULT")
 [[ -n "$PROMPTED_KEYS" ]] && info "Captured required values: $PROMPTED_KEYS"
@@ -207,12 +208,22 @@ if [[ -n "$GENERATED_KEYS" ]]; then
     printf "    %-40s %s\n" "$key" "${!key}"
   done
 fi
+if [[ -n "$GENERATED_CREDENTIALS" ]]; then
+  warn "Newly generated credentials — save these now; plaintext passwords are not stored in .env:"
+  while IFS=$'\t' read -r service username password; do
+    [[ -n "$service" ]] || continue
+    printf "    %-40s %s\n" "${service}_USERNAME" "$username"
+    printf "    %-40s %s\n" "${service}_PASSWORD" "$password"
+  done <<< "$GENERATED_CREDENTIALS"
+fi
 
 : "${DOMAIN:?Missing DOMAIN in .env}"
 : "${LETSENCRYPT_EMAIL:?Missing LETSENCRYPT_EMAIL in .env}"
+: "${TRAEFIK_DASHBOARD_AUTH:?Missing TRAEFIK_DASHBOARD_AUTH in .env}"
 : "${POSTGRES_PASSWORD:?Missing POSTGRES_PASSWORD in .env}"
 : "${SUPABASE_JWT_SECRET:?Missing SUPABASE_JWT_SECRET in .env}"
 : "${SUPABASE_REALTIME_SECRET:?Missing SUPABASE_REALTIME_SECRET in .env}"
+: "${SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIME_DB_ENC_KEY in .env}"
 : "${SUPABASE_ANON_KEY:?Missing SUPABASE_ANON_KEY in .env}"
 : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY in .env}"
 : "${MYCLASH_GUEST_JWT_SECRET:?Missing MYCLASH_GUEST_JWT_SECRET in .env}"

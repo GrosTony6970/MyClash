@@ -68,6 +68,7 @@ services:
       - '5432:5432' # exposed for local DB tools (TablePlus, DBeaver, etc.)
     volumes:
       - dev_postgres_data:/var/lib/postgresql/data
+      - ./db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro
     healthcheck:
       test:
         ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-supabase_admin} -d ${POSTGRES_DB:-myclash}']
@@ -197,9 +198,14 @@ services:
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       DB_SSL: 'false'
+      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
+      DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-dev-realtime-db-key}
       PORT: 4000
+      API_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET:-a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here}
+      SEED_SELF_HOST: 'true'
+      SELF_HOST_TENANT_NAME: realtime
       ERL_AFLAGS: '-proto_dist inet_tcp'
       ENABLE_TAILSCALE: 'false'
       DNS_NODES: "''"

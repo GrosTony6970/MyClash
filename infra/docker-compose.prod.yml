@@ -90,6 +90,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./logs/db:/var/log/postgresql
       - ./db/init/01-supabase-roles.sh:/docker-entrypoint-initdb.d/01-supabase-roles.sh:ro
+      - ./db/init/02-supabase-realtime.sh:/docker-entrypoint-initdb.d/02-supabase-realtime.sh:ro
       - ./db/init/supabase-postgrest.sh:/docker-entrypoint-initdb.d/supabase-postgrest.sh:ro
     healthcheck:
       test:
@@ -183,11 +184,16 @@ services:
       DB_USER: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_SSL: 'false'
+      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
+      DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY}
       PORT: 4000
+      API_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       JWT_SECRET: ${SUPABASE_JWT_SECRET}
       METRICS_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET}
       APP_NAME: realtime
+      SEED_SELF_HOST: 'true'
+      SELF_HOST_TENANT_NAME: realtime
       FLY_ALLOC_ID: fly123
       FLY_APP_NAME: realtime
       ERL_AFLAGS: '-proto_dist inet_tcp'

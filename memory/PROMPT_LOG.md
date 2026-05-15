@@ -699,3 +699,15 @@ PLEASE IMPLEMENT THIS PLAN: Fix `0033` Tournament Query View After `fighters` Re
 ## 18:34:38_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix stale DB performance fixture after `global_persons` rename by updating the Phase 4 fixture generator, regenerating the SQL fixture, and extending DB review stale-reference coverage.
+
+## 19:02:14_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Supabase Realtime schema collision by provisioning `_realtime`, forcing Realtime DB connections to use that search path, adding a Realtime DB encryption key env var, and extending infra/env regression checks.
+
+## 19:08:37_15-05-2026
+
+Modify `infra/scripts/status.sh` so the API health and API version checks work instead of warning that `/health` and `/version` are unreachable.
+
+## 19:16:25_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Auto-generate missing deploy secrets. Ensure `SUPABASE_REALTIME_DB_ENC_KEY` is appended/generated when missing, generate `TRAEFIK_DASHBOARD_AUTH` automatically when missing/sample, and display the one-time Traefik dashboard password for the user to save.

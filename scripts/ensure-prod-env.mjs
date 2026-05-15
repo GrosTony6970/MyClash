@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import readline from 'node:readline/promises';
@@ -12,6 +12,7 @@ import { ensureVapidEnv } from './ensure-vapid-env.mjs';
 const SAMPLE_VALUES = new Map([
   ['DOMAIN', new Set(['yourdomain.com'])],
   ['LETSENCRYPT_EMAIL', new Set(['webmaster@example.com'])],
+  ['TRAEFIK_DASHBOARD_AUTH', new Set(['admin:$$2y$$05$$changeme'])],
   ['COOKIE_SECRET', new Set(['change-me-cookie-secret'])],
   ['SUPABASE_URL', new Set(['http://localhost:8000'])],
   ['POSTGRES_PASSWORD', new Set(['change-me-strong-password', 'dev-password'])],
@@ -26,6 +27,7 @@ const SAMPLE_VALUES = new Map([
     'SUPABASE_REALTIME_SECRET',
     new Set(['a-very-long-secret-key-base-for-realtime-at-least-64-chars-long-here']),
   ],
+  ['SUPABASE_REALTIME_DB_ENC_KEY', new Set(['change-me-realtime-db-enc-key'])],
   ['SUPABASE_ANON_KEY', new Set(['change-me-anon-jwt'])],
   ['SUPABASE_SERVICE_ROLE_KEY', new Set(['change-me-service-role-jwt'])],
   ['MYCLASH_GUEST_JWT_SECRET', new Set(['change-me-guest-jwt-secret'])],
@@ -56,6 +58,7 @@ const SECRET_GENERATORS = {
   COOKIE_SECRET: () => randomBytes(32).toString('hex'),
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),
+  SUPABASE_REALTIME_DB_ENC_KEY: () => randomBytes(16).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   MYCLASH_STAFF_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   OPS_RUNNER_SECRET: () => randomBytes(48).toString('base64url'),
@@ -77,6 +80,8 @@ const HUMAN_REQUIRED = [
   'BACKUP_SCW_BUCKET',
 ];
 
+const TRAEFIK_DASHBOARD_USERNAME = 'admin';
+
 function base64urlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
@@ -87,6 +92,19 @@ function signSupabaseJwt(role, secret) {
   const data = `${header}.${payload}`;
   const signature = createHmac('sha256', secret).update(data).digest('base64url');
   return `${data}.${signature}`;
+}
+
+function generateTraefikDashboardAuth() {
+  const password = randomBytes(18).toString('base64url');
+  const hash = createHash('sha1').update(password).digest('base64');
+  return {
+    envValue: `${TRAEFIK_DASHBOARD_USERNAME}:{SHA}${hash}`,
+    credential: {
+      service: 'TRAEFIK_DASHBOARD',
+      username: TRAEFIK_DASHBOARD_USERNAME,
+      password,
+    },
+  };
 }
 
 export function parseEnv(content) {
@@ -169,11 +187,18 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     content: await readFile(envPath, 'utf8'),
     values: new Map(),
     generated: [],
+    generatedCredentials: [],
     prompted: [],
     normalized: [],
     created,
   };
   state.values = parseEnv(state.content);
+
+  if (isSampleOrMissing('TRAEFIK_DASHBOARD_AUTH', state.values.get('TRAEFIK_DASHBOARD_AUTH'))) {
+    const dashboardAuth = generateTraefikDashboardAuth();
+    applyValue(state, 'TRAEFIK_DASHBOARD_AUTH', dashboardAuth.envValue);
+    state.generatedCredentials.push(dashboardAuth.credential);
+  }
 
   for (const [key, generate] of Object.entries(SECRET_GENERATORS)) {
     if (isSampleOrMissing(key, state.values.get(key))) {
@@ -292,6 +317,7 @@ if (isCli) {
         JSON.stringify({
           created: result.created,
           generated: [...new Set(result.generated)],
+          generatedCredentials: result.generatedCredentials ?? [],
           prompted: [...new Set(result.prompted)],
           normalized: [...new Set(result.normalized)],
         }),
