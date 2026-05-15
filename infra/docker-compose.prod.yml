@@ -52,7 +52,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks: [myclash]
+    networks:
+      myclash:
+        aliases:
+          - app.${DOMAIN}
     mem_limit: 256m
     cpus: 0.5
     logging:
@@ -344,8 +347,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    extra_hosts:
-      - 'app.${DOMAIN}:host-gateway'
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -468,8 +469,6 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
-    extra_hosts:
-      - 'app.${DOMAIN}:host-gateway'
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
