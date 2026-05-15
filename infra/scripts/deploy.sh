@@ -401,7 +401,7 @@ BOOTSTRAP_RESULT=$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
   -e DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}" \
   -e SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-admin@${DOMAIN}}" \
   -e SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD}" \
-  api node /app/scripts/bootstrap-super-admin.mjs 2>/dev/null || echo '{"error":"bootstrap failed"}')
+  api node /app/scripts/bootstrap-super-admin.mjs || echo '{"error":"bootstrap failed"}')
 
 BOOTSTRAP_CREATED=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.created?'yes':'no')}catch{console.log('unknown')}" "$BOOTSTRAP_RESULT")
 BOOTSTRAP_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$BOOTSTRAP_RESULT")
