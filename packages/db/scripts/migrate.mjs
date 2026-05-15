@@ -16,7 +16,39 @@ const migrationFiles = readdirSync(migrationsDir)
   .filter((name) => /^\d{4}_.+\.sql$/u.test(name))
   .sort();
 
-const sql = postgres(databaseUrl, { max: 1, idle_timeout: 5, connect_timeout: 10 });
+let suppressedNoticeCount = 0;
+
+function isExpectedNotice(notice) {
+  const code = String(notice.code ?? '');
+  const message = String(notice.message ?? '');
+  const routine = String(notice.routine ?? '');
+
+  return (
+    message.includes('already exists, skipping') ||
+    message.includes('does not exist, skipping') ||
+    code === '42710' ||
+    code === '42P06' ||
+    (code === '00000' && ['does_not_exist_skipping', 'DropErrorMsgNonExistent'].includes(routine))
+  );
+}
+
+function handleNotice(notice) {
+  if (isExpectedNotice(notice)) {
+    suppressedNoticeCount++;
+    return;
+  }
+
+  const code = notice.code ? ` [${notice.code}]` : '';
+  const message = notice.message ?? 'PostgreSQL notice';
+  console.warn(`Notice${code}: ${message}`);
+}
+
+const sql = postgres(databaseUrl, {
+  max: 1,
+  idle_timeout: 5,
+  connect_timeout: 10,
+  onnotice: handleNotice,
+});
 
 let appliedCount = 0;
 let skippedCount = 0;
@@ -69,6 +101,9 @@ try {
   console.log(
     `Migrations complete: ${appliedCount} applied, ${skippedCount} skipped, ${migrationFiles.length} total.`,
   );
+  if (suppressedNoticeCount > 0) {
+    console.log(`Suppressed ${suppressedNoticeCount} expected PostgreSQL notices.`);
+  }
 } finally {
   await sql`SELECT pg_advisory_unlock(hashtext('myclash_schema_migrations'))`.catch(() => {});
   await sql.end();

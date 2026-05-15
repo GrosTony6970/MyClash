@@ -178,10 +178,23 @@ for (const expected of [
   'checksum_sha256',
   'pg_advisory_lock',
   'pg_advisory_unlock',
+  'onnotice: handleNotice',
+  'already exists, skipping',
+  'does not exist, skipping',
+  'Suppressed ${suppressedNoticeCount} expected PostgreSQL notices.',
 ]) {
   if (!productionMigrationScript.includes(expected)) {
     errors.push(`Production migration script is missing ${expected}.`);
   }
+}
+if (!/function\s+handleNotice\s*\(/u.test(productionMigrationScript)) {
+  errors.push('Production migration script must define an explicit PostgreSQL notice handler.');
+}
+if (/onnotice\s*:\s*console\.log/u.test(productionMigrationScript)) {
+  errors.push('Production migration script must not dump raw PostgreSQL notices with console.log.');
+}
+if (!/console\.warn\(`Notice\$\{code\}: \$\{message\}`\)/u.test(productionMigrationScript)) {
+  errors.push('Production migration script must print unexpected PostgreSQL notices compactly.');
 }
 
 const fkColumns = [
