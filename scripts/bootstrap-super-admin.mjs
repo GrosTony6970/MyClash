@@ -22,6 +22,11 @@
  */
 
 import { createHmac } from 'node:crypto';
+import { createRequire } from 'node:module';
+
+// pg lives in apps/api/node_modules — resolve it from the api package
+// context because Node won't walk into a sibling directory from scripts/
+const require = createRequire('/app/apps/api/package.json');
 
 const SUPABASE_URL = process.env['SUPABASE_URL'];
 const SERVICE_ROLE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
@@ -62,8 +67,7 @@ async function gotrue(method, path, body) {
 // If not available, fall back to a raw SQL approach via psql.
 
 async function runSql(sql, params = []) {
-  // Dynamic import of pg — available in the API container
-  const { default: pg } = await import('pg');
+  const pg = require('pg');
   const client = new pg.Client({ connectionString: DATABASE_URL });
   await client.connect();
   try {
