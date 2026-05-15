@@ -239,7 +239,7 @@ services:
       TZ: ${TZ}
     depends_on:
       db: { condition: service_healthy }
-      supabase-rest: { condition: service_healthy }
+      supabase-rest: { condition: service_started }
     volumes:
       - storage_data:/var/lib/storage
     healthcheck:
@@ -272,14 +272,9 @@ services:
       TZ: ${TZ}
     depends_on:
       db: { condition: service_healthy }
-    healthcheck:
-      # The postgrest image has no guaranteed HTTP client. PostgREST exits on
-      # fatal startup failure, so PID 1 liveness avoids false unhealthy states.
-      test: ['CMD-SHELL', 'kill -0 1']
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+    # The postgrest image is shell-less and has no guaranteed helper binaries.
+    # Treat running state as the Compose dependency signal; status/deploy scripts
+    # provide external diagnostics.
     networks: [myclash]
     mem_limit: 256m
     cpus: 0.5

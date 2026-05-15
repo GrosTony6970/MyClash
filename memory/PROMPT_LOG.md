@@ -747,3 +747,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix False Unhealthy PostgREST Healthcheck, Again
 ## 23:46:52_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Make PostgREST Health Failures Visible And Recreate-Safe
+
+## 00:04:44_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Remove PostgREST Docker Healthcheck

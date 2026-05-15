@@ -86,7 +86,7 @@ for (const serviceName of requiredServices) {
   requireContains(service, serviceName, 'driver: json-file');
   requireContains(service, serviceName, "max-size: '10m'");
 
-  if (!['worker'].includes(serviceName)) {
+  if (!['worker', 'supabase-rest'].includes(serviceName)) {
     requireContains(service, serviceName, 'healthcheck:');
   }
 
@@ -123,11 +123,13 @@ requireContains(prodRealtime, 'prod supabase-realtime', '/api/tenants/realtime/h
 
 const prodStorage = services.get('supabase-storage') ?? '';
 requireContains(prodStorage, 'prod supabase-storage', 'http://supabase-storage:5000/status');
-requireContains(prodStorage, 'prod supabase-storage', 'supabase-rest: { condition: service_healthy }');
+requireContains(prodStorage, 'prod supabase-storage', 'supabase-rest: { condition: service_started }');
 
 const prodRest = services.get('supabase-rest') ?? '';
-requireContains(prodRest, 'prod supabase-rest', 'kill -0 1');
-for (const forbidden of ['/proc/1/comm', '/bin/bash', '/dev/tcp', 'curl', 'wget']) {
+if (prodRest.includes('healthcheck:')) {
+  errors.push('prod supabase-rest must not define a Docker healthcheck.');
+}
+for (const forbidden of ['CMD-SHELL', '/bin/sh', '/proc/1/comm', '/bin/bash', '/dev/tcp', 'kill -0', 'curl', 'wget']) {
   if (prodRest.includes(forbidden)) {
     errors.push(`prod supabase-rest healthcheck must not use ${forbidden}.`);
   }

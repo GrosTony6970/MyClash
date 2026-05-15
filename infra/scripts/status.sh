@@ -62,7 +62,10 @@ for svc in "${HEALTH_SERVICES[@]}"; do
   HEALTH=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ID" 2>/dev/null || echo "unknown")
   case "$HEALTH" in
     healthy)   ok   "$svc: healthy" ;;
-    running)   ok   "$svc: running (no healthcheck)" ;;
+    running)
+      ok   "$svc: running (no healthcheck)"
+      [[ "$svc" == "supabase-rest" ]] && print_health_details "$svc" "$ID"
+      ;;
     unhealthy)
       err  "$svc: unhealthy"
       print_health_details "$svc" "$ID"
