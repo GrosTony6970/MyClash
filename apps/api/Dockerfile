@@ -24,9 +24,10 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
+COPY packages/db/package.json ./packages/db/
 # Install with frozen lockfile; cache the pnpm store
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets
+    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/db
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
@@ -49,8 +50,9 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
+COPY packages/db/package.json ./packages/db/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets
+    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/db
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
@@ -69,6 +71,8 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/ap
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/package.json ./packages/types/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/package.json ./packages/rulesets/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/node_modules ./packages/rulesets/node_modules
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/package.json ./packages/db/package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./packages/types/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages/rulesets/dist
@@ -77,7 +81,7 @@ RUN ln -s apps/api/dist dist \
 # Bootstrap scripts (run as one-off containers during deploy)
 COPY --chown=nestjs:nodejs scripts/bootstrap-super-admin.mjs ./scripts/bootstrap-super-admin.mjs
 # Migration script + SQL files (uses drizzle-orm programmatic API, not drizzle-kit)
-COPY --chown=nestjs:nodejs packages/db/scripts/migrate.mjs ./db-migrate.mjs
+COPY --chown=nestjs:nodejs packages/db/scripts/migrate.mjs ./packages/db/scripts/migrate.mjs
 COPY --chown=nestjs:nodejs packages/db/migrations/ ./packages/db/migrations/
 
 USER nestjs

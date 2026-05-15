@@ -667,3 +667,7 @@ PLEASE IMPLEMENT THIS PLAN: Remediate GitHub CI #239 for commit e4ce0ba. Fix API
 ## 16:30:45_13-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Trivy CVE Remediation For Latest GitHub Build - update pnpm pins to 10.27.0, refresh lockfile, harden API Docker runtime image to avoid build/dev deps, verify audit/build/lint/typecheck/test/format and Docker/Trivy where available.
+
+## 17:14:57_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix API Image Migration Dependencies. Package @myclash/db into the API runtime image so deploy migrations can resolve drizzle-orm/postgres, run the migration script from packages/db/scripts/migrate.mjs, and add infra regression checks.

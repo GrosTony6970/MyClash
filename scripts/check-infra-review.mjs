@@ -4,6 +4,7 @@ import path from 'node:path';
 const rootDir = path.resolve(import.meta.dirname, '..');
 const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
+const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const dockerfilePaths = [
   'apps/api/Dockerfile',
   'apps/web-admin/Dockerfile',
@@ -15,6 +16,7 @@ const dockerfilePaths = [
 
 const composeText = await readFile(composePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
+const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const dockerfiles = await Promise.all(
   dockerfilePaths.map(async (filePath) => ({
     filePath,
@@ -88,17 +90,48 @@ if (marketingDockerfile && !/FROM caddy:/u.test(marketingDockerfile.text)) {
   );
 }
 
+const apiDockerfile = dockerfiles.find((file) => file.filePath === 'apps/api/Dockerfile');
+if (apiDockerfile) {
+  requireContains(
+    apiDockerfile.text,
+    apiDockerfile.filePath,
+    'COPY packages/db/package.json ./packages/db/',
+  );
+  requireContains(apiDockerfile.text, apiDockerfile.filePath, '--filter @myclash/db');
+  requireContains(
+    apiDockerfile.text,
+    apiDockerfile.filePath,
+    '/app/packages/db/node_modules ./packages/db/node_modules',
+  );
+  requireContains(
+    apiDockerfile.text,
+    apiDockerfile.filePath,
+    'packages/db/scripts/migrate.mjs ./packages/db/scripts/migrate.mjs',
+  );
+  if (apiDockerfile.text.includes('./db-migrate.mjs')) {
+    errors.push(
+      'apps/api/Dockerfile must not copy the DB migration script to /app/db-migrate.mjs.',
+    );
+  }
+}
+if (!deployText.includes('run --rm api node packages/db/scripts/migrate.mjs')) {
+  errors.push('deploy.sh must run migrations from packages/db/scripts/migrate.mjs.');
+}
+if (deployText.includes('run --rm api node db-migrate.mjs')) {
+  errors.push('deploy.sh must not run the legacy /app/db-migrate.mjs migration shim.');
+}
+
 const headers = [
-  'traefik.http.middlewares.myclash-security-headers.headers.stsSeconds=31536000',
-  'traefik.http.middlewares.myclash-security-headers.headers.stsIncludeSubdomains=true',
-  'traefik.http.middlewares.myclash-security-headers.headers.stsPreload=false',
-  'traefik.http.middlewares.myclash-security-headers.headers.contentTypeNosniff=true',
-  'traefik.http.middlewares.myclash-security-headers.headers.frameDeny=true',
-  'traefik.http.middlewares.myclash-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin',
+  'stsSeconds: 31536000',
+  'stsIncludeSubdomains: true',
+  'stsPreload: false',
+  'contentTypeNosniff: true',
+  'frameDeny: true',
+  'referrerPolicy: strict-origin-when-cross-origin',
 ];
 for (const header of headers) {
-  if (!composeText.includes(header))
-    errors.push(`Missing Traefik security header label: ${header}`);
+  if (!traefikMiddlewareText.includes(header))
+    errors.push(`Missing Traefik security header setting: ${header}`);
 }
 for (const expected of [
   '--entrypoints.web.http.redirections.entrypoint.to=websecure',
@@ -124,11 +157,11 @@ const publicRouters = [
 ];
 for (const router of publicRouters) {
   const pattern = new RegExp(
-    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=.*myclash-security-headers@docker`,
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=.*myclash-security-headers@file`,
     'u',
   );
   if (!pattern.test(composeText)) {
-    errors.push(`Router ${router} must use myclash-security-headers@docker.`);
+    errors.push(`Router ${router} must use myclash-security-headers@file.`);
   }
 }
 
