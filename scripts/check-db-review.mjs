@@ -29,6 +29,9 @@ function objectName(matchValue) {
 
 const files = migrationFiles();
 const allSql = files.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n');
+const migrationSqlByFile = new Map(
+  files.map((file) => [file, readFileSync(join(migrationsDir, file), 'utf8')]),
+);
 const productionMigrationScript = readFileSync(productionMigrationScriptPath, 'utf8');
 const errors = [];
 const warnings = [];
@@ -126,6 +129,19 @@ for (const match of indexDefinitions) {
 if (rawUnaccentIndexExpressions.length > 0) {
   errors.push(
     `Index expressions must use public.immutable_unaccent(...), not raw unaccent(...): ${rawUnaccentIndexExpressions.join('; ')}`,
+  );
+}
+const clubLookupWithAbv = migrationSqlByFile.get('0026_club_lookup_with_abv.sql') ?? '';
+if (
+  /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+find_club_by_name\s*\(\s*search_name\s+TEXT\s*,\s*threshold\s+FLOAT/iu.test(
+    clubLookupWithAbv,
+  ) &&
+  !/DROP\s+FUNCTION\s+IF\s+EXISTS\s+find_club_by_name\s*\(\s*TEXT\s*,\s*FLOAT\s*\)/iu.test(
+    clubLookupWithAbv,
+  )
+) {
+  errors.push(
+    '0026_club_lookup_with_abv.sql must drop find_club_by_name(TEXT, FLOAT) before changing its return table shape.',
   );
 }
 

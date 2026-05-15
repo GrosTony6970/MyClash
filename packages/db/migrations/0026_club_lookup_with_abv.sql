@@ -9,6 +9,8 @@
 --   3. Name trigram similarity 0.40–0.85           → confidence 'medium'
 -- ============================================================
 
+DROP FUNCTION IF EXISTS find_club_by_name(TEXT, FLOAT);
+
 CREATE OR REPLACE FUNCTION find_club_by_name(
   search_name TEXT,
   threshold   FLOAT DEFAULT 0.4

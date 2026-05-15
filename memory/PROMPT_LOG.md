@@ -687,3 +687,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix Unaccent Index Volatility In Migrations. Add an 
 ## 18:11:27_15-05-2026
 
 User reported deploy now applies 0001 but fails on 0002_rls.sql because `auth.jwt()` does not exist in the self-hosted database; investigate and fix the migration path.
+
+## 18:17:38_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix `0026` Function Return-Type Migration Failure by dropping `find_club_by_name(TEXT, FLOAT)` before recreating it with the expanded return shape, and add a DB review guard.
