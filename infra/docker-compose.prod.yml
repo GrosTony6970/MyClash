@@ -285,10 +285,9 @@ services:
       - traefik.http.routers.myclash-rest.entrypoints=websecure
       - traefik.http.routers.myclash-rest.tls=true
       - traefik.http.routers.myclash-rest.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-rest.middlewares=myclash-security-headers@file,myclash-rest-strip@docker
+      - traefik.http.routers.myclash-rest.middlewares=myclash-security-headers@file,myclash-rest-strip@file
       - traefik.http.routers.myclash-rest.priority=20
       - traefik.http.services.myclash-rest.loadbalancer.server.port=3000
-      - traefik.http.middlewares.myclash-rest-strip.stripprefix.prefixes=/rest/v1
 
   # ── NestJS API ────────────────────────────────────────────────────
   api:

@@ -10,3 +10,7 @@ http:
         contentTypeNosniff: true
         frameDeny: true
         referrerPolicy: strict-origin-when-cross-origin
+    myclash-rest-strip:
+      stripPrefix:
+        prefixes:
+          - /rest/v1
