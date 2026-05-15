@@ -13,8 +13,21 @@ export const en = {
   },
   publicApp: {
     home: {
-      description: 'Public / Spectator / Competitor PWA',
-      placeholder: 'Placeholder - T-003 scaffold - port 3001',
+      description: 'Public event app',
+      title: 'Follow live HEMA events from your phone.',
+      subtitle:
+        'Open an event to see the live schedule, find competitors, follow fighters, and check results as they are published.',
+      eventsTitle: 'Public events',
+      openEvent: 'Open',
+      statusPublished: 'Published',
+      statusRunning: 'Live',
+      statusCompleted: 'Completed',
+      unknownEvent: 'Untitled event',
+      emptyTitle: 'No public events yet',
+      emptyDescription: 'Published events will appear here when organizers make them visible.',
+      unavailableTitle: 'Events are temporarily unavailable',
+      unavailableDescription:
+        'Try again in a moment, or open an event link shared by an organizer.',
     },
     fighterProfile: {
       notFoundTitle: 'Fighter not found',
@@ -374,7 +387,7 @@ export const en = {
   admin: {
     home: {
       description: 'Organizer Admin + Super Admin',
-      placeholder: 'Placeholder - T-003 scaffold - port 3003',
+      placeholder: 'Sign in to manage events.',
     },
     dashboard: {
       title: 'Super Admin',
@@ -1086,8 +1099,22 @@ export const fr = {
   },
   publicApp: {
     home: {
-      description: 'PWA public / spectateur / competiteur',
-      placeholder: 'Placeholder - scaffold T-003 - port 3001',
+      description: 'Application publique evenement',
+      title: 'Suivez les evenements AMHE en direct depuis votre telephone.',
+      subtitle:
+        'Ouvrez un evenement pour consulter le planning live, trouver des participants, suivre des combattants et voir les resultats publies.',
+      eventsTitle: 'Evenements publics',
+      openEvent: 'Ouvrir',
+      statusPublished: 'Publie',
+      statusRunning: 'En direct',
+      statusCompleted: 'Termine',
+      unknownEvent: 'Evenement sans titre',
+      emptyTitle: 'Aucun evenement public pour le moment',
+      emptyDescription:
+        'Les evenements publies apparaitront ici lorsque les organisateurs les rendront visibles.',
+      unavailableTitle: 'Les evenements sont temporairement indisponibles',
+      unavailableDescription:
+        'Reessayez dans un instant, ou ouvrez un lien evenement partage par un organisateur.',
     },
     fighterProfile: {
       notFoundTitle: 'Combattant introuvable',
@@ -1449,7 +1476,7 @@ export const fr = {
   admin: {
     home: {
       description: 'Administration organisateur + super admin',
-      placeholder: 'Placeholder - scaffold T-003 - port 3003',
+      placeholder: 'Connectez-vous pour gerer les evenements.',
     },
     dashboard: {
       title: 'Super Admin',

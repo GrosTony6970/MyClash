@@ -723,3 +723,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix `status.sh` Postgres hang by making the connecti
 ## 19:46:18_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix false unhealthy Supabase healthchecks by replacing Realtime, Storage, and PostgREST production healthchecks with image-compatible probes and guarding them in `infra:review`.
+
+## 19:54:15_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Replace Scaffold Root Pages With Real Entry Points

@@ -145,7 +145,7 @@ export default function FollowingPage() {
       .finally(() => setLoading(false));
 
     // Also fetch event id for Realtime channel
-    fetch(`${apiUrl}/api/v1/events/slug/${encodeURIComponent(eventSlug)}`, {
+    fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
       signal: controller.signal,
     })
       .then(async (res) => {

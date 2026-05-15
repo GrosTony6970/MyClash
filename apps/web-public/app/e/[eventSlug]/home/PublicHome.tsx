@@ -36,7 +36,7 @@ interface Props {
 
 async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventInfo | null> {
   try {
-    const res = await fetch(`${apiUrl}/api/v1/events/slug/${encodeURIComponent(eventSlug)}`, {
+    const res = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
       cache: 'no-store',
     });
     if (!res.ok) return null;

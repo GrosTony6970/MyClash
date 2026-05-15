@@ -23,7 +23,7 @@ interface ApiEvent {
 
 export async function fetchEventTheme(eventSlug: string, apiUrl: string): Promise<EventTheme> {
   try {
-    const res = await fetch(`${apiUrl}/api/v1/events/slug/${encodeURIComponent(eventSlug)}`, {
+    const res = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
       // SSR: no cookies needed for public event data
       cache: 'no-store',
       next: { revalidate: 60 }, // revalidate every 60s

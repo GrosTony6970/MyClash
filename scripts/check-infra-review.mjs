@@ -6,6 +6,18 @@ const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
 const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
 const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
+const publicRootPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'page.tsx');
+const publicEventRootPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-public',
+  'app',
+  'e',
+  '[eventSlug]',
+  'page.tsx',
+);
+const adminRootPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'page.tsx');
+const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
 const realtimeMigrationPath = path.join(
@@ -28,6 +40,10 @@ const composeText = await readFile(composePath, 'utf8');
 const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
 const statusText = await readFile(statusPath, 'utf8');
+const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
+const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
+const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
+const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
 const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
@@ -119,6 +135,16 @@ for (const forbidden of ['/bin/bash', '/dev/tcp']) {
 if (!devComposeText.includes('DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-devrealtimedbkey}')) {
   errors.push('dev supabase-realtime DB_ENC_KEY fallback must be exactly 16 characters.');
 }
+requireContains(
+  services.get('web-public') ?? '',
+  'prod web-public',
+  'NEXT_PUBLIC_API_URL: https://api.${DOMAIN}',
+);
+requireContains(
+  devServices.get('web-public') ?? '',
+  'dev web-public',
+  'NEXT_PUBLIC_API_URL: https://api.myclash.localhost',
+);
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
@@ -149,6 +175,23 @@ for (const expected of [
     errors.push(`status.sh Postgres diagnostics must include ${expected}.`);
   }
 }
+for (const [label, text] of [
+  ['apps/web-public/app/page.tsx', publicRootPageText],
+  ['apps/web-public/app/e/[eventSlug]/page.tsx', publicEventRootPageText],
+  ['apps/web-admin/app/page.tsx', adminRootPageText],
+  ['packages/i18n/src/index.ts', i18nText],
+]) {
+  if (/\bT-003\b|Placeholder -|scaffold|port 300[13]/u.test(text)) {
+    errors.push(`${label} must not expose the old T-003 scaffold root-page copy.`);
+  }
+}
+if (publicRootPageText.includes('publicApp.home.placeholder')) {
+  errors.push('apps/web-public/app/page.tsx must not render publicApp.home.placeholder.');
+}
+if (adminRootPageText.includes('admin.home.placeholder')) {
+  errors.push('apps/web-admin/app/page.tsx must not render admin.home.placeholder.');
+}
+requireContains(publicEventRootPageText, 'apps/web-public/app/e/[eventSlug]/page.tsx', "redirect(`/e/${eventSlug}/home`)");
 
 for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {
   const dockerfile = dockerfiles.find((file) =>
