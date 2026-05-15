@@ -66,6 +66,7 @@ services:
       - traefik.http.middlewares.myclash-security-headers.headers.contentTypeNosniff=true
       - traefik.http.middlewares.myclash-security-headers.headers.frameDeny=true
       - traefik.http.middlewares.myclash-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.myclash-compress.compress=true
       # Dashboard — secured with basic auth; set TRAEFIK_DASHBOARD_AUTH in .env
       # Generate credentials: echo $(htpasswd -nB admin) | sed -e 's/\$/\$\$/g'
       - traefik.http.routers.myclash-traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)
@@ -342,6 +343,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    extra_hosts:
+      - 'app.${DOMAIN}:host-gateway'
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -387,8 +390,6 @@ services:
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.url=http://supabase-storage:5000
-      # Shared compression middleware
-      - traefik.http.middlewares.myclash-compress.compress=true
 
   # ── Internal ops runner (backup/restore allowlist) ─────────────
   ops-runner:
@@ -465,6 +466,8 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
+    extra_hosts:
+      - 'app.${DOMAIN}:host-gateway'
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
