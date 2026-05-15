@@ -739,3 +739,7 @@ PLEASE IMPLEMENT THIS PLAN: Print Vault Secrets At End Of Deploy
 ## 20:30:59_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Quiet Expected PostgreSQL Migration Notices
+
+## 21:41:26_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix False Unhealthy PostgREST Healthcheck, Again
