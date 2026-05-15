@@ -364,6 +364,7 @@ services:
       - traefik.http.routers.myclash-api.tls=true
       - traefik.http.routers.myclash-api.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-api.middlewares=myclash-security-headers@docker,myclash-compress@docker
+      - traefik.http.routers.myclash-api.service=myclash-api
       - traefik.http.services.myclash-api.loadbalancer.server.port=4000
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
