@@ -168,6 +168,35 @@ requireContains(
 if (!deployText.includes('SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIME_DB_ENC_KEY')) {
   errors.push('deploy.sh must require SUPABASE_REALTIME_DB_ENC_KEY.');
 }
+
+const deployCompleteIndex = deployText.indexOf('hdr "Deploy complete"');
+const deploymentSecretsHeaderIndex = deployText.indexOf('hdr "Deployment secrets"');
+const deploymentSecretsCallIndex =
+  deployCompleteIndex === -1 ? -1 : deployText.indexOf('print_deployment_secrets', deployCompleteIndex);
+if (deploymentSecretsHeaderIndex === -1) {
+  errors.push('deploy.sh must print a final Deployment secrets section.');
+}
+if (deployCompleteIndex !== -1 && deploymentSecretsCallIndex === -1) {
+  errors.push('deploy.sh must print Deployment secrets after the deploy summary.');
+}
+for (const expected of [
+  'print_deployment_secrets',
+  'print_secret_key',
+  'POSTGRES_PASSWORD',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'VAPID_PRIVATE_KEY',
+  'SEED_ADMIN_PASSWORD',
+  'TRAEFIK_DASHBOARD_AUTH',
+  'Generated plaintext credentials (not stored in .env):',
+  '${service}_PASSWORD',
+]) {
+  if (!deployText.includes(expected)) {
+    errors.push(`deploy.sh final Deployment secrets section is missing ${expected}.`);
+  }
+}
+if (!deployText.includes('Existing Traefik dashboard plaintext password cannot be recovered')) {
+  errors.push('deploy.sh must explain that existing Traefik plaintext passwords cannot be recovered.');
+}
 for (const expected of [
   'PGPASSWORD="$POSTGRES_PASSWORD"',
   'PGCONNECT_TIMEOUT=5',

@@ -175,6 +175,66 @@ ensure_prerequisites() {
   ok "Prerequisites ready"
 }
 
+print_secret_key() {
+  local key="$1"
+  local value="${!key-}"
+  [[ -n "$value" ]] || return 0
+  printf "    %-40s %s\n" "$key" "$value"
+}
+
+print_generated_credentials() {
+  [[ -n "${GENERATED_CREDENTIALS:-}" ]] || return 0
+
+  warn "Generated plaintext credentials (not stored in .env):"
+  while IFS=$'\t' read -r service username password; do
+    [[ -n "$service" ]] || continue
+    printf "    %-40s %s\n" "${service}_USERNAME" "$username"
+    printf "    %-40s %s\n" "${service}_PASSWORD" "$password"
+  done <<< "$GENERATED_CREDENTIALS"
+}
+
+print_deployment_secrets() {
+  hdr "Deployment secrets"
+  warn "This output contains secrets. Save it to your vault and treat terminal logs as sensitive."
+
+  local secret_keys=(
+    TRAEFIK_DASHBOARD_AUTH
+    POSTGRES_PASSWORD
+    COOKIE_SECRET
+    SUPABASE_JWT_SECRET
+    SUPABASE_REALTIME_SECRET
+    SUPABASE_REALTIME_DB_ENC_KEY
+    SUPABASE_ANON_KEY
+    SUPABASE_SERVICE_ROLE_KEY
+    MYCLASH_GUEST_JWT_SECRET
+    MYCLASH_STAFF_JWT_SECRET
+    VAPID_PUBLIC_KEY
+    VAPID_PRIVATE_KEY
+    OPS_RUNNER_SECRET
+    AI_KEY_SECRET
+    RESEND_API_KEY
+    SMTP_PASS
+    BACKUP_SCW_ACCESS_KEY
+    BACKUP_SCW_SECRET_KEY
+    GOOGLE_OAUTH_CLIENT_SECRET
+    SEED_ADMIN_EMAIL
+    SEED_ADMIN_PASSWORD
+  )
+
+  for key in "${secret_keys[@]}"; do
+    print_secret_key "$key"
+  done
+
+  if [[ -n "${GENERATED_CREDENTIALS:-}" ]]; then
+    echo
+    print_generated_credentials
+  else
+    echo
+    info "No new plaintext-only credentials were generated in this deploy."
+    info "Existing Traefik dashboard plaintext password cannot be recovered from TRAEFIK_DASHBOARD_AUTH."
+  fi
+}
+
 ensure_prerequisites
 
 # ── Lock ─────────────────────────────────────────────────────────
@@ -202,20 +262,8 @@ set -a
 source ./.env
 set +a
 
-if [[ -n "$GENERATED_KEYS" ]]; then
-  warn "Newly generated secrets — save these to your vault:"
-  for key in $GENERATED_KEYS; do
-    printf "    %-40s %s\n" "$key" "${!key}"
-  done
-fi
-if [[ -n "$GENERATED_CREDENTIALS" ]]; then
-  warn "Newly generated credentials — save these now; plaintext passwords are not stored in .env:"
-  while IFS=$'\t' read -r service username password; do
-    [[ -n "$service" ]] || continue
-    printf "    %-40s %s\n" "${service}_USERNAME" "$username"
-    printf "    %-40s %s\n" "${service}_PASSWORD" "$password"
-  done <<< "$GENERATED_CREDENTIALS"
-fi
+[[ -n "$GENERATED_KEYS" ]] && warn "New secrets generated; the final Deployment secrets section will print all vault values."
+[[ -n "$GENERATED_CREDENTIALS" ]] && warn "New plaintext credentials generated; save them from the final Deployment secrets section."
 
 : "${DOMAIN:?Missing DOMAIN in .env}"
 : "${LETSENCRYPT_EMAIL:?Missing LETSENCRYPT_EMAIL in .env}"
@@ -470,3 +518,6 @@ echo
 ok "Deployed commit ${NEW_COMMIT:0:8} to https://${DOMAIN}"
 echo "  Rollback if needed:  infra/scripts/rollback.sh"
 echo "  Status:              infra/scripts/status.sh"
+
+echo
+print_deployment_secrets
