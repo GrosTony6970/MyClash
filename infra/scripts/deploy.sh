@@ -235,6 +235,28 @@ print_deployment_secrets() {
   fi
 }
 
+print_service_health_diagnostics() {
+  local services=("$@")
+
+  warn "Docker Compose service snapshot:"
+  docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps || true
+
+  for svc in "${services[@]}"; do
+    local id
+    id=$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps -q "$svc" 2>/dev/null || true)
+    if [[ -z "$id" ]]; then
+      warn "$svc: no container found"
+      continue
+    fi
+
+    warn "$svc diagnostics:"
+    docker inspect --format='  Status: {{.State.Status}}' "$id" 2>/dev/null || true
+    docker inspect --format='  Health: {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || true
+    docker inspect --format='  Healthcheck: {{json .Config.Healthcheck.Test}}' "$id" 2>/dev/null || true
+    docker inspect --format='  Health log: {{json .State.Health.Log}}' "$id" 2>/dev/null || true
+  done
+}
+
 ensure_prerequisites
 
 # ── Lock ─────────────────────────────────────────────────────────
@@ -424,7 +446,11 @@ fi
 # ── Bring up new stack ───────────────────────────────────────────
 hdr "Starting stack"
 
-docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d
+if ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d; then
+  err "Stack failed to start cleanly"
+  print_service_health_diagnostics supabase-rest supabase-storage
+  exit 1
+fi
 ok "Stack started"
 
 # ── Wait for healthchecks ────────────────────────────────────────

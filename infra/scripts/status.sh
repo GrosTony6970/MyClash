@@ -19,7 +19,41 @@ hdr "Docker Compose"
 # ── Container health per service ─────────────────────────────────
 hdr "Container health"
 
-for svc in api web-public web-scoring web-admin worker db redis traefik; do
+HEALTH_SERVICES=(
+  api
+  worker
+  web-public
+  web-scoring
+  web-admin
+  web-marketing
+  db
+  redis
+  traefik
+  ops-runner
+  supabase-auth
+  supabase-realtime
+  supabase-rest
+  supabase-storage
+)
+
+print_health_details() {
+  local svc="$1"
+  local id="$2"
+
+  if [[ "$svc" == "supabase-rest" ]]; then
+    local healthcheck
+    healthcheck=$(docker inspect --format='{{json .Config.Healthcheck.Test}}' "$id" 2>/dev/null || echo "unknown")
+    info "supabase-rest effective healthcheck: $healthcheck"
+  fi
+
+  local log
+  log=$(docker inspect --format='{{json .State.Health.Log}}' "$id" 2>/dev/null || true)
+  if [[ -n "$log" && "$log" != "null" ]]; then
+    info "$svc recent healthcheck log: $log"
+  fi
+}
+
+for svc in "${HEALTH_SERVICES[@]}"; do
   ID=$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null || true)
   if [[ -z "$ID" ]]; then
     warn "$svc: not running"
@@ -29,7 +63,10 @@ for svc in api web-public web-scoring web-admin worker db redis traefik; do
   case "$HEALTH" in
     healthy)   ok   "$svc: healthy" ;;
     running)   ok   "$svc: running (no healthcheck)" ;;
-    unhealthy) err  "$svc: unhealthy" ;;
+    unhealthy)
+      err  "$svc: unhealthy"
+      print_health_details "$svc" "$ID"
+      ;;
     starting)  warn "$svc: starting" ;;
     *)         warn "$svc: $HEALTH" ;;
   esac

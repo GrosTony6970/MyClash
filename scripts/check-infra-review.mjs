@@ -204,6 +204,44 @@ for (const expected of [
     errors.push(`status.sh Postgres diagnostics must include ${expected}.`);
   }
 }
+for (const serviceName of [
+  'api',
+  'worker',
+  'web-public',
+  'web-scoring',
+  'web-admin',
+  'web-marketing',
+  'db',
+  'redis',
+  'traefik',
+  'ops-runner',
+  'supabase-auth',
+  'supabase-realtime',
+  'supabase-rest',
+  'supabase-storage',
+]) {
+  if (!statusText.includes(serviceName)) {
+    errors.push(`status.sh Container health must include ${serviceName}.`);
+  }
+}
+for (const expected of [
+  "docker inspect --format='{{json .State.Health.Log}}'",
+  "docker inspect --format='{{json .Config.Healthcheck.Test}}'",
+  'supabase-rest effective healthcheck',
+]) {
+  if (!statusText.includes(expected)) {
+    errors.push(`status.sh must print health diagnostics with ${expected}.`);
+  }
+}
+for (const expected of [
+  'print_service_health_diagnostics supabase-rest supabase-storage',
+  "docker inspect --format='  Healthcheck: {{json .Config.Healthcheck.Test}}'",
+  "docker inspect --format='  Health log: {{json .State.Health.Log}}'",
+]) {
+  if (!deployText.includes(expected)) {
+    errors.push(`deploy.sh must print compose health diagnostics with ${expected}.`);
+  }
+}
 for (const [label, text] of [
   ['apps/web-public/app/page.tsx', publicRootPageText],
   ['apps/web-public/app/e/[eventSlug]/page.tsx', publicEventRootPageText],
