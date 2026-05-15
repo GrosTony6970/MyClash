@@ -54,7 +54,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks: [myclash]
+    networks:
+      myclash:
+        aliases:
+          - app.${DOMAIN}
     mem_limit: 256m
     cpus: 0.5
     logging:
@@ -106,7 +109,7 @@ services:
     image: redis:8-alpine3.23
     container_name: myclash-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     volumes:
       - redis_data:/data
     healthcheck:
@@ -339,8 +342,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-    extra_hosts:
-      - 'app.${DOMAIN}:host-gateway'
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -463,8 +464,6 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
-    extra_hosts:
-      - 'app.${DOMAIN}:host-gateway'
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
