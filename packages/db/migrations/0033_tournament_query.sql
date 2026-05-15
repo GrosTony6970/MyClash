@@ -90,7 +90,7 @@ SELECT
 FROM registrations r
 JOIN tournaments t ON t.id = r.tournament_id
 JOIN persons p ON p.id = r.person_id
-LEFT JOIN fighters f ON f.id = r.fighter_id
+LEFT JOIN global_persons f ON f.id = r.fighter_id
 LEFT JOIN clubs c ON c.id = p.club_id;
 
 CREATE OR REPLACE VIEW vw_tournament_query_pools AS

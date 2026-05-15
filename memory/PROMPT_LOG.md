@@ -691,3 +691,7 @@ User reported deploy now applies 0001 but fails on 0002_rls.sql because `auth.jw
 ## 18:17:38_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix `0026` Function Return-Type Migration Failure by dropping `find_club_by_name(TEXT, FLOAT)` before recreating it with the expanded return shape, and add a DB review guard.
+
+## 18:24:20_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix `0033` Tournament Query View After `fighters` Rename by joining `global_persons` instead of `fighters` and adding a DB review guard for post-0023 table references.

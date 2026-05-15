@@ -144,6 +144,16 @@ if (
     '0026_club_lookup_with_abv.sql must drop find_club_by_name(TEXT, FLOAT) before changing its return table shape.',
   );
 }
+const fightersTableReferencePattern =
+  /\b(?:FROM|JOIN)\s+(?:(?:"?public"?\.)?)"?fighters"?\b|\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:(?:"?public"?\.)?)"?fighters"?\b|\bREFERENCES\s+(?:(?:"?public"?\.)?)"?fighters"?\b|\b(?:CREATE|DROP)\s+POLICY\b[\s\S]*?\bON\s+(?:(?:"?public"?\.)?)"?fighters"?\b/iu;
+for (const file of files.filter((name) => Number(name.slice(0, 4)) > 23)) {
+  const sqlWithoutComments = (migrationSqlByFile.get(file) ?? '').replace(/--.*$/gmu, '');
+  if (fightersTableReferencePattern.test(sqlWithoutComments)) {
+    errors.push(
+      `${file} references fighters as a table after 0023_global_persons.sql renames it to global_persons.`,
+    );
+  }
+}
 
 if (/drizzle-orm\/.*migrator/u.test(productionMigrationScript)) {
   errors.push('Production migration script must not use Drizzle migrator metadata.');
