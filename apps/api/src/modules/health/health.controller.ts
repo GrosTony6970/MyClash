@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { HealthResponseDto } from './dto/health-response.dto';
 
 /** Start time captured once at module load — used to compute uptime. */
@@ -20,6 +21,7 @@ export class HealthController {
    * Does NOT check DB or Redis — those are checked by /health/deep (T-061).
    */
   @Get('health')
+  @SkipThrottle()
   @ApiOperation({ summary: 'Liveness probe' })
   @ApiResponse({
     status: 200,

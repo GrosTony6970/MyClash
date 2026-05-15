@@ -28,10 +28,8 @@ services:
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
       - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
       - --accesslog=true
-      - --accesslog.filepath=/logs/traefik.log
       - --log=true
       - --log.level=INFO
-      - --log.filepath=/logs/traefik.log
 
   api:
     environment:
