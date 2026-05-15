@@ -4,6 +4,10 @@ import { join, relative, sep } from 'node:path';
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
 const productionMigrationScriptPath = join(root, 'packages', 'db', 'scripts', 'migrate.mjs');
+const fixtureSchemaReferenceFiles = [
+  'packages/db/fixtures/phase4_synthetic.sql',
+  'scripts/db-synthetic-fixture.mjs',
+];
 const requiredFiles = [
   'docs/DATABASE_REVIEW.md',
   'packages/db/fixtures/phase4_synthetic.sql',
@@ -152,6 +156,17 @@ for (const file of files.filter((name) => Number(name.slice(0, 4)) > 23)) {
     errors.push(
       `${file} references fighters as a table after 0023_global_persons.sql renames it to global_persons.`,
     );
+  }
+}
+const staleFixtureFightersTablePattern =
+  /\b(?:DELETE\s+FROM|INSERT\s+INTO|UPDATE|FROM|JOIN|REFERENCES)\s+(?:(?:"?public"?\.)?)"?fighters"?\b/iu;
+for (const file of fixtureSchemaReferenceFiles) {
+  const content = readFileSync(join(root, file), 'utf8');
+  if (staleFixtureFightersTablePattern.test(content)) {
+    errors.push(`${file} must use global_persons, not the renamed fighters table.`);
+  }
+  if (/\bglobal_fighter_id\b/iu.test(content)) {
+    errors.push(`${file} must use persons.global_person_id, not global_fighter_id.`);
   }
 }
 

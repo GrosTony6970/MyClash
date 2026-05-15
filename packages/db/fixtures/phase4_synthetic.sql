@@ -5,7 +5,7 @@ BEGIN;
 
 DELETE FROM organizations WHERE id = '10000000-0000-4000-8000-000000000001';
 DELETE FROM clubs WHERE slug LIKE 'phase4-club-%';
-DELETE FROM fighters WHERE slug LIKE 'phase4-fighter-%';
+DELETE FROM global_persons WHERE slug LIKE 'phase4-fighter-%';
 
 INSERT INTO organizations (id, slug, name, contact_email, status)
 VALUES ('10000000-0000-4000-8000-000000000001', 'phase4-org', 'Phase 4 Review Org', 'phase4@example.test', 'active');
@@ -25,7 +25,7 @@ SELECT
   'false'
 FROM generate_series(1, 12) AS i;
 
-INSERT INTO fighters (id, slug, display_name, given_name, family_name, club_id, country_code, hema_ratings_id)
+INSERT INTO global_persons (id, slug, display_name, given_name, family_name, club_id, country_code, hema_ratings_id)
 SELECT
   ('10000000-0000-4000-8000-000000002' || lpad(i::text, 3, '0'))::uuid,
   'phase4-fighter-' || i,
@@ -57,7 +57,7 @@ SELECT
   i - 1
 FROM generate_series(1, 4) AS i;
 
-INSERT INTO persons (id, event_id, given_name, family_name, email, club_id, hema_ratings_id, claim_status, claimed_by_user_id, global_fighter_id)
+INSERT INTO persons (id, event_id, given_name, family_name, email, club_id, hema_ratings_id, claim_status, claimed_by_user_id, global_person_id)
 SELECT
   ('10000000-0000-4000-8000-000000003' || lpad(i::text, 3, '0'))::uuid,
   '10000000-0000-4000-8000-000000000100',

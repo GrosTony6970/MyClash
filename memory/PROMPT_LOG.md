@@ -695,3 +695,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix `0026` Function Return-Type Migration Failure by
 ## 18:24:20_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix `0033` Tournament Query View After `fighters` Rename by joining `global_persons` instead of `fighters` and adding a DB review guard for post-0023 table references.
+
+## 18:34:38_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix stale DB performance fixture after `global_persons` rename by updating the Phase 4 fixture generator, regenerating the SQL fixture, and extending DB review stale-reference coverage.
