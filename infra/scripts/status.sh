@@ -74,7 +74,16 @@ set -a; source ./.env; set +a
 
 if "${COMPOSE[@]}" exec -T db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then
   ok "Postgres accepting connections"
-  CONN_COUNT=$("${COMPOSE[@]}" exec -T db psql -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT count(*) FROM pg_stat_activity WHERE datname='$POSTGRES_DB';" 2>/dev/null || echo "?")
+  CONN_COUNT=$(
+    "${COMPOSE[@]}" exec -T \
+      -e PGPASSWORD="$POSTGRES_PASSWORD" \
+      -e PGCONNECT_TIMEOUT=5 \
+      -e PGOPTIONS='-c statement_timeout=5000' \
+      db psql -w -h 127.0.0.1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+      -c 'SELECT count(*) FROM pg_stat_activity WHERE datname = current_database();' \
+      2>/dev/null || echo "?"
+  )
+  [[ -n "$CONN_COUNT" ]] || CONN_COUNT="?"
   info "Active connections: $CONN_COUNT"
 else
   err "Postgres not ready"

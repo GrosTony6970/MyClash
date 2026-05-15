@@ -5,6 +5,7 @@ const rootDir = path.resolve(import.meta.dirname, '..');
 const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
 const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
+const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
 const realtimeMigrationPath = path.join(
@@ -26,6 +27,7 @@ const dockerfilePaths = [
 const composeText = await readFile(composePath, 'utf8');
 const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
+const statusText = await readFile(statusPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
 const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
@@ -99,6 +101,21 @@ for (const [label, service] of [
   requireContains(service, label, "SEED_SELF_HOST: 'true'");
   requireContains(service, label, 'SELF_HOST_TENANT_NAME: realtime');
 }
+const prodRealtime = services.get('supabase-realtime') ?? '';
+requireContains(prodRealtime, 'prod supabase-realtime', 'Authorization: Bearer');
+requireContains(prodRealtime, 'prod supabase-realtime', '/api/tenants/realtime/health');
+
+const prodStorage = services.get('supabase-storage') ?? '';
+requireContains(prodStorage, 'prod supabase-storage', 'http://supabase-storage:5000/status');
+requireContains(prodStorage, 'prod supabase-storage', 'supabase-rest: { condition: service_healthy }');
+
+const prodRest = services.get('supabase-rest') ?? '';
+requireContains(prodRest, 'prod supabase-rest', 'cat /proc/1/comm');
+for (const forbidden of ['/bin/bash', '/dev/tcp']) {
+  if (prodRest.includes(forbidden)) {
+    errors.push(`prod supabase-rest healthcheck must not use ${forbidden}.`);
+  }
+}
 if (!devComposeText.includes('DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-devrealtimedbkey}')) {
   errors.push('dev supabase-realtime DB_ENC_KEY fallback must be exactly 16 characters.');
 }
@@ -121,6 +138,16 @@ requireContains(
 );
 if (!deployText.includes('SUPABASE_REALTIME_DB_ENC_KEY:?Missing SUPABASE_REALTIME_DB_ENC_KEY')) {
   errors.push('deploy.sh must require SUPABASE_REALTIME_DB_ENC_KEY.');
+}
+for (const expected of [
+  'PGPASSWORD="$POSTGRES_PASSWORD"',
+  'PGCONNECT_TIMEOUT=5',
+  "PGOPTIONS='-c statement_timeout=5000'",
+  'psql -w -h 127.0.0.1 -tA',
+]) {
+  if (!statusText.includes(expected)) {
+    errors.push(`status.sh Postgres diagnostics must include ${expected}.`);
+  }
 }
 
 for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {

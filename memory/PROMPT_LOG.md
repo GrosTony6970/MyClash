@@ -715,3 +715,11 @@ PLEASE IMPLEMENT THIS PLAN: Auto-generate missing deploy secrets. Ensure `SUPABA
 ## 19:25:48_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix Realtime `DB_ENC_KEY` bad key size by generating exactly 16-character `SUPABASE_REALTIME_DB_ENC_KEY` values, regenerating invalid existing keys, updating examples/dev defaults, and adding regression checks.
+
+## 19:43:30_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix `status.sh` Postgres hang by making the connection-count `psql` query non-interactive, TCP-based, timeout-bounded, and guarded by `infra:review`.
+
+## 19:46:18_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix false unhealthy Supabase healthchecks by replacing Realtime, Storage, and PostgREST production healthchecks with image-compatible probes and guarding them in `infra:review`.
