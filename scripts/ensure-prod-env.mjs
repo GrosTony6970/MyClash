@@ -58,7 +58,7 @@ const SECRET_GENERATORS = {
   COOKIE_SECRET: () => randomBytes(32).toString('hex'),
   SUPABASE_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   SUPABASE_REALTIME_SECRET: () => randomBytes(64).toString('base64url'),
-  SUPABASE_REALTIME_DB_ENC_KEY: () => randomBytes(16).toString('base64url'),
+  SUPABASE_REALTIME_DB_ENC_KEY: () => randomBytes(12).toString('base64url'),
   MYCLASH_GUEST_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   MYCLASH_STAFF_JWT_SECRET: () => randomBytes(48).toString('base64url'),
   OPS_RUNNER_SECRET: () => randomBytes(48).toString('base64url'),
@@ -123,6 +123,9 @@ function stripQuotes(value) {
 function isSampleOrMissing(key, value) {
   const trimmed = stripQuotes(value ?? '');
   if (!trimmed) return true;
+  if (key === 'SUPABASE_REALTIME_DB_ENC_KEY' && Buffer.byteLength(trimmed, 'utf8') !== 16) {
+    return true;
+  }
   const samples = SAMPLE_VALUES.get(key);
   return samples?.has(trimmed) ?? false;
 }

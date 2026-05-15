@@ -711,3 +711,7 @@ Modify `infra/scripts/status.sh` so the API health and API version checks work i
 ## 19:16:25_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Auto-generate missing deploy secrets. Ensure `SUPABASE_REALTIME_DB_ENC_KEY` is appended/generated when missing, generate `TRAEFIK_DASHBOARD_AUTH` automatically when missing/sample, and display the one-time Traefik dashboard password for the user to save.
+
+## 19:25:48_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Realtime `DB_ENC_KEY` bad key size by generating exactly 16-character `SUPABASE_REALTIME_DB_ENC_KEY` values, regenerating invalid existing keys, updating examples/dev defaults, and adding regression checks.

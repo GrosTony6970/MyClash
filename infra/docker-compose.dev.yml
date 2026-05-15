@@ -199,7 +199,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       DB_SSL: 'false'
       DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
-      DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-dev-realtime-db-key}
+      DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-devrealtimedbkey}
       PORT: 4000
       API_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}

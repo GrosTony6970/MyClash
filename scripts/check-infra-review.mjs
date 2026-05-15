@@ -99,6 +99,9 @@ for (const [label, service] of [
   requireContains(service, label, "SEED_SELF_HOST: 'true'");
   requireContains(service, label, 'SELF_HOST_TENANT_NAME: realtime');
 }
+if (!devComposeText.includes('DB_ENC_KEY: ${SUPABASE_REALTIME_DB_ENC_KEY:-devrealtimedbkey}')) {
+  errors.push('dev supabase-realtime DB_ENC_KEY fallback must be exactly 16 characters.');
+}
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
