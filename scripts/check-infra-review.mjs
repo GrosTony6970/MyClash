@@ -126,7 +126,10 @@ requireContains(prodStorage, 'prod supabase-storage', 'http://supabase-storage:5
 requireContains(prodStorage, 'prod supabase-storage', 'supabase-rest: { condition: service_healthy }');
 
 const prodRest = services.get('supabase-rest') ?? '';
-requireContains(prodRest, 'prod supabase-rest', 'cat /proc/1/comm');
+requireContains(prodRest, 'prod supabase-rest', '$$(cat /proc/1/comm)');
+if (/(^|[^\$])\$\(cat \/proc\/1\/comm\)/u.test(prodRest)) {
+  errors.push('prod supabase-rest healthcheck must escape command substitution as $$(...).');
+}
 for (const forbidden of ['/bin/bash', '/dev/tcp']) {
   if (prodRest.includes(forbidden)) {
     errors.push(`prod supabase-rest healthcheck must not use ${forbidden}.`);
