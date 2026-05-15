@@ -39,20 +39,20 @@ AS $$
       ELSE '***@***.***'
     END AS masked_email,
     GREATEST(
-      similarity(unaccent(p.given_name), unaccent(p_query)),
-      similarity(unaccent(p.family_name), unaccent(p_query)),
-      similarity(unaccent(p.given_name || ' ' || p.family_name), unaccent(p_query)),
-      similarity(unaccent(p.family_name || ' ' || p.given_name), unaccent(p_query))
+      similarity(public.immutable_unaccent(p.given_name), public.immutable_unaccent(p_query)),
+      similarity(public.immutable_unaccent(p.family_name), public.immutable_unaccent(p_query)),
+      similarity(public.immutable_unaccent(p.given_name || ' ' || p.family_name), public.immutable_unaccent(p_query)),
+      similarity(public.immutable_unaccent(p.family_name || ' ' || p.given_name), public.immutable_unaccent(p_query))
     ) AS similarity
   FROM persons p
   LEFT JOIN clubs c ON c.id = p.club_id
   WHERE
     p.event_id = p_event_id
     AND GREATEST(
-      similarity(unaccent(p.given_name), unaccent(p_query)),
-      similarity(unaccent(p.family_name), unaccent(p_query)),
-      similarity(unaccent(p.given_name || ' ' || p.family_name), unaccent(p_query)),
-      similarity(unaccent(p.family_name || ' ' || p.given_name), unaccent(p_query))
+      similarity(public.immutable_unaccent(p.given_name), public.immutable_unaccent(p_query)),
+      similarity(public.immutable_unaccent(p.family_name), public.immutable_unaccent(p_query)),
+      similarity(public.immutable_unaccent(p.given_name || ' ' || p.family_name), public.immutable_unaccent(p_query)),
+      similarity(public.immutable_unaccent(p.family_name || ' ' || p.given_name), public.immutable_unaccent(p_query))
     ) >= p_threshold
   ORDER BY similarity DESC
   LIMIT p_limit;
@@ -75,9 +75,9 @@ AS $$
   SELECT
     c.id,
     c.name,
-    similarity(unaccent(c.name), unaccent(search_name)) AS similarity
+    similarity(public.immutable_unaccent(c.name), public.immutable_unaccent(search_name)) AS similarity
   FROM clubs c
-  WHERE similarity(unaccent(c.name), unaccent(search_name)) >= threshold
+  WHERE similarity(public.immutable_unaccent(c.name), public.immutable_unaccent(search_name)) >= threshold
   ORDER BY similarity DESC
   LIMIT 5;
 $$;

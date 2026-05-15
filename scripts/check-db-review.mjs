@@ -102,6 +102,24 @@ for (const extension of ['uuid-ossp', 'pg_trgm', 'unaccent', 'pg_stat_statements
     errors.push(`Missing required extension migration: ${extension}`);
   }
 }
+if (!/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.immutable_unaccent\s*\(/iu.test(allSql)) {
+  errors.push('Missing public.immutable_unaccent(TEXT) helper for indexed unaccent expressions.');
+}
+const rawUnaccentIndexExpressions = [];
+const indexDefinitions = allSql.matchAll(
+  /CREATE\s+(?:UNIQUE\s+)?INDEX[\s\S]*?;\s*(?=(?:CREATE|ALTER|DROP|DO|INSERT|--|$))/giu,
+);
+for (const match of indexDefinitions) {
+  const definition = match[0] ?? '';
+  if (/\bunaccent\s*\(/iu.test(definition) && !/\bimmutable_unaccent\s*\(/iu.test(definition)) {
+    rawUnaccentIndexExpressions.push(definition.replace(/\s+/g, ' ').trim());
+  }
+}
+if (rawUnaccentIndexExpressions.length > 0) {
+  errors.push(
+    `Index expressions must use public.immutable_unaccent(...), not raw unaccent(...): ${rawUnaccentIndexExpressions.join('; ')}`,
+  );
+}
 
 if (/drizzle-orm\/.*migrator/u.test(productionMigrationScript)) {
   errors.push('Production migration script must not use Drizzle migrator metadata.');

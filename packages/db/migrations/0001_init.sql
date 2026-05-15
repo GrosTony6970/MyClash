@@ -9,6 +9,15 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 CREATE EXTENSION IF NOT EXISTS "unaccent";
 
+CREATE OR REPLACE FUNCTION public.immutable_unaccent(value TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $$
+  SELECT public.unaccent('public.unaccent', value)
+$$;
+
 -- ── Platform roles ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS platform_roles (
   user_id    UUID PRIMARY KEY NOT NULL,
@@ -77,7 +86,7 @@ CREATE TABLE IF NOT EXISTS clubs (
 
 -- pg_trgm index for fuzzy club name matching (used in CSV import)
 CREATE INDEX IF NOT EXISTS clubs_name_trgm_idx
-  ON clubs USING GIN (unaccent(name) gin_trgm_ops);
+  ON clubs USING GIN (public.immutable_unaccent(name) gin_trgm_ops);
 
 -- ── Fighters ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS fighters (
@@ -217,9 +226,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS persons_event_id_lower_email_unique
 
 -- pg_trgm indexes for fuzzy name lookup (T-104b)
 CREATE INDEX IF NOT EXISTS persons_given_name_trgm_idx
-  ON persons USING GIN (unaccent(given_name) gin_trgm_ops);
+  ON persons USING GIN (public.immutable_unaccent(given_name) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS persons_family_name_trgm_idx
-  ON persons USING GIN (unaccent(family_name) gin_trgm_ops);
+  ON persons USING GIN (public.immutable_unaccent(family_name) gin_trgm_ops);
 
 -- ── Guest sessions ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS guest_sessions (

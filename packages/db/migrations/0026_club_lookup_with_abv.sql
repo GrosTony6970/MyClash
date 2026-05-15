@@ -43,14 +43,14 @@ BEGIN
       c.name,
       c.abbreviation,
       c.city,
-      similarity(unaccent(c.name), unaccent(search_name))::FLOAT AS match_score,
+      similarity(public.immutable_unaccent(c.name), public.immutable_unaccent(search_name))::FLOAT AS match_score,
       CASE
-        WHEN similarity(unaccent(c.name), unaccent(search_name)) >= 0.85
+        WHEN similarity(public.immutable_unaccent(c.name), public.immutable_unaccent(search_name)) >= 0.85
           THEN 'high'
         ELSE 'medium'
       END::TEXT AS confidence
     FROM clubs c
-    WHERE similarity(unaccent(c.name), unaccent(search_name)) >= threshold
+    WHERE similarity(public.immutable_unaccent(c.name), public.immutable_unaccent(search_name)) >= threshold
       AND NOT EXISTS (SELECT 1 FROM abv_matches WHERE abv_matches.id = c.id)
   )
   SELECT * FROM abv_matches

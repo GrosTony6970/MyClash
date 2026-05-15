@@ -679,3 +679,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix Raw SQL Production Migrations. Replace Drizzle m
 ## 17:43:15_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix 0001 Raw SQL Syntax And Migration Runner Transaction Scope. Replace invalid inline UNIQUE(event_id, lower(email)) with a unique expression index, change the raw migration runner to session-level advisory locking with per-file transactions, and add a DB review guard against inline expression unique constraints.
+
+## 17:56:25_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Unaccent Index Volatility In Migrations. Add an immutable_unaccent SQL wrapper, use it for accent-insensitive indexed lookup expressions, update lookup functions to match, and add DB review guards against raw unaccent() in index definitions.

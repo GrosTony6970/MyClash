@@ -45,7 +45,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS clubs_abbreviation_lower_idx
 
 CREATE INDEX IF NOT EXISTS global_persons_name_trgm_idx
   ON global_persons USING GIN (
-    unaccent(given_name || ' ' || family_name) gin_trgm_ops
+    public.immutable_unaccent(given_name || ' ' || family_name) gin_trgm_ops
   );
 
 -- ============================================================
