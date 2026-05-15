@@ -76,6 +76,9 @@ RUN ln -s apps/api/dist dist \
  && chown -h nestjs:nodejs dist
 # Bootstrap scripts (run as one-off containers during deploy)
 COPY --chown=nestjs:nodejs scripts/bootstrap-super-admin.mjs ./scripts/bootstrap-super-admin.mjs
+# Migration script + SQL files (uses drizzle-orm programmatic API, not drizzle-kit)
+COPY --chown=nestjs:nodejs packages/db/scripts/migrate.mjs ./db-migrate.mjs
+COPY --chown=nestjs:nodejs packages/db/migrations/ ./packages/db/migrations/
 
 USER nestjs
 

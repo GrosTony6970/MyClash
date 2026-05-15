@@ -354,7 +354,7 @@ else
   # Migration runs as a one-off compose run command, not a service.
   # Failure here exits the script before `up` is called — old containers stay up.
   if ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
-         run --rm api pnpm --filter @myclash/db migrate; then
+         run --rm api node db-migrate.mjs; then
     err "Migration failed — deploy aborted; previous version is still running"
     err "Investigate, then either fix and re-run, or rollback with: infra/scripts/rollback.sh"
     exit 1
