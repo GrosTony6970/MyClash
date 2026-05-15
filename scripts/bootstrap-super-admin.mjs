@@ -41,7 +41,7 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !DATABASE_URL || !ADMIN_EMAIL || !ADMI
 // ── Minimal GoTrue admin API client (no npm deps needed) ──────────────────────
 
 async function gotrue(method, path, body) {
-  const url = `${SUPABASE_URL}/auth/v1${path}`;
+  const url = `${SUPABASE_URL}${path}`;
   const res = await fetch(url, {
     method,
     headers: {
