@@ -209,9 +209,11 @@ CREATE TABLE IF NOT EXISTS persons (
   created_by_user_id  UUID,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(event_id, lower(email)),
   CONSTRAINT persons_claim_status_check CHECK (claim_status IN ('unclaimed','guest_active','claimed'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS persons_event_id_lower_email_unique
+  ON persons (event_id, lower(email));
 
 -- pg_trgm indexes for fuzzy name lookup (T-104b)
 CREATE INDEX IF NOT EXISTS persons_given_name_trgm_idx

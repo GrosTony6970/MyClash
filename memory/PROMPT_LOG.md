@@ -675,3 +675,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix API Image Migration Dependencies. Package @mycla
 ## 17:34:06_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix Raw SQL Production Migrations. Replace Drizzle metadata migrator usage with a raw SQL runner for hand-maintained migration files, add production migration bookkeeping with checksums, keep API Docker/deploy shape, and add DB review regression checks.
+
+## 17:43:15_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix 0001 Raw SQL Syntax And Migration Runner Transaction Scope. Replace invalid inline UNIQUE(event_id, lower(email)) with a unique expression index, change the raw migration runner to session-level advisory locking with per-file transactions, and add a DB review guard against inline expression unique constraints.

@@ -83,6 +83,20 @@ if (nonIdempotentIndexes.length > 0) {
   );
 }
 
+const inlineExpressionUniques = allSql
+  .split(/\r?\n/u)
+  .map((line) => line.trim())
+  .filter(
+    (line) =>
+      /^UNIQUE\s*(?:NULLS\s+NOT\s+DISTINCT\s*)?\(/iu.test(line) &&
+      /\b(?:lower|upper|unaccent|regexp_replace|coalesce|concat)\s*\(/iu.test(line),
+  );
+if (inlineExpressionUniques.length > 0) {
+  errors.push(
+    `Inline UNIQUE constraints must not contain expressions; use a unique index instead: ${inlineExpressionUniques.join('; ')}`,
+  );
+}
+
 for (const extension of ['uuid-ossp', 'pg_trgm', 'unaccent', 'pg_stat_statements']) {
   if (!new RegExp(`CREATE EXTENSION IF NOT EXISTS\\s+"?${extension}"?`, 'i').test(allSql)) {
     errors.push(`Missing required extension migration: ${extension}`);
@@ -92,7 +106,12 @@ for (const extension of ['uuid-ossp', 'pg_trgm', 'unaccent', 'pg_stat_statements
 if (/drizzle-orm\/.*migrator/u.test(productionMigrationScript)) {
   errors.push('Production migration script must not use Drizzle migrator metadata.');
 }
-for (const expected of ['myclash_schema_migrations', 'checksum_sha256', 'pg_advisory_xact_lock']) {
+for (const expected of [
+  'myclash_schema_migrations',
+  'checksum_sha256',
+  'pg_advisory_lock',
+  'pg_advisory_unlock',
+]) {
   if (!productionMigrationScript.includes(expected)) {
     errors.push(`Production migration script is missing ${expected}.`);
   }
