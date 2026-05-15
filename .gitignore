@@ -1,5 +1,6 @@
 # ── Secrets and local config ─────────────────────────────────────
 .env
+.env.bak
 .env.local
 .env.deploy
 .env.*.local
