@@ -102,6 +102,14 @@ for (const extension of ['uuid-ossp', 'pg_trgm', 'unaccent', 'pg_stat_statements
     errors.push(`Missing required extension migration: ${extension}`);
   }
 }
+for (const [name, pattern] of [
+  ['auth.jwt()', /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+auth\.jwt\s*\(\s*\)/iu],
+  ['auth.uid()', /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+auth\.uid\s*\(\s*\)/iu],
+]) {
+  if (!pattern.test(allSql)) {
+    errors.push(`Missing self-hosted Supabase compatibility helper: ${name}.`);
+  }
+}
 if (!/CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.immutable_unaccent\s*\(/iu.test(allSql)) {
   errors.push('Missing public.immutable_unaccent(TEXT) helper for indexed unaccent expressions.');
 }

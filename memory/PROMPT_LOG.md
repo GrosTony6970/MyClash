@@ -683,3 +683,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix 0001 Raw SQL Syntax And Migration Runner Transac
 ## 17:56:25_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix Unaccent Index Volatility In Migrations. Add an immutable_unaccent SQL wrapper, use it for accent-insensitive indexed lookup expressions, update lookup functions to match, and add DB review guards against raw unaccent() in index definitions.
+
+## 18:11:27_15-05-2026
+
+User reported deploy now applies 0001 but fails on 0002_rls.sql because `auth.jwt()` does not exist in the self-hosted database; investigate and fix the migration path.

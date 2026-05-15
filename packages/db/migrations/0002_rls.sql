@@ -13,6 +13,49 @@
 -- application-level checks. RLS is the second line of defense.
 -- ============================================================
 
+-- Self-hosted Supabase compatibility helpers.
+-- Some fresh deployments do not create these functions before app migrations run,
+-- but RLS policies below need them at definition time.
+CREATE SCHEMA IF NOT EXISTS auth;
+
+CREATE OR REPLACE FUNCTION auth.jwt()
+RETURNS JSONB
+LANGUAGE sql STABLE
+AS $$
+  SELECT COALESCE(
+    NULLIF(current_setting('request.jwt.claims', TRUE), '')::JSONB,
+    NULLIF(current_setting('request.jwt.claim', TRUE), '')::JSONB,
+    jsonb_strip_nulls(jsonb_build_object(
+      'role', NULLIF(current_setting('request.jwt.claim.role', TRUE), ''),
+      'sub', NULLIF(current_setting('request.jwt.claim.sub', TRUE), '')
+    ))
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS UUID
+LANGUAGE sql STABLE
+AS $$
+  SELECT CASE
+    WHEN auth.jwt() ->> 'sub' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      THEN (auth.jwt() ->> 'sub')::UUID
+    ELSE NULL
+  END;
+$$;
+
+DO $$
+DECLARE
+  role_name TEXT;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+      EXECUTE format('GRANT USAGE ON SCHEMA auth TO %I', role_name);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION auth.jwt() TO %I', role_name);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION auth.uid() TO %I', role_name);
+    END IF;
+  END LOOP;
+END $$;
+
 -- ── Helper functions ──────────────────────────────────────────────────────────
 
 -- Returns true if the current JWT has role = 'super_admin'
