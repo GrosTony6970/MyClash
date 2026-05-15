@@ -1,0 +1,12 @@
+http:
+  middlewares:
+    myclash-compress:
+      compress: {}
+    myclash-security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
