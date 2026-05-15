@@ -671,3 +671,7 @@ PLEASE IMPLEMENT THIS PLAN: Trivy CVE Remediation For Latest GitHub Build - upda
 ## 17:14:57_15-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix API Image Migration Dependencies. Package @myclash/db into the API runtime image so deploy migrations can resolve drizzle-orm/postgres, run the migration script from packages/db/scripts/migrate.mjs, and add infra regression checks.
+
+## 17:34:06_15-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Raw SQL Production Migrations. Replace Drizzle metadata migrator usage with a raw SQL runner for hand-maintained migration files, add production migration bookkeeping with checksums, keep API Docker/deploy shape, and add DB review regression checks.

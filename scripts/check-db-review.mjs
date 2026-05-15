@@ -3,6 +3,7 @@ import { join, relative, sep } from 'node:path';
 
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
+const productionMigrationScriptPath = join(root, 'packages', 'db', 'scripts', 'migrate.mjs');
 const requiredFiles = [
   'docs/DATABASE_REVIEW.md',
   'packages/db/fixtures/phase4_synthetic.sql',
@@ -28,6 +29,7 @@ function objectName(matchValue) {
 
 const files = migrationFiles();
 const allSql = files.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n');
+const productionMigrationScript = readFileSync(productionMigrationScriptPath, 'utf8');
 const errors = [];
 const warnings = [];
 
@@ -84,6 +86,15 @@ if (nonIdempotentIndexes.length > 0) {
 for (const extension of ['uuid-ossp', 'pg_trgm', 'unaccent', 'pg_stat_statements']) {
   if (!new RegExp(`CREATE EXTENSION IF NOT EXISTS\\s+"?${extension}"?`, 'i').test(allSql)) {
     errors.push(`Missing required extension migration: ${extension}`);
+  }
+}
+
+if (/drizzle-orm\/.*migrator/u.test(productionMigrationScript)) {
+  errors.push('Production migration script must not use Drizzle migrator metadata.');
+}
+for (const expected of ['myclash_schema_migrations', 'checksum_sha256', 'pg_advisory_xact_lock']) {
+  if (!productionMigrationScript.includes(expected)) {
+    errors.push(`Production migration script is missing ${expected}.`);
   }
 }
 

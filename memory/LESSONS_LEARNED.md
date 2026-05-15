@@ -77,6 +77,7 @@
 - Enforce LF line endings via `.gitattributes` from day 1 — Windows checkouts will silently corrupt Docker entrypoint shell scripts otherwise.
 - Migrations run **before** new code containers replace old ones, never after. Migration failure must abort the deploy and leave the previous version running.
 - Docker images that run a workspace package script must package that workspace's production dependencies and execute the script from its package path; copying the script to `/app` can break Node module resolution for package-local dependencies.
+- Do not use Drizzle's metadata migrator for hand-maintained raw SQL migration folders; production runners must match the repository's migration format and track applied raw files explicitly.
 - Take a `pg_dump` immediately before every production migration. Without this, "rolling back a bad deploy" is a marketing slogan, not a procedure.
 - Don't write a deploy script from scratch when the owner already has a working one for a similar app — read it first, adapt it, document what changed and why.
 - Production deploy stays manual at v1; auto-deploy is for staging only. Friction on prod is a feature, not a bug.
