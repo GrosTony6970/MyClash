@@ -1,22 +1,27 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; new OAuth strings use @myclash/i18n */
 'use client';
 
 import { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
+
+type LoadingAction = 'password' | 'magic_link' | 'google' | null;
+type LoginResponse = { next?: string };
 
 export default function LoginPage() {
   const { t } = useI18n();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
 
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const loading = loadingAction !== null;
 
   async function handleGoogleLogin() {
-    setLoading(true);
+    setLoadingAction('google');
     setError(null);
     const redirectTo = `${window.location.origin}/auth/oauth/callback?next=${encodeURIComponent('/dashboard')}`;
     const { error: oauthError } = await createOAuthSupabaseClient().auth.signInWithOAuth({
@@ -25,13 +30,38 @@ export default function LoginPage() {
     });
     if (oauthError) {
       setError(t('auth.oauth.errors.startFailed'));
-      setLoading(false);
+      setLoadingAction(null);
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setLoadingAction('password');
+    setError(null);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/auth/password-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password, redirectTo: '/dashboard' }),
+      });
+
+      if (!res.ok) {
+        throw new Error(t('auth.login.errors.passwordLoginFailed'));
+      }
+
+      const body = (await res.json()) as LoginResponse;
+      window.location.href = body.next ?? '/dashboard';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.login.errors.passwordLoginFailed'));
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  async function handleMagicLink() {
+    setLoadingAction('magic_link');
     setError(null);
 
     try {
@@ -43,15 +73,14 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Request failed');
+        throw new Error(t('auth.login.errors.magicLinkFailed'));
       }
 
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(err instanceof Error ? err.message : t('auth.login.errors.magicLinkFailed'));
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   }
 
@@ -67,12 +96,12 @@ export default function LoginPage() {
             priority
             className="mx-auto mb-5 h-20 w-20"
           />
-          <h1 className="text-2xl font-bold mb-4">Check your email</h1>
+          <h1 className="text-2xl font-bold mb-4">{t('auth.login.checkEmailTitle')}</h1>
           <p className="text-gray-600">
-            We sent a login link to <strong>{email}</strong>. Click it to access your organizer
-            dashboard.
+            {t('auth.login.checkEmailPrefix')} <strong>{email}</strong>.{' '}
+            {t('auth.login.checkEmailSuffix')}
           </p>
-          <p className="mt-4 text-sm text-gray-400">The link expires in 1 hour.</p>
+          <p className="mt-4 text-sm text-gray-400">{t('auth.login.linkExpires')}</p>
         </div>
       </main>
     );
@@ -89,18 +118,18 @@ export default function LoginPage() {
           priority
           className="mb-5 h-20 w-20"
         />
-        <h1 className="text-2xl font-bold mb-2">MyClash Admin</h1>
-        <p className="text-gray-600 mb-8">Enter your email to receive a login link.</p>
+        <h1 className="text-2xl font-bold mb-2">{t('auth.login.title')}</h1>
+        <p className="text-gray-600 mb-8">{t('auth.login.subtitle')}</p>
 
         <form
           onSubmit={(e) => {
-            void handleSubmit(e);
+            void handlePasswordLogin(e);
           }}
           className="flex flex-col gap-4"
         >
           <div>
             <label htmlFor="email" className="block text-sm font-medium mb-1">
-              Email address
+              {t('auth.login.emailAddress')}
             </label>
             <input
               id="email"
@@ -109,7 +138,23 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t('auth.login.emailPlaceholder')}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium mb-1">
+              {t('auth.login.password')}
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={t('auth.login.passwordPlaceholder')}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </div>
@@ -125,9 +170,20 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
           >
-            {loading ? 'Sending…' : 'Send login link'}
+            {loadingAction === 'password' ? t('auth.login.signingIn') : t('auth.login.signIn')}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={() => {
+            void handleMagicLink();
+          }}
+          disabled={loading || !email}
+          className="mt-3 w-full border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+        >
+          {loadingAction === 'magic_link' ? t('auth.login.sending') : t('auth.login.sendLoginLink')}
+        </button>
 
         <button
           type="button"
@@ -141,10 +197,10 @@ export default function LoginPage() {
         </button>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          Don&apos;t have an account?{' '}
-          <a href="/signup" className="text-red-700 hover:underline">
-            Sign up as an organizer
-          </a>
+          {t('auth.login.signupPrompt')}{' '}
+          <Link href="/signup" className="text-red-700 hover:underline">
+            {t('auth.login.signupLink')}
+          </Link>
         </p>
       </div>
     </main>

@@ -1,9 +1,11 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
 import { OAuthSessionDto } from './dto/oauth-session.dto';
+import { PasswordLoginDto } from './dto/password-login.dto';
 import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 
 @ApiTags('auth')
@@ -46,6 +48,19 @@ export class AuthController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     await this.authService.acceptOAuthSession(dto, reply);
+  }
+
+  @Post('password-login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 10, ttl: 3_600_000 } })
+  @ApiOperation({ summary: 'Sign in with email and password for admin access' })
+  @ApiResponse({ status: 200, description: 'Password session accepted' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 403, description: 'User is not authorized for admin access' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
+  async passwordLogin(@Body() dto: PasswordLoginDto, @Res() reply: FastifyReply): Promise<void> {
+    await this.authService.passwordLogin(dto, reply);
   }
 
   /**

@@ -24,25 +24,47 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
   }
 
   async runOnce(now = new Date()): Promise<number> {
-    const { data, error } = await this.supabase.service
+    const tournamentsResult = await this.supabase.service
       .from('tournaments')
-      .select(
-        'id, lock_config_json, phases(id,type,matches(id,status,ended_at,locked_at,pool_id))',
-      );
-    if (error) {
-      this.logger.warn(`Auto-lock scan failed: ${error.message}`);
+      .select('id, lock_config_json');
+    if (tournamentsResult.error) {
+      this.logger.warn(`Auto-lock scan failed: ${tournamentsResult.error.message}`);
       return 0;
     }
 
+    const phasesResult = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id, type');
+    if (phasesResult.error) {
+      this.logger.warn(`Auto-lock scan failed: ${phasesResult.error.message}`);
+      return 0;
+    }
+
+    const matchesResult = await this.supabase.service
+      .from('matches')
+      .select('id, phase_id, status, ended_at, locked_at, pool_id');
+    if (matchesResult.error) {
+      this.logger.warn(`Auto-lock scan failed: ${matchesResult.error.message}`);
+      return 0;
+    }
+
+    const phasesByTournament = this.groupBy(this.rows(phasesResult.data), 'tournament_id');
+    const matchesByPhase = this.groupBy(this.rows(matchesResult.data), 'phase_id');
+
     let locked = 0;
-    for (const tournament of (data ?? []) as Row[]) {
+    for (const tournament of this.rows(tournamentsResult.data)) {
       const config = this.config(tournament['lock_config_json']);
       if (!config.autoLockEnabled) continue;
-      for (const phase of this.rows(tournament['phases'])) {
+      for (const phase of phasesByTournament.get(String(tournament['id'])) ?? []) {
         const phaseType = String(phase['type'] ?? '');
         if (phaseType === 'pool' && !config.autoLockCompletedPools) continue;
         if (phaseType !== 'pool' && !config.autoLockCompletedBrackets) continue;
-        locked += await this.lockEligiblePhaseMatches(phase, config, now);
+        locked += await this.lockEligiblePhaseMatches(
+          phase,
+          matchesByPhase.get(String(phase['id'])) ?? [],
+          config,
+          now,
+        );
       }
     }
     return locked;
@@ -50,10 +72,10 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
 
   private async lockEligiblePhaseMatches(
     phase: Row,
+    matches: Row[],
     config: TournamentLockConfig,
     now: Date,
   ): Promise<number> {
-    const matches = this.rows(phase['matches']);
     const groups = new Map<string, Row[]>();
     for (const match of matches) {
       const key = phase['type'] === 'pool' ? String(match['pool_id'] ?? 'no-pool') : 'bracket';
@@ -97,5 +119,15 @@ export class MatchAutoLockService implements OnModuleInit, OnModuleDestroy {
   private rows(value: unknown): Row[] {
     if (!value) return [];
     return Array.isArray(value) ? (value as Row[]) : [value as Row];
+  }
+
+  private groupBy(rows: Row[], key: string): Map<string, Row[]> {
+    const groups = new Map<string, Row[]>();
+    for (const row of rows) {
+      const groupKey = String(row[key] ?? '');
+      if (!groupKey) continue;
+      groups.set(groupKey, [...(groups.get(groupKey) ?? []), row]);
+    }
+    return groups;
   }
 }

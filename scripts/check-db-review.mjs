@@ -4,6 +4,15 @@ import { join, relative, sep } from 'node:path';
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
 const productionMigrationScriptPath = join(root, 'packages', 'db', 'scripts', 'migrate.mjs');
+const matchAutoLockServicePath = join(
+  root,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'matches',
+  'match-auto-lock.service.ts',
+);
 const fixtureSchemaReferenceFiles = [
   'packages/db/fixtures/phase4_synthetic.sql',
   'scripts/db-synthetic-fixture.mjs',
@@ -37,6 +46,7 @@ const migrationSqlByFile = new Map(
   files.map((file) => [file, readFileSync(join(migrationsDir, file), 'utf8')]),
 );
 const productionMigrationScript = readFileSync(productionMigrationScriptPath, 'utf8');
+const matchAutoLockService = readFileSync(matchAutoLockServicePath, 'utf8');
 const errors = [];
 const warnings = [];
 
@@ -195,6 +205,11 @@ if (/onnotice\s*:\s*console\.log/u.test(productionMigrationScript)) {
 }
 if (!/console\.warn\(`Notice\$\{code\}: \$\{message\}`\)/u.test(productionMigrationScript)) {
   errors.push('Production migration script must print unexpected PostgreSQL notices compactly.');
+}
+if (/phases\s*\([^)]*matches\s*\(/u.test(matchAutoLockService.replace(/\s+/gu, ' '))) {
+  errors.push(
+    'MatchAutoLockService must not rely on a nested phases(...matches(...)) PostgREST embed; matches.phase_id is not exposed as a schema-cache relationship.',
+  );
 }
 
 const fkColumns = [

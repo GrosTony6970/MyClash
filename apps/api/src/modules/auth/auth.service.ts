@@ -14,6 +14,7 @@ import { buildClearCookieOptions, buildSessionCookieOptions } from '../../securi
 import { SupabaseService } from '../supabase/supabase.service';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
+import type { PasswordLoginDto } from './dto/password-login.dto';
 import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { GuestJwtService } from './guest-jwt.service';
 
@@ -117,6 +118,31 @@ export class AuthService {
 
     this.setAuthCookies(reply, dto.accessToken, dto.refreshToken);
     void reply.send({ next: destination });
+  }
+
+  async passwordLogin(dto: PasswordLoginDto, reply: FastifyReply): Promise<void> {
+    const destination = this.validateRedirect(dto.redirectTo);
+    const { data, error } = await this.supabase.anon.auth.signInWithPassword({
+      email: dto.email,
+      password: dto.password,
+    });
+
+    if (error || !data.session || !data.user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const allowed = await this.hasAdminAccess(data.user.id);
+    if (!allowed) {
+      throw new ForbiddenException('No organizer or super admin access for this account');
+    }
+
+    this.setAuthCookies(
+      reply,
+      data.session.access_token,
+      data.session.refresh_token ?? '',
+      data.session.expires_in,
+    );
+    void reply.send({ next: destination === '/' ? '/dashboard' : destination });
   }
 
   async handleCallback(

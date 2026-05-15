@@ -368,6 +368,28 @@ export const en = {
     },
   },
   auth: {
+    login: {
+      title: 'MyClash Admin',
+      subtitle: 'Sign in with your administrator credentials, magic link, or Google.',
+      checkEmailTitle: 'Check your email',
+      checkEmailPrefix: 'We sent a login link to',
+      checkEmailSuffix: 'Click it to access your organizer dashboard.',
+      linkExpires: 'The link expires in 1 hour.',
+      emailAddress: 'Email address',
+      emailPlaceholder: 'you@example.com',
+      password: 'Password',
+      passwordPlaceholder: 'Your password',
+      signIn: 'Sign in',
+      signingIn: 'Signing in...',
+      sendLoginLink: 'Send login link',
+      sending: 'Sending...',
+      signupPrompt: "Don't have an account?",
+      signupLink: 'Sign up as an organizer',
+      errors: {
+        passwordLoginFailed: 'Invalid email/password, or this account is not allowed in admin.',
+        magicLinkFailed: 'Could not send a login link.',
+      },
+    },
     oauth: {
       google: 'Google',
       continueWithGoogle: 'Continue with Google',
@@ -1457,6 +1479,29 @@ export const fr = {
     },
   },
   auth: {
+    login: {
+      title: 'MyClash Admin',
+      subtitle: 'Connectez-vous avec vos identifiants administrateur, un lien magique ou Google.',
+      checkEmailTitle: 'Verifiez votre e-mail',
+      checkEmailPrefix: 'Nous avons envoye un lien de connexion a',
+      checkEmailSuffix: 'Cliquez dessus pour acceder a votre tableau de bord organisateur.',
+      linkExpires: 'Le lien expire dans 1 heure.',
+      emailAddress: 'Adresse e-mail',
+      emailPlaceholder: 'vous@example.com',
+      password: 'Mot de passe',
+      passwordPlaceholder: 'Votre mot de passe',
+      signIn: 'Se connecter',
+      signingIn: 'Connexion...',
+      sendLoginLink: 'Envoyer le lien de connexion',
+      sending: 'Envoi...',
+      signupPrompt: "Vous n'avez pas de compte ?",
+      signupLink: 'Inscrivez-vous comme organisateur',
+      errors: {
+        passwordLoginFailed:
+          "E-mail ou mot de passe invalide, ou ce compte n'est pas autorise dans l'admin.",
+        magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
+      },
+    },
     oauth: {
       google: 'Google',
       continueWithGoogle: 'Continuer avec Google',

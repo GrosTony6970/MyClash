@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
 
@@ -7,6 +7,7 @@ import { GuestJwtService } from './guest-jwt.service';
 
 const generateLinkMock = vi.fn();
 const getUserMock = vi.fn();
+const signInWithPasswordMock = vi.fn();
 const fromMock = vi.fn();
 
 const mockSupabase = {
@@ -15,7 +16,7 @@ const mockSupabase = {
     from: fromMock,
   },
   anon: {
-    auth: { getUser: getUserMock, verifyOtp: vi.fn() },
+    auth: { getUser: getUserMock, signInWithPassword: signInWithPasswordMock, verifyOtp: vi.fn() },
   },
 };
 
@@ -377,6 +378,93 @@ describe('AuthService', () => {
           makeReply() as never,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('passwordLogin', () => {
+    it('sets cookies and redirects to dashboard for a super admin', async () => {
+      signInWithPasswordMock.mockResolvedValue({
+        data: {
+          user: { id: 'admin-123', email: 'admin@example.com' },
+          session: {
+            access_token: 'password-access-token',
+            refresh_token: 'password-refresh-token',
+            expires_in: 3600,
+          },
+        },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(makeQueryChain({ data: { role: 'super_admin' }, error: null }));
+
+      const reply = makeReply();
+      await service.passwordLogin(
+        {
+          email: 'admin@example.com',
+          password: 'correct-password',
+        },
+        reply as never,
+      );
+
+      expect(signInWithPasswordMock).toHaveBeenCalledWith({
+        email: 'admin@example.com',
+        password: 'correct-password',
+      });
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'password-access-token',
+        expect.objectContaining({ httpOnly: true }),
+      );
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        'password-refresh-token',
+        expect.objectContaining({ httpOnly: true }),
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
+    });
+
+    it('rejects invalid password credentials', async () => {
+      signInWithPasswordMock.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'Invalid login credentials' },
+      });
+
+      await expect(
+        service.passwordLogin(
+          {
+            email: 'admin@example.com',
+            password: 'wrong-password',
+          },
+          makeReply() as never,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects password login when the user has no admin access', async () => {
+      signInWithPasswordMock.mockResolvedValue({
+        data: {
+          user: { id: 'user-123', email: 'person@example.com' },
+          session: {
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            expires_in: 3600,
+          },
+        },
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
+
+      await expect(
+        service.passwordLogin(
+          {
+            email: 'person@example.com',
+            password: 'valid-password',
+          },
+          makeReply() as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });
