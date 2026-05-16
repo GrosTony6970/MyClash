@@ -21,6 +21,15 @@ import { GuestJwtService } from './guest-jwt.service';
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
 const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/dashboard', '/'];
 
+type GoTruePasswordTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  user?: {
+    id?: string;
+  };
+};
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -122,25 +131,22 @@ export class AuthService {
 
   async passwordLogin(dto: PasswordLoginDto, reply: FastifyReply): Promise<void> {
     const destination = this.validateRedirect(dto.redirectTo);
-    const { data, error } = await this.supabase.anon.auth.signInWithPassword({
-      email: dto.email,
-      password: dto.password,
-    });
+    const tokenResponse = await this.requestPasswordToken(dto.email, dto.password);
 
-    if (error || !data.session || !data.user) {
+    if (!tokenResponse.access_token || !tokenResponse.refresh_token || !tokenResponse.user?.id) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const allowed = await this.hasAdminAccess(data.user.id);
+    const allowed = await this.hasAdminAccess(tokenResponse.user.id);
     if (!allowed) {
       throw new ForbiddenException('No organizer or super admin access for this account');
     }
 
     this.setAuthCookies(
       reply,
-      data.session.access_token,
-      data.session.refresh_token ?? '',
-      data.session.expires_in,
+      tokenResponse.access_token,
+      tokenResponse.refresh_token,
+      tokenResponse.expires_in,
     );
     void reply.send({ next: destination === '/' ? '/dashboard' : destination });
   }
@@ -373,6 +379,47 @@ export class AuthService {
     if (!redirectTo) return '/';
     const isAllowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) => redirectTo.startsWith(prefix));
     return isAllowed ? redirectTo : '/';
+  }
+
+  private async requestPasswordToken(
+    email: string,
+    password: string,
+  ): Promise<GoTruePasswordTokenResponse> {
+    const authUrl =
+      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
+      this.config.getOrThrow<string>('SUPABASE_URL');
+    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
+
+    let response: {
+      ok: boolean;
+      json: () => Promise<unknown>;
+    };
+
+    try {
+      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+        },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    if (!response.ok || !body || typeof body !== 'object') {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    return body as GoTruePasswordTokenResponse;
   }
 
   private setAuthCookies(

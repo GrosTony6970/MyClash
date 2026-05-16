@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
@@ -9,6 +9,7 @@ const generateLinkMock = vi.fn();
 const getUserMock = vi.fn();
 const signInWithPasswordMock = vi.fn();
 const fromMock = vi.fn();
+const fetchMock = vi.fn();
 
 const mockSupabase = {
   service: {
@@ -40,6 +41,7 @@ const mockConfigService = {
     const values: Record<string, string> = {
       DOMAIN: 'myclash.localhost',
       MAIL_FROM: 'noreply@myclash.fr',
+      SUPABASE_AUTH_INTERNAL_URL: 'http://supabase-auth:9999',
     };
     return values[key] ?? def ?? '';
   }),
@@ -69,6 +71,16 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    mockConfigService.getOrThrow.mockImplementation((key: string) => {
+      const values: Record<string, string> = {
+        SUPABASE_URL: 'https://app.myclash.fr',
+        SUPABASE_ANON_KEY: 'anon-key',
+      };
+      const value = values[key];
+      if (!value) throw new Error(`Missing config ${key}`);
+      return value;
+    });
     fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
 
     service = new AuthService(
@@ -78,6 +90,10 @@ describe('AuthService', () => {
       guestJwtService,
       mockOnboarding as never,
     );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe('requestMagicLink — login type', () => {
@@ -383,16 +399,14 @@ describe('AuthService', () => {
 
   describe('passwordLogin', () => {
     it('sets cookies and redirects to dashboard for a super admin', async () => {
-      signInWithPasswordMock.mockResolvedValue({
-        data: {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          access_token: 'password-access-token',
+          refresh_token: 'password-refresh-token',
+          expires_in: 3600,
           user: { id: 'admin-123', email: 'admin@example.com' },
-          session: {
-            access_token: 'password-access-token',
-            refresh_token: 'password-refresh-token',
-            expires_in: 3600,
-          },
-        },
-        error: null,
+        }),
       });
       fromMock.mockReturnValueOnce(makeQueryChain({ data: { role: 'super_admin' }, error: null }));
 
@@ -405,10 +419,21 @@ describe('AuthService', () => {
         reply as never,
       );
 
-      expect(signInWithPasswordMock).toHaveBeenCalledWith({
-        email: 'admin@example.com',
-        password: 'correct-password',
-      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://supabase-auth:9999/token?grant_type=password',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: 'anon-key',
+          },
+          body: JSON.stringify({
+            email: 'admin@example.com',
+            password: 'correct-password',
+          }),
+        }),
+      );
+      expect(signInWithPasswordMock).not.toHaveBeenCalled();
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'password-access-token',
@@ -423,9 +448,9 @@ describe('AuthService', () => {
     });
 
     it('rejects invalid password credentials', async () => {
-      signInWithPasswordMock.mockResolvedValue({
-        data: { user: null, session: null },
-        error: { message: 'Invalid login credentials' },
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ error: 'invalid_grant' }),
       });
 
       await expect(
@@ -438,19 +463,18 @@ describe('AuthService', () => {
         ),
       ).rejects.toThrow(UnauthorizedException);
       expect(fromMock).not.toHaveBeenCalled();
+      expect(signInWithPasswordMock).not.toHaveBeenCalled();
     });
 
     it('rejects password login when the user has no admin access', async () => {
-      signInWithPasswordMock.mockResolvedValue({
-        data: {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+          expires_in: 3600,
           user: { id: 'user-123', email: 'person@example.com' },
-          session: {
-            access_token: 'access-token',
-            refresh_token: 'refresh-token',
-            expires_in: 3600,
-          },
-        },
-        error: null,
+        }),
       });
       fromMock
         .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
@@ -465,6 +489,7 @@ describe('AuthService', () => {
           makeReply() as never,
         ),
       ).rejects.toThrow(ForbiddenException);
+      expect(signInWithPasswordMock).not.toHaveBeenCalled();
     });
   });
 });

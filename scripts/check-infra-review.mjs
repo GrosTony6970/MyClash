@@ -147,6 +147,13 @@ requireContains(
   'dev web-public',
   'NEXT_PUBLIC_API_URL: https://api.myclash.localhost',
 );
+for (const serviceName of ['api', 'worker']) {
+  requireContains(
+    services.get(serviceName) ?? '',
+    `prod ${serviceName}`,
+    'SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999',
+  );
+}
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
