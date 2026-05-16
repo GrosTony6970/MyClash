@@ -2,104 +2,137 @@
 /**
  * scripts/bootstrap-super-admin.mjs
  *
- * Creates the initial super admin account on first deploy.
- * Idempotent — safe to run on every deploy; does nothing if the account
- * already exists.
+ * Creates and maintains the initial super admin account.
+ * Idempotent: safe to run on every deploy. If the account already exists,
+ * its password is synced from SEED_ADMIN_PASSWORD.
  *
  * Reads from environment variables (injected by deploy.sh via .env):
- *   SUPABASE_URL              — Supabase/GoTrue URL (internal Docker network)
- *   SUPABASE_SERVICE_ROLE_KEY — Service role key (bypasses RLS)
- *   DATABASE_URL              — Postgres connection string
- *   SEED_ADMIN_EMAIL          — Email for the super admin
- *   SEED_ADMIN_PASSWORD       — Password for the super admin
+ *   SUPABASE_URL              - Supabase/GoTrue URL (internal Docker network)
+ *   SUPABASE_SERVICE_ROLE_KEY - Service role key (bypasses RLS)
+ *   DATABASE_URL              - Postgres connection string
+ *   SEED_ADMIN_EMAIL          - Email for the super admin
+ *   SEED_ADMIN_PASSWORD       - Password for the super admin
  *
  * Outputs JSON to stdout:
- *   { "created": true|false, "userId": "...", "email": "..." }
+ *   { "created": true|false, "passwordSynced": true|false, "userId": "...", "email": "..." }
  *
  * Exit codes:
- *   0 — success (created or already existed)
- *   1 — fatal error
+ *   0 - success
+ *   1 - fatal error
  */
 
-import { createHmac } from 'node:crypto';
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// pg lives in apps/api/node_modules — resolve it from the api package
-// context because Node won't walk into a sibling directory from scripts/
+// pg lives in apps/api/node_modules. Resolve it from the API package context
+// because Node will not walk into a sibling directory from scripts/.
 const require = createRequire('/app/apps/api/package.json');
 
-const SUPABASE_URL = process.env['SUPABASE_URL'];
-const SERVICE_ROLE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
-const DATABASE_URL = process.env['DATABASE_URL'];
-const ADMIN_EMAIL = process.env['SEED_ADMIN_EMAIL'];
-const ADMIN_PASSWORD = process.env['SEED_ADMIN_PASSWORD'];
+export function createGotrueClient({ supabaseUrl, serviceRoleKey, fetchImpl = fetch }) {
+  return async function gotrue(method, requestPath, body) {
+    const res = await fetchImpl(`${supabaseUrl}${requestPath}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !DATABASE_URL || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
-  console.error(
-    JSON.stringify({
-      error: 'Missing required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD',
-    }),
-  );
-  process.exit(1);
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { raw: text };
+    }
+
+    return { ok: res.ok, status: res.status, data: json };
+  };
 }
 
-// ── Minimal GoTrue admin API client (no npm deps needed) ──────────────────────
-
-async function gotrue(method, path, body) {
-  const url = `${SUPABASE_URL}${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  return { ok: res.ok, status: res.status, data: json };
+export function createRunSql({ databaseUrl, requireImpl = require }) {
+  return async function runSql(sql, params = []) {
+    const pg = requireImpl('pg');
+    const client = new pg.Client({ connectionString: databaseUrl });
+    await client.connect();
+    try {
+      const result = await client.query(sql, params);
+      return result.rows;
+    } finally {
+      await client.end();
+    }
+  };
 }
 
-// ── Minimal Postgres client (no npm deps — uses node:net + pg wire protocol) ──
-// We use the pg module which is available in the API container's node_modules.
-// If not available, fall back to a raw SQL approach via psql.
+function fail(message, detail) {
+  const error = new Error(message);
+  error.detail = detail;
+  throw error;
+}
 
-async function runSql(sql, params = []) {
-  const pg = require('pg');
-  const client = new pg.Client({ connectionString: DATABASE_URL });
-  await client.connect();
-  try {
-    const result = await client.query(sql, params);
-    return result.rows;
-  } finally {
-    await client.end();
+function requiredEnv(env) {
+  const SUPABASE_URL = env['SUPABASE_URL'];
+  const SERVICE_ROLE_KEY = env['SUPABASE_SERVICE_ROLE_KEY'];
+  const DATABASE_URL = env['DATABASE_URL'];
+  const ADMIN_EMAIL = env['SEED_ADMIN_EMAIL'];
+  const ADMIN_PASSWORD = env['SEED_ADMIN_PASSWORD'];
+
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !DATABASE_URL || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    fail(
+      'Missing required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD',
+    );
   }
+
+  return {
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    DATABASE_URL,
+    ADMIN_EMAIL,
+    ADMIN_PASSWORD,
+  };
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+export async function bootstrapSuperAdmin({
+  env = process.env,
+  gotrue: gotrueOverride,
+  runSql: runSqlOverride,
+} = {}) {
+  const { SUPABASE_URL, SERVICE_ROLE_KEY, DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD } =
+    requiredEnv(env);
+  const gotrue =
+    gotrueOverride ??
+    createGotrueClient({ supabaseUrl: SUPABASE_URL, serviceRoleKey: SERVICE_ROLE_KEY });
+  const runSql = runSqlOverride ?? createRunSql({ databaseUrl: DATABASE_URL });
 
-async function main() {
-  // 1. Check if user already exists via GoTrue admin list
   const listRes = await gotrue('GET', '/admin/users?page=1&per_page=1000');
   if (!listRes.ok) {
-    console.error(JSON.stringify({ error: 'Failed to list users', detail: listRes.data }));
-    process.exit(1);
+    fail('Failed to list users', listRes.data);
   }
 
   const users = listRes.data?.users ?? [];
-  const existing = users.find(
-    (u) => u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
-  );
+  const existing = users.find((u) => u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
 
   let userId;
   let created = false;
+  let passwordSynced = false;
 
   if (existing) {
     userId = existing.id;
+    const updateRes = await gotrue('PUT', `/admin/users/${encodeURIComponent(userId)}`, {
+      password: ADMIN_PASSWORD,
+      email_confirm: true,
+      user_metadata: { display_name: 'Super Admin' },
+    });
+
+    if (!updateRes.ok) {
+      fail('Failed to sync admin user password', updateRes.data);
+    }
+
+    passwordSynced = true;
   } else {
-    // 2. Create the user
     const createRes = await gotrue('POST', '/admin/users', {
       email: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
@@ -108,33 +141,28 @@ async function main() {
     });
 
     if (!createRes.ok) {
-      console.error(JSON.stringify({ error: 'Failed to create admin user', detail: createRes.data }));
-      process.exit(1);
+      fail('Failed to create admin user', createRes.data);
     }
 
     userId = createRes.data?.id;
     if (!userId) {
-      console.error(JSON.stringify({ error: 'No user ID returned from GoTrue', detail: createRes.data }));
-      process.exit(1);
+      fail('No user ID returned from GoTrue', createRes.data);
     }
+
     created = true;
+    passwordSynced = true;
   }
 
-  // 3. Ensure platform_roles row exists (idempotent)
   await runSql(
     `INSERT INTO platform_roles (user_id, role)
      VALUES ($1, 'super_admin')
-     ON CONFLICT (user_id) DO NOTHING`,
+     ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role`,
     [userId],
   );
 
-  // 4. Ensure a bootstrap organization exists (idempotent)
   const orgSlug = 'myclash-hq';
   const orgName = 'MyClash HQ';
-  const [existingOrg] = await runSql(
-    `SELECT id FROM organizations WHERE slug = $1`,
-    [orgSlug],
-  );
+  const [existingOrg] = await runSql(`SELECT id FROM organizations WHERE slug = $1`, [orgSlug]);
 
   let orgId;
   if (existingOrg) {
@@ -149,18 +177,34 @@ async function main() {
     orgId = newOrg.id;
   }
 
-  // 5. Ensure org membership (idempotent)
   await runSql(
     `INSERT INTO organization_members (organization_id, user_id, role)
      VALUES ($1, $2, 'owner')
-     ON CONFLICT (organization_id, user_id) DO NOTHING`,
+     ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
     [orgId, userId],
   );
 
-  console.log(JSON.stringify({ created, userId, email: ADMIN_EMAIL, orgId }));
+  return {
+    created,
+    passwordSynced,
+    roleSynced: true,
+    orgMembershipSynced: true,
+    userId,
+    email: ADMIN_EMAIL,
+    orgId,
+  };
 }
 
-main().catch((err) => {
-  console.error(JSON.stringify({ error: String(err?.message ?? err) }));
-  process.exit(1);
-});
+async function main() {
+  const result = await bootstrapSuperAdmin();
+  console.log(JSON.stringify(result));
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    const body = { error: String(err?.message ?? err) };
+    if (err?.detail !== undefined) body.detail = err.detail;
+    console.error(JSON.stringify(body));
+    process.exit(1);
+  });
+}
