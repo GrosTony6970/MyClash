@@ -63,6 +63,14 @@ export class AuthController {
     await this.authService.passwordLogin(dto, reply);
   }
 
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear admin auth session cookies' })
+  @ApiResponse({ status: 200, description: 'Session cookies cleared' })
+  logout(@Res({ passthrough: true }) reply: FastifyReply): { ok: true } {
+    return this.authService.logout(reply);
+  }
+
   /**
    * GET /api/v1/auth/callback
    *

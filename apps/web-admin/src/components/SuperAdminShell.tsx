@@ -31,6 +31,22 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      await fetch(`${apiUrl}/api/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } finally {
+      window.location.assign('/login');
+    }
+  }
 
   const sidebar = (
     <nav aria-label={t('admin.shell.navigationLabel')} className="flex flex-col gap-1">
@@ -66,9 +82,29 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
     </nav>
   );
 
+  const logoutAction = (
+    <button
+      type="button"
+      className="flex w-full items-center gap-3 rounded-md border border-slate-700 bg-slate-950/40 px-3 py-2 text-left text-sm font-semibold text-slate-200 transition-colors hover:border-[#dc2626]/60 hover:bg-[#dc2626]/15 hover:text-white disabled:cursor-wait disabled:opacity-70"
+      aria-label={t('admin.shell.logoutAriaLabel')}
+      disabled={loggingOut}
+      onClick={() => {
+        void handleLogout();
+      }}
+    >
+      <span
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-900 text-[0.65rem] font-bold text-[#f59e0b]"
+        aria-hidden="true"
+      >
+        LO
+      </span>
+      <span>{loggingOut ? t('admin.shell.loggingOut') : t('admin.shell.logout')}</span>
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-[#0f172a]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-slate-800 bg-[#0f172a] px-4 py-5 text-white shadow-2xl lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-[#0f172a] px-4 py-5 text-white shadow-2xl lg:flex">
         <Link href="/admin" className="mb-7 flex items-center gap-3">
           <Image
             src="/brand/Logomini_nobackground.png"
@@ -85,7 +121,8 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
             </p>
           </div>
         </Link>
-        {sidebar}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
+        <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
       </aside>
 
       <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur lg:left-72">
@@ -127,7 +164,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
             className="absolute inset-0 bg-slate-950/60"
             onClick={() => setOpen(false)}
           />
-          <div className="relative h-full w-80 max-w-[85vw] overflow-y-auto bg-[#0f172a] px-4 py-5 text-white shadow-2xl">
+          <div className="relative flex h-full w-80 max-w-[85vw] flex-col bg-[#0f172a] px-4 py-5 text-white shadow-2xl">
             <div className="mb-6 flex items-center justify-between">
               <Link
                 href="/admin"
@@ -145,7 +182,8 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
                 {t('admin.shell.close')}
               </button>
             </div>
-            {sidebar}
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
+            <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
           </div>
         </div>
       )}

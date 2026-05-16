@@ -193,6 +193,18 @@ export class AuthService {
     void reply.send({ next: destination === '/' ? '/dashboard' : destination });
   }
 
+  logout(reply: FastifyReply): { ok: true } {
+    const cookieReply = reply as FastifyReply & {
+      clearCookie: (name: string, opts: Record<string, unknown>) => void;
+    };
+    const clearOptions = buildClearCookieOptions(this.config.get<string>('NODE_ENV'));
+
+    cookieReply.clearCookie('sb-access-token', clearOptions);
+    cookieReply.clearCookie('sb-refresh-token', clearOptions);
+
+    return { ok: true };
+  }
+
   async handleCallback(
     token: string,
     type: string,

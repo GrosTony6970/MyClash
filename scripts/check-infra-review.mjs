@@ -352,6 +352,10 @@ requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminSh
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'fixed inset-y-0 left-0');
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '#0f172a');
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '#1d4ed8');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '/api/v1/auth/logout');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', "credentials: 'include'");
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.logout');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.loggingOut');
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', '/api/v1/admin/dashboard-stats');
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', "credentials: 'include'");
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', 'admin.dashboard.statsTitle');

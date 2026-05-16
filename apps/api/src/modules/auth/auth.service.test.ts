@@ -68,6 +68,7 @@ const mockOnboarding = {
 function makeReply() {
   return {
     setCookie: vi.fn(),
+    clearCookie: vi.fn(),
     send: vi.fn(),
     redirect: vi.fn(),
   };
@@ -601,6 +602,25 @@ describe('AuthService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
       expect(signInWithPasswordMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('clears admin auth cookies and returns ok', () => {
+      const reply = makeReply();
+
+      const result = service.logout(reply as never);
+
+      expect(result).toEqual({ ok: true });
+      expect(reply.clearCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        expect.objectContaining({ path: '/', sameSite: 'lax' }),
+      );
+      expect(reply.clearCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        expect.objectContaining({ path: '/', sameSite: 'lax' }),
+      );
+      expect(reply.clearCookie).toHaveBeenCalledTimes(2);
     });
   });
 });

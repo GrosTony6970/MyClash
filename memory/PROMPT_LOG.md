@@ -791,3 +791,7 @@ User reports `/admin` menu pages say "Access denied. Super admin required." even
 ## 20:34:04_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Super-Admin Shell + Platform Statistics Dashboard. Add branded fixed left menu/top banner for `/admin/*`, add protected `/api/v1/admin/dashboard-stats`, display platform snapshot stats on `/admin`, add i18n and review guards.
+
+## 20:53:30_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Add Super-Admin Sidebar Logout. Add POST `/api/v1/auth/logout` to clear admin auth cookies, add a logout action pinned to the desktop sidebar and mobile drawer, add i18n keys, tests, and infra review guards.

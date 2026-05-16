@@ -421,6 +421,9 @@ export const en = {
       openMenu: 'Open super-admin menu',
       closeMenu: 'Close super-admin menu',
       close: 'Close',
+      logout: 'Log out',
+      loggingOut: 'Logging out...',
+      logoutAriaLabel: 'Log out of super-admin',
       nav: {
         overview: 'Overview',
         organizations: 'Organizations',
@@ -1609,6 +1612,9 @@ export const fr = {
       openMenu: 'Ouvrir le menu super-admin',
       closeMenu: 'Fermer le menu super-admin',
       close: 'Fermer',
+      logout: 'Se deconnecter',
+      loggingOut: 'Deconnexion...',
+      logoutAriaLabel: 'Se deconnecter du super-admin',
       nav: {
         overview: 'Vue generale',
         organizations: 'Organisations',
