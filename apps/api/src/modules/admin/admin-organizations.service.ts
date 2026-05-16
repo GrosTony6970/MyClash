@@ -1,6 +1,17 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
+import { MailService } from '../mail/mail.service';
+import { RESERVED_SLUGS } from '../organizations/dto/signup.dto';
 import { SupabaseService } from '../supabase/supabase.service';
 import type {
+  CreateOrganizationDto,
   ListOrgsQueryDto,
   PromoteSuperAdminDto,
   ReassignOwnerDto,
@@ -37,13 +48,143 @@ export interface OrgDetail extends OrgListItem {
   }>;
 }
 
+export interface CreateOrganizationResult {
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    status: 'active' | 'suspended';
+  };
+  owner: {
+    userId: string;
+    email: string;
+    created: boolean;
+    temporaryPassword?: string;
+  };
+  membership: {
+    role: 'owner';
+  };
+  magicLinkSent: boolean;
+}
+
 @Injectable()
 export class AdminOrganizationsService {
   private readonly logger = new Logger(AdminOrganizationsService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly mail?: MailService,
+    private readonly config?: ConfigService,
+  ) {}
 
   // ── List ────────────────────────────────────────────────────────────────
+
+  async createOrganizationWithOwner(
+    dto: CreateOrganizationDto,
+    actorUserId: string,
+  ): Promise<CreateOrganizationResult> {
+    const slug = dto.slug.trim().toLowerCase();
+    const ownerEmail = dto.ownerEmail.trim().toLowerCase();
+    const ownerDisplayName = dto.ownerDisplayName?.trim() || ownerEmail;
+
+    await this.ensureSlugAvailable(slug);
+
+    let authUser = await this.findAuthUserByEmail(ownerEmail);
+    let ownerCreated = false;
+    let temporaryPassword: string | undefined;
+    let createdOrgId: string | undefined;
+
+    if (!authUser) {
+      temporaryPassword = this.generateTemporaryPassword();
+      const { data, error } = await this.supabase.service.auth.admin.createUser({
+        email: ownerEmail,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: { display_name: ownerDisplayName },
+      });
+
+      if (error || !data.user) {
+        if (error?.message?.toLowerCase().includes('already')) {
+          authUser = await this.findAuthUserByEmail(ownerEmail);
+        }
+        if (!authUser) {
+          this.logger.error(
+            `Failed to create organizer account for ${ownerEmail}: ${error?.message}`,
+          );
+          throw new BadRequestException('Failed to create organizer account');
+        }
+      } else {
+        authUser = { id: data.user.id, email: data.user.email ?? ownerEmail };
+        ownerCreated = true;
+      }
+    }
+
+    try {
+      const { data: org, error: orgError } = await this.supabase.service
+        .from('organizations')
+        .insert({
+          name: dto.name.trim(),
+          slug,
+          status: 'active',
+          created_by_user_id: authUser.id,
+        })
+        .select('id, name, slug, status')
+        .single();
+
+      if (orgError || !org) {
+        throw new Error(orgError?.message ?? 'Organization insert returned no row');
+      }
+
+      const organization = org as CreateOrganizationResult['organization'];
+      createdOrgId = organization.id;
+
+      const { error: memberError } = await this.supabase.service
+        .from('organization_members')
+        .insert({
+          organization_id: organization.id,
+          user_id: authUser.id,
+          role: 'owner',
+        });
+
+      if (memberError) {
+        throw new Error(`Failed to create owner membership: ${memberError.message}`);
+      }
+
+      await this.writeAuditLog(
+        actorUserId,
+        'org.create_with_owner',
+        'organization',
+        organization.id,
+        {
+          slug,
+          owner_user_id: authUser.id,
+          owner_created: ownerCreated,
+        },
+      );
+
+      const magicLinkSent = await this.trySendOwnerMagicLink(
+        ownerEmail,
+        ownerDisplayName,
+        organization.slug,
+      );
+
+      return {
+        organization,
+        owner: {
+          userId: authUser.id,
+          email: authUser.email ?? ownerEmail,
+          created: ownerCreated,
+          ...(ownerCreated && temporaryPassword ? { temporaryPassword } : {}),
+        },
+        membership: { role: 'owner' },
+        magicLinkSent,
+      };
+    } catch (err) {
+      await this.cleanupFailedCreate(createdOrgId, ownerCreated ? authUser.id : undefined);
+      this.logger.error(`Failed to create organization ${slug}: ${String(err)}`);
+      throw new BadRequestException('Failed to create organization');
+    }
+  }
 
   async listOrganizations(query: ListOrgsQueryDto): Promise<OrgListItem[]> {
     try {
@@ -310,6 +451,98 @@ export class AdminOrganizationsService {
       }
     } catch {
       // Table not yet created — skip
+    }
+  }
+
+  private async ensureSlugAvailable(slug: string): Promise<void> {
+    if ((RESERVED_SLUGS as readonly string[]).includes(slug)) {
+      throw new ConflictException(`The slug "${slug}" is reserved`);
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('organizations')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException('Could not validate organization slug');
+    if (data) throw new ConflictException(`The slug "${slug}" is already taken`);
+  }
+
+  private async findAuthUserByEmail(email: string): Promise<{ id: string; email?: string } | null> {
+    const target = email.toLowerCase();
+    let page = 1;
+    const perPage = 1000;
+
+    while (page <= 10) {
+      const { data, error } = await this.supabase.service.auth.admin.listUsers({ page, perPage });
+      if (error) throw new BadRequestException('Could not inspect organizer accounts');
+
+      const user = data.users.find((candidate) => candidate.email?.toLowerCase() === target);
+      if (user) return { id: user.id, email: user.email };
+      if (data.users.length < perPage) return null;
+      page += 1;
+    }
+
+    return null;
+  }
+
+  private generateTemporaryPassword(): string {
+    return randomBytes(18).toString('base64url');
+  }
+
+  private async trySendOwnerMagicLink(
+    email: string,
+    displayName: string,
+    orgSlug: string,
+  ): Promise<boolean> {
+    if (!this.mail) return false;
+
+    const domain = this.config?.get<string>('DOMAIN', 'myclash.localhost') ?? 'myclash.localhost';
+    try {
+      const { data, error } = await this.supabase.service.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: {
+          redirectTo: `https://admin.${domain}/org/${orgSlug}`,
+          data: { display_name: displayName },
+        },
+      });
+
+      const magicLink = data.properties?.action_link;
+      if (error || !magicLink) {
+        this.logger.warn(`Could not generate organizer magic link for ${email}: ${error?.message}`);
+        return false;
+      }
+
+      await this.mail.sendMagicLink({
+        to: email,
+        magicLink,
+        type: 'login',
+        displayName,
+      });
+      return true;
+    } catch (err) {
+      this.logger.warn(`Could not send organizer magic link for ${email}: ${String(err)}`);
+      return false;
+    }
+  }
+
+  private async cleanupFailedCreate(orgId?: string, newUserId?: string): Promise<void> {
+    if (orgId) {
+      try {
+        await this.supabase.service.from('organizations').delete().eq('id', orgId);
+      } catch {
+        this.logger.warn(`Could not clean up organization ${orgId} after failed creation`);
+      }
+    }
+
+    if (newUserId) {
+      try {
+        await this.supabase.service.auth.admin.deleteUser(newUserId);
+      } catch {
+        this.logger.warn(`Could not clean up organizer user ${newUserId} after failed creation`);
+      }
     }
   }
 }

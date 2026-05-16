@@ -1,4 +1,3 @@
-/* eslint-disable myclash/no-literal-string */
 'use client';
 
 import Link from 'next/link';
@@ -39,7 +38,6 @@ export default function EventDetailPage() {
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
   const [spendCap, setSpendCap] = useState<string>('');
@@ -70,7 +68,6 @@ export default function EventDetailPage() {
     const controller = new AbortController();
     void (async () => {
       try {
-        // 1. Fetch org ID from slug
         const orgRes = await fetch(`${apiUrl}/api/v1/organizations/slug/${slug}`, {
           credentials: 'include',
           signal: controller.signal,
@@ -78,7 +75,6 @@ export default function EventDetailPage() {
         if (!orgRes.ok) return;
         const orgData = (await orgRes.json()) as { id: string };
 
-        // 2. Fetch AI settings
         const aiRes = await fetch(`${apiUrl}/api/v1/organizations/${orgData.id}/ai-settings`, {
           credentials: 'include',
           signal: controller.signal,
@@ -94,7 +90,6 @@ export default function EventDetailPage() {
           }
         }
 
-        // 3. Fetch AI usage
         const usageRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
           credentials: 'include',
           signal: controller.signal,
@@ -105,7 +100,7 @@ export default function EventDetailPage() {
           setSpendCap(String(usageData.cap ?? ''));
         }
       } catch {
-        // silent
+        // AI status is optional on this dashboard.
       }
     })();
     return () => controller.abort();
@@ -126,13 +121,12 @@ export default function EventDetailPage() {
           })(),
         }),
       });
-      // Re-fetch usage to update meter
       const r = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
         credentials: 'include',
       });
       if (r.ok) setAiUsage((await r.json()) as AIUsage);
     } catch {
-      // silent
+      // Keep the previous budget value visible.
     } finally {
       setSavingCap(false);
     }
@@ -151,13 +145,9 @@ export default function EventDetailPage() {
       href: 'referee-assignments',
       icon: 'A',
     },
-    {
-      label: t('organizer.eventHub.sections.compensation'),
-      href: 'compensation',
-      icon: '€',
-    },
+    { label: t('organizer.eventHub.sections.compensation'), href: 'compensation', icon: 'C' },
     { label: t('organizer.eventHub.sections.workshops'), href: 'workshops', icon: 'W' },
-    { label: t('organizer.eventHub.sections.staff'), href: 'staff', icon: 'S' },
+    { label: t('organizer.eventHub.sections.staff'), href: 'staff', icon: 'ST' },
     { label: t('organizer.eventHub.sections.notifications'), href: 'notifications', icon: 'N' },
     { label: t('organizer.eventHub.sections.aiAssistant'), href: 'ai-assistant', icon: 'AI' },
     { label: t('organizer.eventHub.sections.theme'), href: 'theme', icon: 'T' },
@@ -166,39 +156,43 @@ export default function EventDetailPage() {
   ];
 
   return (
-    <main className="p-8 max-w-4xl">
-      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-        <Link href={`/org/${slug}`} className="hover:text-gray-700">
-          {slug}
-        </Link>
-        <span>/</span>
-        <span className="text-gray-900 font-medium">{event?.name ?? eventId}</span>
+    <main className="p-6 lg:p-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Link href={`/org/${slug}`} className="hover:text-[#1d4ed8]">
+              {t('organizer.eventHub.backToOrg')}
+            </Link>
+            <span>/</span>
+            <span className="font-medium text-[#0f172a]">{event?.name ?? eventId}</span>
+          </div>
+          <h1 className="mt-3 text-3xl font-bold text-[#0f172a]">{event?.name ?? eventId}</h1>
+          {event && (
+            <p className="mt-1 text-sm text-slate-500">
+              {event.location ? `${event.location} - ` : ''}
+              {new Date(event.startDate).toLocaleDateString('fr-FR')}
+              {event.startDate !== event.endDate
+                ? ` - ${new Date(event.endDate).toLocaleDateString('fr-FR')}`
+                : ''}
+            </p>
+          )}
+        </div>
+        <span className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          {event?.status ?? 'event'}
+        </span>
       </div>
 
-      {event && (
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">{event.name}</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {event.location ? `${event.location} - ` : ''}
-            {new Date(event.startDate).toLocaleDateString('fr-FR')}
-            {event.startDate !== event.endDate
-              ? ` - ${new Date(event.endDate).toLocaleDateString('fr-FR')}`
-              : ''}
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 mb-8 sm:grid-cols-3">
+      <div className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {sections.map((section) => (
           <Link
             key={section.href}
             href={`/org/${slug}/events/${eventId}/${section.href}`}
-            className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-red-300 hover:shadow-sm transition-all"
+            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm transition-all hover:border-[#1d4ed8]/40 hover:shadow-md"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-xs font-semibold text-gray-600">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-50 text-[0.65rem] font-bold text-[#f59e0b]">
               {section.icon}
             </span>
-            <span className="text-sm font-medium text-gray-700">{section.label}</span>
+            <span className="text-sm font-semibold text-[#0f172a]">{section.label}</span>
           </Link>
         ))}
       </div>
@@ -206,55 +200,58 @@ export default function EventDetailPage() {
       {aiEnabled && <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} />}
 
       {aiEnabled && (
-        <section className="mb-8">
+        <section className="mb-8 rounded-lg border border-slate-200 bg-white shadow-sm">
           <button
+            type="button"
             onClick={() => setBudgetOpen(!budgetOpen)}
-            className="flex items-center justify-between w-full text-sm font-bold uppercase tracking-wide text-gray-500 mb-3"
+            className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-bold uppercase tracking-[0.16em] text-slate-500"
           >
-            <span>AI Budget</span>
-            <span className="text-gray-400">{budgetOpen ? '▲' : '▼'}</span>
+            <span>{t('organizer.eventHub.aiBudget')}</span>
+            <span className="text-slate-400">{budgetOpen ? 'UP' : 'DOWN'}</span>
           </button>
 
           {budgetOpen && (
-            <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-              {/* Spend cap input */}
-              <div className="flex items-end gap-3">
+            <div className="space-y-4 border-t border-slate-100 px-5 py-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <label className="flex-1" htmlFor="aiSpendCap">
-                  <span className="block text-xs font-medium text-gray-500 mb-1">
-                    Spend cap (€)
+                  <span className="mb-1 block text-xs font-semibold text-slate-500">
+                    {t('organizer.eventHub.spendCap')}
                   </span>
                   <input
                     id="aiSpendCap"
                     type="number"
-                    aria-label="AI spend cap in euros"
+                    aria-label={t('organizer.eventHub.spendCap')}
                     min="0"
                     step="0.01"
                     value={spendCap}
                     onChange={(e) => setSpendCap(e.target.value)}
-                    placeholder="No cap"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    placeholder={t('organizer.eventHub.noCap')}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
                 </label>
                 <button
+                  type="button"
                   onClick={() => void handleSaveCap()}
                   disabled={savingCap}
-                  className="px-4 py-2 bg-red-700 text-white text-sm font-medium rounded-lg hover:bg-red-800 disabled:opacity-50"
+                  className="rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                 >
-                  {savingCap ? 'Saving…' : 'Save'}
+                  {savingCap ? t('organizer.eventHub.saving') : t('organizer.eventHub.save')}
                 </button>
               </div>
 
-              {/* Spend meter */}
               {aiUsage && (
                 <div>
                   {aiUsage.cap !== null ? (
                     <>
-                      <p className="text-sm text-gray-600 mb-1">
-                        €{aiUsage.totalSpendEur.toFixed(2)} used of €{aiUsage.cap.toFixed(2)} cap
+                      <p className="mb-1 text-sm text-slate-600">
+                        {t('organizer.eventHub.budgetUsed', {
+                          spent: aiUsage.totalSpendEur.toFixed(2),
+                          cap: aiUsage.cap.toFixed(2),
+                        })}
                       </p>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="h-full bg-red-500 rounded-full transition-all"
+                          className="h-full rounded-full bg-[#dc2626] transition-all"
                           style={{
                             width: `${Math.min(100, (aiUsage.totalSpendEur / aiUsage.cap) * 100)}%`,
                           }}
@@ -262,9 +259,11 @@ export default function EventDetailPage() {
                       </div>
                     </>
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      No cap set — €{aiUsage.totalSpendEur.toFixed(2)} spent ({aiUsage.callCount}{' '}
-                      calls)
+                    <p className="text-sm text-slate-500">
+                      {t('organizer.eventHub.budgetNoCap', {
+                        spent: aiUsage.totalSpendEur.toFixed(2),
+                        calls: aiUsage.callCount,
+                      })}
                     </p>
                   )}
                 </div>
@@ -275,15 +274,15 @@ export default function EventDetailPage() {
       )}
 
       <section>
-        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-          {t('organizer.archive.title')}
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          {t('organizer.eventHub.archiveTitle')}
         </h2>
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-gray-600">{t('organizer.archive.description')}</p>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">{t('organizer.archive.description')}</p>
             <Link
               href={`/org/${slug}/events/${eventId}/archive`}
-              className="text-sm font-medium text-red-700 hover:underline flex-shrink-0"
+              className="text-sm font-semibold text-[#dc2626] hover:underline"
             >
               {t('organizer.archive.open')}
             </Link>

@@ -799,3 +799,11 @@ PLEASE IMPLEMENT THIS PLAN: Add Super-Admin Sidebar Logout. Add POST `/api/v1/au
 ## 21:01:42_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix System Versions Load Failure. Harden the system versions manifest reader against missing, directory, unreadable, empty, or malformed files; repair accidental deploy artifact directories; improve diagnostics; add tests.
+
+## 21:08:35_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Organizer Admin Shell Refactor. Add a super-admin-style fixed sidebar/top banner/mobile drawer/logout shell for `/org/[slug]/*`, add organization and event navigation, restyle organizer landing pages, add i18n and review guards.
+
+## 21:19:07_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Super-Admin Organization And Organizer Creation. Add a super-admin-only flow to create an organization and owner organizer account in one action, generating a temporary password for new organizers, attempting a magic login link, reusing existing users without resetting passwords, updating `/admin/organizations`, adding i18n and review coverage, and testing API/web/repo checks.

@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class ListOrgsQueryDto {
   @ApiProperty({ required: false, description: 'Filter by status' })
@@ -25,6 +34,34 @@ export class ListOrgsQueryDto {
   @IsOptional()
   @IsIn(['asc', 'desc'])
   order?: 'asc' | 'desc';
+}
+
+export class CreateOrganizationDto {
+  @ApiProperty({ example: 'Lyon AMHE' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
+
+  @ApiProperty({ example: 'lyon-amhe' })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(50)
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'Slug must contain only lowercase letters, digits, and hyphens',
+  })
+  slug!: string;
+
+  @ApiProperty({ example: 'organizer@example.com' })
+  @IsEmail()
+  ownerEmail!: string;
+
+  @ApiProperty({ example: 'Jean Dupont', required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  ownerDisplayName?: string;
 }
 
 export class ReassignOwnerDto {

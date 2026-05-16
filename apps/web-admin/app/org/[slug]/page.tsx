@@ -1,16 +1,9 @@
 'use client';
 
-/**
- * Org dashboard — T-701
- * Route: /org/[slug]
- *
- * Shows event list + "New Event" CTA.
- * Events sorted by start_date desc.
- */
-
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface OrgEvent {
   id: string;
@@ -24,17 +17,18 @@ interface OrgEvent {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-800 text-gray-400 border-gray-700',
-  published: 'bg-blue-900/60 text-blue-300 border-blue-800',
-  running: 'bg-green-900/60 text-green-300 border-green-800 animate-pulse',
-  completed: 'bg-gray-800 text-gray-500 border-gray-700',
-  archived: 'bg-gray-900 text-gray-600 border-gray-800',
+  draft: 'bg-slate-100 text-slate-700 border-slate-200',
+  published: 'bg-blue-50 text-blue-700 border-blue-100',
+  running: 'bg-green-50 text-green-700 border-green-100',
+  completed: 'bg-slate-100 text-slate-500 border-slate-200',
+  archived: 'bg-slate-900 text-slate-200 border-slate-800',
 };
 
 export default function OrgDashboardPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [events, setEvents] = useState<OrgEvent[]>([]);
   const [orgName, setOrgName] = useState<string>(slug);
@@ -53,7 +47,6 @@ export default function OrgDashboardPage() {
         const org = (await res.json()) as { id: string; name: string };
         setOrgName(org.name);
 
-        // Fetch events for this org
         return fetch(`${apiUrl}/api/v1/events?organizationId=${org.id}&status=all`, {
           credentials: 'include',
           signal: controller.signal,
@@ -65,94 +58,103 @@ export default function OrgDashboardPage() {
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
-        setError('Failed to load events');
+        setError(t('organizer.dashboard.failedEvents'));
       })
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [slug, apiUrl]);
+  }, [slug, apiUrl, t]);
 
   return (
-    <main className="p-8 max-w-4xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <main className="p-6 lg:p-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{orgName}</h1>
-          <p className="text-gray-500 text-sm mt-0.5 font-mono">{slug}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
+            {t('organizer.shell.eyebrow')}
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-[#0f172a]">{orgName}</h1>
+          <p className="mt-1 font-mono text-sm text-slate-500">{slug}</p>
         </div>
         <Link
           href={`/org/${slug}/events/new`}
-          className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+          className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
         >
-          + New event
+          {t('organizer.dashboard.newEvent')}
         </Link>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">
+        <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
-          <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-          Loading events…
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#1d4ed8]" />
+          {t('organizer.dashboard.loadingEvents')}
         </div>
       )}
 
-      {/* Empty state */}
       {!loading && events.length === 0 && !error && (
-        <div className="flex flex-col items-center justify-center py-24 border-2 border-dashed border-gray-200 rounded-xl text-center">
-          <p className="text-4xl mb-4">🏆</p>
-          <h2 className="text-xl font-semibold mb-2">Create your first event</h2>
-          <p className="text-gray-500 max-w-sm mb-6 text-sm">
-            An event is the gathering — FAL 2026, Swordfish 2027. Inside it you create tournaments,
-            workshops, and manage your roster.
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-20 text-center shadow-sm">
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs font-bold text-[#f59e0b]">
+            EV
+          </span>
+          <h2 className="mb-2 text-xl font-bold text-[#0f172a]">
+            {t('organizer.dashboard.emptyTitle')}
+          </h2>
+          <p className="mb-6 max-w-sm text-sm text-slate-500">
+            {t('organizer.dashboard.emptyDescription')}
           </p>
           <Link
             href={`/org/${slug}/events/new`}
-            className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+            className="rounded-md bg-[#dc2626] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
           >
-            New event
+            {t('organizer.dashboard.newEvent')}
           </Link>
         </div>
       )}
 
-      {/* Event list */}
       {!loading && events.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-4 xl:grid-cols-2">
           {events.map((ev) => (
             <Link
               key={ev.id}
               href={`/org/${slug}/events/${ev.id}`}
-              className="block bg-white border border-gray-200 rounded-xl px-5 py-4 hover:border-red-300 hover:shadow-sm transition-all"
+              className="block rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm transition-all hover:border-[#1d4ed8]/40 hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{ev.name}</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {ev.location && `${ev.location} · `}
+                  <h3 className="font-bold text-[#0f172a]">{ev.name}</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {ev.location ?? t('organizer.dashboard.noLocation')}
+                    {' - '}
                     {new Date(ev.startDate).toLocaleDateString('fr-FR', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
                     })}
                     {ev.startDate !== ev.endDate &&
-                      ` – ${new Date(ev.endDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`}
+                      ` - ${new Date(ev.endDate).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}`}
                   </p>
                   {ev.tournamentCount > 0 && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      {ev.tournamentCount} tournament
-                      {ev.tournamentCount !== 1 ? 's' : ''}
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                      {t(
+                        ev.tournamentCount === 1
+                          ? 'organizer.dashboard.eventCount'
+                          : 'organizer.dashboard.eventCountPlural',
+                        { count: ev.tournamentCount },
+                      )}
                     </p>
                   )}
                 </div>
                 <span
                   className={[
-                    'text-xs font-medium px-2.5 py-0.5 rounded-full border flex-shrink-0',
+                    'flex-shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
                     STATUS_COLORS[ev.status] ?? STATUS_COLORS['draft']!,
                   ].join(' ')}
                 >

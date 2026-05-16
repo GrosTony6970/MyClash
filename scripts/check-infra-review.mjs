@@ -26,6 +26,15 @@ const adminDashboardPagePath = path.join(
   'page.tsx',
 );
 const superAdminPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'page.tsx');
+const superAdminOrganizationsPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'organizations',
+  'page.tsx',
+);
 const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
 const superAdminShellPath = path.join(
   rootDir,
@@ -34,6 +43,34 @@ const superAdminShellPath = path.join(
   'src',
   'components',
   'SuperAdminShell.tsx',
+);
+const organizerLayoutPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'org',
+  '[slug]',
+  'layout.tsx',
+);
+const organizerShellPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'src',
+  'components',
+  'OrganizerAdminShell.tsx',
+);
+const organizerEventPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'org',
+  '[slug]',
+  'events',
+  '[eventId]',
+  'page.tsx',
 );
 const authServicePath = path.join(
   rootDir,
@@ -63,6 +100,24 @@ const adminDashboardStatsControllerPath = path.join(
   'admin',
   'dashboard-stats.controller.ts',
 );
+const adminOrganizationsControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'organizations.controller.ts',
+);
+const adminOrganizationsServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'admin-organizations.service.ts',
+);
 const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
@@ -91,11 +146,17 @@ const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
 const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
 const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
 const superAdminPageText = await readFile(superAdminPagePath, 'utf8');
+const superAdminOrganizationsPageText = await readFile(superAdminOrganizationsPagePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
+const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
+const organizerShellText = await readFile(organizerShellPath, 'utf8');
+const organizerEventPageText = await readFile(organizerEventPagePath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
 const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
+const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
+const adminOrganizationsServiceText = await readFile(adminOrganizationsServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
@@ -370,9 +431,66 @@ requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminSh
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', "credentials: 'include'");
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.logout');
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.loggingOut');
+requireContains(organizerLayoutText, 'apps/web-admin/app/org/[slug]/layout.tsx', 'OrganizerAdminShell');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'usePathname');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'useParams');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '#0f172a');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '#1d4ed8');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '/api/v1/auth/logout');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "credentials: 'include'");
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'organizer.shell.logout');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventNavItems');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventId');
+requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.sections.persons');
+requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.aiBudget');
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', '/api/v1/admin/dashboard-stats');
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', "credentials: 'include'");
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', 'admin.dashboard.statsTitle');
+requireContains(
+  superAdminOrganizationsPageText,
+  'apps/web-admin/app/admin/organizations/page.tsx',
+  '/api/v1/admin/organizations',
+);
+requireContains(
+  superAdminOrganizationsPageText,
+  'apps/web-admin/app/admin/organizations/page.tsx',
+  'admin.organizations.create.open',
+);
+requireContains(
+  superAdminOrganizationsPageText,
+  'apps/web-admin/app/admin/organizations/page.tsx',
+  'temporaryPassword',
+);
+for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'service_role', 'SEED_ADMIN_PASSWORD']) {
+  if (superAdminOrganizationsPageText.includes(forbidden)) {
+    errors.push(`apps/web-admin/app/admin/organizations/page.tsx must not expose ${forbidden}.`);
+  }
+}
+requireContains(
+  adminOrganizationsControllerText,
+  'apps/api/src/modules/admin/organizations.controller.ts',
+  '@UseGuards(SuperAdminGuard)',
+);
+requireContains(
+  adminOrganizationsControllerText,
+  'apps/api/src/modules/admin/organizations.controller.ts',
+  '@Post()',
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'createOrganizationWithOwner',
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'email_confirm: true',
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'org.create_with_owner',
+);
 requireContains(
   adminDashboardStatsControllerText,
   'apps/api/src/modules/admin/dashboard-stats.controller.ts',

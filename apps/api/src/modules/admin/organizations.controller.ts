@@ -17,6 +17,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import type { FastifyRequest } from 'fastify';
 import { AdminOrganizationsService } from './admin-organizations.service';
 import {
+  CreateOrganizationDto,
   ListOrgsQueryDto,
   PromoteSuperAdminDto,
   ReassignOwnerDto,
@@ -44,6 +45,17 @@ export class OrganizationsAdminController {
   @ApiResponse({ status: 200, description: 'Organization list' })
   async list(@Query() query: ListOrgsQueryDto) {
     return this.service.listOrganizations(query);
+  }
+
+  /**
+   * POST /api/v1/admin/organizations
+   * Create an organization and assign an owner organizer account.
+   */
+  @Post()
+  @ApiOperation({ summary: 'Create organization with owner organizer (super admin)' })
+  @ApiResponse({ status: 201, description: 'Organization created' })
+  async create(@Body() dto: CreateOrganizationDto, @Req() req: FastifyRequest) {
+    return this.service.createOrganizationWithOwner(dto, getActorId(req));
   }
 
   /**

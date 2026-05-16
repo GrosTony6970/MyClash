@@ -5,9 +5,17 @@ import { AdminOrganizationsService } from './admin-organizations.service';
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
 const fromMock = vi.fn();
+const authAdminMock = {
+  listUsers: vi.fn(),
+  createUser: vi.fn(),
+  deleteUser: vi.fn(),
+  generateLink: vi.fn(),
+};
+const mockMail = { sendMagicLink: vi.fn() };
+const mockConfig = { get: vi.fn((_key: string, fallback?: string) => fallback ?? 'myclash.fr') };
 
 const mockSupabase = {
-  service: { from: fromMock },
+  service: { from: fromMock, auth: { admin: authAdminMock } },
   anon: {},
 };
 
@@ -94,8 +102,225 @@ describe('AdminOrganizationsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    authAdminMock.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
+    authAdminMock.createUser.mockResolvedValue({
+      data: { user: { id: 'user-new', email: 'owner@example.com' } },
+      error: null,
+    });
+    authAdminMock.deleteUser.mockResolvedValue({ data: {}, error: null });
+    authAdminMock.generateLink.mockResolvedValue({
+      data: { properties: { action_link: 'https://auth.example/magic' } },
+      error: null,
+    });
+    mockMail.sendMagicLink.mockResolvedValue(undefined);
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new AdminOrganizationsService(mockSupabase as never);
+    service = new AdminOrganizationsService(
+      mockSupabase as never,
+      mockMail as never,
+      mockConfig as never,
+    );
+  });
+
+  describe('createOrganizationWithOwner', () => {
+    it('creates a new auth user, organization, owner membership, audit log, and magic link', async () => {
+      const orgChain = makeChain({
+        data: { id: 'org-1', name: 'Lyon AMHE', slug: 'lyon-amhe', status: 'active' },
+        error: null,
+      });
+      const slugCheckChain = makeChain({ data: null, error: null });
+      const memberChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      const auditChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      let orgCall = 0;
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          orgCall += 1;
+          return orgCall === 1 ? slugCheckChain : orgChain;
+        }
+        if (table === 'organization_members') return memberChain;
+        if (table === 'audit_log') return auditChain;
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.createOrganizationWithOwner(
+        {
+          name: 'Lyon AMHE',
+          slug: 'lyon-amhe',
+          ownerEmail: 'OWNER@example.com',
+          ownerDisplayName: 'Owner Name',
+        },
+        'actor-user',
+      );
+
+      expect(authAdminMock.createUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'owner@example.com',
+          email_confirm: true,
+          user_metadata: { display_name: 'Owner Name' },
+        }),
+      );
+      expect(result.organization).toEqual({
+        id: 'org-1',
+        name: 'Lyon AMHE',
+        slug: 'lyon-amhe',
+        status: 'active',
+      });
+      expect(result.owner.created).toBe(true);
+      expect(result.owner.temporaryPassword).toEqual(expect.any(String));
+      expect(memberChain.insert).toHaveBeenCalledWith({
+        organization_id: 'org-1',
+        user_id: 'user-new',
+        role: 'owner',
+      });
+      expect(auditChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actor_user_id: 'actor-user',
+          action: 'org.create_with_owner',
+          entity_type: 'organization',
+          entity_id: 'org-1',
+        }),
+      );
+      expect(mockMail.sendMagicLink).toHaveBeenCalledOnce();
+      expect(result.magicLinkSent).toBe(true);
+    });
+
+    it('reuses an existing organizer user without returning or resetting a password', async () => {
+      authAdminMock.listUsers.mockResolvedValue({
+        data: { users: [{ id: 'user-existing', email: 'owner@example.com' }] },
+        error: null,
+      });
+      const orgChain = makeChain({
+        data: { id: 'org-2', name: 'Existing Org', slug: 'existing-org', status: 'active' },
+        error: null,
+      });
+      const slugCheckChain = makeChain({ data: null, error: null });
+      const memberChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      let orgCall = 0;
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          orgCall += 1;
+          return orgCall === 1 ? slugCheckChain : orgChain;
+        }
+        if (table === 'organization_members') return memberChain;
+        if (table === 'audit_log')
+          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.createOrganizationWithOwner(
+        {
+          name: 'Existing Org',
+          slug: 'existing-org',
+          ownerEmail: 'owner@example.com',
+        },
+        'actor-user',
+      );
+
+      expect(authAdminMock.createUser).not.toHaveBeenCalled();
+      expect(result.owner).toEqual({
+        userId: 'user-existing',
+        email: 'owner@example.com',
+        created: false,
+      });
+      expect(memberChain.insert).toHaveBeenCalledWith({
+        organization_id: 'org-2',
+        user_id: 'user-existing',
+        role: 'owner',
+      });
+    });
+
+    it('rejects reserved or taken slugs', async () => {
+      await expect(
+        service.createOrganizationWithOwner(
+          {
+            name: 'Admin Org',
+            slug: 'admin',
+            ownerEmail: 'owner@example.com',
+          },
+          'actor',
+        ),
+      ).rejects.toThrow('reserved');
+
+      fromMock.mockReturnValue(makeChain({ data: { id: 'org-existing' }, error: null }));
+
+      await expect(
+        service.createOrganizationWithOwner(
+          {
+            name: 'Taken Org',
+            slug: 'taken-org',
+            ownerEmail: 'owner@example.com',
+          },
+          'actor',
+        ),
+      ).rejects.toThrow('already taken');
+    });
+
+    it('cleans up a newly created auth user when organization creation fails', async () => {
+      const slugCheckChain = makeChain({ data: null, error: null });
+      const orgCreateChain = makeChain({ data: null, error: { message: 'insert failed' } });
+      let orgCall = 0;
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          orgCall += 1;
+          return orgCall === 1 ? slugCheckChain : orgCreateChain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      await expect(
+        service.createOrganizationWithOwner(
+          {
+            name: 'Broken Org',
+            slug: 'broken-org',
+            ownerEmail: 'owner@example.com',
+          },
+          'actor',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(authAdminMock.deleteUser).toHaveBeenCalledWith('user-new');
+    });
+
+    it('keeps creation successful when magic-link delivery fails', async () => {
+      authAdminMock.generateLink.mockResolvedValue({
+        data: { properties: {} },
+        error: { message: 'email disabled' },
+      });
+      const orgChain = makeChain({
+        data: { id: 'org-3', name: 'No Mail', slug: 'no-mail', status: 'active' },
+        error: null,
+      });
+      const slugCheckChain = makeChain({ data: null, error: null });
+      let orgCall = 0;
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          orgCall += 1;
+          return orgCall === 1 ? slugCheckChain : orgChain;
+        }
+        if (table === 'organization_members') {
+          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        }
+        if (table === 'audit_log') {
+          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.createOrganizationWithOwner(
+        {
+          name: 'No Mail',
+          slug: 'no-mail',
+          ownerEmail: 'owner@example.com',
+        },
+        'actor',
+      );
+
+      expect(result.magicLinkSent).toBe(false);
+      expect(result.owner.temporaryPassword).toEqual(expect.any(String));
+    });
   });
 
   describe('listOrganizations', () => {
