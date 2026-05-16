@@ -277,6 +277,11 @@ if (authServiceText.includes('supabase.anon.auth.getUser')) {
 requireContains(authServiceText, 'AuthService', '/token?grant_type=password');
 requireContains(authServiceText, 'AuthService', '/user');
 requireContains(authServiceText, 'AuthService', 'SUPABASE_AUTH_INTERNAL_URL');
+requireContains(authServiceText, 'AuthService', 'ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60');
+requireContains(authServiceText, 'AuthService', 'maxAge: ADMIN_SESSION_MAX_AGE_SECONDS');
+if (authServiceText.includes('maxAge: 60 * 60 * 24 * 30')) {
+  errors.push('AuthService admin refresh cookie must not outlive the one-hour admin session.');
+}
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
@@ -431,6 +436,8 @@ requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminSh
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', "credentials: 'include'");
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.logout');
 requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'admin.shell.loggingOut');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '/api/v1/me');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', "window.location.replace('/login')");
 requireContains(organizerLayoutText, 'apps/web-admin/app/org/[slug]/layout.tsx', 'OrganizerAdminShell');
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'usePathname');
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'useParams');
@@ -439,6 +446,8 @@ requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdmi
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '/api/v1/auth/logout');
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "credentials: 'include'");
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'organizer.shell.logout');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', '/api/v1/me');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "window.location.replace('/login')");
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventNavItems');
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventId');
 requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.sections.persons');

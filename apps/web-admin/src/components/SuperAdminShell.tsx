@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useI18n } from '../i18n/I18nProvider';
 
 const navItems = [
@@ -33,6 +33,36 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`${apiUrl}/api/v1/me`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          window.location.replace('/login');
+          return;
+        }
+
+        const data = (await res.json()) as {
+          type?: string;
+          admin?: { isSuperAdmin?: boolean };
+        };
+        if (data.type !== 'claimed' || !data.admin?.isSuperAdmin) {
+          window.location.replace('/login');
+        }
+      })
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          window.location.replace('/login');
+        }
+      });
+
+    return () => controller.abort();
+  }, [apiUrl]);
 
   async function handleLogout() {
     if (loggingOut) return;

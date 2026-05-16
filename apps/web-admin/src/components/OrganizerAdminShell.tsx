@@ -71,6 +71,43 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [orgName, setOrgName] = useState(slug);
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`${apiUrl}/api/v1/me`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          window.location.replace('/login');
+          return;
+        }
+
+        const data = (await res.json()) as {
+          type?: string;
+          admin?: {
+            isSuperAdmin?: boolean;
+            organizations?: Array<{ slug: string }>;
+          };
+        };
+        const hasOrganizationAccess = Boolean(
+          data.admin?.organizations?.some((organization) => organization.slug === slug),
+        );
+
+        if (data.type !== 'claimed' || (!data.admin?.isSuperAdmin && !hasOrganizationAccess)) {
+          window.location.replace('/login');
+        }
+      })
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          window.location.replace('/login');
+        }
+      });
+
+    return () => controller.abort();
+  }, [apiUrl, slug]);
+
+  useEffect(() => {
     if (!slug) return;
     const controller = new AbortController();
 

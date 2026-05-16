@@ -20,6 +20,7 @@ import { GuestJwtService } from './guest-jwt.service';
 
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
 const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/dashboard', '/'];
+const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60;
 
 type GoTruePasswordTokenResponse = {
   access_token?: string;
@@ -555,7 +556,7 @@ export class AuthService {
     reply: FastifyReply,
     accessToken: string,
     refreshToken: string,
-    expiresIn = 3600,
+    _expiresIn = ADMIN_SESSION_MAX_AGE_SECONDS,
   ): void {
     const cookieReply = reply as FastifyReply & {
       setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
@@ -566,7 +567,7 @@ export class AuthService {
       accessToken,
       buildSessionCookieOptions({
         env: this.config.get<string>('NODE_ENV'),
-        maxAge: expiresIn,
+        maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
       }),
     );
 
@@ -575,7 +576,7 @@ export class AuthService {
       refreshToken,
       buildSessionCookieOptions({
         env: this.config.get<string>('NODE_ENV'),
-        maxAge: 60 * 60 * 24 * 30,
+        maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
       }),
     );
   }

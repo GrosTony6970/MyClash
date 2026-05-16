@@ -373,12 +373,12 @@ describe('AuthService', () => {
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'access-token',
-        expect.objectContaining({ httpOnly: true }),
+        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
       );
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-refresh-token',
         'refresh-token',
-        expect.objectContaining({ httpOnly: true }),
+        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
       expect(fetchMock).toHaveBeenCalledWith(
@@ -549,12 +549,12 @@ describe('AuthService', () => {
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'password-access-token',
-        expect.objectContaining({ httpOnly: true }),
+        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
       );
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-refresh-token',
         'password-refresh-token',
-        expect.objectContaining({ httpOnly: true }),
+        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
     });
