@@ -3,6 +3,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
+import { PersonalSpaceResponseDto } from './dto/personal-space-response.dto';
 
 @ApiTags('auth')
 @Controller()
@@ -26,5 +27,12 @@ export class MeController {
   async getMe(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     const result = await this.auth.getMe(req, reply);
     void reply.status(200).send(result);
+  }
+
+  @Get('me/personal-space')
+  @ApiOperation({ summary: 'Get current claimed user personal-space data' })
+  @ApiResponse({ status: 200, type: PersonalSpaceResponseDto })
+  async getPersonalSpace(@Req() req: FastifyRequest): Promise<PersonalSpaceResponseDto> {
+    return this.auth.getPersonalSpace(req);
   }
 }

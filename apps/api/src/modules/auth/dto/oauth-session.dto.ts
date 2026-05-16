@@ -10,9 +10,9 @@ export class OAuthSessionDto {
   @IsString()
   refreshToken!: string;
 
-  @ApiProperty({ enum: ['admin_login', 'organizer_signup', 'person_claim'] })
-  @IsIn(['admin_login', 'organizer_signup', 'person_claim'])
-  mode!: 'admin_login' | 'organizer_signup' | 'person_claim';
+  @ApiProperty({ enum: ['admin_login', 'organizer_signup', 'person_claim', 'public_login'] })
+  @IsIn(['admin_login', 'organizer_signup', 'person_claim', 'public_login'])
+  mode!: 'admin_login' | 'organizer_signup' | 'person_claim' | 'public_login';
 
   @ApiProperty({ required: false })
   @IsOptional()

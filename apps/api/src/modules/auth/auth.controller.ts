@@ -87,10 +87,10 @@ export class AuthController {
     @Query('token_hash') tokenHash: string,
     @Query('type') type: string = 'login',
     @Query('personId') personId: string | undefined,
-    @Query('next') _next: string | undefined,
+    @Query('next') next: string | undefined,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    await this.authService.handleCallback(tokenHash, type, personId, reply);
+    await this.authService.handleCallback(tokenHash, type, personId, next, reply);
   }
 
   /**

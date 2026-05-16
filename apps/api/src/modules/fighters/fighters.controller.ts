@@ -51,11 +51,8 @@ async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService):
 
   if (!token) throw new UnauthorizedException('Authentication required');
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.anon.auth.getUser(token);
-  if (error || !user) throw new UnauthorizedException('Invalid token');
+  const user = await supabase.getAuthUser(token);
+  if (!user) throw new UnauthorizedException('Invalid token');
   return user.id;
 }
 

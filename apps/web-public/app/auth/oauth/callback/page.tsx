@@ -20,12 +20,17 @@ function PublicOAuthCallback() {
       const code = searchParams.get('code');
       const personId = searchParams.get('personId');
       const mode = searchParams.get('mode') ?? 'person_claim';
+      const next = searchParams.get('next') ?? (mode === 'public_login' ? '/me' : '/');
 
       if (!code) {
         if (!cancelled) setError(t('auth.oauth.errors.missingCode'));
         return;
       }
-      if (mode !== 'person_claim' || !personId) {
+      if (mode !== 'person_claim' && mode !== 'public_login') {
+        if (!cancelled) setError(t('auth.oauth.errors.notAuthorized'));
+        return;
+      }
+      if (mode === 'person_claim' && !personId) {
         if (!cancelled) setError(t('auth.oauth.errors.personMissing'));
         return;
       }
@@ -45,9 +50,9 @@ function PublicOAuthCallback() {
         body: JSON.stringify({
           accessToken: data.session.access_token,
           refreshToken: data.session.refresh_token ?? '',
-          mode: 'person_claim',
-          personId,
-          next: searchParams.get('next') ?? '/',
+          mode,
+          ...(personId ? { personId } : {}),
+          next,
         }),
       });
 
@@ -57,7 +62,7 @@ function PublicOAuthCallback() {
       }
 
       const result = (await response.json()) as OAuthResponse;
-      router.replace(result.next ?? '/');
+      router.replace(result.next ?? next);
     }
 
     void completeOAuth();

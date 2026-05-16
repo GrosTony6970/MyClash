@@ -10,8 +10,10 @@ const getUserMock = vi.fn();
 const signInWithPasswordMock = vi.fn();
 const fromMock = vi.fn();
 const fetchMock = vi.fn();
+const getAuthUserMock = vi.fn();
 
 const mockSupabase = {
+  getAuthUser: getAuthUserMock,
   service: {
     auth: { admin: { generateLink: generateLinkMock } },
     from: fromMock,
@@ -26,6 +28,7 @@ function makeQueryChain(result: unknown) {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     update: vi.fn().mockReturnThis(),
   };
@@ -36,11 +39,13 @@ function makeAwaitableQueryChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    order: vi.fn(),
     update: vi.fn(),
   });
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
   return chain;
 }
@@ -104,6 +109,24 @@ describe('AuthService', () => {
       return value;
     });
     fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
+    getAuthUserMock.mockImplementation(async (accessToken: string) => {
+      const response = await fetchMock('http://supabase-auth:9999/user', {
+        method: 'GET',
+        headers: {
+          apikey: 'anon-key',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const body = (await response.json()) as unknown;
+      if (!response.ok || !body || typeof body !== 'object') return null;
+      const record = body as Record<string, unknown>;
+      const user = record['user'];
+      if (typeof record['id'] === 'string') return record;
+      if (user && typeof user === 'object' && typeof (user as { id?: unknown }).id === 'string') {
+        return user;
+      }
+      return null;
+    });
 
     service = new AuthService(
       mockSupabase as never,
@@ -147,6 +170,34 @@ describe('AuthService', () => {
 
       expect(result.message).toContain('link has been sent');
       expect(mockMailService.sendMagicLink).not.toHaveBeenCalled();
+    });
+
+    it('builds app-domain callbacks for public personal-space login', async () => {
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/magic' } },
+        error: null,
+      });
+
+      await service.requestMagicLink({
+        email: 'fighter@example.com',
+        type: 'public_login',
+        redirectTo: '/me',
+      });
+
+      expect(generateLinkMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: {
+            redirectTo:
+              'https://api.myclash.localhost/api/v1/auth/callback?type=public_login&next=%2Fme',
+          },
+        }),
+      );
+      expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'fighter@example.com',
+          type: 'login',
+        }),
+      );
     });
   });
 
@@ -465,6 +516,35 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
+    it('sets cookies for public personal-space OAuth without admin access', async () => {
+      mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
+
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'public_login',
+          next: '/me',
+        },
+        reply as never,
+      );
+
+      expect(fromMock).not.toHaveBeenCalled();
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'access-token',
+        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+      );
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        'refresh-token',
+        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+      );
+      expect(reply.send).toHaveBeenCalledWith({ next: '/me' });
+      expect(getUserMock).not.toHaveBeenCalled();
+    });
+
     it('rejects person claim when Google email does not match', async () => {
       mockAuthUser({ id: 'user-123', email: 'other@example.com' });
       fromMock.mockReturnValueOnce(
@@ -621,6 +701,79 @@ describe('AuthService', () => {
         expect.objectContaining({ path: '/', sameSite: 'lax' }),
       );
       expect(reply.clearCookie).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getPersonalSpace', () => {
+    it('returns claimed profile data and empty-safe commitment arrays', async () => {
+      mockAuthUser({
+        id: 'user-123',
+        email: 'fighter@example.com',
+        user_metadata: { display_name: 'Fighter One' },
+      });
+
+      fromMock
+        .mockReturnValueOnce(
+          makeAwaitableQueryChain({
+            data: [
+              {
+                id: 'person-1',
+                event_id: 'event-1',
+                given_name: 'Fighter',
+                family_name: 'One',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeQueryChain({
+            data: {
+              id: 'global-1',
+              display_name: 'Fighter One',
+              is_fighter: true,
+              is_referee: false,
+              is_workshop_participant: true,
+            },
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }))
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
+
+      const result = await service.getPersonalSpace({
+        headers: { authorization: 'Bearer access-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.user.email).toBe('fighter@example.com');
+      expect(result.profiles.globalPerson?.['id']).toBe('global-1');
+      expect(result.profiles.claimedPersons).toHaveLength(1);
+      expect(result.counts).toEqual({
+        claimedPersons: 1,
+        events: 1,
+        refereeAssignments: 0,
+        workshopEnrollments: 0,
+      });
+    });
+
+    it('returns a safe empty state for signed-in users without linked profiles', async () => {
+      mockAuthUser({ id: 'user-123', email: 'new@example.com' });
+
+      fromMock
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }))
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
+
+      const result = await service.getPersonalSpace({
+        headers: { authorization: 'Bearer access-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.profiles.globalPerson).toBeNull();
+      expect(result.profiles.claimedPersons).toEqual([]);
+      expect(result.counts.claimedPersons).toBe(0);
     });
   });
 });

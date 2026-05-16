@@ -70,7 +70,7 @@ export class SignupController {
     @Res() reply: FastifyReply,
   ): Promise<void> {
     // Exchange the OTP token for a session (sets cookies)
-    await this.auth.handleCallback(tokenHash, 'login', undefined, reply);
+    await this.auth.handleCallback(tokenHash, 'login', undefined, undefined, reply);
 
     // Get the user from the newly set cookie
     const cookies = (_req as FastifyRequest & { cookies: Record<string, string> }).cookies;

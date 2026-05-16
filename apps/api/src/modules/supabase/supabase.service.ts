@@ -2,6 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+export interface SupabaseAuthUser {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+}
+
+function isAuthUser(value: unknown): value is SupabaseAuthUser {
+  return Boolean(
+    value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string',
+  );
+}
+
 /**
  * Thin wrapper around the Supabase JS client.
  *
@@ -30,5 +42,45 @@ export class SupabaseService {
     this.service = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+  }
+
+  async getAuthUser(accessToken: string): Promise<SupabaseAuthUser | null> {
+    const authUrl =
+      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
+      this.config.getOrThrow<string>('SUPABASE_URL');
+    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
+
+    let response: {
+      ok: boolean;
+      json: () => Promise<unknown>;
+    };
+
+    try {
+      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/user`, {
+        method: 'GET',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    } catch {
+      return null;
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    if (!response.ok || !body || typeof body !== 'object') {
+      return null;
+    }
+
+    const record = body as Record<string, unknown>;
+    if (isAuthUser(record)) return record;
+    if (isAuthUser(record['user'])) return record['user'];
+    return null;
   }
 }

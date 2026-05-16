@@ -12,6 +12,7 @@ export const en = {
     name: 'MyClash',
   },
   publicApp: {
+    name: 'MyClash',
     home: {
       description: 'Public event app',
       title: 'Follow live HEMA events from your phone.',
@@ -23,11 +24,74 @@ export const en = {
       statusRunning: 'Live',
       statusCompleted: 'Completed',
       unknownEvent: 'Untitled event',
+      signIn: 'Sign in',
+      personalSpace: 'Personal space',
       emptyTitle: 'No public events yet',
       emptyDescription: 'Published events will appear here when organizers make them visible.',
       unavailableTitle: 'Events are temporarily unavailable',
       unavailableDescription:
         'Try again in a moment, or open an event link shared by an organizer.',
+    },
+    login: {
+      eyebrow: 'Personal space',
+      title: 'Your MyClash day, across every event.',
+      subtitle:
+        'Sign in to review your fighter profile, referee history, workshop enrollments, and notifications even when no event is currently public.',
+      formTitle: 'Participant login',
+      formDescription:
+        'Use the email attached to a claimed roster profile, or continue with Google.',
+      sendMagicLink: 'Send magic link',
+      checkEmail: 'If this email is registered, a login link has been sent.',
+      backToEvents: 'Back to public events',
+      errors: {
+        magicLinkFailed: 'Could not send a login link.',
+      },
+    },
+    personalShell: {
+      brand: 'MyClash',
+      role: 'Personal space',
+      eyebrow: 'Participant account',
+      title: 'MyClash personal space',
+      status: 'Protected session',
+      navigationLabel: 'Personal-space navigation',
+      openMenu: 'Open personal menu',
+      closeMenu: 'Close personal menu',
+      close: 'Close',
+      logout: 'Log out',
+      loggingOut: 'Logging out...',
+      logoutAriaLabel: 'Log out of personal space',
+      checkingSession: 'Checking your session...',
+      nav: {
+        dashboard: 'Dashboard',
+        fighter: 'Fighter profile',
+        referee: 'Referee profile',
+        notifications: 'Notifications',
+        events: 'Public events',
+      },
+    },
+    personalSpace: {
+      eyebrow: 'Account dashboard',
+      title: 'Personal dashboard',
+      subtitle: 'Welcome back, {name}. This space follows your claimed profiles across events.',
+      loading: 'Loading your personal space...',
+      loadError: 'Could not load your personal space.',
+      profileTitle: 'Linked MyClash profile',
+      emptyProfileTitle: 'No linked global profile yet',
+      emptyProfileDescription:
+        'Open a public event and claim your roster profile to connect fighter, referee, or workshop activity to this account.',
+      findEvents: 'Find public events',
+      quickActions: 'Quick actions',
+      roles: {
+        fighter: 'Fighter',
+        referee: 'Referee',
+        workshopParticipant: 'Workshop participant',
+      },
+      stats: {
+        claimedProfiles: 'Claimed roster profiles',
+        events: 'Events',
+        refereeAssignments: 'Referee assignments',
+        workshops: 'Workshop enrollments',
+      },
     },
     fighterProfile: {
       notFoundTitle: 'Fighter not found',
@@ -1300,6 +1364,7 @@ export const fr = {
     name: 'MyClash',
   },
   publicApp: {
+    name: 'MyClash',
     home: {
       description: 'Application publique evenement',
       title: 'Suivez les evenements AMHE en direct depuis votre telephone.',
@@ -1311,12 +1376,76 @@ export const fr = {
       statusRunning: 'En direct',
       statusCompleted: 'Termine',
       unknownEvent: 'Evenement sans titre',
+      signIn: 'Se connecter',
+      personalSpace: 'Espace personnel',
       emptyTitle: 'Aucun evenement public pour le moment',
       emptyDescription:
         'Les evenements publies apparaitront ici lorsque les organisateurs les rendront visibles.',
       unavailableTitle: 'Les evenements sont temporairement indisponibles',
       unavailableDescription:
         'Reessayez dans un instant, ou ouvrez un lien evenement partage par un organisateur.',
+    },
+    login: {
+      eyebrow: 'Espace personnel',
+      title: 'Votre journee MyClash, sur tous les evenements.',
+      subtitle:
+        'Connectez-vous pour consulter votre profil combattant, votre historique arbitre, vos ateliers et vos notifications meme si aucun evenement public n est ouvert.',
+      formTitle: 'Connexion participant',
+      formDescription:
+        'Utilisez l email associe a un profil de roster revendique, ou continuez avec Google.',
+      sendMagicLink: 'Envoyer le lien magique',
+      checkEmail: 'Si cet email est enregistre, un lien de connexion a ete envoye.',
+      backToEvents: 'Retour aux evenements publics',
+      errors: {
+        magicLinkFailed: 'Impossible d envoyer un lien de connexion.',
+      },
+    },
+    personalShell: {
+      brand: 'MyClash',
+      role: 'Espace personnel',
+      eyebrow: 'Compte participant',
+      title: 'Espace personnel MyClash',
+      status: 'Session protegee',
+      navigationLabel: 'Navigation espace personnel',
+      openMenu: 'Ouvrir le menu personnel',
+      closeMenu: 'Fermer le menu personnel',
+      close: 'Fermer',
+      logout: 'Se deconnecter',
+      loggingOut: 'Deconnexion...',
+      logoutAriaLabel: 'Se deconnecter de l espace personnel',
+      checkingSession: 'Verification de votre session...',
+      nav: {
+        dashboard: 'Tableau de bord',
+        fighter: 'Profil combattant',
+        referee: 'Profil arbitre',
+        notifications: 'Notifications',
+        events: 'Evenements publics',
+      },
+    },
+    personalSpace: {
+      eyebrow: 'Tableau du compte',
+      title: 'Tableau personnel',
+      subtitle:
+        'Bon retour, {name}. Cet espace suit vos profils revendiques sur tous les evenements.',
+      loading: 'Chargement de votre espace personnel...',
+      loadError: 'Impossible de charger votre espace personnel.',
+      profileTitle: 'Profil MyClash lie',
+      emptyProfileTitle: 'Aucun profil global lie pour le moment',
+      emptyProfileDescription:
+        'Ouvrez un evenement public et revendiquez votre profil de roster pour lier votre activite de combattant, arbitre ou atelier a ce compte.',
+      findEvents: 'Trouver des evenements publics',
+      quickActions: 'Actions rapides',
+      roles: {
+        fighter: 'Combattant',
+        referee: 'Arbitre',
+        workshopParticipant: 'Participant atelier',
+      },
+      stats: {
+        claimedProfiles: 'Profils de roster revendiques',
+        events: 'Evenements',
+        refereeAssignments: 'Affectations arbitre',
+        workshops: 'Inscriptions ateliers',
+      },
     },
     fighterProfile: {
       notFoundTitle: 'Combattant introuvable',

@@ -7,6 +7,42 @@ const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
 const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
 const publicRootPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'page.tsx');
+const publicLoginPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'login', 'page.tsx');
+const publicOAuthCallbackPath = path.join(
+  rootDir,
+  'apps',
+  'web-public',
+  'app',
+  'auth',
+  'oauth',
+  'callback',
+  'page.tsx',
+);
+const publicPersonalLayoutPath = path.join(
+  rootDir,
+  'apps',
+  'web-public',
+  'app',
+  'me',
+  'layout.tsx',
+);
+const publicPersonalPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'me', 'page.tsx');
+const publicPersonalDashboardPath = path.join(
+  rootDir,
+  'apps',
+  'web-public',
+  'app',
+  'me',
+  'PersonalSpaceDashboard.tsx',
+);
+const publicPersonalShellPath = path.join(
+  rootDir,
+  'apps',
+  'web-public',
+  'src',
+  'components',
+  'PublicPersonalShell.tsx',
+);
 const publicEventRootPagePath = path.join(
   rootDir,
   'apps',
@@ -81,6 +117,15 @@ const authServicePath = path.join(
   'auth',
   'auth.service.ts',
 );
+const supabaseServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'supabase',
+  'supabase.service.ts',
+);
 const superAdminGuardPath = path.join(
   rootDir,
   'apps',
@@ -142,6 +187,12 @@ const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
 const statusText = await readFile(statusPath, 'utf8');
 const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
+const publicLoginPageText = await readFile(publicLoginPagePath, 'utf8');
+const publicOAuthCallbackText = await readFile(publicOAuthCallbackPath, 'utf8');
+const publicPersonalLayoutText = await readFile(publicPersonalLayoutPath, 'utf8');
+const publicPersonalPageText = await readFile(publicPersonalPagePath, 'utf8');
+const publicPersonalDashboardText = await readFile(publicPersonalDashboardPath, 'utf8');
+const publicPersonalShellText = await readFile(publicPersonalShellPath, 'utf8');
 const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
 const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
 const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
@@ -153,6 +204,7 @@ const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
 const organizerShellText = await readFile(organizerShellPath, 'utf8');
 const organizerEventPageText = await readFile(organizerEventPagePath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
+const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
 const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
@@ -275,13 +327,19 @@ if (authServiceText.includes('supabase.anon.auth.getUser')) {
   errors.push('AuthService server-side token validation must use internal GoTrue /user.');
 }
 requireContains(authServiceText, 'AuthService', '/token?grant_type=password');
-requireContains(authServiceText, 'AuthService', '/user');
 requireContains(authServiceText, 'AuthService', 'SUPABASE_AUTH_INTERNAL_URL');
 requireContains(authServiceText, 'AuthService', 'ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60');
 requireContains(authServiceText, 'AuthService', 'maxAge: ADMIN_SESSION_MAX_AGE_SECONDS');
+requireContains(supabaseServiceText, 'SupabaseService', '/user');
+requireContains(supabaseServiceText, 'SupabaseService', 'SUPABASE_AUTH_INTERNAL_URL');
+requireContains(supabaseServiceText, 'SupabaseService', 'getAuthUser');
 if (authServiceText.includes('maxAge: 60 * 60 * 24 * 30')) {
   errors.push('AuthService admin refresh cookie must not outlive the one-hour admin session.');
 }
+requireContains(authServiceText, 'AuthService', 'public_login');
+requireContains(authServiceText, 'AuthService', 'getPersonalSpace');
+requireContains(authServiceText, 'AuthService', 'api.${domain}');
+requireContains(composeText, 'prod GOTRUE_URI_ALLOW_LIST', 'https://api.${DOMAIN}/api/v1/auth/callback');
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
@@ -405,6 +463,32 @@ for (const [label, text] of [
 }
 if (publicRootPageText.includes('publicApp.home.placeholder')) {
   errors.push('apps/web-public/app/page.tsx must not render publicApp.home.placeholder.');
+}
+requireContains(publicRootPageText, 'apps/web-public/app/page.tsx', 'href="/login"');
+requireContains(publicRootPageText, 'apps/web-public/app/page.tsx', 'href="/me"');
+requireContains(publicLoginPageText, 'apps/web-public/app/login/page.tsx', "type: 'public_login'");
+requireContains(publicLoginPageText, 'apps/web-public/app/login/page.tsx', 'signInWithOAuth');
+requireContains(publicOAuthCallbackText, 'apps/web-public/app/auth/oauth/callback/page.tsx', 'public_login');
+requireContains(publicPersonalLayoutText, 'apps/web-public/app/me/layout.tsx', 'PublicPersonalShell');
+requireContains(publicPersonalPageText, 'apps/web-public/app/me/page.tsx', 'PersonalSpaceDashboard');
+requireContains(
+  publicPersonalDashboardText,
+  'apps/web-public/app/me/PersonalSpaceDashboard.tsx',
+  '/api/v1/me/personal-space',
+);
+requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', '/api/v1/me');
+requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', '/api/v1/auth/logout');
+requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', "window.location.replace('/login')");
+requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', 'fixed inset-y-0 left-0');
+requireContains(publicPersonalShellText, 'apps/web-public/src/components/PublicPersonalShell.tsx', '#0f172a');
+for (const [label, text] of [
+  ['apps/web-public/app/login/page.tsx', publicLoginPageText],
+  ['apps/web-public/app/me/PersonalSpaceDashboard.tsx', publicPersonalDashboardText],
+  ['apps/web-public/src/components/PublicPersonalShell.tsx', publicPersonalShellText],
+]) {
+  if (/SERVICE_ROLE|SEED_ADMIN|SUPABASE_SERVICE_ROLE_KEY/u.test(text)) {
+    errors.push(`${label} must not expose service-role or seed-admin secrets.`);
+  }
 }
 if (adminRootPageText.includes('admin.home.placeholder')) {
   errors.push('apps/web-admin/app/page.tsx must not render admin.home.placeholder.');

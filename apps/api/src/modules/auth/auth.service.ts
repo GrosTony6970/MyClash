@@ -15,11 +15,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
 import type { PasswordLoginDto } from './dto/password-login.dto';
+import type { PersonalSpaceResponseDto } from './dto/personal-space-response.dto';
 import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { GuestJwtService } from './guest-jwt.service';
 
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
-const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/dashboard', '/'];
+const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard', '/'];
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60;
 
 type GoTruePasswordTokenResponse = {
@@ -31,19 +32,7 @@ type GoTruePasswordTokenResponse = {
   };
 };
 
-type GoTrueAuthUser = {
-  id: string;
-  email?: string;
-  user_metadata?: Record<string, unknown>;
-};
-
 type AdminLandingContext = NonNullable<MeResponseDto['admin']>;
-
-function isAuthUser(value: unknown): value is GoTrueAuthUser {
-  return Boolean(
-    value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string',
-  );
-}
 
 function normalizeOrganizationMembership(
   row: unknown,
@@ -121,7 +110,7 @@ export class AuthService {
     await this.mail.sendMagicLink({
       to: email,
       magicLink: data.properties.action_link,
-      type,
+      type: type === 'public_login' ? 'login' : type,
     });
 
     return { message: 'If this email is registered, a link has been sent.' };
@@ -168,6 +157,10 @@ export class AuthService {
       await this.completeClaim(user.id, dto.personId);
     }
 
+    if (dto.mode === 'public_login') {
+      destination = destination === '/' ? '/me' : destination;
+    }
+
     this.setAuthCookies(reply, dto.accessToken, dto.refreshToken);
     void reply.send({ next: destination });
   }
@@ -210,6 +203,7 @@ export class AuthService {
     token: string,
     type: string,
     personId: string | undefined,
+    next: string | undefined,
     reply: FastifyReply,
   ): Promise<void> {
     // Exchange the OTP token for a session
@@ -237,7 +231,18 @@ export class AuthService {
     }
 
     // Redirect to appropriate destination
-    const destination = type === 'claim' ? '/' : '/dashboard';
+    const safeRedirect = this.validateRedirect(next);
+    const path =
+      type === 'public_login'
+        ? safeRedirect === '/'
+          ? '/me'
+          : safeRedirect
+        : type === 'login'
+          ? safeRedirect === '/'
+            ? '/dashboard'
+            : safeRedirect
+          : safeRedirect;
+    const destination = this.buildPostAuthRedirectUrl(path, type);
     void reply.redirect(destination);
   }
 
@@ -343,7 +348,122 @@ export class AuthService {
     return { type: 'anonymous' };
   }
 
+  async getPersonalSpace(request: FastifyRequest): Promise<PersonalSpaceResponseDto> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) {
+      throw new UnauthorizedException('Invalid session');
+    }
+
+    const [claimedPersons, globalPerson, refereeAssignments, workshopEnrollments] =
+      await Promise.all([
+        this.fetchClaimedPersons(user.id),
+        this.fetchGlobalPerson(user.id),
+        this.fetchRefereeAssignments(user.id),
+        this.fetchWorkshopEnrollments(user.id),
+      ]);
+
+    const eventIds = new Set<string>();
+    for (const person of claimedPersons) {
+      const eventId = person['event_id'];
+      if (typeof eventId === 'string') eventIds.add(eventId);
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email ?? '',
+        display_name: user.user_metadata?.['display_name'] as string | undefined,
+      },
+      profiles: {
+        globalPerson,
+        claimedPersons,
+      },
+      commitments: {
+        refereeAssignments,
+        workshopEnrollments,
+      },
+      counts: {
+        claimedPersons: claimedPersons.length,
+        events: eventIds.size,
+        refereeAssignments: refereeAssignments.length,
+        workshopEnrollments: workshopEnrollments.length,
+      },
+    };
+  }
+
   // ── Private helpers ─────────────────────────────────────────────────────
+
+  private async fetchClaimedPersons(userId: string): Promise<Record<string, unknown>[]> {
+    try {
+      const { data, error } = await this.supabase.service
+        .from('persons')
+        .select(
+          'id, given_name, family_name, email, roles, event_id, global_person_id, claim_status, events(id, slug, name, start_date, end_date, status)',
+        )
+        .eq('claimed_by_user_id', userId);
+
+      if (error) return [];
+      return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async fetchGlobalPerson(userId: string): Promise<Record<string, unknown> | null> {
+    try {
+      const { data, error } = await this.supabase.service
+        .from('global_persons')
+        .select(
+          'id, slug, display_name, given_name, family_name, country_code, is_fighter, is_referee, is_workshop_participant',
+        )
+        .eq('claimed_by_user_id', userId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return data as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchRefereeAssignments(userId: string): Promise<Record<string, unknown>[]> {
+    try {
+      const { data, error } = await this.supabase.service
+        .from('referee_assignments')
+        .select(
+          'id, event_id, role, created_at, events(id, slug, name), matches(id, phase_id, status, scheduled_at, ended_at)',
+        )
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) return [];
+      return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async fetchWorkshopEnrollments(userId: string): Promise<Record<string, unknown>[]> {
+    try {
+      const { data, error } = await this.supabase.service
+        .from('workshop_enrollments')
+        .select(
+          'id, status, enrolled_at, workshop_sessions(id, starts_at, ends_at, workshops(id, title, event_id, events(id, slug, name)))',
+        )
+        .eq('user_id', userId)
+        .order('enrolled_at', { ascending: false });
+
+      if (error) return [];
+      return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+    } catch {
+      return [];
+    }
+  }
 
   private async validatePersonClaim(
     personId: string,
@@ -471,44 +591,8 @@ export class AuthService {
     return isAllowed ? redirectTo : '/';
   }
 
-  private async requestAuthUser(accessToken: string): Promise<GoTrueAuthUser | null> {
-    const authUrl =
-      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
-      this.config.getOrThrow<string>('SUPABASE_URL');
-    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
-
-    let response: {
-      ok: boolean;
-      json: () => Promise<unknown>;
-    };
-
-    try {
-      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/user`, {
-        method: 'GET',
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-    } catch {
-      return null;
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-
-    if (!response.ok || !body || typeof body !== 'object') {
-      return null;
-    }
-
-    const record = body as Record<string, unknown>;
-    if (isAuthUser(record)) return record;
-    if (isAuthUser(record['user'])) return record['user'];
-    return null;
+  private async requestAuthUser(accessToken: string) {
+    return this.supabase.getAuthUser(accessToken);
   }
 
   private async requestPasswordToken(
@@ -584,10 +668,23 @@ export class AuthService {
   private buildRedirectUrl(path: string, type: string, personId: string | undefined): string {
     const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
     const protocol = domain.includes('localhost') ? 'https' : 'https';
-    const base = type === 'claim' ? `${protocol}://${domain}` : `${protocol}://admin.${domain}`;
+    const base = `${protocol}://api.${domain}`;
 
     const callbackPath = `/api/v1/auth/callback?type=${type}${personId ? `&personId=${personId}` : ''}&next=${encodeURIComponent(path)}`;
     return `${base}${callbackPath}`;
+  }
+
+  private buildPostAuthRedirectUrl(path: string, type: string): string {
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    const protocol = domain.includes('localhost') ? 'https' : 'https';
+    const base =
+      type === 'login'
+        ? `${protocol}://admin.${domain}`
+        : type === 'public_login' || type === 'claim'
+          ? `${protocol}://app.${domain}`
+          : `${protocol}://${domain}`;
+
+    return `${base}${path}`;
   }
 
   private extractToken(request: FastifyRequest): string | null {

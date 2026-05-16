@@ -7,6 +7,7 @@ type PermissionStateLabel = NotificationPermission | 'unsupported' | 'loading';
 
 interface Props {
   apiUrl: string;
+  embedded?: boolean;
 }
 
 interface SubscribeResponse {
@@ -45,7 +46,7 @@ function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   return buffer;
 }
 
-export default function NotificationSettingsClient({ apiUrl }: Props) {
+export default function NotificationSettingsClient({ apiUrl, embedded = false }: Props) {
   const { t } = useI18n();
   const [permission, setPermission] = useState<PermissionStateLabel>('loading');
   const [busy, setBusy] = useState(false);
@@ -207,96 +208,94 @@ export default function NotificationSettingsClient({ apiUrl }: Props) {
               ? t('publicApp.notifications.statusGranted')
               : t('publicApp.notifications.statusNeedsPermission');
 
-  return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8 text-zinc-100">
-      <section className="mx-auto flex w-full max-w-lg flex-col gap-6">
-        <header>
-          <p className="text-sm font-semibold uppercase tracking-wide text-red-300">
-            {t('publicApp.name')}
-          </p>
-          <h1 className="mt-2 text-3xl font-bold">{t('publicApp.notifications.title')}</h1>
-          <p className="mt-3 text-sm leading-6 text-zinc-400">
-            {t('publicApp.notifications.description')}
-          </p>
-        </header>
+  const content = (
+    <section className="mx-auto flex w-full max-w-lg flex-col gap-6">
+      <header>
+        <p className="text-sm font-semibold uppercase tracking-wide text-red-300">
+          {t('publicApp.name')}
+        </p>
+        <h1 className="mt-2 text-3xl font-bold">{t('publicApp.notifications.title')}</h1>
+        <p className="mt-3 text-sm leading-6 text-zinc-400">
+          {t('publicApp.notifications.description')}
+        </p>
+      </header>
 
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold">
-                {t('publicApp.notifications.deviceStatus')}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-zinc-400">{statusText}</p>
-            </div>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                enabled ? 'bg-green-500/15 text-green-300' : 'bg-zinc-800 text-zinc-300'
-              }`}
-            >
-              {enabled ? t('publicApp.notifications.enabled') : t('publicApp.notifications.off')}
-            </span>
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">{t('publicApp.notifications.deviceStatus')}</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">{statusText}</p>
           </div>
-
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              disabled={!canEnable || busy}
-              onClick={() => void enableNotifications()}
-              className="rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
-            >
-              {busy && !enabled
-                ? t('publicApp.notifications.enabling')
-                : t('publicApp.notifications.enable')}
-            </button>
-            <button
-              type="button"
-              disabled={!canDisable || busy}
-              onClick={() => void disableNotifications()}
-              className="rounded-md border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-500"
-            >
-              {busy && enabled
-                ? t('publicApp.notifications.disabling')
-                : t('publicApp.notifications.disable')}
-            </button>
-          </div>
-
-          {message && <p className="mt-4 text-sm text-zinc-300">{message}</p>}
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              enabled ? 'bg-green-500/15 text-green-300' : 'bg-zinc-800 text-zinc-300'
+            }`}
+          >
+            {enabled ? t('publicApp.notifications.enabled') : t('publicApp.notifications.off')}
+          </span>
         </div>
 
-        <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-          <h2 className="text-base font-semibold">
-            {t('publicApp.notifications.broadcastHistory')}
-          </h2>
-          {broadcastError && <p className="mt-3 text-sm text-red-300">{broadcastError}</p>}
-          {!broadcastError && broadcasts.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-400">
-              {t('publicApp.notifications.noBroadcasts')}
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {broadcasts.map((broadcast) => (
-                <article
-                  key={broadcast.id}
-                  className={`rounded-lg border p-3 ${severityClasses[broadcast.severity]}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-xs font-bold uppercase">
-                      {t(`publicApp.notifications.${broadcast.severity}`)}
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            disabled={!canEnable || busy}
+            onClick={() => void enableNotifications()}
+            className="rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+          >
+            {busy && !enabled
+              ? t('publicApp.notifications.enabling')
+              : t('publicApp.notifications.enable')}
+          </button>
+          <button
+            type="button"
+            disabled={!canDisable || busy}
+            onClick={() => void disableNotifications()}
+            className="rounded-md border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-500"
+          >
+            {busy && enabled
+              ? t('publicApp.notifications.disabling')
+              : t('publicApp.notifications.disable')}
+          </button>
+        </div>
+
+        {message && <p className="mt-4 text-sm text-zinc-300">{message}</p>}
+      </div>
+
+      <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <h2 className="text-base font-semibold">{t('publicApp.notifications.broadcastHistory')}</h2>
+        {broadcastError && <p className="mt-3 text-sm text-red-300">{broadcastError}</p>}
+        {!broadcastError && broadcasts.length === 0 ? (
+          <p className="mt-3 text-sm text-zinc-400">{t('publicApp.notifications.noBroadcasts')}</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {broadcasts.map((broadcast) => (
+              <article
+                key={broadcast.id}
+                className={`rounded-lg border p-3 ${severityClasses[broadcast.severity]}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-xs font-bold uppercase">
+                    {t(`publicApp.notifications.${broadcast.severity}`)}
+                  </span>
+                  {broadcast.eventName && (
+                    <span className="text-xs opacity-80">
+                      {t('publicApp.notifications.fromEvent', { event: broadcast.eventName })}
                     </span>
-                    {broadcast.eventName && (
-                      <span className="text-xs opacity-80">
-                        {t('publicApp.notifications.fromEvent', { event: broadcast.eventName })}
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="mt-2 font-semibold">{broadcast.title}</h3>
-                  <p className="mt-1 text-sm opacity-90">{broadcast.body}</p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+                  )}
+                </div>
+                <h3 className="mt-2 font-semibold">{broadcast.title}</h3>
+                <p className="mt-1 text-sm opacity-90">{broadcast.body}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
-    </main>
+    </section>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return <main className="min-h-screen bg-zinc-950 px-4 py-8 text-zinc-100">{content}</main>;
 }

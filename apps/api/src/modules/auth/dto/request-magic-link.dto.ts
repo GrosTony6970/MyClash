@@ -7,12 +7,13 @@ export class RequestMagicLinkDto {
   email!: string;
 
   /**
-   * 'login'  — organizer / claimed-user login (admin app)
-   * 'claim'  — participant claiming their Person profile (public app)
+   * 'login'        — organizer / claimed-user login (admin app)
+   * 'public_login' — participant personal-space login (public app)
+   * 'claim'        — participant claiming their Person profile (public app)
    */
-  @ApiProperty({ enum: ['login', 'claim'] })
-  @IsIn(['login', 'claim'])
-  type!: 'login' | 'claim';
+  @ApiProperty({ enum: ['login', 'public_login', 'claim'] })
+  @IsIn(['login', 'public_login', 'claim'])
+  type!: 'login' | 'public_login' | 'claim';
 
   /**
    * Required when type='claim'. The Person ID the participant is claiming.

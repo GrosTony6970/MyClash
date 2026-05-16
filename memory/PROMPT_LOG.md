@@ -807,3 +807,7 @@ PLEASE IMPLEMENT THIS PLAN: Organizer Admin Shell Refactor. Add a super-admin-st
 ## 21:19:07_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Super-Admin Organization And Organizer Creation. Add a super-admin-only flow to create an organization and owner organizer account in one action, generating a temporary password for new organizers, attempting a magic login link, reusing existing users without resetting passwords, updating `/admin/organizations`, adding i18n and review coverage, and testing API/web/repo checks.
+
+## 21:40:46_16-05-2026
+
+Implement public personal-space login and shell on app.myclash.fr: add /login, /me, /me/fighter, /me/referee, /me/notifications, public-login magic link/OAuth mode, GET /api/v1/me/personal-space, PublicPersonalShell with logout, i18n, review guards, and tests.
