@@ -37,7 +37,7 @@ test('syncs password for an existing super admin user', async () => {
         data: { users: [{ id: 'user-existing', email: 'admin@myclash.fr' }] },
       };
     }
-    if (method === 'PUT' && path === '/admin/user/user-existing') {
+    if (method === 'PUT' && path === '/admin/users/user-existing') {
       return { ok: true, data: { id: 'user-existing' } };
     }
     if (method === 'POST' && path === '/token?grant_type=password') {
@@ -61,7 +61,7 @@ test('syncs password for an existing super admin user', async () => {
   });
   assert.deepEqual(gotrueCalls[1], {
     method: 'PUT',
-    path: '/admin/user/user-existing',
+    path: '/admin/users/user-existing',
     body: {
       password: 'super-secret-password',
       email_confirm: true,
@@ -76,7 +76,7 @@ test('syncs password for an existing super admin user', async () => {
       password: 'super-secret-password',
     },
   });
-  assert.equal(gotrueCalls.some((call) => call.path === '/admin/users/user-existing'), false);
+  assert.equal(gotrueCalls.some((call) => call.path === '/admin/user/user-existing'), false);
   assert.equal(runSql.calls.length, 3);
   assert.match(runSql.calls[0].sql, /ON CONFLICT \(user_id\) DO UPDATE SET role = EXCLUDED\.role/);
   assert.match(
@@ -150,7 +150,7 @@ test('fails when password sync cannot be verified', async () => {
         data: { users: [{ id: 'user-existing', email: 'admin@myclash.fr' }] },
       };
     }
-    if (method === 'PUT' && path === '/admin/user/user-existing') {
+    if (method === 'PUT' && path === '/admin/users/user-existing') {
       return { ok: true, data: { id: 'user-existing' } };
     }
     if (method === 'POST' && path === '/token?grant_type=password') {

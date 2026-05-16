@@ -121,7 +121,7 @@ export async function bootstrapSuperAdmin({
 
   if (existing) {
     userId = existing.id;
-    const updateRes = await gotrue('PUT', `/admin/user/${encodeURIComponent(userId)}`, {
+    const updateRes = await gotrue('PUT', `/admin/users/${encodeURIComponent(userId)}`, {
       password: ADMIN_PASSWORD,
       email_confirm: true,
       user_metadata: { display_name: 'Super Admin' },

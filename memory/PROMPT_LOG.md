@@ -767,3 +767,7 @@ PLEASE IMPLEMENT THIS PLAN: Sync Existing Super Admin Password
 ## 18:07:31_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix Super Admin Password Sync Endpoint
+
+## 18:47:01_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Super Admin Password Sync To Use GoTrue Plural Admin Endpoint
