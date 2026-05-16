@@ -811,3 +811,11 @@ PLEASE IMPLEMENT THIS PLAN: Super-Admin Organization And Organizer Creation. Add
 ## 21:40:46_16-05-2026
 
 Implement public personal-space login and shell on app.myclash.fr: add /login, /me, /me/fighter, /me/referee, /me/notifications, public-login magic link/OAuth mode, GET /api/v1/me/personal-space, PublicPersonalShell with logout, i18n, review guards, and tests.
+
+## 22:58:03_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Organizer Account Inspection During Organization Creation. Replace super-admin organization creation's supabase-js Auth Admin organizer lookup/create/delete calls with internal GoTrue admin endpoints, keep existing response behavior, add regression tests and infra review guards.
+
+## 23:13:15_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Protect MyClash HQ And Show Organizer Usernames. Prevent hard deletion of the bootstrap myclash-hq organization, add is_protected to admin organization responses, enrich organization owner/member displays with GoTrue email/display name, update UI/i18n, and add tests/review guards.

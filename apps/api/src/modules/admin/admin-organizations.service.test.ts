@@ -11,12 +11,18 @@ const authAdminMock = {
   deleteUser: vi.fn(),
   generateLink: vi.fn(),
 };
+const listAuthAdminUsersMock = vi.fn();
+const createAuthAdminUserMock = vi.fn();
+const deleteAuthAdminUserMock = vi.fn();
 const mockMail = { sendMagicLink: vi.fn() };
 const mockConfig = { get: vi.fn((_key: string, fallback?: string) => fallback ?? 'myclash.fr') };
 
 const mockSupabase = {
   service: { from: fromMock, auth: { admin: authAdminMock } },
   anon: {},
+  listAuthAdminUsers: listAuthAdminUsersMock,
+  createAuthAdminUser: createAuthAdminUserMock,
+  deleteAuthAdminUser: deleteAuthAdminUserMock,
 };
 
 type ChainResult = { data: unknown; error: unknown };
@@ -102,12 +108,24 @@ describe('AdminOrganizationsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    authAdminMock.listUsers.mockResolvedValue({ data: { users: [] }, error: null });
-    authAdminMock.createUser.mockResolvedValue({
-      data: { user: { id: 'user-new', email: 'owner@example.com' } },
-      error: null,
+    listAuthAdminUsersMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { users: [] },
+      detail: { users: [] },
     });
-    authAdminMock.deleteUser.mockResolvedValue({ data: {}, error: null });
+    createAuthAdminUserMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', email: 'owner@example.com' },
+      detail: { id: 'user-new', email: 'owner@example.com' },
+    });
+    deleteAuthAdminUserMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {},
+      detail: {},
+    });
     authAdminMock.generateLink.mockResolvedValue({
       data: { properties: { action_link: 'https://auth.example/magic' } },
       error: null,
@@ -152,7 +170,8 @@ describe('AdminOrganizationsService', () => {
         'actor-user',
       );
 
-      expect(authAdminMock.createUser).toHaveBeenCalledWith(
+      expect(listAuthAdminUsersMock).toHaveBeenCalledWith(1, 1000);
+      expect(createAuthAdminUserMock).toHaveBeenCalledWith(
         expect.objectContaining({
           email: 'owner@example.com',
           email_confirm: true,
@@ -182,12 +201,16 @@ describe('AdminOrganizationsService', () => {
       );
       expect(mockMail.sendMagicLink).toHaveBeenCalledOnce();
       expect(result.magicLinkSent).toBe(true);
+      expect(authAdminMock.listUsers).not.toHaveBeenCalled();
+      expect(authAdminMock.createUser).not.toHaveBeenCalled();
     });
 
     it('reuses an existing organizer user without returning or resetting a password', async () => {
-      authAdminMock.listUsers.mockResolvedValue({
+      listAuthAdminUsersMock.mockResolvedValue({
+        ok: true,
+        status: 200,
         data: { users: [{ id: 'user-existing', email: 'owner@example.com' }] },
-        error: null,
+        detail: { users: [{ id: 'user-existing', email: 'owner@example.com' }] },
       });
       const orgChain = makeChain({
         data: { id: 'org-2', name: 'Existing Org', slug: 'existing-org', status: 'active' },
@@ -217,6 +240,7 @@ describe('AdminOrganizationsService', () => {
         'actor-user',
       );
 
+      expect(createAuthAdminUserMock).not.toHaveBeenCalled();
       expect(authAdminMock.createUser).not.toHaveBeenCalled();
       expect(result.owner).toEqual({
         userId: 'user-existing',
@@ -280,7 +304,32 @@ describe('AdminOrganizationsService', () => {
         ),
       ).rejects.toThrow(BadRequestException);
 
-      expect(authAdminMock.deleteUser).toHaveBeenCalledWith('user-new');
+      expect(deleteAuthAdminUserMock).toHaveBeenCalledWith('user-new');
+      expect(authAdminMock.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('returns a safe error when internal GoTrue user inspection fails', async () => {
+      listAuthAdminUsersMock.mockResolvedValue({
+        ok: false,
+        status: 500,
+        data: null,
+        detail: { message: 'gotrue unavailable' },
+      });
+      fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+
+      await expect(
+        service.createOrganizationWithOwner(
+          {
+            name: 'Inspect Fail',
+            slug: 'inspect-fail',
+            ownerEmail: 'owner@example.com',
+          },
+          'actor',
+        ),
+      ).rejects.toThrow('Could not inspect organizer accounts');
+
+      expect(createAuthAdminUserMock).not.toHaveBeenCalled();
+      expect(authAdminMock.listUsers).not.toHaveBeenCalled();
     });
 
     it('keeps creation successful when magic-link delivery fails', async () => {
@@ -338,11 +387,25 @@ describe('AdminOrganizationsService', () => {
     });
 
     it('returns mapped org list on success', async () => {
+      listAuthAdminUsersMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          users: [
+            {
+              id: 'u1',
+              email: 'owner@example.com',
+              user_metadata: { display_name: 'Owner Name' },
+            },
+          ],
+        },
+        detail: {},
+      });
       const mockOrgs = [
         {
           id: 'org-1',
           name: 'Lyon AMHE',
-          slug: 'lyon-amhe',
+          slug: 'myclash-hq',
           status: 'active',
           created_at: '2026-01-01T00:00:00Z',
           organization_members: [{ user_id: 'u1', role: 'owner' }],
@@ -356,6 +419,10 @@ describe('AdminOrganizationsService', () => {
       expect(result[0]?.name).toBe('Lyon AMHE');
       expect(result[0]?.member_count).toBe(1);
       expect(result[0]?.event_count).toBe(2);
+      expect(result[0]?.owner_email).toBe('owner@example.com');
+      expect(result[0]?.owner_name).toBe('Owner Name');
+      expect(result[0]?.owner_username).toBe('Owner Name');
+      expect(result[0]?.is_protected).toBe(true);
     });
   });
 
@@ -429,6 +496,71 @@ describe('AdminOrganizationsService', () => {
       fromMock.mockReturnValue(chain);
 
       await expect(service.getOrganization('nonexistent-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns enriched organization members with display names and emails', async () => {
+      listAuthAdminUsersMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          users: [
+            {
+              id: 'u1',
+              email: 'owner@example.com',
+              user_metadata: { display_name: 'Owner Name' },
+            },
+          ],
+        },
+        detail: {},
+      });
+      const orgChain = makeChain({
+        data: {
+          id: 'org-1',
+          name: 'MyClash HQ',
+          slug: 'myclash-hq',
+          status: 'active',
+          created_at: '2026-01-01T00:00:00Z',
+          organization_members: [{ user_id: 'u1', role: 'owner', created_at: '2026-01-02' }],
+          events: [],
+        },
+        error: null,
+      });
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') return orgChain;
+        if (table === 'audit_log') return makeChain({ data: [], error: null });
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.getOrganization('org-1');
+
+      expect(result.is_protected).toBe(true);
+      expect(result.owner_email).toBe('owner@example.com');
+      expect(result.owner_name).toBe('Owner Name');
+      expect(result.members[0]).toEqual({
+        user_id: 'u1',
+        email: 'owner@example.com',
+        display_name: 'Owner Name',
+        username: 'Owner Name',
+        role: 'owner',
+        joined_at: '2026-01-02',
+      });
+    });
+  });
+
+  describe('deleteOrganization', () => {
+    it('refuses to hard-delete the protected MyClash HQ organization', async () => {
+      const protectedOrgChain = makeChain({ data: { slug: 'myclash-hq' }, error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') return protectedOrgChain;
+        return makeChain({ data: null, error: null });
+      });
+
+      await expect(service.deleteOrganization('org-hq', 'actor')).rejects.toThrow(
+        'The MyClash HQ organization cannot be deleted',
+      );
+
+      expect(protectedOrgChain.delete).not.toHaveBeenCalled();
     });
   });
 

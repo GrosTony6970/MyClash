@@ -17,6 +17,14 @@ import type {
   ReassignOwnerDto,
 } from './dto/admin-organizations.dto';
 
+const PROTECTED_ORG_SLUG = 'myclash-hq';
+
+interface AuthUserDisplay {
+  email?: string;
+  displayName?: string;
+  username: string;
+}
+
 /** Shape returned for each org in the list view. */
 export interface OrgListItem {
   id: string;
@@ -24,10 +32,13 @@ export interface OrgListItem {
   slug: string;
   status: 'active' | 'suspended';
   owner_email: string | null;
+  owner_name: string | null;
+  owner_username: string | null;
   member_count: number;
   event_count: number;
   created_at: string;
   last_activity: string | null;
+  is_protected: boolean;
 }
 
 /** Shape returned for the org detail view. */
@@ -35,6 +46,8 @@ export interface OrgDetail extends OrgListItem {
   members: Array<{
     user_id: string;
     email: string;
+    display_name: string | null;
+    username: string;
     role: string;
     joined_at: string;
   }>;
@@ -96,25 +109,27 @@ export class AdminOrganizationsService {
 
     if (!authUser) {
       temporaryPassword = this.generateTemporaryPassword();
-      const { data, error } = await this.supabase.service.auth.admin.createUser({
+      const response = await this.supabase.createAuthAdminUser({
         email: ownerEmail,
         password: temporaryPassword,
         email_confirm: true,
         user_metadata: { display_name: ownerDisplayName },
       });
 
-      if (error || !data.user) {
-        if (error?.message?.toLowerCase().includes('already')) {
+      if (!response.ok || !response.data) {
+        if (this.isAlreadyExistsResponse(response.detail)) {
           authUser = await this.findAuthUserByEmail(ownerEmail);
         }
         if (!authUser) {
           this.logger.error(
-            `Failed to create organizer account for ${ownerEmail}: ${error?.message}`,
+            `Failed to create organizer account for ${ownerEmail}: ${this.formatGoTrueDetail(
+              response,
+            )}`,
           );
           throw new BadRequestException('Failed to create organizer account');
         }
       } else {
-        authUser = { id: data.user.id, email: data.user.email ?? ownerEmail };
+        authUser = { id: response.data.id, email: response.data.email ?? ownerEmail };
         ownerCreated = true;
       }
     }
@@ -200,21 +215,35 @@ export class AdminOrganizationsService {
       const { data, error } = await q;
       if (error) throw error;
 
+      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      const userIds = new Set<string>();
+      for (const org of rows) {
+        const members =
+          (org['organization_members'] as Array<{ user_id: string; role: string }>) ?? [];
+        for (const member of members) userIds.add(member.user_id);
+      }
+      const usersById = await this.getAuthUserDisplayMap(userIds);
+
       // Flatten into OrgListItem shape
-      return ((data ?? []) as Array<Record<string, unknown>>).map((org) => {
+      return rows.map((org) => {
         const members =
           (org['organization_members'] as Array<{ user_id: string; role: string }>) ?? [];
         const ownerMember = members.find((m) => m.role === 'owner');
+        const ownerUser = ownerMember ? usersById.get(ownerMember.user_id) : null;
         return {
           id: org['id'] as string,
           name: org['name'] as string,
           slug: org['slug'] as string,
           status: org['status'] as 'active' | 'suspended',
-          owner_email: ownerMember ? `user:${ownerMember.user_id}` : null,
+          owner_email: ownerUser?.email ?? (ownerMember ? `user:${ownerMember.user_id}` : null),
+          owner_name: ownerUser?.displayName ?? null,
+          owner_username:
+            ownerUser?.username ?? (ownerMember ? `user:${ownerMember.user_id}` : null),
           member_count: members.length,
           event_count: ((org['events'] as unknown[]) ?? []).length,
           created_at: org['created_at'] as string,
           last_activity: null,
+          is_protected: org['slug'] === PROTECTED_ORG_SLUG,
         };
       });
     } catch {
@@ -249,6 +278,11 @@ export class AdminOrganizationsService {
           role: string;
           created_at: string;
         }>) ?? [];
+      const usersById = await this.getAuthUserDisplayMap(
+        new Set(members.map((member) => member.user_id)),
+      );
+      const ownerMember = members.find((member) => member.role === 'owner');
+      const ownerUser = ownerMember ? usersById.get(ownerMember.user_id) : null;
 
       // Fetch recent audit log entries
       let auditLog: OrgDetail['recent_audit_log'] = [];
@@ -271,14 +305,19 @@ export class AdminOrganizationsService {
         name: o['name'] as string,
         slug: o['slug'] as string,
         status: o['status'] as 'active' | 'suspended',
-        owner_email: null,
+        owner_email: ownerUser?.email ?? (ownerMember ? `user:${ownerMember.user_id}` : null),
+        owner_name: ownerUser?.displayName ?? null,
+        owner_username: ownerUser?.username ?? (ownerMember ? `user:${ownerMember.user_id}` : null),
         member_count: members.length,
         event_count: ((o['events'] as unknown[]) ?? []).length,
         created_at: o['created_at'] as string,
         last_activity: null,
+        is_protected: o['slug'] === PROTECTED_ORG_SLUG,
         members: members.map((m) => ({
           user_id: m.user_id,
-          email: `user:${m.user_id}`,
+          email: usersById.get(m.user_id)?.email ?? `user:${m.user_id}`,
+          display_name: usersById.get(m.user_id)?.displayName ?? null,
+          username: usersById.get(m.user_id)?.username ?? `user:${m.user_id}`,
           role: m.role,
           joined_at: m.created_at,
         })),
@@ -311,6 +350,8 @@ export class AdminOrganizationsService {
 
   async deleteOrganization(id: string, actorUserId: string): Promise<void> {
     try {
+      await this.ensureOrganizationCanBeDeleted(id);
+
       // Ensure a <deleted> placeholder org exists for data preservation
       await this.ensureDeletedPlaceholder();
 
@@ -322,6 +363,7 @@ export class AdminOrganizationsService {
       if (error) throw error;
       this.logger.log(`Organization ${id} hard-deleted by ${actorUserId}`);
     } catch (err) {
+      if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;
       this.logger.error(`Failed to delete org ${id}: ${String(err)}`);
       throw new BadRequestException('Failed to delete organization');
     }
@@ -454,6 +496,20 @@ export class AdminOrganizationsService {
     }
   }
 
+  private async ensureOrganizationCanBeDeleted(id: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('organizations')
+      .select('slug')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException('Could not validate organization deletion');
+    if (!data) throw new NotFoundException(`Organization ${id} not found`);
+    if ((data as { slug?: string }).slug === PROTECTED_ORG_SLUG) {
+      throw new BadRequestException('The MyClash HQ organization cannot be deleted');
+    }
+  }
+
   private async ensureSlugAvailable(slug: string): Promise<void> {
     if ((RESERVED_SLUGS as readonly string[]).includes(slug)) {
       throw new ConflictException(`The slug "${slug}" is reserved`);
@@ -475,16 +531,63 @@ export class AdminOrganizationsService {
     const perPage = 1000;
 
     while (page <= 10) {
-      const { data, error } = await this.supabase.service.auth.admin.listUsers({ page, perPage });
-      if (error) throw new BadRequestException('Could not inspect organizer accounts');
+      const response = await this.supabase.listAuthAdminUsers(page, perPage);
+      if (!response.ok || !response.data) {
+        this.logger.warn(
+          `Could not inspect organizer accounts via internal GoTrue: ${this.formatGoTrueDetail(
+            response,
+          )}`,
+        );
+        throw new BadRequestException('Could not inspect organizer accounts');
+      }
 
-      const user = data.users.find((candidate) => candidate.email?.toLowerCase() === target);
+      const user = response.data.users.find(
+        (candidate) => candidate.email?.toLowerCase() === target,
+      );
       if (user) return { id: user.id, email: user.email };
-      if (data.users.length < perPage) return null;
+      if (response.data.users.length < perPage) return null;
       page += 1;
     }
 
     return null;
+  }
+
+  private async getAuthUserDisplayMap(userIds: Set<string>): Promise<Map<string, AuthUserDisplay>> {
+    const result = new Map<string, AuthUserDisplay>();
+    if (userIds.size === 0) return result;
+
+    let page = 1;
+    const perPage = 1000;
+
+    while (page <= 10 && result.size < userIds.size) {
+      const response = await this.supabase.listAuthAdminUsers(page, perPage);
+      if (!response.ok || !response.data) {
+        this.logger.warn(
+          `Could not enrich organization members via internal GoTrue: ${this.formatGoTrueDetail(
+            response,
+          )}`,
+        );
+        return result;
+      }
+
+      for (const user of response.data.users) {
+        if (!userIds.has(user.id)) continue;
+        const displayName =
+          typeof user.user_metadata?.['display_name'] === 'string'
+            ? user.user_metadata['display_name']
+            : undefined;
+        result.set(user.id, {
+          email: user.email,
+          displayName,
+          username: displayName || user.email || `user:${user.id}`,
+        });
+      }
+
+      if (response.data.users.length < perPage) return result;
+      page += 1;
+    }
+
+    return result;
   }
 
   private generateTemporaryPassword(): string {
@@ -539,10 +642,31 @@ export class AdminOrganizationsService {
 
     if (newUserId) {
       try {
-        await this.supabase.service.auth.admin.deleteUser(newUserId);
-      } catch {
-        this.logger.warn(`Could not clean up organizer user ${newUserId} after failed creation`);
+        const response = await this.supabase.deleteAuthAdminUser(newUserId);
+        if (!response.ok) {
+          this.logger.warn(
+            `Could not clean up organizer user ${newUserId} after failed creation: ${this.formatGoTrueDetail(
+              response,
+            )}`,
+          );
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Could not clean up organizer user ${newUserId} after failed creation: ${String(err)}`,
+        );
       }
     }
+  }
+
+  private isAlreadyExistsResponse(detail: unknown): boolean {
+    return JSON.stringify(detail).toLowerCase().includes('already');
+  }
+
+  private formatGoTrueDetail(response: { status: number; detail: unknown }): string {
+    const detail =
+      response.detail && typeof response.detail === 'object'
+        ? JSON.stringify(response.detail)
+        : String(response.detail ?? 'no response body');
+    return `status=${response.status} detail=${detail}`;
   }
 }

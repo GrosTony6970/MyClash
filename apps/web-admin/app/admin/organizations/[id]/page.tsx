@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface Member {
   user_id: string;
   email: string;
+  display_name: string | null;
+  username: string;
   role: string;
   joined_at: string;
 }
@@ -25,9 +28,12 @@ interface OrgDetail {
   slug: string;
   status: 'active' | 'suspended';
   owner_email: string | null;
+  owner_name: string | null;
+  owner_username: string | null;
   member_count: number;
   event_count: number;
   created_at: string;
+  is_protected: boolean;
   members: Member[];
   recent_audit_log: AuditEntry[];
 }
@@ -37,6 +43,7 @@ interface Props {
 }
 
 export default function AdminOrgDetailPage({ params }: Props) {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [org, setOrg] = useState<OrgDetail | null>(null);
@@ -44,33 +51,49 @@ export default function AdminOrgDetailPage({ params }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
 
-  // Resolve params
   useEffect(() => {
     void params.then(({ id }) => setOrgId(id));
   }, [params]);
 
   useEffect(() => {
     if (!orgId) return;
-    void (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}`, {
-          credentials: 'include',
-        });
-        if (!res.ok) throw new Error('Failed to load organization');
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) throw new Error(t('admin.organizations.detail.loadError'));
         setOrg((await res.json()) as OrgDetail);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [orgId, apiUrl]);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          setError(err instanceof Error ? err.message : t('admin.organizations.genericError'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [orgId, apiUrl, t]);
 
   async function handleAction(action: 'suspend' | 'reactivate' | 'delete') {
     if (!orgId) return;
-    const labels = { suspend: 'suspend', reactivate: 'reactivate', delete: 'permanently delete' };
-    if (!confirm(`Are you sure you want to ${labels[action]} this organization?`)) return;
+    const labels = {
+      suspend: t('admin.organizations.actions.suspend'),
+      reactivate: t('admin.organizations.actions.reactivate'),
+      delete: t('admin.organizations.actions.delete'),
+    };
+    if (!confirm(t('admin.organizations.actions.confirm', { action: labels[action] }))) return;
 
     const method = action === 'delete' ? 'DELETE' : 'PATCH';
     const url = `${apiUrl}/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
@@ -83,13 +106,14 @@ export default function AdminOrgDetailPage({ params }: Props) {
         window.location.reload();
       }
     } else {
-      alert('Action failed. Please try again.');
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      alert(data?.message ?? t('admin.organizations.actions.failed'));
     }
   }
 
   async function handleReassignOwner() {
     if (!orgId) return;
-    const newOwnerUserId = prompt('Enter the user ID of the new owner:');
+    const newOwnerUserId = prompt(t('admin.organizations.detail.reassignPrompt'));
     if (!newOwnerUserId?.trim()) return;
 
     const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}/reassign-owner`, {
@@ -102,13 +126,13 @@ export default function AdminOrgDetailPage({ params }: Props) {
     if (res.ok || res.status === 204) {
       window.location.reload();
     } else {
-      const data = (await res.json()) as { message?: string };
-      alert(data.message ?? 'Failed to reassign owner');
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      alert(data?.message ?? t('admin.organizations.detail.reassignFailed'));
     }
   }
 
   async function handlePromoteSuperAdmin() {
-    const userId = prompt('Enter the user ID to promote to super admin:');
+    const userId = prompt(t('admin.organizations.detail.promotePrompt'));
     if (!userId?.trim()) return;
 
     const res = await fetch(`${apiUrl}/api/v1/admin/users/promote-super-admin`, {
@@ -119,143 +143,164 @@ export default function AdminOrgDetailPage({ params }: Props) {
     });
 
     if (res.ok || res.status === 204) {
-      alert('User promoted to super admin.');
+      alert(t('admin.organizations.detail.promoteSuccess'));
     } else {
-      alert('Failed to promote user.');
+      alert(t('admin.organizations.detail.promoteFailed'));
     }
   }
 
-  if (loading)
+  if (loading) {
     return (
       <main className="p-8">
-        <p className="text-gray-400">Loading…</p>
+        <p className="text-sm text-gray-400">{t('admin.organizations.loading')}</p>
       </main>
     );
-  if (error)
+  }
+
+  if (error) {
     return (
       <main className="p-8">
-        <p className="text-red-600">{error}</p>
+        <p className="text-sm text-red-600">{error}</p>
       </main>
     );
+  }
+
   if (!org) return null;
 
   return (
-    <main className="p-8 max-w-4xl">
+    <main className="max-w-4xl p-8">
       <div className="mb-2">
         <Link href="/admin/organizations" className="text-sm text-gray-500 hover:underline">
-          ← All organizations
+          {t('admin.organizations.detail.back')}
         </Link>
       </div>
 
-      <div className="flex items-start justify-between mb-6">
+      <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">{org.name}</h1>
-          <p className="text-gray-500 text-sm font-mono mt-0.5">{org.slug}</p>
+          <p className="mt-0.5 font-mono text-sm text-gray-500">{org.slug}</p>
         </div>
         <span
-          className={`mt-1 inline-block px-3 py-1 rounded-full text-sm font-medium ${
+          className={`mt-1 inline-block rounded-full px-3 py-1 text-sm font-medium ${
             org.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
           }`}
         >
-          {org.status}
+          {t(`admin.organizations.status.${org.status}`)}
         </span>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      {org.is_protected ? (
+        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          {t('admin.organizations.detail.protectedNote')}
+        </div>
+      ) : null}
+
+      <div className="mb-8 grid grid-cols-3 gap-4">
         {[
-          { label: 'Members', value: org.member_count },
-          { label: 'Events', value: org.event_count },
-          { label: 'Created', value: new Date(org.created_at).toLocaleDateString('fr-FR') },
+          { label: t('admin.organizations.table.members'), value: org.member_count },
+          { label: t('admin.organizations.table.events'), value: org.event_count },
+          {
+            label: t('admin.organizations.table.created'),
+            value: new Date(org.created_at).toLocaleDateString('fr-FR'),
+          },
         ].map(({ label, value }) => (
-          <div key={label} className="border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
-            <p className="text-xl font-semibold mt-1">{value}</p>
+          <div key={label} className="rounded-lg border border-gray-200 p-4">
+            <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+            <p className="mt-1 text-xl font-semibold">{value}</p>
           </div>
         ))}
       </div>
 
-      {/* Actions */}
       <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Actions</h2>
+        <h2 className="mb-3 text-lg font-semibold">{t('admin.organizations.table.actions')}</h2>
         <div className="flex flex-wrap gap-2">
           {org.status === 'active' ? (
             <button
               onClick={() => {
                 void handleAction('suspend');
               }}
-              className="px-4 py-2 rounded-md text-sm font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors"
+              className="rounded-md bg-orange-100 px-4 py-2 text-sm font-medium text-orange-700 transition-colors hover:bg-orange-200"
             >
-              Suspend organization
+              {t('admin.organizations.actions.suspend')}
             </button>
           ) : (
             <button
               onClick={() => {
                 void handleAction('reactivate');
               }}
-              className="px-4 py-2 rounded-md text-sm font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+              className="rounded-md bg-green-100 px-4 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-200"
             >
-              Reactivate organization
+              {t('admin.organizations.actions.reactivate')}
             </button>
           )}
           <button
             onClick={() => {
               void handleReassignOwner();
             }}
-            className="px-4 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+            className="rounded-md bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-200"
           >
-            Reassign ownership
+            {t('admin.organizations.detail.reassignOwner')}
           </button>
           <button
             onClick={() => {
               void handlePromoteSuperAdmin();
             }}
-            className="px-4 py-2 rounded-md text-sm font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+            className="rounded-md bg-purple-100 px-4 py-2 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200"
           >
-            Promote member to super admin
+            {t('admin.organizations.detail.promoteMember')}
           </button>
-          <button
-            onClick={() => {
-              void handleAction('delete');
-            }}
-            className="px-4 py-2 rounded-md text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-          >
-            Delete (hard)
-          </button>
+          {org.is_protected ? null : (
+            <button
+              onClick={() => {
+                void handleAction('delete');
+              }}
+              className="rounded-md bg-red-100 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-200"
+            >
+              {t('admin.organizations.actions.deleteHard')}
+            </button>
+          )}
         </div>
       </section>
 
-      {/* Members */}
       <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Members ({org.members.length})</h2>
+        <h2 className="mb-3 text-lg font-semibold">
+          {t('admin.organizations.detail.membersTitle', { count: org.members.length })}
+        </h2>
         {org.members.length === 0 ? (
-          <p className="text-gray-400 text-sm">No members.</p>
+          <p className="text-sm text-gray-400">{t('admin.organizations.detail.noMembers')}</p>
         ) : (
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-left text-gray-500">
-                <th className="py-2 pr-4">User ID</th>
-                <th className="py-2 pr-4">Role</th>
-                <th className="py-2">Joined</th>
+                <th className="py-2 pr-4">{t('admin.organizations.detail.user')}</th>
+                <th className="py-2 pr-4">{t('admin.organizations.detail.userId')}</th>
+                <th className="py-2 pr-4">{t('admin.organizations.detail.role')}</th>
+                <th className="py-2">{t('admin.organizations.detail.joined')}</th>
               </tr>
             </thead>
             <tbody>
-              {org.members.map((m) => (
-                <tr key={m.user_id} className="border-b border-gray-100">
-                  <td className="py-2 pr-4 font-mono text-xs text-gray-600">{m.user_id}</td>
+              {org.members.map((member) => (
+                <tr key={member.user_id} className="border-b border-gray-100">
+                  <td className="py-2 pr-4">
+                    <div className="font-medium text-slate-700">{member.username}</div>
+                    {member.email && member.email !== member.username ? (
+                      <div className="text-xs text-slate-400">{member.email}</div>
+                    ) : null}
+                  </td>
+                  <td className="py-2 pr-4 font-mono text-xs text-gray-600">{member.user_id}</td>
                   <td className="py-2 pr-4">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        m.role === 'owner'
+                      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
+                        member.role === 'owner'
                           ? 'bg-yellow-100 text-yellow-700'
                           : 'bg-gray-100 text-gray-600'
                       }`}
                     >
-                      {m.role}
+                      {member.role}
                     </span>
                   </td>
                   <td className="py-2 text-gray-500">
-                    {new Date(m.joined_at).toLocaleDateString('fr-FR')}
+                    {new Date(member.joined_at).toLocaleDateString('fr-FR')}
                   </td>
                 </tr>
               ))}
@@ -264,25 +309,26 @@ export default function AdminOrgDetailPage({ params }: Props) {
         )}
       </section>
 
-      {/* Audit log */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">Recent audit log</h2>
+        <h2 className="mb-3 text-lg font-semibold">{t('admin.organizations.detail.auditLog')}</h2>
         {org.recent_audit_log.length === 0 ? (
-          <p className="text-gray-400 text-sm">No audit log entries yet.</p>
+          <p className="text-sm text-gray-400">{t('admin.organizations.detail.noAuditLog')}</p>
         ) : (
           <div className="space-y-2">
             {org.recent_audit_log.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-start gap-3 text-sm border-b border-gray-100 pb-2"
+                className="flex items-start gap-3 border-b border-gray-100 pb-2 text-sm"
               >
-                <span className="text-gray-400 text-xs whitespace-nowrap mt-0.5">
+                <span className="mt-0.5 whitespace-nowrap text-xs text-gray-400">
                   {new Date(entry.created_at).toLocaleString('fr-FR')}
                 </span>
-                <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700">
                   {entry.action}
                 </span>
-                <span className="text-gray-500 text-xs font-mono">by {entry.actor_user_id}</span>
+                <span className="font-mono text-xs text-gray-500">
+                  {t('admin.organizations.detail.auditBy', { userId: entry.actor_user_id })}
+                </span>
               </div>
             ))}
           </div>

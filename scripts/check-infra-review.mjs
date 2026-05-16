@@ -71,6 +71,16 @@ const superAdminOrganizationsPagePath = path.join(
   'organizations',
   'page.tsx',
 );
+const superAdminOrganizationDetailPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'organizations',
+  '[id]',
+  'page.tsx',
+);
 const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
 const superAdminShellPath = path.join(
   rootDir,
@@ -198,6 +208,10 @@ const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
 const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
 const superAdminPageText = await readFile(superAdminPagePath, 'utf8');
 const superAdminOrganizationsPageText = await readFile(superAdminOrganizationsPagePath, 'utf8');
+const superAdminOrganizationDetailPageText = await readFile(
+  superAdminOrganizationDetailPagePath,
+  'utf8',
+);
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
@@ -584,6 +598,62 @@ requireContains(
   'apps/api/src/modules/admin/admin-organizations.service.ts',
   'org.create_with_owner',
 );
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  "PROTECTED_ORG_SLUG = 'myclash-hq'",
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'is_protected',
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'getAuthUserDisplayMap',
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'The MyClash HQ organization cannot be deleted',
+);
+for (const expected of ['owner_username', 'display_name', 'username']) {
+  requireContains(
+    adminOrganizationsServiceText,
+    'apps/api/src/modules/admin/admin-organizations.service.ts',
+    expected,
+  );
+}
+for (const expected of ['is_protected', 'owner_username', 'actions.protected']) {
+  requireContains(
+    superAdminOrganizationsPageText,
+    'apps/web-admin/app/admin/organizations/page.tsx',
+    expected,
+  );
+}
+for (const expected of ['is_protected', 'member.username', 'member.user_id', 'protectedNote']) {
+  requireContains(
+    superAdminOrganizationDetailPageText,
+    'apps/web-admin/app/admin/organizations/[id]/page.tsx',
+    expected,
+  );
+}
+for (const forbidden of ['auth.admin.listUsers', 'auth.admin.createUser', 'auth.admin.deleteUser']) {
+  if (adminOrganizationsServiceText.includes(forbidden)) {
+    errors.push(
+      `apps/api/src/modules/admin/admin-organizations.service.ts must use internal GoTrue helpers instead of ${forbidden}.`,
+    );
+  }
+}
+for (const expected of ['listAuthAdminUsers', 'createAuthAdminUser', 'deleteAuthAdminUser']) {
+  requireContains(
+    adminOrganizationsServiceText,
+    'apps/api/src/modules/admin/admin-organizations.service.ts',
+    expected,
+  );
+  requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
+}
 requireContains(
   adminDashboardStatsControllerText,
   'apps/api/src/modules/admin/dashboard-stats.controller.ts',

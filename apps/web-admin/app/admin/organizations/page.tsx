@@ -10,10 +10,13 @@ interface OrgListItem {
   slug: string;
   status: 'active' | 'suspended';
   owner_email: string | null;
+  owner_name: string | null;
+  owner_username: string | null;
   member_count: number;
   event_count: number;
   created_at: string;
   last_activity: string | null;
+  is_protected: boolean;
 }
 
 interface CreateOrganizationResult {
@@ -424,7 +427,14 @@ export default function AdminOrganizationsPage() {
                     </Link>
                     <span className="ml-2 font-mono text-xs text-gray-400">{org.slug}</span>
                   </td>
-                  <td className="py-2 pr-4 text-gray-600">{org.owner_email ?? '-'}</td>
+                  <td className="py-2 pr-4 text-gray-600">
+                    <div className="font-medium text-slate-700">
+                      {org.owner_username ?? org.owner_email ?? '-'}
+                    </div>
+                    {org.owner_email && org.owner_email !== org.owner_username ? (
+                      <div className="text-xs text-slate-400">{org.owner_email}</div>
+                    ) : null}
+                  </td>
                   <td className="py-2 pr-4 text-gray-600">{org.member_count}</td>
                   <td className="py-2 pr-4 text-gray-600">{org.event_count}</td>
                   <td className="py-2 pr-4">
@@ -462,14 +472,20 @@ export default function AdminOrganizationsPage() {
                           {t('admin.organizations.actions.approve')}
                         </button>
                       )}
-                      <button
-                        onClick={() => {
-                          void handleAction(org.id, 'delete');
-                        }}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        {t('admin.organizations.actions.delete')}
-                      </button>
+                      {org.is_protected ? (
+                        <span className="text-xs font-medium text-slate-400">
+                          {t('admin.organizations.actions.protected')}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            void handleAction(org.id, 'delete');
+                          }}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          {t('admin.organizations.actions.delete')}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
