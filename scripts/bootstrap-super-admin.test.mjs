@@ -37,8 +37,11 @@ test('syncs password for an existing super admin user', async () => {
         data: { users: [{ id: 'user-existing', email: 'admin@myclash.fr' }] },
       };
     }
-    if (method === 'PUT' && path === '/admin/users/user-existing') {
+    if (method === 'PUT' && path === '/admin/user/user-existing') {
       return { ok: true, data: { id: 'user-existing' } };
+    }
+    if (method === 'POST' && path === '/token?grant_type=password') {
+      return { ok: true, data: { access_token: 'verified-token' } };
     }
     throw new Error(`Unexpected GoTrue call: ${method} ${path}`);
   };
@@ -49,6 +52,7 @@ test('syncs password for an existing super admin user', async () => {
   assert.deepEqual(result, {
     created: false,
     passwordSynced: true,
+    passwordVerified: true,
     roleSynced: true,
     orgMembershipSynced: true,
     userId: 'user-existing',
@@ -57,13 +61,22 @@ test('syncs password for an existing super admin user', async () => {
   });
   assert.deepEqual(gotrueCalls[1], {
     method: 'PUT',
-    path: '/admin/users/user-existing',
+    path: '/admin/user/user-existing',
     body: {
       password: 'super-secret-password',
       email_confirm: true,
       user_metadata: { display_name: 'Super Admin' },
     },
   });
+  assert.deepEqual(gotrueCalls[2], {
+    method: 'POST',
+    path: '/token?grant_type=password',
+    body: {
+      email: 'admin@myclash.fr',
+      password: 'super-secret-password',
+    },
+  });
+  assert.equal(gotrueCalls.some((call) => call.path === '/admin/users/user-existing'), false);
   assert.equal(runSql.calls.length, 3);
   assert.match(runSql.calls[0].sql, /ON CONFLICT \(user_id\) DO UPDATE SET role = EXCLUDED\.role/);
   assert.match(
@@ -83,6 +96,9 @@ test('creates the super admin when no user exists', async () => {
     if (method === 'POST' && path === '/admin/users') {
       return { ok: true, data: { id: 'user-created' } };
     }
+    if (method === 'POST' && path === '/token?grant_type=password') {
+      return { ok: true, data: { access_token: 'verified-token' } };
+    }
     throw new Error(`Unexpected GoTrue call: ${method} ${path}`);
   };
   const runSql = makeSqlMock();
@@ -91,6 +107,7 @@ test('creates the super admin when no user exists', async () => {
 
   assert.equal(result.created, true);
   assert.equal(result.passwordSynced, true);
+  assert.equal(result.passwordVerified, true);
   assert.equal(result.userId, 'user-created');
   assert.deepEqual(gotrueCalls[1], {
     method: 'POST',
@@ -121,6 +138,31 @@ test('fails when existing user password sync fails', async () => {
   await assert.rejects(
     bootstrapSuperAdmin({ env: baseEnv, gotrue, runSql }),
     /Failed to sync admin user password/,
+  );
+  assert.equal(runSql.calls.length, 0);
+});
+
+test('fails when password sync cannot be verified', async () => {
+  const gotrue = async (method, path) => {
+    if (method === 'GET') {
+      return {
+        ok: true,
+        data: { users: [{ id: 'user-existing', email: 'admin@myclash.fr' }] },
+      };
+    }
+    if (method === 'PUT' && path === '/admin/user/user-existing') {
+      return { ok: true, data: { id: 'user-existing' } };
+    }
+    if (method === 'POST' && path === '/token?grant_type=password') {
+      return { ok: false, data: { message: 'Invalid login credentials' } };
+    }
+    throw new Error(`Unexpected GoTrue call: ${method} ${path}`);
+  };
+  const runSql = makeSqlMock();
+
+  await assert.rejects(
+    bootstrapSuperAdmin({ env: baseEnv, gotrue, runSql }),
+    /Failed to verify synced admin user password/,
   );
   assert.equal(runSql.calls.length, 0);
 });

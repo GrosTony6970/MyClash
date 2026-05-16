@@ -14,7 +14,7 @@
  *   SEED_ADMIN_PASSWORD       - Password for the super admin
  *
  * Outputs JSON to stdout:
- *   { "created": true|false, "passwordSynced": true|false, "userId": "...", "email": "..." }
+ *   { "created": true|false, "passwordSynced": true|false, "passwordVerified": true|false, "userId": "...", "email": "..." }
  *
  * Exit codes:
  *   0 - success
@@ -121,7 +121,7 @@ export async function bootstrapSuperAdmin({
 
   if (existing) {
     userId = existing.id;
-    const updateRes = await gotrue('PUT', `/admin/users/${encodeURIComponent(userId)}`, {
+    const updateRes = await gotrue('PUT', `/admin/user/${encodeURIComponent(userId)}`, {
       password: ADMIN_PASSWORD,
       email_confirm: true,
       user_metadata: { display_name: 'Super Admin' },
@@ -151,6 +151,14 @@ export async function bootstrapSuperAdmin({
 
     created = true;
     passwordSynced = true;
+  }
+
+  const verifyRes = await gotrue('POST', '/token?grant_type=password', {
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+  });
+  if (!verifyRes.ok) {
+    fail('Failed to verify synced admin user password', verifyRes.data);
   }
 
   await runSql(
@@ -187,6 +195,7 @@ export async function bootstrapSuperAdmin({
   return {
     created,
     passwordSynced,
+    passwordVerified: true,
     roleSynced: true,
     orgMembershipSynced: true,
     userId,

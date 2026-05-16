@@ -490,14 +490,16 @@ BOOTSTRAP_RESULT=$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" \
 
 BOOTSTRAP_CREATED=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.created?'yes':'no')}catch{console.log('unknown')}" "$BOOTSTRAP_RESULT")
 BOOTSTRAP_PASSWORD_SYNCED=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.passwordSynced?'yes':'no')}catch{console.log('unknown')}" "$BOOTSTRAP_RESULT")
+BOOTSTRAP_PASSWORD_VERIFIED=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.passwordVerified?'yes':'no')}catch{console.log('unknown')}" "$BOOTSTRAP_RESULT")
 BOOTSTRAP_ERROR=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.error||'')}catch{console.log('parse error')}" "$BOOTSTRAP_RESULT")
 BOOTSTRAP_DETAIL=$(node -e "try{const r=JSON.parse(process.argv[1]);console.log(r.detail?JSON.stringify(r.detail):'')}catch{console.log('')}" "$BOOTSTRAP_RESULT")
 
 if [[ -n "$BOOTSTRAP_ERROR" ]]; then
   warn "Super admin bootstrap reported an issue: $BOOTSTRAP_ERROR"
   [[ -n "$BOOTSTRAP_DETAIL" ]] && warn "Bootstrap detail: $BOOTSTRAP_DETAIL"
+  [[ "$BOOTSTRAP_ERROR" == "Failed to verify synced admin user password" ]] && warn "SEED_ADMIN_PASSWORD was not accepted by GoTrue."
   warn "You can run it manually: docker compose run --rm api node /app/scripts/bootstrap-super-admin.mjs"
-elif [[ "$BOOTSTRAP_CREATED" == "yes" ]]; then
+elif [[ "$BOOTSTRAP_CREATED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
   # ── Display credentials — operator MUST save these ──────────────
   echo
   echo "╔══════════════════════════════════════════════════════════════╗"
@@ -511,8 +513,8 @@ elif [[ "$BOOTSTRAP_CREATED" == "yes" ]]; then
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo
   ok "Super admin account created"
-elif [[ "$BOOTSTRAP_PASSWORD_SYNCED" == "yes" ]]; then
-  ok "Super admin account already exists — password synced from SEED_ADMIN_PASSWORD"
+elif [[ "$BOOTSTRAP_PASSWORD_SYNCED" == "yes" && "$BOOTSTRAP_PASSWORD_VERIFIED" == "yes" ]]; then
+  ok "Super admin account already exists — password synced and verified from SEED_ADMIN_PASSWORD"
 else
   ok "Super admin account already exists — bootstrap roles verified"
 fi
