@@ -97,7 +97,7 @@ fi
 # ── API version metadata ─────────────────────────────────────────
 hdr "API version"
 
-API_VERSION=$("${COMPOSE[@]}" exec -T api node -e 'const fs=require("node:fs");const path="/app/data/system-versions.json";const fallback={app:{version:"unknown"},containers:{api:{version:"unknown",commit:process.env.GIT_COMMIT||"unknown"}}};const manifest=fs.existsSync(path)?JSON.parse(fs.readFileSync(path,"utf8")):fallback;const appVersion=manifest.app?.version||"unknown";const apiVersion=manifest.containers?.api?.version||"unknown";const commit=manifest.containers?.api?.commit||process.env.GIT_COMMIT||"unknown";console.log(`  App:    ${appVersion}`);console.log(`  API:    ${apiVersion}`);console.log(`  Commit: ${commit}`);' 2>/dev/null || true)
+API_VERSION=$("${COMPOSE[@]}" exec -T api node -e 'const fs=require("node:fs");const path="/app/data/system-versions.json";const fallback={app:{version:"unknown"},containers:{api:{version:"unknown",commit:process.env.GIT_COMMIT||"unknown"}}};let manifest=fallback;let source="fallback";try{const stat=fs.statSync(path);if(stat.isFile()){manifest=JSON.parse(fs.readFileSync(path,"utf8"));source="manifest";}}catch{}const appVersion=manifest.app?.version||"unknown";const apiVersion=manifest.containers?.api?.version||"unknown";const commit=manifest.containers?.api?.commit||process.env.GIT_COMMIT||"unknown";console.log(`  App:    ${appVersion}`);console.log(`  API:    ${apiVersion}`);console.log(`  Commit: ${commit}`);console.log(`  Source: ${source}`);' 2>/dev/null || true)
 if [[ -n "$API_VERSION" ]]; then
   echo "$API_VERSION"
   ok "API version metadata readable inside container"

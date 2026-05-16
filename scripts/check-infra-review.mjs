@@ -313,6 +313,20 @@ for (const expected of [
     errors.push(`deploy.sh must print compose health diagnostics with ${expected}.`);
   }
 }
+for (const expected of [
+  'mkdir -p data',
+  '[[ -d data/system-versions.json ]]',
+  'rm -rf -- data/system-versions.json',
+]) {
+  if (!deployText.includes(expected)) {
+    errors.push(`deploy.sh system version manifest generation must include ${expected}.`);
+  }
+}
+for (const expected of ['stat.isFile()', 'Source: ${source}']) {
+  if (!statusText.includes(expected)) {
+    errors.push(`status.sh API version diagnostics must tolerate bad manifests with ${expected}.`);
+  }
+}
 for (const [label, text] of [
   ['apps/web-public/app/page.tsx', publicRootPageText],
   ['apps/web-public/app/e/[eventSlug]/page.tsx', publicEventRootPageText],

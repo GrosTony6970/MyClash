@@ -411,6 +411,12 @@ export GIT_COMMIT="$NEW_COMMIT"
 # ── System version manifest ──────────────────────────────────────
 hdr "Generating system version manifest"
 
+mkdir -p data
+if [[ -d data/system-versions.json ]]; then
+  warn "Replacing accidental directory at data/system-versions.json with a manifest file"
+  rm -rf -- data/system-versions.json
+fi
+
 node scripts/generate-system-versions.mjs \
   --output data/system-versions.json \
   --previous-commit "$CURRENT_COMMIT" \

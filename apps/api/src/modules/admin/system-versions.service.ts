@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type {
   SystemVersionComponentDto,
   SystemVersionsResponseDto,
@@ -65,6 +65,7 @@ const appContainerLabels: Record<string, string> = {
 
 @Injectable()
 export class AdminSystemVersionsService {
+  private readonly logger = new Logger(AdminSystemVersionsService.name);
   private readonly rootDir: string;
   private readonly manifestPath: string;
   private readonly runtimeNodeVersion: string;
@@ -153,8 +154,15 @@ export class AdminSystemVersionsService {
   }
 
   private async readManifest(): Promise<RawSystemVersionsManifest | null> {
-    const text = await readTextIfExists(this.manifestPath);
-    return text ? (JSON.parse(text) as RawSystemVersionsManifest) : null;
+    try {
+      const text = await readTextIfExists(this.manifestPath);
+      return text ? (JSON.parse(text) as RawSystemVersionsManifest) : null;
+    } catch (error) {
+      this.logger.warn(
+        `System version manifest unavailable at ${this.manifestPath}; using fallback metadata (${errorSummary(error)})`,
+      );
+      return null;
+    }
   }
 
   private async buildFallbackManifest(): Promise<RawSystemVersionsManifest> {
@@ -252,4 +260,14 @@ function withCommit(version: string | undefined, commit: string | undefined): st
   const resolvedCommit = valueOrUnknown(commit);
   if (resolvedCommit === UNKNOWN) return resolvedVersion;
   return `${resolvedVersion} (${resolvedCommit.slice(0, 8)})`;
+}
+
+function errorSummary(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const record = error as { code?: unknown; name?: unknown; message?: unknown };
+    if (typeof record.code === 'string') return record.code;
+    if (typeof record.name === 'string') return record.name;
+    if (typeof record.message === 'string') return record.message;
+  }
+  return 'unknown error';
 }

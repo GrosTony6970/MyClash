@@ -110,4 +110,59 @@ describe('AdminSystemVersionsService', () => {
       }),
     );
   });
+
+  it('falls back cleanly when the manifest path is a directory', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
+    await writeFile(path.join(dir, 'VERSION'), 'v9.9.9\n');
+    await writeJson(path.join(dir, 'package.json'), {
+      packageManager: 'pnpm@10.27.0',
+      devDependencies: { typescript: '^5.6.0' },
+    });
+    const manifestPath = path.join(dir, 'data', 'system-versions.json');
+    await mkdir(manifestPath, { recursive: true });
+
+    const service = new AdminSystemVersionsService({
+      rootDir: dir,
+      manifestPath,
+      runtimeNodeVersion: 'v22.1.0',
+    });
+
+    const result = await service.getSystemVersions();
+
+    expect(result.groups.find((group) => group.key === 'app')?.components).toContainEqual(
+      expect.objectContaining({
+        key: 'myclash',
+        version: 'v9.9.9',
+        source: 'package.json',
+      }),
+    );
+  });
+
+  it('falls back cleanly when the manifest contains malformed JSON', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
+    await writeFile(path.join(dir, 'VERSION'), 'v9.9.9\n');
+    await writeJson(path.join(dir, 'package.json'), {
+      packageManager: 'pnpm@10.27.0',
+      devDependencies: { typescript: '^5.6.0' },
+    });
+    const manifestPath = path.join(dir, 'data', 'system-versions.json');
+    await mkdir(path.dirname(manifestPath), { recursive: true });
+    await writeFile(manifestPath, '{not json');
+
+    const service = new AdminSystemVersionsService({
+      rootDir: dir,
+      manifestPath,
+      runtimeNodeVersion: 'v22.1.0',
+    });
+
+    const result = await service.getSystemVersions();
+
+    expect(result.groups.find((group) => group.key === 'app')?.components).toContainEqual(
+      expect.objectContaining({
+        key: 'myclash',
+        version: 'v9.9.9',
+        source: 'package.json',
+      }),
+    );
+  });
 });
