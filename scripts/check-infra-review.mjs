@@ -81,6 +81,15 @@ const superAdminOrganizationDetailPagePath = path.join(
   '[id]',
   'page.tsx',
 );
+const superAdminUsersPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'users',
+  'page.tsx',
+);
 const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
 const superAdminShellPath = path.join(
   rootDir,
@@ -173,6 +182,24 @@ const adminOrganizationsServicePath = path.join(
   'admin',
   'admin-organizations.service.ts',
 );
+const adminUsersControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'users.controller.ts',
+);
+const adminUsersServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'admin-users.service.ts',
+);
 const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
@@ -212,6 +239,7 @@ const superAdminOrganizationDetailPageText = await readFile(
   superAdminOrganizationDetailPagePath,
   'utf8',
 );
+const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
@@ -223,6 +251,8 @@ const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
 const adminOrganizationsServiceText = await readFile(adminOrganizationsServicePath, 'utf8');
+const adminUsersControllerText = await readFile(adminUsersControllerPath, 'utf8');
+const adminUsersServiceText = await readFile(adminUsersServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
@@ -652,6 +682,59 @@ for (const expected of ['listAuthAdminUsers', 'createAuthAdminUser', 'deleteAuth
     'apps/api/src/modules/admin/admin-organizations.service.ts',
     expected,
   );
+  requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
+}
+requireContains(
+  adminUsersControllerText,
+  'apps/api/src/modules/admin/users.controller.ts',
+  '@UseGuards(SuperAdminGuard)',
+);
+for (const expected of ['@Post()', "@Delete(':id')", 'CreatePlatformUserDto', 'mode']) {
+  requireContains(adminUsersControllerText, 'apps/api/src/modules/admin/users.controller.ts', expected);
+}
+for (const forbidden of [
+  'auth.admin.listUsers',
+  'auth.admin.createUser',
+  'auth.admin.updateUserById',
+  'auth.admin.getUserById',
+  'auth.admin.deleteUser',
+]) {
+  if (adminUsersServiceText.includes(forbidden)) {
+    errors.push(
+      `apps/api/src/modules/admin/admin-users.service.ts must use internal GoTrue helpers instead of ${forbidden}.`,
+    );
+  }
+}
+for (const expected of [
+  'createPlatformUser',
+  'deletePlatformUser',
+  'listAuthAdminUsers',
+  'createAuthAdminUser',
+  'updateAuthAdminUser',
+  'deleteAuthAdminUser',
+  'You cannot delete your own account',
+  'last remaining super admin',
+  'cleanupUserReferences',
+]) {
+  requireContains(adminUsersServiceText, 'apps/api/src/modules/admin/admin-users.service.ts', expected);
+}
+for (const expected of [
+  '/api/v1/admin/users',
+  'temporaryPassword',
+  "handleDelete(user, 'safe')",
+  "handleDelete(user, 'cleanup')",
+  'admin.users.create',
+  'admin.users.actions.safeDelete',
+  'admin.users.actions.cleanupDelete',
+]) {
+  requireContains(superAdminUsersPageText, 'apps/web-admin/app/admin/users/page.tsx', expected);
+}
+for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMIN_PASSWORD']) {
+  if (superAdminUsersPageText.includes(forbidden)) {
+    errors.push(`apps/web-admin/app/admin/users/page.tsx must not expose ${forbidden}.`);
+  }
+}
+for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
 }
 requireContains(

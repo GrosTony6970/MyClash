@@ -6,6 +6,10 @@ export interface SupabaseAuthUser {
   id: string;
   email?: string;
   user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+  created_at?: string;
+  last_sign_in_at?: string | null;
+  banned_until?: string | null;
 }
 
 export interface SupabaseAdminUser extends SupabaseAuthUser {
@@ -32,6 +36,10 @@ function parseAdminUser(value: unknown): SupabaseAdminUser | null {
     id: record.id,
     email: record.email,
     user_metadata: record.user_metadata,
+    app_metadata: record.app_metadata,
+    created_at: record.created_at,
+    last_sign_in_at: record.last_sign_in_at,
+    banned_until: record.banned_until,
     email_confirmed_at: record.email_confirmed_at,
   };
 }
@@ -136,6 +144,34 @@ export class SupabaseService {
       method: 'POST',
       body: JSON.stringify(input),
     });
+
+    const user =
+      parseAdminUser(response.data) ?? parseAdminUser((response.data as { user?: unknown })?.user);
+    return { ...response, data: response.ok ? user : null };
+  }
+
+  async getAuthAdminUser(userId: string): Promise<GoTrueAdminResponse<SupabaseAdminUser>> {
+    const response = await this.requestGoTrueAdmin<unknown>(
+      `/admin/users/${encodeURIComponent(userId)}`,
+      { method: 'GET' },
+    );
+
+    const user =
+      parseAdminUser(response.data) ?? parseAdminUser((response.data as { user?: unknown })?.user);
+    return { ...response, data: response.ok ? user : null };
+  }
+
+  async updateAuthAdminUser(
+    userId: string,
+    input: Record<string, unknown>,
+  ): Promise<GoTrueAdminResponse<SupabaseAdminUser>> {
+    const response = await this.requestGoTrueAdmin<unknown>(
+      `/admin/users/${encodeURIComponent(userId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      },
+    );
 
     const user =
       parseAdminUser(response.data) ?? parseAdminUser((response.data as { user?: unknown })?.user);

@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface AdminUser {
   id: string;
@@ -16,17 +16,52 @@ interface UserListResponse {
   users: AdminUser[];
 }
 
+interface CreateUserResponse {
+  user: {
+    id: string;
+    email: string;
+    created: boolean;
+  };
+  temporaryPassword: string;
+  superAdminGranted: boolean;
+}
+
 function isDisabled(user: AdminUser): boolean {
   return Boolean(user.banned_until);
 }
 
+function formatDate(value: string | null | undefined, fallback: string) {
+  return value ? new Date(value).toLocaleDateString('fr-FR') : fallback;
+}
+
+async function readError(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = (await res.json()) as { message?: unknown };
+    if (typeof data.message === 'string') return data.message;
+    if (data.message && typeof data.message === 'object') {
+      const message = (data.message as { message?: unknown }).message;
+      if (typeof message === 'string') return message;
+    }
+  } catch {
+    // Keep the UI on the generic localized error when the API body is empty.
+  }
+  return fallback;
+}
+
 export default function AdminUsersPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { t } = useI18n();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [createEmail, setCreateEmail] = useState('');
+  const [createDisplayName, setCreateDisplayName] = useState('');
+  const [createSuperAdmin, setCreateSuperAdmin] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createResult, setCreateResult] = useState<CreateUserResponse | null>(null);
 
   const refresh = useCallback(() => setRefreshKey((key) => key + 1), []);
 
@@ -41,11 +76,11 @@ export default function AdminUsersPage() {
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 401 || res.status === 403) {
-          setError('Access denied. Super admin required.');
+          setError(t('admin.users.accessDenied'));
           setLoading(false);
           return;
         }
-        if (!res.ok) throw new Error('Failed to load users');
+        if (!res.ok) throw new Error(t('admin.users.loadError'));
         const data = (await res.json()) as UserListResponse;
         if (!cancelled) {
           setUsers(data.users ?? []);
@@ -55,7 +90,7 @@ export default function AdminUsersPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setError(err instanceof Error ? err.message : t('admin.users.genericError'));
           setLoading(false);
         }
       });
@@ -64,11 +99,43 @@ export default function AdminUsersPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [apiUrl, refreshKey]);
+  }, [apiUrl, refreshKey, t]);
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreating(true);
+    setCreateError(null);
+    setCreateResult(null);
+
+    const res = await fetch(`${apiUrl}/api/v1/admin/users`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: createEmail,
+        displayName: createDisplayName || undefined,
+        makeSuperAdmin: createSuperAdmin,
+      }),
+    });
+
+    setCreating(false);
+    if (!res.ok) {
+      setCreateError(await readError(res, t('admin.users.create.failed')));
+      return;
+    }
+
+    const data = (await res.json()) as CreateUserResponse;
+    setCreateResult(data);
+    setCreateEmail('');
+    setCreateDisplayName('');
+    setCreateSuperAdmin(false);
+    refresh();
+  }
 
   async function handleUserAction(user: AdminUser, action: 'disable' | 'enable') {
-    const label = action === 'disable' ? 'disable' : 'enable';
-    if (!confirm(`Are you sure you want to ${label} ${user.email ?? user.id}?`)) return;
+    const actionLabel = t(`admin.users.actions.${action}`);
+    const account = user.email ?? user.id;
+    if (!confirm(t('admin.users.actions.confirmToggle', { action: actionLabel, account }))) return;
 
     const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}/${action}`, {
       method: 'PATCH',
@@ -80,89 +147,199 @@ export default function AdminUsersPage() {
       return;
     }
 
-    alert('Action failed. Please try again.');
+    alert(await readError(res, t('admin.users.actions.failed')));
+  }
+
+  async function handleDelete(user: AdminUser, mode: 'safe' | 'cleanup') {
+    const account = user.email ?? user.id;
+    const confirmKey =
+      mode === 'safe'
+        ? 'admin.users.actions.confirmSafeDelete'
+        : 'admin.users.actions.confirmCleanupDelete';
+    if (!confirm(t(confirmKey, { account }))) return;
+
+    const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}?mode=${mode}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (res.ok) {
+      refresh();
+      return;
+    }
+
+    alert(await readError(res, t('admin.users.actions.failed')));
   }
 
   return (
-    <main className="p-8">
-      <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          Back to admin
-        </Link>
-      </div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-gray-500 text-sm mt-1">Disable or restore platform accounts.</p>
+    <main className="space-y-6">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+              {t('admin.dashboard.eyebrow')}
+            </p>
+            <h1 className="mt-2 text-2xl font-bold text-slate-950">{t('admin.users.title')}</h1>
+            <p className="mt-1 max-w-2xl text-sm text-slate-600">{t('admin.users.description')}</p>
+          </div>
+          <button
+            onClick={refresh}
+            className="w-fit rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            {t('admin.users.refresh')}
+          </button>
         </div>
-        <button
-          onClick={refresh}
-          className="border border-gray-300 rounded-md px-3 py-1.5 text-sm hover:bg-gray-50"
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">{t('admin.users.create.title')}</h2>
+        <p className="mt-1 text-sm text-slate-600">{t('admin.users.create.description')}</p>
+
+        <form
+          className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end"
+          onSubmit={(event) => {
+            void handleCreate(event);
+          }}
         >
-          Refresh
-        </button>
-      </div>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t('admin.users.create.email')}
+            <input
+              type="email"
+              required
+              value={createEmail}
+              onChange={(event) => setCreateEmail(event.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t('admin.users.create.displayName')}
+            <input
+              type="text"
+              value={createDisplayName}
+              onChange={(event) => setCreateDisplayName(event.target.value)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={creating}
+            className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+          >
+            {creating ? t('admin.users.create.submitting') : t('admin.users.create.submit')}
+          </button>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 lg:col-span-3">
+            <input
+              type="checkbox"
+              checked={createSuperAdmin}
+              onChange={(event) => setCreateSuperAdmin(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            {t('admin.users.create.makeSuperAdmin')}
+          </label>
+        </form>
+
+        {createError && (
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {createError}
+          </div>
+        )}
+
+        {createResult && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-semibold">{t('admin.users.create.success')}</p>
+            <p>
+              {t('admin.users.create.loginEmail')}: {createResult.user.email}
+            </p>
+            <p className="font-mono">
+              {t('admin.users.create.temporaryPassword')}: {createResult.temporaryPassword}
+            </p>
+            {createResult.superAdminGranted && <p>{t('admin.users.create.superAdminGranted')}</p>}
+          </div>
+        )}
+      </section>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading...</p>
+        <p className="text-sm text-slate-500">{t('admin.users.loading')}</p>
       ) : users.length === 0 ? (
-        <p className="text-gray-400 text-sm">No users found.</p>
+        <p className="text-sm text-slate-500">{t('admin.users.empty')}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[980px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500">
-                <th className="py-2 pr-4">Email</th>
-                <th className="py-2 pr-4">User ID</th>
-                <th className="py-2 pr-4">Created</th>
-                <th className="py-2 pr-4">Last sign-in</th>
-                <th className="py-2 pr-4">Status</th>
-                <th className="py-2">Actions</th>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                <th className="px-4 py-3">{t('admin.users.table.email')}</th>
+                <th className="px-4 py-3">{t('admin.users.table.userId')}</th>
+                <th className="px-4 py-3">{t('admin.users.table.created')}</th>
+                <th className="px-4 py-3">{t('admin.users.table.lastSignIn')}</th>
+                <th className="px-4 py-3">{t('admin.users.table.status')}</th>
+                <th className="px-4 py-3">{t('admin.users.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => {
                 const disabled = isDisabled(user);
                 return (
-                  <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 pr-4 font-medium">{user.email ?? 'No email'}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-gray-500">{user.id}</td>
-                    <td className="py-2 pr-4 text-gray-500">
-                      {user.created_at
-                        ? new Date(user.created_at).toLocaleDateString('fr-FR')
-                        : '-'}
+                  <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium text-slate-950">
+                      {user.email ?? t('admin.users.noEmail')}
                     </td>
-                    <td className="py-2 pr-4 text-gray-500">
-                      {user.last_sign_in_at
-                        ? new Date(user.last_sign_in_at).toLocaleDateString('fr-FR')
-                        : '-'}
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{user.id}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatDate(user.created_at, t('admin.users.missingDate'))}
                     </td>
-                    <td className="py-2 pr-4">
+                    <td className="px-4 py-3 text-slate-600">
+                      {formatDate(user.last_sign_in_at, t('admin.users.missingDate'))}
+                    </td>
+                    <td className="px-4 py-3">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                           disabled ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
                         }`}
                       >
-                        {disabled ? 'disabled' : 'active'}
+                        {disabled
+                          ? t('admin.users.status.disabled')
+                          : t('admin.users.status.active')}
                       </span>
                     </td>
-                    <td className="py-2">
-                      <button
-                        onClick={() => {
-                          void handleUserAction(user, disabled ? 'enable' : 'disable');
-                        }}
-                        className={`text-xs hover:underline ${
-                          disabled ? 'text-green-700' : 'text-red-700'
-                        }`}
-                      >
-                        {disabled ? 'Enable' : 'Disable'}
-                      </button>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => {
+                            void handleUserAction(user, disabled ? 'enable' : 'disable');
+                          }}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${
+                            disabled
+                              ? 'border-green-200 text-green-700 hover:bg-green-50'
+                              : 'border-red-200 text-red-700 hover:bg-red-50'
+                          }`}
+                        >
+                          {disabled
+                            ? t('admin.users.actions.enable')
+                            : t('admin.users.actions.disable')}
+                        </button>
+                        <button
+                          onClick={() => {
+                            void handleDelete(user, 'safe');
+                          }}
+                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          {t('admin.users.actions.safeDelete')}
+                        </button>
+                        <button
+                          onClick={() => {
+                            void handleDelete(user, 'cleanup');
+                          }}
+                          className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        >
+                          {t('admin.users.actions.cleanupDelete')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

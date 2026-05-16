@@ -819,3 +819,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix Organizer Account Inspection During Organization
 ## 23:13:15_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Protect MyClash HQ And Show Organizer Usernames. Prevent hard deletion of the bootstrap myclash-hq organization, add is_protected to admin organization responses, enrich organization owner/member displays with GoTrue email/display name, update UI/i18n, and add tests/review guards.
+
+## 00:03:54_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Platform Account Creation And Deletion Controls. Add super-admin platform account creation in `/admin/users`, replace remaining Auth Admin calls with internal GoTrue helpers, add disable/safe-delete/cleanup-delete controls, block self/last-super-admin/sole-owner deletion, add i18n, tests, and review guards.

@@ -2,57 +2,187 @@ import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminUsersService } from './admin-users.service';
 
-const listUsers = vi.fn();
-const updateUserById = vi.fn();
+const listAuthAdminUsers = vi.fn();
+const createAuthAdminUser = vi.fn();
+const getAuthAdminUser = vi.fn();
+const updateAuthAdminUser = vi.fn();
+const deleteAuthAdminUser = vi.fn();
 const fromMock = vi.fn();
 
 const mockSupabase = {
+  listAuthAdminUsers,
+  createAuthAdminUser,
+  getAuthAdminUser,
+  updateAuthAdminUser,
+  deleteAuthAdminUser,
   service: {
-    auth: { admin: { listUsers, updateUserById } },
     from: fromMock,
   },
 };
+
+function chain(result: unknown = { data: [], error: null }) {
+  const state = {
+    select: vi.fn(() => state),
+    eq: vi.fn(() => state),
+    upsert: vi.fn().mockResolvedValue(result),
+    insert: vi.fn().mockResolvedValue(result),
+    delete: vi.fn(() => state),
+    update: vi.fn(() => state),
+    then: (resolve: (value: unknown) => unknown, reject: (reason?: unknown) => unknown) =>
+      Promise.resolve(result).then(resolve, reject),
+  };
+  return state;
+}
+
+function setupDefaultDb() {
+  fromMock.mockImplementation((table: string) => {
+    if (table === 'audit_log') return chain({ data: null, error: null });
+    if (table === 'platform_roles') return chain({ data: [], error: null });
+    return chain({ data: [], error: null });
+  });
+}
 
 describe('AdminUsersService', () => {
   let service: AdminUsersService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fromMock.mockReturnValue({
-      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
+    setupDefaultDb();
     service = new AdminUsersService(mockSupabase as never);
   });
 
-  it('lists users through Supabase admin API', async () => {
-    listUsers.mockResolvedValue({ data: { users: [{ id: 'user-1' }] }, error: null });
+  it('lists users through internal GoTrue admin API', async () => {
+    listAuthAdminUsers.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { users: [{ id: 'user-1' }] },
+      detail: {},
+    });
 
     const result = await service.listUsers({ page: 2, perPage: 25 });
 
-    expect(listUsers).toHaveBeenCalledWith({ page: 2, perPage: 25 });
+    expect(listAuthAdminUsers).toHaveBeenCalledWith(2, 25);
     expect(result.users).toEqual([{ id: 'user-1' }]);
   });
 
-  it('disables users with a long auth ban and writes audit log', async () => {
-    updateUserById.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+  it('creates confirmed users and returns a one-time temporary password', async () => {
+    createAuthAdminUser.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', email: 'new@example.com' },
+      detail: {},
+    });
+
+    const result = await service.createPlatformUser(
+      { email: 'New@Example.com', displayName: 'New User' },
+      'actor-user',
+    );
+
+    expect(createAuthAdminUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'new@example.com',
+        email_confirm: true,
+        user_metadata: { display_name: 'New User' },
+      }),
+    );
+    expect(result.user).toEqual({ id: 'user-new', email: 'new@example.com', created: true });
+    expect(result.temporaryPassword).toEqual(expect.any(String));
+    expect(result.temporaryPassword.length).toBeGreaterThan(20);
+  });
+
+  it('grants super-admin role when requested during account creation', async () => {
+    const platformRoles = chain({ data: null, error: null });
+    fromMock.mockImplementation((table: string) =>
+      table === 'platform_roles' ? platformRoles : chain({ data: null, error: null }),
+    );
+    createAuthAdminUser.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', email: 'new@example.com' },
+      detail: {},
+    });
+
+    const result = await service.createPlatformUser(
+      { email: 'new@example.com', makeSuperAdmin: true },
+      'actor-user',
+    );
+
+    expect(platformRoles.upsert).toHaveBeenCalledWith(
+      { user_id: 'user-new', role: 'super_admin' },
+      { onConflict: 'user_id' },
+    );
+    expect(result.superAdminGranted).toBe(true);
+  });
+
+  it('disables and enables users through internal GoTrue update helpers', async () => {
+    updateAuthAdminUser.mockResolvedValue({ ok: true, status: 200, data: { id: 'user-1' } });
 
     await service.disableUser('user-1', 'actor-user');
-
-    expect(updateUserById).toHaveBeenCalledWith('user-1', { ban_duration: '876000h' });
-    expect(fromMock).toHaveBeenCalledWith('audit_log');
-  });
-
-  it('enables users by clearing the auth ban', async () => {
-    updateUserById.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
-
     await service.enableUser('user-1', 'actor-user');
 
-    expect(updateUserById).toHaveBeenCalledWith('user-1', { ban_duration: 'none' });
+    expect(updateAuthAdminUser).toHaveBeenNthCalledWith(1, 'user-1', {
+      ban_duration: '876000h',
+    });
+    expect(updateAuthAdminUser).toHaveBeenNthCalledWith(2, 'user-1', {
+      ban_duration: 'none',
+    });
   });
 
-  it('throws BadRequestException when Supabase admin update fails', async () => {
-    updateUserById.mockResolvedValue({ data: null, error: { message: 'auth failed' } });
+  it('safe-deletes an unused account', async () => {
+    deleteAuthAdminUser.mockResolvedValue({ ok: true, status: 200, data: null });
 
-    await expect(service.disableUser('user-1', 'actor-user')).rejects.toThrow(BadRequestException);
+    const result = await service.deletePlatformUser('user-unused', 'actor-user', 'safe');
+
+    expect(deleteAuthAdminUser).toHaveBeenCalledWith('user-unused');
+    expect(result).toEqual({ deleted: true, mode: 'safe', cleanupApplied: false });
+  });
+
+  it('refuses safe deletion when app references exist', async () => {
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'persons') return chain({ data: [{ id: 'person-1' }], error: null });
+      return chain({ data: [], error: null });
+    });
+
+    await expect(service.deletePlatformUser('user-linked', 'actor-user', 'safe')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(deleteAuthAdminUser).not.toHaveBeenCalled();
+  });
+
+  it('cleanup-deletes supported private references before deleting Auth user', async () => {
+    const persons = chain({ data: [], error: null });
+    const globalPersons = chain({ data: [], error: null });
+    deleteAuthAdminUser.mockResolvedValue({ ok: true, status: 200, data: null });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'persons') return persons;
+      if (table === 'global_persons') return globalPersons;
+      return chain({ data: [], error: null });
+    });
+
+    await service.deletePlatformUser('user-linked', 'actor-user', 'cleanup');
+
+    expect(persons.update).toHaveBeenCalledWith({
+      claimed_by_user_id: null,
+      claim_status: 'unclaimed',
+    });
+    expect(globalPersons.update).toHaveBeenCalledWith({ claimed_by_user_id: null });
+    expect(deleteAuthAdminUser).toHaveBeenCalledWith('user-linked');
+  });
+
+  it('blocks deleting the current actor and the last super admin', async () => {
+    await expect(service.deletePlatformUser('actor-user', 'actor-user', 'safe')).rejects.toThrow(
+      BadRequestException,
+    );
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'platform_roles') {
+        return chain({ data: [{ user_id: 'last-admin', created_at: 'now' }], error: null });
+      }
+      return chain({ data: [], error: null });
+    });
+
+    await expect(service.deletePlatformUser('last-admin', 'actor-user', 'safe')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });
