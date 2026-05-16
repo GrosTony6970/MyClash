@@ -5,11 +5,13 @@ import { AIDataQualityService } from './ai-data-quality.service';
 import { AdminAuditLogService } from './admin-audit-log.service';
 import { BackupsAdminController } from './backups.controller';
 import { AdminBackupsService } from './backups.service';
+import { AdminDashboardStatsService } from './admin-dashboard-stats.service';
 import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import { AdminOrganizationsService } from './admin-organizations.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
 import { AdminUsersService } from './admin-users.service';
 import { AuditLogAdminController } from './audit-log.controller';
+import { AdminDashboardStatsController } from './dashboard-stats.controller';
 import { ExchangeEditRequestsAdminController } from './exchange-edit-requests.controller';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { FeatureFlagsAdminController } from './feature-flags.controller';
@@ -35,11 +37,13 @@ import { UsersAdminController } from './users.controller';
     BackupsAdminController,
     PlatformAISettingsController,
     AIDataQualityController,
+    AdminDashboardStatsController,
   ],
   providers: [
     AdminOrganizationsService,
     AdminUsersService,
     AdminRulesetsService,
+    AdminDashboardStatsService,
     AdminFeatureFlagsService,
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,

@@ -783,3 +783,11 @@ PLEASE IMPLEMENT THIS PLAN: Fix Admin Login Redirect Loop After Successful Passw
 ## 19:31:20_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix Admin Dashboard Landing Redirect. Extend `/api/v1/me` with admin landing context and route `/dashboard` to `/admin` for super admins, `/org/<slug>` for organizers, or a no-workspace fallback.
+
+## 20:16:45_16-05-2026
+
+User reports `/admin` menu pages say "Access denied. Super admin required." even though the seed super admin is logged in and `/dashboard` now routes correctly.
+
+## 20:34:04_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Super-Admin Shell + Platform Statistics Dashboard. Add branded fixed left menu/top banner for `/admin/*`, add protected `/api/v1/admin/dashboard-stats`, display platform snapshot stats on `/admin`, add i18n and review guards.

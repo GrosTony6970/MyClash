@@ -25,6 +25,16 @@ const adminDashboardPagePath = path.join(
   'dashboard',
   'page.tsx',
 );
+const superAdminPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'page.tsx');
+const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
+const superAdminShellPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'src',
+  'components',
+  'SuperAdminShell.tsx',
+);
 const authServicePath = path.join(
   rootDir,
   'apps',
@@ -33,6 +43,25 @@ const authServicePath = path.join(
   'modules',
   'auth',
   'auth.service.ts',
+);
+const superAdminGuardPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'guards',
+  'super-admin.guard.ts',
+);
+const adminDashboardStatsControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'dashboard-stats.controller.ts',
 );
 const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
@@ -61,7 +90,12 @@ const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
 const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
 const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
 const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
+const superAdminPageText = await readFile(superAdminPagePath, 'utf8');
+const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
+const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
+const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
+const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
@@ -306,6 +340,31 @@ if (/T-105 follow-up|Org slug lookup will be wired|Redirecting to your dashboard
 requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'getAdminLandingContext');
 requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'platform_roles');
 requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'organization_members');
+requireContains(superAdminGuardText, 'apps/api/src/modules/admin/guards/super-admin.guard.ts', 'SUPABASE_AUTH_INTERNAL_URL');
+requireContains(superAdminGuardText, 'apps/api/src/modules/admin/guards/super-admin.guard.ts', '/user');
+if (superAdminGuardText.includes('supabase.anon.auth.getUser')) {
+  errors.push(
+    'SuperAdminGuard must validate server-side admin tokens with internal GoTrue, not supabase.anon.auth.getUser.',
+  );
+}
+requireContains(superAdminLayoutText, 'apps/web-admin/app/admin/layout.tsx', 'SuperAdminShell');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'usePathname');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', 'fixed inset-y-0 left-0');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '#0f172a');
+requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', '#1d4ed8');
+requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', '/api/v1/admin/dashboard-stats');
+requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', "credentials: 'include'");
+requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', 'admin.dashboard.statsTitle');
+requireContains(
+  adminDashboardStatsControllerText,
+  'apps/api/src/modules/admin/dashboard-stats.controller.ts',
+  '@UseGuards(SuperAdminGuard)',
+);
+requireContains(
+  adminDashboardStatsControllerText,
+  'apps/api/src/modules/admin/dashboard-stats.controller.ts',
+  "@Controller('admin/dashboard-stats')",
+);
 
 for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {
   const dockerfile = dockerfiles.find((file) =>
