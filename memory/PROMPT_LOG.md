@@ -779,3 +779,7 @@ PLEASE IMPLEMENT THIS PLAN: Use Internal GoTrue For Admin Password Login
 ## 19:17:22_16-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix Admin Login Redirect Loop After Successful Password Login
+
+## 19:31:20_16-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix Admin Dashboard Landing Redirect. Extend `/api/v1/me` with admin landing context and route `/dashboard` to `/admin` for super admins, `/org/<slug>` for organizers, or a no-workspace fallback.

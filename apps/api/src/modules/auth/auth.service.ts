@@ -36,10 +36,43 @@ type GoTrueAuthUser = {
   user_metadata?: Record<string, unknown>;
 };
 
+type AdminLandingContext = NonNullable<MeResponseDto['admin']>;
+
 function isAuthUser(value: unknown): value is GoTrueAuthUser {
   return Boolean(
     value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string',
   );
+}
+
+function normalizeOrganizationMembership(
+  row: unknown,
+): AdminLandingContext['organizations'][number] | null {
+  if (!row || typeof row !== 'object') return null;
+
+  const record = row as {
+    role?: unknown;
+    organizations?: unknown;
+  };
+  const organization = Array.isArray(record.organizations)
+    ? record.organizations[0]
+    : record.organizations;
+
+  if (!organization || typeof organization !== 'object') return null;
+
+  const orgRecord = organization as { id?: unknown; slug?: unknown };
+  if (
+    typeof record.role !== 'string' ||
+    typeof orgRecord.id !== 'string' ||
+    typeof orgRecord.slug !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    id: orgRecord.id,
+    slug: orgRecord.slug,
+    role: record.role,
+  };
 }
 
 @Injectable()
@@ -233,6 +266,8 @@ export class AuthService {
           // Table doesn't exist yet (pre-T-101) — ignore
         }
 
+        const admin = await this.getAdminLandingContext(user.id);
+
         return {
           type: 'claimed',
           user: {
@@ -241,6 +276,7 @@ export class AuthService {
             display_name: user.user_metadata?.['display_name'] as string | undefined,
           },
           person,
+          admin,
         };
       }
     }
@@ -379,6 +415,41 @@ export class AuthService {
     } catch {
       return false;
     }
+  }
+
+  private async getAdminLandingContext(userId: string): Promise<AdminLandingContext> {
+    let isSuperAdmin = false;
+    let organizations: AdminLandingContext['organizations'] = [];
+
+    try {
+      const { data: platformRole } = await this.supabase.service
+        .from('platform_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'super_admin')
+        .maybeSingle();
+
+      isSuperAdmin = Boolean(platformRole);
+    } catch {
+      // Table may not exist during early bootstrap.
+    }
+
+    try {
+      const { data: membershipRows } = await this.supabase.service
+        .from('organization_members')
+        .select('role, organizations(id, slug)')
+        .eq('user_id', userId);
+
+      organizations = Array.isArray(membershipRows)
+        ? membershipRows
+            .map((row) => normalizeOrganizationMembership(row))
+            .filter((row): row is AdminLandingContext['organizations'][number] => Boolean(row))
+        : [];
+    } catch {
+      organizations = [];
+    }
+
+    return { isSuperAdmin, organizations };
   }
 
   private validateRedirect(redirectTo: string | undefined): string {

@@ -20,6 +20,16 @@ export class MeResponseDto {
     claim_status: string;
   };
 
+  @ApiProperty({ required: false })
+  admin?: {
+    isSuperAdmin: boolean;
+    organizations: Array<{
+      id: string;
+      slug: string;
+      role: string;
+    }>;
+  };
+
   /** Present only when type='guest' */
   @ApiProperty({ required: false })
   session?: {

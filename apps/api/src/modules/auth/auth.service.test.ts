@@ -31,6 +31,20 @@ function makeQueryChain(result: unknown) {
   };
 }
 
+function makeAwaitableQueryChain(result: unknown) {
+  const chain = Object.assign(Promise.resolve(result), {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    update: vi.fn(),
+  });
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
+  return chain;
+}
+
 const mockMailService = {
   sendMagicLink: vi.fn().mockResolvedValue(undefined),
 };
@@ -176,6 +190,69 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
       expect(result.type).toBe('claimed');
       expect(result.user?.email).toBe('organizer@example.com');
+      expect(result.admin).toEqual({ isSuperAdmin: false, organizations: [] });
+    });
+
+    it('returns super-admin landing context for platform admins', async () => {
+      mockAuthUser({
+        id: 'admin-123',
+        email: 'admin@example.com',
+        user_metadata: { display_name: 'Super Admin' },
+      });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: { role: 'super_admin' }, error: null }))
+        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer admin-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.type).toBe('claimed');
+      expect(result.admin).toEqual({ isSuperAdmin: true, organizations: [] });
+    });
+
+    it('returns organization landing context for organizer users', async () => {
+      mockAuthUser({
+        id: 'organizer-123',
+        email: 'organizer@example.com',
+        user_metadata: {},
+      });
+
+      fromMock
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
+        .mockReturnValueOnce(
+          makeAwaitableQueryChain({
+            data: [
+              {
+                role: 'owner',
+                organizations: { id: 'org-1', slug: 'lyon-amhe' },
+              },
+              {
+                role: 'admin',
+                organizations: [{ id: 'org-2', slug: 'paris-hema' }],
+              },
+            ],
+            error: null,
+          }),
+        );
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer organizer-token' },
+        cookies: {},
+      } as never);
+
+      expect(result.type).toBe('claimed');
+      expect(result.admin).toEqual({
+        isSuperAdmin: false,
+        organizations: [
+          { id: 'org-1', slug: 'lyon-amhe', role: 'owner' },
+          { id: 'org-2', slug: 'paris-hema', role: 'admin' },
+        ],
+      });
     });
 
     it('returns anonymous when Supabase token is invalid', async () => {

@@ -17,6 +17,14 @@ const publicEventRootPagePath = path.join(
   'page.tsx',
 );
 const adminRootPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'page.tsx');
+const adminDashboardPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'dashboard',
+  'page.tsx',
+);
 const authServicePath = path.join(
   rootDir,
   'apps',
@@ -52,6 +60,7 @@ const statusText = await readFile(statusPath, 'utf8');
 const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
 const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
 const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
+const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
@@ -287,6 +296,16 @@ if (adminRootPageText.includes('admin.home.placeholder')) {
   errors.push('apps/web-admin/app/page.tsx must not render admin.home.placeholder.');
 }
 requireContains(publicEventRootPageText, 'apps/web-public/app/e/[eventSlug]/page.tsx', "redirect(`/e/${eventSlug}/home`)");
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'data.admin?.isSuperAdmin');
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "window.location.href = '/admin'");
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'window.location.href = `/org/${firstOrganization.slug}`');
+requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', 'setNoWorkspace(true)');
+if (/T-105 follow-up|Org slug lookup will be wired|Redirecting to your dashboard[â€¦…]/u.test(adminDashboardPageText)) {
+  errors.push('apps/web-admin/app/dashboard/page.tsx must not leave authenticated users on the old endless redirect placeholder.');
+}
+requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'getAdminLandingContext');
+requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'platform_roles');
+requireContains(authServiceText, 'apps/api/src/modules/auth/auth.service.ts', 'organization_members');
 
 for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {
   const dockerfile = dockerfiles.find((file) =>

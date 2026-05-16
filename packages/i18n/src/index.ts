@@ -414,6 +414,10 @@ export const en = {
     dashboard: {
       title: 'Super Admin',
       description: 'Platform moderation, operational controls, and recovery tools.',
+      redirecting: 'Redirecting to your dashboard...',
+      noWorkspaceTitle: 'No admin workspace found',
+      noWorkspaceDescription:
+        'This account is signed in, but it is not linked to a super-admin role or an organization.',
       systemVersionsTitle: 'System Versions',
       systemVersionsDescription: 'Inspect app, framework, container, and infrastructure versions.',
       backupsTitle: 'Backups',
@@ -1526,6 +1530,10 @@ export const fr = {
     dashboard: {
       title: 'Super Admin',
       description: 'ModÃ©ration, contrÃ´les opÃ©rationnels et outils de reprise de la plateforme.',
+      redirecting: 'Redirection vers votre tableau de bord...',
+      noWorkspaceTitle: 'Aucun espace admin trouve',
+      noWorkspaceDescription:
+        "Ce compte est connecte, mais il n'est lie a aucun role super-admin ni a aucune organisation.",
       systemVersionsTitle: 'Versions systÃ¨me',
       systemVersionsDescription:
         "Consulter les versions de l'app, des frameworks, des conteneurs et de l'infrastructure.",

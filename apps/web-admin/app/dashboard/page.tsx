@@ -1,14 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useI18n } from '../../src/i18n/I18nProvider';
+
+type MeResponse = {
+  type: 'claimed' | 'guest' | 'anonymous';
+  admin?: {
+    isSuperAdmin: boolean;
+    organizations: Array<{ slug: string }>;
+  };
+};
 
 /**
- * /dashboard — landing page after organizer login.
- * Fetches /api/v1/me to find the user's org slug, then redirects to /org/<slug>.
- * If no org found (shouldn't happen post-T-009b), shows a fallback.
+ * /dashboard - landing page after organizer login.
+ * Fetches /api/v1/me to find the user's admin workspace, then redirects.
  */
 export default function DashboardPage() {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const [noWorkspace, setNoWorkspace] = useState(false);
 
   useEffect(() => {
     async function redirect() {
@@ -18,24 +28,53 @@ export default function DashboardPage() {
           window.location.href = '/login';
           return;
         }
-        // Org slug lookup will be wired in T-105 when organizations table exists.
-        // For now, redirect to /login if not authenticated.
-        const data = (await res.json()) as { type: string };
+
+        const data = (await res.json()) as MeResponse;
         if (data.type !== 'claimed') {
           window.location.href = '/login';
+          return;
         }
-        // T-105 follow-up: fetch org slug from /api/v1/me or /api/v1/organizations/mine
-        // and redirect to /org/<slug>.
+
+        if (data.admin?.isSuperAdmin) {
+          window.location.href = '/admin';
+          return;
+        }
+
+        const firstOrganization = data.admin?.organizations.find((organization) =>
+          Boolean(organization.slug),
+        );
+        if (firstOrganization) {
+          window.location.href = `/org/${firstOrganization.slug}`;
+          return;
+        }
+
+        setNoWorkspace(true);
       } catch {
         window.location.href = '/login';
       }
     }
+
     void redirect();
   }, [apiUrl]);
 
+  if (noWorkspace) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-xl font-semibold text-gray-900">
+            {t('admin.dashboard.noWorkspaceTitle')}
+          </h1>
+          <p className="mt-3 text-sm text-gray-500">
+            {t('admin.dashboard.noWorkspaceDescription')}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center">
-      <p className="text-gray-500">Redirecting to your dashboard…</p>
+      <p className="text-gray-500">{t('admin.dashboard.redirecting')}</p>
     </main>
   );
 }
