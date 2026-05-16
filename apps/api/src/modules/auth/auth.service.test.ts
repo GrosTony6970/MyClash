@@ -59,6 +59,13 @@ function makeReply() {
   };
 }
 
+function mockAuthUser(user: Record<string, unknown>) {
+  fetchMock.mockResolvedValue({
+    ok: true,
+    json: vi.fn().mockResolvedValue(user),
+  });
+}
+
 // Real GuestJwtService for integration-style tests
 const guestJwtService = new GuestJwtService({
   getOrThrow: () => 'test-guest-secret-at-least-32-chars-long',
@@ -144,15 +151,10 @@ describe('AuthService', () => {
     });
 
     it('returns claimed when valid Supabase token present', async () => {
-      getUserMock.mockResolvedValue({
-        data: {
-          user: {
-            id: 'user-123',
-            email: 'organizer@example.com',
-            user_metadata: { display_name: 'Jean Dupont' },
-          },
-        },
-        error: null,
+      mockAuthUser({
+        id: 'user-123',
+        email: 'organizer@example.com',
+        user_metadata: { display_name: 'Jean Dupont' },
       });
 
       const mockRequest = {
@@ -161,14 +163,25 @@ describe('AuthService', () => {
       } as never;
 
       const result = await service.getMe(mockRequest);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://supabase-auth:9999/user',
+        expect.objectContaining({
+          method: 'GET',
+          headers: {
+            apikey: 'anon-key',
+            Authorization: 'Bearer valid-token',
+          },
+        }),
+      );
+      expect(getUserMock).not.toHaveBeenCalled();
       expect(result.type).toBe('claimed');
       expect(result.user?.email).toBe('organizer@example.com');
     });
 
     it('returns anonymous when Supabase token is invalid', async () => {
-      getUserMock.mockResolvedValue({
-        data: { user: null },
-        error: { message: 'Invalid token' },
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ error: 'invalid_token' }),
       });
 
       const mockRequest = {
@@ -178,11 +191,10 @@ describe('AuthService', () => {
 
       const result = await service.getMe(mockRequest);
       expect(result.type).toBe('anonymous');
+      expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('returns guest when valid mc_guest cookie present (no Supabase token)', async () => {
-      getUserMock.mockResolvedValue({ data: { user: null }, error: { message: 'no token' } });
-
       const sessionChain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -227,14 +239,15 @@ describe('AuthService', () => {
       expect(result.type).toBe('guest');
       expect(result.session?.device_label).toBe('iPhone (Safari)');
       expect(result.person?.given_name).toBe('Jean');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('claimed wins when both Supabase token and guest cookie present; clears guest cookie', async () => {
-      getUserMock.mockResolvedValue({
-        data: {
-          user: { id: 'user-123', email: 'organizer@example.com', user_metadata: {} },
-        },
-        error: null,
+      mockAuthUser({
+        id: 'user-123',
+        email: 'organizer@example.com',
+        user_metadata: {},
       });
 
       const expiresAt = new Date(Date.now() + 3600000);
@@ -253,6 +266,7 @@ describe('AuthService', () => {
 
       const result = await service.getMe(mockRequest, mockReply);
       expect(result.type).toBe('claimed');
+      expect(getUserMock).not.toHaveBeenCalled();
       expect(clearCookieMock).toHaveBeenCalledWith(
         'mc_guest',
         expect.objectContaining({ sameSite: 'lax', path: '/' }),
@@ -262,10 +276,7 @@ describe('AuthService', () => {
 
   describe('acceptOAuthSession', () => {
     it('sets cookies for an existing organizer member', async () => {
-      getUserMock.mockResolvedValue({
-        data: { user: { id: 'user-123', email: 'org@example.com' } },
-        error: null,
-      });
+      mockAuthUser({ id: 'user-123', email: 'org@example.com' });
 
       fromMock
         .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
@@ -292,13 +303,21 @@ describe('AuthService', () => {
         expect.objectContaining({ httpOnly: true }),
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://supabase-auth:9999/user',
+        expect.objectContaining({
+          method: 'GET',
+          headers: {
+            apikey: 'anon-key',
+            Authorization: 'Bearer access-token',
+          },
+        }),
+      );
+      expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('rejects admin OAuth when user has no organization or platform role', async () => {
-      getUserMock.mockResolvedValue({
-        data: { user: { id: 'user-123', email: 'outsider@example.com' } },
-        error: null,
-      });
+      mockAuthUser({ id: 'user-123', email: 'outsider@example.com' });
       fromMock
         .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
         .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
@@ -313,13 +332,11 @@ describe('AuthService', () => {
           makeReply() as never,
         ),
       ).rejects.toThrow(ForbiddenException);
+      expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('creates organizer signup membership after Google session validation', async () => {
-      getUserMock.mockResolvedValue({
-        data: { user: { id: 'user-123', email: 'new@example.com' } },
-        error: null,
-      });
+      mockAuthUser({ id: 'user-123', email: 'new@example.com' });
       const reply = makeReply();
 
       await service.acceptOAuthSession(
@@ -339,13 +356,11 @@ describe('AuthService', () => {
         'lyon-amhe',
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/org/lyon-amhe' });
+      expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('claims a Person when Google email matches the registered email', async () => {
-      getUserMock.mockResolvedValue({
-        data: { user: { id: 'user-123', email: 'jean@example.com' } },
-        error: null,
-      });
+      mockAuthUser({ id: 'user-123', email: 'jean@example.com' });
       const personChain = makeQueryChain({
         data: { id: 'person-1', email: 'jean@example.com', claim_status: 'unclaimed' },
         error: null,
@@ -369,13 +384,11 @@ describe('AuthService', () => {
         claimed_by_user_id: 'user-123',
       });
       expect(reply.send).toHaveBeenCalledWith({ next: '/' });
+      expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('rejects person claim when Google email does not match', async () => {
-      getUserMock.mockResolvedValue({
-        data: { user: { id: 'user-123', email: 'other@example.com' } },
-        error: null,
-      });
+      mockAuthUser({ id: 'user-123', email: 'other@example.com' });
       fromMock.mockReturnValueOnce(
         makeQueryChain({
           data: { id: 'person-1', email: 'jean@example.com', claim_status: 'unclaimed' },
@@ -394,6 +407,27 @@ describe('AuthService', () => {
           makeReply() as never,
         ),
       ).rejects.toThrow(BadRequestException);
+      expect(getUserMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects OAuth when internal GoTrue rejects the access token', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ error: 'invalid_token' }),
+      });
+
+      await expect(
+        service.acceptOAuthSession(
+          {
+            accessToken: 'bad-token',
+            refreshToken: 'refresh-token',
+            mode: 'admin_login',
+          },
+          makeReply() as never,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(fromMock).not.toHaveBeenCalled();
+      expect(getUserMock).not.toHaveBeenCalled();
     });
   });
 

@@ -30,6 +30,18 @@ type GoTruePasswordTokenResponse = {
   };
 };
 
+type GoTrueAuthUser = {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+};
+
+function isAuthUser(value: unknown): value is GoTrueAuthUser {
+  return Boolean(
+    value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string',
+  );
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -84,12 +96,9 @@ export class AuthService {
   // ── Magic link callback ─────────────────────────────────────────────────
 
   async acceptOAuthSession(dto: OAuthSessionDto, reply: FastifyReply): Promise<void> {
-    const {
-      data: { user },
-      error,
-    } = await this.supabase.anon.auth.getUser(dto.accessToken);
+    const user = await this.requestAuthUser(dto.accessToken);
 
-    if (error || !user) {
+    if (!user) {
       throw new UnauthorizedException('Invalid OAuth session');
     }
 
@@ -195,12 +204,9 @@ export class AuthService {
 
     // ── Claimed path ──────────────────────────────────────────────────────
     if (accessToken) {
-      const {
-        data: { user },
-        error,
-      } = await this.supabase.anon.auth.getUser(accessToken);
+      const user = await this.requestAuthUser(accessToken);
 
-      if (!error && user) {
+      if (user) {
         // Both claimed + guest present → claimed wins, clear guest cookie
         if (guestToken && reply) {
           const cookieReply = reply as FastifyReply & {
@@ -379,6 +385,46 @@ export class AuthService {
     if (!redirectTo) return '/';
     const isAllowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) => redirectTo.startsWith(prefix));
     return isAllowed ? redirectTo : '/';
+  }
+
+  private async requestAuthUser(accessToken: string): Promise<GoTrueAuthUser | null> {
+    const authUrl =
+      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
+      this.config.getOrThrow<string>('SUPABASE_URL');
+    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
+
+    let response: {
+      ok: boolean;
+      json: () => Promise<unknown>;
+    };
+
+    try {
+      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/user`, {
+        method: 'GET',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    } catch {
+      return null;
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    if (!response.ok || !body || typeof body !== 'object') {
+      return null;
+    }
+
+    const record = body as Record<string, unknown>;
+    if (isAuthUser(record)) return record;
+    if (isAuthUser(record['user'])) return record['user'];
+    return null;
   }
 
   private async requestPasswordToken(

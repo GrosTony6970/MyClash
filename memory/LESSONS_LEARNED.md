@@ -127,6 +127,7 @@ _(New lessons added below as they are learned.)_
 - **`@fastify/cookie` must be registered via `require()` in NestJS** when using the Fastify adapter — the ESM default import (`import fastifyCookie from '@fastify/cookie'`) produces a TypeScript type mismatch with `app.register()`. Use `const fastifyCookie = require('@fastify/cookie')` and access `.default` if present.
 - **`SUPABASE_URL` in Docker is `http://kong:8000`** (internal network name), not `http://localhost:8000`. In dev without Docker it's `http://localhost:8000`. Always use the env var, never hardcode.
 - **For self-hosted Supabase OAuth, provider redirect URIs point to GoTrue** (`/auth/v1/callback`). App callback routes belong in `GOTRUE_URI_ALLOW_LIST`; do not put app callback URLs in the Google Cloud OAuth client.
+- **For server-side self-hosted Supabase Auth checks, prefer the internal GoTrue URL** (`SUPABASE_AUTH_INTERNAL_URL`) over browser/public app URLs. Public routing can be correct for OAuth/browser flows while still being the wrong path for API token exchange or `/user` validation.
 
 ## Scheduling & bracket generation
 

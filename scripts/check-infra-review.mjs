@@ -17,6 +17,15 @@ const publicEventRootPagePath = path.join(
   'page.tsx',
 );
 const adminRootPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'page.tsx');
+const authServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'auth',
+  'auth.service.ts',
+);
 const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
@@ -43,6 +52,7 @@ const statusText = await readFile(statusPath, 'utf8');
 const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
 const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
 const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
+const authServiceText = await readFile(authServicePath, 'utf8');
 const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
@@ -154,6 +164,15 @@ for (const serviceName of ['api', 'worker']) {
     'SUPABASE_AUTH_INTERNAL_URL: http://supabase-auth:9999',
   );
 }
+if (authServiceText.includes('signInWithPassword')) {
+  errors.push('AuthService.passwordLogin must use internal GoTrue instead of signInWithPassword.');
+}
+if (authServiceText.includes('supabase.anon.auth.getUser')) {
+  errors.push('AuthService server-side token validation must use internal GoTrue /user.');
+}
+requireContains(authServiceText, 'AuthService', '/token?grant_type=password');
+requireContains(authServiceText, 'AuthService', '/user');
+requireContains(authServiceText, 'AuthService', 'SUPABASE_AUTH_INTERNAL_URL');
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],
