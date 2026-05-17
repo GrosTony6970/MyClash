@@ -49,6 +49,22 @@ export default function AdminLeaguesPage() {
     rankingDimensions: 'weapon',
   });
   const [slugDetached, setSlugDetached] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    description: string;
+    status: string;
+    publicVisibility: boolean;
+    scoringSystem: 'ffamhe_tf_2026' | 'custom';
+    pointRows: Array<{ rank: number; points: number }>;
+  }>({
+    name: '',
+    description: '',
+    status: 'draft',
+    publicVisibility: false,
+    scoringSystem: 'ffamhe_tf_2026',
+    pointRows: [],
+  });
 
   const load = useCallback(() => {
     setLoading(true);
@@ -127,6 +143,89 @@ export default function AdminLeaguesPage() {
       .catch(() => setError(t('admin.leagues.recomputeError')));
   };
 
+  const openEdit = (league: League) => {
+    setEditId(league.id);
+    const cfg = league.scoring_config;
+    const isCustom = cfg?.scoringSystem === 'custom';
+    setEditForm({
+      name: league.name,
+      description: league.description ?? '',
+      status: league.status,
+      publicVisibility: league.public_visibility,
+      scoringSystem: isCustom ? 'custom' : 'ffamhe_tf_2026',
+      pointRows:
+        isCustom && cfg?.customPointsByRank
+          ? Object.entries(cfg.customPointsByRank)
+              .map(([rank, points]) => ({ rank: Number(rank), points: Number(points) }))
+              .sort((a, b) => a.rank - b.rank)
+          : [],
+    });
+  };
+
+  const saveEdit = () => {
+    if (!editId) return;
+    const existingLeague = leagues.find((l) => l.id === editId);
+    const existingCfg = existingLeague?.scoring_config;
+
+    const scoringConfig =
+      editForm.scoringSystem === 'custom'
+        ? {
+            scoringSystem: 'custom' as const,
+            rankingDimensions: existingCfg?.rankingDimensions ?? 'weapon',
+            tieBreakers: existingCfg?.tieBreakers ?? [
+              'total_points',
+              'participation_count',
+              'medal_count',
+              'double_hit_average',
+            ],
+            customPointsByRank: Object.fromEntries(
+              editForm.pointRows.map((r) => [r.rank, r.points]),
+            ),
+          }
+        : {
+            scoringSystem: 'ffamhe_tf_2026' as const,
+            rankingDimensions: existingCfg?.rankingDimensions ?? 'weapon',
+            tieBreakers: existingCfg?.tieBreakers ?? [
+              'total_points',
+              'participation_count',
+              'medal_count',
+              'double_hit_average',
+            ],
+          };
+
+    fetch(`${apiUrl}/api/v1/admin/leagues/${editId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: editForm.name,
+        description: editForm.description || undefined,
+        status: editForm.status,
+        publicVisibility: editForm.publicVisibility,
+        scoringConfig,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Update failed');
+        setEditId(null);
+        load();
+      })
+      .catch(() => setError('Failed to update league'));
+  };
+
+  const deleteLeague = (leagueId: string, name: string) => {
+    if (!window.confirm(`Delete league "${name}"? This cannot be undone.`)) return;
+    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Delete failed');
+        load();
+      })
+      .catch(() => setError('Failed to delete league'));
+  };
+
   return (
     <main className="p-8">
       <div className="mb-7">
@@ -195,6 +294,8 @@ export default function AdminLeaguesPage() {
                   {league.public_visibility
                     ? t('admin.leagues.public')
                     : t('admin.leagues.private')}
+                  {' — '}
+                  <span className="capitalize">{league.status}</span>
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -216,8 +317,65 @@ export default function AdminLeaguesPage() {
                 <button className="text-sm underline" onClick={() => recompute(league.id)}>
                   {t('admin.leagues.recompute')}
                 </button>
+                <button
+                  className="text-sm underline"
+                  onClick={() => (editId === league.id ? setEditId(null) : openEdit(league))}
+                >
+                  {editId === league.id ? 'Cancel' : 'Edit'}
+                </button>
+                <button
+                  className="text-sm underline text-red-600"
+                  onClick={() => deleteLeague(league.id, league.name)}
+                >
+                  Delete
+                </button>
               </div>
             </div>
+
+            {editId === league.id && (
+              <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4">
+                <input
+                  className="border rounded px-3 py-2 text-sm"
+                  placeholder="Name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                <textarea
+                  className="border rounded px-3 py-2 text-sm"
+                  placeholder="Description (optional)"
+                  rows={2}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                />
+                <div className="flex flex-wrap gap-4 items-center">
+                  <select
+                    className="border rounded px-3 py-2 text-sm"
+                    value={editForm.status}
+                    onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editForm.publicVisibility}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, publicVisibility: e.target.checked }))
+                      }
+                    />
+                    Public
+                  </label>
+                  <button
+                    className="bg-gray-950 text-white rounded px-3 py-2 text-sm"
+                    onClick={saveEdit}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
 
             <h3 className="text-sm font-semibold mt-5 mb-2">{t('admin.leagues.requests')}</h3>
             <div className="grid gap-2">
