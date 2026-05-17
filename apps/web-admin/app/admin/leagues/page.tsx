@@ -34,6 +34,20 @@ interface TournamentLink {
   } | null;
 }
 
+interface EventSummary {
+  id: string;
+  name: string;
+  slug: string;
+  start_date: string | null;
+}
+
+interface TournamentSummary {
+  id: string;
+  name: string | null;
+  weapon: string | null;
+  category: string | null;
+}
+
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export default function AdminLeaguesPage() {
@@ -65,6 +79,11 @@ export default function AdminLeaguesPage() {
     scoringSystem: 'ffamhe_tf_2026',
     pointRows: [],
   });
+  const [addPanelLeagueId, setAddPanelLeagueId] = useState<string | null>(null);
+  const [allEvents, setAllEvents] = useState<EventSummary[]>([]);
+  const [eventSearch, setEventSearch] = useState('');
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [eventTournaments, setEventTournaments] = useState<Record<string, TournamentSummary[]>>({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -226,6 +245,102 @@ export default function AdminLeaguesPage() {
       .catch(() => setError('Failed to delete league'));
   };
 
+  const removeLink = (linkId: string, leagueId: string) => {
+    fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'removed' }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Remove failed');
+        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
+          credentials: 'include',
+        });
+      })
+      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
+      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
+      .catch(() => setError('Failed to remove link'));
+  };
+
+  const removeEventLinks = (leagueId: string, eventId: string) => {
+    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/events/${eventId}/tournament-links`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Bulk remove failed');
+        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
+          credentials: 'include',
+        });
+      })
+      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
+      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
+      .catch(() => setError('Failed to remove event links'));
+  };
+
+  const openAddPanel = (leagueId: string) => {
+    if (addPanelLeagueId === leagueId) {
+      setAddPanelLeagueId(null);
+      return;
+    }
+    setAddPanelLeagueId(leagueId);
+    setEventSearch('');
+    setExpandedEventId(null);
+    if (allEvents.length === 0) {
+      fetch(`${apiUrl}/api/v1/events`, { credentials: 'include' })
+        .then((res) => (res.ok ? (res.json() as Promise<EventSummary[]>) : []))
+        .then(setAllEvents)
+        .catch(() => setError('Failed to load events'));
+    }
+  };
+
+  const expandEvent = (eventId: string) => {
+    if (expandedEventId === eventId) {
+      setExpandedEventId(null);
+      return;
+    }
+    setExpandedEventId(eventId);
+    if (!eventTournaments[eventId]) {
+      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, { credentials: 'include' })
+        .then((res) => (res.ok ? (res.json() as Promise<TournamentSummary[]>) : []))
+        .then((ts) => setEventTournaments((prev) => ({ ...prev, [eventId]: ts })))
+        .catch(() => setError('Failed to load tournaments'));
+    }
+  };
+
+  const addTournament = (leagueId: string, tournamentId: string) => {
+    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/link`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Add failed');
+        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
+          credentials: 'include',
+        });
+      })
+      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
+      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
+      .catch(() => setError('Failed to add tournament'));
+  };
+
+  const addEventTournaments = (leagueId: string, eventId: string) => {
+    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/events/${eventId}/link`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Add failed');
+        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
+          credentials: 'include',
+        });
+      })
+      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
+      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
+      .catch(() => setError('Failed to add event tournaments'));
+  };
+
   return (
     <main className="p-8">
       <div className="mb-7">
@@ -328,6 +443,9 @@ export default function AdminLeaguesPage() {
                   onClick={() => deleteLeague(league.id, league.name)}
                 >
                   Delete
+                </button>
+                <button className="text-sm underline" onClick={() => openAddPanel(league.id)}>
+                  {addPanelLeagueId === league.id ? 'Close add panel' : 'Add tournaments'}
                 </button>
               </div>
             </div>
@@ -499,32 +617,169 @@ export default function AdminLeaguesPage() {
               </div>
             )}
 
-            <h3 className="text-sm font-semibold mt-5 mb-2">{t('admin.leagues.requests')}</h3>
-            <div className="grid gap-2">
-              {(links[league.id] ?? []).map((link) => (
-                <div
-                  key={link.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-100 p-3 text-sm"
-                >
-                  <span>
-                    {link.tournaments?.events?.name} - {link.tournaments?.name}
-                  </span>
-                  <span className="text-gray-500">
-                    {t(`admin.leagues.linkStatuses.${link.status}`)}
-                  </span>
-                  {link.status === 'requested' && (
-                    <span className="flex gap-2">
-                      <button className="underline" onClick={() => review(link.id, 'approved')}>
-                        {t('admin.leagues.approve')}
-                      </button>
-                      <button className="underline" onClick={() => review(link.id, 'rejected')}>
-                        {t('admin.leagues.reject')}
-                      </button>
-                    </span>
+            {(() => {
+              const leagueLinks = links[league.id] ?? [];
+              const byEvent = new Map<
+                string,
+                { eventId: string; eventName: string; links: TournamentLink[] }
+              >();
+              for (const link of leagueLinks) {
+                const eventId = link.tournaments?.events?.id ?? '__no_event__';
+                const eventName = link.tournaments?.events?.name ?? 'Unknown event';
+                if (!byEvent.has(eventId)) byEvent.set(eventId, { eventId, eventName, links: [] });
+                byEvent.get(eventId)!.links.push(link);
+              }
+
+              if (byEvent.size === 0) return null;
+
+              return (
+                <>
+                  <h3 className="text-sm font-semibold mt-5 mb-2">{t('admin.leagues.requests')}</h3>
+                  {[...byEvent.values()].map((group) => (
+                    <div key={group.eventId} className="mb-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-600">{group.eventName}</span>
+                        {group.eventId !== '__no_event__' && (
+                          <button
+                            className="text-xs underline text-red-600"
+                            onClick={() => removeEventLinks(league.id, group.eventId)}
+                          >
+                            Remove all
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        {group.links.map((link) => (
+                          <div
+                            key={link.id}
+                            className={`flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-sm ${
+                              link.status === 'removed'
+                                ? 'border-gray-100 opacity-40'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <span>
+                              {link.tournaments?.name}{' '}
+                              {link.tournaments?.weapon && `· ${link.tournaments.weapon}`}{' '}
+                              {link.tournaments?.category && `· ${link.tournaments.category}`}
+                            </span>
+                            <span className="text-gray-500 capitalize">{link.status}</span>
+                            <span className="flex gap-2">
+                              {link.status === 'requested' && (
+                                <>
+                                  <button
+                                    className="underline"
+                                    onClick={() => review(link.id, 'approved')}
+                                  >
+                                    {t('admin.leagues.approve')}
+                                  </button>
+                                  <button
+                                    className="underline"
+                                    onClick={() => review(link.id, 'rejected')}
+                                  >
+                                    {t('admin.leagues.reject')}
+                                  </button>
+                                </>
+                              )}
+                              {link.status !== 'removed' && (
+                                <button
+                                  className="underline text-red-600"
+                                  onClick={() => removeLink(link.id, league.id)}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+
+            {addPanelLeagueId === league.id && (
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <p className="text-sm font-semibold mb-2">Add tournaments</p>
+                <input
+                  className="border rounded px-3 py-2 text-sm w-full max-w-sm mb-3"
+                  placeholder="Search events…"
+                  value={eventSearch}
+                  onChange={(e) => setEventSearch(e.target.value)}
+                />
+                <div className="grid gap-2 max-h-72 overflow-y-auto">
+                  {allEvents
+                    .filter((ev) => !eventSearch || fuzzyMatch(eventSearch, ev.name))
+                    .map((ev) => {
+                      const linked = new Set(
+                        (links[league.id] ?? [])
+                          .filter((l) => l.status !== 'removed')
+                          .map((l) => l.tournaments?.id)
+                          .filter((id): id is string => Boolean(id)),
+                      );
+                      return (
+                        <div key={ev.id} className="border border-gray-100 rounded p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              className="text-sm text-left flex-1"
+                              onClick={() => expandEvent(ev.id)}
+                            >
+                              {expandedEventId === ev.id ? '▾' : '▸'} {ev.name}
+                            </button>
+                            <button
+                              className="text-xs underline"
+                              onClick={() => addEventTournaments(league.id, ev.id)}
+                            >
+                              Add all
+                            </button>
+                          </div>
+                          {expandedEventId === ev.id && (
+                            <div className="mt-2 grid gap-1 pl-4">
+                              {(eventTournaments[ev.id] ?? []).map((tour) => {
+                                const isLinked = linked.has(tour.id);
+                                return (
+                                  <div
+                                    key={tour.id}
+                                    className={`flex items-center justify-between text-sm ${
+                                      isLinked ? 'opacity-40' : ''
+                                    }`}
+                                  >
+                                    <span>
+                                      {tour.name}
+                                      {tour.weapon ? ` · ${tour.weapon}` : ''}
+                                      {tour.category ? ` · ${tour.category}` : ''}
+                                    </span>
+                                    <button
+                                      className="text-xs underline"
+                                      disabled={isLinked}
+                                      onClick={() => !isLinked && addTournament(league.id, tour.id)}
+                                    >
+                                      {isLinked ? 'Linked' : 'Add'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {eventTournaments[ev.id]?.length === 0 && (
+                                <p className="text-xs text-gray-400">No tournaments</p>
+                              )}
+                              {!eventTournaments[ev.id] && (
+                                <p className="text-xs text-gray-400">Loading…</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  {allEvents.filter((ev) => !eventSearch || fuzzyMatch(eventSearch, ev.name))
+                    .length === 0 && (
+                    <p className="text-sm text-gray-400">
+                      No events match &quot;{eventSearch}&quot;
+                    </p>
                   )}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </section>
         ))}
       </div>
