@@ -11,9 +11,18 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { ClubsService, type DeleteClubMode } from './clubs.service';
 import { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
@@ -53,6 +62,38 @@ export class ClubsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClubDto) {
     return this.clubs.update(id, dto);
+  }
+
+  /** POST /api/v1/clubs/:id/logo */
+  @Post(':id/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload a club logo (super admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          | {
+              filename: string;
+              mimetype: string;
+              toBuffer: () => Promise<Buffer>;
+            }
+          | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.clubs.uploadLogo(id, {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    });
   }
 
   /** DELETE /api/v1/clubs/:id?mode=safe|archive|cleanup */

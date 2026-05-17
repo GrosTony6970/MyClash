@@ -111,6 +111,62 @@ describe('AdminSystemVersionsService', () => {
     );
   });
 
+  it('uses packaged container metadata when the manifest is unavailable', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
+    await writeFile(path.join(dir, 'VERSION'), 'v8.8.8\n');
+    await writeJson(path.join(dir, 'package.json'), {
+      packageManager: 'pnpm@10.27.0',
+      engines: { node: '>=26.0.0' },
+      devDependencies: { typescript: '^5.9.0' },
+    });
+    await writeJson(path.join(dir, 'apps', 'api', 'package.json'), {
+      version: '0.8.0',
+      dependencies: { '@nestjs/core': '^11.0.0' },
+    });
+    await writeJson(path.join(dir, 'apps', 'web-admin', 'package.json'), {
+      version: '0.7.0',
+      dependencies: { next: '15.5.0', react: '^19.1.0', 'react-dom': '^19.1.0' },
+    });
+    await writeJson(path.join(dir, 'apps', 'web-public', 'package.json'), { version: '0.6.0' });
+    await writeJson(path.join(dir, 'apps', 'web-scoring', 'package.json'), { version: '0.5.0' });
+    await writeJson(path.join(dir, 'apps', 'web-marketing', 'package.json'), {
+      version: '0.4.0',
+    });
+    await mkdir(path.join(dir, 'infra'), { recursive: true });
+    await writeFile(
+      path.join(dir, 'infra', 'docker-compose.prod.yml'),
+      [
+        'services:',
+        '  traefik:',
+        '    image: traefik:v3.7.1',
+        '  supabase-rest:',
+        '    image: postgrest/postgrest:v12.2.3',
+      ].join('\n'),
+    );
+
+    const service = new AdminSystemVersionsService({
+      rootDir: dir,
+      manifestPath: path.join(dir, 'data', 'missing.json'),
+      runtimeNodeVersion: 'v26.1.0',
+    });
+
+    const result = await service.getSystemVersions();
+
+    expect(result.groups.find((group) => group.key === 'app')?.components).toContainEqual(
+      expect.objectContaining({ key: 'myclash', version: 'v8.8.8' }),
+    );
+    expect(result.groups.find((group) => group.key === 'workspaces')?.components).toContainEqual(
+      expect.objectContaining({ key: '@myclash/web-admin', version: '0.7.0' }),
+    );
+    expect(result.groups.find((group) => group.key === 'framework')?.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'next', version: '15.5.0' }),
+        expect.objectContaining({ key: 'nestjs', version: '^11.0.0' }),
+        expect.objectContaining({ key: 'typescript', version: '^5.9.0' }),
+      ]),
+    );
+  });
+
   it('falls back cleanly when the manifest path is a directory', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
     await writeFile(path.join(dir, 'VERSION'), 'v9.9.9\n');

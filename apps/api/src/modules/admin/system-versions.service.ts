@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
@@ -71,7 +72,7 @@ export class AdminSystemVersionsService {
   private readonly runtimeNodeVersion: string;
 
   constructor(options: AdminSystemVersionsServiceOptions = {}) {
-    this.rootDir = options.rootDir ?? path.resolve(process.cwd(), '..', '..');
+    this.rootDir = options.rootDir ?? resolveSystemVersionsRootDir();
     this.manifestPath =
       options.manifestPath ??
       process.env['SYSTEM_VERSIONS_PATH'] ??
@@ -156,10 +157,16 @@ export class AdminSystemVersionsService {
   private async readManifest(): Promise<RawSystemVersionsManifest | null> {
     try {
       const text = await readTextIfExists(this.manifestPath);
-      return text ? (JSON.parse(text) as RawSystemVersionsManifest) : null;
+      if (!text) {
+        this.logger.warn(
+          `System version manifest missing at ${this.manifestPath}; using fallback metadata from ${this.rootDir}`,
+        );
+        return null;
+      }
+      return JSON.parse(text) as RawSystemVersionsManifest;
     } catch (error) {
       this.logger.warn(
-        `System version manifest unavailable at ${this.manifestPath}; using fallback metadata (${errorSummary(error)})`,
+        `System version manifest unavailable at ${this.manifestPath}; using fallback metadata from ${this.rootDir} (${errorSummary(error)})`,
       );
       return null;
     }
@@ -212,6 +219,33 @@ export class AdminSystemVersionsService {
       result[key] = { version: manifest?.version ?? UNKNOWN };
     }
     return result;
+  }
+}
+
+function resolveSystemVersionsRootDir(): string {
+  const candidates = [
+    process.env['SYSTEM_VERSIONS_ROOT_DIR'],
+    '/app',
+    process.cwd(),
+    path.resolve(process.cwd(), '..', '..'),
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const candidate of candidates) {
+    if (hasRootPackage(candidate)) return candidate;
+  }
+
+  return path.resolve(process.cwd(), '..', '..');
+}
+
+function hasRootPackage(rootDir: string): boolean {
+  return statSyncSafe(path.join(rootDir, 'package.json'))?.isFile() ?? false;
+}
+
+function statSyncSafe(filePath: string) {
+  try {
+    return statSync(filePath);
+  } catch {
+    return null;
   }
 }
 

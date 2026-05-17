@@ -76,6 +76,12 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/node_modules ./pack
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./packages/types/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages/rulesets/dist
+COPY --chown=nestjs:nodejs VERSION ./VERSION
+COPY --chown=nestjs:nodejs infra/docker-compose.prod.yml ./infra/docker-compose.prod.yml
+COPY --chown=nestjs:nodejs apps/web-admin/package.json ./apps/web-admin/package.json
+COPY --chown=nestjs:nodejs apps/web-public/package.json ./apps/web-public/package.json
+COPY --chown=nestjs:nodejs apps/web-scoring/package.json ./apps/web-scoring/package.json
+COPY --chown=nestjs:nodejs apps/web-marketing/package.json ./apps/web-marketing/package.json
 RUN ln -s apps/api/dist dist \
  && chown -h nestjs:nodejs dist
 # Bootstrap scripts (run as one-off containers during deploy)

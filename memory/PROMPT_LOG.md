@@ -851,3 +851,11 @@ PLEASE IMPLEMENT THIS PLAN: Expose Clubs In Super-Admin Menu And Add Club Deleti
 ## 19:28:11_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Add System Versions Refresh Button
+
+## 20:54:40_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix System Versions Showing Unknown Except Node.js
+
+## 20:57:58_17-05-2026
+
+User requested: when creating a club allow logo upload up to 10 MB, and make Back to admin appear like a real button on all pages.

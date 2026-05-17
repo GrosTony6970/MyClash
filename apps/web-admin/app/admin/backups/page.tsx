@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { AdminBackLink } from '../../../src/components/AdminBackLink';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type BackupLocation = 'local' | 's3' | 'upload';
@@ -200,9 +200,7 @@ export default function AdminBackupsPage() {
   return (
     <main id="main-content" className="p-8">
       <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          {t('admin.backups.backToAdmin')}
-        </Link>
+        <AdminBackLink>{t('admin.backups.backToAdmin')}</AdminBackLink>
       </div>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>

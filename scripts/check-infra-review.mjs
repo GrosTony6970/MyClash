@@ -108,6 +108,14 @@ const superAdminClubsPagePath = path.join(
   'clubs',
   'page.tsx',
 );
+const adminBackLinkPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'src',
+  'components',
+  'AdminBackLink.tsx',
+);
 const superAdminSystemVersionsPagePath = path.join(
   rootDir,
   'apps',
@@ -314,6 +322,7 @@ const superAdminOrganizationDetailPageText = await readFile(
 const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
 const superAdminFightersPageText = await readFile(superAdminFightersPagePath, 'utf8');
 const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
+const adminBackLinkText = await readFile(adminBackLinkPath, 'utf8');
 const superAdminSystemVersionsPageText = await readFile(superAdminSystemVersionsPagePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
@@ -871,7 +880,14 @@ for (const expected of [
 ]) {
   requireContains(superAdminFightersPageText, 'apps/web-admin/app/admin/fighters/page.tsx', expected);
 }
-for (const expected of ['createClub', '/api/v1/clubs', 'admin.clubs.createTitle']) {
+for (const expected of [
+  'createClub',
+  '/api/v1/clubs',
+  'admin.clubs.createTitle',
+  'admin.clubs.logoUpload',
+  '/api/v1/clubs/${created.id}/logo',
+  'MAX_LOGO_BYTES = 10 * 1024 * 1024',
+]) {
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
 }
 for (const expected of ['/admin/clubs', 'admin.shell.nav.clubs']) {
@@ -880,7 +896,13 @@ for (const expected of ['/admin/clubs', 'admin.shell.nav.clubs']) {
 for (const expected of ['/admin/clubs', 'clubsTitle', 'clubsDescription']) {
   requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', expected);
 }
-for (const expected of ["@Delete(':id')", '@UseGuards(SuperAdminGuard)', 'deleteClub']) {
+for (const expected of [
+  "@Delete(':id')",
+  "@Post(':id/logo')",
+  '@UseGuards(SuperAdminGuard)',
+  'uploadLogo',
+  'deleteClub',
+]) {
   requireContains(clubsControllerText, 'apps/api/src/modules/clubs/clubs.controller.ts', expected);
 }
 for (const expected of [
@@ -909,6 +931,23 @@ for (const expected of [
     'apps/web-admin/app/admin/system-versions/page.tsx',
     expected,
   );
+}
+for (const expected of [
+  'inline-flex',
+  'rounded-md',
+  'border border-slate-300',
+  "href = '/admin'",
+]) {
+  requireContains(adminBackLinkText, 'apps/web-admin/src/components/AdminBackLink.tsx', expected);
+}
+for (const [label, text] of [
+  ['apps/web-admin/app/admin/clubs/page.tsx', superAdminClubsPageText],
+  ['apps/web-admin/app/admin/backups/page.tsx', await readFile(path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'backups', 'page.tsx'), 'utf8')],
+  ['apps/web-admin/app/admin/data-quality/page.tsx', await readFile(path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'data-quality', 'page.tsx'), 'utf8')],
+  ['apps/web-admin/app/admin/ai-settings/page.tsx', await readFile(path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'ai-settings', 'page.tsx'), 'utf8')],
+  ['apps/web-admin/app/admin/system-versions/page.tsx', superAdminSystemVersionsPageText],
+]) {
+  requireContains(text, label, 'AdminBackLink');
 }
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
@@ -960,11 +999,27 @@ if (apiDockerfile) {
     apiDockerfile.filePath,
     'packages/db/scripts/migrate.mjs ./packages/db/scripts/migrate.mjs',
   );
+  for (const expected of [
+    'COPY --chown=nestjs:nodejs VERSION ./VERSION',
+    'COPY --chown=nestjs:nodejs infra/docker-compose.prod.yml ./infra/docker-compose.prod.yml',
+    'COPY --chown=nestjs:nodejs apps/web-admin/package.json ./apps/web-admin/package.json',
+    'COPY --chown=nestjs:nodejs apps/web-public/package.json ./apps/web-public/package.json',
+    'COPY --chown=nestjs:nodejs apps/web-scoring/package.json ./apps/web-scoring/package.json',
+    'COPY --chown=nestjs:nodejs apps/web-marketing/package.json ./apps/web-marketing/package.json',
+  ]) {
+    requireContains(apiDockerfile.text, apiDockerfile.filePath, expected);
+  }
   if (apiDockerfile.text.includes('./db-migrate.mjs')) {
     errors.push(
       'apps/api/Dockerfile must not copy the DB migration script to /app/db-migrate.mjs.',
     );
   }
+}
+for (const expected of [
+  'SYSTEM_VERSIONS_ROOT_DIR: /app',
+  'SYSTEM_VERSIONS_PATH: /app/data/system-versions.json',
+]) {
+  requireContains(composeText, 'infra/docker-compose.prod.yml', expected);
 }
 if (!deployText.includes('run --rm api node packages/db/scripts/migrate.mjs')) {
   errors.push('deploy.sh must run migrations from packages/db/scripts/migrate.mjs.');

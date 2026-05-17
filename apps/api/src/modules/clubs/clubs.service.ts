@@ -9,11 +9,21 @@ import type { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto
 
 export type DeleteClubMode = 'safe' | 'archive' | 'cleanup';
 
+const CLUB_LOGO_BUCKET = 'event-assets';
+const CLUB_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CLUB_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
 type ClubDeleteBlockers = {
   globalPersons: number;
   eventPersons: number;
   fighterClubLinks: number;
 };
+
+export interface ClubLogoUpload {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}
 
 function slugify(name: string): string {
   return name
@@ -109,6 +119,40 @@ export class ClubsService {
     return data;
   }
 
+  async uploadLogo(id: string, file: ClubLogoUpload): Promise<{ url: string }> {
+    await this.getClubById(id);
+
+    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
+    if (file.buffer.length > CLUB_LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
+    }
+    if (!ALLOWED_CLUB_LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureBucket();
+    const extension = this.extensionFor(file.mimetype);
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `clubs/${id}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(CLUB_LOGO_BUCKET)
+      .upload(path, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+    if (error) throw new BadRequestException(error.message);
+
+    const { data } = this.supabase.service.storage.from(CLUB_LOGO_BUCKET).getPublicUrl(path);
+    await this.update(id, { logoUrl: data.publicUrl });
+    return { url: data.publicUrl };
+  }
+
   async deleteClub(id: string, mode: DeleteClubMode = 'safe') {
     if (!['safe', 'archive', 'cleanup'].includes(mode)) {
       throw new BadRequestException('Unknown club deletion mode');
@@ -146,6 +190,39 @@ export class ClubsService {
 
   private booleanQueryValue(value: unknown): boolean {
     return value === true || value === 'true';
+  }
+
+  private async getClubById(id: string) {
+    const { data, error } = await this.supabase.service
+      .from('clubs')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Club ${id} not found`);
+    return data;
+  }
+
+  private async ensureBucket(): Promise<void> {
+    const storage = this.supabase.service.storage;
+    const { data, error } = await storage.getBucket(CLUB_LOGO_BUCKET);
+    if (data && !error) return;
+
+    const created = await storage.createBucket(CLUB_LOGO_BUCKET, {
+      public: true,
+      fileSizeLimit: CLUB_LOGO_MAX_BYTES,
+      allowedMimeTypes: Array.from(ALLOWED_CLUB_LOGO_MIME_TYPES),
+    });
+    if (created.error && !/already exists/iu.test(created.error.message)) {
+      throw new BadRequestException(created.error.message);
+    }
+  }
+
+  private extensionFor(mimetype: string): 'png' | 'jpg' | 'webp' {
+    if (mimetype === 'image/png') return 'png';
+    if (mimetype === 'image/webp') return 'webp';
+    return 'jpg';
   }
 
   private async collectClubDeleteBlockers(id: string): Promise<ClubDeleteBlockers> {

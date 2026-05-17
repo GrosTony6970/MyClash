@@ -1,8 +1,8 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AdminBackLink } from '../../../src/components/AdminBackLink';
 
 interface ClubRow {
   id: string;
@@ -11,6 +11,7 @@ interface ClubRow {
   abbreviation: string | null;
   city: string | null;
   country_code: string | null;
+  logo_url: string | null;
   unverified: string | null;
   archived_at: string | null;
 }
@@ -38,6 +39,9 @@ const emptyCreateState: CreateState = {
   logoUrl: '',
 };
 
+const MAX_LOGO_BYTES = 10 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
 function formatBlockers(blockers: unknown): string | null {
   if (!blockers || typeof blockers !== 'object') return null;
   const entries = Object.entries(blockers as Record<string, unknown>)
@@ -63,8 +67,11 @@ export default function AdminClubsPage() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [createState, setCreateState] = useState<CreateState>(emptyCreateState);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   const fetchClubs = useCallback(
     async (q: string, signal?: AbortSignal) => {
@@ -101,6 +108,12 @@ export default function AdminClubsPage() {
     return () => controller.abort();
   }, [fetchClubs]);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
+
   async function search(q: string) {
     setLoading(true);
     setError(null);
@@ -126,6 +139,41 @@ export default function AdminClubsPage() {
 
   function cancelEdit() {
     setEditingId(null);
+  }
+
+  function updateLogoPreview(file: File | null) {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    if (!file) {
+      setLogoFile(null);
+      setLogoPreviewUrl(null);
+      return;
+    }
+    const nextUrl = URL.createObjectURL(file);
+    previewUrlRef.current = nextUrl;
+    setLogoFile(file);
+    setLogoPreviewUrl(nextUrl);
+  }
+
+  function handleLogoFile(file: File | null) {
+    setError(null);
+    if (!file) {
+      updateLogoPreview(null);
+      return;
+    }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      updateLogoPreview(null);
+      setError(t('admin.clubs.logoTypeError'));
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      updateLogoPreview(null);
+      setError(t('admin.clubs.logoSizeError'));
+      return;
+    }
+    updateLogoPreview(file);
   }
 
   async function saveEdit(id: string) {
@@ -185,9 +233,29 @@ export default function AdminClubsPage() {
         throw new Error(data.message ?? t('admin.clubs.createError'));
       }
 
-      const created = (await res.json()) as ClubRow;
+      let created = (await res.json()) as ClubRow;
+      if (logoFile) {
+        const form = new FormData();
+        form.set('file', logoFile);
+        const uploadRes = await fetch(`${apiUrl}/api/v1/clubs/${created.id}/logo`, {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        });
+        if (!uploadRes.ok) {
+          const data = (await uploadRes.json().catch(() => ({}))) as { message?: string };
+          setClubs((prev) => [created, ...prev]);
+          setCreateState(emptyCreateState);
+          updateLogoPreview(null);
+          setCreateSuccess(t('admin.clubs.createSuccess', { club: created.name }));
+          throw new Error(data.message ?? t('admin.clubs.logoUploadError'));
+        }
+        const upload = (await uploadRes.json()) as { url: string };
+        created = { ...created, logo_url: upload.url };
+      }
       setClubs((prev) => [created, ...prev]);
       setCreateState(emptyCreateState);
+      updateLogoPreview(null);
       setCreateSuccess(t('admin.clubs.createSuccess', { club: created.name }));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.clubs.createError'));
@@ -247,9 +315,7 @@ export default function AdminClubsPage() {
   return (
     <main className="p-8">
       <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          {t('admin.clubs.backToAdmin')}
-        </Link>
+        <AdminBackLink>{t('admin.clubs.backToAdmin')}</AdminBackLink>
       </div>
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -325,6 +391,35 @@ export default function AdminClubsPage() {
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </label>
+          <label className="text-xs font-medium text-slate-600 md:col-span-2">
+            {t('admin.clubs.logoUpload')}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+            <span className="mt-1 block text-[11px] font-normal text-slate-500">
+              {t('admin.clubs.logoHelp')}
+            </span>
+          </label>
+          {logoPreviewUrl && (
+            <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:col-span-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoPreviewUrl}
+                alt={t('admin.clubs.logoPreviewAlt')}
+                className="h-12 w-12 rounded-md border border-slate-200 bg-white object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => handleLogoFile(null)}
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+              >
+                {t('actions.clear')}
+              </button>
+            </div>
+          )}
         </div>
         <button
           type="button"

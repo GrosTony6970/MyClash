@@ -3,7 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClubsService } from './clubs.service';
 
 const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock } };
+const storageFromMock = vi.fn();
+const getBucketMock = vi.fn();
+const createBucketMock = vi.fn();
+const mockSupabase = {
+  service: {
+    from: fromMock,
+    storage: {
+      from: storageFromMock,
+      getBucket: getBucketMock,
+      createBucket: createBucketMock,
+    },
+  },
+};
 
 type ChainResult = { data?: unknown; error?: { message: string } | null; count?: number | null };
 
@@ -54,6 +66,14 @@ describe('ClubsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeAwaitableChain({ data: [], error: null }));
+    getBucketMock.mockResolvedValue({ data: { id: 'event-assets' }, error: null });
+    createBucketMock.mockResolvedValue({ data: { id: 'event-assets' }, error: null });
+    storageFromMock.mockReturnValue({
+      upload: vi.fn().mockResolvedValue({ error: null }),
+      getPublicUrl: vi.fn().mockReturnValue({
+        data: { publicUrl: 'https://assets.test/clubs/club-1/logo.png' },
+      }),
+    });
     service = new ClubsService(mockSupabase as never);
   });
 
@@ -143,5 +163,64 @@ describe('ClubsService', () => {
     await expect(service.deleteClub('club-1', 'invalid' as never)).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  it('uploads a valid club logo and stores its public URL', async () => {
+    const lookupChain = makeChain({ data: { id: 'club-1' }, error: null });
+    const updateChain = makeChain({
+      data: { id: 'club-1', logo_url: 'https://assets.test/clubs/club-1/logo.png' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(lookupChain).mockReturnValueOnce(updateChain);
+    const uploadMock = vi.fn().mockResolvedValue({ error: null });
+    const getPublicUrlMock = vi.fn().mockReturnValue({
+      data: { publicUrl: 'https://assets.test/clubs/club-1/logo.png' },
+    });
+    storageFromMock.mockReturnValue({
+      upload: uploadMock,
+      getPublicUrl: getPublicUrlMock,
+    });
+
+    await expect(
+      service.uploadLogo('club-1', {
+        buffer: Buffer.from('png'),
+        filename: 'Club Logo.png',
+        mimetype: 'image/png',
+      }),
+    ).resolves.toEqual({ url: 'https://assets.test/clubs/club-1/logo.png' });
+
+    expect(storageFromMock).toHaveBeenCalledWith('event-assets');
+    expect(uploadMock).toHaveBeenCalledWith(
+      expect.stringMatching(/^clubs\/club-1\/logo-\d+-club-logo\.png$/u),
+      Buffer.from('png'),
+      expect.objectContaining({ contentType: 'image/png', upsert: true }),
+    );
+    expect(updateChain.update).toHaveBeenCalledWith({
+      logo_url: 'https://assets.test/clubs/club-1/logo.png',
+    });
+  });
+
+  it('rejects oversized club logos', async () => {
+    fromMock.mockReturnValueOnce(makeChain({ data: { id: 'club-1' }, error: null }));
+
+    await expect(
+      service.uploadLogo('club-1', {
+        buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
+        filename: 'logo.png',
+        mimetype: 'image/png',
+      }),
+    ).rejects.toThrow('10 MB');
+  });
+
+  it('rejects unsupported club logo file types', async () => {
+    fromMock.mockReturnValueOnce(makeChain({ data: { id: 'club-1' }, error: null }));
+
+    await expect(
+      service.uploadLogo('club-1', {
+        buffer: Buffer.from('<svg />'),
+        filename: 'logo.svg',
+        mimetype: 'image/svg+xml',
+      }),
+    ).rejects.toThrow('PNG, JPEG, or WebP');
   });
 });

@@ -1,8 +1,8 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { AdminBackLink } from '../../../src/components/AdminBackLink';
 
 type AIProvider = 'anthropic' | 'openai' | 'mistral';
 
@@ -94,9 +94,7 @@ export default function AdminAISettingsPage() {
   return (
     <main className="p-8 max-w-3xl">
       <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          {t('admin.aiSettings.backToAdmin')}
-        </Link>
+        <AdminBackLink>{t('admin.aiSettings.backToAdmin')}</AdminBackLink>
       </div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold">{t('admin.aiSettings.title')}</h1>

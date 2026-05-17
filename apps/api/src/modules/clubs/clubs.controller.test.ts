@@ -11,4 +11,12 @@ describe('ClubsController', () => {
 
     expect(guards).toContain(SuperAdminGuard);
   });
+
+  it('guards club logo upload with SuperAdminGuard', () => {
+    const guards = Reflect.getMetadata(GUARDS_METADATA, ClubsController.prototype.uploadLogo) as
+      | unknown[]
+      | undefined;
+
+    expect(guards).toContain(SuperAdminGuard);
+  });
 });

@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { AdminBackLink } from '../../../src/components/AdminBackLink';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type VersionSource = 'manifest' | 'package.json' | 'compose' | 'runtime' | 'deploy';
@@ -86,9 +86,7 @@ export default function AdminSystemVersionsPage() {
   return (
     <main id="main-content" className="p-8">
       <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          {t('admin.systemVersions.backToAdmin')}
-        </Link>
+        <AdminBackLink>{t('admin.systemVersions.backToAdmin')}</AdminBackLink>
       </div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>

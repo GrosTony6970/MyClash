@@ -332,6 +332,8 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
+      SYSTEM_VERSIONS_ROOT_DIR: /app
+      SYSTEM_VERSIONS_PATH: /app/data/system-versions.json
     healthcheck:
       test:
         [
