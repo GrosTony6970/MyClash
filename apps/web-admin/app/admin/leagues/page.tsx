@@ -374,6 +374,128 @@ export default function AdminLeaguesPage() {
                     Save
                   </button>
                 </div>
+                <div className="border-t border-gray-100 pt-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">Scoring System</p>
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        checked={editForm.scoringSystem === 'ffamhe_tf_2026'}
+                        onChange={() =>
+                          setEditForm((f) => ({
+                            ...f,
+                            scoringSystem: 'ffamhe_tf_2026',
+                            pointRows: [],
+                          }))
+                        }
+                      />
+                      FFAMHE TF 2026 (preset)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        checked={editForm.scoringSystem === 'custom'}
+                        onChange={() =>
+                          setEditForm((f) => ({
+                            ...f,
+                            scoringSystem: 'custom',
+                            pointRows:
+                              f.pointRows.length > 0
+                                ? f.pointRows
+                                : Object.entries(FFAMHE_POINTS).map(([rank, points]) => ({
+                                    rank: Number(rank),
+                                    points: Number(points),
+                                  })),
+                          }))
+                        }
+                      />
+                      Custom
+                    </label>
+                  </div>
+
+                  {editForm.scoringSystem === 'custom' && (
+                    <div>
+                      <table className="text-sm w-full max-w-xs mb-2">
+                        <thead>
+                          <tr>
+                            <th className="text-left px-2 py-1 text-xs text-gray-500">Rank</th>
+                            <th className="text-left px-2 py-1 text-xs text-gray-500">Points</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editForm.pointRows.map((row, i) => (
+                            <tr key={i}>
+                              <td className="px-2 py-1">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="border rounded px-2 py-1 w-16 text-sm"
+                                  value={row.rank}
+                                  onChange={(e) => {
+                                    const updated: Array<{ rank: number; points: number }> = [
+                                      ...editForm.pointRows,
+                                    ];
+                                    updated[i] = {
+                                      rank: Number(e.target.value),
+                                      points: updated[i]!.points,
+                                    };
+                                    setEditForm((f) => ({ ...f, pointRows: updated }));
+                                  }}
+                                />
+                              </td>
+                              <td className="px-2 py-1">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="border rounded px-2 py-1 w-16 text-sm"
+                                  value={row.points}
+                                  onChange={(e) => {
+                                    const updated: Array<{ rank: number; points: number }> = [
+                                      ...editForm.pointRows,
+                                    ];
+                                    updated[i] = {
+                                      rank: updated[i]!.rank,
+                                      points: Number(e.target.value),
+                                    };
+                                    setEditForm((f) => ({ ...f, pointRows: updated }));
+                                  }}
+                                />
+                              </td>
+                              <td className="px-2 py-1">
+                                <button
+                                  className="text-red-500 text-xs underline"
+                                  onClick={() =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      pointRows: f.pointRows.filter((_, j) => j !== i),
+                                    }))
+                                  }
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <button
+                        className="text-sm underline"
+                        onClick={() =>
+                          setEditForm((f) => ({
+                            ...f,
+                            pointRows: [
+                              ...f.pointRows,
+                              { rank: f.pointRows.length + 1, points: 0 },
+                            ],
+                          }))
+                        }
+                      >
+                        + Add row
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
