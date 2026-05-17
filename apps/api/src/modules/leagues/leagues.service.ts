@@ -158,6 +158,12 @@ export class LeaguesService {
     return data;
   }
 
+  async delete(leagueId: string, userId: string): Promise<void> {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { error } = await this.supabase.service.from('leagues').delete().eq('id', leagueId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
   async addOrganizationRole(leagueId: string, dto: AddLeagueOrganizationRoleDto, userId: string) {
     await this.assertCanManageLeague(leagueId, userId);
     const { data, error } = await this.supabase.service

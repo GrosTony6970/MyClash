@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -109,6 +110,18 @@ export class LeaguesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.leagues.update(leagueId, dto, userId);
+  }
+
+  @Delete('admin/leagues/:leagueId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a league' })
+  async deleteLeague(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.delete(leagueId, userId);
   }
 
   @Post('admin/leagues/:leagueId/organization-roles')
