@@ -3,25 +3,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
+import { FFAMHE_POINTS, fuzzyMatch, toSlug } from './league-utils';
 
 interface League {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
   season_year: number;
   status: string;
   public_visibility: boolean;
   scoring_system: string;
+  scoring_config: {
+    scoringSystem: 'ffamhe_tf_2026' | 'custom';
+    rankingDimensions: 'weapon' | 'weapon_category';
+    customPointsByRank?: Record<number, number>;
+    tieBreakers: string[];
+  } | null;
 }
 
 interface TournamentLink {
   id: string;
   status: 'requested' | 'approved' | 'rejected' | 'removed';
   tournaments?: {
+    id?: string | null;
     name?: string | null;
     weapon?: string | null;
     category?: string | null;
-    events?: { name?: string | null } | null;
+    events?: { id?: string | null; name?: string | null } | null;
   } | null;
 }
 
@@ -39,6 +48,7 @@ export default function AdminLeaguesPage() {
     scoringSystem: 'ffamhe_tf_2026',
     rankingDimensions: 'weapon',
   });
+  const [slugDetached, setSlugDetached] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -84,6 +94,7 @@ export default function AdminLeaguesPage() {
     })
       .then((res) => {
         if (!res.ok) throw new Error(t('admin.leagues.createError'));
+        setSlugDetached(false);
         setForm((current) => ({ ...current, name: '', slug: '' }));
         load();
       })
@@ -130,13 +141,19 @@ export default function AdminLeaguesPage() {
             className="border rounded px-3 py-2 text-sm"
             placeholder={t('admin.leagues.name')}
             value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
+            onChange={(event) => {
+              const name = event.target.value;
+              setForm((f) => ({ ...f, name, slug: slugDetached ? f.slug : toSlug(name) }));
+            }}
           />
           <input
             className="border rounded px-3 py-2 text-sm"
             placeholder={t('admin.leagues.slug')}
             value={form.slug}
-            onChange={(event) => setForm({ ...form, slug: event.target.value })}
+            onChange={(event) => {
+              setSlugDetached(true);
+              setForm((f) => ({ ...f, slug: event.target.value }));
+            }}
           />
           <input
             className="border rounded px-3 py-2 text-sm"
