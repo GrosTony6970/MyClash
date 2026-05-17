@@ -137,21 +137,6 @@ export default function OrgAISettingsPage() {
         Connect an AI provider API key to enable AI-powered features for your organisation.
       </p>
 
-      <div className="flex gap-4 mb-6 border-b border-gray-200 pb-1">
-        <Link
-          href={`/org/${slug}/settings/compensation`}
-          className="pb-2 text-sm font-medium text-gray-500 hover:text-gray-700"
-        >
-          Compensation
-        </Link>
-        <Link
-          href={`/org/${slug}/settings/ai`}
-          className="pb-2 text-sm font-medium border-b-2 border-red-600 text-red-700"
-        >
-          AI
-        </Link>
-      </div>
-
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">
           {error}

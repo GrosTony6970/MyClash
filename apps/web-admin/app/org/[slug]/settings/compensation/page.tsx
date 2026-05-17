@@ -85,7 +85,9 @@ export default function OrgCompensationPlansPage() {
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (!res.ok) return;
+        if (!res.ok) {
+          throw new Error(t('organizer.compensationSettings.organizationLoadError'));
+        }
         const org = (await res.json()) as { id: string };
         setOrgId(org.id);
         return fetch(`${apiUrl}/api/v1/compensation-plans`, {
@@ -94,10 +96,17 @@ export default function OrgCompensationPlansPage() {
         });
       })
       .then(async (res) => {
-        if (!res?.ok) return;
+        if (!res?.ok) {
+          throw new Error(t('organizer.compensationSettings.loadPlansError'));
+        }
         setPlans((await res.json()) as CompensationPlan[]);
       })
-      .catch(() => undefined)
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setError(
+          err instanceof Error ? err.message : t('organizer.compensationSettings.loadPlansError'),
+        );
+      })
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [slug, apiUrl]);
@@ -114,7 +123,11 @@ export default function OrgCompensationPlansPage() {
   }
 
   async function createPlan() {
-    if (!orgId || !newName.trim()) return;
+    if (!newName.trim()) return;
+    if (!orgId) {
+      setError(t('organizer.compensationSettings.organizationLoadError'));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -229,20 +242,6 @@ export default function OrgCompensationPlansPage() {
 
   return (
     <main className="p-8 max-w-4xl">
-      <div className="flex gap-4 mb-6 border-b border-gray-200 pb-1">
-        <Link
-          href={`/org/${slug}/settings/compensation`}
-          className="pb-2 text-sm font-medium border-b-2 border-red-600 text-red-700"
-        >
-          {t('organizer.compensationSettings.navCompensation')}
-        </Link>
-        <Link
-          href={`/org/${slug}/settings/ai`}
-          className="pb-2 text-sm font-medium text-gray-500 hover:text-gray-700"
-        >
-          {t('organizer.compensationSettings.navAi')}
-        </Link>
-      </div>
       <div className="mb-2">
         <Link href={`/org/${slug}`} className="text-sm text-gray-500 hover:underline">
           {t('organizer.compensationSettings.backToOrg', { slug })}
@@ -349,7 +348,7 @@ export default function OrgCompensationPlansPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => void createPlan()}
-                  disabled={!newName.trim() || creating}
+                  disabled={!newName.trim() || creating || !orgId}
                   className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
                 >
                   {creating ? t('organizer.compensationSettings.creating') : t('actions.add')}

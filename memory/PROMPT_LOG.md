@@ -835,3 +835,7 @@ Troubleshoot admin login: on `admin.myclash.fr` with `admin@myclash.fr`, browser
 ## 18:00:13_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Event Creation UX, Logo Upload, Auth Fix, And Shared Buttons
+
+## 18:22:22_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix AI Settings Menu And Compensation Plan Creation - remove Compensation tab from AI settings, switch compensation API auth to internal GoTrue, improve create-plan UX, and add regression coverage.

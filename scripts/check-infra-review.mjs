@@ -127,6 +127,17 @@ const organizerEventPagePath = path.join(
   '[eventId]',
   'page.tsx',
 );
+const organizerAiSettingsPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'org',
+  '[slug]',
+  'settings',
+  'ai',
+  'page.tsx',
+);
 const authServicePath = path.join(
   rootDir,
   'apps',
@@ -144,6 +155,15 @@ const supabaseServicePath = path.join(
   'modules',
   'supabase',
   'supabase.service.ts',
+);
+const compensationControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'compensation',
+  'compensation.controller.ts',
 );
 const superAdminGuardPath = path.join(
   rootDir,
@@ -245,8 +265,10 @@ const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
 const organizerShellText = await readFile(organizerShellPath, 'utf8');
 const organizerEventPageText = await readFile(organizerEventPagePath, 'utf8');
+const organizerAiSettingsPageText = await readFile(organizerAiSettingsPagePath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
 const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
+const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
 const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
@@ -395,6 +417,16 @@ if (authServiceText.includes('signInWithPassword')) {
 if (authServiceText.includes('supabase.anon.auth.getUser')) {
   errors.push('AuthService server-side token validation must use internal GoTrue /user.');
 }
+if (compensationControllerText.includes('supabase.anon.auth.getUser')) {
+  errors.push(
+    'CompensationController must validate organizer tokens with internal GoTrue, not supabase.anon.auth.getUser.',
+  );
+}
+requireContains(
+  compensationControllerText,
+  'apps/api/src/modules/compensation/compensation.controller.ts',
+  'supabase.getAuthUser(token)',
+);
 requireContains(authServiceText, 'AuthService', '/token?grant_type=password');
 requireContains(authServiceText, 'AuthService', 'SUPABASE_AUTH_INTERNAL_URL');
 requireContains(authServiceText, 'AuthService', 'ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60');
@@ -606,6 +638,11 @@ requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdmi
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventId');
 requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.sections.persons');
 requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.aiBudget');
+if (organizerAiSettingsPageText.includes('settings/compensation')) {
+  errors.push(
+    'apps/web-admin/app/org/[slug]/settings/ai/page.tsx must not show compensation settings links inside AI settings.',
+  );
+}
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', '/api/v1/admin/dashboard-stats');
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', "credentials: 'include'");
 requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', 'admin.dashboard.statsTitle');

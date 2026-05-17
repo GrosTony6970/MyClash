@@ -32,9 +32,7 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
     ? authHeader.slice(7)
     : cookies?.['sb-access-token'];
   if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
+  const user = await supabase.getAuthUser(token);
   return user?.id ?? 'anonymous';
 }
 
