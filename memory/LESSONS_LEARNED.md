@@ -84,6 +84,7 @@
 - Don't write a deploy script from scratch when the owner already has a working one for a similar app — read it first, adapt it, document what changed and why.
 - Production deploy stays manual at v1; auto-deploy is for staging only. Friction on prod is a feature, not a bug.
 - Deploy automation may generate cryptographic secrets, but must never invent external/provider-owned configuration such as DNS domains, email addresses, API keys, or OAuth credentials; prompt or fail instead.
+- Validate file bind-mount sources before `docker compose up`: if a host file path is missing, Docker may create a directory and mount it into the container, so generated file artifacts must be recreated as files and checked with `-f`/`-s`.
 
 ## MyFAL scripting conventions (reused for MyClash)
 

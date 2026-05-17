@@ -823,3 +823,7 @@ PLEASE IMPLEMENT THIS PLAN: Protect MyClash HQ And Show Organizer Usernames. Pre
 ## 00:03:54_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Platform Account Creation And Deletion Controls. Add super-admin platform account creation in `/admin/users`, replace remaining Auth Admin calls with internal GoTrue helpers, add disable/safe-delete/cleanup-delete controls, block self/last-super-admin/sole-owner deletion, add i18n, tests, and review guards.
+
+## 15:34:53_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Fix System Version Manifest Directory Regression. Treat directory/missing/malformed system-version manifests as safe fallback, strengthen deploy validation for `data/system-versions.json`, improve status diagnostics, and add infra review guards.

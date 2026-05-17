@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type {
@@ -222,9 +222,16 @@ async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
 
 async function readTextIfExists(filePath: string): Promise<string> {
   try {
+    const fileStat = await stat(filePath);
+    if (!fileStat.isFile()) return '';
     return await readFile(filePath, 'utf8');
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error.code === 'ENOENT' || error.code === 'EISDIR')
+    ) {
       return '';
     }
     throw error;

@@ -424,6 +424,10 @@ node scripts/generate-system-versions.mjs \
   --deployed-at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   --deployed-by "${SUDO_USER:-${USER:-unknown}}" \
   --backup-file "${BACKUP_FILE:-none}"
+if [[ ! -f data/system-versions.json || ! -s data/system-versions.json ]]; then
+  err "System version manifest was not generated as a non-empty file"
+  exit 1
+fi
 ok "System version manifest written to data/system-versions.json"
 
 # ── Build ────────────────────────────────────────────────────────

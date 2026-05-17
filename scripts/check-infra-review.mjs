@@ -485,12 +485,13 @@ for (const expected of [
   'mkdir -p data',
   '[[ -d data/system-versions.json ]]',
   'rm -rf -- data/system-versions.json',
+  '[[ ! -f data/system-versions.json || ! -s data/system-versions.json ]]',
 ]) {
   if (!deployText.includes(expected)) {
     errors.push(`deploy.sh system version manifest generation must include ${expected}.`);
   }
 }
-for (const expected of ['stat.isFile()', 'Source: ${source}']) {
+for (const expected of ['stat.isFile()', 'Source: ${source}', 'Manifest path type: ${type}']) {
   if (!statusText.includes(expected)) {
     errors.push(`status.sh API version diagnostics must tolerate bad manifests with ${expected}.`);
   }
