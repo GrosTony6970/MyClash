@@ -39,6 +39,7 @@ import {
   RefereeProfileDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
+  UpdateGlobalPersonDto,
 } from './dto/fighters.dto';
 
 /** Extract claimed user ID from Supabase JWT in request. */
@@ -236,6 +237,16 @@ export class GlobalPersonsController {
   @ApiOperation({ summary: 'Create an unclaimed global person (organizer+)' })
   async create(@Body() dto: CreateGlobalPersonDto) {
     return this.fighters.createGlobalPerson(dto);
+  }
+
+  /** PATCH /api/v1/global-persons/:id */
+  @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Update a global person profile (super admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateGlobalPersonDto) {
+    return this.fighters.updateGlobalPerson(id, dto);
   }
 
   /**

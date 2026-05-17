@@ -227,10 +227,105 @@ export class CreateGlobalPersonDto {
   familyName!: string;
 
   @ApiProperty({ example: 'Jean Dupont' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  displayName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  clubId?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  clubName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  clubAbbreviation?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  clubCity?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  hemaRatingsId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isFighter?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isReferee?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isWorkshopParticipant?: boolean;
+}
+
+export class UpdateGlobalPersonDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
   @MinLength(1)
+  @MaxLength(100)
+  givenName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  familyName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   @MaxLength(200)
-  displayName!: string;
+  displayName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  clubId?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  clubName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  clubAbbreviation?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  clubCity?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  hemaRatingsId?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()

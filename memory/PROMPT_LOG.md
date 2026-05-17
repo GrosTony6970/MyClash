@@ -839,3 +839,7 @@ PLEASE IMPLEMENT THIS PLAN: Event Creation UX, Logo Upload, Auth Fix, And Shared
 ## 18:22:22_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix AI Settings Menu And Compensation Plan Creation - remove Compensation tab from AI settings, switch compensation API auth to internal GoTrue, improve create-plan UX, and add regression coverage.
+
+## 18:40:46_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Edit Global Profiles, Create Clubs, And Fuzzy Club Selection. Add super-admin global-person edit endpoint, expand profile create/edit fields, add fuzzy club dropdown and club creation from profile/admin clubs, i18n, tests, and review guards.

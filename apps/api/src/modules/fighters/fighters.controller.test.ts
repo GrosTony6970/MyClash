@@ -1,10 +1,14 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
-import { FightersController } from './fighters.controller';
+import { FightersController, GlobalPersonsController } from './fighters.controller';
 
 function guardsFor(methodName: keyof FightersController): unknown[] {
   return Reflect.getMetadata(GUARDS_METADATA, FightersController.prototype[methodName]) ?? [];
+}
+
+function globalPersonGuardsFor(methodName: keyof GlobalPersonsController): unknown[] {
+  return Reflect.getMetadata(GUARDS_METADATA, GlobalPersonsController.prototype[methodName]) ?? [];
 }
 
 describe('FightersController merge guards', () => {
@@ -12,5 +16,11 @@ describe('FightersController merge guards', () => {
     expect(guardsFor('merge')).toContain(SuperAdminGuard);
     expect(guardsFor('revertMerge')).toContain(SuperAdminGuard);
     expect(guardsFor('mergeAuditLog')).toContain(SuperAdminGuard);
+  });
+});
+
+describe('GlobalPersonsController guards', () => {
+  it('protects global profile edits with SuperAdminGuard', () => {
+    expect(globalPersonGuardsFor('update')).toContain(SuperAdminGuard);
   });
 });

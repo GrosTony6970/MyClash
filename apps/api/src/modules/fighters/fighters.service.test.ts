@@ -209,6 +209,108 @@ describe('FightersService', () => {
     });
   });
 
+  describe('global profile administration', () => {
+    it('creates a global profile with club, HEMA Ratings ID, and roles', async () => {
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: {
+          id: 'global-1',
+          display_name: 'Jean Dupont',
+          club_id: 'club-1',
+          hema_ratings_id: '10458',
+          is_fighter: true,
+        },
+        error: null,
+      });
+      fromMock.mockReturnValue(insertChain);
+
+      const result = await service.createGlobalPerson({
+        givenName: 'Jean',
+        familyName: 'Dupont',
+        displayName: '',
+        clubId: 'club-1',
+        hemaRatingsId: '10458',
+        isFighter: true,
+        isReferee: false,
+        isWorkshopParticipant: false,
+      });
+
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          display_name: 'Jean Dupont',
+          club_id: 'club-1',
+          hema_ratings_id: '10458',
+          is_fighter: true,
+        }),
+      );
+      expect(result).toMatchObject({ id: 'global-1' });
+    });
+
+    it('requires at least one global profile role', async () => {
+      await expect(
+        service.createGlobalPerson({
+          givenName: 'Jean',
+          familyName: 'Dupont',
+          isFighter: false,
+          isReferee: false,
+          isWorkshopParticipant: false,
+        }),
+      ).rejects.toThrow('At least one global profile role is required');
+    });
+
+    it('updates a global profile and creates a referee profile when referee is enabled', async () => {
+      const existingChain = makeChain({ data: null, error: null });
+      existingChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'global-1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          display_name: 'Jean Dupont',
+          is_fighter: true,
+          is_referee: false,
+          is_workshop_participant: false,
+        },
+        error: null,
+      });
+
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({
+        data: {
+          id: 'global-1',
+          display_name: 'Jean D.',
+          is_fighter: true,
+          is_referee: true,
+        },
+        error: null,
+      });
+
+      const refereeChain = makeChain({ data: null, error: null });
+      fromMock
+        .mockReturnValueOnce(existingChain)
+        .mockReturnValueOnce(updateChain)
+        .mockReturnValueOnce(refereeChain);
+
+      const result = await service.updateGlobalPerson('global-1', {
+        displayName: 'Jean D.',
+        hemaRatingsId: '10458',
+        isReferee: true,
+      });
+
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          display_name: 'Jean D.',
+          hema_ratings_id: '10458',
+          is_referee: true,
+        }),
+      );
+      expect(refereeChain.upsert).toHaveBeenCalledWith(
+        { global_person_id: 'global-1' },
+        { onConflict: 'global_person_id', ignoreDuplicates: true },
+      );
+      expect(result).toMatchObject({ id: 'global-1', is_referee: true });
+    });
+  });
+
   describe('claimed owner profile editing', () => {
     it('returns the private claimed fighter profile with date of birth for the owner', async () => {
       const fighterChain = makeChain({ data: null, error: null });

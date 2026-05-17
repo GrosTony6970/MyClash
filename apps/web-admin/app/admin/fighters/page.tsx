@@ -2,6 +2,7 @@
 
 /* eslint-disable myclash/no-literal-string */
 
+import { t } from '@myclash/i18n';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -19,9 +20,19 @@ interface FighterRow {
   photo_url: string | null;
   bio: string | null;
   gender_category: string | null;
+  is_fighter?: boolean;
+  is_referee?: boolean;
+  is_workshop_participant?: boolean;
   merged_into_id?: string | null;
   deleted_at?: string | null;
-  clubs?: { name: string; slug: string } | null;
+  clubs?: {
+    id?: string;
+    name: string;
+    slug?: string;
+    abbreviation?: string | null;
+    city?: string | null;
+    country_code?: string | null;
+  } | null;
 }
 
 interface MergeAuditEntry {
@@ -46,19 +57,39 @@ interface ClubSearchResult {
   id: string;
   name: string;
   abbreviation: string | null;
+  city?: string | null;
+  country_code?: string | null;
 }
 
-interface NewProfileForm {
+interface ProfileForm {
   givenName: string;
   familyName: string;
   displayName: string;
+  hemaRatingsId: string;
   clubQuery: string;
   clubId: string;
   clubName: string;
+  clubAbbreviation: string;
+  clubCity: string;
   isFighter: boolean;
   isReferee: boolean;
   isWorkshopParticipant: boolean;
 }
+
+const emptyProfileForm: ProfileForm = {
+  givenName: '',
+  familyName: '',
+  displayName: '',
+  hemaRatingsId: '',
+  clubQuery: '',
+  clubId: '',
+  clubName: '',
+  clubAbbreviation: '',
+  clubCity: '',
+  isFighter: true,
+  isReferee: false,
+  isWorkshopParticipant: false,
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -158,21 +189,42 @@ export default function AdminFightersPage() {
   }, [apiUrl]);
 
   // ── Create profile ───────────────────────────────────────────────────────────
-  const [form, setForm] = useState<NewProfileForm>({
-    givenName: '',
-    familyName: '',
-    displayName: '',
-    clubQuery: '',
-    clubId: '',
-    clubName: '',
-    isFighter: true,
-    isReferee: false,
-    isWorkshopParticipant: false,
-  });
+  const [form, setForm] = useState<ProfileForm>(emptyProfileForm);
+  const [editingProfile, setEditingProfile] = useState<FighterRow | null>(null);
   const [clubResults, setClubResults] = useState<ClubSearchResult[]>([]);
+  const [activeClubIndex, setActiveClubIndex] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [creatingClub, setCreatingClub] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+
+  function resetProfileForm() {
+    setForm(emptyProfileForm);
+    setEditingProfile(null);
+    setClubResults([]);
+    setActiveClubIndex(0);
+  }
+
+  function startEditProfile(profile: FighterRow) {
+    setEditingProfile(profile);
+    setForm({
+      givenName: profile.given_name ?? '',
+      familyName: profile.family_name ?? '',
+      displayName: profile.display_name ?? '',
+      hemaRatingsId: profile.hema_ratings_id ?? '',
+      clubQuery: profile.clubs?.name ?? '',
+      clubId: profile.club_id ?? '',
+      clubName: profile.clubs?.name ?? '',
+      clubAbbreviation: profile.clubs?.abbreviation ?? '',
+      clubCity: profile.clubs?.city ?? '',
+      isFighter: Boolean(profile.is_fighter),
+      isReferee: Boolean(profile.is_referee),
+      isWorkshopParticipant: Boolean(profile.is_workshop_participant),
+    });
+    setCreateError(null);
+    setCreateSuccess(null);
+    setTab('create');
+  }
 
   async function searchClubs(q: string) {
     if (!q.trim()) {
@@ -183,7 +235,48 @@ export default function AdminFightersPage() {
       `${apiUrl}/api/v1/clubs?q=${encodeURIComponent(q.trim())}&searchAbv=true`,
       { credentials: 'include' },
     );
-    if (res.ok) setClubResults((await res.json()) as ClubSearchResult[]);
+    if (res.ok) {
+      setClubResults((await res.json()) as ClubSearchResult[]);
+      setActiveClubIndex(0);
+    }
+  }
+
+  async function createClubFromProfileForm() {
+    const name = form.clubQuery.trim();
+    if (!name) return;
+    setCreatingClub(true);
+    setCreateError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/clubs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          abbreviation: form.clubAbbreviation.trim() || undefined,
+          city: form.clubCity.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.globalProfiles.clubCreateError'));
+      }
+      const club = (await res.json()) as ClubSearchResult;
+      setForm((f) => ({
+        ...f,
+        clubId: club.id,
+        clubName: club.name,
+        clubQuery: club.name,
+        clubAbbreviation: club.abbreviation ?? f.clubAbbreviation,
+      }));
+      setClubResults([]);
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : t('admin.globalProfiles.clubCreateError'),
+      );
+    } finally {
+      setCreatingClub(false);
+    }
   }
 
   async function createProfile() {
@@ -191,42 +284,50 @@ export default function AdminFightersPage() {
     setCreateError(null);
     setCreateSuccess(null);
     try {
+      if (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant) {
+        throw new Error(t('admin.globalProfiles.roleRequired'));
+      }
       const displayName =
         form.displayName.trim() || `${form.givenName.trim()} ${form.familyName.trim()}`;
-      const res = await fetch(`${apiUrl}/api/v1/global-persons`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          givenName: form.givenName.trim(),
-          familyName: form.familyName.trim(),
-          displayName,
-          clubId: form.clubId || undefined,
-          isFighter: form.isFighter,
-          isReferee: form.isReferee,
-          isWorkshopParticipant: form.isWorkshopParticipant,
-        }),
-      });
+      const res = await fetch(
+        `${apiUrl}/api/v1/global-persons${editingProfile ? `/${editingProfile.id}` : ''}`,
+        {
+          method: editingProfile ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            givenName: form.givenName.trim(),
+            familyName: form.familyName.trim(),
+            displayName,
+            clubId: form.clubId || undefined,
+            clubName: form.clubId ? undefined : form.clubQuery.trim() || undefined,
+            clubAbbreviation: form.clubId ? undefined : form.clubAbbreviation.trim() || undefined,
+            clubCity: form.clubId ? undefined : form.clubCity.trim() || undefined,
+            hemaRatingsId: form.hemaRatingsId.trim() || undefined,
+            isFighter: form.isFighter,
+            isReferee: form.isReferee,
+            isWorkshopParticipant: form.isWorkshopParticipant,
+          }),
+        },
+      );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Creation failed');
+        throw new Error(
+          body.message ??
+            (editingProfile
+              ? t('admin.globalProfiles.updateError')
+              : t('admin.globalProfiles.createError')),
+        );
       }
-      setCreateSuccess(`Profile created: ${displayName}`);
-      setForm({
-        givenName: '',
-        familyName: '',
-        displayName: '',
-        clubQuery: '',
-        clubId: '',
-        clubName: '',
-        isFighter: true,
-        isReferee: false,
-        isWorkshopParticipant: false,
-      });
-      setClubResults([]);
-      void searchPersons('');
+      setCreateSuccess(
+        editingProfile
+          ? t('admin.globalProfiles.updateSuccess', { profile: displayName })
+          : t('admin.globalProfiles.createSuccess', { profile: displayName }),
+      );
+      resetProfileForm();
+      void searchPersons(personQuery);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Creation failed');
+      setCreateError(err instanceof Error ? err.message : t('admin.globalProfiles.saveError'));
     } finally {
       setCreating(false);
     }
@@ -364,7 +465,10 @@ export default function AdminFightersPage() {
         ).map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => {
+              if (key === 'create') resetProfileForm();
+              setTab(key);
+            }}
             className={[
               'py-2 px-5 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === key
@@ -406,12 +510,13 @@ export default function AdminFightersPage() {
                   <th className="py-3 px-4">Club</th>
                   <th className="py-3 px-4">Roles</th>
                   <th className="py-3 px-4">Country</th>
+                  <th className="py-3 px-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {persons.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-gray-400 text-sm">
+                    <td colSpan={5} className="py-8 text-center text-gray-400 text-sm">
                       {personsLoading ? 'Loading…' : 'No profiles found.'}
                     </td>
                   </tr>
@@ -429,30 +534,33 @@ export default function AdminFightersPage() {
                     </td>
                     <td className="py-2.5 px-4">
                       <div className="flex gap-1 flex-wrap">
-                        {p.clubs && (
-                          <>
-                            {(p as unknown as Record<string, unknown>)['is_fighter'] && (
-                              <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
-                                fighter
-                              </span>
-                            )}
-                            {(p as unknown as Record<string, unknown>)['is_referee'] && (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                                referee
-                              </span>
-                            )}
-                            {(p as unknown as Record<string, unknown>)[
-                              'is_workshop_participant'
-                            ] && (
-                              <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
-                                workshop
-                              </span>
-                            )}
-                          </>
+                        {p.is_fighter && (
+                          <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
+                            fighter
+                          </span>
+                        )}
+                        {p.is_referee && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                            referee
+                          </span>
+                        )}
+                        {p.is_workshop_participant && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                            workshop
+                          </span>
                         )}
                       </div>
                     </td>
                     <td className="py-2.5 px-4 text-gray-500 text-sm">{p.country_code ?? '—'}</td>
+                    <td className="py-2.5 px-4">
+                      <button
+                        type="button"
+                        onClick={() => startEditProfile(p)}
+                        className="text-xs font-semibold text-red-700 hover:underline"
+                      >
+                        {t('actions.edit')}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -466,7 +574,26 @@ export default function AdminFightersPage() {
 
       {/* ── Tab: Create profile ── */}
       {tab === 'create' && (
-        <div className="max-w-lg">
+        <div className="max-w-2xl">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {editingProfile
+                  ? t('admin.globalProfiles.editTitle')
+                  : t('admin.globalProfiles.createTitle')}
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">{t('admin.globalProfiles.requiredNote')}</p>
+            </div>
+            {editingProfile && (
+              <button
+                type="button"
+                onClick={resetProfileForm}
+                className="text-sm font-semibold text-gray-600 hover:text-gray-900"
+              >
+                {t('admin.globalProfiles.cancelEdit')}
+              </button>
+            )}
+          </div>
           {createError && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
               {createError}
@@ -519,6 +646,17 @@ export default function AdminFightersPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {t('admin.globalProfiles.hemaRatingsId')}
+              </label>
+              <input
+                value={form.hemaRatingsId}
+                onChange={(e) => setForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Club</label>
               <div className="relative">
                 <input
@@ -526,6 +664,31 @@ export default function AdminFightersPage() {
                   onChange={(e) => {
                     setForm((f) => ({ ...f, clubQuery: e.target.value, clubId: '', clubName: '' }));
                     void searchClubs(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (clubResults.length === 0) return;
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setActiveClubIndex((index) => Math.min(index + 1, clubResults.length - 1));
+                    }
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setActiveClubIndex((index) => Math.max(index - 1, 0));
+                    }
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const selected = clubResults[activeClubIndex];
+                      if (!selected) return;
+                      setForm((f) => ({
+                        ...f,
+                        clubId: selected.id,
+                        clubName: selected.name,
+                        clubQuery: selected.name,
+                        clubAbbreviation: selected.abbreviation ?? f.clubAbbreviation,
+                        clubCity: selected.city ?? f.clubCity,
+                      }));
+                      setClubResults([]);
+                    }
                   }}
                   placeholder="Search clubs by name or abbreviation…"
                   className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -535,7 +698,7 @@ export default function AdminFightersPage() {
                 )}
                 {clubResults.length > 0 && !form.clubId && (
                   <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                    {clubResults.map((c) => (
+                    {clubResults.map((c, index) => (
                       <button
                         key={c.id}
                         onClick={() => {
@@ -544,20 +707,56 @@ export default function AdminFightersPage() {
                             clubId: c.id,
                             clubName: c.name,
                             clubQuery: c.name,
+                            clubAbbreviation: c.abbreviation ?? f.clubAbbreviation,
+                            clubCity: c.city ?? f.clubCity,
                           }));
                           setClubResults([]);
                         }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                        className={[
+                          'w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2',
+                          index === activeClubIndex ? 'bg-red-50' : '',
+                        ].join(' ')}
                       >
                         <span>{c.name}</span>
                         {c.abbreviation && (
                           <span className="text-xs text-gray-400 font-mono">{c.abbreviation}</span>
+                        )}
+                        {(c.city || c.country_code) && (
+                          <span className="text-xs text-gray-400">
+                            {[c.city, c.country_code].filter(Boolean).join(', ')}
+                          </span>
                         )}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
+              {!form.clubId && form.clubQuery.trim() && (
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <input
+                    value={form.clubAbbreviation}
+                    onChange={(e) => setForm((f) => ({ ...f, clubAbbreviation: e.target.value }))}
+                    placeholder={t('admin.globalProfiles.clubAbbreviation')}
+                    className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                  <input
+                    value={form.clubCity}
+                    onChange={(e) => setForm((f) => ({ ...f, clubCity: e.target.value }))}
+                    placeholder={t('admin.globalProfiles.clubCity')}
+                    className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void createClubFromProfileForm()}
+                    disabled={creatingClub}
+                    className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {creatingClub
+                      ? t('admin.globalProfiles.creatingClub')
+                      : t('admin.globalProfiles.clubCreateFromSearch')}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>
@@ -568,7 +767,13 @@ export default function AdminFightersPage() {
                     { key: 'isFighter', label: 'Fighter' },
                     { key: 'isReferee', label: 'Referee' },
                     { key: 'isWorkshopParticipant', label: 'Workshop' },
-                  ] as { key: keyof NewProfileForm; label: string }[]
+                  ] as {
+                    key: keyof Pick<
+                      ProfileForm,
+                      'isFighter' | 'isReferee' | 'isWorkshopParticipant'
+                    >;
+                    label: string;
+                  }[]
                 ).map(({ key, label }) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
                     <input
@@ -585,10 +790,21 @@ export default function AdminFightersPage() {
 
             <button
               onClick={() => void createProfile()}
-              disabled={!form.givenName.trim() || !form.familyName.trim() || creating}
+              disabled={
+                !form.givenName.trim() ||
+                !form.familyName.trim() ||
+                (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant) ||
+                creating
+              }
               className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm self-start"
             >
-              {creating ? 'Creating…' : 'Create profile'}
+              {creating
+                ? editingProfile
+                  ? t('admin.globalProfiles.saving')
+                  : t('admin.globalProfiles.creating')
+                : editingProfile
+                  ? t('admin.globalProfiles.saveProfile')
+                  : t('admin.globalProfiles.createProfile')}
             </button>
           </div>
         </div>

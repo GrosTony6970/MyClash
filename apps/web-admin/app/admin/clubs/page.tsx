@@ -21,6 +21,20 @@ interface EditState {
   country_code: string;
 }
 
+interface CreateState extends EditState {
+  website: string;
+  logoUrl: string;
+}
+
+const emptyCreateState: CreateState = {
+  name: '',
+  abbreviation: '',
+  city: '',
+  country_code: '',
+  website: '',
+  logoUrl: '',
+};
+
 export default function AdminClubsPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -35,6 +49,9 @@ export default function AdminClubsPage() {
     country_code: '',
   });
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createState, setCreateState] = useState<CreateState>(emptyCreateState);
+  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchClubs = useCallback(
@@ -132,6 +149,41 @@ export default function AdminClubsPage() {
     }
   }
 
+  async function createClub() {
+    setCreating(true);
+    setError(null);
+    setCreateSuccess(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/clubs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: createState.name.trim(),
+          abbreviation: createState.abbreviation.trim() || undefined,
+          city: createState.city.trim() || undefined,
+          countryCode: createState.country_code.trim().toUpperCase() || undefined,
+          website: createState.website.trim() || undefined,
+          logoUrl: createState.logoUrl.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? t('admin.clubs.createError'));
+      }
+
+      const created = (await res.json()) as ClubRow;
+      setClubs((prev) => [created, ...prev]);
+      setCreateState(emptyCreateState);
+      setCreateSuccess(t('admin.clubs.createSuccess', { club: created.name }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.clubs.createError'));
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <main className="p-8">
       <div className="mb-2">
@@ -151,6 +203,78 @@ export default function AdminClubsPage() {
           {error}
         </div>
       )}
+      {createSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-md px-4 py-3 mb-4 text-sm">
+          {createSuccess}
+        </div>
+      )}
+
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mb-3">
+          <h2 className="text-base font-semibold text-slate-900">{t('admin.clubs.createTitle')}</h2>
+          <p className="text-xs text-slate-500">{t('admin.clubs.createDescription')}</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="text-xs font-medium text-slate-600">
+            {t('admin.clubs.name')} *
+            <input
+              value={createState.name}
+              onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            {t('admin.clubs.abbreviation')}
+            <input
+              value={createState.abbreviation}
+              onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
+              maxLength={20}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            {t('admin.clubs.city')}
+            <input
+              value={createState.city}
+              onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            {t('admin.clubs.country')}
+            <input
+              value={createState.country_code}
+              onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
+              maxLength={2}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            {t('admin.clubs.website')}
+            <input
+              value={createState.website}
+              onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            {t('admin.clubs.logoUrl')}
+            <input
+              value={createState.logoUrl}
+              onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => void createClub()}
+          disabled={creating || !createState.name.trim()}
+          className="mt-4 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+        >
+          {creating ? t('admin.clubs.creating') : t('admin.clubs.create')}
+        </button>
+      </section>
 
       {/* Search */}
       <div className="flex gap-2 mb-6">

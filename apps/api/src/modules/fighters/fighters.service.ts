@@ -15,6 +15,7 @@ import type {
   GlobalPersonQueryDto,
   PromoteFighterDto,
   RefereeProfileDto,
+  UpdateGlobalPersonDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
 } from './dto/fighters.dto';
@@ -793,7 +794,7 @@ export class FightersService {
   async listGlobalPersons(query: GlobalPersonQueryDto) {
     let q = this.supabase.service
       .from('global_persons')
-      .select('*')
+      .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true });
 
@@ -814,31 +815,91 @@ export class FightersService {
   }
 
   async createGlobalPerson(dto: CreateGlobalPersonDto) {
-    const baseSlug = slugify(dto.displayName || `${dto.givenName}-${dto.familyName}`);
+    const displayName = this.resolveDisplayName(dto.givenName, dto.familyName, dto.displayName);
+    this.assertAtLeastOneRole({
+      isFighter: dto.isFighter,
+      isReferee: dto.isReferee,
+      isWorkshopParticipant: dto.isWorkshopParticipant,
+    });
+    const clubId = await this.resolveGlobalPersonClubInput(dto);
+    const baseSlug = slugify(displayName);
     const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
     const { data, error } = await this.supabase.service
       .from('global_persons')
       .insert({
         slug,
-        display_name: dto.displayName.trim(),
+        display_name: displayName,
         given_name: dto.givenName.trim(),
         family_name: dto.familyName.trim(),
+        club_id: clubId,
+        hema_ratings_id: this.trimOptional(dto.hemaRatingsId),
         is_fighter: dto.isFighter ?? false,
         is_referee: dto.isReferee ?? false,
         is_workshop_participant: dto.isWorkshopParticipant ?? false,
       })
-      .select('*')
+      .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
       .single();
 
     if (error) throw new BadRequestException(error.message);
 
     if (dto.isReferee) {
-      await this.supabase.service
-        .from('referee_profiles')
-        .insert({ global_person_id: (data as Row)['id'] });
+      await this.ensureRefereeProfile(String((data as Row)['id']));
     }
 
+    return data;
+  }
+
+  async updateGlobalPerson(id: string, dto: UpdateGlobalPersonDto) {
+    const { data: existing, error: existingError } = await this.supabase.service
+      .from('global_persons')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existingError) throw new BadRequestException(existingError.message);
+    if (!existing) throw new NotFoundException(`Global person ${id} not found`);
+
+    const row = existing as Row;
+    const nextRoles = {
+      isFighter: dto.isFighter ?? Boolean(row['is_fighter']),
+      isReferee: dto.isReferee ?? Boolean(row['is_referee']),
+      isWorkshopParticipant: dto.isWorkshopParticipant ?? Boolean(row['is_workshop_participant']),
+    };
+    this.assertAtLeastOneRole(nextRoles);
+
+    const updates: Record<string, unknown> = {};
+    if (dto.givenName !== undefined) updates['given_name'] = dto.givenName.trim();
+    if (dto.familyName !== undefined) updates['family_name'] = dto.familyName.trim();
+    if (dto.displayName !== undefined) {
+      const givenName = String(updates['given_name'] ?? row['given_name'] ?? '');
+      const familyName = String(updates['family_name'] ?? row['family_name'] ?? '');
+      updates['display_name'] = this.resolveDisplayName(givenName, familyName, dto.displayName);
+    }
+    if (this.hasClubInput(dto)) {
+      updates['club_id'] = await this.resolveGlobalPersonClubInput(dto);
+    }
+    if (dto.hemaRatingsId !== undefined) {
+      updates['hema_ratings_id'] = this.trimOptional(dto.hemaRatingsId);
+    }
+    if (dto.isFighter !== undefined) updates['is_fighter'] = dto.isFighter;
+    if (dto.isReferee !== undefined) updates['is_referee'] = dto.isReferee;
+    if (dto.isWorkshopParticipant !== undefined) {
+      updates['is_workshop_participant'] = dto.isWorkshopParticipant;
+    }
+    updates['updated_at'] = new Date().toISOString();
+
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .update(updates)
+      .eq('id', id)
+      .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Global person ${id} not found`);
+
+    if (nextRoles.isReferee) await this.ensureRefereeProfile(id);
     return data;
   }
 
@@ -957,6 +1018,72 @@ export class FightersService {
     if (error) return null;
     newClubs.push(name);
     return String((data as Row)['id']);
+  }
+
+  private resolveDisplayName(
+    givenName: string,
+    familyName: string,
+    displayName?: string | null,
+  ): string {
+    const explicit = displayName?.trim();
+    if (explicit) return explicit;
+    return `${givenName.trim()} ${familyName.trim()}`.trim();
+  }
+
+  private assertAtLeastOneRole(roles: {
+    isFighter?: boolean;
+    isReferee?: boolean;
+    isWorkshopParticipant?: boolean;
+  }): void {
+    if (!roles.isFighter && !roles.isReferee && !roles.isWorkshopParticipant) {
+      throw new BadRequestException('At least one global profile role is required');
+    }
+  }
+
+  private trimOptional(value: string | null | undefined): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private hasClubInput(input: {
+    clubId?: string | null;
+    clubName?: string;
+    clubAbbreviation?: string;
+    clubCity?: string;
+  }): boolean {
+    return (
+      input.clubId !== undefined ||
+      input.clubName !== undefined ||
+      input.clubAbbreviation !== undefined ||
+      input.clubCity !== undefined
+    );
+  }
+
+  private async resolveGlobalPersonClubInput(input: {
+    clubId?: string | null;
+    clubName?: string;
+    clubAbbreviation?: string;
+    clubCity?: string;
+  }): Promise<string | null> {
+    if (input.clubId !== undefined) return input.clubId || null;
+    if (!input.clubName && !input.clubAbbreviation) return null;
+    return this.resolveOrCreateClubForImport(
+      {
+        name: this.trimOptional(input.clubName) ?? undefined,
+        abv: this.trimOptional(input.clubAbbreviation) ?? undefined,
+        city: this.trimOptional(input.clubCity) ?? undefined,
+      },
+      [],
+    );
+  }
+
+  private async ensureRefereeProfile(globalPersonId: string): Promise<void> {
+    await this.supabase.service
+      .from('referee_profiles')
+      .upsert(
+        { global_person_id: globalPersonId },
+        { onConflict: 'global_person_id', ignoreDuplicates: true },
+      );
   }
 
   async setRoles(id: string, dto: FighterRolesDto) {

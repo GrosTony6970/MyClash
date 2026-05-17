@@ -90,6 +90,24 @@ const superAdminUsersPagePath = path.join(
   'users',
   'page.tsx',
 );
+const superAdminFightersPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'fighters',
+  'page.tsx',
+);
+const superAdminClubsPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'clubs',
+  'page.tsx',
+);
 const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
 const superAdminShellPath = path.join(
   rootDir,
@@ -164,6 +182,15 @@ const compensationControllerPath = path.join(
   'modules',
   'compensation',
   'compensation.controller.ts',
+);
+const fightersControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'fighters',
+  'fighters.controller.ts',
 );
 const superAdminGuardPath = path.join(
   rootDir,
@@ -260,6 +287,8 @@ const superAdminOrganizationDetailPageText = await readFile(
   'utf8',
 );
 const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
+const superAdminFightersPageText = await readFile(superAdminFightersPagePath, 'utf8');
+const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
@@ -269,6 +298,7 @@ const organizerAiSettingsPageText = await readFile(organizerAiSettingsPagePath, 
 const authServiceText = await readFile(authServicePath, 'utf8');
 const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
 const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
+const fightersControllerText = await readFile(fightersControllerPath, 'utf8');
 const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
@@ -796,6 +826,25 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMI
   if (superAdminUsersPageText.includes(forbidden)) {
     errors.push(`apps/web-admin/app/admin/users/page.tsx must not expose ${forbidden}.`);
   }
+}
+for (const expected of [
+  "@Patch(':id')",
+  '@UseGuards(SuperAdminGuard)',
+  'updateGlobalPerson',
+]) {
+  requireContains(fightersControllerText, 'apps/api/src/modules/fighters/fighters.controller.ts', expected);
+}
+for (const expected of [
+  'startEditProfile',
+  'admin.globalProfiles.clubCreateFromSearch',
+  'searchAbv=true',
+  'admin.globalProfiles.hemaRatingsId',
+  'admin.globalProfiles.requiredNote',
+]) {
+  requireContains(superAdminFightersPageText, 'apps/web-admin/app/admin/fighters/page.tsx', expected);
+}
+for (const expected of ['createClub', '/api/v1/clubs', 'admin.clubs.createTitle']) {
+  requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
 }
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
