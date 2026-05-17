@@ -84,6 +84,7 @@ export default function AdminClubsPage() {
         credentials: 'include',
         signal,
       });
+      if (res.status === 429) throw new Error(t('common.tooManyRequests'));
       if (!res.ok) throw new Error(t('admin.clubs.loadError'));
       return (await res.json()) as ClubRow[];
     },
@@ -325,8 +326,15 @@ export default function AdminClubsPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
-          {error}
+        <div className="mb-4 flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => void search(query)}
+            className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+          >
+            {t('actions.retry')}
+          </button>
         </div>
       )}
       {createSuccess && (

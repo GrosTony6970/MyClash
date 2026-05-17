@@ -48,18 +48,12 @@ import { RequestLoggingMiddleware } from './common/observability/request-logging
 
     // ── Rate limiting ────────────────────────────────────────────────────
     // Global defaults: 60 requests per minute per IP.
-    // Auth endpoints override this with stricter limits via @Throttle().
+    // Heavy read-only admin/catalog routes and sensitive auth actions override this per route.
     ThrottlerModule.forRoot([
       {
         name: 'global',
         ttl: 60_000, // 1 minute window
         limit: 60,
-      },
-      {
-        // Stricter limit for magic-link requests: 10 per hour per IP
-        name: 'auth',
-        ttl: 3_600_000, // 1 hour window
-        limit: 10,
       },
     ]),
 
@@ -101,7 +95,7 @@ import { RequestLoggingMiddleware } from './common/observability/request-logging
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
-    // with @SkipThrottle() or @Throttle({ auth: { limit: 3, ttl: 3600000 } })
+    // with @SkipThrottle() or @Throttle({ global: { limit: 600, ttl: 60000 } })
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

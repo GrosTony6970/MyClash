@@ -22,7 +22,9 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import { CATALOG_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { ClubsService, type DeleteClubMode } from './clubs.service';
 import { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
@@ -34,6 +36,7 @@ export class ClubsController {
 
   /** GET /api/v1/clubs?q=...&country=... */
   @Get()
+  @Throttle(CATALOG_READ_THROTTLE)
   @ApiOperation({ summary: 'List clubs (public)' })
   async list(@Query() query: ClubQueryDto) {
     return this.clubs.list(query);

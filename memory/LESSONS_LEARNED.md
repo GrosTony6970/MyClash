@@ -110,6 +110,8 @@ _(New lessons added below as they are learned.)_
 - **Do not use `Test.createTestingModule()` with `useValue` mocks in Vitest** — the NestJS DI container requires `emitDecoratorMetadata` to be active at test runtime, which Vitest doesn't guarantee. `useValue` mocks silently fail to inject, leaving `this.dependency` as `undefined`. Use direct instantiation instead: `new MyService(mockDep1 as never, mockDep2 as never)`. This is simpler, faster, and avoids the DI resolution problem entirely.
 - **`@Global()` modules in test modules** — even with `useFactory`, global modules can cause unexpected re-instantiation. Prefer direct instantiation for unit tests; reserve `Test.createTestingModule()` for integration tests where the full module graph is needed.
 
+- **NestJS Throttler named profiles are additive globally.** In `@nestjs/throttler` v6, every configured named throttler applies to every route unless skipped. For route-specific limits, keep the module-level profile simple and override `global` with `@Throttle(...)` on the route; do not add named profiles expecting them to apply only when referenced.
+
 ## Ruleset engine
 
 - **Build before typecheck**: `@myclash/rulesets` must be built (`pnpm --filter @myclash/rulesets build`) before the API can typecheck. The API uses `moduleResolution: node` → resolves to `dist/`. In CI, `build-packages` runs before `typecheck`.

@@ -21,7 +21,12 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import {
+  ADMIN_READ_THROTTLE,
+  CATALOG_READ_THROTTLE,
+} from '../../common/throttling/throttle-profiles';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FightersService } from './fighters.service';
@@ -110,6 +115,7 @@ export class FightersController {
   }
 
   @Get('merge/audit-log')
+  @Throttle(ADMIN_READ_THROTTLE)
   @ApiBearerAuth()
   @UseGuards(SuperAdminGuard)
   @ApiOperation({ summary: 'List recent fighter merge audit entries (super admin)' })
@@ -225,6 +231,7 @@ export class GlobalPersonsController {
 
   /** GET /api/v1/global-persons?q=...&roles=referee */
   @Get()
+  @Throttle(CATALOG_READ_THROTTLE)
   @ApiOperation({ summary: 'List global persons (public)' })
   async list(@Query() query: GlobalPersonQueryDto) {
     return this.fighters.listGlobalPersons(query);

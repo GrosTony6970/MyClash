@@ -863,3 +863,7 @@ User requested: when creating a club allow logo upload up to 10 MB, and make Bac
 ## 21:12:22_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Backup Management UX And Deletion Controls - style Browse as button, add per-location backup deletion, replace typed restore confirmation with warning dialog, align local/S3 actions, disable unavailable actions, human-readable timestamps, total size column, API/ops-runner support, i18n, tests, and guards.
+
+## 21:26:48_17-05-2026
+
+Implement the plan to fix admin pages hitting API rate limits by adding higher admin/catalog read throttles, applying them to users/global persons/clubs/audit-log endpoints, improving 429 handling in web-admin, and adding regression guards.

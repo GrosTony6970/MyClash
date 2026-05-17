@@ -191,6 +191,25 @@ const authServicePath = path.join(
   'auth',
   'auth.service.ts',
 );
+const appModulePath = path.join(rootDir, 'apps', 'api', 'src', 'app.module.ts');
+const authControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'auth',
+  'auth.controller.ts',
+);
+const signupControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'auth',
+  'signup.controller.ts',
+);
 const supabaseServicePath = path.join(
   rootDir,
   'apps',
@@ -360,6 +379,9 @@ const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
 const organizerShellText = await readFile(organizerShellPath, 'utf8');
 const organizerEventPageText = await readFile(organizerEventPagePath, 'utf8');
 const organizerAiSettingsPageText = await readFile(organizerAiSettingsPagePath, 'utf8');
+const appModuleText = await readFile(appModulePath, 'utf8');
+const authControllerText = await readFile(authControllerPath, 'utf8');
+const signupControllerText = await readFile(signupControllerPath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
 const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
 const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
@@ -537,6 +559,17 @@ requireContains(supabaseServiceText, 'SupabaseService', 'SUPABASE_AUTH_INTERNAL_
 requireContains(supabaseServiceText, 'SupabaseService', 'getAuthUser');
 if (authServiceText.includes('maxAge: 60 * 60 * 24 * 30')) {
   errors.push('AuthService admin refresh cookie must not outlive the one-hour admin session.');
+}
+if (appModuleText.includes("name: 'auth'")) {
+  errors.push(
+    'AppModule must not configure auth as a named global throttler; strict auth limits belong on auth endpoints.',
+  );
+}
+for (const expected of ['AUTH_ACTION_THROTTLE', '@Throttle(AUTH_ACTION_THROTTLE)']) {
+  requireContains(authControllerText, 'apps/api/src/modules/auth/auth.controller.ts', expected);
+}
+for (const expected of ['SIGNUP_ACTION_THROTTLE', '@Throttle(SIGNUP_ACTION_THROTTLE)']) {
+  requireContains(signupControllerText, 'apps/api/src/modules/auth/signup.controller.ts', expected);
 }
 requireContains(authServiceText, 'AuthService', 'public_login');
 requireContains(authServiceText, 'AuthService', 'getPersonalSpace');
@@ -856,6 +889,9 @@ requireContains(
 for (const expected of ['@Post()', "@Delete(':id')", 'CreatePlatformUserDto', 'mode']) {
   requireContains(adminUsersControllerText, 'apps/api/src/modules/admin/users.controller.ts', expected);
 }
+for (const expected of ['ADMIN_READ_THROTTLE', '@Throttle(ADMIN_READ_THROTTLE)']) {
+  requireContains(adminUsersControllerText, 'apps/api/src/modules/admin/users.controller.ts', expected);
+}
 for (const forbidden of [
   'auth.admin.listUsers',
   'auth.admin.createUser',
@@ -890,6 +926,8 @@ for (const expected of [
   'admin.users.create',
   'admin.users.actions.safeDelete',
   'admin.users.actions.cleanupDelete',
+  'common.tooManyRequests',
+  'actions.retry',
 ]) {
   requireContains(superAdminUsersPageText, 'apps/web-admin/app/admin/users/page.tsx', expected);
 }
@@ -902,6 +940,10 @@ for (const expected of [
   "@Patch(':id')",
   '@UseGuards(SuperAdminGuard)',
   'updateGlobalPerson',
+  'ADMIN_READ_THROTTLE',
+  'CATALOG_READ_THROTTLE',
+  '@Throttle(ADMIN_READ_THROTTLE)',
+  '@Throttle(CATALOG_READ_THROTTLE)',
 ]) {
   requireContains(fightersControllerText, 'apps/api/src/modules/fighters/fighters.controller.ts', expected);
 }
@@ -911,6 +953,8 @@ for (const expected of [
   'searchAbv=true',
   'admin.globalProfiles.hemaRatingsId',
   'admin.globalProfiles.requiredNote',
+  'common.tooManyRequests',
+  'actions.retry',
 ]) {
   requireContains(superAdminFightersPageText, 'apps/web-admin/app/admin/fighters/page.tsx', expected);
 }
@@ -934,6 +978,8 @@ for (const expected of [
   "@Delete(':id')",
   "@Post(':id/logo')",
   '@UseGuards(SuperAdminGuard)',
+  'CATALOG_READ_THROTTLE',
+  '@Throttle(CATALOG_READ_THROTTLE)',
   'uploadLogo',
   'deleteClub',
 ]) {
@@ -946,8 +992,19 @@ for (const expected of [
   'admin.clubs.safeDelete',
   'admin.clubs.archive',
   'admin.clubs.cleanupDelete',
+  'common.tooManyRequests',
+  'actions.retry',
 ]) {
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
+}
+for (const [label, text] of [
+  ['apps/api/src/modules/admin/users.controller.ts', adminUsersControllerText],
+  ['apps/api/src/modules/fighters/fighters.controller.ts', fightersControllerText],
+  ['apps/api/src/modules/clubs/clubs.controller.ts', clubsControllerText],
+]) {
+  if (text.includes('@SkipThrottle')) {
+    errors.push(`${label} must not bypass throttling for admin/catalog read endpoints.`);
+  }
 }
 requireContains(
   clubArchivingMigrationText,

@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } fr
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto } from '../organizations/dto/signup.dto';
 import { AuthService } from './auth.service';
@@ -24,7 +25,7 @@ export class SignupController {
    */
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ auth: { limit: 5, ttl: 3_600_000 } })
+  @Throttle(SIGNUP_ACTION_THROTTLE)
   @ApiOperation({ summary: 'Organizer self-service signup' })
   @ApiResponse({ status: 201, description: 'Signup initiated' })
   @ApiResponse({ status: 400, description: 'Validation error' })

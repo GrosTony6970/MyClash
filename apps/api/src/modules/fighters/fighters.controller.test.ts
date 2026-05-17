@@ -11,16 +11,35 @@ function globalPersonGuardsFor(methodName: keyof GlobalPersonsController): unkno
   return Reflect.getMetadata(GUARDS_METADATA, GlobalPersonsController.prototype[methodName]) ?? [];
 }
 
+function fighterThrottleLimit(methodName: keyof FightersController): unknown {
+  return Reflect.getMetadata('THROTTLER:LIMITglobal', FightersController.prototype[methodName]);
+}
+
+function globalPersonThrottleLimit(methodName: keyof GlobalPersonsController): unknown {
+  return Reflect.getMetadata(
+    'THROTTLER:LIMITglobal',
+    GlobalPersonsController.prototype[methodName],
+  );
+}
+
 describe('FightersController merge guards', () => {
   it('protects fighter merge endpoints with SuperAdminGuard', () => {
     expect(guardsFor('merge')).toContain(SuperAdminGuard);
     expect(guardsFor('revertMerge')).toContain(SuperAdminGuard);
     expect(guardsFor('mergeAuditLog')).toContain(SuperAdminGuard);
   });
+
+  it('uses a higher read limit for the merge audit grid', () => {
+    expect(fighterThrottleLimit('mergeAuditLog')).toBe(600);
+  });
 });
 
 describe('GlobalPersonsController guards', () => {
   it('protects global profile edits with SuperAdminGuard', () => {
     expect(globalPersonGuardsFor('update')).toContain(SuperAdminGuard);
+  });
+
+  it('uses a catalog read limit for global profile searches', () => {
+    expect(globalPersonThrottleLimit('list')).toBe(300);
   });
 });

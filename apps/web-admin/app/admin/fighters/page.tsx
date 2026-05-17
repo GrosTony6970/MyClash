@@ -144,6 +144,17 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  if (res.status === 429) return t('common.tooManyRequests');
+  try {
+    const body = (await res.json()) as { message?: unknown };
+    if (typeof body.message === 'string') return body.message;
+  } catch {
+    // Keep the localized fallback when the API body is empty.
+  }
+  return fallback;
+}
+
 type Tab = 'profiles' | 'create' | 'merge';
 
 export default function AdminFightersPage() {
@@ -154,14 +165,20 @@ export default function AdminFightersPage() {
   const [personQuery, setPersonQuery] = useState('');
   const [persons, setPersons] = useState<FighterRow[]>([]);
   const [personsLoading, setPersonsLoading] = useState(false);
+  const [personsError, setPersonsError] = useState<string | null>(null);
 
   async function searchPersons(q: string) {
     setPersonsLoading(true);
+    setPersonsError(null);
     const res = await fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(q.trim())}`, {
       credentials: 'include',
     });
     setPersonsLoading(false);
-    if (res.ok) setPersons((await res.json()) as FighterRow[]);
+    if (res.ok) {
+      setPersons((await res.json()) as FighterRow[]);
+      return;
+    }
+    setPersonsError(await readErrorMessage(res, t('admin.globalProfiles.loadError')));
   }
 
   useEffect(() => {
@@ -176,11 +193,15 @@ export default function AdminFightersPage() {
         });
       })
       .then(async (res) => {
-        if (res.ok) setPersons((await res.json()) as FighterRow[]);
+        if (!res.ok)
+          throw new Error(await readErrorMessage(res, t('admin.globalProfiles.loadError')));
+        setPersons((await res.json()) as FighterRow[]);
+        setPersonsError(null);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           setPersons([]);
+          setPersonsError(err instanceof Error ? err.message : t('admin.globalProfiles.loadError'));
         }
       })
       .finally(() => setPersonsLoading(false));
@@ -238,7 +259,10 @@ export default function AdminFightersPage() {
     if (res.ok) {
       setClubResults((await res.json()) as ClubSearchResult[]);
       setActiveClubIndex(0);
+      setCreateError(null);
+      return;
     }
+    setCreateError(await readErrorMessage(res, t('admin.globalProfiles.clubSearchError')));
   }
 
   async function createClubFromProfileForm() {
@@ -258,8 +282,7 @@ export default function AdminFightersPage() {
         }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.globalProfiles.clubCreateError'));
+        throw new Error(await readErrorMessage(res, t('admin.globalProfiles.clubCreateError')));
       }
       const club = (await res.json()) as ClubSearchResult;
       setForm((f) => ({
@@ -311,12 +334,13 @@ export default function AdminFightersPage() {
         },
       );
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(
-          body.message ??
-            (editingProfile
+          await readErrorMessage(
+            res,
+            editingProfile
               ? t('admin.globalProfiles.updateError')
-              : t('admin.globalProfiles.createError')),
+              : t('admin.globalProfiles.createError'),
+          ),
         );
       }
       setCreateSuccess(
@@ -360,7 +384,7 @@ export default function AdminFightersPage() {
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error('Failed to load merge audit log');
+        if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to load merge audit log'));
         setAudits((await res.json()) as MergeAuditEntry[]);
       })
       .catch((err: unknown) => {
@@ -380,7 +404,7 @@ export default function AdminFightersPage() {
     });
     setLoading(false);
     if (!res.ok) {
-      setMergeError('Fighter search failed.');
+      setMergeError(await readErrorMessage(res, 'Fighter search failed.'));
       return;
     }
     setFighters((await res.json()) as FighterRow[]);
@@ -413,8 +437,7 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
-    setMergeError(body.message ?? 'Merge failed.');
+    setMergeError(await readErrorMessage(res, 'Merge failed.'));
   }
 
   async function revertMerge(auditId: string) {
@@ -427,7 +450,7 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setMergeError('Merge revert failed.');
+    setMergeError(await readErrorMessage(res, 'Merge revert failed.'));
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -484,6 +507,18 @@ export default function AdminFightersPage() {
       {/* ── Tab: Profiles ── */}
       {tab === 'profiles' && (
         <div>
+          {personsError && (
+            <div className="mb-4 flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+              <span>{personsError}</span>
+              <button
+                type="button"
+                onClick={() => void searchPersons(personQuery)}
+                className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+              >
+                {t('actions.retry')}
+              </button>
+            </div>
+          )}
           <div className="flex gap-2 mb-4">
             <input
               value={personQuery}
@@ -814,8 +849,15 @@ export default function AdminFightersPage() {
       {tab === 'merge' && (
         <div>
           {mergeError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
-              {mergeError}
+            <div className="mb-4 flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+              <span>{mergeError}</span>
+              <button
+                type="button"
+                onClick={refreshAudits}
+                className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+              >
+                {t('actions.retry')}
+              </button>
             </div>
           )}
 

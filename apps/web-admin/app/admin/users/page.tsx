@@ -35,6 +35,7 @@ function formatDate(value: string | null | undefined, fallback: string) {
 }
 
 async function readError(res: Response, fallback: string): Promise<string> {
+  if (res.status === 429) return fallback;
   try {
     const data = (await res.json()) as { message?: unknown };
     if (typeof data.message === 'string') return data.message;
@@ -80,6 +81,7 @@ export default function AdminUsersPage() {
           setLoading(false);
           return;
         }
+        if (res.status === 429) throw new Error(t('common.tooManyRequests'));
         if (!res.ok) throw new Error(t('admin.users.loadError'));
         const data = (await res.json()) as UserListResponse;
         if (!cancelled) {
@@ -120,7 +122,12 @@ export default function AdminUsersPage() {
 
     setCreating(false);
     if (!res.ok) {
-      setCreateError(await readError(res, t('admin.users.create.failed')));
+      setCreateError(
+        await readError(
+          res,
+          res.status === 429 ? t('common.tooManyRequests') : t('admin.users.create.failed'),
+        ),
+      );
       return;
     }
 
@@ -147,7 +154,12 @@ export default function AdminUsersPage() {
       return;
     }
 
-    alert(await readError(res, t('admin.users.actions.failed')));
+    alert(
+      await readError(
+        res,
+        res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
+      ),
+    );
   }
 
   async function handleDelete(user: AdminUser, mode: 'safe' | 'cleanup') {
@@ -168,7 +180,12 @@ export default function AdminUsersPage() {
       return;
     }
 
-    alert(await readError(res, t('admin.users.actions.failed')));
+    alert(
+      await readError(
+        res,
+        res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
+      ),
+    );
   }
 
   return (
@@ -259,8 +276,15 @@ export default function AdminUsersPage() {
       </section>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        <div className="flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={refresh}
+            className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+          >
+            {t('actions.retry')}
+          </button>
         </div>
       )}
 

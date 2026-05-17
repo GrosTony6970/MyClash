@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } fr
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { AUTH_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
 import { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -25,6 +26,7 @@ export class AuthController {
    */
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_ACTION_THROTTLE)
   @ApiOperation({ summary: 'Request a magic link (login or claim)' })
   @ApiResponse({
     status: 200,
@@ -52,7 +54,7 @@ export class AuthController {
 
   @Post('password-login')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ auth: { limit: 10, ttl: 3_600_000 } })
+  @Throttle(AUTH_ACTION_THROTTLE)
   @ApiOperation({ summary: 'Sign in with email and password for admin access' })
   @ApiResponse({ status: 200, description: 'Password session accepted' })
   @ApiResponse({ status: 400, description: 'Validation error' })

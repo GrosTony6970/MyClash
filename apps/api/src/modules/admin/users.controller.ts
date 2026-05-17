@@ -16,7 +16,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { AdminUsersService, type DeletePlatformUserMode } from './admin-users.service';
 import { CreatePlatformUserDto } from './dto/admin-users.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
@@ -33,6 +35,7 @@ export class UsersAdminController {
   constructor(private readonly service: AdminUsersService) {}
 
   @Get()
+  @Throttle(ADMIN_READ_THROTTLE)
   @ApiOperation({ summary: 'List users (super admin)' })
   async list(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,

@@ -4,6 +4,10 @@ import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { ClubsController } from './clubs.controller';
 
 describe('ClubsController', () => {
+  it('uses a catalog read limit for club searches', () => {
+    expect(Reflect.getMetadata('THROTTLER:LIMITglobal', ClubsController.prototype.list)).toBe(300);
+  });
+
   it('guards club deletion with SuperAdminGuard', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, ClubsController.prototype.delete) as
       | unknown[]
