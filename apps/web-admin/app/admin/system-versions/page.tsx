@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type VersionSource = 'manifest' | 'package.json' | 'compose' | 'runtime' | 'deploy';
@@ -39,43 +39,49 @@ export default function AdminSystemVersionsPage() {
 
   const [versions, setVersions] = useState<SystemVersionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
+  const loadVersions = useCallback(
+    ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
+      if (refresh) setRefreshing(true);
 
-    fetch(`${apiUrl}/api/v1/admin/system-versions`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
-          setError(t('admin.systemVersions.accessDenied'));
-          setLoading(false);
-          return;
-        }
-        if (!res.ok) throw new Error(t('admin.systemVersions.loadError'));
-        const data = (await res.json()) as SystemVersionsResponse;
-        if (!cancelled) {
+      fetch(`${apiUrl}/api/v1/admin/system-versions`, {
+        credentials: 'include',
+        signal,
+      })
+        .then(async (res) => {
+          if (res.status === 401 || res.status === 403) {
+            setError(t('admin.systemVersions.accessDenied'));
+            return;
+          }
+          if (!res.ok) throw new Error(t('admin.systemVersions.loadError'));
+          const data = (await res.json()) as SystemVersionsResponse;
           setVersions(data);
           setError(null);
+        })
+        .catch((err: unknown) => {
+          if (!(err instanceof DOMException && err.name === 'AbortError')) {
+            setError(err instanceof Error ? err.message : t('admin.systemVersions.loadError'));
+          }
+        })
+        .finally(() => {
           setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.systemVersions.loadError'));
-          setLoading(false);
-        }
-      });
+          setRefreshing(false);
+        });
+    },
+    [apiUrl, t],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void Promise.resolve().then(() => loadVersions({ signal: controller.signal }));
 
     return () => {
-      cancelled = true;
       controller.abort();
     };
-  }, [apiUrl, t]);
+  }, [loadVersions]);
 
   return (
     <main id="main-content" className="p-8">
@@ -84,9 +90,19 @@ export default function AdminSystemVersionsPage() {
           {t('admin.systemVersions.backToAdmin')}
         </Link>
       </div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{t('admin.systemVersions.title')}</h1>
-        <p className="text-gray-500 text-sm mt-1">{t('admin.systemVersions.description')}</p>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{t('admin.systemVersions.title')}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('admin.systemVersions.description')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => loadVersions({ refresh: true })}
+          disabled={loading || refreshing}
+          className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {refreshing ? t('admin.systemVersions.refreshing') : t('admin.systemVersions.refresh')}
+        </button>
       </div>
 
       {error && (

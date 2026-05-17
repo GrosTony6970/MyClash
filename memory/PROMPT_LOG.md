@@ -847,3 +847,7 @@ PLEASE IMPLEMENT THIS PLAN: Edit Global Profiles, Create Clubs, And Fuzzy Club S
 ## 19:14:59_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Expose Clubs In Super-Admin Menu And Add Club Deletion Controls. Add /admin/clubs to super-admin nav/dashboard, add safe/archive/cleanup delete API and UI controls, migration if needed, i18n, tests, and review guards.
+
+## 19:28:11_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Add System Versions Refresh Button

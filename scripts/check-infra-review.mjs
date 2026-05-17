@@ -108,6 +108,15 @@ const superAdminClubsPagePath = path.join(
   'clubs',
   'page.tsx',
 );
+const superAdminSystemVersionsPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'system-versions',
+  'page.tsx',
+);
 const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
 const superAdminShellPath = path.join(
   rootDir,
@@ -305,6 +314,7 @@ const superAdminOrganizationDetailPageText = await readFile(
 const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
 const superAdminFightersPageText = await readFile(superAdminFightersPagePath, 'utf8');
 const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
+const superAdminSystemVersionsPageText = await readFile(superAdminSystemVersionsPagePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
@@ -888,6 +898,18 @@ requireContains(
   'packages/db/migrations/0036_club_archiving.sql',
   'archived_at',
 );
+for (const expected of [
+  'loadVersions',
+  '/api/v1/admin/system-versions',
+  'admin.systemVersions.refresh',
+  'admin.systemVersions.refreshing',
+]) {
+  requireContains(
+    superAdminSystemVersionsPageText,
+    'apps/web-admin/app/admin/system-versions/page.tsx',
+    expected,
+  );
+}
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
 }

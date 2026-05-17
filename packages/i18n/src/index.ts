@@ -949,6 +949,8 @@ export const en = {
       description:
         'Installed app, framework, container, and infrastructure versions visible to super admins.',
       loading: 'Loading system versions...',
+      refresh: 'Refresh',
+      refreshing: 'Refreshing...',
       accessDenied: 'Access denied. Super admin required.',
       loadError: 'Failed to load system versions.',
       generatedAt: 'Generated at',
@@ -2496,6 +2498,8 @@ export const fr = {
       description:
         "Versions de l'app, des frameworks, des conteneurs et de l'infrastructure visibles par les super-administrateurs.",
       loading: 'Chargement des versions systÃ¨me...',
+      refresh: 'Rafraichir',
+      refreshing: 'Rafraichissement...',
       accessDenied: 'AccÃ¨s refusÃ©. Super-administrateur requis.',
       loadError: 'Impossible de charger les versions systÃ¨me.',
       generatedAt: 'GÃ©nÃ©rÃ© le',
