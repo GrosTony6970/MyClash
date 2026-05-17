@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -9,9 +11,11 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ClubsService } from './clubs.service';
+import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { ClubsService, type DeleteClubMode } from './clubs.service';
 import { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
 
 @ApiTags('clubs')
@@ -49,5 +53,18 @@ export class ClubsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClubDto) {
     return this.clubs.update(id, dto);
+  }
+
+  /** DELETE /api/v1/clubs/:id?mode=safe|archive|cleanup */
+  @Delete(':id')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Delete or archive a club (super admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async delete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('mode', new DefaultValuePipe('safe')) mode: DeleteClubMode,
+  ) {
+    return this.clubs.deleteClub(id, mode);
   }
 }

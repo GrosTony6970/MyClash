@@ -12,6 +12,7 @@ interface ClubRow {
   city: string | null;
   country_code: string | null;
   unverified: string | null;
+  archived_at: string | null;
 }
 
 interface EditState {
@@ -26,6 +27,8 @@ interface CreateState extends EditState {
   logoUrl: string;
 }
 
+type DeleteMode = 'safe' | 'archive' | 'cleanup';
+
 const emptyCreateState: CreateState = {
   name: '',
   abbreviation: '',
@@ -34,6 +37,14 @@ const emptyCreateState: CreateState = {
   website: '',
   logoUrl: '',
 };
+
+function formatBlockers(blockers: unknown): string | null {
+  if (!blockers || typeof blockers !== 'object') return null;
+  const entries = Object.entries(blockers as Record<string, unknown>)
+    .filter(([, value]) => typeof value === 'number' && value > 0)
+    .map(([key, value]) => `${key}: ${value}`);
+  return entries.length > 0 ? entries.join(', ') : null;
+}
 
 export default function AdminClubsPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -50,6 +61,7 @@ export default function AdminClubsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [createState, setCreateState] = useState<CreateState>(emptyCreateState);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +193,54 @@ export default function AdminClubsPage() {
       setError(err instanceof Error ? err.message : t('admin.clubs.createError'));
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function deleteClub(club: ClubRow, mode: DeleteMode) {
+    const confirmKey =
+      mode === 'safe'
+        ? 'admin.clubs.confirmSafeDelete'
+        : mode === 'archive'
+          ? 'admin.clubs.confirmArchive'
+          : 'admin.clubs.confirmCleanupDelete';
+
+    if (!window.confirm(t(confirmKey, { club: club.name }))) return;
+
+    setDeletingId(club.id);
+    setError(null);
+    setCreateSuccess(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/clubs/${club.id}?mode=${mode}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string | string[];
+          blockers?: unknown;
+        };
+        const message = Array.isArray(data.message)
+          ? data.message.join(', ')
+          : (data.message ?? t('admin.clubs.deleteError'));
+        const blockerText = formatBlockers(data.blockers);
+        throw new Error(
+          blockerText ? `${message}. ${t('admin.clubs.blockers')}: ${blockerText}` : message,
+        );
+      }
+
+      setClubs((prev) => prev.filter((item) => item.id !== club.id));
+      setCreateSuccess(
+        mode === 'archive'
+          ? t('admin.clubs.archiveSuccess', { club: club.name })
+          : mode === 'cleanup'
+            ? t('admin.clubs.cleanupSuccess', { club: club.name })
+            : t('admin.clubs.deleteSuccess', { club: club.name }),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.clubs.deleteError'));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -422,12 +482,35 @@ export default function AdminClubsPage() {
                     )}
                   </td>
                   <td className="py-2.5 px-4">
-                    <button
-                      onClick={() => startEdit(club)}
-                      className="text-xs text-red-700 hover:underline"
-                    >
-                      {t('actions.edit')}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => startEdit(club)}
+                        className="text-xs text-red-700 hover:underline"
+                      >
+                        {t('actions.edit')}
+                      </button>
+                      <button
+                        onClick={() => void deleteClub(club, 'safe')}
+                        disabled={deletingId === club.id}
+                        className="text-xs text-slate-600 hover:text-slate-900 disabled:opacity-50"
+                      >
+                        {t('admin.clubs.safeDelete')}
+                      </button>
+                      <button
+                        onClick={() => void deleteClub(club, 'archive')}
+                        disabled={deletingId === club.id}
+                        className="text-xs text-amber-700 hover:text-amber-900 disabled:opacity-50"
+                      >
+                        {t('admin.clubs.archive')}
+                      </button>
+                      <button
+                        onClick={() => void deleteClub(club, 'cleanup')}
+                        disabled={deletingId === club.id}
+                        className="text-xs text-red-700 hover:text-red-900 disabled:opacity-50"
+                      >
+                        {t('admin.clubs.cleanupDelete')}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ),

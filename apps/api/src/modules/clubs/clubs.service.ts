@@ -7,6 +7,14 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import type { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
 
+export type DeleteClubMode = 'safe' | 'archive' | 'cleanup';
+
+type ClubDeleteBlockers = {
+  globalPersons: number;
+  eventPersons: number;
+  fighterClubLinks: number;
+};
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -23,6 +31,10 @@ export class ClubsService {
 
   async list(query: ClubQueryDto) {
     let q = this.supabase.service.from('clubs').select('*').order('name', { ascending: true });
+
+    if (!this.booleanQueryValue(query.includeArchived)) {
+      q = q.is('archived_at', null) as typeof q;
+    }
 
     if (query.q) {
       q = query.searchAbv
@@ -41,6 +53,7 @@ export class ClubsService {
       .from('clubs')
       .select('*')
       .eq('slug', slug)
+      .is('archived_at', null)
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
@@ -94,5 +107,81 @@ export class ClubsService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Club ${id} not found`);
     return data;
+  }
+
+  async deleteClub(id: string, mode: DeleteClubMode = 'safe') {
+    if (!['safe', 'archive', 'cleanup'].includes(mode)) {
+      throw new BadRequestException('Unknown club deletion mode');
+    }
+
+    if (mode === 'archive') {
+      const { error } = await this.supabase.service
+        .from('clubs')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      if (error) throw new BadRequestException(error.message);
+      return { deleted: false, mode, cleanupApplied: false, archived: true };
+    }
+
+    if (mode === 'safe') {
+      const blockers = await this.collectClubDeleteBlockers(id);
+      if (Object.values(blockers).some((count) => count > 0)) {
+        throw new BadRequestException({
+          message: 'Club is still referenced and cannot be safely deleted',
+          blockers,
+        });
+      }
+
+      await this.deleteClubRow(id);
+      return { deleted: true, mode, cleanupApplied: false, archived: false };
+    }
+
+    await this.clearSupportedClubReferences(id);
+    await this.deleteClubRow(id);
+    return { deleted: true, mode, cleanupApplied: true, archived: false };
+  }
+
+  private booleanQueryValue(value: unknown): boolean {
+    return value === true || value === 'true';
+  }
+
+  private async collectClubDeleteBlockers(id: string): Promise<ClubDeleteBlockers> {
+    const [globalPersons, eventPersons, fighterClubLinks] = await Promise.all([
+      this.countReferences('global_persons', 'club_id', id),
+      this.countReferences('persons', 'club_id', id),
+      this.countReferences('fighter_clubs', 'club_id', id),
+    ]);
+
+    return { globalPersons, eventPersons, fighterClubLinks };
+  }
+
+  private async countReferences(table: string, column: string, value: string): Promise<number> {
+    const { count, error } = await this.supabase.service
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq(column, value);
+
+    if (error) throw new BadRequestException(error.message);
+    return count ?? 0;
+  }
+
+  private async clearSupportedClubReferences(id: string) {
+    const operations = [
+      this.supabase.service.from('global_persons').update({ club_id: null }).eq('club_id', id),
+      this.supabase.service.from('persons').update({ club_id: null }).eq('club_id', id),
+      this.supabase.service.from('fighter_clubs').delete().eq('club_id', id),
+    ];
+
+    const results = await Promise.all(operations);
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw new BadRequestException(failed.error.message);
+  }
+
+  private async deleteClubRow(id: string) {
+    const { error } = await this.supabase.service.from('clubs').delete().eq('id', id);
+    if (error) throw new BadRequestException(error.message);
   }
 }

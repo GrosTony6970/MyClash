@@ -192,6 +192,15 @@ const fightersControllerPath = path.join(
   'fighters',
   'fighters.controller.ts',
 );
+const clubsControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'clubs',
+  'clubs.controller.ts',
+);
 const superAdminGuardPath = path.join(
   rootDir,
   'apps',
@@ -257,6 +266,13 @@ const realtimeMigrationPath = path.join(
   'migrations',
   '0035_realtime_internal_schema.sql',
 );
+const clubArchivingMigrationPath = path.join(
+  rootDir,
+  'packages',
+  'db',
+  'migrations',
+  '0036_club_archiving.sql',
+);
 const dockerfilePaths = [
   'apps/api/Dockerfile',
   'apps/web-admin/Dockerfile',
@@ -299,6 +315,7 @@ const authServiceText = await readFile(authServicePath, 'utf8');
 const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
 const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
 const fightersControllerText = await readFile(fightersControllerPath, 'utf8');
+const clubsControllerText = await readFile(clubsControllerPath, 'utf8');
 const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
@@ -309,6 +326,7 @@ const i18nText = await readFile(i18nPath, 'utf8');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
 const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
+const clubArchivingMigrationText = await readFile(clubArchivingMigrationPath, 'utf8');
 const dockerfiles = await Promise.all(
   dockerfilePaths.map(async (filePath) => ({
     filePath,
@@ -846,6 +864,30 @@ for (const expected of [
 for (const expected of ['createClub', '/api/v1/clubs', 'admin.clubs.createTitle']) {
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
 }
+for (const expected of ['/admin/clubs', 'admin.shell.nav.clubs']) {
+  requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', expected);
+}
+for (const expected of ['/admin/clubs', 'clubsTitle', 'clubsDescription']) {
+  requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', expected);
+}
+for (const expected of ["@Delete(':id')", '@UseGuards(SuperAdminGuard)', 'deleteClub']) {
+  requireContains(clubsControllerText, 'apps/api/src/modules/clubs/clubs.controller.ts', expected);
+}
+for (const expected of [
+  "deleteClub(club, 'safe')",
+  "deleteClub(club, 'archive')",
+  "deleteClub(club, 'cleanup')",
+  'admin.clubs.safeDelete',
+  'admin.clubs.archive',
+  'admin.clubs.cleanupDelete',
+]) {
+  requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
+}
+requireContains(
+  clubArchivingMigrationText,
+  'packages/db/migrations/0036_club_archiving.sql',
+  'archived_at',
+);
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
 }

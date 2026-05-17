@@ -843,3 +843,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix AI Settings Menu And Compensation Plan Creation 
 ## 18:40:46_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Edit Global Profiles, Create Clubs, And Fuzzy Club Selection. Add super-admin global-person edit endpoint, expand profile create/edit fields, add fuzzy club dropdown and club creation from profile/admin clubs, i18n, tests, and review guards.
+
+## 19:14:59_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Expose Clubs In Super-Admin Menu And Add Club Deletion Controls. Add /admin/clubs to super-admin nav/dashboard, add safe/archive/cleanup delete API and UI controls, migration if needed, i18n, tests, and review guards.

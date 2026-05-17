@@ -51,6 +51,12 @@ const sections = [
     badge: 'F',
   },
   {
+    href: '/admin/clubs',
+    titleKey: 'admin.dashboard.cards.clubsTitle',
+    descriptionKey: 'admin.dashboard.cards.clubsDescription',
+    badge: 'C',
+  },
+  {
     href: '/admin/rulesets',
     titleKey: 'admin.dashboard.cards.rulesetsTitle',
     descriptionKey: 'admin.dashboard.cards.rulesetsDescription',

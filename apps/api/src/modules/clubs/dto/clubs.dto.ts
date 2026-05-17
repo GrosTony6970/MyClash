@@ -92,4 +92,8 @@ export class ClubQueryDto {
   @ApiProperty({ required: false, description: 'If true, also search abbreviation field' })
   @IsOptional()
   searchAbv?: boolean;
+
+  @ApiProperty({ required: false, description: 'If true, include archived clubs' })
+  @IsOptional()
+  includeArchived?: boolean;
 }
