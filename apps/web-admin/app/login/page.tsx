@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Button } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
@@ -165,36 +166,42 @@ export default function LoginPage() {
             </p>
           )}
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+            loading={loadingAction === 'password'}
+            variant="next"
+            className="w-full"
           >
             {loadingAction === 'password' ? t('auth.login.signingIn') : t('auth.login.signIn')}
-          </button>
+          </Button>
         </form>
 
-        <button
+        <Button
           type="button"
           onClick={() => {
             void handleMagicLink();
           }}
           disabled={loading || !email}
-          className="mt-3 w-full border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+          loading={loadingAction === 'magic_link'}
+          variant="back"
+          className="mt-3 w-full"
         >
           {loadingAction === 'magic_link' ? t('auth.login.sending') : t('auth.login.sendLoginLink')}
-        </button>
+        </Button>
 
-        <button
+        <Button
           type="button"
           onClick={() => {
             void handleGoogleLogin();
           }}
           disabled={loading}
-          className="mt-3 w-full border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+          loading={loadingAction === 'google'}
+          variant="back"
+          className="mt-3 w-full"
         >
           {t('auth.oauth.continueWithGoogle')}
-        </button>
+        </Button>
 
         <p className="mt-6 text-center text-sm text-gray-500">
           {t('auth.login.signupPrompt')}{' '}

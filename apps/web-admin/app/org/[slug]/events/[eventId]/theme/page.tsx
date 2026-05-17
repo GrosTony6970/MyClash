@@ -1,3 +1,4 @@
+/* eslint-disable myclash/no-literal-string -- legacy theme editor predates i18n; upload wiring keeps existing copy for now */
 'use client';
 
 /**
@@ -11,8 +12,9 @@
  */
 
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@myclash/ui';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,11 +57,14 @@ function reducer(state: ThemeState, action: ThemeAction): ThemeState {
 
 const FONT_DISPLAY_OPTIONS = ['Cinzel', 'Playfair Display', 'IM Fell English', 'MedievalSharp'];
 const FONT_BODY_OPTIONS = ['Inter', 'Lato', 'Open Sans', 'Roboto', 'Source Sans 3'];
+const MAX_LOGO_BYTES = 10 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ThemeEditorPage() {
   const params = useParams<{ slug: string; eventId: string }>();
+  const searchParams = useSearchParams();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -77,31 +82,38 @@ export default function ThemeEditorPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const ev = (await res.json()) as {
-          name: string;
-          theme?: Partial<ThemeState> | null;
-        };
-        setEventName(ev.name);
-        if (ev.theme) {
-          dispatch({
-            type: 'LOAD',
-            theme: {
-              primaryColor: ev.theme.primaryColor ?? DEFAULTS.primaryColor,
-              secondaryColor: ev.theme.secondaryColor ?? DEFAULTS.secondaryColor,
-              accentColor: ev.theme.accentColor ?? DEFAULTS.accentColor,
-              fontDisplay: ev.theme.fontDisplay ?? DEFAULTS.fontDisplay,
-              fontBody: ev.theme.fontBody ?? DEFAULTS.fontBody,
-              logoUrl: ev.theme.logoUrl ?? '',
-              heroImageUrl: ev.theme.heroImageUrl ?? '',
-              customCss: ev.theme.customCss ?? '',
-            },
-          });
+    Promise.all([
+      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
+      fetch(`${apiUrl}/api/v1/events/${eventId}/theme`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
+    ])
+      .then(async ([eventRes, themeRes]) => {
+        if (eventRes.ok) {
+          const ev = (await eventRes.json()) as { name: string };
+          setEventName(ev.name);
+        }
+        if (themeRes.ok) {
+          const evTheme = (await themeRes.json()) as Partial<ThemeState> | null;
+          if (evTheme) {
+            dispatch({
+              type: 'LOAD',
+              theme: {
+                primaryColor: evTheme.primaryColor ?? DEFAULTS.primaryColor,
+                secondaryColor: evTheme.secondaryColor ?? DEFAULTS.secondaryColor,
+                accentColor: evTheme.accentColor ?? DEFAULTS.accentColor,
+                fontDisplay: evTheme.fontDisplay ?? DEFAULTS.fontDisplay,
+                fontBody: evTheme.fontBody ?? DEFAULTS.fontBody,
+                logoUrl: evTheme.logoUrl ?? '',
+                heroImageUrl: evTheme.heroImageUrl ?? '',
+                customCss: evTheme.customCss ?? '',
+              },
+            });
+          }
         }
       })
       .catch((err: unknown) => {
@@ -153,6 +165,14 @@ export default function ThemeEditorPage() {
   // ── Logo upload ────────────────────────────────────────────────────────────
 
   async function handleLogoUpload(file: File) {
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setError('Logo must be a PNG, JPEG, or WebP image.');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setError('Logo must be 10 MB or smaller.');
+      return;
+    }
     setUploadingLogo(true);
     try {
       const formData = new FormData();
@@ -203,19 +223,26 @@ export default function ThemeEditorPage() {
         </div>
         <div className="flex items-center gap-3">
           {saved && <span className="text-sm text-green-600 font-medium">✓ Saved</span>}
-          <button
+          <Button
+            type="button"
+            variant="next"
             onClick={() => void handleSave()}
             disabled={saving}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+            loading={saving}
           >
             {saving ? 'Saving…' : 'Save theme'}
-          </button>
+          </Button>
         </div>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">
           {error}
+        </div>
+      )}
+      {searchParams.get('logoUpload') === 'failed' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 mb-6 text-sm">
+          Logo upload failed during event creation. Upload it again here.
         </div>
       )}
 
@@ -312,22 +339,24 @@ export default function ThemeEditorPage() {
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handleLogoUpload(file);
                   }}
                 />
-                <button
+                <Button
                   type="button"
+                  variant="back"
+                  size="sm"
                   onClick={() => logoInputRef.current?.click()}
                   disabled={uploadingLogo}
-                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  loading={uploadingLogo}
                 >
                   {uploadingLogo ? 'Uploading…' : 'Upload image'}
-                </button>
-                <p className="text-xs text-gray-400">Uploads to Supabase Storage</p>
+                </Button>
+                <p className="text-xs text-gray-400">PNG, JPEG, or WebP up to 10 MB</p>
               </div>
             </div>
           </section>

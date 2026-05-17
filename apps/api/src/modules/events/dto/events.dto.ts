@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsHexColor,
   IsIn,
   IsNumber,
   IsObject,
@@ -92,6 +93,50 @@ export class UpdateEventDto {
   @IsNumber()
   @Min(0)
   aiSpendCapEur?: number | null;
+}
+
+export class UpsertEventThemeDto {
+  @ApiProperty({ required: false, example: '#dc2626' })
+  @IsOptional()
+  @IsHexColor()
+  primaryColor?: string | null;
+
+  @ApiProperty({ required: false, example: '#0f172a' })
+  @IsOptional()
+  @IsHexColor()
+  secondaryColor?: string | null;
+
+  @ApiProperty({ required: false, example: '#f59e0b' })
+  @IsOptional()
+  @IsHexColor()
+  accentColor?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  heroImageUrl?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  fontDisplay?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  fontBody?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  customCss?: string | null;
 }
 
 export class EventQueryDto {

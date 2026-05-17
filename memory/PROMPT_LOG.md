@@ -831,3 +831,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix System Version Manifest Directory Regression. Tr
 ## 15:51:45_17-05-2026
 
 Troubleshoot admin login: on `admin.myclash.fr` with `admin@myclash.fr`, browser shows `NetworkError when attempting to fetch resource` for `api.myclash.fr`.
+
+## 18:00:13_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Event Creation UX, Logo Upload, Auth Fix, And Shared Buttons

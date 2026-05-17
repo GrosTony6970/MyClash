@@ -1,42 +1,22 @@
-/* eslint-disable myclash/no-literal-string -- pre-T-1401 page; i18n strings tracked in backlog */
 'use client';
 
-/**
- * New Event wizard — T-701
- * Route: /org/[slug]/events/new
- *
- * 4 steps:
- *   1. Basics (name, slug, dates, location)
- *   2. Lices (number of pistes, names)
- *   3. Theme (primary color, optional logo URL)
- *   4. Review + create
- *
- * AC:
- *   ✓ Wizard creates event, default lices, draft theme
- *   ✓ Validation on each step
- *   ✓ Cancel returns to dashboard with no orphans (nothing created until step 4)
- */
-
-import { useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { Button } from '@myclash/ui';
+import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface WizardState {
   step: 1 | 2 | 3 | 4;
-  // Step 1
   name: string;
   slug: string;
   startDate: string;
   endDate: string;
   location: string;
-  // Step 2
   liceCount: number;
   liceNames: string[];
-  // Step 3
   primaryColor: string;
   logoUrl: string;
-  // Submission
   submitting: boolean;
   error: string | null;
 }
@@ -49,6 +29,9 @@ type Action =
   | { type: 'BACK' }
   | { type: 'SUBMIT_START' }
   | { type: 'SUBMIT_ERROR'; error: string };
+
+const MAX_LOGO_BYTES = 10 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 function slugify(name: string): string {
   return name
@@ -82,6 +65,13 @@ const INITIAL: WizardState = {
 function reducer(state: WizardState, action: Action): WizardState {
   switch (action.type) {
     case 'SET_FIELD':
+      if (action.field === 'startDate' && typeof action.value === 'string') {
+        return {
+          ...state,
+          startDate: action.value,
+          endDate: !state.endDate || state.endDate < action.value ? action.value : state.endDate,
+        };
+      }
       return { ...state, [action.field]: action.value };
     case 'SET_LICE_NAME': {
       const names = [...state.liceNames];
@@ -90,7 +80,9 @@ function reducer(state: WizardState, action: Action): WizardState {
     }
     case 'SET_LICE_COUNT': {
       const count = Math.max(1, Math.min(10, action.count));
-      const names = defaultLiceNames(count).map((def, i) => state.liceNames[i] ?? def);
+      const names = defaultLiceNames(count).map(
+        (fallback, index) => state.liceNames[index] ?? fallback,
+      );
       return { ...state, liceCount: count, liceNames: names };
     }
     case 'NEXT':
@@ -106,153 +98,157 @@ function reducer(state: WizardState, action: Action): WizardState {
   }
 }
 
-// ── Validation ────────────────────────────────────────────────────────────────
-
-function validateStep1(s: WizardState): string | null {
-  if (!s.name.trim()) return 'Event name is required';
-  if (!s.slug.trim() || !/^[a-z0-9-]+$/.test(s.slug))
-    return 'Slug must be lowercase letters, digits, and hyphens only';
-  if (!s.startDate) return 'Start date is required';
-  if (!s.endDate) return 'End date is required';
-  if (s.endDate < s.startDate) return 'End date must be on or after start date';
+function validateStep1(s: WizardState, t: (key: string) => string): string | null {
+  if (!s.name.trim()) return t('organizer.newEvent.validation.nameRequired');
+  if (!s.slug.trim() || !/^[a-z0-9-]+$/u.test(s.slug)) {
+    return t('organizer.newEvent.validation.invalidSlug');
+  }
+  if (!s.startDate) return t('organizer.newEvent.validation.startRequired');
+  if (!s.endDate) return t('organizer.newEvent.validation.endRequired');
+  if (s.endDate < s.startDate) return t('organizer.newEvent.validation.endBeforeStart');
   return null;
 }
 
-function validateStep2(s: WizardState): string | null {
-  if (s.liceCount < 1) return 'At least 1 Lice is required';
-  if (s.liceNames.some((n) => !n.trim())) return 'All Lice names must be filled';
+function validateStep2(s: WizardState, t: (key: string) => string): string | null {
+  if (s.liceCount < 1) return t('organizer.newEvent.validation.licesRequired');
+  if (s.liceNames.some((name) => !name.trim())) {
+    return t('organizer.newEvent.validation.licesNamesRequired');
+  }
   return null;
 }
 
-function validateStep3(_s: WizardState): string | null {
-  return null; // theme is optional
-}
+type Translator = (key: string, values?: Record<string, string | number>) => string;
 
-// ── Step components ───────────────────────────────────────────────────────────
+function Step1({
+  state,
+  dispatch,
+  t,
+  locale,
+}: {
+  state: WizardState;
+  dispatch: React.Dispatch<Action>;
+  t: Translator;
+  locale: string;
+}) {
+  const weekdayLabels = t('organizer.newEvent.weekdays').split('|');
 
-function Step1({ state, dispatch }: { state: WizardState; dispatch: React.Dispatch<Action> }) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label htmlFor="wizard-event-name" className="block text-sm font-medium text-gray-700 mb-1">
-          Event name *
+        <label htmlFor="wizard-event-name" className="mb-1 block text-sm font-medium text-gray-700">
+          {t('organizer.newEvent.eventName')}
         </label>
         <input
           id="wizard-event-name"
           type="text"
           value={state.name}
-          onChange={(e) => {
-            dispatch({ type: 'SET_FIELD', field: 'name', value: e.target.value });
+          onChange={(event) => {
+            dispatch({ type: 'SET_FIELD', field: 'name', value: event.target.value });
             if (!state.slug || state.slug === slugify(state.name)) {
-              dispatch({
-                type: 'SET_FIELD',
-                field: 'slug',
-                value: slugify(e.target.value),
-              });
+              dispatch({ type: 'SET_FIELD', field: 'slug', value: slugify(event.target.value) });
             }
           }}
-          placeholder="FAL 2027"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          placeholder={t('organizer.newEvent.eventNamePlaceholder')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
         />
       </div>
 
       <div>
-        <label htmlFor="wizard-event-slug" className="block text-sm font-medium text-gray-700 mb-1">
-          URL slug *
+        <label htmlFor="wizard-event-slug" className="mb-1 block text-sm font-medium text-gray-700">
+          {t('organizer.newEvent.slug')}
         </label>
-        <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-red-600">
-          <span className="px-3 py-2 bg-gray-50 text-gray-400 text-sm border-r border-gray-300 select-none">
-            /e/
+        <div className="flex items-center overflow-hidden rounded-lg border border-gray-300 focus-within:ring-2 focus-within:ring-red-600">
+          <span className="select-none border-r border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+            {t('organizer.newEvent.slugPrefix')}
           </span>
           <input
             id="wizard-event-slug"
             type="text"
             value={state.slug}
-            onChange={(e) =>
+            onChange={(event) =>
               dispatch({
                 type: 'SET_FIELD',
                 field: 'slug',
-                value: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                value: event.target.value.toLowerCase().replace(/[^a-z0-9-]/gu, ''),
               })
             }
-            placeholder="fal-2027"
+            placeholder={t('organizer.newEvent.slugPlaceholder')}
             className="flex-1 px-3 py-2 text-sm focus:outline-none"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label
-            htmlFor="wizard-start-date"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Start date *
-          </label>
-          <input
-            id="wizard-start-date"
-            type="date"
-            value={state.startDate}
-            onChange={(e) =>
-              dispatch({ type: 'SET_FIELD', field: 'startDate', value: e.target.value })
-            }
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          />
-        </div>
-        <div>
-          <label htmlFor="wizard-end-date" className="block text-sm font-medium text-gray-700 mb-1">
-            End date *
-          </label>
-          <input
-            id="wizard-end-date"
-            type="date"
-            value={state.endDate}
-            min={state.startDate}
-            onChange={(e) =>
-              dispatch({ type: 'SET_FIELD', field: 'endDate', value: e.target.value })
-            }
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          />
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <IsoDatePicker
+          id="wizard-start-date"
+          label={t('organizer.newEvent.startDate')}
+          value={state.startDate}
+          onChange={(value) => dispatch({ type: 'SET_FIELD', field: 'startDate', value })}
+          locale={locale}
+          previousMonthLabel={t('organizer.newEvent.previousMonth')}
+          nextMonthLabel={t('organizer.newEvent.nextMonth')}
+          weekdayLabels={weekdayLabels}
+        />
+        <IsoDatePicker
+          id="wizard-end-date"
+          label={t('organizer.newEvent.endDate')}
+          value={state.endDate}
+          min={state.startDate}
+          onChange={(value) => dispatch({ type: 'SET_FIELD', field: 'endDate', value })}
+          locale={locale}
+          previousMonthLabel={t('organizer.newEvent.previousMonth')}
+          nextMonthLabel={t('organizer.newEvent.nextMonth')}
+          weekdayLabels={weekdayLabels}
+        />
       </div>
 
       <div>
-        <label htmlFor="wizard-location" className="block text-sm font-medium text-gray-700 mb-1">
-          Location
+        <label htmlFor="wizard-location" className="mb-1 block text-sm font-medium text-gray-700">
+          {t('organizer.newEvent.location')}
         </label>
         <input
           id="wizard-location"
           type="text"
           value={state.location}
-          onChange={(e) =>
-            dispatch({ type: 'SET_FIELD', field: 'location', value: e.target.value })
+          onChange={(event) =>
+            dispatch({ type: 'SET_FIELD', field: 'location', value: event.target.value })
           }
-          placeholder="Lyon, France"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          placeholder={t('organizer.newEvent.locationPlaceholder')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
         />
       </div>
     </div>
   );
 }
 
-function Step2({ state, dispatch }: { state: WizardState; dispatch: React.Dispatch<Action> }) {
+function Step2({
+  state,
+  dispatch,
+  t,
+}: {
+  state: WizardState;
+  dispatch: React.Dispatch<Action>;
+  t: Translator;
+}) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <p className="block text-sm font-medium text-gray-700 mb-1">Number of Lices (pistes)</p>
+        <p className="mb-1 block text-sm font-medium text-gray-700">
+          {t('organizer.newEvent.licesCount')}
+        </p>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => dispatch({ type: 'SET_LICE_COUNT', count: state.liceCount - 1 })}
-            className="w-8 h-8 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 font-bold"
+            className="h-8 w-8 rounded-lg border border-gray-300 font-bold text-gray-600 hover:bg-gray-50"
           >
-            −
+            -
           </button>
-          <span className="text-lg font-bold w-8 text-center">{state.liceCount}</span>
+          <span className="w-8 text-center text-lg font-bold">{state.liceCount}</span>
           <button
             type="button"
             onClick={() => dispatch({ type: 'SET_LICE_COUNT', count: state.liceCount + 1 })}
-            className="w-8 h-8 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 font-bold"
+            className="h-8 w-8 rounded-lg border border-gray-300 font-bold text-gray-600 hover:bg-gray-50"
           >
             +
           </button>
@@ -260,16 +256,18 @@ function Step2({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-gray-700">Lice names</p>
-        {state.liceNames.slice(0, state.liceCount).map((name, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 w-6 text-right">{i + 1}.</span>
+        <p className="text-sm font-medium text-gray-700">{t('organizer.newEvent.licesNames')}</p>
+        {state.liceNames.slice(0, state.liceCount).map((name, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <span className="w-6 text-right text-xs text-gray-400">{index + 1}.</span>
             <input
               type="text"
               value={name}
-              aria-label={`Lice ${i + 1} name`}
-              onChange={(e) => dispatch({ type: 'SET_LICE_NAME', index: i, value: e.target.value })}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              aria-label={t('organizer.newEvent.liceName', { number: index + 1 })}
+              onChange={(event) =>
+                dispatch({ type: 'SET_LICE_NAME', index, value: event.target.value })
+              }
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </div>
         ))}
@@ -278,124 +276,227 @@ function Step2({ state, dispatch }: { state: WizardState; dispatch: React.Dispat
   );
 }
 
-function Step3({ state, dispatch }: { state: WizardState; dispatch: React.Dispatch<Action> }) {
+function Step3({
+  state,
+  dispatch,
+  t,
+  logoPreviewUrl,
+  onLogoChange,
+}: {
+  state: WizardState;
+  dispatch: React.Dispatch<Action>;
+  t: Translator;
+  logoPreviewUrl: string | null;
+  onLogoChange: (file: File | null) => void;
+}) {
   return (
     <div className="flex flex-col gap-5">
       <div>
         <label
           htmlFor="wizard-primary-color"
-          className="block text-sm font-medium text-gray-700 mb-1"
+          className="mb-1 block text-sm font-medium text-gray-700"
         >
-          Primary color
+          {t('organizer.newEvent.primaryColor')}
         </label>
         <div className="flex items-center gap-3">
           <input
             id="wizard-primary-color"
             type="color"
             value={state.primaryColor}
-            onChange={(e) =>
-              dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: e.target.value })
+            onChange={(event) =>
+              dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: event.target.value })
             }
-            className="w-10 h-10 rounded border border-gray-300 cursor-pointer"
+            className="h-10 w-10 cursor-pointer rounded border border-gray-300"
           />
           <input
             type="text"
             value={state.primaryColor}
-            aria-label="Color hex value"
-            onChange={(e) =>
-              dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: e.target.value })
+            aria-label={t('organizer.newEvent.colorHex')}
+            onChange={(event) =>
+              dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: event.target.value })
             }
-            className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
+            className="w-28 rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
           />
-          {/* Live preview */}
           <div
-            className="flex-1 h-10 rounded-lg flex items-center justify-center text-white text-sm font-semibold"
+            className="flex h-10 flex-1 items-center justify-center rounded-lg text-sm font-semibold text-white"
             style={{ backgroundColor: state.primaryColor }}
           >
-            Preview
+            {t('organizer.newEvent.preview')}
           </div>
         </div>
       </div>
 
       <div>
-        <label htmlFor="wizard-logo-url" className="block text-sm font-medium text-gray-700 mb-1">
-          Logo URL (optional)
+        <label htmlFor="wizard-logo-url" className="mb-1 block text-sm font-medium text-gray-700">
+          {t('organizer.newEvent.logoUrl')}
         </label>
         <input
           id="wizard-logo-url"
           type="url"
           value={state.logoUrl}
-          onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'logoUrl', value: e.target.value })}
-          placeholder="https://example.com/logo.png"
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          onChange={(event) =>
+            dispatch({ type: 'SET_FIELD', field: 'logoUrl', value: event.target.value })
+          }
+          placeholder={t('organizer.newEvent.logoUrlPlaceholder')}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
         />
-        <p className="text-xs text-gray-400 mt-1">
-          Full logo upload (Supabase Storage) available in the Theme editor after creation.
-        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          <input
+            id="wizard-logo-file"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) => onLogoChange(event.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+          />
+          <p className="text-xs text-gray-400">{t('organizer.newEvent.logoHelp')}</p>
+          {logoPreviewUrl && (
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoPreviewUrl}
+                alt={t('organizer.newEvent.logoPreviewAlt')}
+                className="h-12 w-12 rounded bg-white object-contain p-1"
+              />
+              <span className="text-xs text-gray-500">{t('organizer.newEvent.logoUpload')}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Step4({ state }: { state: WizardState }) {
+function Step4({
+  state,
+  t,
+  logoPreviewUrl,
+}: {
+  state: WizardState;
+  t: Translator;
+  logoPreviewUrl: string | null;
+}) {
   return (
     <div className="flex flex-col gap-4 text-sm">
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Event</p>
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+          {t('organizer.newEvent.reviewEvent')}
+        </p>
         <p className="font-semibold text-gray-900">{state.name}</p>
-        <p className="text-gray-500 font-mono text-xs mt-0.5">/e/{state.slug}</p>
-        <p className="text-gray-500 mt-1">
-          {new Date(state.startDate).toLocaleDateString('fr-FR')} –{' '}
-          {new Date(state.endDate).toLocaleDateString('fr-FR')}
-          {state.location && ` · ${state.location}`}
+        <p className="mt-0.5 font-mono text-xs text-gray-500">/e/{state.slug}</p>
+        <p className="mt-1 text-gray-500">
+          {state.startDate} - {state.endDate}
+          {state.location ? ` - ${state.location}` : ''}
         </p>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-          Lices ({state.liceCount})
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+          {t('organizer.newEvent.reviewLices', { count: state.liceCount })}
         </p>
         <div className="flex flex-wrap gap-1.5">
-          {state.liceNames.slice(0, state.liceCount).map((n, i) => (
-            <span key={i} className="text-xs bg-white border border-gray-300 rounded px-2 py-0.5">
-              {n}
+          {state.liceNames.slice(0, state.liceCount).map((name, index) => (
+            <span
+              key={index}
+              className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs"
+            >
+              {name}
             </span>
           ))}
         </div>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Theme</p>
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+          {t('organizer.newEvent.reviewTheme')}
+        </p>
         <div className="flex items-center gap-2">
           <div
-            className="w-6 h-6 rounded border border-gray-300"
+            className="h-6 w-6 rounded border border-gray-300"
             style={{ backgroundColor: state.primaryColor }}
           />
           <span className="font-mono text-xs">{state.primaryColor}</span>
+          {logoPreviewUrl && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoPreviewUrl}
+                alt={t('organizer.newEvent.logoPreviewAlt')}
+                className="ml-auto h-8 w-8 rounded bg-white object-contain"
+              />
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-// ── Main wizard ───────────────────────────────────────────────────────────────
-
-const STEP_LABELS = ['Basics', 'Lices', 'Theme', 'Review'];
 
 export default function NewEventPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
   const router = useRouter();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { locale, t } = useI18n();
 
   const [state, dispatch] = useReducer(reducer, INITIAL);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const logoPreviewRef = useRef<string | null>(null);
+  const stepLabels = [
+    t('organizer.newEvent.steps.basics'),
+    t('organizer.newEvent.steps.lices'),
+    t('organizer.newEvent.steps.theme'),
+    t('organizer.newEvent.steps.review'),
+  ];
+
+  useEffect(
+    () => () => {
+      if (logoPreviewRef.current) URL.revokeObjectURL(logoPreviewRef.current);
+    },
+    [],
+  );
+
+  function setLogoPreview(file: File | null) {
+    if (logoPreviewRef.current) URL.revokeObjectURL(logoPreviewRef.current);
+    if (!file) {
+      logoPreviewRef.current = null;
+      setLogoPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    logoPreviewRef.current = url;
+    setLogoPreviewUrl(url);
+  }
+
+  function handleLogoChange(file: File | null) {
+    if (!file) {
+      setLogoFile(null);
+      setLogoPreview(null);
+      return;
+    }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setStepError(t('organizer.newEvent.validation.logoType'));
+      setLogoFile(null);
+      setLogoPreview(null);
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setStepError(t('organizer.newEvent.validation.logoSize'));
+      setLogoFile(null);
+      setLogoPreview(null);
+      return;
+    }
+    setStepError(null);
+    setLogoFile(file);
+    setLogoPreview(file);
+  }
 
   function handleNext() {
     let err: string | null = null;
-    if (state.step === 1) err = validateStep1(state);
-    if (state.step === 2) err = validateStep2(state);
-    if (state.step === 3) err = validateStep3(state);
+    if (state.step === 1) err = validateStep1(state, t);
+    if (state.step === 2) err = validateStep2(state, t);
+    if (state.step === 3) err = null;
     if (err) {
       setStepError(err);
       return;
@@ -408,15 +509,13 @@ export default function NewEventPage() {
     dispatch({ type: 'SUBMIT_START' });
 
     try {
-      // 1. Get org id from slug
       const orgRes = await fetch(
         `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
         { credentials: 'include' },
       );
-      if (!orgRes.ok) throw new Error('Organization not found');
+      if (!orgRes.ok) throw new Error(t('organizer.newEvent.validation.organizationNotFound'));
       const org = (await orgRes.json()) as { id: string };
 
-      // 2. Create event
       const eventRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -431,69 +530,81 @@ export default function NewEventPage() {
       });
       if (!eventRes.ok) {
         const body = (await eventRes.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to create event');
+        throw new Error(body.message ?? t('organizer.newEvent.validation.createFailed'));
       }
       const event = (await eventRes.json()) as { id: string };
 
-      // 3. Create default lices
       await Promise.all(
-        state.liceNames.slice(0, state.liceCount).map((name, i) =>
+        state.liceNames.slice(0, state.liceCount).map((name, index) =>
           fetch(`${apiUrl}/api/v1/events/${event.id}/lices`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ name: name.trim(), sortOrder: i }),
+            body: JSON.stringify({ name: name.trim(), sortOrder: index }),
           }),
         ),
       );
 
-      // 4. Create draft theme
+      let logoUrl = state.logoUrl.trim() || null;
+      if (logoFile) {
+        const formData = new FormData();
+        formData.append('file', logoFile);
+        const logoRes = await fetch(`${apiUrl}/api/v1/events/${event.id}/theme/logo`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        if (!logoRes.ok) {
+          router.push(`/org/${slug}/events/${event.id}/theme?logoUpload=failed`);
+          return;
+        }
+        const data = (await logoRes.json()) as { url: string };
+        logoUrl = data.url;
+      }
+
       await fetch(`${apiUrl}/api/v1/events/${event.id}/theme`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           primaryColor: state.primaryColor,
-          logoUrl: state.logoUrl.trim() || null,
+          logoUrl,
         }),
       });
 
-      // 5. Redirect to event dashboard
       router.push(`/org/${slug}/events/${event.id}`);
     } catch (err) {
       dispatch({
         type: 'SUBMIT_ERROR',
-        error: err instanceof Error ? err.message : 'Something went wrong',
+        error: err instanceof Error ? err.message : t('organizer.newEvent.validation.generic'),
       });
     }
   }
 
   return (
-    <main id="main-content" className="p-8 max-w-xl">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => router.push(`/org/${slug}`)}
-          className="text-gray-400 hover:text-gray-600 text-sm"
-        >
-          ← {slug}
-        </button>
+    <main id="main-content" className="max-w-xl p-8">
+      <div className="mb-6 flex items-center gap-3">
+        <Button type="button" variant="back" size="sm" onClick={() => router.push(`/org/${slug}`)}>
+          {t('organizer.newEvent.backToOrg', { slug })}
+        </Button>
         <span className="text-gray-300">/</span>
-        <h1 className="text-xl font-bold">New event</h1>
+        <h1 className="text-xl font-bold">{t('organizer.newEvent.title')}</h1>
       </div>
 
-      {/* Step indicator */}
-      <ol aria-label="Wizard steps" className="flex items-center gap-2 mb-8 list-none p-0 m-0">
-        {STEP_LABELS.map((label, i) => {
-          const n = i + 1;
-          const active = n === state.step;
-          const done = n < state.step;
+      <ol
+        aria-label={t('organizer.newEvent.stepsLabel')}
+        className="mb-8 flex list-none items-center gap-2 p-0"
+      >
+        {stepLabels.map((label, index) => {
+          const stepNumber = index + 1;
+          const active = stepNumber === state.step;
+          const done = stepNumber < state.step;
           return (
             <li key={label} className="flex items-center gap-2">
               <div
                 aria-current={active ? 'step' : undefined}
                 className={[
-                  'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold',
+                  'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold',
                   active
                     ? 'bg-red-700 text-white'
                     : done
@@ -504,10 +615,10 @@ export default function NewEventPage() {
                 {done ? (
                   <>
                     <span aria-hidden="true">✓</span>
-                    <span className="sr-only">done</span>
+                    <span className="sr-only">{t('organizer.newEvent.done')}</span>
                   </>
                 ) : (
-                  n
+                  stepNumber
                 )}
               </div>
               <span
@@ -518,32 +629,39 @@ export default function NewEventPage() {
               >
                 {label}
               </span>
-              {i < STEP_LABELS.length - 1 && (
-                <div aria-hidden="true" className="w-6 h-px bg-gray-200 mx-1" />
+              {index < stepLabels.length - 1 && (
+                <div aria-hidden="true" className="mx-1 h-px w-6 bg-gray-200" />
               )}
             </li>
           );
         })}
       </ol>
 
-      {/* Step content */}
       <div className="mb-6">
-        {state.step === 1 && <Step1 state={state} dispatch={dispatch} />}
-        {state.step === 2 && <Step2 state={state} dispatch={dispatch} />}
-        {state.step === 3 && <Step3 state={state} dispatch={dispatch} />}
-        {state.step === 4 && <Step4 state={state} />}
+        {state.step === 1 && <Step1 state={state} dispatch={dispatch} t={t} locale={locale} />}
+        {state.step === 2 && <Step2 state={state} dispatch={dispatch} t={t} />}
+        {state.step === 3 && (
+          <Step3
+            state={state}
+            dispatch={dispatch}
+            t={t}
+            logoPreviewUrl={logoPreviewUrl}
+            onLogoChange={handleLogoChange}
+          />
+        )}
+        {state.step === 4 && <Step4 state={state} t={t} logoPreviewUrl={logoPreviewUrl} />}
       </div>
 
-      {/* Validation error */}
       {(stepError ?? state.error) && (
-        <p className="text-sm text-red-600 mb-4" role="alert">
+        <p className="mb-4 text-sm text-red-600" role="alert">
           {stepError ?? state.error}
         </p>
       )}
 
-      {/* Navigation */}
       <div className="flex items-center justify-between">
-        <button
+        <Button
+          type="button"
+          variant={state.step === 1 ? 'cancel' : 'back'}
           onClick={() => {
             if (state.step === 1) {
               router.push(`/org/${slug}`);
@@ -552,27 +670,24 @@ export default function NewEventPage() {
               dispatch({ type: 'BACK' });
             }
           }}
-          className="text-sm text-gray-500 hover:text-gray-700"
         >
-          {state.step === 1 ? 'Cancel' : '← Back'}
-        </button>
+          {state.step === 1 ? t('organizer.newEvent.cancel') : t('organizer.newEvent.back')}
+        </Button>
 
         {state.step < 4 ? (
-          <button
-            onClick={handleNext}
-            className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
-          >
-            Next →
-          </button>
+          <Button type="button" variant="next" onClick={handleNext}>
+            {t('organizer.newEvent.next')}
+          </Button>
         ) : (
-          <button
+          <Button
+            type="button"
+            variant="next"
             onClick={() => void handleCreate()}
             disabled={state.submitting}
-            aria-busy={state.submitting || undefined}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
+            loading={state.submitting}
           >
-            {state.submitting ? 'Creating…' : 'Create event'}
-          </button>
+            {state.submitting ? t('organizer.newEvent.creating') : t('organizer.newEvent.create')}
+          </Button>
         )}
       </div>
     </main>

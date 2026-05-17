@@ -8,19 +8,29 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateEventDto,
   CreateTournamentDto,
   EventQueryDto,
+  UpsertEventThemeDto,
   UpdateEventDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
+import { EventThemesService } from './event-themes.service';
 import { EventsService } from './events.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -30,9 +40,7 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
     ? authHeader.slice(7)
     : cookies?.['sb-access-token'];
   if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
+  const user = await supabase.getAuthUser(token);
   return user?.id ?? 'anonymous';
 }
 
@@ -42,6 +50,7 @@ export class EventsController {
   constructor(
     private readonly events: EventsService,
     private readonly supabase: SupabaseService,
+    private readonly eventThemes: EventThemesService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -108,6 +117,81 @@ export class EventsController {
   async publishEvent(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
     return this.events.publishEvent(id, userId);
+  }
+
+  /** GET /api/v1/events/:eventId/theme */
+  @Get('events/:eventId/theme')
+  @ApiOperation({ summary: 'Get event theme' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getTheme(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.eventThemes.getTheme(eventId);
+  }
+
+  /** POST /api/v1/events/:eventId/theme */
+  @Post('events/:eventId/theme')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create or update event theme (org admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async postTheme(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: UpsertEventThemeDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.eventThemes.upsertTheme(eventId, dto, userId);
+  }
+
+  /** PUT /api/v1/events/:eventId/theme */
+  @Put('events/:eventId/theme')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update event theme (org admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async patchTheme(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: UpsertEventThemeDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.eventThemes.upsertTheme(eventId, dto, userId);
+  }
+
+  /** PUT /api/v1/events/:eventId/theme */
+  @Post('events/:eventId/theme/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload event theme logo (org admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async uploadThemeLogo(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          | {
+              filename: string;
+              mimetype: string;
+              toBuffer: () => Promise<Buffer>;
+            }
+          | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.eventThemes.uploadLogo(
+      eventId,
+      {
+        buffer,
+        filename: data?.filename ?? '',
+        mimetype: data?.mimetype ?? '',
+      },
+      userId,
+    );
   }
 
   // ── Tournaments ───────────────────────────────────────────────────────────────

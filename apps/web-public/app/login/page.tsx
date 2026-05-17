@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
+import { Button } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 
@@ -123,22 +124,25 @@ export default function PublicLoginPage() {
                 />
               </label>
 
-              <button
+              <Button
                 type="button"
                 disabled={sending}
+                loading={sending}
+                variant="next"
+                className="w-full py-3"
                 onClick={() => void sendMagicLink()}
-                className="w-full rounded-md bg-[#dc2626] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-red-950/30 transition hover:bg-red-700 disabled:cursor-wait disabled:bg-slate-700"
               >
                 {sending ? t('auth.login.sending') : t('publicApp.login.sendMagicLink')}
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                className="w-full py-3"
                 onClick={() => void continueWithGoogle()}
-                className="w-full rounded-md border border-slate-700 px-4 py-3 text-sm font-bold text-slate-100 transition hover:border-[#1d4ed8] hover:bg-[#1d4ed8]/15"
               >
                 {t('auth.oauth.continueWithGoogle')}
-              </button>
+              </Button>
 
               {message && (
                 <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
