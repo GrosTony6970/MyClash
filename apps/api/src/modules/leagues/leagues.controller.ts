@@ -124,6 +124,45 @@ export class LeaguesController {
     return this.leagues.delete(leagueId, userId);
   }
 
+  @Delete('admin/leagues/:leagueId/events/:eventId/tournament-links')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove all tournament links for an event from a league' })
+  async removeEventTournamentLinks(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.removeEventTournamentLinks(leagueId, eventId, userId);
+  }
+
+  @Post('admin/leagues/:leagueId/tournaments/:tournamentId/link')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin direct-add a tournament to a league (approved immediately)' })
+  async addTournamentLink(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.addTournamentLink(leagueId, tournamentId, userId);
+  }
+
+  @Post('admin/leagues/:leagueId/events/:eventId/link')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin direct-add all tournaments from an event to a league' })
+  async addEventTournamentLinks(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.addEventTournamentLinks(leagueId, eventId, userId);
+  }
+
   @Post('admin/leagues/:leagueId/organization-roles')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Grant an organization a league role' })

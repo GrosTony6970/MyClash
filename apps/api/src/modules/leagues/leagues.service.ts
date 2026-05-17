@@ -250,6 +250,56 @@ export class LeaguesService {
     return data;
   }
 
+  async removeEventTournamentLinks(
+    leagueId: string,
+    eventId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data: links } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('id, tournaments!inner(event_id)')
+      .eq('league_id', leagueId)
+      .eq('tournaments.event_id', eventId)
+      .neq('status', 'removed');
+    for (const link of (links ?? []) as Row[]) {
+      await this.reviewTournamentLink(String(link['id']), 'removed', userId);
+    }
+  }
+
+  async addTournamentLink(leagueId: string, tournamentId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('league_tournament_links')
+      .upsert(
+        {
+          league_id: leagueId,
+          tournament_id: tournamentId,
+          status: 'approved',
+          reviewed_by_user_id: userId,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'league_id,tournament_id' },
+      )
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async addEventTournamentLinks(leagueId: string, eventId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data: tournaments, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    for (const t of (tournaments ?? []) as Row[]) {
+      await this.addTournamentLink(leagueId, String(t['id']), userId);
+    }
+  }
+
   async recomputeForEvent(eventId: string, userId?: string) {
     if (userId) {
       const { data: event } = await this.supabase.service
