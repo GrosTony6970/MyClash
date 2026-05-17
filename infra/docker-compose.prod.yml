@@ -365,6 +365,13 @@ services:
       - traefik.http.routers.myclash-api.middlewares=myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-api.service=myclash-api
       - traefik.http.services.myclash-api.loadbalancer.server.port=4000
+      - traefik.http.routers.myclash-admin-api.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.myclash-admin-api.entrypoints=websecure
+      - traefik.http.routers.myclash-admin-api.tls=true
+      - traefik.http.routers.myclash-admin-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-admin-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-admin-api.priority=30
+      - traefik.http.routers.myclash-admin-api.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
@@ -636,7 +643,7 @@ services:
       dockerfile: apps/web-admin/Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
-        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_API_URL: https://admin.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_URL: https://app.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         NEXT_PUBLIC_SENTRY_DSN_ADMIN: ${NEXT_PUBLIC_SENTRY_DSN_ADMIN:-}

@@ -827,3 +827,7 @@ PLEASE IMPLEMENT THIS PLAN: Platform Account Creation And Deletion Controls. Add
 ## 15:34:53_17-05-2026
 
 PLEASE IMPLEMENT THIS PLAN: Fix System Version Manifest Directory Regression. Treat directory/missing/malformed system-version manifests as safe fallback, strengthen deploy validation for `data/system-versions.json`, improve status diagnostics, and add infra review guards.
+
+## 15:51:45_17-05-2026
+
+Troubleshoot admin login: on `admin.myclash.fr` with `admin@myclash.fr`, browser shows `NetworkError when attempting to fetch resource` for `api.myclash.fr`.

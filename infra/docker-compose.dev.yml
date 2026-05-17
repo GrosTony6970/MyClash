@@ -280,6 +280,12 @@ services:
       - traefik.http.routers.dev-api.tls=true
       - traefik.http.routers.dev-api.middlewares=myclash-compress@docker
       - traefik.http.services.dev-api.loadbalancer.server.port=4000
+      - traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.dev-admin-api.entrypoints=websecure
+      - traefik.http.routers.dev-admin-api.tls=true
+      - traefik.http.routers.dev-admin-api.middlewares=myclash-compress@docker
+      - traefik.http.routers.dev-admin-api.priority=30
+      - traefik.http.routers.dev-admin-api.service=dev-api
 
   # ── web-public PWA ────────────────────────────────────────────────
   web-public:
@@ -339,7 +345,7 @@ services:
       dockerfile: apps/web-admin/Dockerfile
       target: runner
       args:
-        NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+        NEXT_PUBLIC_API_URL: https://admin.myclash.localhost
     container_name: myclash-dev-web-admin
     restart: unless-stopped
     environment:

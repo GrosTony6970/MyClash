@@ -353,9 +353,34 @@ requireContains(
   'NEXT_PUBLIC_API_URL: https://api.${DOMAIN}',
 );
 requireContains(
+  services.get('web-admin') ?? '',
+  'prod web-admin',
+  'NEXT_PUBLIC_API_URL: https://admin.${DOMAIN}',
+);
+requireContains(
+  services.get('api') ?? '',
+  'prod api admin same-origin route',
+  'traefik.http.routers.myclash-admin-api.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/api/v1`)',
+);
+requireContains(
+  services.get('api') ?? '',
+  'prod api admin same-origin route',
+  'traefik.http.routers.myclash-admin-api.priority=30',
+);
+requireContains(
   devServices.get('web-public') ?? '',
   'dev web-public',
   'NEXT_PUBLIC_API_URL: https://api.myclash.localhost',
+);
+requireContains(
+  devServices.get('web-admin') ?? '',
+  'dev web-admin',
+  'NEXT_PUBLIC_API_URL: https://admin.myclash.localhost',
+);
+requireContains(
+  devServices.get('api') ?? '',
+  'dev api admin same-origin route',
+  'traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)',
 );
 for (const serviceName of ['api', 'worker']) {
   requireContains(
