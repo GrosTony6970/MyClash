@@ -6,6 +6,7 @@ import { Injectable, ServiceUnavailableException, BadRequestException } from '@n
 import type {
   BackupActionResponseDto,
   BackupArtifactDto,
+  BackupDeleteResponseDto,
   BackupListResponseDto,
   BackupLocation,
   BackupOperationDto,
@@ -91,16 +92,29 @@ export class AdminBackupsService {
 
   async restoreBackup(dto: RestoreBackupDto): Promise<BackupActionResponseDto> {
     validateBackupId(dto.backupId, dto.location);
-    const expectedConfirmation = `RESTORE MYCLASH ${dto.backupId}`;
-    if (dto.confirmation !== expectedConfirmation) {
-      throw new BadRequestException(`Confirmation must exactly match: ${expectedConfirmation}`);
+    if (!dto.confirmed) {
+      throw new BadRequestException('Restore confirmation is required.');
     }
+    const expectedConfirmation = `RESTORE MYCLASH ${dto.backupId}`;
     return this.opsPost<BackupActionResponseDto>('/operations/restore', {
       location: dto.location,
       backupId: dto.backupId,
       includeStorage: dto.includeStorage ?? true,
-      confirmation: dto.confirmation,
+      confirmation: expectedConfirmation,
     });
+  }
+
+  async deleteBackup(
+    backupId: string,
+    location: Extract<BackupLocation, 'local' | 's3'>,
+  ): Promise<BackupDeleteResponseDto> {
+    validateBackupId(backupId, location);
+    if (!['local', 's3'].includes(location)) {
+      throw new BadRequestException('Invalid backup location.');
+    }
+    return this.opsDelete<BackupDeleteResponseDto>(
+      `/backups/${encodeURIComponent(backupId)}?location=${encodeURIComponent(location)}`,
+    );
   }
 
   async getOperation(operationId: string): Promise<BackupOperationDto> {
@@ -170,6 +184,10 @@ export class AdminBackupsService {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
+  }
+
+  private async opsDelete<T>(route: string): Promise<T> {
+    return this.opsRequest<T>(route, { method: 'DELETE' });
   }
 
   private async opsRequest<T>(route: string, init: RequestInit): Promise<T> {

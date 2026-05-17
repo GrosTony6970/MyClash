@@ -39,6 +39,15 @@ export function parseAwsS3List(output) {
     .filter(Boolean);
 }
 
+export function expectedBackupArtifactFilenames(timestamp) {
+  return [
+    `db-${timestamp}.sql.gz`,
+    `db-${timestamp}.sql.gz.gpg`,
+    `storage-${timestamp}.tar.gz`,
+    `storage-${timestamp}.tar.gz.gpg`,
+  ];
+}
+
 export async function listLocalBackupArtifacts(rootDir) {
   const nightlyDir = path.join(rootDir, 'backups', 'nightly');
   let entries = [];

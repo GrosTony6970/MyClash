@@ -108,6 +108,15 @@ const superAdminClubsPagePath = path.join(
   'clubs',
   'page.tsx',
 );
+const superAdminBackupsPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'admin',
+  'backups',
+  'page.tsx',
+);
 const adminBackLinkPath = path.join(
   rootDir,
   'apps',
@@ -218,6 +227,26 @@ const clubsControllerPath = path.join(
   'clubs',
   'clubs.controller.ts',
 );
+const adminBackupsControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'backups.controller.ts',
+);
+const adminBackupsServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'backups.service.ts',
+);
+const opsRunnerServerPath = path.join(rootDir, 'infra', 'ops-runner', 'server.mjs');
+const opsRunnerBackupCorePath = path.join(rootDir, 'infra', 'ops-runner', 'backup-core.mjs');
 const superAdminGuardPath = path.join(
   rootDir,
   'apps',
@@ -322,6 +351,7 @@ const superAdminOrganizationDetailPageText = await readFile(
 const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
 const superAdminFightersPageText = await readFile(superAdminFightersPagePath, 'utf8');
 const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
+const superAdminBackupsPageText = await readFile(superAdminBackupsPagePath, 'utf8');
 const adminBackLinkText = await readFile(adminBackLinkPath, 'utf8');
 const superAdminSystemVersionsPageText = await readFile(superAdminSystemVersionsPagePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
@@ -335,6 +365,10 @@ const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
 const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
 const fightersControllerText = await readFile(fightersControllerPath, 'utf8');
 const clubsControllerText = await readFile(clubsControllerPath, 'utf8');
+const adminBackupsControllerText = await readFile(adminBackupsControllerPath, 'utf8');
+const adminBackupsServiceText = await readFile(adminBackupsServicePath, 'utf8');
+const opsRunnerServerText = await readFile(opsRunnerServerPath, 'utf8');
+const opsRunnerBackupCoreText = await readFile(opsRunnerBackupCorePath, 'utf8');
 const superAdminGuardText = await readFile(superAdminGuardPath, 'utf8');
 const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
 const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
@@ -942,13 +976,58 @@ for (const expected of [
 }
 for (const [label, text] of [
   ['apps/web-admin/app/admin/clubs/page.tsx', superAdminClubsPageText],
-  ['apps/web-admin/app/admin/backups/page.tsx', await readFile(path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'backups', 'page.tsx'), 'utf8')],
+  ['apps/web-admin/app/admin/backups/page.tsx', superAdminBackupsPageText],
   ['apps/web-admin/app/admin/data-quality/page.tsx', await readFile(path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'data-quality', 'page.tsx'), 'utf8')],
   ['apps/web-admin/app/admin/ai-settings/page.tsx', await readFile(path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'ai-settings', 'page.tsx'), 'utf8')],
   ['apps/web-admin/app/admin/system-versions/page.tsx', superAdminSystemVersionsPageText],
 ]) {
   requireContains(text, label, 'AdminBackLink');
 }
+for (const expected of [
+  'admin.backups.browse',
+  'admin.backups.totalSize',
+  'formatTimestamp',
+  'ConfirmDialog',
+  'admin.backups.restoreDialogTitle',
+  'admin.backups.deleteDialogTitle',
+  'admin.backups.deleteFrom',
+  'confirmed: true',
+  "type=\"file\"",
+  "className=\"sr-only\"",
+]) {
+  requireContains(superAdminBackupsPageText, 'apps/web-admin/app/admin/backups/page.tsx', expected);
+}
+if (superAdminBackupsPageText.includes('confirmationByBackup')) {
+  errors.push('apps/web-admin/app/admin/backups/page.tsx must not use typed restore confirmation state.');
+}
+if (superAdminBackupsPageText.includes('admin.backups.restoreConfirmation')) {
+  errors.push('apps/web-admin/app/admin/backups/page.tsx must not render restore confirmation phrase input.');
+}
+for (const expected of ["@Delete(':backupId')", 'deleteBackup', "location: Extract<BackupLocation, 'local' | 's3'>"]) {
+  requireContains(adminBackupsControllerText, 'apps/api/src/modules/admin/backups.controller.ts', expected);
+}
+for (const expected of ['deleteBackup', "location: Extract<BackupLocation, 'local' | 's3'>"]) {
+  requireContains(adminBackupsServiceText, 'apps/api/src/modules/admin/backups.service.ts', expected);
+}
+for (const expected of ['dto.confirmed', 'RESTORE MYCLASH ${dto.backupId}', 'opsDelete']) {
+  requireContains(adminBackupsServiceText, 'apps/api/src/modules/admin/backups.service.ts', expected);
+}
+for (const expected of [
+  "req.method === 'DELETE'",
+  'deleteBackup(url)',
+  'deleteLocalBackupArtifacts',
+  'deleteS3BackupArtifacts',
+  'aws',
+  's3',
+  'rm',
+]) {
+  requireContains(opsRunnerServerText, 'infra/ops-runner/server.mjs', expected);
+}
+requireContains(
+  opsRunnerBackupCoreText,
+  'infra/ops-runner/backup-core.mjs',
+  'expectedBackupArtifactFilenames',
+);
 for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
   requireContains(supabaseServiceText, 'apps/api/src/modules/supabase/supabase.service.ts', expected);
 }

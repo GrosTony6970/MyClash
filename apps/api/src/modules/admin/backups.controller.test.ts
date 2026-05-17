@@ -11,4 +11,11 @@ describe('BackupsAdminController guards', () => {
   it('protects backup management routes with SuperAdminGuard', () => {
     expect(controllerGuards()).toContain(SuperAdminGuard);
   });
+
+  it('exposes backup deletion and restore handlers', () => {
+    const controller = new BackupsAdminController({} as never);
+
+    expect(typeof controller.deleteBackup).toBe('function');
+    expect(typeof controller.restoreBackup).toBe('function');
+  });
 });

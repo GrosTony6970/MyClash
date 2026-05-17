@@ -50,7 +50,7 @@ describe('AdminBackupsService', () => {
     await expect(service.triggerBackup()).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
-  it('enforces restore confirmation before calling the ops runner', async () => {
+  it('enforces explicit restore confirmation before calling the ops runner', async () => {
     const fetchImpl = vi.fn();
     const service = new AdminBackupsService({
       opsRunnerUrl: 'http://ops-runner:4075',
@@ -62,7 +62,7 @@ describe('AdminBackupsService', () => {
       service.restoreBackup({
         location: 'local',
         backupId: '20260505T030000Z',
-        confirmation: 'RESTORE',
+        confirmed: false,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe('AdminBackupsService', () => {
       service.restoreBackup({
         location: 's3',
         backupId: '20260505T030000Z',
-        confirmation: 'RESTORE MYCLASH 20260505T030000Z',
+        confirmed: true,
       }),
     ).resolves.toEqual({ operation });
 
@@ -101,8 +101,62 @@ describe('AdminBackupsService', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ authorization: 'Bearer secret' }),
+        body: JSON.stringify({
+          location: 's3',
+          backupId: '20260505T030000Z',
+          includeStorage: true,
+          confirmation: 'RESTORE MYCLASH 20260505T030000Z',
+        }),
       }),
     );
+  });
+
+  it('delegates per-location backup deletion to the ops runner', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          deleted: true,
+          backupId: '20260505T030000Z',
+          location: 'local',
+          deletedArtifacts: ['db-20260505T030000Z.sql.gz'],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(service.deleteBackup('20260505T030000Z', 'local')).resolves.toEqual({
+      deleted: true,
+      backupId: '20260505T030000Z',
+      location: 'local',
+      deletedArtifacts: ['db-20260505T030000Z.sql.gz'],
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://ops-runner:4075/backups/20260505T030000Z?location=local',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({ authorization: 'Bearer secret' }),
+      }),
+    );
+  });
+
+  it('rejects invalid delete locations and backup identifiers', async () => {
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+    });
+
+    await expect(service.deleteBackup('bad-id', 'local')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(
+      service.deleteBackup('20260505T030000Z', 'upload' as never),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('validates uploaded backup filenames and size', async () => {

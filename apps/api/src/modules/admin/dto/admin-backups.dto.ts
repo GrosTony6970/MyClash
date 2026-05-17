@@ -68,6 +68,13 @@ export interface BackupUploadResponseDto {
   backup: BackupSetDto;
 }
 
+export interface BackupDeleteResponseDto {
+  deleted: true;
+  backupId: string;
+  location: Extract<BackupLocation, 'local' | 's3'>;
+  deletedArtifacts: string[];
+}
+
 export class RestoreBackupDto {
   @IsIn(['local', 's3', 'upload'])
   location!: BackupLocation;
@@ -80,6 +87,6 @@ export class RestoreBackupDto {
   @IsBoolean()
   includeStorage?: boolean;
 
-  @IsString()
-  confirmation!: string;
+  @IsBoolean()
+  confirmed!: boolean;
 }

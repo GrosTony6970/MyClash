@@ -61,7 +61,15 @@ export default function AdminBackupsPage() {
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [backups, setBackups] = useState<BackupSet[]>([]);
   const [operation, setOperation] = useState<BackupOperation | null>(null);
-  const [confirmationByBackup, setConfirmationByBackup] = useState<Record<string, string>>({});
+  const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{
+    backup: BackupSet;
+    location: BackupLocation;
+  } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    backup: BackupSet;
+    location: Extract<BackupLocation, 'local' | 's3'>;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +169,8 @@ export default function AdminBackupsPage() {
         if (!res.ok) throw new Error(t('admin.backups.uploadError'));
         const data = (await res.json()) as { backup: BackupSet };
         setBackups((current) => [data.backup, ...current]);
+        setSelectedFilename(null);
+        if (fileRef.current) fileRef.current.value = '';
         setNotice(t('admin.backups.uploadStaged'));
       })
       .catch((err: unknown) =>
@@ -170,10 +180,10 @@ export default function AdminBackupsPage() {
   };
 
   const restoreBackup = (backup: BackupSet, location: BackupLocation) => {
-    const confirmation = confirmationByBackup[`${location}:${backup.id}`] ?? '';
     setBusy(true);
     setError(null);
     setNotice(null);
+    setPendingRestore(null);
     fetch(`${apiUrl}/api/v1/admin/backups/restore`, {
       method: 'POST',
       credentials: 'include',
@@ -182,7 +192,7 @@ export default function AdminBackupsPage() {
         location,
         backupId: backup.id,
         includeStorage: true,
-        confirmation,
+        confirmed: true,
       }),
     })
       .then(async (res) => {
@@ -193,6 +203,31 @@ export default function AdminBackupsPage() {
       })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : t('admin.backups.restoreError')),
+      )
+      .finally(() => setBusy(false));
+  };
+
+  const deleteBackup = (backup: BackupSet, location: Extract<BackupLocation, 'local' | 's3'>) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    setPendingDelete(null);
+    fetch(`${apiUrl}/api/v1/admin/backups/${backup.id}?location=${location}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(t('admin.backups.deleteError'));
+        await res.json();
+        setNotice(
+          t('admin.backups.deleteSuccess', {
+            location: t(`admin.backups.locationsMap.${location}`),
+          }),
+        );
+        load();
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : t('admin.backups.deleteError')),
       )
       .finally(() => setBusy(false));
   };
@@ -271,8 +306,21 @@ export default function AdminBackupsPage() {
             name="file"
             aria-label={t('admin.backups.uploadFile')}
             accept=".gz,.gpg"
-            className="block w-full text-sm text-gray-700"
+            onChange={(event) => setSelectedFilename(event.target.files?.[0]?.name ?? null)}
+            className="sr-only"
           />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600/30"
+          >
+            {t('admin.backups.browse')}
+          </button>
+          <p className="min-w-0 flex-1 rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            {selectedFilename
+              ? t('admin.backups.selectedFile', { file: selectedFilename })
+              : t('admin.backups.noFileSelected')}
+          </p>
           <button
             type="submit"
             disabled={busy}
@@ -298,7 +346,7 @@ export default function AdminBackupsPage() {
                 <tr className="border-b border-gray-100 text-left text-gray-500">
                   <th className="px-4 py-2">{t('admin.backups.timestamp')}</th>
                   <th className="px-4 py-2">{t('admin.backups.locations')}</th>
-                  <th className="px-4 py-2">{t('admin.backups.artifacts')}</th>
+                  <th className="px-4 py-2">{t('admin.backups.totalSize')}</th>
                   <th className="px-4 py-2">{t('admin.backups.actions')}</th>
                 </tr>
               </thead>
@@ -306,28 +354,21 @@ export default function AdminBackupsPage() {
                 {backups.map((backup) => (
                   <tr key={backup.id} className="border-b border-gray-50 align-top">
                     <td className="px-4 py-3 font-mono text-xs text-gray-800">
-                      {backup.displayName}
+                      {formatTimestamp(backup.timestamp)}
                     </td>
                     <td className="px-4 py-3">
                       <LocationBadges backup={backup} />
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {[
-                        ...backup.local.artifacts,
-                        ...backup.cloud.artifacts,
-                        ...(backup.upload?.artifacts ?? []),
-                      ]
-                        .map((artifact) => artifactLabel(artifact, t))
-                        .join(', ')}
+                    <td className="px-4 py-3 font-medium text-gray-800">
+                      {formatBytes(totalBackupSize(backup))}
                     </td>
                     <td className="px-4 py-3">
                       <BackupActions
                         backup={backup}
                         apiUrl={apiUrl}
                         busy={busy}
-                        confirmationByBackup={confirmationByBackup}
-                        setConfirmationByBackup={setConfirmationByBackup}
-                        restoreBackup={restoreBackup}
+                        onRestore={(location) => setPendingRestore({ backup, location })}
+                        onDelete={(location) => setPendingDelete({ backup, location })}
                       />
                     </td>
                   </tr>
@@ -337,6 +378,36 @@ export default function AdminBackupsPage() {
           </div>
         )}
       </section>
+
+      {pendingRestore && (
+        <ConfirmDialog
+          title={t('admin.backups.restoreDialogTitle')}
+          body={t('admin.backups.restoreDialogBody', {
+            location: t(`admin.backups.locationsMap.${pendingRestore.location}`),
+            timestamp: formatTimestamp(pendingRestore.backup.timestamp),
+          })}
+          dangerLabel={t('admin.backups.continueRestore')}
+          cancelLabel={t('actions.cancel')}
+          busy={busy}
+          onCancel={() => setPendingRestore(null)}
+          onConfirm={() => restoreBackup(pendingRestore.backup, pendingRestore.location)}
+        />
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={t('admin.backups.deleteDialogTitle')}
+          body={t('admin.backups.deleteDialogBody', {
+            location: t(`admin.backups.locationsMap.${pendingDelete.location}`),
+            timestamp: formatTimestamp(pendingDelete.backup.timestamp),
+          })}
+          dangerLabel={t('admin.backups.continueDelete')}
+          cancelLabel={t('actions.cancel')}
+          busy={busy}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => deleteBackup(pendingDelete.backup, pendingDelete.location)}
+        />
+      )}
     </main>
   );
 }
@@ -391,75 +462,165 @@ function BackupActions(props: {
   backup: BackupSet;
   apiUrl: string;
   busy: boolean;
-  confirmationByBackup: Record<string, string>;
-  setConfirmationByBackup: (value: Record<string, string>) => void;
-  restoreBackup: (backup: BackupSet, location: BackupLocation) => void;
+  onRestore: (location: BackupLocation) => void;
+  onDelete: (location: Extract<BackupLocation, 'local' | 's3'>) => void;
 }) {
   const { t } = useI18n();
-  const locations: Array<[BackupLocation, boolean]> = [
+  const locations: Array<[Extract<BackupLocation, 'local' | 's3'>, boolean]> = [
     ['local', props.backup.local.available],
     ['s3', props.backup.cloud.available],
-    ['upload', props.backup.upload?.available ?? false],
   ];
   return (
-    <div className="flex min-w-72 flex-col gap-3">
-      {locations
-        .filter(([, available]) => available)
-        .map(([location]) => {
-          const key = `${location}:${props.backup.id}`;
-          const expected = `RESTORE MYCLASH ${props.backup.id}`;
-          const confirmation = props.confirmationByBackup[key] ?? '';
-          return (
-            <div key={key} className="rounded-md border border-gray-100 p-2">
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href={`${props.apiUrl}/api/v1/admin/backups/${props.backup.id}/download?location=${location}&artifact=db`}
-                  className="rounded-md border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-900"
-                >
-                  {t('admin.backups.downloadDb')}
-                </a>
-                <button
-                  type="button"
-                  onClick={() => props.restoreBackup(props.backup, location)}
-                  disabled={props.busy || confirmation !== expected}
-                  className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  {t('admin.backups.restoreFrom', {
-                    location: t(`admin.backups.locationsMap.${location}`),
-                  })}
-                </button>
-              </div>
-              <input
-                value={confirmation}
-                aria-label={t('admin.backups.restoreConfirmation')}
-                onChange={(event) =>
-                  props.setConfirmationByBackup({
-                    ...props.confirmationByBackup,
-                    [key]: event.target.value,
-                  })
-                }
-                placeholder={expected}
-                className="mt-2 w-full rounded-md border border-gray-200 px-2 py-1 text-xs"
-              />
-            </div>
-          );
-        })}
+    <div className="grid min-w-[28rem] gap-3 md:grid-cols-2">
+      {locations.map(([location, available]) => (
+        <div
+          key={location}
+          className={`rounded-md border p-3 ${
+            available ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-70'
+          }`}
+        >
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            {t(`admin.backups.locationsMap.${location}`)}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`${props.apiUrl}/api/v1/admin/backups/${props.backup.id}/download?location=${location}&artifact=db`}
+              aria-disabled={!available}
+              className={`rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold ${
+                available ? 'text-gray-900 hover:bg-gray-50' : 'pointer-events-none text-gray-400'
+              }`}
+            >
+              {t('admin.backups.downloadDb')}
+            </a>
+            <button
+              type="button"
+              onClick={() => props.onRestore(location)}
+              disabled={props.busy || !available}
+              className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400"
+            >
+              {t('admin.backups.restoreFrom', {
+                location: t(`admin.backups.locationsMap.${location}`),
+              })}
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onDelete(location)}
+              disabled={props.busy || !available}
+              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:border-gray-200 disabled:text-gray-400 disabled:hover:bg-transparent"
+            >
+              {t('admin.backups.deleteFrom', {
+                location: t(`admin.backups.locationsMap.${location}`),
+              })}
+            </button>
+          </div>
+          {!available && (
+            <p className="mt-2 text-xs text-gray-400">{t('admin.backups.locationUnavailable')}</p>
+          )}
+        </div>
+      ))}
+      {props.backup.upload?.available && (
+        <div className="rounded-md border border-blue-100 bg-blue-50 p-3 md:col-span-2">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
+            {t('admin.backups.locationsMap.upload')}
+          </p>
+          <button
+            type="button"
+            onClick={() => props.onRestore('upload')}
+            disabled={props.busy}
+            className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400"
+          >
+            {t('admin.backups.restoreFrom', {
+              location: t('admin.backups.locationsMap.upload'),
+            })}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function statusLabel(status: BackupStatus | null, t: (key: string) => string): string {
   if (!status?.lastBackup) return t('common.none');
-  return `${status.lastBackup.timestamp} - ${t(`admin.backups.statuses.${status.lastBackup.status}`)}`;
+  return `${formatTimestamp(status.lastBackup.timestamp)} - ${t(`admin.backups.statuses.${status.lastBackup.status}`)}`;
 }
 
-function artifactLabel(artifact: BackupArtifact, t: (key: string) => string): string {
-  const encrypted = artifact.encrypted ? ` ${t('admin.backups.encrypted')}` : '';
-  return `${t(`admin.backups.artifactKinds.${artifact.kind}`)} ${formatBytes(artifact.sizeBytes)}${encrypted}`;
+function totalBackupSize(backup: BackupSet): number {
+  return [
+    ...backup.local.artifacts,
+    ...backup.cloud.artifacts,
+    ...(backup.upload?.artifacts ?? []),
+  ].reduce((total, artifact) => total + artifact.sizeBytes, 0);
+}
+
+function formatTimestamp(value: string): string {
+  const match =
+    /^(?<year>\d{4})(?<month>\d{2})(?<day>\d{2})T(?<hour>\d{2})(?<minute>\d{2})(?<second>\d{2})Z$/u.exec(
+      value,
+    );
+  const date = match?.groups
+    ? new Date(
+        `${match.groups['year']}-${match.groups['month']}-${match.groups['day']}T${match.groups['hour']}:${match.groups['minute']}:${match.groups['second']}Z`,
+      )
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} - ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
   return `${Math.round(value / 1024 / 1024)} MB`;
+}
+
+function ConfirmDialog({
+  title,
+  body,
+  dangerLabel,
+  cancelLabel,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  body: string;
+  dangerLabel: string;
+  cancelLabel: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="backup-confirm-title"
+        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
+      >
+        <h2 id="backup-confirm-title" className="text-lg font-semibold text-slate-950">
+          {title}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">{body}</p>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          >
+            {dangerLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

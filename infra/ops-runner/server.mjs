@@ -9,6 +9,7 @@ import {
   BACKUP_TIMESTAMP_PATTERN,
   backupSetsFromArtifacts,
   buildBackupSet,
+  expectedBackupArtifactFilenames,
   listLocalBackupArtifacts,
   parseAwsS3List,
   parseBackupFilename,
@@ -39,6 +40,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/backups') {
       sendJson(res, 200, await backupsResponse());
+      return;
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/backups/')) {
+      sendJson(res, 200, await deleteBackup(url));
       return;
     }
     if (req.method === 'POST' && url.pathname === '/operations/backup') {
@@ -244,6 +249,56 @@ async function downloadBackup(url, res) {
     'content-disposition': `attachment; filename="${path.basename(filePath)}"`,
   });
   createReadStream(filePath).pipe(res);
+}
+
+async function deleteBackup(url) {
+  const backupId = path.basename(url.pathname);
+  const location = url.searchParams.get('location') ?? 'local';
+  if (!['local', 's3'].includes(location)) throw new Error('Invalid backup location.');
+  const timestamp = assertTimestamp(backupId);
+  const deletedArtifacts =
+    location === 's3'
+      ? await deleteS3BackupArtifacts(timestamp)
+      : await deleteLocalBackupArtifacts(timestamp);
+  if (deletedArtifacts.length === 0) throw new Error('No backup artifacts found to delete.');
+  return { deleted: true, backupId: timestamp, location, deletedArtifacts };
+}
+
+async function deleteLocalBackupArtifacts(timestamp) {
+  const artifacts = await listLocalBackupArtifacts(ROOT_DIR);
+  const candidates = new Set(
+    artifacts
+      .filter((artifact) => artifact.timestamp === timestamp)
+      .map((artifact) => artifact.filename),
+  );
+  const deleted = [];
+  for (const filename of expectedBackupArtifactFilenames(timestamp)) {
+    if (!candidates.has(filename)) continue;
+    await rm(path.join(ROOT_DIR, 'backups', 'nightly', filename), { force: true });
+    deleted.push(filename);
+  }
+  return deleted;
+}
+
+async function deleteS3BackupArtifacts(timestamp) {
+  if (!s3Configured()) throw new Error('Scaleway S3 is not configured.');
+  const artifacts = await listCloudArtifacts();
+  const candidates = artifacts
+    .filter((artifact) => artifact.timestamp === timestamp)
+    .map((artifact) => artifact.filename);
+  const deleted = [];
+  for (const filename of candidates) {
+    const result = await spawnCapture('aws', [
+      's3',
+      'rm',
+      `s3://${process.env.BACKUP_SCW_BUCKET}/myclash/${filename}`,
+      '--endpoint-url',
+      process.env.BACKUP_SCW_ENDPOINT,
+    ]);
+    if (result.code !== 0) throw new Error(result.stderr || `Could not delete ${filename}.`);
+    deleted.push(filename);
+  }
+  return deleted;
 }
 
 async function findLocalDbBackup(timestamp) {

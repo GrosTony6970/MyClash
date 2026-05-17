@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -26,6 +27,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AdminBackupsService } from './backups.service';
 import type {
   BackupActionResponseDto,
+  BackupDeleteResponseDto,
   BackupListResponseDto,
   BackupLocation,
   BackupStatusDto,
@@ -65,6 +67,17 @@ export class BackupsAdminController {
   @ApiOperation({ summary: 'Restore from a local, cloud, or uploaded backup' })
   restoreBackup(@Body() dto: RestoreBackupDto): Promise<BackupActionResponseDto> {
     return this.backups.restoreBackup(dto);
+  }
+
+  @Delete(':backupId')
+  @ApiOperation({ summary: 'Delete a local or Scaleway S3 backup copy' })
+  @ApiParam({ name: 'backupId', type: 'string' })
+  @ApiQuery({ name: 'location', enum: ['local', 's3'] })
+  deleteBackup(
+    @Param('backupId') backupId: string,
+    @Query('location') location: Extract<BackupLocation, 'local' | 's3'> = 'local',
+  ): Promise<BackupDeleteResponseDto> {
+    return this.backups.deleteBackup(backupId, location);
   }
 
   @Get('operations/:operationId')

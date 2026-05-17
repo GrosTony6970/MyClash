@@ -859,3 +859,7 @@ PLEASE IMPLEMENT THIS PLAN: Fix System Versions Showing Unknown Except Node.js
 ## 20:57:58_17-05-2026
 
 User requested: when creating a club allow logo upload up to 10 MB, and make Back to admin appear like a real button on all pages.
+
+## 21:12:22_17-05-2026
+
+PLEASE IMPLEMENT THIS PLAN: Backup Management UX And Deletion Controls - style Browse as button, add per-location backup deletion, replace typed restore confirmation with warning dialog, align local/S3 actions, disable unavailable actions, human-readable timestamps, total size column, API/ops-runner support, i18n, tests, and guards.
