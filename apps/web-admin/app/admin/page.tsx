@@ -42,7 +42,7 @@ const sections = [
     href: '/admin/users',
     titleKey: 'admin.dashboard.cards.usersTitle',
     descriptionKey: 'admin.dashboard.cards.usersDescription',
-    badge: 'U',
+    badge: 'PA',
   },
   {
     href: '/admin/fighters',

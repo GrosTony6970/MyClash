@@ -6,6 +6,7 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
 interface AdminUser {
   id: string;
   email?: string;
+  display_name?: string | null;
   created_at?: string;
   last_sign_in_at?: string | null;
   banned_until?: string | null;
@@ -34,6 +35,15 @@ function formatDate(value: string | null | undefined, fallback: string) {
   return value ? new Date(value).toLocaleDateString('fr-FR') : fallback;
 }
 
+function getDisplayName(user: AdminUser, fallback: string): string {
+  const displayName = user.display_name?.trim();
+  return displayName || fallback;
+}
+
+function getAccountLabel(user: AdminUser): string {
+  return user.display_name?.trim() || user.email || user.id;
+}
+
 async function readError(res: Response, fallback: string): Promise<string> {
   if (res.status === 429) return fallback;
   try {
@@ -47,6 +57,35 @@ async function readError(res: Response, fallback: string): Promise<string> {
     // Keep the UI on the generic localized error when the API body is empty.
   }
   return fallback;
+}
+
+function ActionButton({
+  label,
+  description,
+  className,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  className: string;
+  onClick: () => void;
+}) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        title={description}
+        aria-label={`${label}: ${description}`}
+        onClick={onClick}
+        className={className}
+      >
+        {label}
+      </button>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-56 -translate-x-1/2 rounded-md bg-slate-950 px-3 py-2 text-left text-xs font-medium leading-5 text-white shadow-lg group-hover:block group-focus-within:block">
+        {description}
+      </span>
+    </span>
+  );
 }
 
 export default function AdminUsersPage() {
@@ -141,7 +180,7 @@ export default function AdminUsersPage() {
 
   async function handleUserAction(user: AdminUser, action: 'disable' | 'enable') {
     const actionLabel = t(`admin.users.actions.${action}`);
-    const account = user.email ?? user.id;
+    const account = getAccountLabel(user);
     if (!confirm(t('admin.users.actions.confirmToggle', { action: actionLabel, account }))) return;
 
     const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}/${action}`, {
@@ -163,7 +202,7 @@ export default function AdminUsersPage() {
   }
 
   async function handleDelete(user: AdminUser, mode: 'safe' | 'cleanup') {
-    const account = user.email ?? user.id;
+    const account = getAccountLabel(user);
     const confirmKey =
       mode === 'safe'
         ? 'admin.users.actions.confirmSafeDelete'
@@ -297,6 +336,7 @@ export default function AdminUsersPage() {
           <table className="w-full min-w-[980px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                <th className="px-4 py-3">{t('admin.users.table.displayName')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.email')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.userId')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.created')}</th>
@@ -310,6 +350,9 @@ export default function AdminUsersPage() {
                 const disabled = isDisabled(user);
                 return (
                   <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium text-slate-950">
+                      {getDisplayName(user, t('admin.users.noDisplayName'))}
+                    </td>
                     <td className="px-4 py-3 font-medium text-slate-950">
                       {user.email ?? t('admin.users.noEmail')}
                     </td>
@@ -333,7 +376,17 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button
+                        <ActionButton
+                          label={
+                            disabled
+                              ? t('admin.users.actions.enable')
+                              : t('admin.users.actions.disable')
+                          }
+                          description={
+                            disabled
+                              ? t('admin.users.actions.enableHelp')
+                              : t('admin.users.actions.disableHelp')
+                          }
                           onClick={() => {
                             void handleUserAction(user, disabled ? 'enable' : 'disable');
                           }}
@@ -342,27 +395,23 @@ export default function AdminUsersPage() {
                               ? 'border-green-200 text-green-700 hover:bg-green-50'
                               : 'border-red-200 text-red-700 hover:bg-red-50'
                           }`}
-                        >
-                          {disabled
-                            ? t('admin.users.actions.enable')
-                            : t('admin.users.actions.disable')}
-                        </button>
-                        <button
+                        />
+                        <ActionButton
+                          label={t('admin.users.actions.safeDelete')}
+                          description={t('admin.users.actions.safeDeleteHelp')}
                           onClick={() => {
                             void handleDelete(user, 'safe');
                           }}
                           className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          {t('admin.users.actions.safeDelete')}
-                        </button>
-                        <button
+                        />
+                        <ActionButton
+                          label={t('admin.users.actions.cleanupDelete')}
+                          description={t('admin.users.actions.cleanupDeleteHelp')}
                           onClick={() => {
                             void handleDelete(user, 'cleanup');
                           }}
                           className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
-                        >
-                          {t('admin.users.actions.cleanupDelete')}
-                        </button>
+                        />
                       </div>
                     </td>
                   </tr>

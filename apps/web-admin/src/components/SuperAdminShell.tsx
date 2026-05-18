@@ -9,7 +9,7 @@ import { useI18n } from '../i18n/I18nProvider';
 const navItems = [
   { href: '/admin', labelKey: 'admin.shell.nav.overview', badge: 'O' },
   { href: '/admin/organizations', labelKey: 'admin.shell.nav.organizations', badge: 'OR' },
-  { href: '/admin/users', labelKey: 'admin.shell.nav.users', badge: 'U' },
+  { href: '/admin/users', labelKey: 'admin.shell.nav.users', badge: 'PA' },
   { href: '/admin/fighters', labelKey: 'admin.shell.nav.fighters', badge: 'F' },
   { href: '/admin/clubs', labelKey: 'admin.shell.nav.clubs', badge: 'C' },
   { href: '/admin/rulesets', labelKey: 'admin.shell.nav.rulesets', badge: 'R' },

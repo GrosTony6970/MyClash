@@ -62,7 +62,36 @@ describe('AdminUsersService', () => {
     const result = await service.listUsers({ page: 2, perPage: 25 });
 
     expect(listAuthAdminUsers).toHaveBeenCalledWith(2, 25);
-    expect(result.users).toEqual([{ id: 'user-1' }]);
+    expect(result.users).toEqual([{ id: 'user-1', display_name: null }]);
+  });
+
+  it('normalizes display names from Auth user metadata when listing accounts', async () => {
+    listAuthAdminUsers.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        users: [
+          {
+            id: 'user-1',
+            email: 'owner@example.com',
+            user_metadata: { display_name: 'Owner One' },
+          },
+          {
+            id: 'user-2',
+            email: 'empty@example.com',
+            user_metadata: { display_name: '   ' },
+          },
+        ],
+      },
+      detail: {},
+    });
+
+    const result = await service.listUsers();
+
+    expect(result.users).toEqual([
+      expect.objectContaining({ id: 'user-1', display_name: 'Owner One' }),
+      expect.objectContaining({ id: 'user-2', display_name: null }),
+    ]);
   });
 
   it('creates confirmed users and returns a one-time temporary password', async () => {

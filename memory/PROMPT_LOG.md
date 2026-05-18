@@ -871,3 +871,7 @@ Implement the plan to fix admin pages hitting API rate limits by adding higher a
 ## 10:18:27_18-05-2026
 
 Implement the plan to fix League Management UI visibility and create failure: replace LeaguesController public Supabase auth validation with internal GoTrue validation, improve /admin/leagues error diagnostics, add regression guards/tests, and verify deploy freshness.
+
+## 10:38:16_18-05-2026
+
+Implement the Platform accounts UI plan: rename super-admin Users labels to Platform accounts, show Display Name then email and user ID in the account list, add hover/focus helper text to action buttons, and add regression coverage.

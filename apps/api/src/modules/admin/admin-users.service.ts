@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { CreatePlatformUserDto } from './dto/admin-users.dto';
-import { SupabaseService } from '../supabase/supabase.service';
+import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
 
 export interface ListUsersQuery {
   page?: number;
@@ -14,6 +14,8 @@ interface UserDeletionBlockers {
   references: Record<string, number>;
   soleOwnerOrganizationIds: string[];
 }
+
+type ListedPlatformUser = SupabaseAdminUser & { display_name: string | null };
 
 @Injectable()
 export class AdminUsersService {
@@ -29,7 +31,12 @@ export class AdminUsersService {
       this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
       throw new BadRequestException('Could not inspect platform accounts');
     }
-    return response.data;
+    return {
+      users: response.data.users.map((user) => ({
+        ...user,
+        display_name: this.normalizeDisplayName(user),
+      })),
+    };
   }
 
   async createPlatformUser(input: CreatePlatformUserDto, actorUserId: string) {
@@ -302,5 +309,10 @@ export class AdminUsersService {
     } catch {
       this.logger.warn(`Could not write audit log for ${action} on ${entityType}:${entityId}`);
     }
+  }
+
+  private normalizeDisplayName(user: SupabaseAdminUser): ListedPlatformUser['display_name'] {
+    const displayName = user.user_metadata?.['display_name'];
+    return typeof displayName === 'string' && displayName.trim() ? displayName.trim() : null;
   }
 }

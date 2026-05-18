@@ -932,6 +932,7 @@ for (const expected of [
   'createAuthAdminUser',
   'updateAuthAdminUser',
   'deleteAuthAdminUser',
+  'display_name: this.normalizeDisplayName(user)',
   'You cannot delete your own account',
   'last remaining super admin',
   'cleanupUserReferences',
@@ -943,13 +944,30 @@ for (const expected of [
   'temporaryPassword',
   "handleDelete(user, 'safe')",
   "handleDelete(user, 'cleanup')",
+  'admin.users.table.displayName',
   'admin.users.create',
+  'admin.users.actions.enableHelp',
+  'admin.users.actions.disableHelp',
   'admin.users.actions.safeDelete',
+  'admin.users.actions.safeDeleteHelp',
   'admin.users.actions.cleanupDelete',
+  'admin.users.actions.cleanupDeleteHelp',
+  'title={description}',
+  'aria-label={`${label}: ${description}`}',
   'common.tooManyRequests',
   'actions.retry',
 ]) {
   requireContains(superAdminUsersPageText, 'apps/web-admin/app/admin/users/page.tsx', expected);
+}
+for (const expected of [
+  'Platform accounts',
+  'displayName: \'Display name\'',
+  'enableHelp',
+  'disableHelp',
+  'safeDeleteHelp',
+  'cleanupDeleteHelp',
+]) {
+  requireContains(i18nText, 'packages/i18n/src/index.ts', expected);
 }
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMIN_PASSWORD']) {
   if (superAdminUsersPageText.includes(forbidden)) {
