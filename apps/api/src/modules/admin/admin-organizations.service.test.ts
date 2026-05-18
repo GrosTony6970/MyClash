@@ -428,28 +428,46 @@ describe('AdminOrganizationsService', () => {
 
   describe('suspendOrganization', () => {
     it('calls update with status=suspended and writes audit log', async () => {
-      const updateChain = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-      };
+      const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+      const orgChain = makeChain({ data: { slug: 'normal-org' }, error: null });
+      orgChain.update.mockReturnValue({ eq: updateEq });
       const insertChain = {
         insert: vi.fn().mockResolvedValue({ data: null, error: null }),
       };
 
       fromMock.mockImplementation((table: string) => {
-        if (table === 'organizations') return updateChain;
+        if (table === 'organizations') return orgChain;
         if (table === 'audit_log') return insertChain;
         return makeChain({ data: null, error: null });
       });
 
       await service.suspendOrganization('org-1', 'actor-user');
-      expect(updateChain.update).toHaveBeenCalledWith({ status: 'suspended' });
+      expect(orgChain.update).toHaveBeenCalledWith({ status: 'suspended' });
+      expect(updateEq).toHaveBeenCalledWith('id', 'org-1');
+    });
+
+    it('refuses to suspend the protected MyClash HQ organization', async () => {
+      const orgChain = makeChain({ data: { slug: 'myclash-hq' }, error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') return orgChain;
+        return makeChain({ data: null, error: null });
+      });
+
+      await expect(service.suspendOrganization('org-hq', 'actor-user')).rejects.toThrow(
+        'The MyClash HQ organization cannot be suspended',
+      );
+
+      expect(orgChain.update).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when update fails', async () => {
-      fromMock.mockReturnValue({
-        update: vi.fn().mockReturnThis(),
+      const orgChain = makeChain({ data: { slug: 'normal-org' }, error: null });
+      orgChain.update.mockReturnValue({
         eq: vi.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
+      });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') return orgChain;
+        return makeChain({ data: null, error: null });
       });
 
       await expect(service.suspendOrganization('org-1', 'actor')).rejects.toThrow(

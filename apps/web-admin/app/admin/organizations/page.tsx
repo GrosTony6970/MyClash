@@ -453,7 +453,7 @@ export default function AdminOrganizationsPage() {
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2">
-                      {org.status === 'active' ? (
+                      {org.status === 'active' && !org.is_protected ? (
                         <button
                           onClick={() => {
                             void handleAction(org.id, 'suspend');
@@ -462,7 +462,7 @@ export default function AdminOrganizationsPage() {
                         >
                           {t('admin.organizations.actions.suspend')}
                         </button>
-                      ) : (
+                      ) : org.status === 'suspended' ? (
                         <button
                           onClick={() => {
                             void handleAction(org.id, 'approve');
@@ -471,7 +471,7 @@ export default function AdminOrganizationsPage() {
                         >
                           {t('admin.organizations.actions.approve')}
                         </button>
-                      )}
+                      ) : null}
                       {org.is_protected ? (
                         <span className="text-xs font-medium text-slate-400">
                           {t('admin.organizations.actions.protected')}

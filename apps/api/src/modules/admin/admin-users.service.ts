@@ -6,6 +6,7 @@ import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.se
 export interface ListUsersQuery {
   page?: number;
   perPage?: number;
+  q?: string;
 }
 
 export type DeletePlatformUserMode = 'safe' | 'cleanup';
@@ -26,16 +27,16 @@ export class AdminUsersService {
   async listUsers(query: ListUsersQuery = {}) {
     const page = query.page ?? 1;
     const perPage = query.perPage ?? 50;
+    const search = query.q?.trim();
+    if (search) return this.searchUsers(search, page, perPage);
+
     const response = await this.supabase.listAuthAdminUsers(page, perPage);
     if (!response.ok || !response.data) {
       this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
       throw new BadRequestException('Could not inspect platform accounts');
     }
     return {
-      users: response.data.users.map((user) => ({
-        ...user,
-        display_name: this.normalizeDisplayName(user),
-      })),
+      users: response.data.users.map((user) => this.toListedUser(user)),
     };
   }
 
@@ -311,8 +312,76 @@ export class AdminUsersService {
     }
   }
 
+  private async searchUsers(search: string, page: number, perPage: number) {
+    const normalizedSearch = normalizeSearch(search);
+    const users: ListedPlatformUser[] = [];
+    let currentPage = 1;
+    const authPageSize = 1000;
+
+    while (currentPage <= 10) {
+      const response = await this.supabase.listAuthAdminUsers(currentPage, authPageSize);
+      if (!response.ok || !response.data) {
+        this.logger.warn(`Could not search Auth users through GoTrue: ${response.status}`);
+        throw new BadRequestException('Could not inspect platform accounts');
+      }
+
+      for (const user of response.data.users) {
+        const listedUser = this.toListedUser(user);
+        if (this.userMatchesSearch(listedUser, normalizedSearch)) users.push(listedUser);
+      }
+
+      if (response.data.users.length < authPageSize) break;
+      currentPage += 1;
+    }
+
+    users.sort((a, b) => {
+      const aScore = this.userSearchScore(a, normalizedSearch);
+      const bScore = this.userSearchScore(b, normalizedSearch);
+      if (aScore !== bScore) return bScore - aScore;
+      return (a.email ?? a.id).localeCompare(b.email ?? b.id);
+    });
+
+    const start = Math.max(page - 1, 0) * perPage;
+    return { users: users.slice(start, start + perPage) };
+  }
+
+  private toListedUser(user: SupabaseAdminUser): ListedPlatformUser {
+    return {
+      ...user,
+      display_name: this.normalizeDisplayName(user),
+    };
+  }
+
+  private userMatchesSearch(user: ListedPlatformUser, normalizedSearch: string): boolean {
+    return this.userSearchTokens(user).some((token) => token.includes(normalizedSearch));
+  }
+
+  private userSearchScore(user: ListedPlatformUser, normalizedSearch: string): number {
+    let score = 0;
+    for (const token of this.userSearchTokens(user)) {
+      if (token === normalizedSearch) score = Math.max(score, 100);
+      else if (token.startsWith(normalizedSearch)) score = Math.max(score, 75);
+      else if (token.includes(normalizedSearch)) score = Math.max(score, 50);
+    }
+    return score;
+  }
+
+  private userSearchTokens(user: ListedPlatformUser): string[] {
+    return [user.display_name, user.email, user.id].filter(Boolean).map((value) => {
+      return normalizeSearch(String(value));
+    });
+  }
+
   private normalizeDisplayName(user: SupabaseAdminUser): ListedPlatformUser['display_name'] {
     const displayName = user.user_metadata?.['display_name'];
     return typeof displayName === 'string' && displayName.trim() ? displayName.trim() : null;
   }
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 }

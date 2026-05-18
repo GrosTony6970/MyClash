@@ -40,8 +40,9 @@ export class UsersAdminController {
   async list(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('perPage', new DefaultValuePipe(50), ParseIntPipe) perPage: number,
+    @Query('q') q?: string,
   ) {
-    return this.service.listUsers({ page, perPage });
+    return this.service.listUsers({ page, perPage, q });
   }
 
   @Post()

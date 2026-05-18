@@ -865,6 +865,16 @@ requireContains(
   'apps/api/src/modules/admin/admin-organizations.service.ts',
   'The MyClash HQ organization cannot be deleted',
 );
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'The MyClash HQ organization cannot be suspended',
+);
+requireContains(
+  adminOrganizationsServiceText,
+  'apps/api/src/modules/admin/admin-organizations.service.ts',
+  'ensureOrganizationCanBeSuspended',
+);
 for (const expected of ['owner_username', 'display_name', 'username']) {
   requireContains(
     adminOrganizationsServiceText,
@@ -879,11 +889,27 @@ for (const expected of ['is_protected', 'owner_username', 'actions.protected']) 
     expected,
   );
 }
-for (const expected of ['is_protected', 'member.username', 'member.user_id', 'protectedNote']) {
+for (const expected of [
+  'is_protected',
+  'member.username',
+  'member.email',
+  'member.user_id',
+  'protectedNote',
+  'selectOwnerTitle',
+  'selectSuperAdminTitle',
+  'loadPlatformAccounts',
+  '/api/v1/admin/users?',
+  'account.id',
+]) {
   requireContains(
     superAdminOrganizationDetailPageText,
     'apps/web-admin/app/admin/organizations/[id]/page.tsx',
     expected,
+  );
+}
+if (superAdminOrganizationDetailPageText.includes('prompt(')) {
+  errors.push(
+    'apps/web-admin/app/admin/organizations/[id]/page.tsx must use searchable member/account pickers instead of prompt().',
   );
 }
 for (const forbidden of ['auth.admin.listUsers', 'auth.admin.createUser', 'auth.admin.deleteUser']) {

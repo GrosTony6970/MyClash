@@ -38,8 +38,40 @@ interface OrgDetail {
   recent_audit_log: AuditEntry[];
 }
 
+interface PlatformAccount {
+  id: string;
+  email?: string;
+  display_name?: string | null;
+}
+
+interface PlatformAccountListResponse {
+  users: PlatformAccount[];
+}
+
 interface Props {
   params: Promise<{ id: string }>;
+}
+
+type PickerMode = 'reassign' | 'promote';
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function memberMatchesSearch(member: Member, search: string): boolean {
+  const normalizedSearch = normalizeSearch(search);
+  if (!normalizedSearch) return true;
+  return [member.username, member.display_name, member.email, member.user_id]
+    .filter(Boolean)
+    .some((value) => normalizeSearch(String(value)).includes(normalizedSearch));
+}
+
+function accountLabel(account: PlatformAccount): string {
+  return account.display_name?.trim() || account.email || account.id;
 }
 
 export default function AdminOrgDetailPage({ params }: Props) {
@@ -50,6 +82,12 @@ export default function AdminOrgDetailPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [pickerMode, setPickerMode] = useState<PickerMode | null>(null);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [platformAccounts, setPlatformAccounts] = useState<PlatformAccount[]>([]);
+  const [platformLoading, setPlatformLoading] = useState(false);
+  const [platformError, setPlatformError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     void params.then(({ id }) => setOrgId(id));
@@ -111,17 +149,70 @@ export default function AdminOrgDetailPage({ params }: Props) {
     }
   }
 
-  async function handleReassignOwner() {
-    if (!orgId) return;
-    const newOwnerUserId = prompt(t('admin.organizations.detail.reassignPrompt'));
-    if (!newOwnerUserId?.trim()) return;
+  function openReassignPicker() {
+    setPickerMode('reassign');
+    setPickerSearch('');
+    setPlatformError(null);
+  }
 
+  function openPromotePicker() {
+    setPickerMode('promote');
+    setPickerSearch('');
+    setPlatformError(null);
+    void loadPlatformAccounts('');
+  }
+
+  function closePicker() {
+    if (actionLoading) return;
+    setPickerMode(null);
+    setPickerSearch('');
+    setPlatformError(null);
+  }
+
+  async function loadPlatformAccounts(search: string) {
+    setPlatformLoading(true);
+    setPlatformError(null);
+    const params = new URLSearchParams();
+    params.set('perPage', '20');
+    if (search.trim()) params.set('q', search.trim());
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/users?${params}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(t('admin.organizations.detail.accountSearchFailed'));
+      const data = (await res.json()) as PlatformAccountListResponse;
+      setPlatformAccounts(data.users ?? []);
+    } catch (err) {
+      setPlatformError(
+        err instanceof Error ? err.message : t('admin.organizations.detail.accountSearchFailed'),
+      );
+      setPlatformAccounts([]);
+    } finally {
+      setPlatformLoading(false);
+    }
+  }
+
+  async function handleReassignOwner(member: Member) {
+    if (!orgId || actionLoading) return;
+    if (
+      !confirm(
+        t('admin.organizations.detail.confirmReassignOwner', {
+          account: member.username || member.email || member.user_id,
+        }),
+      )
+    ) {
+      return;
+    }
+
+    setActionLoading(true);
     const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}/reassign-owner`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ newOwnerUserId: newOwnerUserId.trim() }),
+      body: JSON.stringify({ newOwnerUserId: member.user_id }),
     });
+    setActionLoading(false);
 
     if (res.ok || res.status === 204) {
       window.location.reload();
@@ -131,18 +222,29 @@ export default function AdminOrgDetailPage({ params }: Props) {
     }
   }
 
-  async function handlePromoteSuperAdmin() {
-    const userId = prompt(t('admin.organizations.detail.promotePrompt'));
-    if (!userId?.trim()) return;
+  async function handlePromoteSuperAdmin(account: PlatformAccount) {
+    if (actionLoading) return;
+    if (
+      !confirm(
+        t('admin.organizations.detail.confirmPromoteMember', {
+          account: accountLabel(account),
+        }),
+      )
+    ) {
+      return;
+    }
 
+    setActionLoading(true);
     const res = await fetch(`${apiUrl}/api/v1/admin/users/promote-super-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ userId: userId.trim() }),
+      body: JSON.stringify({ userId: account.id }),
     });
+    setActionLoading(false);
 
     if (res.ok || res.status === 204) {
+      closePicker();
       alert(t('admin.organizations.detail.promoteSuccess'));
     } else {
       alert(t('admin.organizations.detail.promoteFailed'));
@@ -166,6 +268,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   }
 
   if (!org) return null;
+  const filteredMembers = org.members.filter((member) => memberMatchesSearch(member, pickerSearch));
 
   return (
     <main className="max-w-4xl p-8">
@@ -214,7 +317,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold">{t('admin.organizations.table.actions')}</h2>
         <div className="flex flex-wrap gap-2">
-          {org.status === 'active' ? (
+          {org.status === 'active' && !org.is_protected ? (
             <button
               onClick={() => {
                 void handleAction('suspend');
@@ -223,7 +326,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
             >
               {t('admin.organizations.actions.suspend')}
             </button>
-          ) : (
+          ) : org.status === 'suspended' ? (
             <button
               onClick={() => {
                 void handleAction('reactivate');
@@ -232,10 +335,15 @@ export default function AdminOrgDetailPage({ params }: Props) {
             >
               {t('admin.organizations.actions.reactivate')}
             </button>
-          )}
+          ) : null}
+          {org.status === 'active' && org.is_protected ? (
+            <span className="rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-500">
+              {t('admin.organizations.actions.protected')}
+            </span>
+          ) : null}
           <button
             onClick={() => {
-              void handleReassignOwner();
+              openReassignPicker();
             }}
             className="rounded-md bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-200"
           >
@@ -243,7 +351,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
           </button>
           <button
             onClick={() => {
-              void handlePromoteSuperAdmin();
+              openPromotePicker();
             }}
             className="rounded-md bg-purple-100 px-4 py-2 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200"
           >
@@ -334,6 +442,133 @@ export default function AdminOrgDetailPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      {pickerMode ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={
+            pickerMode === 'reassign'
+              ? t('admin.organizations.detail.selectOwnerTitle')
+              : t('admin.organizations.detail.selectSuperAdminTitle')
+          }
+        >
+          <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-xl">
+            <div className="border-b border-slate-200 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    {pickerMode === 'reassign'
+                      ? t('admin.organizations.detail.selectOwnerTitle')
+                      : t('admin.organizations.detail.selectSuperAdminTitle')}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {pickerMode === 'reassign'
+                      ? t('admin.organizations.detail.selectOwnerDescription')
+                      : t('admin.organizations.detail.selectSuperAdminDescription')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePicker}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {t('actions.cancel')}
+                </button>
+              </div>
+              <label className="mt-4 block text-sm font-semibold text-slate-700">
+                {t('admin.organizations.detail.memberSearch')}
+                <input
+                  type="search"
+                  value={pickerSearch}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setPickerSearch(value);
+                    if (pickerMode === 'promote') void loadPlatformAccounts(value);
+                  }}
+                  placeholder={
+                    pickerMode === 'reassign'
+                      ? t('admin.organizations.detail.reassignSearchPlaceholder')
+                      : t('admin.organizations.detail.promoteSearchPlaceholder')
+                  }
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                />
+              </label>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto p-3">
+              {pickerMode === 'promote' && platformLoading ? (
+                <p className="p-4 text-sm text-slate-500">
+                  {t('admin.organizations.detail.accountSearchLoading')}
+                </p>
+              ) : null}
+              {pickerMode === 'promote' && platformError ? (
+                <p className="p-4 text-sm text-red-600">{platformError}</p>
+              ) : null}
+              {pickerMode === 'reassign' && filteredMembers.length === 0 ? (
+                <p className="p-4 text-sm text-slate-500">
+                  {t('admin.organizations.detail.noMemberMatches')}
+                </p>
+              ) : null}
+              {pickerMode === 'promote' &&
+              !platformLoading &&
+              !platformError &&
+              platformAccounts.length === 0 ? (
+                <p className="p-4 text-sm text-slate-500">
+                  {t('admin.organizations.detail.noAccountMatches')}
+                </p>
+              ) : null}
+
+              <div className="space-y-2">
+                {pickerMode === 'reassign'
+                  ? filteredMembers.map((member) => (
+                      <button
+                        key={member.user_id}
+                        type="button"
+                        disabled={actionLoading || member.role === 'owner'}
+                        onClick={() => {
+                          void handleReassignOwner(member);
+                        }}
+                        className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="block font-semibold text-slate-950">
+                          {member.username || member.email || member.user_id}
+                        </span>
+                        <span className="mt-1 block text-sm text-slate-600">
+                          {member.email || t('admin.users.noEmail')}
+                        </span>
+                        <span className="mt-1 block font-mono text-xs text-slate-500">
+                          {member.user_id}
+                        </span>
+                      </button>
+                    ))
+                  : platformAccounts.map((account) => (
+                      <button
+                        key={account.id}
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => {
+                          void handlePromoteSuperAdmin(account);
+                        }}
+                        className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-purple-300 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="block font-semibold text-slate-950">
+                          {accountLabel(account)}
+                        </span>
+                        <span className="mt-1 block text-sm text-slate-600">
+                          {account.email || t('admin.users.noEmail')}
+                        </span>
+                        <span className="mt-1 block font-mono text-xs text-slate-500">
+                          {account.id}
+                        </span>
+                      </button>
+                    ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

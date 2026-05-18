@@ -333,6 +333,7 @@ export class AdminOrganizationsService {
   // ── Suspend ──────────────────────────────────────────────────────────────
 
   async suspendOrganization(id: string, actorUserId: string): Promise<void> {
+    await this.ensureOrganizationCanBeSuspended(id);
     await this.updateStatus(id, 'suspended', actorUserId, 'org.suspend');
   }
 
@@ -507,6 +508,20 @@ export class AdminOrganizationsService {
     if (!data) throw new NotFoundException(`Organization ${id} not found`);
     if ((data as { slug?: string }).slug === PROTECTED_ORG_SLUG) {
       throw new BadRequestException('The MyClash HQ organization cannot be deleted');
+    }
+  }
+
+  private async ensureOrganizationCanBeSuspended(id: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('organizations')
+      .select('slug')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException('Could not validate organization suspension');
+    if (!data) throw new NotFoundException(`Organization ${id} not found`);
+    if ((data as { slug?: string }).slug === PROTECTED_ORG_SLUG) {
+      throw new BadRequestException('The MyClash HQ organization cannot be suspended');
     }
   }
 

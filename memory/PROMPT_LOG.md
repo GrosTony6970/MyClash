@@ -875,3 +875,7 @@ Implement the plan to fix League Management UI visibility and create failure: re
 ## 10:38:16_18-05-2026
 
 Implement the Platform accounts UI plan: rename super-admin Users labels to Platform accounts, show Display Name then email and user ID in the account list, add hover/focus helper text to action buttons, and add regression coverage.
+
+## 10:52:03_18-05-2026
+
+Implement organization member selectors and MyClash HQ suspend protection: replace raw user-ID prompts for ownership reassignment and super-admin promotion with searchable pickers showing display name, email, and user ID; add platform-account search; prevent suspending myclash-hq.

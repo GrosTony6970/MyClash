@@ -94,6 +94,73 @@ describe('AdminUsersService', () => {
     ]);
   });
 
+  it('searches platform accounts by display name, email, and user ID', async () => {
+    listAuthAdminUsers.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        users: [
+          {
+            id: 'user-owner',
+            email: 'owner@example.com',
+            user_metadata: { display_name: 'Owner One' },
+          },
+          {
+            id: 'user-ref',
+            email: 'referee@example.com',
+            user_metadata: { display_name: 'Referee Two' },
+          },
+          {
+            id: 'user-other',
+            email: 'other@example.com',
+            user_metadata: { display_name: 'Other User' },
+          },
+        ],
+      },
+      detail: {},
+    });
+
+    const displayNameResult = await service.listUsers({ q: 'owner', perPage: 20 });
+    expect(displayNameResult.users).toEqual([
+      expect.objectContaining({
+        id: 'user-owner',
+        email: 'owner@example.com',
+        display_name: 'Owner One',
+      }),
+    ]);
+    expect(listAuthAdminUsers).toHaveBeenCalledWith(1, 1000);
+
+    listAuthAdminUsers.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        users: [
+          { id: 'user-ref', email: 'referee@example.com', user_metadata: {} },
+          { id: 'user-other', email: 'other@example.com', user_metadata: {} },
+        ],
+      },
+      detail: {},
+    });
+
+    const emailResult = await service.listUsers({ q: 'referee@example', perPage: 20 });
+    expect(emailResult.users).toEqual([expect.objectContaining({ id: 'user-ref' })]);
+
+    listAuthAdminUsers.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        users: [
+          { id: 'user-target-id', email: 'target@example.com', user_metadata: {} },
+          { id: 'user-other', email: 'other@example.com', user_metadata: {} },
+        ],
+      },
+      detail: {},
+    });
+
+    const idResult = await service.listUsers({ q: 'target-id', perPage: 20 });
+    expect(idResult.users).toEqual([expect.objectContaining({ id: 'user-target-id' })]);
+  });
+
   it('creates confirmed users and returns a one-time temporary password', async () => {
     createAuthAdminUser.mockResolvedValue({
       ok: true,
