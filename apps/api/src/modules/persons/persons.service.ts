@@ -95,6 +95,7 @@ export class PersonsService {
         date_of_birth: dto.dateOfBirth ?? null,
         gender_category: dto.genderCategory ?? null,
         notes: dto.notes ?? null,
+        global_person_id: dto.globalPersonId ?? null,
         claim_status: 'unclaimed',
         created_by_user_id: createdByUserId,
       })

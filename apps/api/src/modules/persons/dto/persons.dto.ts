@@ -53,6 +53,11 @@ export class CreatePersonDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @ApiProperty({ required: false, description: 'Link to a global person profile' })
+  @IsOptional()
+  @IsUUID()
+  globalPersonId?: string;
 }
 
 export class UpdatePersonDto {
