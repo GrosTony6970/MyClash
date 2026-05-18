@@ -56,8 +56,14 @@ function joinPath(...parts: string[]) {
     .join('/');
 }
 
-function isActive(pathname: string, href: string) {
-  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
+function pickActiveHref(pathname: string, hrefs: readonly string[]): string | null {
+  let best: string | null = null;
+  for (const href of hrefs) {
+    const matches = pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
+    if (!matches) continue;
+    if (best === null || href.length > best.length) best = href;
+  }
+  return best;
 }
 
 export function OrganizerAdminShell({ children }: { children: ReactNode }) {
@@ -191,44 +197,50 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-5">
-      {navSections.map((section) => (
-        <div key={section.key}>
-          <p className="mb-2 px-3 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            {section.title}
-          </p>
-          <div className="flex flex-col gap-1">
-            {section.items.map((item) => {
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={[
-                    'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-                    active
-                      ? 'bg-[#1d4ed8] text-white shadow-sm'
-                      : 'text-slate-300 hover:bg-white/10 hover:text-white',
-                  ].join(' ')}
-                >
-                  <span
+      {navSections.map((section) => {
+        const activeHref = pickActiveHref(
+          pathname,
+          section.items.map((i) => i.href),
+        );
+        return (
+          <div key={section.key}>
+            <p className="mb-2 px-3 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+              {section.title}
+            </p>
+            <div className="flex flex-col gap-1">
+              {section.items.map((item) => {
+                const active = item.href === activeHref;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
                     className={[
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
+                      'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                       active
-                        ? 'border-white/30 bg-white/15 text-white'
-                        : 'border-slate-600 bg-slate-900 text-[#f59e0b] group-hover:border-slate-400',
+                        ? 'bg-[#1d4ed8] text-white shadow-sm'
+                        : 'text-slate-300 hover:bg-white/10 hover:text-white',
                     ].join(' ')}
-                    aria-hidden="true"
                   >
-                    {item.badge}
-                  </span>
-                  <span>{t(item.labelKey)}</span>
-                </Link>
-              );
-            })}
+                    <span
+                      className={[
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
+                        active
+                          ? 'border-white/30 bg-white/15 text-white'
+                          : 'border-slate-600 bg-slate-900 text-[#f59e0b] group-hover:border-slate-400',
+                      ].join(' ')}
+                      aria-hidden="true"
+                    >
+                      {item.badge}
+                    </span>
+                    <span>{t(item.labelKey)}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </nav>
   );
 
