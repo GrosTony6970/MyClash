@@ -118,15 +118,17 @@ Search field: `"Search global profiles by name"`
 
 ### 5b. Form fields
 
-| Field           | Required | Notes                                                      |
-| --------------- | -------- | ---------------------------------------------------------- |
-| Given name      | Yes      |                                                            |
-| Family name     | Yes      |                                                            |
-| Email           | No       |                                                            |
-| Club            | No       | Text input; server resolves to club record via fuzzy match |
-| HEMA Ratings ID | No       | Uses existing `HemaRatingsSuggest` component               |
-| Seed            | No       | Integer ≥ 1                                                |
-| Bib number      | —        | **Removed**                                                |
+| Field           | Required | Notes                                                                                                                                       |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Given name      | Yes      |                                                                                                                                             |
+| Family name     | Yes      |                                                                                                                                             |
+| Email           | No       |                                                                                                                                             |
+| Club            | No       | Fuzzy-search against `GET /api/v1/clubs?q=<term>&searchAbv=true`; shows name + abbreviation in results; stores `clubId` (UUID) on selection |
+| HEMA Ratings ID | No       | Uses existing `HemaRatingsSuggest` component                                                                                                |
+| Seed            | No       | Integer ≥ 1                                                                                                                                 |
+| Bib number      | —        | **Removed**                                                                                                                                 |
+
+**Club search behaviour:** input is debounced 250 ms. Results show club name and abbreviation. Selecting a club stores its UUID; the save call sends `clubId` (not `clubName`). The field can be cleared to deselect.
 
 ### 5c. Tournament selection
 
@@ -190,8 +192,10 @@ Unchanged. The existing import wizard at `/persons/import` is preserved. The "CS
 | `apps/web-admin/src/components/OrganizerAdminShell.tsx`                 | Rename persons item, remove registrations item             |
 | `apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx`               | Rename persons card, remove registrations card             |
 | `packages/i18n/src/index.ts`                                            | Update `sections.persons`, remove `sections.registrations` |
+| `apps/api/src/modules/persons/dto/persons.dto.ts`                       | Add `globalPersonId?: string` to `CreatePersonDto`         |
+| `apps/api/src/modules/persons/persons.service.ts`                       | Pass `globalPersonId` through to person insert             |
 
-No backend changes. No DB migrations.
+One minor backend change: `globalPersonId` optional UUID added to `CreatePersonDto`. No new endpoints. No DB migrations.
 
 ---
 
