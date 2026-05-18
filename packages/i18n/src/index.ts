@@ -1350,8 +1350,7 @@ export const en = {
         submitError: 'Could not submit this club.',
       },
       sections: {
-        persons: 'Persons & Roster',
-        registrations: 'Registrations',
+        persons: 'Participants',
         pools: 'Pools',
         poolPopulator: 'Pool Populator',
         bracket: 'Bracket',
@@ -3140,8 +3139,7 @@ export const fr = {
         submitError: 'Impossible de soumettre ce club.',
       },
       sections: {
-        persons: 'Personnes et roster',
-        registrations: 'Inscriptions',
+        persons: 'Participants',
         pools: 'Poules',
         poolPopulator: 'GÃƒÂ©nÃƒÂ©rateur de poules',
         bracket: 'Tableau',

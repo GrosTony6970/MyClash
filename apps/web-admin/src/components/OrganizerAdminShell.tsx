@@ -21,7 +21,6 @@ const eventNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.eventOverview', badge: 'E' },
   { href: 'tournaments/new', labelKey: 'organizer.shell.nav.createTournament', badge: 'T+' },
   { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', badge: 'P' },
-  { href: 'registrations', labelKey: 'organizer.eventHub.sections.registrations', badge: 'R' },
   { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'P' },
   { href: 'pool-populator', labelKey: 'organizer.eventHub.sections.poolPopulator', badge: 'G' },
   { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
