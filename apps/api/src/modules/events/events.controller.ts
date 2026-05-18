@@ -316,6 +316,39 @@ export class EventsController {
     return this.events.updateTournament(id, dto, userId);
   }
 
+  /** DELETE /api/v1/tournaments/:id */
+  @Delete('tournaments/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Hard delete tournament (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteTournament(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.deleteTournament(id, userId);
+  }
+
+  /** POST /api/v1/tournaments/:id/publish */
+  @Post('tournaments/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Publish tournament (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async publishTournament(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.publishTournament(id, userId);
+  }
+
+  /** POST /api/v1/tournaments/:id/unpublish */
+  @Post('tournaments/:id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unpublish tournament back to draft (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async unpublishTournament(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.unpublishTournament(id, userId);
+  }
+
   /** GET /api/v1/tournaments/:id/scoring-config — used by scoring app */
   @Get('tournaments/:id/scoring-config')
   @ApiOperation({ summary: 'Get tournament scoring config (afterblow mode + buttons)' })

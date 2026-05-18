@@ -643,6 +643,58 @@ export class EventsService {
     return data;
   }
 
+  async deleteTournament(tournamentId: string, userId: string) {
+    const { data: row } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (!row) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const event = await this.getEventById((row as { event_id: string }).event_id);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+    const { error } = await this.supabase.service
+      .from('tournaments')
+      .delete()
+      .eq('id', tournamentId);
+    if (error) throw new BadRequestException(error.message);
+    return { id: tournamentId };
+  }
+
+  async publishTournament(tournamentId: string, userId: string) {
+    return this.setTournamentStatus(tournamentId, 'published', userId);
+  }
+
+  async unpublishTournament(tournamentId: string, userId: string) {
+    return this.setTournamentStatus(tournamentId, 'draft', userId);
+  }
+
+  private async setTournamentStatus(tournamentId: string, status: string, userId: string) {
+    const { data: row } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (!row) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const event = await this.getEventById((row as { event_id: string }).event_id);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', tournamentId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────────
 
   private async getEventById(eventId: string) {
