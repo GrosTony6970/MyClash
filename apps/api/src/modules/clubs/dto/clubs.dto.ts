@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateClubDto {
   @ApiProperty({ example: 'Lyon AMHE' })
@@ -96,4 +96,31 @@ export class ClubQueryDto {
   @ApiProperty({ required: false, description: 'If true, include archived clubs' })
   @IsOptional()
   includeArchived?: boolean;
+}
+
+export class ClubReviewRequestQueryDto {
+  @ApiProperty({ required: false, enum: ['pending', 'approved', 'linked', 'rejected', 'all'] })
+  @IsOptional()
+  @IsIn(['pending', 'approved', 'linked', 'rejected', 'all'])
+  status?: 'pending' | 'approved' | 'linked' | 'rejected' | 'all';
+}
+
+export class LinkClubReviewRequestDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  existingClubId!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
+}
+
+export class RejectClubReviewRequestDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
 }

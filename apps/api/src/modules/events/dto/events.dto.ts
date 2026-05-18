@@ -151,6 +151,56 @@ export class EventQueryDto {
   organizationId?: string;
 }
 
+export class EventClubQueryDto {
+  @ApiProperty({ required: false, enum: ['all', 'event'] })
+  @IsOptional()
+  @IsIn(['all', 'event'])
+  scope?: 'all' | 'event';
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
+export class SubmitEventClubRequestDto {
+  @ApiProperty({ example: 'Lyon AMHE' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
+
+  @ApiProperty({ required: false, example: 'LAMHE' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  abbreviation?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
+  countryCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  website?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
+}
+
 export class CreateTournamentDto {
   @ApiProperty({ example: 'Longsword Open' })
   @IsString()

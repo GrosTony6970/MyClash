@@ -25,6 +25,8 @@ export interface ClubLogoUpload {
   mimetype: string;
 }
 
+type ClubReviewStatus = 'pending' | 'approved' | 'linked' | 'rejected' | 'all';
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -72,6 +74,14 @@ export class ClubsService {
   }
 
   async create(dto: CreateClubDto) {
+    return this.createClubRow(dto, false);
+  }
+
+  async createUnverified(dto: CreateClubDto) {
+    return this.createClubRow(dto, true);
+  }
+
+  private async createClubRow(dto: CreateClubDto, unverified: boolean) {
     const baseSlug = slugify(dto.name);
     const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
@@ -85,7 +95,7 @@ export class ClubsService {
         country_code: dto.countryCode?.toUpperCase() ?? null,
         website: dto.website ?? null,
         logo_url: dto.logoUrl ?? null,
-        unverified: 'false',
+        unverified: unverified ? 'true' : 'false',
       })
       .select('*')
       .single();
@@ -95,6 +105,94 @@ export class ClubsService {
       throw new BadRequestException(error.message);
     }
     return data;
+  }
+
+  async listReviewRequests(status: ClubReviewStatus = 'pending') {
+    let query = this.supabase.service
+      .from('club_review_requests')
+      .select(
+        `
+        *,
+        proposed_club:clubs!club_review_requests_proposed_club_id_fkey(*),
+        linked_existing_club:clubs!club_review_requests_linked_existing_club_id_fkey(*),
+        event:events(id, name, slug),
+        organization:organizations(id, name, slug)
+      `,
+      )
+      .order('created_at', { ascending: false });
+
+    if (status !== 'all') query = query.eq('status', status) as typeof query;
+
+    const { data, error } = await query;
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  async approveReviewRequest(id: string) {
+    const request = await this.getReviewRequest(id);
+    const proposedClubId = request.proposed_club_id;
+
+    const verify = await this.supabase.service
+      .from('clubs')
+      .update({ unverified: 'false', archived_at: null })
+      .eq('id', proposedClubId);
+    if (verify.error) throw new BadRequestException(verify.error.message);
+
+    return this.updateReviewRequest(id, {
+      status: 'approved',
+      review_notes: null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async linkReviewRequest(id: string, existingClubId: string, notes?: string) {
+    const request = await this.getReviewRequest(id);
+    await this.getClubById(existingClubId);
+    const proposedClubId = request.proposed_club_id;
+
+    const operations = [
+      this.supabase.service
+        .from('global_persons')
+        .update({ club_id: existingClubId })
+        .eq('club_id', proposedClubId),
+      this.supabase.service
+        .from('persons')
+        .update({ club_id: existingClubId })
+        .eq('club_id', proposedClubId),
+      this.supabase.service
+        .from('fighter_clubs')
+        .update({ club_id: existingClubId })
+        .eq('club_id', proposedClubId),
+      this.supabase.service
+        .from('clubs')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', proposedClubId),
+    ];
+    const results = await Promise.all(operations);
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw new BadRequestException(failed.error.message);
+
+    return this.updateReviewRequest(id, {
+      status: 'linked',
+      linked_existing_club_id: existingClubId,
+      review_notes: notes ?? null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  async rejectReviewRequest(id: string, notes?: string) {
+    const request = await this.getReviewRequest(id);
+    const archive = await this.supabase.service
+      .from('clubs')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', request.proposed_club_id);
+    if (archive.error) throw new BadRequestException(archive.error.message);
+
+    return this.updateReviewRequest(id, {
+      status: 'rejected',
+      review_notes: notes ?? null,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   async update(id: string, dto: UpdateClubDto) {
@@ -201,6 +299,34 @@ export class ClubsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Club ${id} not found`);
+    return data;
+  }
+
+  private async getReviewRequest(id: string) {
+    const { data, error } = await this.supabase.service
+      .from('club_review_requests')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Club review request ${id} not found`);
+    return data as {
+      id: string;
+      proposed_club_id: string;
+      status: string;
+    };
+  }
+
+  private async updateReviewRequest(id: string, updates: Record<string, unknown>) {
+    const { data, error } = await this.supabase.service
+      .from('club_review_requests')
+      .update(updates)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 

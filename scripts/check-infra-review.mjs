@@ -288,6 +288,24 @@ const clubsControllerPath = path.join(
   'clubs',
   'clubs.controller.ts',
 );
+const eventsControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'events',
+  'events.controller.ts',
+);
+const eventsServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'events',
+  'events.service.ts',
+);
 const adminBackupsControllerPath = path.join(
   rootDir,
   'apps',
@@ -380,6 +398,13 @@ const clubArchivingMigrationPath = path.join(
   'migrations',
   '0036_club_archiving.sql',
 );
+const clubReviewRequestsMigrationPath = path.join(
+  rootDir,
+  'packages',
+  'db',
+  'migrations',
+  '0037_club_review_requests.sql',
+);
 const dockerfilePaths = [
   'apps/api/Dockerfile',
   'apps/web-admin/Dockerfile',
@@ -434,6 +459,8 @@ const compensationControllerText = await readFile(compensationControllerPath, 'u
 const leaguesControllerText = await readFile(leaguesControllerPath, 'utf8');
 const fightersControllerText = await readFile(fightersControllerPath, 'utf8');
 const clubsControllerText = await readFile(clubsControllerPath, 'utf8');
+const eventsControllerText = await readFile(eventsControllerPath, 'utf8');
+const eventsServiceText = await readFile(eventsServicePath, 'utf8');
 const adminBackupsControllerText = await readFile(adminBackupsControllerPath, 'utf8');
 const adminBackupsServiceText = await readFile(adminBackupsServicePath, 'utf8');
 const opsRunnerServerText = await readFile(opsRunnerServerPath, 'utf8');
@@ -449,6 +476,7 @@ const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
 const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
 const clubArchivingMigrationText = await readFile(clubArchivingMigrationPath, 'utf8');
+const clubReviewRequestsMigrationText = await readFile(clubReviewRequestsMigrationPath, 'utf8');
 const dockerfiles = await Promise.all(
   dockerfilePaths.map(async (filePath) => ({
     filePath,
@@ -845,8 +873,27 @@ requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/p
 requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/page.tsx', '/api/v1/events/${eventId}/tournaments');
 requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/page.tsx', "rulesetCode: 'TF_v1'");
 requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/page.tsx', 'slugify');
-requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.sections.persons');
-requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.aiBudget');
+for (const expected of [
+  '/dashboard-stats',
+  '/clubs?',
+  '/club-requests',
+  'organizer.eventHub.dashboard.title',
+  'organizer.eventHub.clubs.allClubs',
+  'organizer.eventHub.clubs.eventClubs',
+  'organizer.eventHub.clubs.viewFighters',
+  'organizer.eventHub.aiBudget',
+]) {
+  requireContains(
+    organizerEventPageText,
+    'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx',
+    expected,
+  );
+}
+if (organizerEventPageText.includes('const sections = [')) {
+  errors.push(
+    'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx must render an event dashboard, not the old internal menu-card grid.',
+  );
+}
 if (organizerAiSettingsPageText.includes('settings/compensation')) {
   errors.push(
     'apps/web-admin/app/org/[slug]/settings/ai/page.tsx must not show compensation settings links inside AI settings.',
@@ -1084,6 +1131,11 @@ for (const expected of [
   'admin.clubs.logoUpload',
   '/api/v1/clubs/${created.id}/logo',
   'MAX_LOGO_BYTES = 10 * 1024 * 1024',
+  '/api/v1/clubs/review-requests',
+  'admin.clubs.requestsTitle',
+  'approve',
+  'link',
+  'reject',
 ]) {
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);
 }
@@ -1112,6 +1164,10 @@ if (
 for (const expected of [
   "@Delete(':id')",
   "@Post(':id/logo')",
+  "@Get('review-requests')",
+  "@Post('review-requests/:id/approve')",
+  "@Post('review-requests/:id/link')",
+  "@Post('review-requests/:id/reject')",
   '@UseGuards(SuperAdminGuard)',
   'CATALOG_READ_THROTTLE',
   '@Throttle(CATALOG_READ_THROTTLE)',
@@ -1119,6 +1175,20 @@ for (const expected of [
   'deleteClub',
 ]) {
   requireContains(clubsControllerText, 'apps/api/src/modules/clubs/clubs.controller.ts', expected);
+}
+for (const expected of [
+  'events/:eventId/dashboard-stats',
+  'events/:eventId/clubs',
+  'events/:eventId/club-requests',
+]) {
+  requireContains(eventsControllerText, 'apps/api/src/modules/events/events.controller.ts', expected);
+}
+for (const expected of [
+  'getEventDashboardStats',
+  'listEventClubs',
+  'submitClubReviewRequest',
+]) {
+  requireContains(eventsServiceText, 'apps/api/src/modules/events/events.service.ts', expected);
 }
 for (const expected of [
   "deleteClub(club, 'safe')",
@@ -1146,6 +1216,19 @@ requireContains(
   'packages/db/migrations/0036_club_archiving.sql',
   'archived_at',
 );
+for (const expected of [
+  'CREATE TABLE IF NOT EXISTS club_review_requests',
+  "status IN ('pending', 'approved', 'linked', 'rejected')",
+  'proposed_club_id',
+  'linked_existing_club_id',
+  'ENABLE ROW LEVEL SECURITY',
+]) {
+  requireContains(
+    clubReviewRequestsMigrationText,
+    'packages/db/migrations/0037_club_review_requests.sql',
+    expected,
+  );
+}
 for (const expected of [
   'loadVersions',
   '/api/v1/admin/system-versions',

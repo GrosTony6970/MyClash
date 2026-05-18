@@ -223,4 +223,82 @@ describe('ClubsService', () => {
       }),
     ).rejects.toThrow('PNG, JPEG, or WebP');
   });
+
+  it('creates organizer-submitted clubs as unverified', async () => {
+    const createChain = makeChain({
+      data: { id: 'club-1', name: 'New Club', unverified: 'true' },
+      error: null,
+    });
+    fromMock.mockReturnValue(createChain);
+
+    await expect(service.createUnverified({ name: 'New Club' })).resolves.toMatchObject({
+      id: 'club-1',
+      unverified: 'true',
+    });
+    expect(createChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'New Club', unverified: 'true' }),
+    );
+  });
+
+  it('approves a club review request by verifying the proposed club', async () => {
+    const requestChain = makeChain({
+      data: { id: 'request-1', proposed_club_id: 'club-1', status: 'pending' },
+      error: null,
+    });
+    const clubUpdateChain = makeAwaitableChain({ data: null, error: null });
+    const requestUpdateChain = makeChain({
+      data: { id: 'request-1', status: 'approved' },
+      error: null,
+    });
+    fromMock
+      .mockReturnValueOnce(requestChain)
+      .mockReturnValueOnce(clubUpdateChain)
+      .mockReturnValueOnce(requestUpdateChain);
+
+    await expect(service.approveReviewRequest('request-1')).resolves.toMatchObject({
+      status: 'approved',
+    });
+    expect(clubUpdateChain.update).toHaveBeenCalledWith({
+      unverified: 'false',
+      archived_at: null,
+    });
+    expect(requestUpdateChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'approved' }),
+    );
+  });
+
+  it('links a review request to an existing club and archives the duplicate', async () => {
+    const requestChain = makeChain({
+      data: { id: 'request-1', proposed_club_id: 'club-new', status: 'pending' },
+      error: null,
+    });
+    const existingClubChain = makeChain({ data: { id: 'club-existing' }, error: null });
+    const updateGlobal = makeAwaitableChain({ data: null, error: null });
+    const updatePersons = makeAwaitableChain({ data: null, error: null });
+    const updateFighterClubs = makeAwaitableChain({ data: null, error: null });
+    const archiveDuplicate = makeAwaitableChain({ data: null, error: null });
+    const requestUpdateChain = makeChain({
+      data: { id: 'request-1', status: 'linked', linked_existing_club_id: 'club-existing' },
+      error: null,
+    });
+    fromMock
+      .mockReturnValueOnce(requestChain)
+      .mockReturnValueOnce(existingClubChain)
+      .mockReturnValueOnce(updateGlobal)
+      .mockReturnValueOnce(updatePersons)
+      .mockReturnValueOnce(updateFighterClubs)
+      .mockReturnValueOnce(archiveDuplicate)
+      .mockReturnValueOnce(requestUpdateChain);
+
+    await expect(service.linkReviewRequest('request-1', 'club-existing')).resolves.toMatchObject({
+      status: 'linked',
+      linked_existing_club_id: 'club-existing',
+    });
+    expect(updateGlobal.update).toHaveBeenCalledWith({ club_id: 'club-existing' });
+    expect(updatePersons.update).toHaveBeenCalledWith({ club_id: 'club-existing' });
+    expect(updateFighterClubs.update).toHaveBeenCalledWith({ club_id: 'club-existing' });
+    expect(archiveDuplicate.update).toHaveBeenCalledWith({
+      archived_at: expect.any(String),
+    });
+  });
 });

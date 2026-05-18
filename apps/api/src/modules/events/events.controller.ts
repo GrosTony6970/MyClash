@@ -26,7 +26,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateEventDto,
   CreateTournamentDto,
+  EventClubQueryDto,
   EventQueryDto,
+  SubmitEventClubRequestDto,
   UpsertEventThemeDto,
   UpdateEventDto,
   UpdateTournamentDto,
@@ -61,6 +63,48 @@ export class EventsController {
   @ApiOperation({ summary: 'List events (public, filtered)' })
   async listEvents(@Query() query: EventQueryDto) {
     return this.events.listEvents(query);
+  }
+
+  /** GET /api/v1/events/:eventId/dashboard-stats */
+  @Get('events/:eventId/dashboard-stats')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get organizer event dashboard statistics' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getEventDashboardStats(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.getEventDashboardStats(eventId, userId);
+  }
+
+  /** GET /api/v1/events/:eventId/clubs?scope=all|event&q=... */
+  @Get('events/:eventId/clubs')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List clubs with selected-event participation context' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async listEventClubs(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Query() query: EventClubQueryDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.listEventClubs(eventId, query, userId);
+  }
+
+  /** POST /api/v1/events/:eventId/club-requests */
+  @Post('events/:eventId/club-requests')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit a missing club for super-admin review' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async submitClubReviewRequest(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: SubmitEventClubRequestDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.submitClubReviewRequest(eventId, dto, userId);
   }
 
   /** GET /api/v1/events/:slug */

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 
@@ -18,9 +18,38 @@ interface EventInfo {
   name: string;
   slug: string;
   status: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
   location: string | null;
+}
+
+interface DashboardStats {
+  event: EventInfo;
+  totals: {
+    tournaments: number;
+    registeredFighters: number;
+    qualifiedReferees: number;
+    clubsRepresented: number;
+  };
+  tournaments: Array<Tournament & { fighterCount: number; assignedRefereeCount: number }>;
+}
+
+interface EventClub {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  city: string | null;
+  country_code: string | null;
+  logo_url: string | null;
+  unverified: string | null;
+  eventFighterCount: number;
+  fighters: Array<{
+    id: string;
+    givenName: string;
+    familyName: string;
+    email: string;
+    claimStatus: string;
+  }>;
 }
 
 interface AIUsage {
@@ -30,24 +59,62 @@ interface AIUsage {
   callCount: number;
 }
 
+type ClubScope = 'all' | 'event';
+
+const emptyClubRequest = {
+  name: '',
+  abbreviation: '',
+  city: '',
+  countryCode: '',
+  website: '',
+  logoUrl: '',
+};
+
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value: string | null): string {
+  const date = parseDate(value);
+  return date ? date.toLocaleDateString('fr-FR') : '-';
+}
+
+function durationDays(start: string | null, end: string | null): number {
+  const startDate = parseDate(start);
+  const endDate = parseDate(end);
+  if (!startDate || !endDate) return 0;
+  const diff = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000);
+  return Math.max(1, diff + 1);
+}
+
+function daysUntil(start: string | null, now: number): number | null {
+  const startDate = parseDate(start);
+  if (!startDate) return null;
+  return Math.ceil((startDate.getTime() - now) / 86_400_000);
+}
+
 export default function EventDetailPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
 
-  const [event, setEvent] = useState<EventInfo | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
   const [spendCap, setSpendCap] = useState<string>('');
   const [savingCap, setSavingCap] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+      fetch(`${apiUrl}/api/v1/events/${eventId}/dashboard-stats`, {
         credentials: 'include',
         signal: controller.signal,
       }),
@@ -56,13 +123,19 @@ export default function EventDetailPage() {
         signal: controller.signal,
       }),
     ])
-      .then(async ([evRes, tourRes]) => {
-        if (evRes.ok) setEvent((await evRes.json()) as EventInfo);
+      .then(async ([statsRes, tourRes]) => {
+        if (!statsRes.ok) throw new Error(t('organizer.eventHub.dashboard.loadError'));
+        setStats((await statsRes.json()) as DashboardStats);
         if (tourRes.ok) setTournaments((await tourRes.json()) as Tournament[]);
+        setStatsError(null);
       })
-      .catch(() => undefined);
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          setStatsError(err instanceof Error ? err.message : t('common.error'));
+        }
+      });
     return () => controller.abort();
-  }, [eventId, apiUrl]);
+  }, [eventId, apiUrl, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -85,9 +158,7 @@ export default function EventDetailPage() {
             hasKey: boolean;
             updatedAt: string;
           } | null;
-          if (aiData !== null) {
-            setAiEnabled(true);
-          }
+          if (aiData !== null) setAiEnabled(true);
         }
 
         const usageRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
@@ -116,15 +187,15 @@ export default function EventDetailPage() {
         credentials: 'include',
         body: JSON.stringify({
           aiSpendCapEur: (() => {
-            const p = parseFloat(spendCap);
-            return spendCap === '' || isNaN(p) ? null : p;
+            const parsed = parseFloat(spendCap);
+            return spendCap === '' || isNaN(parsed) ? null : parsed;
           })(),
         }),
       });
-      const r = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
+      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
         credentials: 'include',
       });
-      if (r.ok) setAiUsage((await r.json()) as AIUsage);
+      if (response.ok) setAiUsage((await response.json()) as AIUsage);
     } catch {
       // Keep the previous budget value visible.
     } finally {
@@ -132,28 +203,23 @@ export default function EventDetailPage() {
     }
   }
 
-  const sections = [
-    { label: t('organizer.eventHub.sections.persons'), href: 'persons', icon: 'P' },
-    { label: t('organizer.eventHub.sections.registrations'), href: 'registrations', icon: 'R' },
-    { label: t('organizer.eventHub.sections.pools'), href: 'pools', icon: 'P' },
-    { label: t('organizer.eventHub.sections.poolPopulator'), href: 'pool-populator', icon: 'G' },
-    { label: t('organizer.eventHub.sections.bracket'), href: 'bracket', icon: 'B' },
-    { label: t('organizer.eventHub.sections.schedule'), href: 'schedule', icon: 'S' },
-    { label: t('organizer.eventHub.sections.referees'), href: 'referees', icon: 'J' },
-    {
-      label: t('organizer.eventHub.sections.refereeAssignments'),
-      href: 'referee-assignments',
-      icon: 'A',
-    },
-    { label: t('organizer.eventHub.sections.compensation'), href: 'compensation', icon: 'C' },
-    { label: t('organizer.eventHub.sections.workshops'), href: 'workshops', icon: 'W' },
-    { label: t('organizer.eventHub.sections.staff'), href: 'staff', icon: 'ST' },
-    { label: t('organizer.eventHub.sections.notifications'), href: 'notifications', icon: 'N' },
-    { label: t('organizer.eventHub.sections.aiAssistant'), href: 'ai-assistant', icon: 'AI' },
-    { label: t('organizer.eventHub.sections.theme'), href: 'theme', icon: 'T' },
-    { label: t('admin.dashboard.leaguesTitle'), href: 'leagues', icon: 'L' },
-    { label: t('organizer.archive.navLabel'), href: 'archive', icon: 'A' },
-  ];
+  const event = stats?.event;
+  const startDelta = useMemo(
+    () => (now > 0 ? daysUntil(event?.startDate ?? null, now) : null),
+    [event, now],
+  );
+  const liveState =
+    event?.status === 'completed'
+      ? t('organizer.eventHub.dashboard.completed')
+      : event?.status === 'running'
+        ? t('organizer.eventHub.dashboard.live')
+        : startDelta === null
+          ? '-'
+          : startDelta > 0
+            ? t('organizer.eventHub.dashboard.daysUntil', { count: startDelta })
+            : startDelta === 0
+              ? t('organizer.eventHub.dashboard.startsToday')
+              : t('organizer.eventHub.dashboard.startedAgo', { count: Math.abs(startDelta) });
 
   return (
     <main className="p-6 lg:p-8">
@@ -170,10 +236,8 @@ export default function EventDetailPage() {
           {event && (
             <p className="mt-1 text-sm text-slate-500">
               {event.location ? `${event.location} - ` : ''}
-              {new Date(event.startDate).toLocaleDateString('fr-FR')}
-              {event.startDate !== event.endDate
-                ? ` - ${new Date(event.endDate).toLocaleDateString('fr-FR')}`
-                : ''}
+              {formatDate(event.startDate)}
+              {event.startDate !== event.endDate ? ` - ${formatDate(event.endDate)}` : ''}
             </p>
           )}
         </div>
@@ -182,20 +246,86 @@ export default function EventDetailPage() {
         </span>
       </div>
 
-      <div className="mb-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {sections.map((section) => (
-          <Link
-            key={section.href}
-            href={`/org/${slug}/events/${eventId}/${section.href}`}
-            className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm transition-all hover:border-[#1d4ed8]/40 hover:shadow-md"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-50 text-[0.65rem] font-bold text-[#f59e0b]">
-              {section.icon}
-            </span>
-            <span className="text-sm font-semibold text-[#0f172a]">{section.label}</span>
-          </Link>
-        ))}
-      </div>
+      {statsError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {statsError}
+        </div>
+      )}
+
+      <section className="mb-8">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+              {t('organizer.eventHub.dashboard.title')}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {t('organizer.eventHub.dashboard.description')}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.dates')}
+            value={`${formatDate(event?.startDate ?? null)} - ${formatDate(event?.endDate ?? null)}`}
+            detail={t('organizer.eventHub.dashboard.duration', {
+              count: durationDays(event?.startDate ?? null, event?.endDate ?? null),
+            })}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.countdown')}
+            value={liveState}
+            detail={t('organizer.eventHub.dashboard.visibility', {
+              status: event?.status ?? '-',
+            })}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.tournaments')}
+            value={String(stats?.totals.tournaments ?? 0)}
+            detail={t('organizer.eventHub.dashboard.fighters', {
+              count: stats?.totals.registeredFighters ?? 0,
+            })}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.clubs')}
+            value={String(stats?.totals.clubsRepresented ?? 0)}
+            detail={t('organizer.eventHub.dashboard.referees', {
+              count: stats?.totals.qualifiedReferees ?? 0,
+            })}
+          />
+        </div>
+
+        <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+              <tr>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.tournament')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.registered')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.assignedReferees')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.status')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(stats?.tournaments ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                    {t('organizer.eventHub.dashboard.noTournaments')}
+                  </td>
+                </tr>
+              )}
+              {(stats?.tournaments ?? []).map((tournament) => (
+                <tr key={tournament.id} className="border-t border-slate-100">
+                  <td className="px-4 py-3 font-semibold text-[#0f172a]">{tournament.name}</td>
+                  <td className="px-4 py-3 text-slate-700">{tournament.fighterCount}</td>
+                  <td className="px-4 py-3 text-slate-700">{tournament.assignedRefereeCount}</td>
+                  <td className="px-4 py-3 text-slate-500">{tournament.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <EventClubsSection apiUrl={apiUrl} eventId={eventId} />
 
       {aiEnabled && <TournamentQueryPanel apiUrl={apiUrl} tournaments={tournaments} />}
 
@@ -282,7 +412,7 @@ export default function EventDetailPage() {
             <p className="text-sm text-slate-600">{t('organizer.archive.description')}</p>
             <Link
               href={`/org/${slug}/events/${eventId}/archive`}
-              className="text-sm font-semibold text-[#dc2626] hover:underline"
+              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-[#dc2626] hover:bg-red-100"
             >
               {t('organizer.archive.open')}
             </Link>
@@ -290,5 +420,286 @@ export default function EventDetailPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-[#0f172a]">{value}</p>
+      <p className="mt-1 text-sm text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: string }) {
+  const { t } = useI18n();
+  const [scope, setScope] = useState<ClubScope>('all');
+  const [query, setQuery] = useState('');
+  const [clubs, setClubs] = useState<EventClub[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedClub, setSelectedClub] = useState<EventClub | null>(null);
+  const [form, setForm] = useState(emptyClubRequest);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const loadClubs = useCallback(
+    async (nextScope = scope, nextQuery = query, signal?: AbortSignal) => {
+      setLoading(true);
+      const params = new URLSearchParams({ scope: nextScope });
+      if (nextQuery.trim()) params.set('q', nextQuery.trim());
+      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/clubs?${params}`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!response.ok) throw new Error(t('organizer.eventHub.clubs.loadError'));
+      setClubs((await response.json()) as EventClub[]);
+      setError(null);
+      setLoading(false);
+    },
+    [apiUrl, eventId, query, scope, t],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.resolve()
+      .then(() => loadClubs(scope, query, controller.signal))
+      .catch((err: unknown) => {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          setError(err instanceof Error ? err.message : t('common.error'));
+          setLoading(false);
+        }
+      });
+    return () => controller.abort();
+  }, [loadClubs, query, scope, t]);
+
+  async function submitClubRequest() {
+    if (!form.name.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/club-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: form.name.trim(),
+          abbreviation: form.abbreviation.trim() || undefined,
+          city: form.city.trim() || undefined,
+          countryCode: form.countryCode.trim().toUpperCase() || undefined,
+          website: form.website.trim() || undefined,
+          logoUrl: form.logoUrl.trim() || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? t('organizer.eventHub.clubs.submitError'));
+      }
+      setForm(emptyClubRequest);
+      setSuccess(t('organizer.eventHub.clubs.submitSuccess'));
+      await loadClubs(scope, query);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.eventHub.clubs.submitError'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="mb-8 rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          {t('organizer.eventHub.clubs.title')}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">{t('organizer.eventHub.clubs.description')}</p>
+      </div>
+
+      <div className="border-b border-slate-100 px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-fit rounded-lg border border-slate-200 bg-slate-50 p-1">
+            {(['all', 'event'] as ClubScope[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setScope(item)}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+                  scope === item
+                    ? 'bg-white text-[#1d4ed8] shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                {item === 'all'
+                  ? t('organizer.eventHub.clubs.allClubs')
+                  : t('organizer.eventHub.clubs.eventClubs')}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              aria-label={t('organizer.eventHub.clubs.searchLabel')}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('organizer.eventHub.clubs.searchPlaceholder')}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm lg:w-80"
+            />
+            <button
+              type="button"
+              onClick={() => void loadClubs(scope, query)}
+              disabled={loading}
+              className="rounded-md bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('actions.search')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mx-5 mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mx-5 mt-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          {success}
+        </div>
+      )}
+
+      <div className="overflow-x-auto px-5 py-4">
+        <table className="w-full text-left text-sm">
+          <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
+            <tr>
+              <th className="py-2">{t('organizer.eventHub.clubs.club')}</th>
+              <th className="py-2">{t('organizer.eventHub.clubs.location')}</th>
+              <th className="py-2">{t('organizer.eventHub.clubs.status')}</th>
+              <th className="py-2">{t('organizer.eventHub.clubs.eventFighters')}</th>
+              <th className="py-2">{t('organizer.eventHub.clubs.actions')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clubs.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-slate-400">
+                  {loading ? t('common.loading') : t('organizer.eventHub.clubs.empty')}
+                </td>
+              </tr>
+            )}
+            {clubs.map((club) => (
+              <tr key={club.id} className="border-t border-slate-100">
+                <td className="py-3 pr-4">
+                  <div className="font-semibold text-[#0f172a]">{club.name}</div>
+                  <div className="text-xs text-slate-500">{club.abbreviation ?? '-'}</div>
+                </td>
+                <td className="py-3 pr-4 text-slate-600">
+                  {[club.city, club.country_code].filter(Boolean).join(', ') || '-'}
+                </td>
+                <td className="py-3 pr-4">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      club.unverified === 'true'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    {club.unverified === 'true'
+                      ? t('organizer.eventHub.clubs.unverified')
+                      : t('organizer.eventHub.clubs.verified')}
+                  </span>
+                </td>
+                <td className="py-3 pr-4 text-slate-700">{club.eventFighterCount}</td>
+                <td className="py-3">
+                  {club.eventFighterCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedClub(club)}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#1d4ed8] hover:bg-blue-50"
+                    >
+                      {t('organizer.eventHub.clubs.viewFighters')}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400">
+                      {t('organizer.eventHub.clubs.noEventFighters')}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selectedClub && (
+        <div className="mx-5 mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="font-semibold text-[#0f172a]">
+              {t('organizer.eventHub.clubs.fightersFor', { club: selectedClub.name })}
+            </h3>
+            <button
+              type="button"
+              onClick={() => setSelectedClub(null)}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+            >
+              {t('actions.close')}
+            </button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {selectedClub.fighters.map((fighter) => (
+              <div key={fighter.id} className="rounded-md border border-slate-200 bg-white p-3">
+                <div className="font-semibold text-slate-900">
+                  {fighter.givenName} {fighter.familyName}
+                </div>
+                <div className="text-xs text-slate-500">{fighter.email}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-slate-100 px-5 py-5">
+        <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          {t('organizer.eventHub.clubs.submitTitle')}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">{t('organizer.eventHub.clubs.submitHelp')}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[
+            ['name', t('organizer.eventHub.clubs.nameRequired')],
+            ['abbreviation', t('organizer.eventHub.clubs.abbreviation')],
+            ['city', t('organizer.eventHub.clubs.city')],
+            ['countryCode', t('organizer.eventHub.clubs.country')],
+            ['website', t('organizer.eventHub.clubs.website')],
+            ['logoUrl', t('organizer.eventHub.clubs.logoUrl')],
+          ].map(([field, label]) => {
+            const fieldName = field as keyof typeof form;
+            return (
+              <label key={field} className="text-xs font-semibold text-slate-600">
+                {label}
+                <input
+                  value={form[fieldName]}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, [fieldName]: event.target.value }))
+                  }
+                  maxLength={field === 'countryCode' ? 2 : undefined}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => void submitClubRequest()}
+          disabled={submitting || !form.name.trim()}
+          className="mt-4 rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        >
+          {submitting
+            ? t('organizer.eventHub.clubs.submitting')
+            : t('organizer.eventHub.clubs.submit')}
+        </button>
+      </div>
+    </section>
   );
 }

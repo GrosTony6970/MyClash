@@ -8,10 +8,13 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { LeaguesService } from '../leagues/leagues.service';
+import { ClubsService } from '../clubs/clubs.service';
 import type {
   CreateEventDto,
   CreateTournamentDto,
+  EventClubQueryDto,
   EventQueryDto,
+  SubmitEventClubRequestDto,
   UpdateEventDto,
   UpdateTournamentDto,
 } from './dto/events.dto';
@@ -28,6 +31,7 @@ export class EventsService {
     private readonly orgs: OrganizationsService,
     private readonly notificationEvents: NotificationEventsService,
     private readonly leagues?: LeaguesService,
+    private readonly clubs?: ClubsService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -147,6 +151,130 @@ export class EventsService {
     return data;
   }
 
+  async getEventDashboardStats(eventId: string, userId: string) {
+    const event = (await this.getEventById(eventId)) as {
+      id: string;
+      organization_id: string;
+      status: string;
+      name?: string;
+      slug?: string;
+      start_date?: string;
+      end_date?: string;
+      location?: string | null;
+    };
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
+
+    const tournaments = await this.getEventTournaments(eventId);
+    const tournamentIds = tournaments.map((tournament) => tournament.id);
+    const [registrations, persons, refereeQualifications, refereeCounts] = await Promise.all([
+      this.getRegistrationsForTournaments(tournamentIds),
+      this.getEventPersons(eventId),
+      this.countRefereeQualifications(eventId),
+      this.countTournamentRefereeAssignments(eventId, tournamentIds),
+    ]);
+
+    const registrationsByTournament = new Map<string, number>();
+    for (const registration of registrations) {
+      if (['withdrawn', 'disqualified'].includes(registration.status ?? '')) continue;
+      registrationsByTournament.set(
+        registration.tournament_id,
+        (registrationsByTournament.get(registration.tournament_id) ?? 0) + 1,
+      );
+    }
+
+    const representedClubIds = new Set(
+      persons.map((person) => person.club_id).filter((clubId): clubId is string => Boolean(clubId)),
+    );
+
+    return {
+      event: {
+        id: event.id,
+        name: event.name ?? null,
+        slug: event.slug ?? null,
+        status: event.status,
+        startDate: event.start_date ?? null,
+        endDate: event.end_date ?? null,
+        location: event.location ?? null,
+      },
+      totals: {
+        tournaments: tournaments.length,
+        registeredFighters: registrations.filter(
+          (registration) => !['withdrawn', 'disqualified'].includes(registration.status ?? ''),
+        ).length,
+        qualifiedReferees: refereeQualifications,
+        clubsRepresented: representedClubIds.size,
+      },
+      tournaments: tournaments.map((tournament) => ({
+        id: tournament.id,
+        name: tournament.name,
+        slug: tournament.slug,
+        status: tournament.status,
+        fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
+        assignedRefereeCount: refereeCounts.get(tournament.id) ?? 0,
+      })),
+    };
+  }
+
+  async listEventClubs(eventId: string, query: EventClubQueryDto, userId: string) {
+    const event = (await this.getEventById(eventId)) as { organization_id: string };
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
+
+    const scope = query.scope ?? 'all';
+    const eventPersons = await this.getEventPersons(eventId);
+    const personsByClub = new Map<string, typeof eventPersons>();
+    for (const person of eventPersons) {
+      if (!person.club_id) continue;
+      const group = personsByClub.get(person.club_id) ?? [];
+      group.push(person);
+      personsByClub.set(person.club_id, group);
+    }
+
+    const clubs = await this.getClubsForEventScope(
+      scope,
+      query.q,
+      Array.from(personsByClub.keys()),
+    );
+
+    return clubs.map((club) => {
+      const fighters = personsByClub.get(club.id) ?? [];
+      return {
+        ...club,
+        eventFighterCount: fighters.length,
+        fighters: fighters.map((person) => ({
+          id: person.id,
+          givenName: person.given_name,
+          familyName: person.family_name,
+          email: person.email,
+          claimStatus: person.claim_status,
+        })),
+      };
+    });
+  }
+
+  async submitClubReviewRequest(eventId: string, dto: SubmitEventClubRequestDto, userId: string) {
+    if (!this.clubs) throw new BadRequestException('Club service unavailable');
+    const event = (await this.getEventById(eventId)) as {
+      organization_id: string;
+    };
+    await this.orgs.assertOrgRole(event.organization_id, userId, 'admin');
+
+    const club = (await this.clubs.createUnverified(dto)) as { id: string };
+    const { data, error } = await this.supabase.service
+      .from('club_review_requests')
+      .insert({
+        event_id: eventId,
+        organization_id: event.organization_id,
+        proposed_club_id: club.id,
+        requester_user_id: userId,
+        status: 'pending',
+      })
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return { request: data, club };
+  }
+
   async deleteEvent(eventId: string, mode: string | undefined, userId: string) {
     if (mode !== 'hard') {
       throw new BadRequestException('Event deletion requires mode=hard');
@@ -221,6 +349,139 @@ export class EventsService {
 
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
+  }
+
+  private async getEventTournaments(eventId: string) {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, slug, name, status')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ id: string; slug: string; name: string; status: string }>;
+  }
+
+  private async getRegistrationsForTournaments(tournamentIds: string[]) {
+    if (tournamentIds.length === 0) {
+      return [] as Array<{ tournament_id: string; person_id: string; status: string }>;
+    }
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .select('tournament_id, person_id, status')
+      .in('tournament_id', tournamentIds);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{ tournament_id: string; person_id: string; status: string }>;
+  }
+
+  private async getEventPersons(eventId: string) {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('id, given_name, family_name, email, club_id, claim_status')
+      .eq('event_id', eventId)
+      .order('family_name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{
+      id: string;
+      given_name: string;
+      family_name: string;
+      email: string;
+      club_id: string | null;
+      claim_status: string;
+    }>;
+  }
+
+  private async countRefereeQualifications(eventId: string) {
+    const { count, error } = await this.supabase.service
+      .from('referee_qualifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return count ?? 0;
+  }
+
+  private async countTournamentRefereeAssignments(eventId: string, tournamentIds: string[]) {
+    const counts = new Map<string, number>();
+    for (const id of tournamentIds) counts.set(id, 0);
+    if (tournamentIds.length === 0) return counts;
+
+    const { data: phases, error: phasesError } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id')
+      .in('tournament_id', tournamentIds);
+    if (phasesError) throw new BadRequestException(phasesError.message);
+
+    const phaseRows = (phases ?? []) as Array<{ id: string; tournament_id: string }>;
+    const phaseToTournament = new Map(phaseRows.map((phase) => [phase.id, phase.tournament_id]));
+    if (phaseRows.length === 0) return counts;
+
+    const phaseIds = phaseRows.map((phase) => phase.id);
+    const { data: pools, error: poolsError } = await this.supabase.service
+      .from('pools')
+      .select('id, phase_id')
+      .in('phase_id', phaseIds);
+    if (poolsError) throw new BadRequestException(poolsError.message);
+
+    const poolToTournament = new Map<string, string>();
+    for (const pool of (pools ?? []) as Array<{ id: string; phase_id: string }>) {
+      const tournamentId = phaseToTournament.get(pool.phase_id);
+      if (tournamentId) poolToTournament.set(pool.id, tournamentId);
+    }
+
+    const { data: matches, error: matchesError } = await this.supabase.service
+      .from('matches')
+      .select('id, phase_id')
+      .in('phase_id', phaseIds);
+    if (matchesError) throw new BadRequestException(matchesError.message);
+
+    const matchToTournament = new Map<string, string>();
+    for (const match of (matches ?? []) as Array<{ id: string; phase_id: string }>) {
+      const tournamentId = phaseToTournament.get(match.phase_id);
+      if (tournamentId) matchToTournament.set(match.id, tournamentId);
+    }
+
+    const { data: assignments, error: assignmentsError } = await this.supabase.service
+      .from('referee_assignments')
+      .select('user_id, pool_id, match_id')
+      .eq('event_id', eventId);
+    if (assignmentsError) throw new BadRequestException(assignmentsError.message);
+
+    const usersByTournament = new Map<string, Set<string>>();
+    for (const assignment of (assignments ?? []) as Array<{
+      user_id: string;
+      pool_id: string | null;
+      match_id: string | null;
+    }>) {
+      const tournamentId =
+        (assignment.pool_id ? poolToTournament.get(assignment.pool_id) : undefined) ??
+        (assignment.match_id ? matchToTournament.get(assignment.match_id) : undefined);
+      if (!tournamentId) continue;
+      const users = usersByTournament.get(tournamentId) ?? new Set<string>();
+      users.add(assignment.user_id);
+      usersByTournament.set(tournamentId, users);
+    }
+
+    for (const [tournamentId, users] of usersByTournament) counts.set(tournamentId, users.size);
+    return counts;
+  }
+
+  private async getClubsForEventScope(
+    scope: 'all' | 'event',
+    q: string | undefined,
+    clubIds: string[],
+  ) {
+    if (scope === 'event' && clubIds.length === 0) {
+      return [] as Array<Record<string, unknown> & { id: string }>;
+    }
+
+    let query = this.supabase.service.from('clubs').select('*').is('archived_at', null);
+    if (scope === 'event') query = query.in('id', clubIds) as typeof query;
+    if (q?.trim()) {
+      const value = q.trim();
+      query = query.or(`name.ilike.%${value}%,abbreviation.ilike.%${value}%`) as typeof query;
+    }
+    const { data, error } = await query.order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<Record<string, unknown> & { id: string }>;
   }
 
   private async getPublishedPools(phaseId: string) {
@@ -357,7 +618,7 @@ export class EventsService {
   private async getEventById(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, organization_id, status')
+      .select('id, organization_id, status, name, slug, start_date, end_date, location')
       .eq('id', eventId)
       .maybeSingle();
 

@@ -27,7 +27,14 @@ import type { FastifyRequest } from 'fastify';
 import { CATALOG_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { ClubsService, type DeleteClubMode } from './clubs.service';
-import { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
+import {
+  ClubQueryDto,
+  ClubReviewRequestQueryDto,
+  CreateClubDto,
+  LinkClubReviewRequestDto,
+  RejectClubReviewRequestDto,
+  UpdateClubDto,
+} from './dto/clubs.dto';
 
 @ApiTags('clubs')
 @Controller('clubs')
@@ -40,6 +47,51 @@ export class ClubsController {
   @ApiOperation({ summary: 'List clubs (public)' })
   async list(@Query() query: ClubQueryDto) {
     return this.clubs.list(query);
+  }
+
+  /** GET /api/v1/clubs/review-requests?status=pending */
+  @Get('review-requests')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'List organizer-submitted club review requests' })
+  async listReviewRequests(@Query() query: ClubReviewRequestQueryDto) {
+    return this.clubs.listReviewRequests(query.status ?? 'pending');
+  }
+
+  /** POST /api/v1/clubs/review-requests/:id/approve */
+  @Post('review-requests/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Approve a proposed club as verified' })
+  async approveReviewRequest(@Param('id', ParseUUIDPipe) id: string) {
+    return this.clubs.approveReviewRequest(id);
+  }
+
+  /** POST /api/v1/clubs/review-requests/:id/link */
+  @Post('review-requests/:id/link')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Link a proposed club request to an existing club' })
+  async linkReviewRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: LinkClubReviewRequestDto,
+  ) {
+    return this.clubs.linkReviewRequest(id, dto.existingClubId, dto.notes);
+  }
+
+  /** POST /api/v1/clubs/review-requests/:id/reject */
+  @Post('review-requests/:id/reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Reject a proposed club review request' })
+  async rejectReviewRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectClubReviewRequestDto,
+  ) {
+    return this.clubs.rejectReviewRequest(id, dto.notes);
   }
 
   /** GET /api/v1/clubs/:slug */

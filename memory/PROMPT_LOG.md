@@ -891,3 +891,7 @@ Implement backup label and editable schedule plan: rename delete actions to Dele
 ## 15:48:33_18-05-2026
 
 Implement organizer dashboard/events refactor: make `/org/[slug]` a metrics dashboard, rename New event menu to Events, move event table and creation under Events, add event edit/archive/hard-delete actions, keep event slug auto-generation, add event-specific Create tournament menu/page, and add API support/tests.
+
+## 16:15:45_18-05-2026
+
+Implement the Event Overview Dashboard And Club Review Flow plan: replace the selected event overview card hub with dashboard metrics, add all-clubs/event-clubs tabs with fighter details and organizer club submission, add event dashboard/club/request APIs and `club_review_requests`, and extend super-admin club review with approve/link/reject.
