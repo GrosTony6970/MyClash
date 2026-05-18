@@ -17,6 +17,7 @@ function makeChain(result: unknown) {
   const chain = {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
+    in: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
@@ -26,10 +27,27 @@ function makeChain(result: unknown) {
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
   chain.upsert.mockReturnValue(chain);
+  return chain;
+}
+
+function makeAwaitableChain(result: unknown) {
+  const promise = Promise.resolve(result);
+  const methods = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    order: vi.fn(),
+  };
+  const chain = Object.assign(promise, methods);
+  chain.select.mockReturnValue(chain);
+  chain.eq.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
   return chain;
 }
 
@@ -117,6 +135,51 @@ describe('OrganizationsService', () => {
       fromMock.mockReturnValue(chain);
 
       await expect(service.assertOrgRole('org-1', 'user-1', 'admin')).resolves.not.toThrow();
+    });
+  });
+
+  describe('dashboardStats', () => {
+    it('counts event participations for fighters and referees', async () => {
+      const membershipChain = makeChain({ data: null, error: null });
+      membershipChain.maybeSingle.mockResolvedValue({ data: { role: 'admin' }, error: null });
+
+      const eventsChain = makeAwaitableChain({
+        data: [
+          { id: 'event-1', start_date: '2099-01-01' },
+          { id: 'event-2', start_date: '2020-01-01' },
+        ],
+        error: null,
+      });
+
+      const tournamentsChain = makeAwaitableChain({
+        data: [{ id: 'tournament-1' }, { id: 'tournament-2' }],
+        error: null,
+      });
+
+      const registrationsChain = makeAwaitableChain({
+        data: [{ id: 'registration-1' }, { id: 'registration-2' }, { id: 'registration-3' }],
+        error: null,
+      });
+
+      const refereesChain = makeAwaitableChain({
+        data: [{ id: 'referee-1' }, { id: 'referee-2' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(membershipChain)
+        .mockReturnValueOnce(eventsChain)
+        .mockReturnValueOnce(tournamentsChain)
+        .mockReturnValueOnce(registrationsChain)
+        .mockReturnValueOnce(refereesChain);
+
+      await expect(service.dashboardStats('org-1', 'user-1')).resolves.toEqual({
+        eventsTotal: 2,
+        upcomingEvents: 1,
+        tournamentsTotal: 2,
+        fighterParticipations: 3,
+        refereeParticipations: 2,
+      });
     });
   });
 });

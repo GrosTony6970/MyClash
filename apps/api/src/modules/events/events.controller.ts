@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -117,6 +118,21 @@ export class EventsController {
   async publishEvent(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
     return this.events.publishEvent(id, userId);
+  }
+
+  /** DELETE /api/v1/events/:id?mode=hard */
+  @Delete('events/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Hard delete event (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteEvent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('mode') mode: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.deleteEvent(id, mode, userId);
   }
 
   /** GET /api/v1/events/:eventId/theme */

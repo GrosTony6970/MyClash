@@ -38,7 +38,7 @@ export class EventsService {
       .select('*, organizations(name, slug)')
       .order('start_date', { ascending: false });
 
-    if (query.status) q = q.eq('status', query.status) as typeof q;
+    if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
     else q = q.in('status', ['published', 'running', 'completed']) as typeof q;
 
     if (query.organizationId) q = q.eq('organization_id', query.organizationId) as typeof q;
@@ -145,6 +145,23 @@ export class EventsService {
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  async deleteEvent(eventId: string, mode: string | undefined, userId: string) {
+    if (mode !== 'hard') {
+      throw new BadRequestException('Event deletion requires mode=hard');
+    }
+
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+
+    const { error } = await this.supabase.service.from('events').delete().eq('id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return { deleted: true, id: eventId };
   }
 
   async getPublicTournamentStandings(eventSlug: string, tournamentSlug: string) {

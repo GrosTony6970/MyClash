@@ -8,7 +8,7 @@ import { useI18n } from '../i18n/I18nProvider';
 
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
-  { href: 'events/new', labelKey: 'organizer.shell.nav.newEvent', badge: 'N' },
+  { href: 'events', labelKey: 'organizer.shell.nav.events', badge: 'EV' },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
   {
     href: 'settings/compensation',
@@ -19,6 +19,7 @@ const orgNavItems = [
 
 const eventNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.eventOverview', badge: 'E' },
+  { href: 'tournaments/new', labelKey: 'organizer.shell.nav.createTournament', badge: 'T+' },
   { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', badge: 'P' },
   { href: 'registrations', labelKey: 'organizer.eventHub.sections.registrations', badge: 'R' },
   { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'P' },
@@ -69,6 +70,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState(slug);
+  const [eventName, setEventName] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -124,6 +126,26 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
     return () => controller.abort();
   }, [apiUrl, slug]);
+
+  useEffect(() => {
+    if (!eventId) {
+      return;
+    }
+    const controller = new AbortController();
+
+    fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const event = (await res.json()) as { name?: string };
+        setEventName(event.name ?? '');
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [apiUrl, eventId]);
 
   const orgBase = `/org/${slug}`;
   const eventBase = eventId ? `/org/${slug}/events/${eventId}` : '';
@@ -276,7 +298,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </p>
               <p className="truncate text-base font-bold text-[#0f172a] sm:text-lg">
                 {eventId
-                  ? t('organizer.shell.eventTitle', { eventId })
+                  ? t('organizer.shell.eventTitle', { event: eventName || eventId })
                   : t('organizer.shell.title', { organization: orgName || slug })}
               </p>
             </div>

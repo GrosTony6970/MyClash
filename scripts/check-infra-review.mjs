@@ -161,6 +161,25 @@ const organizerShellPath = path.join(
   'components',
   'OrganizerAdminShell.tsx',
 );
+const organizerDashboardPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'org',
+  '[slug]',
+  'page.tsx',
+);
+const organizerEventsPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'org',
+  '[slug]',
+  'events',
+  'page.tsx',
+);
 const organizerEventPagePath = path.join(
   rootDir,
   'apps',
@@ -170,6 +189,19 @@ const organizerEventPagePath = path.join(
   '[slug]',
   'events',
   '[eventId]',
+  'page.tsx',
+);
+const organizerNewTournamentPagePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'app',
+  'org',
+  '[slug]',
+  'events',
+  '[eventId]',
+  'tournaments',
+  'new',
   'page.tsx',
 );
 const organizerAiSettingsPagePath = path.join(
@@ -388,7 +420,10 @@ const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
 const organizerShellText = await readFile(organizerShellPath, 'utf8');
+const organizerDashboardPageText = await readFile(organizerDashboardPagePath, 'utf8');
+const organizerEventsPageText = await readFile(organizerEventsPagePath, 'utf8');
 const organizerEventPageText = await readFile(organizerEventPagePath, 'utf8');
+const organizerNewTournamentPageText = await readFile(organizerNewTournamentPagePath, 'utf8');
 const organizerAiSettingsPageText = await readFile(organizerAiSettingsPagePath, 'utf8');
 const appModuleText = await readFile(appModulePath, 'utf8');
 const authControllerText = await readFile(authControllerPath, 'utf8');
@@ -792,6 +827,24 @@ requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdmi
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "window.location.replace('/login')");
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventNavItems');
 requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'eventId');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "href: 'events'");
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'organizer.shell.nav.events');
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', "href: 'tournaments/new'");
+requireContains(organizerShellText, 'apps/web-admin/src/components/OrganizerAdminShell.tsx', 'organizer.shell.nav.createTournament');
+requireContains(organizerDashboardPageText, 'apps/web-admin/app/org/[slug]/page.tsx', '/dashboard-stats');
+requireContains(organizerDashboardPageText, 'apps/web-admin/app/org/[slug]/page.tsx', 'organizer.dashboard.metrics.eventsCreated');
+requireContains(organizerDashboardPageText, 'apps/web-admin/app/org/[slug]/page.tsx', 'organizer.dashboard.metrics.fighters');
+if (organizerDashboardPageText.includes('tournamentCount')) {
+  errors.push('apps/web-admin/app/org/[slug]/page.tsx must be a metrics dashboard, not the event table.');
+}
+requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', 'organizer.events.currentSelection');
+requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', '/events/${event.id}');
+requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', "method: 'PATCH'");
+requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', "method: 'DELETE'");
+requireContains(organizerEventsPageText, 'apps/web-admin/app/org/[slug]/events/page.tsx', 'mode=hard');
+requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/page.tsx', '/api/v1/events/${eventId}/tournaments');
+requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/page.tsx', "rulesetCode: 'TF_v1'");
+requireContains(organizerNewTournamentPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/tournaments/new/page.tsx', 'slugify');
 requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.sections.persons');
 requireContains(organizerEventPageText, 'apps/web-admin/app/org/[slug]/events/[eventId]/page.tsx', 'organizer.eventHub.aiBudget');
 if (organizerAiSettingsPageText.includes('settings/compensation')) {

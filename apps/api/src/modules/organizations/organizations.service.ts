@@ -58,6 +58,63 @@ export class OrganizationsService {
   // Creates with status='pending_approval' per T-105 AC.
   // (T-009b creates with status='active' for self-service signup — different path)
 
+  async dashboardStats(orgId: string, userId: string) {
+    await this.assertOrgRole(orgId, userId, 'scorekeeper');
+
+    const { data: events, error: eventsError } = await this.supabase.service
+      .from('events')
+      .select('id, start_date')
+      .eq('organization_id', orgId);
+    if (eventsError) throw new BadRequestException(eventsError.message);
+
+    const eventRows = (events ?? []) as Array<{ id: string; start_date?: string | null }>;
+    const eventIds = eventRows.map((event) => event.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const upcomingEvents = eventRows.filter((event) => (event.start_date ?? '') >= today).length;
+
+    let tournamentsTotal = 0;
+    let fighterParticipations = 0;
+    let refereeParticipations = 0;
+
+    if (eventIds.length > 0) {
+      const { data: tournaments, error: tournamentsError } = await this.supabase.service
+        .from('tournaments')
+        .select('id')
+        .in('event_id', eventIds);
+      if (tournamentsError) throw new BadRequestException(tournamentsError.message);
+
+      const tournamentIds = ((tournaments ?? []) as Array<{ id: string }>).map(
+        (tournament) => tournament.id,
+      );
+      tournamentsTotal = tournamentIds.length;
+
+      if (tournamentIds.length > 0) {
+        const { data: registrations, error: registrationsError } = await this.supabase.service
+          .from('registrations')
+          .select('id')
+          .in('tournament_id', tournamentIds);
+        if (registrationsError) throw new BadRequestException(registrationsError.message);
+        fighterParticipations = (registrations ?? []).length;
+      }
+
+      const { data: referees, error: refereesError } = await this.supabase.service
+        .from('referee_qualifications')
+        .select('id')
+        .eq('active', true)
+        .in('event_id', eventIds);
+      if (refereesError) throw new BadRequestException(refereesError.message);
+      refereeParticipations = (referees ?? []).length;
+    }
+
+    return {
+      eventsTotal: eventRows.length,
+      upcomingEvents,
+      tournamentsTotal,
+      fighterParticipations,
+      refereeParticipations,
+    };
+  }
+
   async create(dto: CreateOrganizationDto, createdByUserId: string) {
     // Check slug uniqueness
     const { data: existing } = await this.supabase.service

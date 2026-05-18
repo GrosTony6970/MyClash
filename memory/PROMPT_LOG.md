@@ -887,3 +887,7 @@ Implement plan to move the super-admin Leagues menu/card immediately below Clubs
 ## 15:18:54_18-05-2026
 
 Implement backup label and editable schedule plan: rename delete actions to Delete from local server / Delete from Scaleway S3, add GET/PUT backup schedule APIs, persist schedule in data/backup-schedule.json through ops-runner, replace fixed VPS cron with ops-runner scheduling, and add tests/review coverage.
+
+## 15:48:33_18-05-2026
+
+Implement organizer dashboard/events refactor: make `/org/[slug]` a metrics dashboard, rename New event menu to Events, move event table and creation under Events, add event edit/archive/hard-delete actions, keep event slug auto-generation, add event-specific Create tournament menu/page, and add API support/tests.

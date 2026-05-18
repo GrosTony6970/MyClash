@@ -29,9 +29,7 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
     ? authHeader.slice(7)
     : cookies?.['sb-access-token'];
   if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
+  const user = await supabase.getAuthUser(token);
   return user?.id ?? 'anonymous';
 }
 
@@ -58,6 +56,15 @@ export class OrganizationsController {
   @ApiParam({ name: 'slug', type: 'string' })
   async getBySlug(@Param('slug') slug: string) {
     return this.orgs.getBySlug(slug);
+  }
+
+  /** GET /api/v1/organizations/:id/dashboard-stats */
+  @Get(':id/dashboard-stats')
+  @ApiOperation({ summary: 'Get organizer dashboard statistics' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async dashboardStats(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.orgs.dashboardStats(id, userId);
   }
 
   /** GET /api/v1/organizations/:id */
