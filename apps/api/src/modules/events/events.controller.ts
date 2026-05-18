@@ -124,6 +124,18 @@ export class EventsController {
     return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug);
   }
 
+  /** GET /api/v1/organizations/:orgId/events */
+  @Get('organizations/:orgId/events')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List events for an organization (org member+, includes drafts/archived)',
+  })
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  async listOrgEvents(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.listOrgEvents(orgId, userId);
+  }
+
   /** POST /api/v1/organizations/:orgId/events */
   @Post('organizations/:orgId/events')
   @HttpCode(HttpStatus.CREATED)
@@ -162,6 +174,17 @@ export class EventsController {
   async publishEvent(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
     return this.events.publishEvent(id, userId);
+  }
+
+  /** POST /api/v1/events/:id/unpublish */
+  @Post('events/:id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unpublish event back to draft (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async unpublishEvent(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.unpublishEvent(id, userId);
   }
 
   /** DELETE /api/v1/events/:id?mode=hard */

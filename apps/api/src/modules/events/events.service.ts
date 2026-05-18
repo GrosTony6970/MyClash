@@ -52,6 +52,17 @@ export class EventsService {
     return data ?? [];
   }
 
+  async listOrgEvents(orgId: string, userId: string) {
+    await this.orgs.assertOrgRole(orgId, userId, 'scorekeeper');
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('*, organizations(name, slug)')
+      .eq('organization_id', orgId)
+      .order('start_date', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
   async getEventBySlug(slug: string) {
     const query = this.supabase.service
       .from('events')
@@ -143,6 +154,25 @@ export class EventsService {
     const { data, error } = await this.supabase.service
       .from('events')
       .update({ status: 'published', updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async unpublishEvent(eventId: string, userId: string) {
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .update({ status: 'draft', updated_at: new Date().toISOString() })
       .eq('id', eventId)
       .select('*')
       .single();

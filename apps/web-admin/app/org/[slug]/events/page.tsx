@@ -87,7 +87,7 @@ export default function OrgEventsPage() {
     if (!orgRes.ok) throw new Error(t('organizer.events.loadError'));
     const org = (await orgRes.json()) as { id: string; name: string };
 
-    const eventsRes = await fetch(`${apiUrl}/api/v1/events?organizationId=${org.id}&status=all`, {
+    const eventsRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/events`, {
       credentials: 'include',
       signal,
     });
@@ -184,6 +184,30 @@ export default function OrgEventsPage() {
     }
   }
 
+  async function toggleVisibility(event: OrgEvent, mode: 'publish' | 'unpublish') {
+    setBusyId(event.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${event.id}/${mode}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.events.visibilityError'));
+      }
+      setNotice(
+        t(mode === 'publish' ? 'organizer.events.published' : 'organizer.events.unpublished'),
+      );
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.events.visibilityError'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function archiveEvent(event: OrgEvent) {
     setBusyId(event.id);
     setError(null);
@@ -231,23 +255,27 @@ export default function OrgEventsPage() {
 
   return (
     <main className="p-6 lg:p-8">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
-            {t('organizer.events.eyebrow')}
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-[#0f172a]">{t('organizer.events.title')}</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {t('organizer.events.description', { organization: orgName })}
-          </p>
+      {(loading || events.length > 0) && (
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
+              {t('organizer.events.eyebrow')}
+            </p>
+            <h1 className="mt-2 text-3xl font-bold text-[#0f172a]">
+              {t('organizer.events.title')}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {t('organizer.events.description', { organization: orgName })}
+            </p>
+          </div>
+          <Link
+            href={`/org/${slug}/events/new`}
+            className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+          >
+            {t('organizer.events.create')}
+          </Link>
         </div>
-        <Link
-          href={`/org/${slug}/events/new`}
-          className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
-        >
-          {t('organizer.events.create')}
-        </Link>
-      </div>
+      )}
 
       {error && (
         <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -260,13 +288,21 @@ export default function OrgEventsPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <p className="text-sm font-semibold text-[#0f172a]">
-            {t('organizer.events.currentSelection')}
-          </p>
-          <p className="mt-1 text-sm text-slate-500">{t('organizer.events.noSelection')}</p>
-        </div>
+      <section
+        className={
+          events.length > 0 || loading
+            ? 'overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm'
+            : ''
+        }
+      >
+        {(loading || events.length > 0) && (
+          <div className="border-b border-slate-200 px-5 py-4">
+            <p className="text-sm font-semibold text-[#0f172a]">
+              {t('organizer.events.currentSelection')}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">{t('organizer.events.noSelection')}</p>
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
@@ -277,13 +313,10 @@ export default function OrgEventsPage() {
 
         {!loading && events.length === 0 && (
           <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs font-bold text-[#f59e0b]">
-              EV
-            </span>
-            <h2 className="mb-2 text-xl font-bold text-[#0f172a]">
+            <h2 className="mb-3 text-2xl font-bold text-[#0f172a]">
               {t('organizer.dashboard.emptyTitle')}
             </h2>
-            <p className="mb-6 max-w-sm text-sm text-slate-500">
+            <p className="mb-6 max-w-md text-sm text-slate-500">
               {t('organizer.dashboard.emptyDescription')}
             </p>
             <Link
@@ -348,6 +381,28 @@ export default function OrgEventsPage() {
                         >
                           {t('organizer.events.edit')}
                         </Button>
+                        {event.status === 'draft' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="next"
+                            disabled={busyId === event.id}
+                            onClick={() => void toggleVisibility(event, 'publish')}
+                          >
+                            {t('organizer.events.publish')}
+                          </Button>
+                        )}
+                        {event.status === 'published' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="back"
+                            disabled={busyId === event.id}
+                            onClick={() => void toggleVisibility(event, 'unpublish')}
+                          >
+                            {t('organizer.events.unpublish')}
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           size="sm"
