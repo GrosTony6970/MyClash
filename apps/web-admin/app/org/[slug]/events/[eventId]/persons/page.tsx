@@ -337,7 +337,7 @@ export default function ParticipantsPage() {
                 disabled={bulkLoading}
                 className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
               >
-                Unassign from tournament
+                Unassign from {tournaments.find((t) => t.id === activeTab)?.name ?? 'tournament'}
               </button>
               {tournaments.filter((t) => t.id !== activeTab).length > 0 && (
                 <div className="flex items-center gap-2">
