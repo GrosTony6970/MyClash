@@ -1135,6 +1135,7 @@ export const en = {
         compensationSettings: 'Compensation settings',
         eventOverview: 'Event overview',
         createTournament: 'Create tournament',
+        clubs: 'Clubs',
       },
     },
     dashboard: {
@@ -2919,6 +2920,7 @@ export const fr = {
         compensationSettings: 'Parametres de compensation',
         eventOverview: 'Vue evenement',
         createTournament: 'Creer un tournoi',
+        clubs: 'Clubs',
       },
     },
     dashboard: {

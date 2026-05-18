@@ -20,6 +20,7 @@ const orgNavItems = [
 const eventNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.eventOverview', badge: 'E' },
   { href: 'tournaments/new', labelKey: 'organizer.shell.nav.createTournament', badge: 'T+' },
+  { href: 'clubs', labelKey: 'organizer.shell.nav.clubs', badge: 'CL' },
   { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', badge: 'P' },
   { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'P' },
   { href: 'pool-populator', labelKey: 'organizer.eventHub.sections.poolPopulator', badge: 'G' },
