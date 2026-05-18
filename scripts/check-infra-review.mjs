@@ -228,6 +228,15 @@ const compensationControllerPath = path.join(
   'compensation',
   'compensation.controller.ts',
 );
+const leaguesControllerPath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'leagues',
+  'leagues.controller.ts',
+);
 const fightersControllerPath = path.join(
   rootDir,
   'apps',
@@ -385,6 +394,7 @@ const signupControllerText = await readFile(signupControllerPath, 'utf8');
 const authServiceText = await readFile(authServicePath, 'utf8');
 const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
 const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
+const leaguesControllerText = await readFile(leaguesControllerPath, 'utf8');
 const fightersControllerText = await readFile(fightersControllerPath, 'utf8');
 const clubsControllerText = await readFile(clubsControllerPath, 'utf8');
 const adminBackupsControllerText = await readFile(adminBackupsControllerPath, 'utf8');
@@ -545,9 +555,19 @@ if (compensationControllerText.includes('supabase.anon.auth.getUser')) {
     'CompensationController must validate organizer tokens with internal GoTrue, not supabase.anon.auth.getUser.',
   );
 }
+if (leaguesControllerText.includes('supabase.anon.auth.getUser')) {
+  errors.push(
+    'LeaguesController must validate admin tokens with internal GoTrue, not supabase.anon.auth.getUser.',
+  );
+}
 requireContains(
   compensationControllerText,
   'apps/api/src/modules/compensation/compensation.controller.ts',
+  'supabase.getAuthUser(token)',
+);
+requireContains(
+  leaguesControllerText,
+  'apps/api/src/modules/leagues/leagues.controller.ts',
   'supabase.getAuthUser(token)',
 );
 requireContains(authServiceText, 'AuthService', '/token?grant_type=password');

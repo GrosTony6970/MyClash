@@ -96,8 +96,13 @@ export class LeaguesService {
   }
 
   async create(dto: CreateLeagueDto, userId: string) {
-    if (dto.ownerOrganizationId && !(await this.isSuperAdmin(userId))) {
-      await this.orgs.assertOrgRole(dto.ownerOrganizationId, userId, 'admin');
+    const isSuperAdmin = await this.isSuperAdmin(userId);
+    if (dto.ownerOrganizationId) {
+      if (!isSuperAdmin) {
+        await this.orgs.assertOrgRole(dto.ownerOrganizationId, userId, 'admin');
+      }
+    } else if (!isSuperAdmin) {
+      throw new ForbiddenException('Super admin access required');
     }
     const scoringConfig = normalizeScoringConfig(dto);
     const { data, error } = await this.supabase.service

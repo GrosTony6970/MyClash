@@ -50,6 +50,29 @@ interface TournamentSummary {
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
+async function apiErrorMessage(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => '');
+  if (!text) return `${fallback} (${res.status})`;
+  try {
+    const body = JSON.parse(text) as { message?: unknown; error?: unknown; code?: unknown };
+    const message = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+    if (typeof message === 'string' && message.trim()) return message;
+    if (typeof body.error === 'string' && body.error.trim()) return body.error;
+    if (typeof body.code === 'string' && body.code.trim()) return `${fallback} (${body.code})`;
+  } catch {
+    if (text.length < 180) return text;
+  }
+  return `${fallback} (${res.status})`;
+}
+
+async function expectOk(res: Response, fallback: string): Promise<void> {
+  if (!res.ok) throw new Error(await apiErrorMessage(res, fallback));
+}
+
+function errorText(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export default function AdminLeaguesPage() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [links, setLinks] = useState<Record<string, TournamentLink[]>>({});
@@ -88,8 +111,8 @@ export default function AdminLeaguesPage() {
   const load = useCallback(() => {
     setLoading(true);
     fetch(`${apiUrl}/api/v1/admin/leagues`, { credentials: 'include' })
-      .then((res) => {
-        if (!res.ok) throw new Error(t('admin.leagues.loadError'));
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.loadError'));
         return res.json() as Promise<League[]>;
       })
       .then((rows) => {
@@ -106,7 +129,7 @@ export default function AdminLeaguesPage() {
         );
       })
       .then((entries) => setLinks(Object.fromEntries(entries)))
-      .catch(() => setError(t('admin.leagues.loadError')))
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.loadError'))))
       .finally(() => setLoading(false));
   }, []);
 
@@ -127,13 +150,13 @@ export default function AdminLeaguesPage() {
         rankingDimensions: form.rankingDimensions,
       }),
     })
-      .then((res) => {
-        if (!res.ok) throw new Error(t('admin.leagues.createError'));
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.createError'));
         setSlugDetached(false);
         setForm((current) => ({ ...current, name: '', slug: '' }));
         load();
       })
-      .catch(() => setError(t('admin.leagues.createError')));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.createError'))));
   };
 
   const review = (linkId: string, status: 'approved' | 'rejected') => {
@@ -143,11 +166,11 @@ export default function AdminLeaguesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
-      .then((res) => {
-        if (!res.ok) throw new Error(t('admin.leagues.reviewError'));
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.reviewError'));
         load();
       })
-      .catch(() => setError(t('admin.leagues.reviewError')));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.reviewError'))));
   };
 
   const recompute = (leagueId: string) => {
@@ -155,11 +178,11 @@ export default function AdminLeaguesPage() {
       method: 'POST',
       credentials: 'include',
     })
-      .then((res) => {
-        if (!res.ok) throw new Error(t('admin.leagues.recomputeError'));
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.recomputeError'));
         load();
       })
-      .catch(() => setError(t('admin.leagues.recomputeError')));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.recomputeError'))));
   };
 
   const openEdit = (league: League) => {
@@ -224,12 +247,12 @@ export default function AdminLeaguesPage() {
         scoringConfig,
       }),
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Update failed');
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.updateError'));
         setEditId(null);
         load();
       })
-      .catch(() => setError('Failed to update league'));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.updateError'))));
   };
 
   const deleteLeague = (leagueId: string, name: string) => {
@@ -238,11 +261,11 @@ export default function AdminLeaguesPage() {
       method: 'DELETE',
       credentials: 'include',
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Delete failed');
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.deleteError'));
         load();
       })
-      .catch(() => setError('Failed to delete league'));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.deleteError'))));
   };
 
   const removeLink = (linkId: string, leagueId: string) => {
@@ -252,15 +275,15 @@ export default function AdminLeaguesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'removed' }),
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Remove failed');
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.removeLinkError'));
         return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
           credentials: 'include',
         });
       })
       .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
       .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch(() => setError('Failed to remove link'));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.removeLinkError'))));
   };
 
   const removeEventLinks = (leagueId: string, eventId: string) => {
@@ -268,15 +291,15 @@ export default function AdminLeaguesPage() {
       method: 'DELETE',
       credentials: 'include',
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Bulk remove failed');
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.removeEventLinksError'));
         return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
           credentials: 'include',
         });
       })
       .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
       .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch(() => setError('Failed to remove event links'));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.removeEventLinksError'))));
   };
 
   const openAddPanel = (leagueId: string) => {
@@ -291,7 +314,7 @@ export default function AdminLeaguesPage() {
       fetch(`${apiUrl}/api/v1/events`, { credentials: 'include' })
         .then((res) => (res.ok ? (res.json() as Promise<EventSummary[]>) : []))
         .then(setAllEvents)
-        .catch(() => setError('Failed to load events'));
+        .catch(() => setError(t('admin.leagues.loadEventsError')));
     }
   };
 
@@ -305,7 +328,7 @@ export default function AdminLeaguesPage() {
       fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, { credentials: 'include' })
         .then((res) => (res.ok ? (res.json() as Promise<TournamentSummary[]>) : []))
         .then((ts) => setEventTournaments((prev) => ({ ...prev, [eventId]: ts })))
-        .catch(() => setError('Failed to load tournaments'));
+        .catch(() => setError(t('admin.leagues.loadTournamentsError')));
     }
   };
 
@@ -314,15 +337,15 @@ export default function AdminLeaguesPage() {
       method: 'POST',
       credentials: 'include',
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Add failed');
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.addTournamentError'));
         return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
           credentials: 'include',
         });
       })
       .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
       .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch(() => setError('Failed to add tournament'));
+      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.addTournamentError'))));
   };
 
   const addEventTournaments = (leagueId: string, eventId: string) => {
@@ -330,15 +353,17 @@ export default function AdminLeaguesPage() {
       method: 'POST',
       credentials: 'include',
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Add failed');
+      .then(async (res) => {
+        await expectOk(res, t('admin.leagues.addEventTournamentsError'));
         return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
           credentials: 'include',
         });
       })
       .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
       .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch(() => setError('Failed to add event tournaments'));
+      .catch((err: unknown) =>
+        setError(errorText(err, t('admin.leagues.addEventTournamentsError'))),
+      );
   };
 
   return (
@@ -436,16 +461,18 @@ export default function AdminLeaguesPage() {
                   className="text-sm underline"
                   onClick={() => (editId === league.id ? setEditId(null) : openEdit(league))}
                 >
-                  {editId === league.id ? 'Cancel' : 'Edit'}
+                  {editId === league.id ? t('admin.leagues.cancel') : t('admin.leagues.edit')}
                 </button>
                 <button
                   className="text-sm underline text-red-600"
                   onClick={() => deleteLeague(league.id, league.name)}
                 >
-                  Delete
+                  {t('admin.leagues.delete')}
                 </button>
                 <button className="text-sm underline" onClick={() => openAddPanel(league.id)}>
-                  {addPanelLeagueId === league.id ? 'Close add panel' : 'Add tournaments'}
+                  {addPanelLeagueId === league.id
+                    ? t('admin.leagues.closeAddPanel')
+                    : t('admin.leagues.addTournaments')}
                 </button>
               </div>
             </div>
@@ -454,13 +481,13 @@ export default function AdminLeaguesPage() {
               <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4">
                 <input
                   className="border rounded px-3 py-2 text-sm"
-                  placeholder="Name"
+                  placeholder={t('admin.leagues.name')}
                   value={editForm.name}
                   onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                 />
                 <textarea
                   className="border rounded px-3 py-2 text-sm"
-                  placeholder="Description (optional)"
+                  placeholder={t('admin.leagues.descriptionOptional')}
                   rows={2}
                   value={editForm.description}
                   onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
@@ -471,9 +498,9 @@ export default function AdminLeaguesPage() {
                     value={editForm.status}
                     onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
                   >
-                    <option value="draft">Draft</option>
-                    <option value="published">Published</option>
-                    <option value="archived">Archived</option>
+                    <option value="draft">{t('admin.leagues.draft')}</option>
+                    <option value="published">{t('admin.leagues.published')}</option>
+                    <option value="archived">{t('admin.leagues.archived')}</option>
                   </select>
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -483,17 +510,19 @@ export default function AdminLeaguesPage() {
                         setEditForm((f) => ({ ...f, publicVisibility: e.target.checked }))
                       }
                     />
-                    Public
+                    {t('admin.leagues.public')}
                   </label>
                   <button
                     className="bg-gray-950 text-white rounded px-3 py-2 text-sm"
                     onClick={saveEdit}
                   >
-                    Save
+                    {t('admin.leagues.save')}
                   </button>
                 </div>
                 <div className="border-t border-gray-100 pt-3">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">Scoring System</p>
+                  <p className="text-xs font-semibold text-gray-500 mb-2">
+                    {t('admin.leagues.scoringSystem')}
+                  </p>
                   <div className="flex gap-4 mb-3">
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -507,7 +536,7 @@ export default function AdminLeaguesPage() {
                           }))
                         }
                       />
-                      FFAMHE TF 2026 (preset)
+                      {t('admin.leagues.ffamhePreset')}
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                       <input
@@ -527,7 +556,7 @@ export default function AdminLeaguesPage() {
                           }))
                         }
                       />
-                      Custom
+                      {t('admin.leagues.custom')}
                     </label>
                   </div>
 
@@ -536,8 +565,12 @@ export default function AdminLeaguesPage() {
                       <table className="text-sm w-full max-w-xs mb-2">
                         <thead>
                           <tr>
-                            <th className="text-left px-2 py-1 text-xs text-gray-500">Rank</th>
-                            <th className="text-left px-2 py-1 text-xs text-gray-500">Points</th>
+                            <th className="text-left px-2 py-1 text-xs text-gray-500">
+                              {t('admin.leagues.rank')}
+                            </th>
+                            <th className="text-left px-2 py-1 text-xs text-gray-500">
+                              {t('admin.leagues.points')}
+                            </th>
                             <th />
                           </tr>
                         </thead>
@@ -590,7 +623,7 @@ export default function AdminLeaguesPage() {
                                     }))
                                   }
                                 >
-                                  Remove
+                                  {t('admin.leagues.remove')}
                                 </button>
                               </td>
                             </tr>
@@ -609,7 +642,7 @@ export default function AdminLeaguesPage() {
                           }))
                         }
                       >
-                        + Add row
+                        {t('admin.leagues.addRow')}
                       </button>
                     </div>
                   )}
@@ -625,7 +658,7 @@ export default function AdminLeaguesPage() {
               >();
               for (const link of leagueLinks) {
                 const eventId = link.tournaments?.events?.id ?? '__no_event__';
-                const eventName = link.tournaments?.events?.name ?? 'Unknown event';
+                const eventName = link.tournaments?.events?.name ?? t('admin.leagues.unknownEvent');
                 if (!byEvent.has(eventId)) byEvent.set(eventId, { eventId, eventName, links: [] });
                 byEvent.get(eventId)!.links.push(link);
               }
@@ -644,7 +677,7 @@ export default function AdminLeaguesPage() {
                             className="text-xs underline text-red-600"
                             onClick={() => removeEventLinks(league.id, group.eventId)}
                           >
-                            Remove all
+                            {t('admin.leagues.removeAll')}
                           </button>
                         )}
                       </div>
@@ -686,7 +719,7 @@ export default function AdminLeaguesPage() {
                                   className="underline text-red-600"
                                   onClick={() => removeLink(link.id, league.id)}
                                 >
-                                  Remove
+                                  {t('admin.leagues.remove')}
                                 </button>
                               )}
                             </span>
@@ -701,10 +734,10 @@ export default function AdminLeaguesPage() {
 
             {addPanelLeagueId === league.id && (
               <div className="mt-4 border-t border-gray-100 pt-4">
-                <p className="text-sm font-semibold mb-2">Add tournaments</p>
+                <p className="text-sm font-semibold mb-2">{t('admin.leagues.addTournaments')}</p>
                 <input
                   className="border rounded px-3 py-2 text-sm w-full max-w-sm mb-3"
-                  placeholder="Search events…"
+                  placeholder={t('admin.leagues.searchEvents')}
                   value={eventSearch}
                   onChange={(e) => setEventSearch(e.target.value)}
                 />
@@ -731,7 +764,7 @@ export default function AdminLeaguesPage() {
                               className="text-xs underline"
                               onClick={() => addEventTournaments(league.id, ev.id)}
                             >
-                              Add all
+                              {t('admin.leagues.addAll')}
                             </button>
                           </div>
                           {expandedEventId === ev.id && (
@@ -755,16 +788,22 @@ export default function AdminLeaguesPage() {
                                       disabled={isLinked}
                                       onClick={() => !isLinked && addTournament(league.id, tour.id)}
                                     >
-                                      {isLinked ? 'Linked' : 'Add'}
+                                      {isLinked
+                                        ? t('admin.leagues.linked')
+                                        : t('admin.leagues.add')}
                                     </button>
                                   </div>
                                 );
                               })}
                               {eventTournaments[ev.id]?.length === 0 && (
-                                <p className="text-xs text-gray-400">No tournaments</p>
+                                <p className="text-xs text-gray-400">
+                                  {t('admin.leagues.noTournaments')}
+                                </p>
                               )}
                               {!eventTournaments[ev.id] && (
-                                <p className="text-xs text-gray-400">Loading…</p>
+                                <p className="text-xs text-gray-400">
+                                  {t('admin.leagues.loading')}
+                                </p>
                               )}
                             </div>
                           )}
@@ -774,7 +813,7 @@ export default function AdminLeaguesPage() {
                   {allEvents.filter((ev) => !eventSearch || fuzzyMatch(eventSearch, ev.name))
                     .length === 0 && (
                     <p className="text-sm text-gray-400">
-                      No events match &quot;{eventSearch}&quot;
+                      {t('admin.leagues.noEventsMatch', { query: eventSearch })}
                     </p>
                   )}
                 </div>

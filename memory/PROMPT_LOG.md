@@ -867,3 +867,7 @@ PLEASE IMPLEMENT THIS PLAN: Backup Management UX And Deletion Controls - style B
 ## 21:26:48_17-05-2026
 
 Implement the plan to fix admin pages hitting API rate limits by adding higher admin/catalog read throttles, applying them to users/global persons/clubs/audit-log endpoints, improving 429 handling in web-admin, and adding regression guards.
+
+## 10:18:27_18-05-2026
+
+Implement the plan to fix League Management UI visibility and create failure: replace LeaguesController public Supabase auth validation with internal GoTrue validation, improve /admin/leagues error diagnostics, add regression guards/tests, and verify deploy freshness.

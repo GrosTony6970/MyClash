@@ -12,6 +12,7 @@ import {
   Post,
   Query,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
@@ -32,11 +33,10 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
   const token = authHeader?.startsWith('Bearer ')
     ? authHeader.slice(7)
     : cookies?.['sb-access-token'];
-  if (!token) return 'anonymous';
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
-  return user?.id ?? 'anonymous';
+  if (!token) throw new UnauthorizedException('Authentication required');
+  const user = await supabase.getAuthUser(token);
+  if (!user?.id) throw new UnauthorizedException('Authentication required');
+  return user.id;
 }
 
 @ApiTags('leagues')
