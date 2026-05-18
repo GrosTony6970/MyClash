@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { HemaRatingsSuggest, type HemaRatingsSuggestion } from '@/components/HemaRatingsSuggest';
 
 interface Person {
   id: string;
@@ -27,6 +28,37 @@ interface Tournament {
   id: string;
   name: string;
 }
+
+interface GlobalPersonSuggestion {
+  id: string;
+  displayName: string;
+  givenName: string;
+  familyName: string;
+  clubLabel: string | null;
+  hemaRatingsId: string | null;
+}
+
+interface ClubSuggestion {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+}
+
+interface AddForm {
+  givenName: string;
+  familyName: string;
+  email: string;
+  hemaRatingsId: string;
+  seed: string;
+}
+
+const EMPTY_ADD_FORM: AddForm = {
+  givenName: '',
+  familyName: '',
+  email: '',
+  hemaRatingsId: '',
+  seed: '',
+};
 
 const CLAIM_COLORS: Record<string, string> = {
   unclaimed: 'bg-gray-100 text-gray-500',
@@ -59,11 +91,27 @@ export default function ParticipantsPage() {
   const [bulkAssignTournamentId, setBulkAssignTournamentId] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
 
-  // placeholders for modal state — wired in later tasks
   const [showAdd, setShowAdd] = useState(false);
-  const openEdit = (_p: Person) => {
-    /* wired in Task 5 */
-  };
+  const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD_FORM);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
+  const [selectedTournaments, setSelectedTournaments] = useState<Set<string>>(new Set());
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSuggestions, setGlobalSuggestions] = useState<GlobalPersonSuggestion[]>([]);
+  const [selectedGlobalId, setSelectedGlobalId] = useState<string | null>(null);
+  const [clubSearch, setClubSearch] = useState('');
+  const [clubSuggestions, setClubSuggestions] = useState<ClubSuggestion[]>([]);
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
+  const [selectedClubLabel, setSelectedClubLabel] = useState('');
+  const [selectedHemaRating, setSelectedHemaRating] = useState<HemaRatingsSuggestion | null>(null);
+  const [editPerson, setEditPerson] = useState<Person | null>(null);
+  const [editForm, setEditForm] = useState<AddForm>(EMPTY_ADD_FORM);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editClubSearch, setEditClubSearch] = useState('');
+  const [editClubSuggestions, setEditClubSuggestions] = useState<ClubSuggestion[]>([]);
+  const [editClubId, setEditClubId] = useState<string | null>(null);
+  const [editClubLabel, setEditClubLabel] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -104,6 +152,57 @@ export default function ParticipantsPage() {
     return map;
   }, [registrations]);
 
+  useEffect(() => {
+    if (globalSearch.trim().length < 2) {
+      setGlobalSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}`, {
+        credentials: 'include',
+      })
+        .then(async (res) => {
+          if (res.ok) setGlobalSuggestions((await res.json()) as GlobalPersonSuggestion[]);
+        })
+        .catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [globalSearch, apiUrl]);
+
+  useEffect(() => {
+    if (!showAdd || selectedClubId || clubSearch.trim().length < 2) {
+      if (!selectedClubId) setClubSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`${apiUrl}/api/v1/clubs?q=${encodeURIComponent(clubSearch)}&searchAbv=true`, {
+        credentials: 'include',
+      })
+        .then(async (res) => {
+          if (res.ok) setClubSuggestions((await res.json()) as ClubSuggestion[]);
+        })
+        .catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [clubSearch, showAdd, selectedClubId, apiUrl]);
+
+  useEffect(() => {
+    if (!editPerson || editClubId || editClubSearch.trim().length < 2) {
+      if (!editClubId) setEditClubSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`${apiUrl}/api/v1/clubs?q=${encodeURIComponent(editClubSearch)}&searchAbv=true`, {
+        credentials: 'include',
+      })
+        .then(async (res) => {
+          if (res.ok) setEditClubSuggestions((await res.json()) as ClubSuggestion[]);
+        })
+        .catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [editClubSearch, editPerson, editClubId, apiUrl]);
+
   const filteredPersons = useMemo(() => {
     let list = persons;
     if (activeTab !== 'all') {
@@ -118,6 +217,117 @@ export default function ParticipantsPage() {
     }
     return list;
   }, [persons, registrations, activeTab, search]);
+
+  function closeAddModal() {
+    setShowAdd(false);
+    setAddForm(EMPTY_ADD_FORM);
+    setAddError(null);
+    setGlobalSearch('');
+    setGlobalSuggestions([]);
+    setSelectedGlobalId(null);
+    setClubSearch('');
+    setClubSuggestions([]);
+    setSelectedClubId(null);
+    setSelectedClubLabel('');
+    setSelectedHemaRating(null);
+    setSelectedTournaments(new Set());
+  }
+
+  async function handleAdd() {
+    if (!addForm.givenName.trim() || !addForm.familyName.trim()) {
+      setAddError('Given name and family name are required');
+      return;
+    }
+    setAddSaving(true);
+    setAddError(null);
+    try {
+      const personRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          givenName: addForm.givenName.trim(),
+          familyName: addForm.familyName.trim(),
+          email: addForm.email.trim() || null,
+          clubId: selectedClubId || null,
+          hemaRatingsId: selectedHemaRating?.id ?? (addForm.hemaRatingsId.trim() || null),
+          globalPersonId: selectedGlobalId || null,
+        }),
+      });
+      if (!personRes.ok) {
+        const body = (await personRes.json()) as { message?: string };
+        throw new Error(body.message ?? 'Failed to create participant');
+      }
+      const person = (await personRes.json()) as { id: string };
+      for (const tournamentId of selectedTournaments) {
+        await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            personId: person.id,
+            hemaRatingsId: selectedHemaRating?.id ?? (addForm.hemaRatingsId.trim() || null),
+            seed: addForm.seed ? parseInt(addForm.seed, 10) : undefined,
+          }),
+        });
+      }
+      closeAddModal();
+      refresh();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
+  function openEdit(p: Person) {
+    setEditPerson(p);
+    setEditForm({
+      givenName: p.givenName,
+      familyName: p.familyName,
+      email: p.email ?? '',
+      hemaRatingsId: p.hemaRatingsId ?? '',
+      seed: '',
+    });
+    setEditClubSearch(p.clubLabel ?? '');
+    setEditClubId(null);
+    setEditClubLabel(p.clubLabel ?? '');
+    setEditError(null);
+  }
+
+  async function handleEditSave() {
+    if (!editPerson) return;
+    if (!editForm.givenName.trim() || !editForm.familyName.trim()) {
+      setEditError('Given name and family name are required');
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/persons/${editPerson.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          givenName: editForm.givenName.trim(),
+          familyName: editForm.familyName.trim(),
+          email: editForm.email.trim() || null,
+          clubId: editClubId || null,
+          hemaRatingsId: editForm.hemaRatingsId.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json()) as { message?: string };
+        throw new Error(body.message ?? 'Save failed');
+      }
+      setEditPerson(null);
+      refresh();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function handleBulkDelete() {
     if (selected.size === 0) return;
@@ -470,6 +680,365 @@ export default function ParticipantsPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold mb-4">Add participant</h2>
+
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Search global profiles by name
+              </label>
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(e) => {
+                  setGlobalSearch(e.target.value);
+                  setSelectedGlobalId(null);
+                }}
+                placeholder="Type a name to search…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+              {globalSuggestions.length > 0 && !selectedGlobalId && (
+                <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                  {globalSuggestions.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedGlobalId(g.id);
+                        setGlobalSearch(g.displayName);
+                        setGlobalSuggestions([]);
+                        setAddForm((f) => ({
+                          ...f,
+                          givenName: g.givenName,
+                          familyName: g.familyName,
+                          hemaRatingsId: g.hemaRatingsId ?? '',
+                        }));
+                        if (g.clubLabel) {
+                          setSelectedClubLabel(g.clubLabel);
+                          setClubSearch(g.clubLabel);
+                        }
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                    >
+                      <span className="font-medium">{g.displayName}</span>
+                      {g.clubLabel && (
+                        <span className="text-gray-400 ml-2 text-xs">{g.clubLabel}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedGlobalId && (
+                <p className="text-xs text-green-700 mt-1">
+                  Linked to global profile.{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      setSelectedGlobalId(null);
+                      setGlobalSearch('');
+                    }}
+                  >
+                    Clear
+                  </button>
+                </p>
+              )}
+            </div>
+
+            <hr className="my-3 border-gray-100" />
+
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Given name *
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.givenName}
+                    onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Family name *
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.familyName}
+                    onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
+                <input
+                  type="search"
+                  value={clubSearch}
+                  onChange={(e) => {
+                    setClubSearch(e.target.value);
+                    setSelectedClubId(null);
+                    setSelectedClubLabel('');
+                  }}
+                  placeholder="Search by name or abbreviation…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+                {clubSuggestions.length > 0 && !selectedClubId && (
+                  <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                    {clubSuggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedClubId(c.id);
+                          setSelectedClubLabel(c.name);
+                          setClubSearch(c.name);
+                          setClubSuggestions([]);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        {c.abbreviation && (
+                          <span className="text-gray-400 ml-2 text-xs">{c.abbreviation}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedClubId && (
+                  <p className="text-xs text-green-700 mt-1">
+                    {selectedClubLabel}{' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setSelectedClubId(null);
+                        setSelectedClubLabel('');
+                        setClubSearch('');
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </p>
+                )}
+              </div>
+
+              <HemaRatingsSuggest
+                apiUrl={apiUrl}
+                personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
+                selectedId={selectedHemaRating?.id ?? addForm.hemaRatingsId}
+                onSelect={setSelectedHemaRating}
+              />
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Seed (optional)
+                </label>
+                <input
+                  type="number"
+                  value={addForm.seed}
+                  onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
+                  min="1"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+
+              {tournaments.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Register in tournaments (optional)
+                  </label>
+                  <div className="flex flex-col gap-1.5">
+                    {tournaments.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedTournaments.has(t.id)}
+                          onChange={() =>
+                            setSelectedTournaments((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(t.id)) next.delete(t.id);
+                              else next.add(t.id);
+                              return next;
+                            })
+                          }
+                          className="rounded"
+                        />
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {addError && (
+              <p className="text-sm text-red-600 mt-3" role="alert">
+                {addError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={closeAddModal}
+                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleAdd()}
+                disabled={addSaving}
+                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+              >
+                {addSaving ? 'Adding…' : 'Add participant'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editPerson && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold mb-4">Edit participant</h2>
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Given name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.givenName}
+                    onChange={(e) => setEditForm((f) => ({ ...f, givenName: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Family name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.familyName}
+                    onChange={(e) => setEditForm((f) => ({ ...f, familyName: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
+                <input
+                  type="search"
+                  value={editClubSearch}
+                  onChange={(e) => {
+                    setEditClubSearch(e.target.value);
+                    setEditClubId(null);
+                    setEditClubLabel('');
+                  }}
+                  placeholder="Search club…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+                {editClubSuggestions.length > 0 && !editClubId && (
+                  <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                    {editClubSuggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setEditClubId(c.id);
+                          setEditClubLabel(c.name);
+                          setEditClubSearch(c.name);
+                          setEditClubSuggestions([]);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        <span className="font-medium">{c.name}</span>
+                        {c.abbreviation && (
+                          <span className="text-gray-400 ml-2 text-xs">{c.abbreviation}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {editClubId && (
+                  <p className="text-xs text-green-700 mt-1">
+                    {editClubLabel}{' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setEditClubId(null);
+                        setEditClubLabel('');
+                        setEditClubSearch('');
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  HEMA Ratings ID
+                </label>
+                <input
+                  type="text"
+                  value={editForm.hemaRatingsId}
+                  onChange={(e) => setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                  placeholder="hr-12345"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+            </div>
+            {editError && (
+              <p className="text-sm text-red-600 mt-3" role="alert">
+                {editError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setEditPerson(null)}
+                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleEditSave()}
+                disabled={editSaving}
+                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+              >
+                {editSaving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
