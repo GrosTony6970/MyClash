@@ -56,6 +56,8 @@ export default function ParticipantsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const [bulkAssignTournamentId, setBulkAssignTournamentId] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // placeholders for modal state — wired in later tasks
   const [showAdd, setShowAdd] = useState(false);
@@ -116,6 +118,78 @@ export default function ParticipantsPage() {
     }
     return list;
   }, [persons, registrations, activeTab, search]);
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Delete ${selected.size} participant(s)? This cannot be undone.`)) return;
+    setBulkLoading(true);
+    for (const personId of selected) {
+      await fetch(`${apiUrl}/api/v1/persons/${personId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
+    refresh();
+  }
+
+  async function handleBulkCheckIn() {
+    if (selected.size === 0 || activeTab === 'all') return;
+    if (!confirm(`Check in ${selected.size} participant(s)?`)) return;
+    setBulkLoading(true);
+    for (const personId of selected) {
+      const reg = (registrationsByPersonId.get(personId) ?? []).find(
+        (r) => r.tournamentId === activeTab,
+      );
+      if (!reg) continue;
+      await fetch(`${apiUrl}/api/v1/registrations/${reg.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'checked_in' }),
+      });
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
+    refresh();
+  }
+
+  async function handleBulkUnassign() {
+    if (selected.size === 0 || activeTab === 'all') return;
+    if (!confirm(`Unassign ${selected.size} participant(s) from this tournament?`)) return;
+    setBulkLoading(true);
+    for (const personId of selected) {
+      const reg = (registrationsByPersonId.get(personId) ?? []).find(
+        (r) => r.tournamentId === activeTab,
+      );
+      if (!reg) continue;
+      await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
+    refresh();
+  }
+
+  async function handleBulkAssign(tournamentId: string) {
+    if (selected.size === 0 || !tournamentId) return;
+    setBulkLoading(true);
+    for (const personId of selected) {
+      await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ personId }),
+      });
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
+    setBulkAssignTournamentId('');
+    refresh();
+  }
 
   async function handleDelete(personId: string) {
     if (!confirm('Delete this person? This also removes all their tournament registrations.'))
@@ -213,6 +287,89 @@ export default function ParticipantsPage() {
           );
         })}
       </div>
+
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
+          <span className="text-sm text-gray-600 font-medium">{selected.size} selected</span>
+          <button
+            onClick={() => void handleBulkDelete()}
+            disabled={bulkLoading}
+            className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+          >
+            Delete selected
+          </button>
+          {activeTab === 'all' && tournaments.length > 0 && (
+            <div className="flex items-center gap-2">
+              <select
+                value={bulkAssignTournamentId}
+                onChange={(e) => setBulkAssignTournamentId(e.target.value)}
+                className="border border-gray-300 rounded px-2 py-1 text-xs"
+              >
+                <option value="">Assign to tournament…</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {bulkAssignTournamentId && (
+                <button
+                  onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
+                  disabled={bulkLoading}
+                  className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Assign
+                </button>
+              )}
+            </div>
+          )}
+          {activeTab !== 'all' && (
+            <>
+              <button
+                onClick={() => void handleBulkCheckIn()}
+                disabled={bulkLoading}
+                className="text-sm text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
+              >
+                Check in selected
+              </button>
+              <button
+                onClick={() => void handleBulkUnassign()}
+                disabled={bulkLoading}
+                className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
+              >
+                Unassign from tournament
+              </button>
+              {tournaments.filter((t) => t.id !== activeTab).length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={bulkAssignTournamentId}
+                    onChange={(e) => setBulkAssignTournamentId(e.target.value)}
+                    className="border border-gray-300 rounded px-2 py-1 text-xs"
+                  >
+                    <option value="">Assign to another…</option>
+                    {tournaments
+                      .filter((t) => t.id !== activeTab)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </select>
+                  {bulkAssignTournamentId && (
+                    <button
+                      onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
+                      disabled={bulkLoading}
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Assign
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
