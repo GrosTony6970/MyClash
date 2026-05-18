@@ -1035,8 +1035,24 @@ for (const expected of [
 for (const expected of ['/admin/clubs', 'admin.shell.nav.clubs']) {
   requireContains(superAdminShellText, 'apps/web-admin/src/components/SuperAdminShell.tsx', expected);
 }
+if (
+  superAdminShellText.indexOf("href: '/admin/clubs'") >
+  superAdminShellText.indexOf("href: '/admin/leagues'")
+) {
+  errors.push(
+    'apps/web-admin/src/components/SuperAdminShell.tsx must keep Leagues immediately after Clubs in the super-admin sidebar.',
+  );
+}
 for (const expected of ['/admin/clubs', 'clubsTitle', 'clubsDescription']) {
   requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', expected);
+}
+if (
+  superAdminPageText.indexOf("href: '/admin/clubs'") >
+  superAdminPageText.indexOf("href: '/admin/leagues'")
+) {
+  errors.push(
+    'apps/web-admin/app/admin/page.tsx must keep the Leagues card immediately after Clubs.',
+  );
 }
 for (const expected of [
   "@Delete(':id')",

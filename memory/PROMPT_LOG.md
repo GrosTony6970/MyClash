@@ -879,3 +879,7 @@ Implement the Platform accounts UI plan: rename super-admin Users labels to Plat
 ## 10:52:03_18-05-2026
 
 Implement organization member selectors and MyClash HQ suspend protection: replace raw user-ID prompts for ownership reassignment and super-admin promotion with searchable pickers showing display name, email, and user ID; add platform-account search; prevent suspending myclash-hq.
+
+## 11:01:07_18-05-2026
+
+Implement plan to move the super-admin Leagues menu/card immediately below Clubs without changing routes, labels, permissions, or API behavior.

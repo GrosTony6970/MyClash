@@ -57,6 +57,12 @@ const sections = [
     badge: 'C',
   },
   {
+    href: '/admin/leagues',
+    titleKey: 'admin.dashboard.leaguesTitle',
+    descriptionKey: 'admin.dashboard.leaguesDescription',
+    badge: 'L',
+  },
+  {
     href: '/admin/rulesets',
     titleKey: 'admin.dashboard.cards.rulesetsTitle',
     descriptionKey: 'admin.dashboard.cards.rulesetsDescription',
@@ -91,12 +97,6 @@ const sections = [
     titleKey: 'admin.dashboard.backupsTitle',
     descriptionKey: 'admin.dashboard.backupsDescription',
     badge: 'B',
-  },
-  {
-    href: '/admin/leagues',
-    titleKey: 'admin.dashboard.leaguesTitle',
-    descriptionKey: 'admin.dashboard.leaguesDescription',
-    badge: 'L',
   },
   {
     href: '/admin/ai-settings',
