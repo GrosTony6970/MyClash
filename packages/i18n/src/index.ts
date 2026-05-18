@@ -1151,12 +1151,6 @@ export const en = {
       eventCount: '{count} tournament',
       eventCountPlural: '{count} tournaments',
       noLocation: 'No venue yet',
-      eventsCardTitle: 'Events',
-      eventsCardDescription: 'Create events, select the active workspace, and manage event status.',
-      aiCardTitle: 'AI settings',
-      aiCardDescription: 'Configure organizer AI features for setup and operations.',
-      compensationCardTitle: 'Compensation settings',
-      compensationCardDescription: 'Manage referee compensation plans and rates.',
       metrics: {
         eventsCreated: 'Events created',
         eventsCreatedDetail: 'All events in this organization',
@@ -2936,13 +2930,6 @@ export const fr = {
       eventCount: '{count} tournoi',
       eventCountPlural: '{count} tournois',
       noLocation: 'Aucun lieu pour le moment',
-      eventsCardTitle: 'Evenements',
-      eventsCardDescription:
-        'Creez les evenements, selectionnez l espace actif et gerez les statuts.',
-      aiCardTitle: 'Parametres IA',
-      aiCardDescription: "Configurez les fonctions IA d'organisation et d'aide operationnelle.",
-      compensationCardTitle: 'Parametres de compensation',
-      compensationCardDescription: 'Gerez les plans et tarifs de compensation des arbitres.',
       metrics: {
         eventsCreated: 'Evenements crees',
         eventsCreatedDetail: 'Tous les evenements de cette organisation',

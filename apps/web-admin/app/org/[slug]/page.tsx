@@ -135,49 +135,6 @@ export default function OrgDashboardPage() {
           </article>
         ))}
       </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Link
-          href={`/org/${slug}/events`}
-          className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-[#1d4ed8]/40 hover:shadow-md"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs font-bold text-[#f59e0b]">
-            EV
-          </span>
-          <h2 className="mt-4 font-bold text-[#0f172a]">
-            {t('organizer.dashboard.eventsCardTitle')}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {t('organizer.dashboard.eventsCardDescription')}
-          </p>
-        </Link>
-        <Link
-          href={`/org/${slug}/settings/ai`}
-          className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-[#1d4ed8]/40 hover:shadow-md"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs font-bold text-[#f59e0b]">
-            AI
-          </span>
-          <h2 className="mt-4 font-bold text-[#0f172a]">{t('organizer.dashboard.aiCardTitle')}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {t('organizer.dashboard.aiCardDescription')}
-          </p>
-        </Link>
-        <Link
-          href={`/org/${slug}/settings/compensation`}
-          className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-[#1d4ed8]/40 hover:shadow-md"
-        >
-          <span className="flex h-9 w-9 items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs font-bold text-[#f59e0b]">
-            C
-          </span>
-          <h2 className="mt-4 font-bold text-[#0f172a]">
-            {t('organizer.dashboard.compensationCardTitle')}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {t('organizer.dashboard.compensationCardDescription')}
-          </p>
-        </Link>
-      </section>
     </main>
   );
 }
