@@ -883,3 +883,7 @@ Implement organization member selectors and MyClash HQ suspend protection: repla
 ## 11:01:07_18-05-2026
 
 Implement plan to move the super-admin Leagues menu/card immediately below Clubs without changing routes, labels, permissions, or API behavior.
+
+## 15:18:54_18-05-2026
+
+Implement backup label and editable schedule plan: rename delete actions to Delete from local server / Delete from Scaleway S3, add GET/PUT backup schedule APIs, persist schedule in data/backup-schedule.json through ops-runner, replace fixed VPS cron with ops-runner scheduling, and add tests/review coverage.

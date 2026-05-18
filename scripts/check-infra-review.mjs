@@ -6,6 +6,7 @@ const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
 const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
 const statusPath = path.join(rootDir, 'infra', 'scripts', 'status.sh');
+const vpsBootstrapPath = path.join(rootDir, 'infra', 'scripts', 'vps-bootstrap.sh');
 const publicRootPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'page.tsx');
 const publicLoginPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'login', 'page.tsx');
 const publicOAuthCallbackPath = path.join(
@@ -360,6 +361,7 @@ const composeText = await readFile(composePath, 'utf8');
 const devComposeText = await readFile(devComposePath, 'utf8');
 const deployText = await readFile(deployPath, 'utf8');
 const statusText = await readFile(statusPath, 'utf8');
+const vpsBootstrapText = await readFile(vpsBootstrapPath, 'utf8');
 const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
 const publicLoginPageText = await readFile(publicLoginPagePath, 'utf8');
 const publicOAuthCallbackText = await readFile(publicOAuthCallbackPath, 'utf8');
@@ -1123,6 +1125,10 @@ for (const [label, text] of [
 for (const expected of [
   'admin.backups.browse',
   'admin.backups.totalSize',
+  'admin.backups.scheduleTitle',
+  'admin.backups.scheduleSave',
+  '/api/v1/admin/backups/schedule',
+  "method: 'PUT'",
   'formatTimestamp',
   'ConfirmDialog',
   'admin.backups.restoreDialogTitle',
@@ -1134,16 +1140,33 @@ for (const expected of [
 ]) {
   requireContains(superAdminBackupsPageText, 'apps/web-admin/app/admin/backups/page.tsx', expected);
 }
+for (const expected of ['Delete from {location}', 'local server', 'Scaleway S3']) {
+  requireContains(i18nText, 'packages/i18n/src/index.ts', expected);
+}
 if (superAdminBackupsPageText.includes('confirmationByBackup')) {
   errors.push('apps/web-admin/app/admin/backups/page.tsx must not use typed restore confirmation state.');
 }
 if (superAdminBackupsPageText.includes('admin.backups.restoreConfirmation')) {
   errors.push('apps/web-admin/app/admin/backups/page.tsx must not render restore confirmation phrase input.');
 }
-for (const expected of ["@Delete(':backupId')", 'deleteBackup', "location: Extract<BackupLocation, 'local' | 's3'>"]) {
+for (const expected of [
+  "@Delete(':backupId')",
+  'deleteBackup',
+  "location: Extract<BackupLocation, 'local' | 's3'>",
+  "@Get('schedule')",
+  "@Put('schedule')",
+  'getSchedule',
+  'updateSchedule',
+]) {
   requireContains(adminBackupsControllerText, 'apps/api/src/modules/admin/backups.controller.ts', expected);
 }
-for (const expected of ['deleteBackup', "location: Extract<BackupLocation, 'local' | 's3'>"]) {
+for (const expected of [
+  'deleteBackup',
+  "location: Extract<BackupLocation, 'local' | 's3'>",
+  'getSchedule',
+  'updateSchedule',
+  "opsPut<BackupScheduleDto>('/schedule'",
+]) {
   requireContains(adminBackupsServiceText, 'apps/api/src/modules/admin/backups.service.ts', expected);
 }
 for (const expected of ['dto.confirmed', 'RESTORE MYCLASH ${dto.backupId}', 'opsDelete']) {
@@ -1154,12 +1177,26 @@ for (const expected of [
   'deleteBackup(url)',
   'deleteLocalBackupArtifacts',
   'deleteS3BackupArtifacts',
+  'readBackupSchedule',
+  'writeBackupSchedule',
+  'shouldRunScheduledBackup',
+  'maybeRunScheduledBackup',
   'aws',
   's3',
   'rm',
 ]) {
   requireContains(opsRunnerServerText, 'infra/ops-runner/server.mjs', expected);
 }
+for (const forbidden of ['CRON_LINE=', '0 3 * * *']) {
+  if (vpsBootstrapText.includes(forbidden)) {
+    errors.push(`infra/scripts/vps-bootstrap.sh must not install legacy fixed backup cron (${forbidden}).`);
+  }
+}
+requireContains(
+  vpsBootstrapText,
+  'infra/scripts/vps-bootstrap.sh',
+  'Removed legacy host backup cron',
+);
 requireContains(
   opsRunnerBackupCoreText,
   'infra/ops-runner/backup-core.mjs',

@@ -1,9 +1,16 @@
-import { readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const BACKUP_TIMESTAMP_PATTERN = /^\d{8}T\d{6}Z$/;
 export const BACKUP_FILENAME_PATTERN =
   /^(db-(?<dbTs>\d{8}T\d{6}Z)\.sql\.gz|storage-(?<storageTs>\d{8}T\d{6}Z)\.tar\.gz)(?<gpg>\.gpg)?$/;
+export const DEFAULT_BACKUP_SCHEDULE = Object.freeze({
+  enabled: true,
+  hourUtc: 3,
+  minuteUtc: 0,
+  timezoneLabel: 'UTC',
+  updatedAt: null,
+});
 
 export function parseBackupFilename(filename) {
   const base = path.basename(filename);
@@ -100,6 +107,80 @@ export function buildBackupSet(id, timestamp, artifacts, location) {
       ? { upload: { available: artifacts.length > 0, artifacts: artifacts.map(toDtoArtifact) } }
       : {}),
   };
+}
+
+export async function readBackupSchedule(rootDir) {
+  try {
+    const text = await readFile(backupSchedulePath(rootDir), 'utf8');
+    const parsed = JSON.parse(text);
+    return normalizeBackupSchedule(parsed);
+  } catch {
+    return { ...DEFAULT_BACKUP_SCHEDULE };
+  }
+}
+
+export async function writeBackupSchedule(rootDir, input) {
+  const schedule = normalizeBackupSchedule({
+    ...input,
+    updatedAt: new Date().toISOString(),
+  });
+  const filePath = backupSchedulePath(rootDir);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(schedule, null, 2)}\n`, 'utf8');
+  return schedule;
+}
+
+export function normalizeBackupSchedule(input = {}) {
+  const hourUtc = Number(input.hourUtc);
+  const minuteUtc = Number(input.minuteUtc);
+  if (!Number.isInteger(hourUtc) || hourUtc < 0 || hourUtc > 23) {
+    throw new Error('Invalid backup schedule hour.');
+  }
+  if (!Number.isInteger(minuteUtc) || minuteUtc < 0 || minuteUtc > 59) {
+    throw new Error('Invalid backup schedule minute.');
+  }
+  return {
+    enabled: input.enabled === undefined ? true : Boolean(input.enabled),
+    hourUtc,
+    minuteUtc,
+    timezoneLabel:
+      typeof input.timezoneLabel === 'string' && input.timezoneLabel.trim()
+        ? input.timezoneLabel.trim()
+        : 'UTC',
+    updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : null,
+  };
+}
+
+export function nextBackupRun(schedule, from = new Date()) {
+  if (!schedule.enabled) return null;
+  const next = new Date(from);
+  next.setUTCSeconds(0, 0);
+  next.setUTCHours(schedule.hourUtc, schedule.minuteUtc, 0, 0);
+  if (next <= from) next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString();
+}
+
+export function shouldRunScheduledBackup(schedule, now = new Date(), lastRunKey = null) {
+  if (!schedule.enabled) return { shouldRun: false, runKey: null };
+  const runKey = scheduledRunKey(schedule, now);
+  const shouldRun =
+    now.getUTCHours() === schedule.hourUtc &&
+    now.getUTCMinutes() === schedule.minuteUtc &&
+    runKey !== lastRunKey;
+  return { shouldRun, runKey: shouldRun ? runKey : null };
+}
+
+function scheduledRunKey(schedule, now) {
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}T${String(schedule.hourUtc).padStart(2, '0')}:${String(
+    schedule.minuteUtc,
+  ).padStart(2, '0')}Z`;
+}
+
+function backupSchedulePath(rootDir) {
+  return path.join(rootDir, 'data', 'backup-schedule.json');
 }
 
 function addArtifacts(map, location, artifacts) {

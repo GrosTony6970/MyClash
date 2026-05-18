@@ -49,6 +49,15 @@ interface BackupStatus {
   runningOperation: BackupOperation | null;
 }
 
+interface BackupSchedule {
+  enabled: boolean;
+  hourUtc: number;
+  minuteUtc: number;
+  timezoneLabel: string;
+  updatedAt: string | null;
+  nextRunAt: string | null;
+}
+
 interface BackupListResponse {
   generatedAt: string;
   backups: BackupSet[];
@@ -59,6 +68,12 @@ export default function AdminBackupsPage() {
   const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<BackupStatus | null>(null);
+  const [schedule, setSchedule] = useState<BackupSchedule | null>(null);
+  const [scheduleForm, setScheduleForm] = useState({
+    enabled: true,
+    hourUtc: 3,
+    minuteUtc: 0,
+  });
   const [backups, setBackups] = useState<BackupSet[]>([]);
   const [operation, setOperation] = useState<BackupOperation | null>(null);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
@@ -82,19 +97,32 @@ export default function AdminBackupsPage() {
         credentials: 'include',
         signal: controller.signal,
       }),
+      fetch(`${apiUrl}/api/v1/admin/backups/schedule`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
       fetch(`${apiUrl}/api/v1/admin/backups`, {
         credentials: 'include',
         signal: controller.signal,
       }),
     ])
-      .then(async ([statusRes, backupsRes]) => {
+      .then(async ([statusRes, scheduleRes, backupsRes]) => {
         if (statusRes.status === 401 || statusRes.status === 403) {
           throw new Error(t('admin.backups.accessDenied'));
         }
-        if (!statusRes.ok || !backupsRes.ok) throw new Error(t('admin.backups.loadError'));
+        if (!statusRes.ok || !scheduleRes.ok || !backupsRes.ok) {
+          throw new Error(t('admin.backups.loadError'));
+        }
         const nextStatus = (await statusRes.json()) as BackupStatus;
+        const nextSchedule = (await scheduleRes.json()) as BackupSchedule;
         const nextBackups = (await backupsRes.json()) as BackupListResponse;
         setStatus(nextStatus);
+        setSchedule(nextSchedule);
+        setScheduleForm({
+          enabled: nextSchedule.enabled,
+          hourUtc: nextSchedule.hourUtc,
+          minuteUtc: nextSchedule.minuteUtc,
+        });
         setBackups(nextBackups.backups);
         setOperation(nextStatus.runningOperation);
         setError(null);
@@ -232,6 +260,34 @@ export default function AdminBackupsPage() {
       .finally(() => setBusy(false));
   };
 
+  const saveSchedule = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    fetch(`${apiUrl}/api/v1/admin/backups/schedule`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(scheduleForm),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(t('admin.backups.scheduleSaveError'));
+        const nextSchedule = (await res.json()) as BackupSchedule;
+        setSchedule(nextSchedule);
+        setScheduleForm({
+          enabled: nextSchedule.enabled,
+          hourUtc: nextSchedule.hourUtc,
+          minuteUtc: nextSchedule.minuteUtc,
+        });
+        setNotice(t('admin.backups.scheduleSaved'));
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : t('admin.backups.scheduleSaveError')),
+      )
+      .finally(() => setBusy(false));
+  };
+
   return (
     <main id="main-content" className="p-8">
       <div className="mb-2">
@@ -255,8 +311,9 @@ export default function AdminBackupsPage() {
       {error && <Alert tone="error">{error}</Alert>}
       {notice && <Alert tone="success">{notice}</Alert>}
 
-      <section className="mb-6 grid gap-4 md:grid-cols-3">
+      <section className="mb-6 grid gap-4 md:grid-cols-4">
         <StatusCard label={t('admin.backups.lastBackup')} value={statusLabel(status, t)} />
+        <StatusCard label={t('admin.backups.schedule')} value={scheduleLabel(schedule, t)} />
         <StatusCard
           label={t('admin.backups.cloud')}
           value={
@@ -272,6 +329,75 @@ export default function AdminBackupsPage() {
           }
         />
       </section>
+
+      <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-gray-200 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-950">
+              {t('admin.backups.scheduleTitle')}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {schedule?.nextRunAt
+                ? t('admin.backups.scheduleNextRun', {
+                    nextRun: formatTimestamp(schedule.nextRunAt),
+                  })
+                : t('admin.backups.scheduleDisabled')}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[auto_7rem_7rem_auto] sm:items-end">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <input
+                type="checkbox"
+                checked={scheduleForm.enabled}
+                onChange={(event) =>
+                  setScheduleForm((current) => ({ ...current, enabled: event.target.checked }))
+                }
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              {t('admin.backups.scheduleEnabled')}
+            </label>
+            <label className="grid gap-1 text-sm font-semibold text-gray-700">
+              {t('admin.backups.scheduleHourUtc')}
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={scheduleForm.hourUtc}
+                onChange={(event) =>
+                  setScheduleForm((current) => ({
+                    ...current,
+                    hourUtc: Number(event.target.value),
+                  }))
+                }
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-semibold text-gray-700">
+              {t('admin.backups.scheduleMinuteUtc')}
+              <input
+                type="number"
+                min={0}
+                max={59}
+                value={scheduleForm.minuteUtc}
+                onChange={(event) =>
+                  setScheduleForm((current) => ({
+                    ...current,
+                    minuteUtc: Number(event.target.value),
+                  }))
+                }
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {t('admin.backups.scheduleSave')}
+            </button>
+          </div>
+        </div>
+      </form>
 
       {operation && (
         <section className="mb-6 rounded-lg border border-gray-200 p-4">
@@ -542,6 +668,20 @@ function BackupActions(props: {
 function statusLabel(status: BackupStatus | null, t: (key: string) => string): string {
   if (!status?.lastBackup) return t('common.none');
   return `${formatTimestamp(status.lastBackup.timestamp)} - ${t(`admin.backups.statuses.${status.lastBackup.status}`)}`;
+}
+
+function scheduleLabel(
+  schedule: BackupSchedule | null,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  if (!schedule) return t('common.none');
+  if (!schedule.enabled) return t('admin.backups.scheduleDisabled');
+  return t('admin.backups.scheduleAtUtc', {
+    time: `${String(schedule.hourUtc).padStart(2, '0')}:${String(schedule.minuteUtc).padStart(
+      2,
+      '0',
+    )}`,
+  });
 }
 
 function totalBackupSize(backup: BackupSet): number {

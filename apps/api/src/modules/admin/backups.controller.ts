@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -30,10 +31,11 @@ import type {
   BackupDeleteResponseDto,
   BackupListResponseDto,
   BackupLocation,
+  BackupScheduleDto,
   BackupStatusDto,
   BackupUploadResponseDto,
 } from './dto/admin-backups.dto';
-import { RestoreBackupDto } from './dto/admin-backups.dto';
+import { RestoreBackupDto, UpdateBackupScheduleDto } from './dto/admin-backups.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
 @ApiTags('admin')
@@ -60,6 +62,18 @@ export class BackupsAdminController {
   @ApiOperation({ summary: 'Trigger a manual backup' })
   triggerBackup(): Promise<BackupActionResponseDto> {
     return this.backups.triggerBackup();
+  }
+
+  @Get('schedule')
+  @ApiOperation({ summary: 'Get backup schedule' })
+  getSchedule(): Promise<BackupScheduleDto> {
+    return this.backups.getSchedule();
+  }
+
+  @Put('schedule')
+  @ApiOperation({ summary: 'Update backup schedule' })
+  updateSchedule(@Body() dto: UpdateBackupScheduleDto): Promise<BackupScheduleDto> {
+    return this.backups.updateSchedule(dto);
   }
 
   @Post('restore')

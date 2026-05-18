@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 
 export type BackupArtifactKind = 'db' | 'storage';
 export type BackupLocation = 'local' | 's3' | 'upload';
@@ -60,6 +60,15 @@ export interface BackupListResponseDto {
   backups: BackupSetDto[];
 }
 
+export interface BackupScheduleDto {
+  enabled: boolean;
+  hourUtc: number;
+  minuteUtc: number;
+  timezoneLabel: string;
+  updatedAt: string | null;
+  nextRunAt: string | null;
+}
+
 export interface BackupActionResponseDto {
   operation: BackupOperationDto;
 }
@@ -89,4 +98,19 @@ export class RestoreBackupDto {
 
   @IsBoolean()
   confirmed!: boolean;
+}
+
+export class UpdateBackupScheduleDto {
+  @IsBoolean()
+  enabled!: boolean;
+
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hourUtc!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(59)
+  minuteUtc!: number;
 }

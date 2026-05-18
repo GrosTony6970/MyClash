@@ -246,15 +246,13 @@ step_clone_repo() {
 }
 
 step_backup_cron() {
-  _hdr "10 · Nightly backup cron"
+  _hdr "10 · Backup scheduler"
   CRON_FILE="/etc/cron.d/myclash-backup"
-  CRON_LINE="0 3 * * * $DEPLOY_USER bash $REPO_DIR/infra/scripts/backup.sh >> $REPO_DIR/logs/backup.log 2>&1"
-  if [[ -f "$CRON_FILE" ]] && grep -qF "backup.sh" "$CRON_FILE"; then
-    _ok "Backup cron already installed"
+  if [[ -f "$CRON_FILE" ]]; then
+    rm -f "$CRON_FILE"
+    _ok "Removed legacy host backup cron; ops-runner manages the editable schedule"
   else
-    echo "$CRON_LINE" > "$CRON_FILE"
-    chmod 644 "$CRON_FILE"
-    _ok "Backup cron installed: daily at 03:00 UTC"
+    _ok "No legacy host backup cron found; ops-runner manages backups"
   fi
 }
 
@@ -303,7 +301,7 @@ STEP_LABELS=(
   "Deploy user ($DEPLOY_USER)"
   "Repo directory ($REPO_DIR)"
   "Clone repository"
-  "Nightly backup cron"
+  "Backup scheduler"
   "Scaleway S3 credentials info"
 )
 

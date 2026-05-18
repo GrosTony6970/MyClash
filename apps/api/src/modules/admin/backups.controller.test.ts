@@ -12,10 +12,12 @@ describe('BackupsAdminController guards', () => {
     expect(controllerGuards()).toContain(SuperAdminGuard);
   });
 
-  it('exposes backup deletion and restore handlers', () => {
+  it('exposes backup deletion, restore, and schedule handlers', () => {
     const controller = new BackupsAdminController({} as never);
 
     expect(typeof controller.deleteBackup).toBe('function');
     expect(typeof controller.restoreBackup).toBe('function');
+    expect(typeof controller.getSchedule).toBe('function');
+    expect(typeof controller.updateSchedule).toBe('function');
   });
 });

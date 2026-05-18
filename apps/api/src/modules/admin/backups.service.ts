@@ -10,11 +10,12 @@ import type {
   BackupListResponseDto,
   BackupLocation,
   BackupOperationDto,
+  BackupScheduleDto,
   BackupSetDto,
   BackupStatusDto,
   BackupUploadResponseDto,
 } from './dto/admin-backups.dto';
-import type { RestoreBackupDto } from './dto/admin-backups.dto';
+import type { RestoreBackupDto, UpdateBackupScheduleDto } from './dto/admin-backups.dto';
 
 const TIMESTAMP_PATTERN = /^\d{8}T\d{6}Z$/;
 const BACKUP_FILENAME_PATTERN =
@@ -88,6 +89,19 @@ export class AdminBackupsService {
 
   async triggerBackup(): Promise<BackupActionResponseDto> {
     return this.opsPost<BackupActionResponseDto>('/operations/backup', {});
+  }
+
+  async getSchedule(): Promise<BackupScheduleDto> {
+    return this.opsGet<BackupScheduleDto>('/schedule');
+  }
+
+  async updateSchedule(dto: UpdateBackupScheduleDto): Promise<BackupScheduleDto> {
+    return this.opsPut<BackupScheduleDto>('/schedule', {
+      enabled: dto.enabled,
+      hourUtc: dto.hourUtc,
+      minuteUtc: dto.minuteUtc,
+      timezoneLabel: 'UTC',
+    });
   }
 
   async restoreBackup(dto: RestoreBackupDto): Promise<BackupActionResponseDto> {
@@ -181,6 +195,14 @@ export class AdminBackupsService {
   private async opsPost<T>(route: string, body: unknown): Promise<T> {
     return this.opsRequest<T>(route, {
       method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  private async opsPut<T>(route: string, body: unknown): Promise<T> {
+    return this.opsRequest<T>(route, {
+      method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });

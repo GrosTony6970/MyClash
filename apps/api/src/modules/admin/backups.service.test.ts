@@ -111,6 +111,60 @@ describe('AdminBackupsService', () => {
     );
   });
 
+  it('gets and updates backup schedule through the ops runner', async () => {
+    const schedule = {
+      enabled: true,
+      hourUtc: 3,
+      minuteUtc: 0,
+      timezoneLabel: 'UTC',
+      updatedAt: null,
+      nextRunAt: '2026-05-18T03:00:00.000Z',
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(schedule), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...schedule, enabled: false, hourUtc: 22 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(service.getSchedule()).resolves.toEqual(schedule);
+    await expect(
+      service.updateSchedule({ enabled: false, hourUtc: 22, minuteUtc: 0 }),
+    ).resolves.toEqual({ ...schedule, enabled: false, hourUtc: 22 });
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      'http://ops-runner:4075/schedule',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      'http://ops-runner:4075/schedule',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled: false,
+          hourUtc: 22,
+          minuteUtc: 0,
+          timezoneLabel: 'UTC',
+        }),
+      }),
+    );
+  });
+
   it('delegates per-location backup deletion to the ops runner', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(

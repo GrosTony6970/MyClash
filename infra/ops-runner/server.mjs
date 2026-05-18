@@ -11,8 +11,12 @@ import {
   buildBackupSet,
   expectedBackupArtifactFilenames,
   listLocalBackupArtifacts,
+  nextBackupRun,
   parseAwsS3List,
   parseBackupFilename,
+  readBackupSchedule,
+  shouldRunScheduledBackup,
+  writeBackupSchedule,
 } from './backup-core.mjs';
 
 const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
@@ -20,6 +24,8 @@ const SECRET = process.env.OPS_RUNNER_SECRET ?? '';
 const ROOT_DIR = process.env.MYCLASH_ROOT_DIR ?? '/srv/myclash';
 const MAX_BODY_BYTES = Number(process.env.OPS_RUNNER_MAX_BODY_BYTES ?? 1024 * 1024 * 1024);
 const operations = new Map();
+let backupSchedule = await readBackupSchedule(ROOT_DIR);
+let lastScheduledRunKey = null;
 
 if (!SECRET) {
   console.error('OPS_RUNNER_SECRET is required');
@@ -40,6 +46,15 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/backups') {
       sendJson(res, 200, await backupsResponse());
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/schedule') {
+      sendJson(res, 200, scheduleResponse());
+      return;
+    }
+    if (req.method === 'PUT' && url.pathname === '/schedule') {
+      backupSchedule = await writeBackupSchedule(ROOT_DIR, await readJsonBody(req));
+      sendJson(res, 200, scheduleResponse());
       return;
     }
     if (req.method === 'DELETE' && url.pathname.startsWith('/backups/')) {
@@ -87,6 +102,11 @@ server.listen(PORT, '0.0.0.0', () => {
   console.info(`MyClash ops runner listening on http://0.0.0.0:${PORT}`);
 });
 
+const scheduleTimer = setInterval(() => {
+  void maybeRunScheduledBackup();
+}, 30_000);
+scheduleTimer.unref?.();
+
 async function statusResponse() {
   const backups = (await backupsResponse()).backups;
   const runningOperation = [...operations.values()].find((op) => op.status === 'running') ?? null;
@@ -112,6 +132,24 @@ async function backupsResponse() {
     generatedAt: new Date().toISOString(),
     backups: backupSetsFromArtifacts({ localArtifacts, cloudArtifacts }),
   };
+}
+
+function scheduleResponse() {
+  return {
+    ...backupSchedule,
+    nextRunAt: nextBackupRun(backupSchedule),
+  };
+}
+
+async function maybeRunScheduledBackup(now = new Date()) {
+  const decision = shouldRunScheduledBackup(backupSchedule, now, lastScheduledRunKey);
+  if (!decision.shouldRun || !decision.runKey) return;
+  lastScheduledRunKey = decision.runKey;
+  const runningOperation = [...operations.values()].find((op) => op.status === 'running');
+  if (runningOperation) return;
+  startOperation('backup', () => runScript(['infra/scripts/backup.sh']), {
+    scheduled: true,
+  });
 }
 
 async function listCloudArtifacts() {
