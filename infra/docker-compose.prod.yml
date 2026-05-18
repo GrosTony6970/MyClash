@@ -375,11 +375,16 @@ services:
       - traefik.http.routers.myclash-admin-api.priority=30
       - traefik.http.routers.myclash-admin-api.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
+      # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
+      # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
+      - traefik.http.middlewares.supabase-auth-strip.stripprefix.prefixes=/auth/v1
+      - traefik.http.middlewares.supabase-realtime-strip.stripprefix.prefixes=/realtime/v1
+      - traefik.http.middlewares.supabase-storage-strip.stripprefix.prefixes=/storage/v1
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
       - traefik.http.routers.myclash-auth.tls=true
       - traefik.http.routers.myclash-auth.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-auth.middlewares=myclash-security-headers@file
+      - traefik.http.routers.myclash-auth.middlewares=myclash-security-headers@file,supabase-auth-strip
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
       - traefik.http.services.myclash-supabase-auth.loadbalancer.server.url=http://supabase-auth:9999
@@ -387,7 +392,7 @@ services:
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
       - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file
+      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file,supabase-realtime-strip
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
       - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.url=http://supabase-realtime:4000
@@ -395,7 +400,7 @@ services:
       - traefik.http.routers.myclash-storage.entrypoints=websecure
       - traefik.http.routers.myclash-storage.tls=true
       - traefik.http.routers.myclash-storage.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-storage.middlewares=myclash-security-headers@file
+      - traefik.http.routers.myclash-storage.middlewares=myclash-security-headers@file,supabase-storage-strip
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.url=http://supabase-storage:5000
