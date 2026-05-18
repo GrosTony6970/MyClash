@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { HemaRatingsSuggest, type HemaRatingsSuggestion } from '@/components/HemaRatingsSuggest';
+import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 
 interface Person {
   id: string;
@@ -27,15 +28,6 @@ interface Registration {
 interface Tournament {
   id: string;
   name: string;
-}
-
-interface GlobalPersonSuggestion {
-  id: string;
-  displayName: string;
-  givenName: string;
-  familyName: string;
-  clubLabel: string | null;
-  hemaRatingsId: string | null;
 }
 
 interface ClubSuggestion {
@@ -162,7 +154,9 @@ export default function ParticipantsPage() {
         credentials: 'include',
       })
         .then(async (res) => {
-          if (res.ok) setGlobalSuggestions((await res.json()) as GlobalPersonSuggestion[]);
+          if (!res.ok) return;
+          const rows = (await res.json()) as Array<Record<string, unknown>>;
+          setGlobalSuggestions(rows.map(mapGlobalPersonSuggestion));
         })
         .catch(() => undefined);
     }, 250);

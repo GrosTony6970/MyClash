@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -22,12 +23,21 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import type { ImportDecision } from '@myclash/types';
+import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
 import { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
-/** Extract authenticated user ID from request (set by Supabase JWT). */
-function getUserId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { userId?: string }).userId ?? 'unknown';
+/** Resolve the authenticated user UUID from the Supabase access token. */
+async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
+  const authHeader = req.headers['authorization'];
+  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : cookies?.['sb-access-token'];
+  if (!token) throw new UnauthorizedException('Authentication required');
+  const user = await supabase.getAuthUser(token);
+  if (!user?.id) throw new UnauthorizedException('Invalid or expired session');
+  return user.id;
 }
 
 /** Read all multipart parts, returning file buffer + any JSON fields. */
@@ -65,7 +75,10 @@ async function readMultipart(
 @ApiBearerAuth()
 @Controller()
 export class PersonsController {
-  constructor(private readonly persons: PersonsService) {}
+  constructor(
+    private readonly persons: PersonsService,
+    private readonly supabase: SupabaseService,
+  ) {}
 
   /**
    * GET /api/v1/events/:eventId/persons
@@ -94,7 +107,7 @@ export class PersonsController {
     @Body() dto: CreatePersonDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.persons.createPerson(eventId, dto, getUserId(req));
+    return this.persons.createPerson(eventId, dto, await getUserId(req, this.supabase));
   }
 
   /**
@@ -180,7 +193,7 @@ export class PersonsController {
       }
     }
 
-    return this.persons.importCsv(eventId, buffer, getUserId(req), decisions);
+    return this.persons.importCsv(eventId, buffer, await getUserId(req, this.supabase), decisions);
   }
 
   /**
