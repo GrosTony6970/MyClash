@@ -24,6 +24,16 @@ import type {
 
 type Row = Record<string, unknown>;
 
+const LEAGUE_LOGO_BUCKET = 'event-assets';
+const LEAGUE_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_LEAGUE_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+export interface LeagueLogoUpload {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}
+
 @Injectable()
 export class LeaguesService {
   constructor(
@@ -193,6 +203,216 @@ export class LeaguesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  // ── Logo upload + delete ────────────────────────────────────────────────────
+
+  async uploadLogo(
+    leagueId: string,
+    file: LeagueLogoUpload,
+    userId: string,
+  ): Promise<{ url: string }> {
+    await this.assertCanManageLeague(leagueId, userId);
+
+    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
+    if (file.buffer.length > LEAGUE_LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
+    }
+    if (!ALLOWED_LEAGUE_LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureLogoBucket();
+    const extension = this.extensionFor(file.mimetype);
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `leagues/${leagueId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(LEAGUE_LOGO_BUCKET)
+      .upload(path, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+    if (error) throw new BadRequestException(error.message);
+
+    const { data } = this.supabase.service.storage.from(LEAGUE_LOGO_BUCKET).getPublicUrl(path);
+    const { error: updateError } = await this.supabase.service
+      .from('leagues')
+      .update({ logo_url: data.publicUrl, updated_at: new Date().toISOString() })
+      .eq('id', leagueId);
+    if (updateError) throw new BadRequestException(updateError.message);
+    return { url: data.publicUrl };
+  }
+
+  async deleteLogo(leagueId: string, userId: string): Promise<{ id: string; logo_url: null }> {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data: league, error: lookupError } = await this.supabase.service
+      .from('leagues')
+      .select('id, logo_url')
+      .eq('id', leagueId)
+      .maybeSingle();
+    if (lookupError) throw new BadRequestException(lookupError.message);
+    if (!league) throw new NotFoundException(`League ${leagueId} not found`);
+
+    const current = (league as { id: string; logo_url: string | null }).logo_url;
+    if (!current) return { id: leagueId, logo_url: null };
+
+    const prefix = `leagues/${leagueId}`;
+    const bucket = this.supabase.service.storage.from(LEAGUE_LOGO_BUCKET);
+    const { data: objects, error: listError } = await bucket.list(prefix);
+    if (listError && !/not found/iu.test(listError.message)) {
+      throw new BadRequestException(listError.message);
+    }
+    const keys = (objects ?? [])
+      .map((obj) => (obj && typeof obj === 'object' ? (obj as { name?: string }).name : undefined))
+      .filter((name): name is string => typeof name === 'string' && name.length > 0)
+      .map((name) => `${prefix}/${name}`);
+    if (keys.length > 0) {
+      const { error: removeError } = await bucket.remove(keys);
+      if (removeError && !/not found/iu.test(removeError.message)) {
+        throw new BadRequestException(removeError.message);
+      }
+    }
+
+    const { error: updateError } = await this.supabase.service
+      .from('leagues')
+      .update({ logo_url: null, updated_at: new Date().toISOString() })
+      .eq('id', leagueId);
+    if (updateError) throw new BadRequestException(updateError.message);
+    return { id: leagueId, logo_url: null };
+  }
+
+  private extensionFor(mimetype: string): 'png' | 'jpg' | 'webp' {
+    if (mimetype === 'image/png') return 'png';
+    if (mimetype === 'image/webp') return 'webp';
+    return 'jpg';
+  }
+
+  private async ensureLogoBucket(): Promise<void> {
+    const storage = this.supabase.service.storage;
+    const { data, error } = await storage.getBucket(LEAGUE_LOGO_BUCKET);
+    if (data && !error) return;
+    const created = await storage.createBucket(LEAGUE_LOGO_BUCKET, {
+      public: true,
+      fileSizeLimit: LEAGUE_LOGO_MAX_BYTES,
+      allowedMimeTypes: Array.from(ALLOWED_LEAGUE_LOGO_MIME_TYPES),
+    });
+    if (created.error && !/already exists/iu.test(created.error.message)) {
+      throw new BadRequestException(created.error.message);
+    }
+  }
+
+  // ── Assignment list / remove ────────────────────────────────────────────────
+
+  async listUserRoles(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('league_user_roles')
+      .select('user_id, role, created_at')
+      .eq('league_id', leagueId)
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+
+    const out: Array<{
+      userId: string;
+      role: string;
+      displayName: string | null;
+      email: string | null;
+      organizations: Array<{ id: string; name: string; slug: string; role: string }>;
+    }> = [];
+
+    for (const row of rows) {
+      const memberUserId = row['user_id'] as string;
+      const authRes = await this.supabase.getAuthAdminUser(memberUserId);
+      const authUser = authRes.ok && authRes.data ? authRes.data : null;
+      const displayName =
+        typeof authUser?.user_metadata?.['display_name'] === 'string'
+          ? (authUser.user_metadata['display_name'] as string).trim() || null
+          : null;
+      const email = authUser?.email ?? null;
+
+      const { data: memberships } = await this.supabase.service
+        .from('organization_members')
+        .select('role, organizations(id, name, slug)')
+        .eq('user_id', memberUserId);
+      const orgs = ((memberships ?? []) as Array<Record<string, unknown>>)
+        .map((m) => {
+          const org = m['organizations'] as { id?: string; name?: string; slug?: string } | null;
+          if (!org?.id) return null;
+          return {
+            id: org.id,
+            name: org.name ?? '',
+            slug: org.slug ?? '',
+            role: (m['role'] as string) ?? '',
+          };
+        })
+        .filter(
+          (entry): entry is { id: string; name: string; slug: string; role: string } =>
+            entry !== null,
+        );
+
+      out.push({
+        userId: memberUserId,
+        role: (row['role'] as string) ?? 'admin',
+        displayName,
+        email,
+        organizations: orgs,
+      });
+    }
+    return out;
+  }
+
+  async removeUserRole(leagueId: string, targetUserId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('league_user_roles')
+      .delete()
+      .eq('league_id', leagueId)
+      .eq('user_id', targetUserId)
+      .select('user_id')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('League user role not found');
+    return { leagueId, userId: targetUserId };
+  }
+
+  async listOrganizationRoles(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('league_organization_roles')
+      .select('organization_id, role, created_at, organizations(id, name, slug)')
+      .eq('league_id', leagueId)
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const org = row['organizations'] as { id?: string; name?: string; slug?: string } | null;
+      return {
+        organizationId: row['organization_id'] as string,
+        role: (row['role'] as string) ?? 'member',
+        name: org?.name ?? '',
+        slug: org?.slug ?? '',
+      };
+    });
+  }
+
+  async removeOrganizationRole(leagueId: string, organizationId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('league_organization_roles')
+      .delete()
+      .eq('league_id', leagueId)
+      .eq('organization_id', organizationId)
+      .select('organization_id')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('League organization role not found');
+    return { leagueId, organizationId };
   }
 
   async requestTournamentLink(leagueId: string, tournamentId: string, userId: string) {

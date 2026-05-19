@@ -175,6 +175,30 @@ export class LeaguesController {
     return this.leagues.addOrganizationRole(leagueId, dto, userId);
   }
 
+  @Get('admin/leagues/:leagueId/organization-roles')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List organizations linked to a league' })
+  async listOrganizationRoles(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listOrganizationRoles(leagueId, userId);
+  }
+
+  @Delete('admin/leagues/:leagueId/organization-roles/:organizationId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove an organization from a league' })
+  async removeOrganizationRole(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.removeOrganizationRole(leagueId, organizationId, userId);
+  }
+
   @Post('admin/leagues/:leagueId/user-roles')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Grant a user a league role' })
@@ -185,6 +209,64 @@ export class LeaguesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.leagues.addUserRole(leagueId, dto, userId);
+  }
+
+  @Get('admin/leagues/:leagueId/user-roles')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List users with a role in a league' })
+  async listUserRoles(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listUserRoles(leagueId, userId);
+  }
+
+  @Delete('admin/leagues/:leagueId/user-roles/:targetUserId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a user from a league role' })
+  async removeUserRole(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.removeUserRole(leagueId, targetUserId, userId);
+  }
+
+  @Post('admin/leagues/:leagueId/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload a league logo (PNG/JPEG/WebP, 10 MB max)' })
+  async uploadLogo(@Param('leagueId', ParseUUIDPipe) leagueId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.leagues.uploadLogo(
+      leagueId,
+      {
+        buffer,
+        filename: data?.filename ?? '',
+        mimetype: data?.mimetype ?? '',
+      },
+      userId,
+    );
+  }
+
+  @Delete('admin/leagues/:leagueId/logo')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a league logo' })
+  async deleteLogo(@Param('leagueId', ParseUUIDPipe) leagueId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.deleteLogo(leagueId, userId);
   }
 
   @Post('admin/leagues/:leagueId/tournaments/:tournamentId/request')
