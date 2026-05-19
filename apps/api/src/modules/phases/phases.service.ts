@@ -194,7 +194,7 @@ export class PhasesService {
 
     // Create pools + pool_members + matches
     for (let i = 0; i < poolCount; i++) {
-      const poolName = `Pool ${String.fromCharCode(65 + i)}`;
+      const poolName = `Pool ${i + 1}`;
       const registrationIds = poolMap.get(i) ?? [];
 
       const { data: pool, error: poolError } = await this.supabase.service
@@ -569,11 +569,13 @@ export class PhasesService {
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name))))',
+        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name)), global_persons(hema_ratings_id)))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
+
+    const weightedRatings = await this.weightedRatingsForTournament(tournamentId);
 
     return {
       phaseId,
@@ -585,15 +587,48 @@ export class PhasesService {
           const registration = member['registrations'] as Record<string, unknown> | null;
           const person = registration?.['persons'] as Record<string, unknown> | null;
           const club = person?.['clubs'] as Record<string, unknown> | null;
+          const fighter = registration?.['global_persons'] as Record<string, unknown> | null;
+          const hemaRatingsId = (fighter?.['hema_ratings_id'] as string | null) ?? null;
           return {
             registrationId: member['registration_id'],
             personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),
             clubLabel: (club?.['name'] as string | null) ?? null,
             seed: member['seed'] ?? 0,
+            hemaWeightedRating:
+              hemaRatingsId && weightedRatings.has(hemaRatingsId)
+                ? (weightedRatings.get(hemaRatingsId) ?? null)
+                : null,
           };
         }),
       })),
     };
+  }
+
+  private async weightedRatingsForTournament(tournamentId: string): Promise<Map<string, number>> {
+    if (!this.hemaRatings) return new Map<string, number>();
+    const { data: tournament } = await this.supabase.service
+      .from('tournaments')
+      .select('weapon')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
+    if (!weapon) return new Map<string, number>();
+    const { data: regs } = await this.supabase.service
+      .from('registrations')
+      .select('global_persons(hema_ratings_id)')
+      .eq('tournament_id', tournamentId);
+    const hemaIds = Array.from(
+      new Set(
+        ((regs ?? []) as Array<Record<string, unknown>>)
+          .map((reg) => {
+            const fighter = reg['global_persons'] as { hema_ratings_id: string | null } | null;
+            return fighter?.hema_ratings_id ?? null;
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    if (hemaIds.length === 0) return new Map<string, number>();
+    return this.hemaRatings.resolveWeightedRatings(hemaIds, weapon);
   }
 
   async getTournamentBracket(tournamentId: string) {
@@ -677,5 +712,245 @@ export class PhasesService {
         .length,
       completedMatchCount: rows.filter((row) => row.status === 'completed').length,
     };
+  }
+
+  // ── Pool edit endpoints ──────────────────────────────────────────────────
+
+  private async getPoolContext(poolId: string) {
+    const { data, error } = await this.supabase.service
+      .from('pools')
+      .select(
+        'id, name, phase_id, sort_order, phases!inner(id, tournament_id, tournaments!inner(event_id, weapon, events!inner(organization_id)))',
+      )
+      .eq('id', poolId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Pool ${poolId} not found`);
+    const row = data as Record<string, unknown>;
+    const phase = row['phases'] as Record<string, unknown>;
+    const tournament = phase['tournaments'] as Record<string, unknown>;
+    const event = tournament['events'] as Record<string, unknown>;
+    return {
+      poolId: row['id'] as string,
+      poolName: row['name'] as string,
+      phaseId: phase['id'] as string,
+      tournamentId: (tournament['tournament_id'] as string) ?? (phase['tournament_id'] as string),
+      eventId: tournament['event_id'] as string,
+      weapon: (tournament['weapon'] as string | null) ?? null,
+      organizationId: event['organization_id'] as string,
+    };
+  }
+
+  private async assertPoolEditable(poolId: string) {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, status', { count: 'exact', head: false })
+      .eq('pool_id', poolId)
+      .in('status', ['running', 'paused', 'completed']);
+    if (error) throw new BadRequestException(error.message);
+    if ((data ?? []).length > 0) {
+      throw new ConflictException({
+        message: 'Pool is locked because scoring has started in at least one match.',
+        poolId,
+        startedMatches: (data ?? []).length,
+      });
+    }
+  }
+
+  private async assertPoolEditAuth(poolId: string, userId: string) {
+    const ctx = await this.getPoolContext(poolId);
+    if (!this.orgs) {
+      throw new BadRequestException('Organizations service not wired');
+    }
+    await this.orgs.assertOrgRole(ctx.organizationId, userId, 'admin');
+    return ctx;
+  }
+
+  async renamePool(poolId: string, name: string, userId: string) {
+    const trimmed = name?.trim();
+    if (!trimmed) throw new BadRequestException('Pool name is required');
+    await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    const { data, error } = await this.supabase.service
+      .from('pools')
+      .update({ name: trimmed })
+      .eq('id', poolId)
+      .select('id, name')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async addPoolMember(poolId: string, registrationId: string, userId: string) {
+    const dst = await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    // Find any existing membership for this registration in pools of the same tournament.
+    const { data: existing } = await this.supabase.service
+      .from('pool_members')
+      .select('id, pool_id, pools!inner(phase_id, phases!inner(tournament_id))')
+      .eq('registration_id', registrationId);
+    const stale = ((existing ?? []) as Array<Record<string, unknown>>).filter((row) => {
+      const pool = row['pools'] as Record<string, unknown>;
+      const phase = pool['phases'] as Record<string, unknown>;
+      return (phase['tournament_id'] as string) === dst.tournamentId;
+    });
+
+    const sourcePoolIds = new Set<string>();
+    for (const row of stale) {
+      const fromPoolId = row['pool_id'] as string;
+      if (fromPoolId === poolId) {
+        // Already in destination; no-op
+        return { poolId, registrationId, moved: false };
+      }
+      sourcePoolIds.add(fromPoolId);
+      await this.assertPoolEditable(fromPoolId);
+    }
+
+    // Remove any stale membership rows for this registration
+    if (stale.length > 0) {
+      const { error: delErr } = await this.supabase.service
+        .from('pool_members')
+        .delete()
+        .eq('registration_id', registrationId)
+        .in(
+          'pool_id',
+          stale.map((row) => row['pool_id'] as string),
+        );
+      if (delErr) throw new BadRequestException(delErr.message);
+    }
+
+    // Append at the end (next seed in destination)
+    const { data: dstMembers } = await this.supabase.service
+      .from('pool_members')
+      .select('seed')
+      .eq('pool_id', poolId);
+    const nextSeed =
+      ((dstMembers ?? []) as Array<{ seed: number }>).reduce(
+        (max, m) => Math.max(max, m.seed ?? 0),
+        0,
+      ) + 1;
+
+    const { error: insErr } = await this.supabase.service.from('pool_members').insert({
+      pool_id: poolId,
+      registration_id: registrationId,
+      seed: nextSeed,
+    });
+    if (insErr) throw new BadRequestException(insErr.message);
+
+    await this.regeneratePoolMatches(poolId);
+    for (const sourcePoolId of sourcePoolIds) {
+      await this.regeneratePoolMatches(sourcePoolId);
+    }
+    return { poolId, registrationId, moved: true };
+  }
+
+  async removePoolMember(poolId: string, registrationId: string, userId: string) {
+    await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    const { error } = await this.supabase.service
+      .from('pool_members')
+      .delete()
+      .eq('pool_id', poolId)
+      .eq('registration_id', registrationId);
+    if (error) throw new BadRequestException(error.message);
+
+    await this.regeneratePoolMatches(poolId);
+    return { poolId, registrationId };
+  }
+
+  private async regeneratePoolMatches(poolId: string) {
+    const ctx = await this.getPoolContext(poolId);
+
+    // Wipe existing matches for the pool
+    const { error: delErr } = await this.supabase.service
+      .from('matches')
+      .delete()
+      .eq('pool_id', poolId);
+    if (delErr) throw new BadRequestException(delErr.message);
+
+    // Resequence seeds 1..N in current order
+    const { data: members } = await this.supabase.service
+      .from('pool_members')
+      .select('id, registration_id, seed')
+      .eq('pool_id', poolId)
+      .order('seed', { ascending: true });
+    const ordered = (members ?? []) as Array<{ id: string; registration_id: string; seed: number }>;
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i]!.seed !== i + 1) {
+        await this.supabase.service
+          .from('pool_members')
+          .update({ seed: i + 1 })
+          .eq('id', ordered[i]!.id);
+      }
+    }
+    const registrationIds = ordered.map((m) => m.registration_id);
+    if (registrationIds.length < 2) return; // no matches possible
+
+    const poolNumberLabel =
+      typeof ctx.poolName === 'string' ? ctx.poolName.replace(/\D+/gu, '') || '1' : '1';
+    const bergerMatches = bergerSchedule(registrationIds.length, {
+      liceLabel: '1',
+      poolLabel: poolNumberLabel,
+    });
+    const matchInserts = bergerMatches.map((bm) => ({
+      phase_id: ctx.phaseId,
+      pool_id: poolId,
+      red_registration_id: registrationIds[bm.homeIndex]!,
+      blue_registration_id: registrationIds[bm.awayIndex]!,
+      ruleset_code: 'TF_v1',
+      ruleset_version: '1.0.0',
+      match_number_label: bm.label,
+      status: 'scheduled',
+      red_score: 0,
+      blue_score: 0,
+    }));
+    if (matchInserts.length > 0) {
+      const { error: insErr } = await this.supabase.service.from('matches').insert(matchInserts);
+      if (insErr) throw new BadRequestException(insErr.message);
+    }
+  }
+
+  async listUnassignedFighters(tournamentId: string) {
+    // 1. Fetch all confirmed registrations for the tournament
+    const { data: regs, error: regErr } = await this.supabase.service
+      .from('registrations')
+      .select('id, persons(given_name, family_name, clubs(name)), global_persons(hema_ratings_id)')
+      .eq('tournament_id', tournamentId);
+    if (regErr) throw new BadRequestException(regErr.message);
+
+    // 2. Fetch all pool_members for this tournament's pools
+    const { data: pooled, error: poolErr } = await this.supabase.service
+      .from('pool_members')
+      .select('registration_id, pools!inner(phase_id, phases!inner(tournament_id))')
+      .eq('pools.phases.tournament_id', tournamentId);
+    if (poolErr) throw new BadRequestException(poolErr.message);
+    const assignedIds = new Set(
+      ((pooled ?? []) as Array<Record<string, unknown>>).map(
+        (row) => row['registration_id'] as string,
+      ),
+    );
+
+    const weightedRatings = await this.weightedRatingsForTournament(tournamentId);
+
+    return ((regs ?? []) as Array<Record<string, unknown>>)
+      .filter((reg) => !assignedIds.has(reg['id'] as string))
+      .map((reg) => {
+        const person = reg['persons'] as Record<string, unknown> | null;
+        const club = person?.['clubs'] as Record<string, unknown> | null;
+        const fighter = reg['global_persons'] as Record<string, unknown> | null;
+        const hemaRatingsId = (fighter?.['hema_ratings_id'] as string | null) ?? null;
+        return {
+          registrationId: reg['id'] as string,
+          personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),
+          clubLabel: (club?.['name'] as string | null) ?? null,
+          hemaWeightedRating:
+            hemaRatingsId && weightedRatings.has(hemaRatingsId)
+              ? (weightedRatings.get(hemaRatingsId) ?? null)
+              : null,
+        };
+      });
   }
 }

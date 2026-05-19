@@ -169,7 +169,7 @@ export class PoolGeneratorService {
     const pools = Array.from({ length: poolCount }, (_, i) => {
       const registrationIds = poolMap.get(i) ?? [];
       return {
-        name: `Pool ${String.fromCharCode(65 + i)}`, // Pool A, Pool B, ...
+        name: `Pool ${i + 1}`, // Pool 1, Pool 2, ...
         registrationIds,
         size: registrationIds.length,
       };

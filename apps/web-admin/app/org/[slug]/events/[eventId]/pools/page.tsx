@@ -25,6 +25,7 @@ interface PoolMember {
   personName: string;
   clubLabel: string | null;
   seed: number;
+  hemaWeightedRating: number | null;
 }
 
 interface Pool {
@@ -38,6 +39,15 @@ interface PoolsResponse {
   visibility: 'hidden' | 'published';
   pools: Pool[];
 }
+
+interface UnassignedFighter {
+  registrationId: string;
+  personName: string;
+  clubLabel: string | null;
+  hemaWeightedRating: number | null;
+}
+
+const UNASSIGNED_DROP_ID = '__unassigned__';
 
 interface Conflict {
   personName: string;
@@ -83,11 +93,20 @@ export default function PoolsPage() {
   const [notifyHref, setNotifyHref] = useState<string | null>(null);
   const [existingPhase, setExistingPhase] = useState(false);
 
-  // Drag state
+  // Drag state. fromPoolId === UNASSIGNED_DROP_ID means the fighter is dragged
+  // from the unassigned bucket (no source pool delete needed).
   const [dragging, setDragging] = useState<{
     memberId: string;
     fromPoolId: string;
   } | null>(null);
+
+  // Unassigned bucket + member editing state
+  const [unassigned, setUnassigned] = useState<UnassignedFighter[]>([]);
+  const [editBusy, setEditBusy] = useState(false);
+  const [lockBanner, setLockBanner] = useState<string | null>(null);
+  const [renamingPoolId, setRenamingPoolId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameBusy, setRenameBusy] = useState(false);
 
   // ── Load tournaments ────────────────────────────────────────────────────────
 
@@ -110,20 +129,30 @@ export default function PoolsPage() {
   // ── Load existing pools ─────────────────────────────────────────────────────
 
   async function loadPools(tournamentId: string, signal?: AbortSignal) {
-    const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pools`, {
-      credentials: 'include',
-      signal,
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as Pool[] | PoolsResponse;
-    const nextPools = Array.isArray(data) ? data : data.pools;
-    if (!Array.isArray(data)) {
-      setPoolPhaseId(data.phaseId);
-      setVisibility(data.visibility);
-    }
-    if (nextPools.length > 0) {
+    const [poolsRes, unassignedRes] = await Promise.all([
+      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pools`, {
+        credentials: 'include',
+        signal,
+      }),
+      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/unassigned-fighters`, {
+        credentials: 'include',
+        signal,
+      }),
+    ]);
+
+    if (poolsRes.ok) {
+      const data = (await poolsRes.json()) as Pool[] | PoolsResponse;
+      const nextPools = Array.isArray(data) ? data : data.pools;
+      if (!Array.isArray(data)) {
+        setPoolPhaseId(data.phaseId);
+        setVisibility(data.visibility);
+      }
       setPools(nextPools);
-      setExistingPhase(true);
+      setExistingPhase(nextPools.length > 0);
+    }
+
+    if (unassignedRes.ok) {
+      setUnassigned((await unassignedRes.json()) as UnassignedFighter[]);
     }
   }
 
@@ -237,46 +266,107 @@ export default function PoolsPage() {
     }
   }
 
-  // ── Drag-drop pool member swap ──────────────────────────────────────────────
+  // ── Drag-drop pool member edit ──────────────────────────────────────────────
+
+  async function handlePoolEditResponse(res: Response): Promise<boolean> {
+    if (res.ok) {
+      setLockBanner(null);
+      return true;
+    }
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      setLockBanner(
+        body.message ?? 'Pool is locked because scoring has started in at least one match.',
+      );
+      return false;
+    }
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    setError(body.message ?? t('organizer.phaseVisibility.updateError'));
+    return false;
+  }
+
+  async function moveMemberToPool(registrationId: string, toPoolId: string) {
+    setEditBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${toPoolId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ registrationId }),
+      });
+      const ok = await handlePoolEditResponse(res);
+      if (ok) {
+        await loadPools(selectedTournament);
+        await checkConflicts();
+      }
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function removeMemberFromPool(fromPoolId: string, registrationId: string) {
+    setEditBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${fromPoolId}/members/${registrationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const ok = await handlePoolEditResponse(res);
+      if (ok) {
+        await loadPools(selectedTournament);
+        await checkConflicts();
+      }
+    } finally {
+      setEditBusy(false);
+    }
+  }
 
   async function handleDrop(toPoolId: string) {
-    if (!dragging || dragging.fromPoolId === toPoolId) {
-      setDragging(null);
+    if (!dragging) return;
+    const { memberId, fromPoolId } = dragging;
+    setDragging(null);
+    if (fromPoolId === toPoolId) return;
+    await moveMemberToPool(memberId, toPoolId);
+  }
+
+  async function handleDropOnUnassigned() {
+    if (!dragging) return;
+    const { memberId, fromPoolId } = dragging;
+    setDragging(null);
+    if (fromPoolId === UNASSIGNED_DROP_ID) return;
+    await removeMemberFromPool(fromPoolId, memberId);
+  }
+
+  async function startRename(pool: Pool) {
+    setRenamingPoolId(pool.id);
+    setRenameDraft(pool.name);
+    setLockBanner(null);
+  }
+
+  async function saveRename(poolId: string) {
+    const next = renameDraft.trim();
+    if (!next) {
+      setRenamingPoolId(null);
       return;
     }
-
-    // Optimistic UI update
-    setPools((prev) => {
-      if (!prev) return prev;
-      const member = prev
-        .find((p) => p.id === dragging.fromPoolId)
-        ?.members.find((m) => m.registrationId === dragging.memberId);
-      if (!member) return prev;
-
-      return prev.map((pool) => {
-        if (pool.id === dragging.fromPoolId) {
-          return {
-            ...pool,
-            members: pool.members.filter((m) => m.registrationId !== dragging.memberId),
-          };
-        }
-        if (pool.id === toPoolId) {
-          return { ...pool, members: [...pool.members, member] };
-        }
-        return pool;
+    setRenameBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: next }),
       });
-    });
-
-    // Persist swap
-    await fetch(`${apiUrl}/api/v1/pools/${toPoolId}/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ registrationId: dragging.memberId }),
-    });
-
-    setDragging(null);
-    await checkConflicts();
+      const ok = await handlePoolEditResponse(res);
+      if (ok) {
+        setPools((prev) =>
+          prev ? prev.map((p) => (p.id === poolId ? { ...p, name: next } : p)) : prev,
+        );
+        setRenamingPoolId(null);
+      }
+    } finally {
+      setRenameBusy(false);
+    }
   }
 
   return (
@@ -394,20 +484,36 @@ export default function PoolsPage() {
         </div>
       )}
 
-      {/* Tournament selector */}
-      {tournaments.length > 1 && (
-        <div className="mb-4">
-          <select
-            value={selectedTournament}
-            onChange={(e) => setSelectedTournament(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          >
-            {tournaments.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+      {/* Tournament tabs */}
+      {tournaments.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {tournaments.map((tour) => {
+            const active = selectedTournament === tour.id;
+            return (
+              <button
+                key={tour.id}
+                type="button"
+                onClick={() => setSelectedTournament(tour.id)}
+                className={[
+                  'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                  active
+                    ? 'bg-red-700 text-white border-red-700'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                ].join(' ')}
+              >
+                {tour.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {lockBanner && (
+        <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-900">
+          <strong className="font-semibold">{lockBanner}</strong>
+          <span className="ml-2 text-yellow-700">
+            Clear scores in the matches view to unlock the pool.
+          </span>
         </div>
       )}
 
@@ -557,7 +663,47 @@ export default function PoolsPage() {
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => void handleDrop(pool.id)}
             >
-              <h3 className="font-bold text-gray-900 mb-3">{pool.name}</h3>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                {renamingPoolId === pool.id ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveRename(pool.id);
+                        if (e.key === 'Escape') setRenamingPoolId(null);
+                      }}
+                      autoFocus
+                      className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                    <button
+                      type="button"
+                      disabled={renameBusy}
+                      onClick={() => void saveRename(pool.id)}
+                      className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenamingPoolId(null)}
+                      className="rounded-md px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void startRename(pool)}
+                    title="Rename pool"
+                    className="font-bold text-gray-900 hover:text-red-700 hover:underline decoration-dotted"
+                  >
+                    {pool.name}
+                  </button>
+                )}
+                <span className="text-xs text-gray-400">{pool.members.length} fighters</span>
+              </div>
               <div className="flex flex-col gap-1.5">
                 {pool.members.map((m) => (
                   <div
@@ -567,20 +713,99 @@ export default function PoolsPage() {
                       setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
                     }
                     onDragEnd={() => setDragging(null)}
-                    className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
+                    className="group flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
                   >
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <span className="font-medium text-gray-900">{m.personName}</span>
                       {m.clubLabel && (
                         <span className="text-gray-400 text-xs ml-2">{m.clubLabel}</span>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400">#{m.seed}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {m.hemaWeightedRating !== null && (
+                        <span
+                          className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                          title="HEMA weighted rating"
+                        >
+                          {m.hemaWeightedRating.toFixed(1)}
+                        </span>
+                      )}
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                        #{m.seed}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={editBusy}
+                        onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
+                        title="Move to unassigned"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
+                {pool.members.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">Drop fighters here.</p>
+                )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Unassigned fighters bucket */}
+      {pools && pools.length > 0 && (
+        <div
+          className={[
+            'mt-6 rounded-xl border-2 p-4 transition-colors',
+            dragging ? 'border-dashed border-red-300 bg-red-50/30' : 'border-gray-200 bg-gray-50',
+          ].join(' ')}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => void handleDropOnUnassigned()}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-bold text-gray-900">Unassigned fighters</h3>
+            <span className="text-xs text-gray-400">{unassigned.length} fighters</span>
+          </div>
+          {unassigned.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">
+              All registered fighters are in a pool. Drag a fighter here to remove them from their
+              pool.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              {unassigned.map((u) => (
+                <div
+                  key={u.registrationId}
+                  draggable
+                  onDragStart={() =>
+                    setDragging({
+                      memberId: u.registrationId,
+                      fromPoolId: UNASSIGNED_DROP_ID,
+                    })
+                  }
+                  onDragEnd={() => setDragging(null)}
+                  className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium text-gray-900">{u.personName}</span>
+                    {u.clubLabel && (
+                      <span className="text-gray-400 text-xs ml-2">{u.clubLabel}</span>
+                    )}
+                  </div>
+                  {u.hemaWeightedRating !== null && (
+                    <span
+                      className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 shrink-0"
+                      title="HEMA weighted rating"
+                    >
+                      {u.hemaWeightedRating.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -80,6 +81,57 @@ export class PhasesController {
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async listPools(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
     return this.phases.listTournamentPools(tournamentId);
+  }
+
+  /** GET /api/v1/tournaments/:tournamentId/unassigned-fighters */
+  @Get('tournaments/:tournamentId/unassigned-fighters')
+  @ApiOperation({ summary: 'List tournament registrations not yet assigned to any pool' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async listUnassignedFighters(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.phases.listUnassignedFighters(tournamentId);
+  }
+
+  /** PATCH /api/v1/pools/:poolId */
+  @Patch('pools/:poolId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Rename a pool (org admin+)' })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async renamePool(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Body() dto: { name: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.renamePool(poolId, dto.name, userId);
+  }
+
+  /** POST /api/v1/pools/:poolId/members */
+  @Post('pools/:poolId/members')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Add or move a registration into a pool (org admin+)' })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async addPoolMember(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Body() dto: { registrationId: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.addPoolMember(poolId, dto.registrationId, userId);
+  }
+
+  /** DELETE /api/v1/pools/:poolId/members/:registrationId */
+  @Delete('pools/:poolId/members/:registrationId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a member from a pool back to unassigned (org admin+)' })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'registrationId', type: 'string', format: 'uuid' })
+  async removePoolMember(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.removePoolMember(poolId, registrationId, userId);
   }
 
   /**
