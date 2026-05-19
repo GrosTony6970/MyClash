@@ -33,14 +33,6 @@ interface Pool {
   members: PoolMember[];
 }
 
-interface GenerateResult {
-  phaseId: string;
-  poolCount: number;
-  pools: Pool[];
-  totalMatches: number;
-  costReport: { sameClusters: number; skillImbalance: number } | null;
-}
-
 interface PoolsResponse {
   phaseId: string | null;
   visibility: 'hidden' | 'published';
@@ -117,28 +109,30 @@ export default function PoolsPage() {
 
   // ── Load existing pools ─────────────────────────────────────────────────────
 
+  async function loadPools(tournamentId: string, signal?: AbortSignal) {
+    const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pools`, {
+      credentials: 'include',
+      signal,
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as Pool[] | PoolsResponse;
+    const nextPools = Array.isArray(data) ? data : data.pools;
+    if (!Array.isArray(data)) {
+      setPoolPhaseId(data.phaseId);
+      setVisibility(data.visibility);
+    }
+    if (nextPools.length > 0) {
+      setPools(nextPools);
+      setExistingPhase(true);
+    }
+  }
+
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/pools`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as Pool[] | PoolsResponse;
-        const nextPools = Array.isArray(data) ? data : data.pools;
-        if (!Array.isArray(data)) {
-          setPoolPhaseId(data.phaseId);
-          setVisibility(data.visibility);
-        }
-        if (nextPools.length > 0) {
-          setPools(nextPools);
-          setExistingPhase(true);
-        }
-      })
-      .catch(() => undefined);
+    void loadPools(selectedTournament, controller.signal).catch(() => undefined);
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTournament, apiUrl]);
 
   // ── Generate pools ──────────────────────────────────────────────────────────
@@ -177,12 +171,14 @@ export default function PoolsPage() {
         throw new Error(body2.message ?? 'Generation failed');
       }
 
-      const result = (await res.json()) as GenerateResult;
-      setPools(result.pools);
-      setPoolPhaseId(result.phaseId);
+      // Discard the generate response body; the GET endpoint is the source of
+      // truth for the full Pool[] shape (members included). Re-fetching here
+      // avoids the "matchCount only" summary that the generate POST returns.
+      await res.json().catch(() => undefined);
       setVisibility('hidden');
       setNotifyHref(null);
       setExistingPhase(true);
+      await loadPools(selectedTournament);
 
       // Check conflicts
       await checkConflicts();
