@@ -532,6 +532,11 @@ export const en = {
       statsRecent:
         'Last {days} days: {organizations} organizations, {events} events, {tournaments} tournaments, {persons} global persons, {matches} completed matches.',
       toolsTitle: 'Admin tools',
+      section: {
+        platform: 'Platform',
+        content: 'Content',
+        activity: 'Activity',
+      },
       stats: {
         organizations: 'Organizations',
         organizationsDetail: '{active} active, {suspended} suspended',
@@ -2539,6 +2544,11 @@ export const fr = {
       statsRecent:
         '{days} derniers jours : {organizations} organisations, {events} evenements, {tournaments} tournois, {persons} personnes globales, {matches} assauts termines.',
       toolsTitle: 'Outils admin',
+      section: {
+        platform: 'Plateforme',
+        content: 'Contenu',
+        activity: 'Activite',
+      },
       stats: {
         organizations: 'Organisations',
         organizationsDetail: '{active} actives, {suspended} suspendues',

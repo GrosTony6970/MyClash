@@ -75,95 +75,98 @@ export default function SuperAdminDashboardPage() {
     return () => controller.abort();
   }, [apiUrl, t]);
 
-  const metricCards = useMemo(() => {
+  const metricSections = useMemo(() => {
     if (!stats) return [];
     return [
       {
-        label: t('admin.dashboard.stats.organizations'),
-        value: stats.organizations.total,
-        detail: t('admin.dashboard.stats.organizationsDetail', {
-          active: stats.organizations.active,
-          suspended: stats.organizations.suspended,
-        }),
-        accent: 'border-[#1d4ed8]',
+        headingKey: 'admin.dashboard.section.platform',
+        cards: [
+          {
+            label: t('admin.dashboard.stats.organizations'),
+            value: stats.organizations.total,
+            detail: t('admin.dashboard.stats.organizationsDetail', {
+              active: stats.organizations.active,
+              suspended: stats.organizations.suspended,
+            }),
+          },
+          {
+            label: t('admin.dashboard.stats.clubs'),
+            value: stats.clubs.total,
+            detail: t('admin.dashboard.stats.clubsDetail'),
+          },
+          {
+            label: t('admin.dashboard.stats.leagues'),
+            value: stats.leagues.total,
+            detail: t('admin.dashboard.stats.leaguesDetail'),
+          },
+          {
+            label: t('admin.dashboard.stats.platformUsers'),
+            value: stats.platformUsers.total,
+            detail: t('admin.dashboard.stats.platformUsersDetail'),
+          },
+        ],
       },
       {
-        label: t('admin.dashboard.stats.eventsLive'),
-        value: stats.events.publishedOrRunning,
-        detail: t('admin.dashboard.stats.eventsLiveDetail', { total: stats.events.total }),
-        accent: 'border-[#dc2626]',
+        headingKey: 'admin.dashboard.section.content',
+        cards: [
+          {
+            label: t('admin.dashboard.stats.eventsLive'),
+            value: stats.events.publishedOrRunning,
+            detail: t('admin.dashboard.stats.eventsLiveDetail', { total: stats.events.total }),
+          },
+          {
+            label: t('admin.dashboard.stats.eventsCompleted'),
+            value: stats.events.completed,
+            detail: t('admin.dashboard.stats.eventsCompletedDetail', { draft: stats.events.draft }),
+          },
+          {
+            label: t('admin.dashboard.stats.tournamentsCreated'),
+            value: stats.tournaments.total,
+            detail: t('admin.dashboard.stats.tournamentsCreatedDetail', {
+              active: stats.tournaments.active,
+            }),
+          },
+          {
+            label: t('admin.dashboard.stats.tournamentsCompleted'),
+            value: stats.tournaments.completed,
+            detail: t('admin.dashboard.stats.tournamentsCompletedDetail', {
+              draft: stats.tournaments.draft,
+            }),
+          },
+          {
+            label: t('admin.dashboard.stats.fighters'),
+            value: stats.people.fighters,
+            detail: t('admin.dashboard.stats.fightersDetail', {
+              global: stats.people.globalPersons,
+            }),
+          },
+        ],
       },
       {
-        label: t('admin.dashboard.stats.eventsCompleted'),
-        value: stats.events.completed,
-        detail: t('admin.dashboard.stats.eventsCompletedDetail', { draft: stats.events.draft }),
-        accent: 'border-[#f59e0b]',
-      },
-      {
-        label: t('admin.dashboard.stats.tournamentsCreated'),
-        value: stats.tournaments.total,
-        detail: t('admin.dashboard.stats.tournamentsCreatedDetail', {
-          active: stats.tournaments.active,
-        }),
-        accent: 'border-[#1d4ed8]',
-      },
-      {
-        label: t('admin.dashboard.stats.tournamentsCompleted'),
-        value: stats.tournaments.completed,
-        detail: t('admin.dashboard.stats.tournamentsCompletedDetail', {
-          draft: stats.tournaments.draft,
-        }),
-        accent: 'border-[#dc2626]',
-      },
-      {
-        label: t('admin.dashboard.stats.fighters'),
-        value: stats.people.fighters,
-        detail: t('admin.dashboard.stats.fightersDetail', {
-          global: stats.people.globalPersons,
-        }),
-        accent: 'border-[#f59e0b]',
-      },
-      {
-        label: t('admin.dashboard.stats.registrations'),
-        value: stats.activity.registrations,
-        detail: t('admin.dashboard.stats.registrationsDetail', {
-          persons: stats.people.eventPersons,
-        }),
-        accent: 'border-[#1d4ed8]',
-      },
-      {
-        label: t('admin.dashboard.stats.completedMatches'),
-        value: stats.activity.completedMatches,
-        detail: t('admin.dashboard.stats.completedMatchesDetail', {
-          total: stats.activity.matches,
-        }),
-        accent: 'border-[#dc2626]',
-      },
-      {
-        label: t('admin.dashboard.stats.exchanges'),
-        value: stats.activity.exchanges,
-        detail: t('admin.dashboard.stats.exchangesDetail', {
-          claimed: stats.people.claimedProfiles,
-        }),
-        accent: 'border-[#f59e0b]',
-      },
-      {
-        label: t('admin.dashboard.stats.clubs'),
-        value: stats.clubs.total,
-        detail: t('admin.dashboard.stats.clubsDetail'),
-        accent: 'border-[#1d4ed8]',
-      },
-      {
-        label: t('admin.dashboard.stats.leagues'),
-        value: stats.leagues.total,
-        detail: t('admin.dashboard.stats.leaguesDetail'),
-        accent: 'border-[#dc2626]',
-      },
-      {
-        label: t('admin.dashboard.stats.platformUsers'),
-        value: stats.platformUsers.total,
-        detail: t('admin.dashboard.stats.platformUsersDetail'),
-        accent: 'border-[#f59e0b]',
+        headingKey: 'admin.dashboard.section.activity',
+        cards: [
+          {
+            label: t('admin.dashboard.stats.registrations'),
+            value: stats.activity.registrations,
+            detail: t('admin.dashboard.stats.registrationsDetail', {
+              persons: stats.people.eventPersons,
+            }),
+          },
+          {
+            label: t('admin.dashboard.stats.completedMatches'),
+            value: stats.activity.completedMatches,
+            detail: t('admin.dashboard.stats.completedMatchesDetail', {
+              total: stats.activity.matches,
+            }),
+          },
+          {
+            label: t('admin.dashboard.stats.exchanges'),
+            value: stats.activity.exchanges,
+            detail: t('admin.dashboard.stats.exchangesDetail', {
+              claimed: stats.people.claimedProfiles,
+            }),
+          },
+        ],
       },
     ];
   }, [stats, t]);
@@ -186,12 +189,6 @@ export default function SuperAdminDashboardPage() {
       />
 
       <section className="mb-12">
-        <div className="mb-6 flex items-center gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
-            {t('admin.dashboard.statsTitle')}
-          </p>
-          <FoilMark className="text-slate-300" width={32} />
-        </div>
         <p className="mb-6 text-sm text-slate-600">{t('admin.dashboard.statsDescription')}</p>
 
         {loadingStats ? (
@@ -204,24 +201,34 @@ export default function SuperAdminDashboardPage() {
           </p>
         ) : stats ? (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {metricCards.map((card, index) => (
-                <div
-                  key={card.label}
-                  className="metric-card rounded-md border border-slate-200 bg-white p-5"
-                  style={{ animationDelay: `${index * 60}ms` }}
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {card.label}
+            {metricSections.map((section, sectionIdx) => (
+              <div key={section.headingKey} className={sectionIdx === 0 ? '' : 'mt-10'}>
+                <div className="mb-4 flex items-center gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
+                    {t(section.headingKey)}
                   </p>
-                  <p className="mt-3 font-display text-3xl font-medium tracking-tight text-slate-900">
-                    {formatNumber(card.value)}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">{card.detail}</p>
+                  <FoilMark className="text-slate-300" width={32} />
                 </div>
-              ))}
-            </div>
-            <div className="mt-6 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {section.cards.map((card, cardIdx) => (
+                    <div
+                      key={card.label}
+                      className="metric-card rounded-md border border-slate-200 bg-white p-5"
+                      style={{ animationDelay: `${(sectionIdx * 4 + cardIdx) * 60}ms` }}
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        {card.label}
+                      </p>
+                      <p className="mt-3 font-display text-3xl font-medium tracking-tight text-slate-900">
+                        {formatNumber(card.value)}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">{card.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="mt-10 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
               {t('admin.dashboard.statsRecent', {
                 days: stats.recent.days,
                 organizations: stats.recent.newOrganizations,
