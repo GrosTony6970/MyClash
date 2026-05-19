@@ -361,7 +361,7 @@ export default function AdminClubsPage() {
         name: editState.name.trim() || undefined,
         abbreviation: editState.abbreviation.trim() || undefined,
         city: editState.city.trim() || undefined,
-        countryCode: editState.country_code.trim().toUpperCase() || undefined,
+        countryCode: editState.country_code.trim() || undefined,
       };
 
       const res = await fetch(`${apiUrl}/api/v1/clubs/${id}`, {
@@ -411,7 +411,7 @@ export default function AdminClubsPage() {
           name: createState.name.trim(),
           abbreviation: createState.abbreviation.trim() || undefined,
           city: createState.city.trim() || undefined,
-          countryCode: createState.country_code.trim().toUpperCase() || undefined,
+          countryCode: createState.country_code.trim() || undefined,
           website: createState.website.trim() || undefined,
           logoUrl: createState.logoUrl.trim() || undefined,
         }),
@@ -747,8 +747,8 @@ export default function AdminClubsPage() {
             <input
               value={createState.country_code}
               onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
-              maxLength={2}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-600"
+              maxLength={100}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -923,8 +923,8 @@ export default function AdminClubsPage() {
                         setEditState((s) => ({ ...s, country_code: e.target.value }))
                       }
                       placeholder={t('admin.clubs.countryPlaceholder')}
-                      maxLength={2}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-16 uppercase focus:outline-none focus:ring-1 focus:ring-red-600"
+                      maxLength={100}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-600"
                     />
                   </td>
                   <td className="py-2 px-4">

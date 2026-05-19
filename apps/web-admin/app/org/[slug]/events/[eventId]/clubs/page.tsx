@@ -115,7 +115,7 @@ function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: strin
           name: form.name.trim(),
           abbreviation: form.abbreviation.trim() || undefined,
           city: form.city.trim() || undefined,
-          countryCode: form.countryCode.trim().toUpperCase() || undefined,
+          countryCode: form.countryCode.trim() || undefined,
           website: form.website.trim() || undefined,
           logoUrl: form.logoUrl.trim() || undefined,
         }),
@@ -308,7 +308,7 @@ function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: strin
                   onChange={(event) =>
                     setForm((current) => ({ ...current, [fieldName]: event.target.value }))
                   }
-                  maxLength={field === 'countryCode' ? 2 : undefined}
+                  maxLength={field === 'countryCode' ? 100 : undefined}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </label>

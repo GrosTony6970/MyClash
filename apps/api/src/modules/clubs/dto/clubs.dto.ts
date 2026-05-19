@@ -23,7 +23,7 @@ export class CreateClubDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  @MaxLength(2)
+  @MaxLength(100)
   countryCode?: string;
 
   @ApiProperty({ required: false })
@@ -61,7 +61,7 @@ export class UpdateClubDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  @MaxLength(2)
+  @MaxLength(100)
   countryCode?: string;
 
   @ApiProperty({ required: false })
@@ -86,7 +86,7 @@ export class ClubQueryDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  @MaxLength(2)
+  @MaxLength(100)
   country?: string;
 
   @ApiProperty({ required: false, description: 'If true, also search abbreviation field' })

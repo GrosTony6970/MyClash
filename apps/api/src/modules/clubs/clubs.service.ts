@@ -53,7 +53,7 @@ export class ClubsService {
         ? (q.or(`name.ilike.%${query.q}%,abbreviation.ilike.%${query.q}%`) as typeof q)
         : (q.ilike('name', `%${query.q}%`) as typeof q);
     }
-    if (query.country) q = q.eq('country_code', query.country.toUpperCase()) as typeof q;
+    if (query.country) q = q.ilike('country_code', query.country.trim()) as typeof q;
 
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
@@ -92,7 +92,7 @@ export class ClubsService {
         slug,
         abbreviation: dto.abbreviation?.trim().toUpperCase() ?? null,
         city: dto.city ?? null,
-        country_code: dto.countryCode?.toUpperCase() ?? null,
+        country_code: dto.countryCode?.trim() || null,
         website: dto.website ?? null,
         logo_url: dto.logoUrl ?? null,
         unverified: unverified ? 'true' : 'false',
@@ -201,7 +201,7 @@ export class ClubsService {
     if (dto.abbreviation !== undefined)
       updates['abbreviation'] = dto.abbreviation?.trim().toUpperCase() ?? null;
     if (dto.city !== undefined) updates['city'] = dto.city;
-    if (dto.countryCode !== undefined) updates['country_code'] = dto.countryCode.toUpperCase();
+    if (dto.countryCode !== undefined) updates['country_code'] = dto.countryCode.trim() || null;
     if (dto.website !== undefined) updates['website'] = dto.website;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
 
