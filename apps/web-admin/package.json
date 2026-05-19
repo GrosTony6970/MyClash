@@ -17,6 +17,7 @@
     "@myclash/design-tokens": "workspace:^",
     "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
+    "@myclash/rulesets": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
     "@sentry/nextjs": "^10.53.1",

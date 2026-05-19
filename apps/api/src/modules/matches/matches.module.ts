@@ -8,6 +8,7 @@ import { MatchAutoLockService } from './match-auto-lock.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
+import { RulesetResolver } from './ruleset-resolver.service';
 import { ScoringService } from './scoring.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { ScoringService } from './scoring.service';
   providers: [
     MatchesService,
     ScoringService,
+    RulesetResolver,
     ClockService,
     FrozenResultsGuard,
     MatchAutoLockService,

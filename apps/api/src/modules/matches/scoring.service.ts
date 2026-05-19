@@ -15,6 +15,7 @@ import {
 } from '@myclash/rulesets';
 import type { Exchange as RulesetExchange, Match as RulesetMatch } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
+import { RulesetResolver } from './ruleset-resolver.service';
 
 // Register all built-in rulesets on module load
 // (idempotent — registry.register throws on duplicate, so we guard)
@@ -31,7 +32,10 @@ registerBuiltins();
 export class ScoringService {
   private readonly logger = new Logger(ScoringService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly rulesets: RulesetResolver,
+  ) {}
 
   /**
    * Recompute and persist the match score from all non-voided exchanges.
@@ -100,12 +104,9 @@ export class ScoringService {
       };
     });
 
-    // Get the ruleset from registry
-    let ruleset;
-    try {
-      ruleset = registry.get(match.rulesetCode, match.rulesetVersion);
-    } catch {
-      // Fallback to TF_v1 if ruleset not found
+    // Resolve the ruleset (registry first, then DB-driven FormulaRuleset).
+    let ruleset = await this.rulesets.resolve(match.rulesetCode, match.rulesetVersion);
+    if (!ruleset) {
       this.logger.warn(
         `Ruleset ${match.rulesetCode}@${match.rulesetVersion} not found, falling back to TF_v1`,
       );

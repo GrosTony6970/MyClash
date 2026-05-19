@@ -11,6 +11,8 @@ import { AdminOrganizationsService } from './admin-organizations.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
 import { AdminUsersService } from './admin-users.service';
 import { AuditLogAdminController } from './audit-log.controller';
+import { CustomRulesetsAdminController } from './custom-rulesets/custom-rulesets.controller';
+import { CustomRulesetsService } from './custom-rulesets/custom-rulesets.service';
 import { AdminDashboardStatsController } from './dashboard-stats.controller';
 import { ExchangeEditRequestsAdminController } from './exchange-edit-requests.controller';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
@@ -30,6 +32,7 @@ import { UsersAdminController } from './users.controller';
     OrganizationsAdminController,
     UsersAdminController,
     RulesetsAdminController,
+    CustomRulesetsAdminController,
     FeatureFlagsAdminController,
     AuditLogAdminController,
     ExchangeEditRequestsAdminController,
@@ -43,6 +46,7 @@ import { UsersAdminController } from './users.controller';
     AdminOrganizationsService,
     AdminUsersService,
     AdminRulesetsService,
+    CustomRulesetsService,
     AdminDashboardStatsService,
     AdminFeatureFlagsService,
     AdminAuditLogService,

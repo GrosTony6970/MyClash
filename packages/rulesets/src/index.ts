@@ -67,6 +67,30 @@ export {
 } from './generic_points_cap';
 export type { GenericPointsCapConfig } from './generic_points_cap';
 
+// FormulaRuleset (data-driven, DB-authored)
+export {
+  DEFAULT_FORMULA_CONSTANTS,
+  FORMULA_VARIABLE_KEYS,
+  FormulaConfigSchema,
+  FormulaConstantsSchema,
+  FormulaNodeSchema,
+  TiebreakerSchema,
+  createFormulaRuleset,
+  deriveFighterStats,
+  evaluateFormula,
+  isVariableKey,
+} from './formula';
+export type {
+  BinaryOperator,
+  DerivedFighterStats,
+  FormulaConfig,
+  FormulaConstants,
+  FormulaNode,
+  FormulaScope,
+  Tiebreaker,
+  VariableKey,
+} from './formula';
+
 // Penalty rulesets
 export {
   computeDirectPenaltySanction,

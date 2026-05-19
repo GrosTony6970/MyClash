@@ -211,6 +211,9 @@ importers:
       '@myclash/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@myclash/rulesets':
+        specifier: workspace:^
+        version: link:../../packages/rulesets
       '@myclash/types':
         specifier: workspace:^
         version: link:../../packages/types
