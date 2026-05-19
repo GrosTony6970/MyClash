@@ -84,20 +84,24 @@ export default function AdminUserEditPage() {
   }, [apiUrl, userId, t]);
 
   const fetchOrgs = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/organizations?perPage=200`, {
+    const res = await fetch(`${apiUrl}/api/v1/admin/organizations`, {
       credentials: 'include',
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      throw new Error(t('admin.users.edit.saveError'));
+    }
     const data = (await res.json()) as { organizations?: OrgRow[] } | OrgRow[];
     const list = Array.isArray(data) ? data : (data.organizations ?? []);
     setOrgs(list);
-  }, [apiUrl]);
+  }, [apiUrl, t]);
 
   useEffect(() => {
     void fetchUser().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : t('admin.users.edit.saveError'));
     });
-    void fetchOrgs().catch(() => undefined);
+    void fetchOrgs().catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : t('admin.users.edit.saveError'));
+    });
   }, [fetchUser, fetchOrgs, t]);
 
   const availableOrgs = useMemo(() => {
