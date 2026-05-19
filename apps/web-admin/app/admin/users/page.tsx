@@ -1,7 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+
+interface UserOrgMembership {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+}
 
 interface AdminUser {
   id: string;
@@ -11,6 +19,7 @@ interface AdminUser {
   last_sign_in_at?: string | null;
   banned_until?: string | null;
   app_metadata?: Record<string, unknown>;
+  organizations?: UserOrgMembership[];
 }
 
 interface UserListResponse {
@@ -338,6 +347,7 @@ export default function AdminUsersPage() {
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                 <th className="px-4 py-3">{t('admin.users.table.displayName')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.email')}</th>
+                <th className="px-4 py-3">{t('admin.users.table.organizations')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.userId')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.created')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.lastSignIn')}</th>
@@ -355,6 +365,28 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-950">
                       {user.email ?? t('admin.users.noEmail')}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-700">
+                      {(user.organizations ?? []).length === 0 ? (
+                        <span className="text-slate-300">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {(user.organizations ?? []).slice(0, 3).map((org) => (
+                            <span
+                              key={org.id}
+                              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5"
+                              title={org.name}
+                            >
+                              {org.name} <span className="text-slate-400">· {org.role}</span>
+                            </span>
+                          ))}
+                          {(user.organizations ?? []).length > 3 && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">
+                              +{(user.organizations ?? []).length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{user.id}</td>
                     <td className="px-4 py-3 text-slate-600">
@@ -376,6 +408,12 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/admin/users/${user.id}`}
+                          className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        >
+                          {t('admin.users.actions.edit')}
+                        </Link>
                         <ActionButton
                           label={
                             disabled

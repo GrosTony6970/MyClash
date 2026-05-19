@@ -20,7 +20,12 @@ import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
 import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { AdminUsersService, type DeletePlatformUserMode } from './admin-users.service';
-import { CreatePlatformUserDto } from './dto/admin-users.dto';
+import {
+  AddOrgMembershipDto,
+  CreatePlatformUserDto,
+  UpdateOrgMembershipRoleDto,
+  UpdatePlatformUserDto,
+} from './dto/admin-users.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
 function getActorId(req: FastifyRequest): string {
@@ -49,6 +54,56 @@ export class UsersAdminController {
   @ApiOperation({ summary: 'Create user (super admin)' })
   async create(@Body() body: CreatePlatformUserDto, @Req() req: FastifyRequest) {
     return this.service.createPlatformUser(body, getActorId(req));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user with org memberships (super admin)' })
+  async getOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.getUser(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update user email or display name (super admin)' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdatePlatformUserDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.updateUser(id, body, getActorId(req));
+  }
+
+  @Post(':id/organizations')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Add user to an organization (super admin)' })
+  async addOrgMembership(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: AddOrgMembershipDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.addOrgMembership(id, body.organizationId, body.role, getActorId(req));
+  }
+
+  @Patch(':id/organizations/:orgId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Update a user's role within an organization (super admin)" })
+  async updateOrgMembership(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Body() body: UpdateOrgMembershipRoleDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.updateOrgMembershipRole(id, orgId, body.role, getActorId(req));
+  }
+
+  @Delete(':id/organizations/:orgId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a user from an organization (super admin)' })
+  async removeOrgMembership(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.removeOrgMembership(id, orgId, getActorId(req));
   }
 
   @Patch(':id/disable')

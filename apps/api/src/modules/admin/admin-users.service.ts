@@ -1,6 +1,17 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { CreatePlatformUserDto } from './dto/admin-users.dto';
+import {
+  CreatePlatformUserDto,
+  ORG_ROLES,
+  UpdatePlatformUserDto,
+  type OrgRole,
+} from './dto/admin-users.dto';
 import { SupabaseService, type SupabaseAdminUser } from '../supabase/supabase.service';
 
 export interface ListUsersQuery {
@@ -16,7 +27,17 @@ interface UserDeletionBlockers {
   soleOwnerOrganizationIds: string[];
 }
 
-type ListedPlatformUser = SupabaseAdminUser & { display_name: string | null };
+export interface UserOrgMembership {
+  id: string;
+  name: string;
+  slug: string;
+  role: OrgRole;
+}
+
+type ListedPlatformUser = SupabaseAdminUser & {
+  display_name: string | null;
+  organizations: UserOrgMembership[];
+};
 
 @Injectable()
 export class AdminUsersService {
@@ -35,9 +56,157 @@ export class AdminUsersService {
       this.logger.warn(`Could not list Auth users through GoTrue: ${response.status}`);
       throw new BadRequestException('Could not inspect platform accounts');
     }
+    const ids = response.data.users.map((u) => u.id);
+    const orgsByUser = await this.fetchOrgMembershipsByUser(ids);
     return {
-      users: response.data.users.map((user) => this.toListedUser(user)),
+      users: response.data.users.map((user) => this.toListedUser(user, orgsByUser.get(user.id))),
     };
+  }
+
+  async getUser(userId: string) {
+    const response = await this.supabase.getAuthAdminUser(userId);
+    if (!response.ok || !response.data?.id) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
+    const orgsByUser = await this.fetchOrgMembershipsByUser([userId]);
+    return { user: this.toListedUser(response.data, orgsByUser.get(userId)) };
+  }
+
+  async updateUser(userId: string, dto: UpdatePlatformUserDto, actorUserId: string) {
+    const payload: { email?: string; user_metadata?: Record<string, unknown> } = {};
+    if (dto.email !== undefined) {
+      payload.email = dto.email.trim().toLowerCase();
+    }
+    if (dto.displayName !== undefined) {
+      const trimmed = dto.displayName.trim();
+      payload.user_metadata = { display_name: trimmed.length > 0 ? trimmed : null };
+    }
+    if (Object.keys(payload).length === 0) {
+      // No-op
+      return this.getUser(userId);
+    }
+    const response = await this.supabase.updateAuthAdminUser(userId, payload);
+    if (!response.ok) {
+      this.logger.warn(`Could not update Auth user through GoTrue: ${response.status}`);
+      throw new BadRequestException('Could not update platform account');
+    }
+    await this.writeAuditLog(actorUserId, 'user.update', 'user', userId, {
+      email: payload.email ?? undefined,
+      display_name_set: payload.user_metadata !== undefined,
+    });
+    return this.getUser(userId);
+  }
+
+  async addOrgMembership(
+    userId: string,
+    organizationId: string,
+    role: OrgRole,
+    actorUserId: string,
+  ): Promise<UserOrgMembership> {
+    if (!ORG_ROLES.includes(role)) {
+      throw new BadRequestException(`Invalid role: ${role}`);
+    }
+    const { data: existing } = await this.supabase.service
+      .from('organization_members')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    if (existing) {
+      throw new ConflictException('User already belongs to this organization');
+    }
+    const { error } = await this.supabase.service
+      .from('organization_members')
+      .insert({ user_id: userId, organization_id: organizationId, role });
+    if (error) throw new BadRequestException(error.message);
+
+    await this.writeAuditLog(actorUserId, 'user.org_membership.add', 'user', userId, {
+      organization_id: organizationId,
+      role,
+    });
+
+    const { data: org } = await this.supabase.service
+      .from('organizations')
+      .select('id, name, slug')
+      .eq('id', organizationId)
+      .maybeSingle();
+    return {
+      id: organizationId,
+      name: (org as { name?: string } | null)?.name ?? '',
+      slug: (org as { slug?: string } | null)?.slug ?? '',
+      role,
+    };
+  }
+
+  async updateOrgMembershipRole(
+    userId: string,
+    organizationId: string,
+    role: OrgRole,
+    actorUserId: string,
+  ) {
+    if (!ORG_ROLES.includes(role)) {
+      throw new BadRequestException(`Invalid role: ${role}`);
+    }
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .update({ role })
+      .eq('user_id', userId)
+      .eq('organization_id', organizationId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Membership not found');
+    await this.writeAuditLog(actorUserId, 'user.org_membership.update', 'user', userId, {
+      organization_id: organizationId,
+      role,
+    });
+    return { userId, organizationId, role };
+  }
+
+  async removeOrgMembership(userId: string, organizationId: string, actorUserId: string) {
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .delete()
+      .eq('user_id', userId)
+      .eq('organization_id', organizationId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Membership not found');
+    await this.writeAuditLog(actorUserId, 'user.org_membership.remove', 'user', userId, {
+      organization_id: organizationId,
+    });
+    return { userId, organizationId };
+  }
+
+  private async fetchOrgMembershipsByUser(
+    userIds: string[],
+  ): Promise<Map<string, UserOrgMembership[]>> {
+    if (userIds.length === 0) return new Map();
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .select('user_id, role, organizations(id, name, slug)')
+      .in('user_id', userIds);
+    if (error) {
+      this.logger.warn(`Could not fetch org memberships: ${error.message}`);
+      return new Map();
+    }
+    const map = new Map<string, UserOrgMembership[]>();
+    for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+      const userId = row['user_id'] as string;
+      const org = row['organizations'] as { id?: string; name?: string; slug?: string } | null;
+      if (!org?.id) continue;
+      const entry: UserOrgMembership = {
+        id: org.id,
+        name: org.name ?? '',
+        slug: org.slug ?? '',
+        role: (row['role'] as OrgRole) ?? 'read_only',
+      };
+      const list = map.get(userId) ?? [];
+      list.push(entry);
+      map.set(userId, list);
+    }
+    return map;
   }
 
   async createPlatformUser(input: CreatePlatformUserDto, actorUserId: string) {
@@ -342,13 +511,21 @@ export class AdminUsersService {
     });
 
     const start = Math.max(page - 1, 0) * perPage;
-    return { users: users.slice(start, start + perPage) };
+    const slice = users.slice(start, start + perPage);
+    const orgsByUser = await this.fetchOrgMembershipsByUser(slice.map((u) => u.id));
+    return {
+      users: slice.map((u) => ({ ...u, organizations: orgsByUser.get(u.id) ?? [] })),
+    };
   }
 
-  private toListedUser(user: SupabaseAdminUser): ListedPlatformUser {
+  private toListedUser(
+    user: SupabaseAdminUser,
+    organizations: UserOrgMembership[] = [],
+  ): ListedPlatformUser {
     return {
       ...user,
       display_name: this.normalizeDisplayName(user),
+      organizations,
     };
   }
 

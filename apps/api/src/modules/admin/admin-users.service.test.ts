@@ -24,6 +24,8 @@ function chain(result: unknown = { data: [], error: null }) {
   const state = {
     select: vi.fn(() => state),
     eq: vi.fn(() => state),
+    in: vi.fn(() => state),
+    maybeSingle: vi.fn().mockResolvedValue(result),
     upsert: vi.fn().mockResolvedValue(result),
     insert: vi.fn().mockResolvedValue(result),
     delete: vi.fn(() => state),
@@ -62,7 +64,7 @@ describe('AdminUsersService', () => {
     const result = await service.listUsers({ page: 2, perPage: 25 });
 
     expect(listAuthAdminUsers).toHaveBeenCalledWith(2, 25);
-    expect(result.users).toEqual([{ id: 'user-1', display_name: null }]);
+    expect(result.users).toEqual([{ id: 'user-1', display_name: null, organizations: [] }]);
   });
 
   it('normalizes display names from Auth user metadata when listing accounts', async () => {
