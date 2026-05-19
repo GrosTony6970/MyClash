@@ -72,6 +72,7 @@ export default function AdminOrganizationsPage() {
     slug: '',
     ownerEmail: '',
     ownerDisplayName: '',
+    slugDetached: false,
   });
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -151,7 +152,13 @@ export default function AdminOrganizationsPage() {
 
       const data = (await res.json()) as CreateOrganizationResult;
       setCreateResult(data);
-      setForm({ name: '', slug: '', ownerEmail: '', ownerDisplayName: '' });
+      setForm({
+        name: '',
+        slug: '',
+        ownerEmail: '',
+        ownerDisplayName: '',
+        slugDetached: false,
+      });
       setCreateOpen(false);
       refresh();
     } catch (err) {
@@ -239,7 +246,7 @@ export default function AdminOrganizationsPage() {
                   setForm((current) => ({
                     ...current,
                     name,
-                    slug: current.slug ? current.slug : slugify(name),
+                    slug: current.slugDetached ? current.slug : slugify(name),
                   }));
                 }}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
@@ -254,7 +261,11 @@ export default function AdminOrganizationsPage() {
                 pattern="[a-z0-9-]+"
                 value={form.slug}
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, slug: slugify(event.target.value) }))
+                  setForm((current) => ({
+                    ...current,
+                    slug: slugify(event.target.value),
+                    slugDetached: true,
+                  }))
                 }
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
               />
