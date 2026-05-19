@@ -164,12 +164,15 @@ export default function EditLeaguePage() {
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((data: { users: AdminUserOption[] }) => setAllUsers(data.users ?? []))
       .catch(() => undefined);
-    void fetch(`${apiUrl}/api/v1/admin/organizations?perPage=200`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: OrgOption[] | { organizations: OrgOption[] }) =>
-        setAllOrgs(Array.isArray(data) ? data : (data.organizations ?? [])),
-      )
-      .catch(() => undefined);
+    void fetch(`${apiUrl}/api/v1/admin/organizations`, { credentials: 'include' })
+      .then(async (r) => {
+        if (!r.ok) throw new Error('Could not load organizations');
+        return (await r.json()) as OrgOption[] | { organizations: OrgOption[] };
+      })
+      .then((data) => setAllOrgs(Array.isArray(data) ? data : (data.organizations ?? [])))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Could not load organizations');
+      });
     void fetch(`${apiUrl}/api/v1/events?status=all`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: EventOption[]) => setAllEvents(data ?? []))
