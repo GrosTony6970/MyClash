@@ -1401,7 +1401,6 @@ export const en = {
       sections: {
         persons: 'Participants',
         pools: 'Pools',
-        poolPopulator: 'Pool Populator',
         bracket: 'Bracket',
         schedule: 'Schedule',
         referees: 'Referees',
@@ -3238,7 +3237,6 @@ export const fr = {
       sections: {
         persons: 'Participants',
         pools: 'Poules',
-        poolPopulator: 'GÃƒÂ©nÃƒÂ©rateur de poules',
         bracket: 'Tableau',
         schedule: 'Planning',
         referees: 'Arbitres',

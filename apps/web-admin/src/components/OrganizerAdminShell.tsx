@@ -23,7 +23,6 @@ const eventNavItems = [
   { href: 'clubs', labelKey: 'organizer.shell.nav.clubs', badge: 'CL' },
   { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', badge: 'P' },
   { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'P' },
-  { href: 'pool-populator', labelKey: 'organizer.eventHub.sections.poolPopulator', badge: 'G' },
   { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
   { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
   { href: 'referees', labelKey: 'organizer.eventHub.sections.referees', badge: 'J' },
