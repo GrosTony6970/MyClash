@@ -492,6 +492,11 @@ export const en = {
       logout: 'Log out',
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of super-admin',
+      sectionOverview: 'Overview',
+      sectionContent: 'Content',
+      sectionOperations: 'Operations',
+      sectionPlatformHealth: 'Platform health',
+      sectionSettings: 'Settings',
       nav: {
         overview: 'Overview',
         organizations: 'Organizations',
@@ -2494,6 +2499,11 @@ export const fr = {
       logout: 'Se deconnecter',
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: 'Se deconnecter du super-admin',
+      sectionOverview: 'Vue generale',
+      sectionContent: 'Contenu',
+      sectionOperations: 'Operations',
+      sectionPlatformHealth: 'Sante plateforme',
+      sectionSettings: 'Parametres',
       nav: {
         overview: 'Vue generale',
         organizations: 'Organisations',
