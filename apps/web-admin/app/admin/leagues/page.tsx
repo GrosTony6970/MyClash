@@ -1,826 +1,217 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
-import { FFAMHE_POINTS, fuzzyMatch, toSlug } from './league-utils';
+import { useCallback, useEffect, useState } from 'react';
 
 interface League {
   id: string;
   slug: string;
   name: string;
-  description: string | null;
   season_year: number;
   status: string;
   public_visibility: boolean;
+  logo_url: string | null;
   scoring_system: string;
   scoring_config: {
-    scoringSystem: 'ffamhe_tf_2026' | 'custom';
-    rankingDimensions: 'weapon' | 'weapon_category';
-    customPointsByRank?: Record<number, number>;
-    tieBreakers: string[];
+    scoringSystem?: 'ffamhe_tf_2026' | 'custom';
+    rankingDimensions?: 'weapon' | 'weapon_category';
   } | null;
-}
-
-interface TournamentLink {
-  id: string;
-  status: 'requested' | 'approved' | 'rejected' | 'removed';
-  tournaments?: {
-    id?: string | null;
-    name?: string | null;
-    weapon?: string | null;
-    category?: string | null;
-    events?: { id?: string | null; name?: string | null } | null;
-  } | null;
-}
-
-interface EventSummary {
-  id: string;
-  name: string;
-  slug: string;
-  start_date: string | null;
-}
-
-interface TournamentSummary {
-  id: string;
-  name: string | null;
-  weapon: string | null;
-  category: string | null;
 }
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
-async function apiErrorMessage(res: Response, fallback: string): Promise<string> {
-  const text = await res.text().catch(() => '');
-  if (!text) return `${fallback} (${res.status})`;
-  try {
-    const body = JSON.parse(text) as { message?: unknown; error?: unknown; code?: unknown };
-    const message = Array.isArray(body.message) ? body.message.join(', ') : body.message;
-    if (typeof message === 'string' && message.trim()) return message;
-    if (typeof body.error === 'string' && body.error.trim()) return body.error;
-    if (typeof body.code === 'string' && body.code.trim()) return `${fallback} (${body.code})`;
-  } catch {
-    if (text.length < 180) return text;
-  }
-  return `${fallback} (${res.status})`;
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/u).filter(Boolean);
+  if (parts.length >= 2) return (parts[0]!.charAt(0) + parts[1]!.charAt(0)).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
-async function expectOk(res: Response, fallback: string): Promise<void> {
-  if (!res.ok) throw new Error(await apiErrorMessage(res, fallback));
+function formatScoringSystem(value: string): string {
+  if (value === 'ffamhe_tf_2026') return 'FFAMHE TF 2026';
+  if (value === 'custom') return 'Custom';
+  return value;
 }
 
-function errorText(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+function formatCategory(value: string | undefined): string {
+  if (value === 'weapon') return 'Weapon';
+  if (value === 'weapon_category') return 'Weapon + Category';
+  return '—';
 }
 
 export default function AdminLeaguesPage() {
   const [leagues, setLeagues] = useState<League[]>([]);
-  const [links, setLinks] = useState<Record<string, TournamentLink[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: '',
-    slug: '',
-    seasonYear: String(new Date().getFullYear()),
-    scoringSystem: 'ffamhe_tf_2026',
-    rankingDimensions: 'weapon',
-  });
-  const [slugDetached, setSlugDetached] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{
-    name: string;
-    description: string;
-    status: string;
-    publicVisibility: boolean;
-    scoringSystem: 'ffamhe_tf_2026' | 'custom';
-    pointRows: Array<{ rank: number; points: number }>;
-  }>({
-    name: '',
-    description: '',
-    status: 'draft',
-    publicVisibility: false,
-    scoringSystem: 'ffamhe_tf_2026',
-    pointRows: [],
-  });
-  const [addPanelLeagueId, setAddPanelLeagueId] = useState<string | null>(null);
-  const [allEvents, setAllEvents] = useState<EventSummary[]>([]);
-  const [eventSearch, setEventSearch] = useState('');
-  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
-  const [eventTournaments, setEventTournaments] = useState<Record<string, TournamentSummary[]>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetch(`${apiUrl}/api/v1/admin/leagues`, { credentials: 'include' })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.loadError'));
-        return res.json() as Promise<League[]>;
-      })
-      .then((rows) => {
-        setLeagues(rows);
-        setError(null);
-        return Promise.all(
-          rows.map((league) =>
-            fetch(`${apiUrl}/api/v1/admin/leagues/${league.id}/tournament-links`, {
-              credentials: 'include',
-            })
-              .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
-              .then((leagueLinks) => [league.id, leagueLinks] as const),
-          ),
-        );
-      })
-      .then((entries) => setLinks(Object.fromEntries(entries)))
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.loadError'))))
-      .finally(() => setLoading(false));
+  const fetchLeagues = useCallback(async (signal?: AbortSignal) => {
+    const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, {
+      credentials: 'include',
+      signal,
+    });
+    if (!res.ok) throw new Error('Could not load leagues');
+    return (await res.json()) as League[];
   }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
-
-  const createLeague = () => {
-    fetch(`${apiUrl}/api/v1/admin/leagues`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name,
-        slug: form.slug,
-        seasonYear: Number(form.seasonYear),
-        scoringSystem: form.scoringSystem,
-        rankingDimensions: form.rankingDimensions,
-      }),
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.createError'));
-        setSlugDetached(false);
-        setForm((current) => ({ ...current, name: '', slug: '' }));
-        load();
+    const controller = new AbortController();
+    fetchLeagues(controller.signal)
+      .then((data) => {
+        setLeagues(data);
+        setError(null);
       })
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.createError'))));
-  };
-
-  const review = (linkId: string, status: 'approved' | 'rejected') => {
-    fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.reviewError'));
-        load();
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setError(err instanceof Error ? err.message : 'Could not load leagues');
       })
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.reviewError'))));
-  };
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [fetchLeagues]);
 
-  const recompute = (leagueId: string) => {
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/recompute`, {
-      method: 'POST',
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.recomputeError'));
-        load();
-      })
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.recomputeError'))));
-  };
-
-  const openEdit = (league: League) => {
-    setEditId(league.id);
-    const cfg = league.scoring_config;
-    const isCustom = cfg?.scoringSystem === 'custom';
-    setEditForm({
-      name: league.name,
-      description: league.description ?? '',
-      status: league.status,
-      publicVisibility: league.public_visibility,
-      scoringSystem: isCustom ? 'custom' : 'ffamhe_tf_2026',
-      pointRows:
-        isCustom && cfg?.customPointsByRank
-          ? Object.entries(cfg.customPointsByRank)
-              .map(([rank, points]) => ({ rank: Number(rank), points: Number(points) }))
-              .sort((a, b) => a.rank - b.rank)
-          : [],
-    });
-  };
-
-  const saveEdit = () => {
-    if (!editId) return;
-    const existingLeague = leagues.find((l) => l.id === editId);
-    const existingCfg = existingLeague?.scoring_config;
-
-    const scoringConfig =
-      editForm.scoringSystem === 'custom'
-        ? {
-            scoringSystem: 'custom' as const,
-            rankingDimensions: existingCfg?.rankingDimensions ?? 'weapon',
-            tieBreakers: existingCfg?.tieBreakers ?? [
-              'total_points',
-              'participation_count',
-              'medal_count',
-              'double_hit_average',
-            ],
-            customPointsByRank: Object.fromEntries(
-              editForm.pointRows.map((r) => [r.rank, r.points]),
-            ),
-          }
-        : {
-            scoringSystem: 'ffamhe_tf_2026' as const,
-            rankingDimensions: existingCfg?.rankingDimensions ?? 'weapon',
-            tieBreakers: existingCfg?.tieBreakers ?? [
-              'total_points',
-              'participation_count',
-              'medal_count',
-              'double_hit_average',
-            ],
-          };
-
-    fetch(`${apiUrl}/api/v1/admin/leagues/${editId}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: editForm.name,
-        description: editForm.description || undefined,
-        status: editForm.status,
-        publicVisibility: editForm.publicVisibility,
-        scoringConfig,
-      }),
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.updateError'));
-        setEditId(null);
-        load();
-      })
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.updateError'))));
-  };
-
-  const deleteLeague = (leagueId: string, name: string) => {
-    if (!window.confirm(`Delete league "${name}"? This cannot be undone.`)) return;
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.deleteError'));
-        load();
-      })
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.deleteError'))));
-  };
-
-  const removeLink = (linkId: string, leagueId: string) => {
-    fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'removed' }),
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.removeLinkError'));
-        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
-          credentials: 'include',
-        });
-      })
-      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
-      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.removeLinkError'))));
-  };
-
-  const removeEventLinks = (leagueId: string, eventId: string) => {
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/events/${eventId}/tournament-links`, {
-      method: 'DELETE',
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.removeEventLinksError'));
-        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
-          credentials: 'include',
-        });
-      })
-      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
-      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.removeEventLinksError'))));
-  };
-
-  const openAddPanel = (leagueId: string) => {
-    if (addPanelLeagueId === leagueId) {
-      setAddPanelLeagueId(null);
-      return;
+  async function handleDelete(league: League) {
+    if (!window.confirm(`Delete league "${league.name}"? This cannot be undone.`)) return;
+    setBusyId(league.id);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${league.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? 'Delete failed');
+      }
+      setLeagues((prev) => prev.filter((l) => l.id !== league.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setBusyId(null);
     }
-    setAddPanelLeagueId(leagueId);
-    setEventSearch('');
-    setExpandedEventId(null);
-    if (allEvents.length === 0) {
-      fetch(`${apiUrl}/api/v1/events`, { credentials: 'include' })
-        .then((res) => (res.ok ? (res.json() as Promise<EventSummary[]>) : []))
-        .then(setAllEvents)
-        .catch(() => setError(t('admin.leagues.loadEventsError')));
-    }
-  };
-
-  const expandEvent = (eventId: string) => {
-    if (expandedEventId === eventId) {
-      setExpandedEventId(null);
-      return;
-    }
-    setExpandedEventId(eventId);
-    if (!eventTournaments[eventId]) {
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, { credentials: 'include' })
-        .then((res) => (res.ok ? (res.json() as Promise<TournamentSummary[]>) : []))
-        .then((ts) => setEventTournaments((prev) => ({ ...prev, [eventId]: ts })))
-        .catch(() => setError(t('admin.leagues.loadTournamentsError')));
-    }
-  };
-
-  const addTournament = (leagueId: string, tournamentId: string) => {
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/link`, {
-      method: 'POST',
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.addTournamentError'));
-        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
-          credentials: 'include',
-        });
-      })
-      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
-      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch((err: unknown) => setError(errorText(err, t('admin.leagues.addTournamentError'))));
-  };
-
-  const addEventTournaments = (leagueId: string, eventId: string) => {
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/events/${eventId}/link`, {
-      method: 'POST',
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        await expectOk(res, t('admin.leagues.addEventTournamentsError'));
-        return fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
-          credentials: 'include',
-        });
-      })
-      .then((res) => (res.ok ? (res.json() as Promise<TournamentLink[]>) : []))
-      .then((updated) => setLinks((prev) => ({ ...prev, [leagueId]: updated })))
-      .catch((err: unknown) =>
-        setError(errorText(err, t('admin.leagues.addEventTournamentsError'))),
-      );
-  };
+  }
 
   return (
     <main className="p-8">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold">{t('admin.leagues.title')}</h1>
-        <p className="text-gray-500 text-sm mt-1">{t('admin.leagues.description')}</p>
+      <div className="mb-2 text-sm">
+        <Link href="/admin" className="text-slate-500 hover:underline">
+          Back to admin
+        </Link>
+      </div>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Leagues</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Manage league setup, scoring, member orgs, and linked tournaments.
+          </p>
+        </div>
+        <Link
+          href="/admin/leagues/new"
+          className="inline-flex w-fit items-center rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+        >
+          + Create league
+        </Link>
       </div>
 
-      <section className="mb-8 border border-gray-200 rounded-lg p-5">
-        <h2 className="font-semibold mb-4">{t('admin.leagues.createTitle')}</h2>
-        <div className="grid gap-3 md:grid-cols-5">
-          <input
-            className="border rounded px-3 py-2 text-sm"
-            placeholder={t('admin.leagues.name')}
-            value={form.name}
-            onChange={(event) => {
-              const name = event.target.value;
-              setForm((f) => ({ ...f, name, slug: slugDetached ? f.slug : toSlug(name) }));
-            }}
-          />
-          <input
-            className="border rounded px-3 py-2 text-sm"
-            placeholder={t('admin.leagues.slug')}
-            value={form.slug}
-            onChange={(event) => {
-              setSlugDetached(true);
-              setForm((f) => ({ ...f, slug: event.target.value }));
-            }}
-          />
-          <input
-            className="border rounded px-3 py-2 text-sm"
-            placeholder={t('admin.leagues.seasonYear')}
-            value={form.seasonYear}
-            onChange={(event) => setForm({ ...form, seasonYear: event.target.value })}
-          />
-          <select
-            className="border rounded px-3 py-2 text-sm"
-            value={form.rankingDimensions}
-            onChange={(event) => setForm({ ...form, rankingDimensions: event.target.value })}
-          >
-            <option value="weapon">{t('admin.leagues.dimensions.weapon')}</option>
-            <option value="weapon_category">{t('admin.leagues.dimensions.weapon_category')}</option>
-          </select>
-          <button
-            className="bg-gray-950 text-white rounded px-3 py-2 text-sm"
-            onClick={createLeague}
-          >
-            {t('admin.leagues.create')}
-          </button>
+      {error && (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {error}
         </div>
-      </section>
-
-      {loading && <p className="text-sm text-gray-500">{t('admin.leagues.loading')}</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {!loading && leagues.length === 0 && (
-        <p className="text-sm text-gray-500">{t('admin.leagues.empty')}</p>
       )}
 
-      <div className="grid gap-4">
-        {leagues.map((league) => (
-          <section key={league.id} className="border border-gray-200 rounded-lg p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="font-semibold text-gray-950">{league.name}</h2>
-                <p className="text-sm text-gray-500">
-                  {league.season_year} -{' '}
-                  {league.public_visibility
-                    ? t('admin.leagues.public')
-                    : t('admin.leagues.private')}
-                  {' — '}
-                  <span className="capitalize">{league.status}</span>
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link className="text-sm underline" href={`/leagues/${league.slug}`}>
-                  {t('admin.leagues.standings')}
-                </Link>
-                <a
-                  className="text-sm underline"
-                  href={`${apiUrl}/api/v1/leagues/${league.id}/final-report.csv`}
-                >
-                  {t('admin.leagues.csvReport')}
-                </a>
-                <a
-                  className="text-sm underline"
-                  href={`${apiUrl}/api/v1/leagues/${league.id}/final-report.print.html`}
-                >
-                  {t('admin.leagues.printReport')}
-                </a>
-                <button className="text-sm underline" onClick={() => recompute(league.id)}>
-                  {t('admin.leagues.recompute')}
-                </button>
-                <button
-                  className="text-sm underline"
-                  onClick={() => (editId === league.id ? setEditId(null) : openEdit(league))}
-                >
-                  {editId === league.id ? t('admin.leagues.cancel') : t('admin.leagues.edit')}
-                </button>
-                <button
-                  className="text-sm underline text-red-600"
-                  onClick={() => deleteLeague(league.id, league.name)}
-                >
-                  {t('admin.leagues.delete')}
-                </button>
-                <button className="text-sm underline" onClick={() => openAddPanel(league.id)}>
-                  {addPanelLeagueId === league.id
-                    ? t('admin.leagues.closeAddPanel')
-                    : t('admin.leagues.addTournaments')}
-                </button>
-              </div>
-            </div>
-
-            {editId === league.id && (
-              <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4">
-                <input
-                  className="border rounded px-3 py-2 text-sm"
-                  placeholder={t('admin.leagues.name')}
-                  value={editForm.name}
-                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                />
-                <textarea
-                  className="border rounded px-3 py-2 text-sm"
-                  placeholder={t('admin.leagues.descriptionOptional')}
-                  rows={2}
-                  value={editForm.description}
-                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
-                />
-                <div className="flex flex-wrap gap-4 items-center">
-                  <select
-                    className="border rounded px-3 py-2 text-sm"
-                    value={editForm.status}
-                    onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
-                  >
-                    <option value="draft">{t('admin.leagues.draft')}</option>
-                    <option value="published">{t('admin.leagues.published')}</option>
-                    <option value="archived">{t('admin.leagues.archived')}</option>
-                  </select>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={editForm.publicVisibility}
-                      onChange={(e) =>
-                        setEditForm((f) => ({ ...f, publicVisibility: e.target.checked }))
-                      }
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+        <table className="w-full min-w-[920px] text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <th className="px-4 py-3 w-16">Logo</th>
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Year</th>
+              <th className="px-4 py-3">Category</th>
+              <th className="px-4 py-3">Scoring system</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Public</th>
+              <th className="px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={8} className="py-8 text-center text-sm text-gray-400">
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!loading && leagues.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-12 text-center text-sm text-gray-400">
+                  No leagues yet. Click <strong>Create league</strong> to add one.
+                </td>
+              </tr>
+            )}
+            {leagues.map((league) => (
+              <tr key={league.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-3">
+                  {league.logo_url ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={league.logo_url}
+                      alt={league.name}
+                      className="h-9 w-9 rounded-md border border-slate-200 bg-white object-contain"
                     />
-                    {t('admin.leagues.public')}
-                  </label>
-                  <button
-                    className="bg-gray-950 text-white rounded px-3 py-2 text-sm"
-                    onClick={saveEdit}
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                      {initialsFor(league.name)}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <p className="font-medium text-slate-900">{league.name}</p>
+                  <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
+                </td>
+                <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
+                <td className="px-4 py-3 text-slate-700">
+                  {formatCategory(league.scoring_config?.rankingDimensions)}
+                </td>
+                <td className="px-4 py-3 text-slate-700">
+                  {formatScoringSystem(league.scoring_system)}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={[
+                      'rounded-full px-2 py-0.5 text-xs font-semibold',
+                      league.status === 'published'
+                        ? 'bg-green-100 text-green-700'
+                        : league.status === 'archived'
+                          ? 'bg-slate-200 text-slate-600'
+                          : 'bg-amber-100 text-amber-700',
+                    ].join(' ')}
                   >
-                    {t('admin.leagues.save')}
-                  </button>
-                </div>
-                <div className="border-t border-gray-100 pt-3">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">
-                    {t('admin.leagues.scoringSystem')}
-                  </p>
-                  <div className="flex gap-4 mb-3">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        checked={editForm.scoringSystem === 'ffamhe_tf_2026'}
-                        onChange={() =>
-                          setEditForm((f) => ({
-                            ...f,
-                            scoringSystem: 'ffamhe_tf_2026',
-                            pointRows: [],
-                          }))
-                        }
-                      />
-                      {t('admin.leagues.ffamhePreset')}
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        checked={editForm.scoringSystem === 'custom'}
-                        onChange={() =>
-                          setEditForm((f) => ({
-                            ...f,
-                            scoringSystem: 'custom',
-                            pointRows:
-                              f.pointRows.length > 0
-                                ? f.pointRows
-                                : Object.entries(FFAMHE_POINTS).map(([rank, points]) => ({
-                                    rank: Number(rank),
-                                    points: Number(points),
-                                  })),
-                          }))
-                        }
-                      />
-                      {t('admin.leagues.custom')}
-                    </label>
+                    {league.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-slate-600">
+                  {league.public_visibility ? 'Yes' : 'No'}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/admin/leagues/${league.id}/edit`}
+                      className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(league)}
+                      disabled={busyId === league.id}
+                      className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
                   </div>
-
-                  {editForm.scoringSystem === 'custom' && (
-                    <div>
-                      <table className="text-sm w-full max-w-xs mb-2">
-                        <thead>
-                          <tr>
-                            <th className="text-left px-2 py-1 text-xs text-gray-500">
-                              {t('admin.leagues.rank')}
-                            </th>
-                            <th className="text-left px-2 py-1 text-xs text-gray-500">
-                              {t('admin.leagues.points')}
-                            </th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editForm.pointRows.map((row, i) => (
-                            <tr key={i}>
-                              <td className="px-2 py-1">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  className="border rounded px-2 py-1 w-16 text-sm"
-                                  value={row.rank}
-                                  onChange={(e) => {
-                                    const updated: Array<{ rank: number; points: number }> = [
-                                      ...editForm.pointRows,
-                                    ];
-                                    updated[i] = {
-                                      rank: Number(e.target.value),
-                                      points: updated[i]!.points,
-                                    };
-                                    setEditForm((f) => ({ ...f, pointRows: updated }));
-                                  }}
-                                />
-                              </td>
-                              <td className="px-2 py-1">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  className="border rounded px-2 py-1 w-16 text-sm"
-                                  value={row.points}
-                                  onChange={(e) => {
-                                    const updated: Array<{ rank: number; points: number }> = [
-                                      ...editForm.pointRows,
-                                    ];
-                                    updated[i] = {
-                                      rank: updated[i]!.rank,
-                                      points: Number(e.target.value),
-                                    };
-                                    setEditForm((f) => ({ ...f, pointRows: updated }));
-                                  }}
-                                />
-                              </td>
-                              <td className="px-2 py-1">
-                                <button
-                                  className="text-red-500 text-xs underline"
-                                  onClick={() =>
-                                    setEditForm((f) => ({
-                                      ...f,
-                                      pointRows: f.pointRows.filter((_, j) => j !== i),
-                                    }))
-                                  }
-                                >
-                                  {t('admin.leagues.remove')}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <button
-                        className="text-sm underline"
-                        onClick={() =>
-                          setEditForm((f) => ({
-                            ...f,
-                            pointRows: [
-                              ...f.pointRows,
-                              { rank: f.pointRows.length + 1, points: 0 },
-                            ],
-                          }))
-                        }
-                      >
-                        {t('admin.leagues.addRow')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {(() => {
-              const leagueLinks = links[league.id] ?? [];
-              const byEvent = new Map<
-                string,
-                { eventId: string; eventName: string; links: TournamentLink[] }
-              >();
-              for (const link of leagueLinks) {
-                const eventId = link.tournaments?.events?.id ?? '__no_event__';
-                const eventName = link.tournaments?.events?.name ?? t('admin.leagues.unknownEvent');
-                if (!byEvent.has(eventId)) byEvent.set(eventId, { eventId, eventName, links: [] });
-                byEvent.get(eventId)!.links.push(link);
-              }
-
-              if (byEvent.size === 0) return null;
-
-              return (
-                <>
-                  <h3 className="text-sm font-semibold mt-5 mb-2">{t('admin.leagues.requests')}</h3>
-                  {[...byEvent.values()].map((group) => (
-                    <div key={group.eventId} className="mb-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-600">{group.eventName}</span>
-                        {group.eventId !== '__no_event__' && (
-                          <button
-                            className="text-xs underline text-red-600"
-                            onClick={() => removeEventLinks(league.id, group.eventId)}
-                          >
-                            {t('admin.leagues.removeAll')}
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid gap-2">
-                        {group.links.map((link) => (
-                          <div
-                            key={link.id}
-                            className={`flex flex-wrap items-center justify-between gap-3 rounded border p-3 text-sm ${
-                              link.status === 'removed'
-                                ? 'border-gray-100 opacity-40'
-                                : 'border-gray-200'
-                            }`}
-                          >
-                            <span>
-                              {link.tournaments?.name}{' '}
-                              {link.tournaments?.weapon && `· ${link.tournaments.weapon}`}{' '}
-                              {link.tournaments?.category && `· ${link.tournaments.category}`}
-                            </span>
-                            <span className="text-gray-500 capitalize">{link.status}</span>
-                            <span className="flex gap-2">
-                              {link.status === 'requested' && (
-                                <>
-                                  <button
-                                    className="underline"
-                                    onClick={() => review(link.id, 'approved')}
-                                  >
-                                    {t('admin.leagues.approve')}
-                                  </button>
-                                  <button
-                                    className="underline"
-                                    onClick={() => review(link.id, 'rejected')}
-                                  >
-                                    {t('admin.leagues.reject')}
-                                  </button>
-                                </>
-                              )}
-                              {link.status !== 'removed' && (
-                                <button
-                                  className="underline text-red-600"
-                                  onClick={() => removeLink(link.id, league.id)}
-                                >
-                                  {t('admin.leagues.remove')}
-                                </button>
-                              )}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </>
-              );
-            })()}
-
-            {addPanelLeagueId === league.id && (
-              <div className="mt-4 border-t border-gray-100 pt-4">
-                <p className="text-sm font-semibold mb-2">{t('admin.leagues.addTournaments')}</p>
-                <input
-                  className="border rounded px-3 py-2 text-sm w-full max-w-sm mb-3"
-                  placeholder={t('admin.leagues.searchEvents')}
-                  value={eventSearch}
-                  onChange={(e) => setEventSearch(e.target.value)}
-                />
-                <div className="grid gap-2 max-h-72 overflow-y-auto">
-                  {allEvents
-                    .filter((ev) => !eventSearch || fuzzyMatch(eventSearch, ev.name))
-                    .map((ev) => {
-                      const linked = new Set(
-                        (links[league.id] ?? [])
-                          .filter((l) => l.status !== 'removed')
-                          .map((l) => l.tournaments?.id)
-                          .filter((id): id is string => Boolean(id)),
-                      );
-                      return (
-                        <div key={ev.id} className="border border-gray-100 rounded p-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <button
-                              className="text-sm text-left flex-1"
-                              onClick={() => expandEvent(ev.id)}
-                            >
-                              {expandedEventId === ev.id ? '▾' : '▸'} {ev.name}
-                            </button>
-                            <button
-                              className="text-xs underline"
-                              onClick={() => addEventTournaments(league.id, ev.id)}
-                            >
-                              {t('admin.leagues.addAll')}
-                            </button>
-                          </div>
-                          {expandedEventId === ev.id && (
-                            <div className="mt-2 grid gap-1 pl-4">
-                              {(eventTournaments[ev.id] ?? []).map((tour) => {
-                                const isLinked = linked.has(tour.id);
-                                return (
-                                  <div
-                                    key={tour.id}
-                                    className={`flex items-center justify-between text-sm ${
-                                      isLinked ? 'opacity-40' : ''
-                                    }`}
-                                  >
-                                    <span>
-                                      {tour.name}
-                                      {tour.weapon ? ` · ${tour.weapon}` : ''}
-                                      {tour.category ? ` · ${tour.category}` : ''}
-                                    </span>
-                                    <button
-                                      className="text-xs underline"
-                                      disabled={isLinked}
-                                      onClick={() => !isLinked && addTournament(league.id, tour.id)}
-                                    >
-                                      {isLinked
-                                        ? t('admin.leagues.linked')
-                                        : t('admin.leagues.add')}
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                              {eventTournaments[ev.id]?.length === 0 && (
-                                <p className="text-xs text-gray-400">
-                                  {t('admin.leagues.noTournaments')}
-                                </p>
-                              )}
-                              {!eventTournaments[ev.id] && (
-                                <p className="text-xs text-gray-400">
-                                  {t('admin.leagues.loading')}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  {allEvents.filter((ev) => !eventSearch || fuzzyMatch(eventSearch, ev.name))
-                    .length === 0 && (
-                    <p className="text-sm text-gray-400">
-                      {t('admin.leagues.noEventsMatch', { query: eventSearch })}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </main>
   );
