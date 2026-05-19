@@ -1,13 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 export class CreateFighterDto {
@@ -401,4 +405,73 @@ export class LinkEnrollmentDto {
   @ApiProperty({ description: 'Workshop enrollment ID to link to this global person' })
   @IsUUID()
   enrollmentId!: string;
+}
+
+export class ImportDecisionDto {
+  @ApiProperty({ description: 'Source row number (CSV line)' })
+  @IsInt()
+  @Min(0)
+  index!: number;
+
+  @ApiProperty({ enum: ['skip', 'create_new', 'overwrite'] })
+  @IsIn(['skip', 'create_new', 'overwrite'])
+  action!: 'skip' | 'create_new' | 'overwrite';
+
+  @ApiProperty({ required: false, description: 'Existing global person id when action=overwrite' })
+  @IsOptional()
+  @IsUUID()
+  targetGlobalPersonId?: string;
+
+  @ApiProperty()
+  @IsString()
+  givenName!: string;
+
+  @ApiProperty()
+  @IsString()
+  familyName!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  hemaRatingsId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  clubLabel?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  clubAbbreviation?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  clubCity?: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  isFighter!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  isReferee!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  isWorkshopParticipant!: boolean;
+}
+
+export class ImportCommitDto {
+  @ApiProperty({ type: [ImportDecisionDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ImportDecisionDto)
+  decisions!: ImportDecisionDto[];
 }

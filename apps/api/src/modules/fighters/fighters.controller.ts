@@ -37,6 +37,7 @@ import {
   FighterQueryDto,
   FighterRolesDto,
   GlobalPersonQueryDto,
+  ImportCommitDto,
   LinkEnrollmentDto,
   LinkQualificationDto,
   MergeFightersDto,
@@ -257,11 +258,12 @@ export class GlobalPersonsController {
   }
 
   /**
-   * POST /api/v1/global-persons/import
-   * Bulk-import global persons from CSV (super admin only).
-   * Deduplicates by case-insensitive full name; creates unverified clubs as needed.
+   * POST /api/v1/global-persons/import/preview
+   * Parses the CSV and returns per-row status + duplicate matches + reasons,
+   * without writing anything. The admin then sends a JSON decisions array to
+   * POST /api/v1/global-persons/import to commit.
    */
-  @Post('import')
+  @Post('import/preview')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @UseGuards(SuperAdminGuard)
@@ -272,8 +274,8 @@ export class GlobalPersonsController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  @ApiOperation({ summary: 'Bulk import global persons from CSV (super admin)' })
-  async importGlobalPersons(@Req() req: FastifyRequest) {
+  @ApiOperation({ summary: 'Dry-run a Global Profiles CSV import (super admin)' })
+  async previewGlobalPersonsImport(@Req() req: FastifyRequest) {
     let buffer: Buffer | null = null;
     try {
       const data = await (
@@ -287,9 +289,26 @@ export class GlobalPersonsController {
     }
 
     if (!buffer) {
-      return { created: 0, skipped: 0, invalid: 1, newClubs: [] };
+      return {
+        summary: { total: 0, ok: 0, invalid: 0, duplicate: 0 },
+        rows: [],
+      };
     }
-    return this.fighters.importGlobalPersons(buffer);
+    return this.fighters.previewGlobalPersonsImport(buffer);
+  }
+
+  /**
+   * POST /api/v1/global-persons/import
+   * Commits the user's per-row decisions from the preview step. Each
+   * decision is { index, action, fields, optional targetGlobalPersonId }.
+   */
+  @Post('import')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Commit a Global Profiles CSV import (super admin)' })
+  async commitGlobalPersonsImport(@Body() dto: ImportCommitDto) {
+    return this.fighters.commitGlobalPersonsImport(dto.decisions);
   }
 
   /** PATCH /api/v1/global-persons/:id/roles */

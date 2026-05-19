@@ -13,6 +13,7 @@ import type {
   FighterQueryDto,
   FighterRolesDto,
   GlobalPersonQueryDto,
+  ImportDecisionDto,
   PromoteFighterDto,
   RefereeProfileDto,
   UpdateGlobalPersonDto,
@@ -903,75 +904,220 @@ export class FightersService {
     return data;
   }
 
-  async importGlobalPersons(
-    buffer: Buffer,
-  ): Promise<{ created: number; skipped: number; invalid: number; newClubs: string[] }> {
-    const { rows, invalid } = this.csvImport.parse(buffer);
+  async previewGlobalPersonsImport(buffer: Buffer): Promise<{
+    summary: { total: number; ok: number; invalid: number; duplicate: number };
+    rows: Array<{
+      index: number;
+      status: 'ok' | 'invalid' | 'duplicate';
+      reasons: string[];
+      duplicate: { id: string; displayName: string } | null;
+      raw: string;
+      fields: {
+        givenName: string;
+        familyName: string;
+        displayName: string;
+        hemaRatingsId: string | null;
+        clubLabel: string | null;
+        clubAbbreviation: string | null;
+        clubCity: string | null;
+        isFighter: boolean;
+        isReferee: boolean;
+        isWorkshopParticipant: boolean;
+      };
+    }>;
+  }> {
+    const parsed = this.csvImport.parse(buffer);
+    const validRows = parsed.rows;
+    const invalidRows = parsed.invalid;
 
-    if (rows.length === 0) {
-      return { created: 0, skipped: 0, invalid: invalid.length, newClubs: [] };
+    // Collect lookup keys for duplicate detection
+    const nameKeys = new Set<string>();
+    const hemaIds = new Set<string>();
+    for (const row of validRows) {
+      nameKeys.add(
+        `${row.given_name.toLowerCase().trim()} ${row.family_name.toLowerCase().trim()}`,
+      );
+      if (row.hema_ratings_id) hemaIds.add(row.hema_ratings_id);
     }
 
-    // Fetch existing names for deduplication
-    const { data: existing } = await this.supabase.service
-      .from('global_persons')
-      .select('given_name, family_name')
-      .is('deleted_at', null);
+    const nameMatches = new Map<string, { id: string; displayName: string }>();
+    const hemaMatches = new Map<string, { id: string; displayName: string }>();
 
-    const existingKeys = new Set(
-      ((existing ?? []) as Row[]).map(
-        (p) =>
-          `${String(p['given_name']).toLowerCase().trim()} ${String(p['family_name']).toLowerCase().trim()}`,
-      ),
+    if (nameKeys.size > 0 || hemaIds.size > 0) {
+      const { data: existing } = await this.supabase.service
+        .from('global_persons')
+        .select('id, given_name, family_name, display_name, hema_ratings_id')
+        .is('deleted_at', null);
+      for (const row of (existing ?? []) as Row[]) {
+        const id = String(row['id']);
+        const given = String(row['given_name'] ?? '')
+          .toLowerCase()
+          .trim();
+        const family = String(row['family_name'] ?? '')
+          .toLowerCase()
+          .trim();
+        const displayName = String(row['display_name'] ?? '');
+        const key = `${given} ${family}`;
+        if (!nameMatches.has(key)) nameMatches.set(key, { id, displayName });
+        const hema = typeof row['hema_ratings_id'] === 'string' ? row['hema_ratings_id'] : null;
+        if (hema && !hemaMatches.has(hema)) hemaMatches.set(hema, { id, displayName });
+      }
+    }
+
+    const out: Awaited<ReturnType<FightersService['previewGlobalPersonsImport']>>['rows'] = [];
+
+    for (const inv of invalidRows) {
+      out.push({
+        index: inv.row,
+        status: 'invalid',
+        reasons: [inv.reason],
+        duplicate: null,
+        raw: inv.raw ?? '',
+        fields: {
+          givenName: '',
+          familyName: '',
+          displayName: '',
+          hemaRatingsId: null,
+          clubLabel: null,
+          clubAbbreviation: null,
+          clubCity: null,
+          isFighter: false,
+          isReferee: false,
+          isWorkshopParticipant: false,
+        },
+      });
+    }
+
+    for (const row of validRows) {
+      const key = `${row.given_name.toLowerCase().trim()} ${row.family_name.toLowerCase().trim()}`;
+      const dupByName = nameMatches.get(key);
+      const dupByHema = row.hema_ratings_id ? hemaMatches.get(row.hema_ratings_id) : undefined;
+      const duplicate = dupByName ?? dupByHema ?? null;
+      out.push({
+        index: row.rowNumber,
+        status: duplicate ? 'duplicate' : 'ok',
+        reasons: [],
+        duplicate,
+        raw: '',
+        fields: {
+          givenName: row.given_name,
+          familyName: row.family_name,
+          displayName: row.display_name?.trim() || `${row.given_name} ${row.family_name}`,
+          hemaRatingsId: row.hema_ratings_id ?? null,
+          clubLabel: row.club ?? null,
+          clubAbbreviation: row.club_abv ?? null,
+          clubCity: row.club_city ?? null,
+          isFighter: row.is_fighter === 'true' || row.is_fighter === '1',
+          isReferee: row.is_referee === 'true' || row.is_referee === '1',
+          isWorkshopParticipant:
+            row.is_workshop_participant === 'true' || row.is_workshop_participant === '1',
+        },
+      });
+    }
+
+    out.sort((a, b) => a.index - b.index);
+
+    const summary = out.reduce(
+      (acc, row) => {
+        acc.total++;
+        acc[row.status]++;
+        return acc;
+      },
+      { total: 0, ok: 0, invalid: 0, duplicate: 0 },
     );
 
-    const newClubs: string[] = [];
-    let created = 0;
-    let skipped = 0;
+    return { summary, rows: out };
+  }
 
-    for (const row of rows) {
-      const key = `${row.given_name.toLowerCase()} ${row.family_name.toLowerCase()}`;
-      if (existingKeys.has(key)) {
+  async commitGlobalPersonsImport(decisions: ImportDecisionDto[]): Promise<{
+    created: number;
+    updated: number;
+    skipped: number;
+    failed: Array<{ index: number; reason: string }>;
+    newClubs: string[];
+  }> {
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const failed: Array<{ index: number; reason: string }> = [];
+    const newClubs: string[] = [];
+
+    for (const decision of decisions) {
+      if (decision.action === 'skip') {
         skipped++;
         continue;
       }
 
+      const givenName = decision.givenName?.trim();
+      const familyName = decision.familyName?.trim();
+      if (!givenName || !familyName) {
+        failed.push({ index: decision.index, reason: 'Missing given_name or family_name' });
+        continue;
+      }
+
       let clubId: string | null = null;
-      if (row.club || row.club_abv) {
+      if (decision.clubLabel || decision.clubAbbreviation) {
         clubId = await this.resolveOrCreateClubForImport(
-          { name: row.club, abv: row.club_abv, city: row.club_city },
+          {
+            name: decision.clubLabel,
+            abv: decision.clubAbbreviation,
+            city: decision.clubCity,
+          },
           newClubs,
         );
       }
 
-      const displayName = row.display_name || `${row.given_name} ${row.family_name}`;
-      const baseSlug = slugify(displayName);
-      const slug = `${baseSlug}-${Date.now().toString(36)}`;
-
-      const isFighter = row.is_fighter === 'true' || row.is_fighter === '1';
-      const isReferee = row.is_referee === 'true' || row.is_referee === '1';
-      const isWorkshopParticipant =
-        row.is_workshop_participant === 'true' || row.is_workshop_participant === '1';
-
-      const { error } = await this.supabase.service.from('global_persons').insert({
-        slug,
+      const displayName = decision.displayName?.trim() || `${givenName} ${familyName}`;
+      const payload = {
         display_name: displayName,
-        given_name: row.given_name,
-        family_name: row.family_name,
+        given_name: givenName,
+        family_name: familyName,
         club_id: clubId,
-        hema_ratings_id: row.hema_ratings_id ?? null,
-        is_fighter: isFighter || null,
-        is_referee: isReferee || null,
-        is_workshop_participant: isWorkshopParticipant || null,
-      });
+        hema_ratings_id: decision.hemaRatingsId?.trim() || null,
+        is_fighter: decision.isFighter ? 'true' : null,
+        is_referee: decision.isReferee ? 'true' : null,
+        is_workshop_participant: decision.isWorkshopParticipant ? 'true' : null,
+      };
 
-      if (!error) {
-        created++;
-        existingKeys.add(key);
+      try {
+        if (decision.action === 'overwrite') {
+          if (!decision.targetGlobalPersonId) {
+            failed.push({
+              index: decision.index,
+              reason: 'targetGlobalPersonId required for overwrite',
+            });
+            continue;
+          }
+          const { error } = await this.supabase.service
+            .from('global_persons')
+            .update({ ...payload, updated_at: new Date().toISOString() })
+            .eq('id', decision.targetGlobalPersonId);
+          if (error) {
+            failed.push({ index: decision.index, reason: error.message });
+            continue;
+          }
+          updated++;
+        } else {
+          const baseSlug = slugify(displayName);
+          const slug = `${baseSlug}-${Date.now().toString(36)}`;
+          const { error } = await this.supabase.service
+            .from('global_persons')
+            .insert({ slug, ...payload });
+          if (error) {
+            failed.push({ index: decision.index, reason: error.message });
+            continue;
+          }
+          created++;
+        }
+      } catch (err) {
+        failed.push({
+          index: decision.index,
+          reason: err instanceof Error ? err.message : 'Unknown error',
+        });
       }
     }
 
-    return { created, skipped, invalid: invalid.length, newClubs: [...new Set(newClubs)] };
+    return { created, updated, skipped, failed, newClubs: [...new Set(newClubs)] };
   }
 
   private async resolveOrCreateClubForImport(
