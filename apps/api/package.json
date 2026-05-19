@@ -39,7 +39,7 @@
     "csv-parse": "^6.2.1",
     "fastify": "^5.8.5",
     "jsonwebtoken": "^9.0.3",
-    "openai": "^6.37.0",
+    "openai": "^6.38.0",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.2",
