@@ -99,43 +99,43 @@ function canRevert(createdAt: string, nowMs: number): boolean {
 
 function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | null }) {
   return (
-    <section className="border border-gray-200 rounded-lg p-4 min-h-64">
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{label}</p>
+    <section className="border border-slate-200 rounded-lg p-4 min-h-64">
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-3">{label}</p>
       {!fighter ? (
-        <p className="text-sm text-gray-400">No fighter selected.</p>
+        <p className="text-sm text-slate-400">No fighter selected.</p>
       ) : (
         <div>
           <div className="flex items-start gap-3">
-            <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-500 overflow-hidden">
+            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-500 overflow-hidden">
               {fighter.photo_url ? 'Photo' : fighter.display_name.slice(0, 2).toUpperCase()}
             </div>
             <div>
               <h2 className="text-lg font-semibold">{fighter.display_name}</h2>
-              <p className="text-xs font-mono text-gray-500">{fighter.id}</p>
-              <p className="text-sm text-gray-500 mt-1">{fighter.slug}</p>
+              <p className="text-xs font-mono text-slate-500">{fighter.id}</p>
+              <p className="text-sm text-slate-500 mt-1">{fighter.slug}</p>
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-3 mt-5 text-sm">
             <div>
-              <dt className="text-gray-400">Name</dt>
+              <dt className="text-slate-400">Name</dt>
               <dd>
                 {fighter.given_name} {fighter.family_name}
               </dd>
             </div>
             <div>
-              <dt className="text-gray-400">Country</dt>
+              <dt className="text-slate-400">Country</dt>
               <dd>{fighter.country_code ?? '-'}</dd>
             </div>
             <div>
-              <dt className="text-gray-400">HEMA Ratings</dt>
+              <dt className="text-slate-400">HEMA Ratings</dt>
               <dd>{fighter.hema_ratings_id ?? '-'}</dd>
             </div>
             <div>
-              <dt className="text-gray-400">Gender category</dt>
+              <dt className="text-slate-400">Gender category</dt>
               <dd>{fighter.gender_category ?? '-'}</dd>
             </div>
           </dl>
-          {fighter.bio && <p className="text-sm text-gray-600 mt-4 line-clamp-4">{fighter.bio}</p>}
+          {fighter.bio && <p className="text-sm text-slate-600 mt-4 line-clamp-4">{fighter.bio}</p>}
         </div>
       )}
     </section>
@@ -460,20 +460,20 @@ export default function AdminFightersPage() {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">Global Profiles</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-slate-500 text-sm mt-1">
             Manage global fighter, referee, and workshop participant profiles.
           </p>
         </div>
         <Link
           href="/admin/global-persons/import"
-          className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg"
+          className="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg"
         >
           CSV import
         </Link>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6 gap-0">
+      <div className="flex border-b border-slate-200 mb-6 gap-0">
         {(
           [
             { key: 'profiles', label: 'Profiles' },
@@ -491,7 +491,7 @@ export default function AdminFightersPage() {
               'py-2 px-5 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === key
                 ? 'border-red-700 text-red-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700',
+                : 'border-transparent text-slate-500 hover:text-slate-700',
             ].join(' ')}
           >
             {label}
@@ -522,20 +522,20 @@ export default function AdminFightersPage() {
                 if (e.key === 'Enter') void searchPersons(personQuery);
               }}
               placeholder="Search by name…"
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-72"
+              className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-72"
             />
             <button
               onClick={() => void searchPersons(personQuery)}
               disabled={personsLoading}
-              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+              className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
             >
               Search
             </button>
           </div>
-          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-500 text-xs uppercase tracking-wide">
+                <tr className="bg-slate-50 border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
                   <th className="py-3 px-4">Name</th>
                   <th className="py-3 px-4">Club</th>
                   <th className="py-3 px-4">Roles</th>
@@ -546,20 +546,20 @@ export default function AdminFightersPage() {
               <tbody>
                 {persons.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-400 text-sm">
+                    <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">
                       {personsLoading ? 'Loading…' : 'No profiles found.'}
                     </td>
                   </tr>
                 )}
                 {persons.map((p) => (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="py-2.5 px-4">
-                      <p className="font-medium text-gray-900">{p.display_name}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="font-medium text-slate-900">{p.display_name}</p>
+                      <p className="text-xs text-slate-400">
                         {p.given_name} {p.family_name}
                       </p>
                     </td>
-                    <td className="py-2.5 px-4 text-gray-600 text-sm">
+                    <td className="py-2.5 px-4 text-slate-600 text-sm">
                       {(p.clubs as { name: string } | null)?.name ?? '—'}
                     </td>
                     <td className="py-2.5 px-4">
@@ -581,7 +581,7 @@ export default function AdminFightersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-2.5 px-4 text-gray-500 text-sm">{p.country_code ?? '—'}</td>
+                    <td className="py-2.5 px-4 text-slate-500 text-sm">{p.country_code ?? '—'}</td>
                     <td className="py-2.5 px-4">
                       <button
                         type="button"
@@ -597,7 +597,7 @@ export default function AdminFightersPage() {
             </table>
           </div>
           {persons.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2">{persons.length} profiles</p>
+            <p className="text-xs text-slate-400 mt-2">{persons.length} profiles</p>
           )}
         </div>
       )}
@@ -612,13 +612,15 @@ export default function AdminFightersPage() {
                   ? t('admin.globalProfiles.editTitle')
                   : t('admin.globalProfiles.createTitle')}
               </h2>
-              <p className="text-xs text-gray-500 mt-1">{t('admin.globalProfiles.requiredNote')}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                {t('admin.globalProfiles.requiredNote')}
+              </p>
             </div>
             {editingProfile && (
               <button
                 type="button"
                 onClick={resetProfileForm}
-                className="text-sm font-semibold text-gray-600 hover:text-gray-900"
+                className="text-sm font-semibold text-slate-600 hover:text-slate-900"
               >
                 {t('admin.globalProfiles.cancelEdit')}
               </button>
@@ -638,29 +640,29 @@ export default function AdminFightersPage() {
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1">
                   Given name <span className="text-red-600">*</span>
                 </label>
                 <input
                   value={form.givenName}
                   onChange={(e) => setForm((f) => ({ ...f, givenName: e.target.value }))}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1">
                   Family name <span className="text-red-600">*</span>
                 </label>
                 <input
                   value={form.familyName}
                   onChange={(e) => setForm((f) => ({ ...f, familyName: e.target.value }))}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 Display name (leave blank to auto-generate)
               </label>
               <input
@@ -671,23 +673,23 @@ export default function AdminFightersPage() {
                     ? `${form.givenName} ${form.familyName}`.trim()
                     : undefined
                 }
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 {t('admin.globalProfiles.hemaRatingsId')}
               </label>
               <input
                 value={form.hemaRatingsId}
                 onChange={(e) => setForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Club</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Club</label>
               <div className="relative">
                 <input
                   value={form.clubQuery}
@@ -721,13 +723,13 @@ export default function AdminFightersPage() {
                     }
                   }}
                   placeholder="Search clubs by name or abbreviation…"
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-600"
+                  className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
                 />
                 {form.clubId && (
                   <p className="text-xs text-green-700 mt-1">Selected: {form.clubName}</p>
                 )}
                 {clubResults.length > 0 && !form.clubId && (
-                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                     {clubResults.map((c, index) => (
                       <button
                         key={c.id}
@@ -743,16 +745,16 @@ export default function AdminFightersPage() {
                           setClubResults([]);
                         }}
                         className={[
-                          'w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2',
+                          'w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2',
                           index === activeClubIndex ? 'bg-red-50' : '',
                         ].join(' ')}
                       >
                         <span>{c.name}</span>
                         {c.abbreviation && (
-                          <span className="text-xs text-gray-400 font-mono">{c.abbreviation}</span>
+                          <span className="text-xs text-slate-400 font-mono">{c.abbreviation}</span>
                         )}
                         {(c.city || c.country_code) && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-slate-400">
                             {[c.city, c.country_code].filter(Boolean).join(', ')}
                           </span>
                         )}
@@ -767,13 +769,13 @@ export default function AdminFightersPage() {
                     value={form.clubAbbreviation}
                     onChange={(e) => setForm((f) => ({ ...f, clubAbbreviation: e.target.value }))}
                     placeholder={t('admin.globalProfiles.clubAbbreviation')}
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
                   />
                   <input
                     value={form.clubCity}
                     onChange={(e) => setForm((f) => ({ ...f, clubCity: e.target.value }))}
                     placeholder={t('admin.globalProfiles.clubCity')}
-                    className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
                   />
                   <button
                     type="button"
@@ -790,7 +792,7 @@ export default function AdminFightersPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-2">Roles</label>
+              <label className="block text-xs font-medium text-slate-600 mb-2">Roles</label>
               <div className="flex gap-4">
                 {(
                   [
@@ -826,7 +828,7 @@ export default function AdminFightersPage() {
                 (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant) ||
                 creating
               }
-              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm self-start"
+              className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm self-start"
             >
               {creating
                 ? editingProfile
@@ -856,7 +858,7 @@ export default function AdminFightersPage() {
             </div>
           )}
 
-          <section className="border border-gray-200 rounded-lg p-4 mb-6">
+          <section className="border border-slate-200 rounded-lg p-4 mb-6">
             <div className="flex gap-2">
               <input
                 value={query}
@@ -865,12 +867,12 @@ export default function AdminFightersPage() {
                   if (e.key === 'Enter') void searchFighters();
                 }}
                 placeholder="Search fighters by name"
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-80"
+                className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-80"
               />
               <button
                 onClick={() => void searchFighters()}
                 disabled={loading}
-                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+                className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
               >
                 Search
               </button>
@@ -879,7 +881,7 @@ export default function AdminFightersPage() {
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-200 text-left text-gray-500">
+                    <tr className="border-b border-slate-200 text-left text-slate-500">
                       <th className="py-2 pr-4">Fighter</th>
                       <th className="py-2 pr-4">HEMA Ratings</th>
                       <th className="py-2">Select</th>
@@ -887,12 +889,12 @@ export default function AdminFightersPage() {
                   </thead>
                   <tbody>
                     {fighters.map((fighter) => (
-                      <tr key={fighter.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr key={fighter.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="py-2 pr-4">
                           <p className="font-medium">{fighter.display_name}</p>
-                          <p className="font-mono text-xs text-gray-500">{fighter.id}</p>
+                          <p className="font-mono text-xs text-slate-500">{fighter.id}</p>
                         </td>
-                        <td className="py-2 pr-4 text-gray-500">
+                        <td className="py-2 pr-4 text-slate-500">
                           {fighter.hema_ratings_id ?? '-'}
                         </td>
                         <td className="py-2">
@@ -924,14 +926,14 @@ export default function AdminFightersPage() {
             <FighterCard label="Target: profile to keep" fighter={target} />
           </div>
 
-          <section className="border border-gray-200 rounded-lg p-4 mb-8">
+          <section className="border border-slate-200 rounded-lg p-4 mb-8">
             <h2 className="text-base font-semibold mb-4">Confirm merge</h2>
             <div className="grid gap-3 lg:grid-cols-2">
               <input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Reason"
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
               <input
                 value={confirmName}
@@ -939,13 +941,13 @@ export default function AdminFightersPage() {
                 placeholder={
                   source ? `Type: ${source.display_name}` : 'Select a source fighter first'
                 }
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
             </div>
             <button
               onClick={() => void mergeFighters()}
               disabled={!source || !target || confirmName !== source?.display_name}
-              className="mt-3 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+              className="mt-3 bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
             >
               Merge source into target
             </button>
@@ -954,12 +956,12 @@ export default function AdminFightersPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3">Recent merges</h2>
             {audits.length === 0 ? (
-              <p className="text-gray-400 text-sm">No fighter merges yet.</p>
+              <p className="text-slate-400 text-sm">No fighter merges yet.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-200 text-left text-gray-500">
+                    <tr className="border-b border-slate-200 text-left text-slate-500">
                       <th className="py-2 pr-4">Merge</th>
                       <th className="py-2 pr-4">Reason</th>
                       <th className="py-2 pr-4">Created</th>
@@ -968,7 +970,7 @@ export default function AdminFightersPage() {
                   </thead>
                   <tbody>
                     {audits.map((audit) => (
-                      <tr key={audit.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr key={audit.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="py-2 pr-4">
                           <p>
                             {audit.payload_json.source?.display_name ??
@@ -979,24 +981,24 @@ export default function AdminFightersPage() {
                               audit.payload_json.target?.id ??
                               '-'}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-slate-500">
                             Persons {audit.payload_json.moved?.personIds?.length ?? 0},
                             registrations {audit.payload_json.moved?.registrationIds?.length ?? 0},
                             instructors{' '}
                             {audit.payload_json.moved?.workshopInstructorIds?.length ?? 0}
                           </p>
                         </td>
-                        <td className="py-2 pr-4 text-gray-600">
+                        <td className="py-2 pr-4 text-slate-600">
                           {audit.payload_json.reason ?? '-'}
                         </td>
-                        <td className="py-2 pr-4 text-gray-500">
+                        <td className="py-2 pr-4 text-slate-500">
                           {new Date(audit.created_at).toLocaleDateString('fr-FR')}
                         </td>
                         <td className="py-2">
                           <button
                             onClick={() => void revertMerge(audit.id)}
                             disabled={nowMs === null || !canRevert(audit.created_at, nowMs)}
-                            className="text-xs text-red-700 hover:underline disabled:text-gray-300"
+                            className="text-xs text-red-700 hover:underline disabled:text-slate-300"
                           >
                             Revert
                           </button>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { FEATURE_FLAG_REGISTRY } from '@myclash/feature-flags';
+import { AdminPageHeader } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface FlagRow {
@@ -70,11 +71,12 @@ export default function AdminFeatureFlagsPage() {
   }
 
   return (
-    <main className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{t('admin.featureFlags.title')}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t('admin.featureFlags.description')}</p>
-      </div>
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow="Flags"
+        title={t('admin.featureFlags.title')}
+        subtitle={t('admin.featureFlags.description')}
+      />
 
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

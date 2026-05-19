@@ -292,7 +292,7 @@ export default function AdminBackupsPage() {
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('admin.backups.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('admin.backups.description')}</p>
+          <p className="text-slate-500 text-sm mt-1">{t('admin.backups.description')}</p>
         </div>
         <button
           type="button"
@@ -326,13 +326,13 @@ export default function AdminBackupsPage() {
         />
       </section>
 
-      <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-gray-200 p-4">
+      <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-slate-200 p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-950">
               {t('admin.backups.scheduleTitle')}
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-slate-500">
               {schedule?.nextRunAt
                 ? t('admin.backups.scheduleNextRun', {
                     nextRun: formatTimestamp(schedule.nextRunAt),
@@ -341,18 +341,18 @@ export default function AdminBackupsPage() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-[auto_7rem_7rem_auto] sm:items-end">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"
                 checked={scheduleForm.enabled}
                 onChange={(event) =>
                   setScheduleForm((current) => ({ ...current, enabled: event.target.checked }))
                 }
-                className="h-4 w-4 rounded border-gray-300"
+                className="h-4 w-4 rounded border-slate-300"
               />
               {t('admin.backups.scheduleEnabled')}
             </label>
-            <label className="grid gap-1 text-sm font-semibold text-gray-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700">
               {t('admin.backups.scheduleHourUtc')}
               <input
                 type="number"
@@ -365,10 +365,10 @@ export default function AdminBackupsPage() {
                     hourUtc: Number(event.target.value),
                   }))
                 }
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold text-gray-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700">
               {t('admin.backups.scheduleMinuteUtc')}
               <input
                 type="number"
@@ -381,7 +381,7 @@ export default function AdminBackupsPage() {
                     minuteUtc: Number(event.target.value),
                   }))
                 }
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </label>
             <button
@@ -396,30 +396,30 @@ export default function AdminBackupsPage() {
       </form>
 
       {operation && (
-        <section className="mb-6 rounded-lg border border-gray-200 p-4">
+        <section className="mb-6 rounded-lg border border-slate-200 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-gray-950">
               {t('admin.backups.currentOperation')}
             </h2>
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
               {t(`admin.backups.operationStatuses.${operation.status}`)}
             </span>
           </div>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-slate-500">
             {operation.kind === 'backup'
               ? t('admin.backups.operationBackup')
               : t('admin.backups.operationRestore')}
           </p>
           {operation.error && <p className="mt-2 text-sm text-red-700">{operation.error}</p>}
           {operation.logTail.length > 0 && (
-            <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-gray-100">
+            <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-slate-100">
               {operation.logTail.join('\n')}
             </pre>
           )}
         </section>
       )}
 
-      <form onSubmit={uploadBackup} className="mb-6 rounded-lg border border-gray-200 p-4">
+      <form onSubmit={uploadBackup} className="mb-6 rounded-lg border border-slate-200 p-4">
         <h2 className="text-base font-semibold text-gray-950">{t('admin.backups.uploadTitle')}</h2>
         <div className="mt-3 flex flex-col gap-3 sm:flex-row">
           <input
@@ -434,7 +434,7 @@ export default function AdminBackupsPage() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-600/30"
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-red-800/30/30"
           >
             {t('admin.backups.browse')}
           </button>
@@ -446,26 +446,26 @@ export default function AdminBackupsPage() {
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 disabled:opacity-50"
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50"
           >
             {t('admin.backups.stageUpload')}
           </button>
         </div>
       </form>
 
-      <section className="rounded-lg border border-gray-200">
-        <div className="border-b border-gray-100 bg-gray-50 px-4 py-3">
+      <section className="rounded-lg border border-slate-200">
+        <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
           <h2 className="text-base font-semibold text-gray-950">{t('admin.backups.available')}</h2>
         </div>
         {loading ? (
-          <p className="p-4 text-sm text-gray-400">{t('admin.backups.loading')}</p>
+          <p className="p-4 text-sm text-slate-400">{t('admin.backups.loading')}</p>
         ) : backups.length === 0 ? (
-          <p className="p-4 text-sm text-gray-400">{t('admin.backups.empty')}</p>
+          <p className="p-4 text-sm text-slate-400">{t('admin.backups.empty')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-gray-100 text-left text-gray-500">
+                <tr className="border-b border-slate-100 text-left text-slate-500">
                   <th className="px-4 py-2">{t('admin.backups.timestamp')}</th>
                   <th className="px-4 py-2">{t('admin.backups.locations')}</th>
                   <th className="px-4 py-2">{t('admin.backups.totalSize')}</th>
@@ -474,14 +474,14 @@ export default function AdminBackupsPage() {
               </thead>
               <tbody>
                 {backups.map((backup) => (
-                  <tr key={backup.id} className="border-b border-gray-50 align-top">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-800">
+                  <tr key={backup.id} className="border-b border-slate-50 align-top">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-800">
                       {formatTimestamp(backup.timestamp)}
                     </td>
                     <td className="px-4 py-3">
                       <LocationBadges backup={backup} />
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-800">
+                    <td className="px-4 py-3 font-medium text-slate-800">
                       {formatBytes(totalBackupSize(backup))}
                     </td>
                     <td className="px-4 py-3">
@@ -550,8 +550,8 @@ function Alert({ tone, children }: { tone: 'error' | 'success'; children: string
 
 function StatusCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
+    <div className="rounded-lg border border-slate-200 p-4">
+      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
       <p className="mt-2 text-sm font-semibold text-gray-950">{value}</p>
     </div>
   );
@@ -571,7 +571,7 @@ function LocationBadges({ backup }: { backup: BackupSet }) {
         .map(([label]) => (
           <span
             key={label}
-            className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700"
+            className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
           >
             {t(`admin.backups.locationsMap.${label}`)}
           </span>
@@ -598,18 +598,20 @@ function BackupActions(props: {
         <div
           key={location}
           className={`rounded-md border p-3 ${
-            available ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-70'
+            available ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-70'
           }`}
         >
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {t(`admin.backups.locationsMap.${location}`)}
           </p>
           <div className="flex flex-wrap gap-2">
             <a
               href={`${props.apiUrl}/api/v1/admin/backups/${props.backup.id}/download?location=${location}&artifact=db`}
               aria-disabled={!available}
-              className={`rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold ${
-                available ? 'text-gray-900 hover:bg-gray-50' : 'pointer-events-none text-gray-400'
+              className={`rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold ${
+                available
+                  ? 'text-slate-900 hover:bg-slate-50'
+                  : 'pointer-events-none text-slate-400'
               }`}
             >
               {t('admin.backups.downloadDb')}
@@ -618,7 +620,7 @@ function BackupActions(props: {
               type="button"
               onClick={() => props.onRestore(location)}
               disabled={props.busy || !available}
-              className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400"
+              className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
             >
               {t('admin.backups.restoreFrom', {
                 location: t(`admin.backups.locationsMap.${location}`),
@@ -628,7 +630,7 @@ function BackupActions(props: {
               type="button"
               onClick={() => props.onDelete(location)}
               disabled={props.busy || !available}
-              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:border-gray-200 disabled:text-gray-400 disabled:hover:bg-transparent"
+              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-transparent"
             >
               {t('admin.backups.deleteFrom', {
                 location: t(`admin.backups.locationsMap.${location}`),
@@ -636,7 +638,7 @@ function BackupActions(props: {
             </button>
           </div>
           {!available && (
-            <p className="mt-2 text-xs text-gray-400">{t('admin.backups.locationUnavailable')}</p>
+            <p className="mt-2 text-xs text-slate-400">{t('admin.backups.locationUnavailable')}</p>
           )}
         </div>
       ))}
@@ -649,7 +651,7 @@ function BackupActions(props: {
             type="button"
             onClick={() => props.onRestore('upload')}
             disabled={props.busy}
-            className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-gray-200 disabled:text-gray-400"
+            className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
           >
             {t('admin.backups.restoreFrom', {
               location: t('admin.backups.locationsMap.upload'),

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { AdminPageHeader, Button } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface UserOrgMembership {
@@ -237,24 +238,17 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <main className="space-y-6">
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-              {t('admin.dashboard.eyebrow')}
-            </p>
-            <h1 className="mt-2 text-2xl font-bold text-slate-950">{t('admin.users.title')}</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">{t('admin.users.description')}</p>
-          </div>
-          <button
-            onClick={refresh}
-            className="w-fit rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
+    <main id="main-content" className="mx-auto max-w-6xl space-y-6 px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow={t('admin.dashboard.eyebrow')}
+        title={t('admin.users.title')}
+        subtitle={t('admin.users.description')}
+        actions={
+          <Button variant="back" onClick={refresh}>
             {t('admin.users.refresh')}
-          </button>
-        </div>
-      </section>
+          </Button>
+        }
+      />
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-950">{t('admin.users.create.title')}</h2>

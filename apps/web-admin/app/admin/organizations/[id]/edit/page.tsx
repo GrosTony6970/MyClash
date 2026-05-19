@@ -91,7 +91,7 @@ export default function AdminOrgEditPage() {
           {t('admin.organizations.detail.back')}
         </Link>
       </div>
-      <h1 className="mb-1 text-2xl font-bold text-[#0f172a]">
+      <h1 className="mb-1 text-2xl font-bold text-slate-900">
         {t('admin.organizations.edit.title')}
       </h1>
       <p className="mb-6 text-sm text-slate-500">{t('admin.organizations.edit.description')}</p>
@@ -127,7 +127,7 @@ export default function AdminOrgEditPage() {
                     slug: current.slugDetached ? current.slug : slugify(name),
                   }));
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
             </label>
             <label className="block text-sm font-semibold text-slate-700">
@@ -145,7 +145,7 @@ export default function AdminOrgEditPage() {
                     slugDetached: true,
                   }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
             </label>
           </div>
@@ -153,7 +153,7 @@ export default function AdminOrgEditPage() {
             <button
               type="submit"
               disabled={busy}
-              className="rounded-md bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:cursor-wait disabled:opacity-70"
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-wait disabled:opacity-70"
             >
               {busy ? t('admin.organizations.edit.saving') : t('admin.organizations.edit.save')}
             </button>

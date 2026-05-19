@@ -314,7 +314,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   if (loading) {
     return (
       <main className="p-8">
-        <p className="text-sm text-gray-400">{t('admin.organizations.loading')}</p>
+        <p className="text-sm text-slate-400">{t('admin.organizations.loading')}</p>
       </main>
     );
   }
@@ -333,7 +333,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   return (
     <main className="max-w-4xl p-8">
       <div className="mb-2">
-        <Link href="/admin/organizations" className="text-sm text-gray-500 hover:underline">
+        <Link href="/admin/organizations" className="text-sm text-slate-500 hover:underline">
           {t('admin.organizations.detail.back')}
         </Link>
       </div>
@@ -341,7 +341,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">{org.name}</h1>
-          <p className="mt-0.5 font-mono text-sm text-gray-500">{org.slug}</p>
+          <p className="mt-0.5 font-mono text-sm text-slate-500">{org.slug}</p>
         </div>
         <span
           className={`mt-1 inline-block rounded-full px-3 py-1 text-sm font-medium ${
@@ -367,8 +367,8 @@ export default function AdminOrgDetailPage({ params }: Props) {
             value: new Date(org.created_at).toLocaleDateString('fr-FR'),
           },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-lg border border-gray-200 p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+          <div key={label} className="rounded-lg border border-slate-200 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
             <p className="mt-1 text-xl font-semibold">{value}</p>
           </div>
         ))}
@@ -436,11 +436,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
           </button>
         </div>
         {org.members.length === 0 ? (
-          <p className="text-sm text-gray-400">{t('admin.organizations.detail.noMembers')}</p>
+          <p className="text-sm text-slate-400">{t('admin.organizations.detail.noMembers')}</p>
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500">
+              <tr className="border-b border-slate-200 text-left text-slate-500">
                 <th className="py-2 pr-4">{t('admin.organizations.detail.user')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.userId')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.role')}</th>
@@ -450,14 +450,14 @@ export default function AdminOrgDetailPage({ params }: Props) {
             </thead>
             <tbody>
               {org.members.map((member) => (
-                <tr key={member.user_id} className="border-b border-gray-100">
+                <tr key={member.user_id} className="border-b border-slate-100">
                   <td className="py-2 pr-4">
                     <div className="font-medium text-slate-700">{member.username}</div>
                     {member.email && member.email !== member.username ? (
                       <div className="text-xs text-slate-400">{member.email}</div>
                     ) : null}
                   </td>
-                  <td className="py-2 pr-4 font-mono text-xs text-gray-600">{member.user_id}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-slate-600">{member.user_id}</td>
                   <td className="py-2 pr-4">
                     {member.role === 'owner' ? (
                       <span className="inline-block rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
@@ -468,7 +468,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         value={member.role}
                         disabled={actionLoading}
                         onChange={(e) => void handleUpdateMemberRole(member, e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
                       >
                         {ASSIGNABLE_ROLES.map((role) => (
                           <option key={role} value={role}>
@@ -478,7 +478,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                       </select>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-gray-500">
+                  <td className="py-2 pr-4 text-slate-500">
                     {new Date(member.joined_at).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="py-2">
@@ -503,21 +503,21 @@ export default function AdminOrgDetailPage({ params }: Props) {
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t('admin.organizations.detail.auditLog')}</h2>
         {org.recent_audit_log.length === 0 ? (
-          <p className="text-sm text-gray-400">{t('admin.organizations.detail.noAuditLog')}</p>
+          <p className="text-sm text-slate-400">{t('admin.organizations.detail.noAuditLog')}</p>
         ) : (
           <div className="space-y-2">
             {org.recent_audit_log.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-start gap-3 border-b border-gray-100 pb-2 text-sm"
+                className="flex items-start gap-3 border-b border-slate-100 pb-2 text-sm"
               >
-                <span className="mt-0.5 whitespace-nowrap text-xs text-gray-400">
+                <span className="mt-0.5 whitespace-nowrap text-xs text-slate-400">
                   {new Date(entry.created_at).toLocaleString('fr-FR')}
                 </span>
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700">
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">
                   {entry.action}
                 </span>
-                <span className="font-mono text-xs text-gray-500">
+                <span className="font-mono text-xs text-slate-500">
                   {t('admin.organizations.detail.auditBy', { userId: entry.actor_user_id })}
                 </span>
               </div>

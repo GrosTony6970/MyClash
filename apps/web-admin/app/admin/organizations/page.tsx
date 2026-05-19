@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { AdminPageHeader, Button, StatusBadge } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface OrgListItem {
@@ -260,25 +261,22 @@ export default function AdminOrganizationsPage() {
     sortField === field ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
 
   return (
-    <main className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
-            {t('admin.organizations.eyebrow')}
-          </p>
-          <h1 className="text-2xl font-bold text-[#0f172a]">{t('admin.organizations.title')}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t('admin.organizations.description')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCreateOpen((value) => !value)}
-          className="rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#b91c1c]"
-        >
-          {createOpen
-            ? t('admin.organizations.create.close')
-            : t('admin.organizations.create.open')}
-        </button>
-      </div>
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow={t('admin.organizations.eyebrow')}
+        title={t('admin.organizations.title')}
+        subtitle={t('admin.organizations.description')}
+        actions={
+          <Button
+            variant={createOpen ? 'back' : 'primary'}
+            onClick={() => setCreateOpen((value) => !value)}
+          >
+            {createOpen
+              ? t('admin.organizations.create.close')
+              : t('admin.organizations.create.open')}
+          </Button>
+        }
+      />
 
       {createOpen && (
         <form
@@ -288,7 +286,7 @@ export default function AdminOrganizationsPage() {
           className="mb-6 rounded-md border border-slate-200 bg-white p-4 shadow-sm"
         >
           <div className="mb-4">
-            <h2 className="text-lg font-bold text-[#0f172a]">
+            <h2 className="text-lg font-bold text-slate-900">
               {t('admin.organizations.create.title')}
             </h2>
             <p className="text-sm text-slate-500">{t('admin.organizations.create.description')}</p>
@@ -309,7 +307,7 @@ export default function AdminOrganizationsPage() {
                     slug: current.slugDetached ? current.slug : slugify(name),
                   }));
                 }}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/20"
               />
             </label>
             <label className="block text-sm font-semibold text-slate-700">
@@ -327,7 +325,7 @@ export default function AdminOrganizationsPage() {
                     slugDetached: true,
                   }))
                 }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-800/20"
               />
             </label>
           </div>
@@ -344,7 +342,7 @@ export default function AdminOrganizationsPage() {
                 }
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
                   form.ownerMode === 'new'
-                    ? 'bg-[#0f172a] text-white'
+                    ? 'bg-slate-900 text-white'
                     : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
@@ -362,7 +360,7 @@ export default function AdminOrganizationsPage() {
                 }
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
                   form.ownerMode === 'existing'
-                    ? 'bg-[#0f172a] text-white'
+                    ? 'bg-slate-900 text-white'
                     : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
@@ -381,7 +379,7 @@ export default function AdminOrganizationsPage() {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, ownerEmail: event.target.value }))
                     }
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/20"
                   />
                 </label>
                 <label className="block text-sm font-semibold text-slate-700">
@@ -393,7 +391,7 @@ export default function AdminOrganizationsPage() {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, ownerDisplayName: event.target.value }))
                     }
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/20"
                   />
                 </label>
               </div>
@@ -409,7 +407,7 @@ export default function AdminOrganizationsPage() {
                       setForm((c) => ({ ...c, ownerUserId: '' }));
                     }}
                     placeholder={t('admin.organizations.create.ownerSearchPlaceholder')}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]"
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/20"
                   />
                 </label>
                 {ownerSearchLoading ? (
@@ -459,7 +457,7 @@ export default function AdminOrganizationsPage() {
             <button
               type="submit"
               disabled={createLoading}
-              className="rounded-md bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:cursor-wait disabled:opacity-70"
+              className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-900 disabled:cursor-wait disabled:opacity-70"
             >
               {createLoading
                 ? t('admin.organizations.create.submitting')
@@ -470,8 +468,8 @@ export default function AdminOrganizationsPage() {
       )}
 
       {createResult && (
-        <section className="mb-6 rounded-md border border-[#f59e0b]/40 bg-[#fffbeb] p-4 text-sm text-slate-800">
-          <h2 className="font-bold text-[#0f172a]">{t('admin.organizations.create.success')}</h2>
+        <section className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
+          <h2 className="font-bold text-slate-900">{t('admin.organizations.create.success')}</h2>
           <p className="mt-1">
             {t('admin.organizations.create.createdOrg', {
               name: createResult.organization.name,
@@ -540,12 +538,12 @@ export default function AdminOrganizationsPage() {
           placeholder={t('admin.organizations.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
         >
           <option value="all">{t('admin.organizations.status.all')}</option>
           <option value="active">{t('admin.organizations.status.active')}</option>
@@ -560,16 +558,16 @@ export default function AdminOrganizationsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-400">{t('admin.organizations.loading')}</p>
+        <p className="text-sm text-slate-400">{t('admin.organizations.loading')}</p>
       ) : orgs.length === 0 ? (
-        <p className="text-sm text-gray-400">{t('admin.organizations.empty')}</p>
+        <p className="text-sm text-slate-400">{t('admin.organizations.empty')}</p>
       ) : (
         <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500">
+              <tr className="border-b border-slate-200 text-left text-slate-500">
                 <th
-                  className="cursor-pointer py-2 pr-4 pl-4 hover:text-gray-800"
+                  className="cursor-pointer py-2 pr-4 pl-4 hover:text-slate-800"
                   onClick={() => toggleSort('name')}
                 >
                   {t('admin.organizations.table.name')}
@@ -577,14 +575,14 @@ export default function AdminOrganizationsPage() {
                 </th>
                 <th className="py-2 pr-4">{t('admin.organizations.table.owner')}</th>
                 <th
-                  className="cursor-pointer py-2 pr-4 hover:text-gray-800"
+                  className="cursor-pointer py-2 pr-4 hover:text-slate-800"
                   onClick={() => toggleSort('member_count')}
                 >
                   {t('admin.organizations.table.members')}
                   {sortIcon('member_count')}
                 </th>
                 <th
-                  className="cursor-pointer py-2 pr-4 hover:text-gray-800"
+                  className="cursor-pointer py-2 pr-4 hover:text-slate-800"
                   onClick={() => toggleSort('event_count')}
                 >
                   {t('admin.organizations.table.events')}
@@ -592,7 +590,7 @@ export default function AdminOrganizationsPage() {
                 </th>
                 <th className="py-2 pr-4">{t('admin.organizations.table.status')}</th>
                 <th
-                  className="cursor-pointer py-2 pr-4 hover:text-gray-800"
+                  className="cursor-pointer py-2 pr-4 hover:text-slate-800"
                   onClick={() => toggleSort('created_at')}
                 >
                   {t('admin.organizations.table.created')}
@@ -603,7 +601,7 @@ export default function AdminOrganizationsPage() {
             </thead>
             <tbody>
               {orgs.map((org) => (
-                <tr key={org.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={org.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-2 pr-4 pl-4">
                     <Link
                       href={`/admin/organizations/${org.id}`}
@@ -611,9 +609,9 @@ export default function AdminOrganizationsPage() {
                     >
                       {org.name}
                     </Link>
-                    <span className="ml-2 font-mono text-xs text-gray-400">{org.slug}</span>
+                    <span className="ml-2 font-mono text-xs text-slate-400">{org.slug}</span>
                   </td>
-                  <td className="py-2 pr-4 text-gray-600">
+                  <td className="py-2 pr-4 text-slate-600">
                     <div className="font-medium text-slate-700">
                       {org.owner_username ?? org.owner_email ?? '-'}
                     </div>
@@ -621,20 +619,14 @@ export default function AdminOrganizationsPage() {
                       <div className="text-xs text-slate-400">{org.owner_email}</div>
                     ) : null}
                   </td>
-                  <td className="py-2 pr-4 text-gray-600">{org.member_count}</td>
-                  <td className="py-2 pr-4 text-gray-600">{org.event_count}</td>
+                  <td className="py-2 pr-4 text-slate-600">{org.member_count}</td>
+                  <td className="py-2 pr-4 text-slate-600">{org.event_count}</td>
                   <td className="py-2 pr-4">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        org.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}
-                    >
+                    <StatusBadge variant={org.status === 'active' ? 'active' : 'suspended'}>
                       {t(`admin.organizations.status.${org.status}`)}
-                    </span>
+                    </StatusBadge>
                   </td>
-                  <td className="py-2 pr-4 text-gray-500">
+                  <td className="py-2 pr-4 text-slate-500">
                     {new Date(org.created_at).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="py-2">

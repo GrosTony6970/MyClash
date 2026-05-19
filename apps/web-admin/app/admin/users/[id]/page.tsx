@@ -272,7 +272,7 @@ export default function AdminUserEditPage() {
               type="email"
               value={accountForm.email}
               onChange={(e) => setAccountForm((s) => ({ ...s, email: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -281,7 +281,7 @@ export default function AdminUserEditPage() {
               type="text"
               value={accountForm.displayName}
               onChange={(e) => setAccountForm((s) => ({ ...s, displayName: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
         </div>
@@ -347,7 +347,7 @@ export default function AdminUserEditPage() {
                   value={org.role}
                   disabled={busy}
                   onChange={(e) => void updateRole(org.id, e.target.value as OrgRole)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs"
                 >
                   {ORG_ROLES.map((role) => (
                     <option key={role} value={role}>
@@ -375,7 +375,7 @@ export default function AdminUserEditPage() {
               value={addOrgId}
               onChange={(e) => setAddOrgId(e.target.value)}
               disabled={availableOrgs.length === 0 || busy}
-              className="mt-1 block min-w-[12rem] rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              className="mt-1 block min-w-[12rem] rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             >
               {availableOrgs.length === 0 ? (
                 <option value="">{t('admin.users.edit.chooseOrganization')}</option>
@@ -394,7 +394,7 @@ export default function AdminUserEditPage() {
               value={addRole}
               onChange={(e) => setAddRole(e.target.value as OrgRole)}
               disabled={busy}
-              className="mt-1 block rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              className="mt-1 block rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             >
               {ORG_ROLES.map((role) => (
                 <option key={role} value={role}>

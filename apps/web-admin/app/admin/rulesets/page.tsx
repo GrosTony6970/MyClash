@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { AdminPageHeader } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type RulesetStatus = 'pending' | 'approved' | 'rejected';
@@ -154,11 +155,12 @@ export default function AdminRulesetsPage() {
   }
 
   return (
-    <main className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{t('admin.rulesets.title')}</h1>
-        <p className="mt-1 text-sm text-slate-500">{t('admin.rulesets.description')}</p>
-      </div>
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow="Rulesets"
+        title={t('admin.rulesets.title')}
+        subtitle={t('admin.rulesets.description')}
+      />
 
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -169,13 +171,13 @@ export default function AdminRulesetsPage() {
       {/* ── Submissions section ────────────────────────────────────────── */}
       <section className="mb-10">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[#0f172a]">
+          <h2 className="text-lg font-semibold text-slate-900">
             {t('admin.rulesets.submissionsTitle')}
           </h2>
           <select
             value={submissionsStatus}
             onChange={(e) => setSubmissionsStatus(e.target.value as typeof submissionsStatus)}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
           >
             <option value="pending">{t('admin.rulesets.statusPending')}</option>
             <option value="approved">{t('admin.rulesets.statusApproved')}</option>
@@ -262,7 +264,7 @@ export default function AdminRulesetsPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[#0f172a]">
+            <h2 className="text-lg font-semibold text-slate-900">
               {t('admin.rulesets.curatedTitle')}
             </h2>
             <p className="mt-1 text-sm text-slate-500">{t('admin.rulesets.curatedDescription')}</p>

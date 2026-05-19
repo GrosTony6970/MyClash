@@ -94,7 +94,7 @@ export default function AdminAISettingsPage() {
     <main className="p-8 max-w-3xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">{t('admin.aiSettings.title')}</h1>
-        <p className="text-gray-500 text-sm mt-1">{t('admin.aiSettings.description')}</p>
+        <p className="text-slate-500 text-sm mt-1">{t('admin.aiSettings.description')}</p>
       </div>
 
       {error && (
@@ -108,8 +108,8 @@ export default function AdminAISettingsPage() {
         </div>
       )}
 
-      <section className="border border-gray-200 rounded-lg p-5">
-        <div className="mb-5 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+      <section className="border border-slate-200 rounded-lg p-5">
+        <div className="mb-5 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           {loading
             ? t('common.loading')
             : settings
@@ -122,7 +122,7 @@ export default function AdminAISettingsPage() {
 
         <label
           htmlFor="platform-ai-provider"
-          className="block text-sm font-medium text-gray-700 mb-2"
+          className="block text-sm font-medium text-slate-700 mb-2"
         >
           {t('admin.aiSettings.provider')}
         </label>
@@ -131,14 +131,14 @@ export default function AdminAISettingsPage() {
           aria-label={t('admin.aiSettings.provider')}
           value={provider}
           onChange={(event) => setProvider(event.target.value as AIProvider)}
-          className="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
         >
           <option value="openai">{t('admin.aiSettings.providers.openai')}</option>
           <option value="anthropic">{t('admin.aiSettings.providers.anthropic')}</option>
           <option value="mistral">{t('admin.aiSettings.providers.mistral')}</option>
         </select>
 
-        <label htmlFor="platform-ai-key" className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="platform-ai-key" className="block text-sm font-medium text-slate-700 mb-2">
           {t('admin.aiSettings.apiKey')}
         </label>
         <input
@@ -147,7 +147,7 @@ export default function AdminAISettingsPage() {
           value={apiKey}
           onChange={(event) => setApiKey(event.target.value)}
           placeholder={t('admin.aiSettings.apiKeyPlaceholder')}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
         />
 
         <div className="mt-5 flex flex-wrap gap-2">
@@ -157,7 +157,7 @@ export default function AdminAISettingsPage() {
               void saveSettings();
             }}
             disabled={saving || apiKey.trim().length < 10}
-            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
           >
             {saving ? t('admin.aiSettings.saving') : t('admin.aiSettings.save')}
           </button>
@@ -168,7 +168,7 @@ export default function AdminAISettingsPage() {
                 void removeSettings();
               }}
               disabled={saving}
-              className="border border-gray-300 hover:bg-gray-50 disabled:opacity-50 py-2 px-4 rounded-md text-sm"
+              className="border border-slate-300 hover:bg-slate-50 disabled:opacity-50 py-2 px-4 rounded-md text-sm"
             >
               {t('admin.aiSettings.remove')}
             </button>

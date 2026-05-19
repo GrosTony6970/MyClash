@@ -264,7 +264,7 @@ export default function NewLeaguePage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -273,7 +273,7 @@ export default function NewLeaguePage() {
               type="number"
               value={seasonYear}
               onChange={(e) => setSeasonYear(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600 sm:col-span-2">
@@ -284,7 +284,7 @@ export default function NewLeaguePage() {
                 setSlug(e.target.value);
                 setSlugDetached(true);
               }}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
             <span className="mt-1 block text-[11px] font-normal text-slate-500">
               Auto-generated from the name. Edit manually to override.
@@ -295,7 +295,7 @@ export default function NewLeaguePage() {
             <select
               value={rankingDimensions}
               onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="weapon">Weapon</option>
               <option value="weapon_category">Weapon + Category</option>
@@ -306,7 +306,7 @@ export default function NewLeaguePage() {
             <select
               value={scoringSystem}
               onChange={(e) => setScoringSystem(e.target.value as 'ffamhe_tf_2026' | 'custom')}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="ffamhe_tf_2026">FFAMHE TF 2026 (default)</option>
               <option value="custom">Custom</option>
@@ -318,7 +318,7 @@ export default function NewLeaguePage() {
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
         </div>
@@ -339,7 +339,7 @@ export default function NewLeaguePage() {
                         [Number(rank)]: Number(e.target.value),
                       }))
                     }
-                    className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                    className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs"
                   />
                 </label>
               ))}
@@ -356,7 +356,7 @@ export default function NewLeaguePage() {
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
-          className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+          className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
         />
         <p className="mt-1 text-[11px] text-slate-500">PNG, JPEG, or WebP. Maximum 10 MB.</p>
         {logoPreviewUrl && (
@@ -387,18 +387,18 @@ export default function NewLeaguePage() {
           value={userSearch}
           onChange={(e) => setUserSearch(e.target.value)}
           placeholder="Search by name or email…"
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
         />
         {filteredUsers.length > 0 && (
-          <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-gray-200">
+          <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-slate-200">
             {filteredUsers.map((u) => {
               const checked = selectedUserIds.includes(u.id);
               return (
                 <label
                   key={u.id}
                   className={[
-                    'flex cursor-pointer items-start gap-3 border-b border-gray-100 px-3 py-2 text-sm last:border-0',
-                    checked ? 'bg-blue-50' : 'hover:bg-gray-50',
+                    'flex cursor-pointer items-start gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-0',
+                    checked ? 'bg-blue-50' : 'hover:bg-slate-50',
                   ].join(' ')}
                 >
                   <input
@@ -448,7 +448,7 @@ export default function NewLeaguePage() {
                 key={o.id}
                 className={[
                   'flex cursor-pointer items-center gap-2 rounded border px-3 py-1.5 text-sm',
-                  checked ? 'border-blue-200 bg-blue-50' : 'border-gray-200 hover:bg-gray-50',
+                  checked ? 'border-blue-200 bg-blue-50' : 'border-slate-200 hover:bg-slate-50',
                 ].join(' ')}
               >
                 <input
@@ -476,19 +476,19 @@ export default function NewLeaguePage() {
           value={eventQuery}
           onChange={(e) => setEventQuery(e.target.value)}
           placeholder="Search events…"
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
         {filteredEvents.length > 0 && (
-          <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-gray-200">
+          <div className="mt-2 max-h-72 overflow-y-auto rounded-md border border-slate-200">
             {filteredEvents.map((ev) => (
-              <div key={ev.id} className="border-b border-gray-100 last:border-0">
+              <div key={ev.id} className="border-b border-slate-100 last:border-0">
                 <button
                   type="button"
                   onClick={() => {
                     setExpandedEventId(expandedEventId === ev.id ? null : ev.id);
                     void loadEventTournaments(ev.id);
                   }}
-                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
                 >
                   <span className="font-medium text-slate-900">{ev.name}</span>
                   <span className="text-xs text-slate-400">
@@ -496,7 +496,7 @@ export default function NewLeaguePage() {
                   </span>
                 </button>
                 {expandedEventId === ev.id && (
-                  <div className="border-t border-gray-100 bg-slate-50 px-3 py-2">
+                  <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
                     {(tournamentsByEvent[ev.id] ?? []).length === 0 ? (
                       <p className="text-xs text-slate-500 italic">No tournaments.</p>
                     ) : (
@@ -571,7 +571,7 @@ export default function NewLeaguePage() {
       <div className="flex justify-end gap-3">
         <Link
           href="/admin/leagues"
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
         >
           Cancel
         </Link>

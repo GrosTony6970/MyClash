@@ -87,7 +87,7 @@ export default function AdminSystemVersionsPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('admin.systemVersions.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('admin.systemVersions.description')}</p>
+          <p className="text-slate-500 text-sm mt-1">{t('admin.systemVersions.description')}</p>
         </div>
         <button
           type="button"
@@ -106,11 +106,11 @@ export default function AdminSystemVersionsPage() {
       )}
 
       {loading ? (
-        <p className="text-gray-400 text-sm">{t('admin.systemVersions.loading')}</p>
+        <p className="text-slate-400 text-sm">{t('admin.systemVersions.loading')}</p>
       ) : versions ? (
         <>
-          <div className="mb-5 text-sm text-gray-500">
-            <span className="font-medium text-gray-700">
+          <div className="mb-5 text-sm text-slate-500">
+            <span className="font-medium text-slate-700">
               {t('admin.systemVersions.generatedAt')}
             </span>{' '}
             {formatValue(versions.generatedAt, t('admin.systemVersions.unknown'))}
@@ -119,9 +119,9 @@ export default function AdminSystemVersionsPage() {
             {versions.groups.map((group) => (
               <section
                 key={group.key}
-                className="border border-gray-200 rounded-lg overflow-hidden"
+                className="border border-slate-200 rounded-lg overflow-hidden"
               >
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
                   <h2 className="text-base font-semibold text-gray-950">
                     {translateWithFallback(
                       t,
@@ -131,14 +131,14 @@ export default function AdminSystemVersionsPage() {
                   </h2>
                 </div>
                 {group.components.length === 0 ? (
-                  <p className="px-4 py-4 text-sm text-gray-400">
+                  <p className="px-4 py-4 text-sm text-slate-400">
                     {t('admin.systemVersions.noComponents')}
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
-                        <tr className="border-b border-gray-100 text-left text-gray-500">
+                        <tr className="border-b border-slate-100 text-left text-slate-500">
                           <th className="py-2 px-4">{t('admin.systemVersions.component')}</th>
                           <th className="py-2 px-4">{t('admin.systemVersions.version')}</th>
                           <th className="py-2 px-4">{t('admin.systemVersions.source')}</th>
@@ -149,20 +149,20 @@ export default function AdminSystemVersionsPage() {
                         {group.components.map((component) => (
                           <tr
                             key={`${group.key}-${component.key}`}
-                            className="border-b border-gray-50 last:border-0"
+                            className="border-b border-slate-50 last:border-0"
                           >
-                            <td className="py-2 px-4 text-gray-800">
+                            <td className="py-2 px-4 text-slate-800">
                               {translateWithFallback(
                                 t,
                                 `admin.systemVersions.components.${component.key}`,
                                 component.label,
                               )}
                             </td>
-                            <td className="py-2 px-4 font-mono text-xs text-gray-700">
+                            <td className="py-2 px-4 font-mono text-xs text-slate-700">
                               {formatValue(component.version, t('admin.systemVersions.unknown'))}
                             </td>
                             <td className="py-2 px-4">
-                              <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                                 {component.source}
                               </span>
                             </td>

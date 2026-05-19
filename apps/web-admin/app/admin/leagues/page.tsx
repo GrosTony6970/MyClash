@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { AdminPageHeader } from '@myclash/ui';
 
 interface League {
   id: string;
@@ -90,21 +91,20 @@ export default function AdminLeaguesPage() {
   }
 
   return (
-    <main className="p-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Leagues</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Manage league setup, scoring, member orgs, and linked tournaments.
-          </p>
-        </div>
-        <Link
-          href="/admin/leagues/new"
-          className="inline-flex w-fit items-center rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
-        >
-          + Create league
-        </Link>
-      </div>
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow="Leagues"
+        title="Leagues"
+        subtitle="Manage league setup, scoring, member orgs, and linked tournaments."
+        actions={
+          <Link
+            href="/admin/leagues/new"
+            className="inline-flex items-center rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900"
+          >
+            + Create league
+          </Link>
+        }
+      />
 
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
@@ -112,10 +112,10 @@ export default function AdminLeaguesPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="w-full min-w-[920px] text-sm border-collapse">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3 w-16">Logo</th>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Year</th>
@@ -129,20 +129,20 @@ export default function AdminLeaguesPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-sm text-gray-400">
+                <td colSpan={8} className="py-8 text-center text-sm text-slate-400">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && leagues.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-sm text-gray-400">
+                <td colSpan={8} className="py-12 text-center text-sm text-slate-400">
                   No leagues yet. Click <strong>Create league</strong> to add one.
                 </td>
               </tr>
             )}
             {leagues.map((league) => (
-              <tr key={league.id} className="border-b border-gray-100 hover:bg-gray-50">
+              <tr key={league.id} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3">
                   {league.logo_url ? (
                     /* eslint-disable-next-line @next/next/no-img-element */

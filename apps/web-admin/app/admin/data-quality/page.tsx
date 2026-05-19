@@ -143,7 +143,7 @@ export default function AdminDataQualityPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('admin.dataQuality.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('admin.dataQuality.description')}</p>
+          <p className="text-slate-500 text-sm mt-1">{t('admin.dataQuality.description')}</p>
         </div>
         <button
           type="button"
@@ -151,7 +151,7 @@ export default function AdminDataQualityPage() {
             void runScan();
           }}
           disabled={scanning}
-          className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+          className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
         >
           {scanning ? t('admin.dataQuality.scanning') : t('admin.dataQuality.runScan')}
         </button>
@@ -165,15 +165,15 @@ export default function AdminDataQualityPage() {
 
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         {scans.slice(0, 3).map((scan) => (
-          <article key={scan.id} className="rounded-lg border border-gray-200 p-4">
-            <div className="text-xs uppercase text-gray-400">{scan.status}</div>
+          <article key={scan.id} className="rounded-lg border border-slate-200 p-4">
+            <div className="text-xs uppercase text-slate-400">{scan.status}</div>
             <div className="mt-2 text-lg font-semibold">{scan.finding_count}</div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-slate-500">
               {t('admin.dataQuality.findingsFromCandidates', {
                 count: scan.candidate_count,
               })}
             </div>
-            <div className="mt-2 text-xs text-gray-400">
+            <div className="mt-2 text-xs text-slate-400">
               {new Date(scan.started_at).toLocaleString('fr-FR')}
             </div>
           </article>
@@ -202,33 +202,33 @@ export default function AdminDataQualityPage() {
       </section>
 
       {loading ? (
-        <p className="text-gray-400 text-sm">{t('common.loading')}</p>
+        <p className="text-slate-400 text-sm">{t('common.loading')}</p>
       ) : filteredFindings.length === 0 ? (
-        <p className="text-gray-400 text-sm">{t('admin.dataQuality.empty')}</p>
+        <p className="text-slate-400 text-sm">{t('admin.dataQuality.empty')}</p>
       ) : (
         <div className="grid gap-4">
           {filteredFindings.map((finding) => (
-            <article key={finding.id} className="rounded-lg border border-gray-200 p-5">
+            <article key={finding.id} className="rounded-lg border border-slate-200 p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={severityClass(finding.severity)}>{finding.severity}</span>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                       {finding.finding_type}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-slate-400">
                       {Math.round(Number(finding.confidence) * 100)}%
                     </span>
                   </div>
                   <h2 className="mt-3 text-base font-semibold text-gray-950">
                     {finding.ai_summary}
                   </h2>
-                  <p className="mt-2 text-sm text-gray-600">{finding.recommended_action}</p>
+                  <p className="mt-2 text-sm text-slate-600">{finding.recommended_action}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Link
                     href={targetHref(finding)}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
                   >
                     {t('admin.dataQuality.openTarget')}
                   </Link>
@@ -238,7 +238,7 @@ export default function AdminDataQualityPage() {
                       onClick={() => {
                         void updateFindingStatus(finding.id, 'dismissed');
                       }}
-                      className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
+                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
                     >
                       {t('actions.dismiss')}
                     </button>
@@ -249,7 +249,7 @@ export default function AdminDataQualityPage() {
                       onClick={() => {
                         void updateFindingStatus(finding.id, 'resolved');
                       }}
-                      className="rounded-md bg-gray-950 px-3 py-1.5 text-sm font-semibold text-white hover:bg-gray-800"
+                      className="rounded-md bg-gray-950 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                       {t('admin.dataQuality.markResolved')}
                     </button>
@@ -257,10 +257,10 @@ export default function AdminDataQualityPage() {
                 </div>
               </div>
               <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                <summary className="cursor-pointer text-sm font-medium text-slate-600">
                   {t('admin.dataQuality.evidence')}
                 </summary>
-                <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-gray-100">
+                <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-gray-950 p-3 text-xs text-slate-100">
                   {JSON.stringify(
                     { entityIds: finding.entity_ids, evidence: finding.evidence_json },
                     null,
@@ -283,12 +283,12 @@ function FilterSelect(props: {
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="text-sm text-gray-600">
+    <label className="text-sm text-slate-600">
       <span className="mb-1 block">{props.label}</span>
       <select
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
-        className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
       >
         {props.options.map((option) => (
           <option key={option} value={option}>

@@ -432,7 +432,7 @@ export default function EditLeaguePage() {
             {error}
           </div>
         ) : (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-slate-500">Loading…</p>
         )}
       </main>
     );
@@ -474,7 +474,7 @@ export default function EditLeaguePage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -482,7 +482,7 @@ export default function EditLeaguePage() {
             <input
               value={seasonYear}
               readOnly
-              className="mt-1 w-full rounded-md border border-gray-200 bg-slate-50 px-3 py-2 text-sm font-mono"
+              className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono"
             />
           </label>
           <label className="text-xs font-medium text-slate-600 sm:col-span-2">
@@ -490,7 +490,7 @@ export default function EditLeaguePage() {
             <input
               value={league.slug}
               readOnly
-              className="mt-1 w-full rounded-md border border-gray-200 bg-slate-50 px-3 py-2 text-sm font-mono"
+              className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -498,7 +498,7 @@ export default function EditLeaguePage() {
             <select
               value={rankingDimensions}
               onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="weapon">Weapon</option>
               <option value="weapon_category">Weapon + Category</option>
@@ -509,7 +509,7 @@ export default function EditLeaguePage() {
             <select
               value={scoringSystem}
               onChange={(e) => setScoringSystem(e.target.value as 'ffamhe_tf_2026' | 'custom')}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="ffamhe_tf_2026">FFAMHE TF 2026</option>
               <option value="custom">Custom</option>
@@ -520,7 +520,7 @@ export default function EditLeaguePage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="draft">Draft</option>
               <option value="published">Published</option>
@@ -541,7 +541,7 @@ export default function EditLeaguePage() {
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </label>
         </div>
@@ -562,7 +562,7 @@ export default function EditLeaguePage() {
                         [Number(rank)]: Number(e.target.value),
                       }))
                     }
-                    className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+                    className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs"
                   />
                 </label>
               ))}
@@ -605,7 +605,7 @@ export default function EditLeaguePage() {
                 if (f) void uploadLogo(f);
               }}
               disabled={busy}
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+              className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
             />
             <p className="mt-1 text-[11px] text-slate-500">PNG, JPEG, or WebP. Maximum 10 MB.</p>
             {league.logo_url && (
@@ -670,17 +670,17 @@ export default function EditLeaguePage() {
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
             placeholder="Search accounts to add…"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           {filteredUsers.length > 0 && (
-            <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-gray-200">
+            <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-slate-200">
               {filteredUsers.map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   onClick={() => void addOwner(u.id)}
                   disabled={busy}
-                  className="block w-full text-left border-b border-gray-100 px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-50 last:border-0"
+                  className="block w-full text-left border-b border-slate-100 px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-50 last:border-0"
                 >
                   <span className="font-medium">{u.display_name || '(no name)'}</span>
                   <span className="ml-2 text-xs text-slate-500">{u.email}</span>
@@ -734,7 +734,7 @@ export default function EditLeaguePage() {
                   type="button"
                   onClick={() => void addOrg(o.id)}
                   disabled={busy}
-                  className="rounded border border-gray-200 px-3 py-1.5 text-left text-sm hover:bg-blue-50 disabled:opacity-50"
+                  className="rounded border border-slate-200 px-3 py-1.5 text-left text-sm hover:bg-blue-50 disabled:opacity-50"
                 >
                   {o.name}
                 </button>
@@ -791,19 +791,19 @@ export default function EditLeaguePage() {
             value={eventQuery}
             onChange={(e) => setEventQuery(e.target.value)}
             placeholder="Search events…"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           {filteredEvents.length > 0 && (
-            <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-gray-200">
+            <div className="mt-2 max-h-60 overflow-y-auto rounded-md border border-slate-200">
               {filteredEvents.map((ev) => (
-                <div key={ev.id} className="border-b border-gray-100 last:border-0">
+                <div key={ev.id} className="border-b border-slate-100 last:border-0">
                   <button
                     type="button"
                     onClick={() => {
                       setExpandedEventId(expandedEventId === ev.id ? null : ev.id);
                       void loadEventTournaments(ev.id);
                     }}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
                   >
                     <span className="font-medium text-slate-900">{ev.name}</span>
                     <span className="text-xs text-slate-400">
@@ -811,7 +811,7 @@ export default function EditLeaguePage() {
                     </span>
                   </button>
                   {expandedEventId === ev.id && (
-                    <div className="border-t border-gray-100 bg-slate-50 px-3 py-2">
+                    <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
                       {(tournamentsByEvent[ev.id] ?? []).length === 0 ? (
                         <p className="text-xs text-slate-500 italic">No tournaments.</p>
                       ) : (

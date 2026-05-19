@@ -80,7 +80,7 @@ export default function EditRulesetPage() {
           {t('admin.rulesets.backToList')}
         </Link>
       </div>
-      <h1 className="mb-1 text-2xl font-bold text-[#0f172a]">{t('admin.rulesets.editTitle')}</h1>
+      <h1 className="mb-1 text-2xl font-bold text-slate-900">{t('admin.rulesets.editTitle')}</h1>
       <p className="mb-6 text-sm text-slate-500">{t('admin.rulesets.editDescription')}</p>
 
       {error && (

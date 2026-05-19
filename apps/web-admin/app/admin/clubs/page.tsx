@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { AdminPageHeader } from '@myclash/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ClubRow {
@@ -569,13 +570,12 @@ export default function AdminClubsPage() {
   }
 
   return (
-    <main className="p-8">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t('admin.clubs.title')}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t('admin.clubs.description')}</p>
-        </div>
-      </div>
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow="Clubs"
+        title={t('admin.clubs.title')}
+        subtitle={t('admin.clubs.description')}
+      />
 
       {error && (
         <div className="mb-4 flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
@@ -718,7 +718,7 @@ export default function AdminClubsPage() {
             <input
               value={createState.name}
               onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -727,7 +727,7 @@ export default function AdminClubsPage() {
               value={createState.abbreviation}
               onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
               maxLength={20}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -735,7 +735,7 @@ export default function AdminClubsPage() {
             <input
               value={createState.city}
               onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -744,7 +744,7 @@ export default function AdminClubsPage() {
               value={createState.country_code}
               onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
               maxLength={100}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -752,7 +752,7 @@ export default function AdminClubsPage() {
             <input
               value={createState.website}
               onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -760,7 +760,7 @@ export default function AdminClubsPage() {
             <input
               value={createState.logoUrl}
               onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
           </label>
           <label className="text-xs font-medium text-slate-600 md:col-span-2">
@@ -769,7 +769,7 @@ export default function AdminClubsPage() {
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
             <span className="mt-1 block text-[11px] font-normal text-slate-500">
               {t('admin.clubs.logoHelp')}
@@ -814,12 +814,12 @@ export default function AdminClubsPage() {
             if (e.key === 'Enter') void search(query);
           }}
           placeholder={t('admin.clubs.searchPlaceholder')}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-72"
+          className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-72"
         />
         <button
           onClick={() => void search(query)}
           disabled={loading}
-          className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+          className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
         >
           {t('actions.search')}
         </button>
@@ -829,7 +829,7 @@ export default function AdminClubsPage() {
               setQuery('');
               void search('');
             }}
-            className="text-sm text-gray-500 hover:text-gray-700 px-2"
+            className="text-sm text-slate-500 hover:text-slate-700 px-2"
           >
             {t('actions.clear')}
           </button>
@@ -837,10 +837,10 @@ export default function AdminClubsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <div className="overflow-x-auto border border-slate-200 rounded-lg">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-500 text-xs uppercase tracking-wide">
+            <tr className="bg-slate-50 border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
               <th className="py-3 px-4 w-20">{t('admin.clubs.logo')}</th>
               <th className="py-3 px-4">{t('admin.clubs.name')}</th>
               <th className="py-3 px-4">{t('admin.clubs.abbreviation')}</th>
@@ -853,14 +853,14 @@ export default function AdminClubsPage() {
           <tbody>
             {clubs.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-gray-400 text-sm">
+                <td colSpan={7} className="py-8 text-center text-slate-400 text-sm">
                   {loading ? t('common.loading') : t('admin.clubs.empty')}
                 </td>
               </tr>
             )}
             {clubs.map((club) =>
               editingId === club.id ? (
-                <tr key={club.id} className="border-b border-gray-100 bg-amber-50">
+                <tr key={club.id} className="border-b border-slate-100 bg-amber-50">
                   <td className="py-2 px-4">
                     <div className="flex items-center gap-2">
                       <LogoButton club={club} onOpen={setLightboxClub} />
@@ -870,7 +870,7 @@ export default function AdminClubsPage() {
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           onChange={(e) => handleEditLogoFile(e.target.files?.[0] ?? null)}
-                          className="mt-1 block w-40 rounded-md border border-gray-300 px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                          className="mt-1 block w-40 rounded-md border border-slate-300 px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
                         />
                       </label>
                       {editLogoPreviewUrl && (
@@ -888,7 +888,7 @@ export default function AdminClubsPage() {
                       aria-label={t('admin.clubs.editNameLabel', { club: club.name })}
                       value={editState.name}
                       onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-red-600"
+                      className="border border-slate-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-red-800/30"
                     />
                   </td>
                   <td className="py-2 px-4" aria-label={t('admin.clubs.actions')}>
@@ -900,7 +900,7 @@ export default function AdminClubsPage() {
                       }
                       placeholder={t('admin.clubs.abbreviationPlaceholder')}
                       maxLength={20}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-red-600 uppercase"
+                      className="border border-slate-300 rounded px-2 py-1 text-sm w-28 focus:outline-none focus:ring-1 focus:ring-red-800/30 uppercase"
                     />
                   </td>
                   <td className="py-2 px-4">
@@ -908,7 +908,7 @@ export default function AdminClubsPage() {
                       aria-label={t('admin.clubs.editCityLabel', { club: club.name })}
                       value={editState.city}
                       onChange={(e) => setEditState((s) => ({ ...s, city: e.target.value }))}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-600"
+                      className="border border-slate-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-800/30"
                     />
                   </td>
                   <td className="py-2 px-4">
@@ -920,7 +920,7 @@ export default function AdminClubsPage() {
                       }
                       placeholder={t('admin.clubs.countryPlaceholder')}
                       maxLength={100}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-600"
+                      className="border border-slate-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-800/30"
                     />
                   </td>
                   <td className="py-2 px-4">
@@ -931,13 +931,13 @@ export default function AdminClubsPage() {
                       <button
                         onClick={() => void saveEdit(club.id)}
                         disabled={saving}
-                        className="text-xs bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white px-3 py-1 rounded"
+                        className="text-xs bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white px-3 py-1 rounded"
                       >
                         {saving ? t('admin.clubs.saving') : t('actions.save')}
                       </button>
                       <button
                         onClick={cancelEdit}
-                        className="text-xs text-gray-500 hover:text-gray-700"
+                        className="text-xs text-slate-500 hover:text-slate-700"
                       >
                         {t('actions.cancel')}
                       </button>
@@ -945,22 +945,22 @@ export default function AdminClubsPage() {
                   </td>
                 </tr>
               ) : (
-                <tr key={club.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={club.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-2.5 px-4">
                     <LogoButton club={club} onOpen={setLightboxClub} />
                   </td>
-                  <td className="py-2.5 px-4 font-medium text-gray-900">{club.name}</td>
+                  <td className="py-2.5 px-4 font-medium text-slate-900">{club.name}</td>
                   <td className="py-2.5 px-4">
                     {club.abbreviation ? (
-                      <span className="font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded text-xs">
+                      <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-xs">
                         {club.abbreviation}
                       </span>
                     ) : (
-                      <span className="text-gray-300">{t('common.none')}</span>
+                      <span className="text-slate-300">{t('common.none')}</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-4 text-gray-600">{club.city ?? t('common.none')}</td>
-                  <td className="py-2.5 px-4 text-gray-600">
+                  <td className="py-2.5 px-4 text-slate-600">{club.city ?? t('common.none')}</td>
+                  <td className="py-2.5 px-4 text-slate-600">
                     {club.country_code ?? t('common.none')}
                   </td>
                   <td className="py-2.5 px-4">
@@ -1013,7 +1013,7 @@ export default function AdminClubsPage() {
       </div>
 
       {clubs.length > 0 && (
-        <p className="text-xs text-gray-400 mt-2">
+        <p className="text-xs text-slate-400 mt-2">
           {t('admin.clubs.count', { count: clubs.length })}
         </p>
       )}
@@ -1080,7 +1080,7 @@ export default function AdminClubsPage() {
                   if (file && lightboxClub) void replaceLogoFromLightbox(lightboxClub, file);
                   e.target.value = '';
                 }}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50"
+                className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50"
               />
               <span className="mt-1 block text-[11px] text-slate-500">
                 {t('admin.clubs.logoHelp')}
@@ -1108,7 +1108,7 @@ function LogoButton({ club, onOpen }: { club: ClubRow; onOpen: (club: ClubRow) =
     <button
       type="button"
       onClick={() => onOpen(club)}
-      className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white transition hover:border-slate-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+      className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white transition hover:border-slate-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
       aria-label={
         club.logo_url
           ? t('admin.clubs.logoLightboxTitle', { club: club.name })
