@@ -37,3 +37,20 @@ export type { PageHeaderProps } from './components/PageHeader';
 
 export { BracketView } from './components/BracketView';
 export type { BracketViewProps, BracketSlotData, BracketConfig } from './components/BracketView';
+
+// ── Tournament Manual admin components (Phase 1 of the frontend overhaul) ──
+
+export { FoilMark } from './components/FoilMark';
+export type { FoilMarkProps } from './components/FoilMark';
+
+export { AdminPageHeader } from './components/AdminPageHeader';
+export type { AdminPageHeaderProps } from './components/AdminPageHeader';
+
+export { DataTable, DataTableHead, DataTableRow, DataTableCell } from './components/DataTable';
+export type { DataTableProps, DataTableRowProps, DataTableCellProps } from './components/DataTable';
+
+export { StatusBadge } from './components/StatusBadge';
+export type { StatusBadgeProps, StatusBadgeVariant } from './components/StatusBadge';
+
+export { FormField } from './components/FormField';
+export type { FormFieldProps } from './components/FormField';
