@@ -180,11 +180,6 @@ export default function GlobalPersonsImportPage() {
 
   return (
     <main className="p-8 max-w-7xl">
-      <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          Back to admin
-        </Link>
-      </div>
       <h1 className="text-2xl font-bold mb-1">Import Global Profiles</h1>
       <p className="text-gray-500 text-sm mb-6">
         Bulk-create or update global profiles from a CSV file. Review each row before committing.
@@ -554,12 +549,6 @@ export default function GlobalPersonsImportPage() {
             >
               Import another file
             </button>
-            <Link
-              href="/admin"
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center"
-            >
-              Back to admin
-            </Link>
           </div>
         </div>
       )}

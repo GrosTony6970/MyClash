@@ -3,7 +3,6 @@
 import { t } from '@myclash/i18n';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminBackLink } from '../../../src/components/AdminBackLink';
 
 type FindingStatus = 'open' | 'dismissed' | 'resolved';
 
@@ -141,9 +140,6 @@ export default function AdminDataQualityPage() {
 
   return (
     <main className="p-8">
-      <div className="mb-2">
-        <AdminBackLink>{t('admin.dataQuality.backToAdmin')}</AdminBackLink>
-      </div>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('admin.dataQuality.title')}</h1>

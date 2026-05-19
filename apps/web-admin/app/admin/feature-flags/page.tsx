@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 interface FeatureFlag {
@@ -139,11 +138,6 @@ export default function AdminFeatureFlagsPage() {
 
   return (
     <main className="p-8">
-      <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          Back to admin
-        </Link>
-      </div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Feature Flags</h1>
         <p className="text-gray-500 text-sm mt-1">Platform-wide switches and JSON payloads.</p>

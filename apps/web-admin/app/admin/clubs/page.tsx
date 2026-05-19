@@ -2,7 +2,6 @@
 
 import { t } from '@myclash/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AdminBackLink } from '../../../src/components/AdminBackLink';
 
 interface ClubRow {
   id: string;
@@ -571,9 +570,6 @@ export default function AdminClubsPage() {
 
   return (
     <main className="p-8">
-      <div className="mb-2">
-        <AdminBackLink>{t('admin.clubs.backToAdmin')}</AdminBackLink>
-      </div>
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t('admin.clubs.title')}</h1>

@@ -791,7 +791,6 @@ export const en = {
       },
     },
     aiSettings: {
-      backToAdmin: 'Back to admin',
       title: 'AI Settings',
       description:
         'Configure the shared super-admin AI key used for platform-level review tools. Organizer AI keys are not used here.',
@@ -817,7 +816,6 @@ export const en = {
       },
     },
     dataQuality: {
-      backToAdmin: 'Back to admin',
       title: 'Data Quality',
       description:
         'Launch super-admin review scans for duplicate global persons, referees, clubs, and identity gaps.',
@@ -874,7 +872,6 @@ export const en = {
       saveProfile: 'Save profile',
     },
     clubs: {
-      backToAdmin: 'Back to admin',
       title: 'Clubs',
       description: 'Edit club names, abbreviations, and locations.',
       loadError: 'Failed to load clubs.',
@@ -1035,7 +1032,6 @@ export const en = {
       },
     },
     backups: {
-      backToAdmin: 'Back to admin',
       title: 'Backup Management',
       description: 'Inspect, download, upload, run, and restore platform backups.',
       loading: 'Loading backups...',
@@ -1120,7 +1116,6 @@ export const en = {
       },
     },
     systemVersions: {
-      backToAdmin: 'Back to admin',
       title: 'System Versions',
       description:
         'Installed app, framework, container, and infrastructure versions visible to super admins.',
@@ -2684,7 +2679,6 @@ export const fr = {
       },
     },
     aiSettings: {
-      backToAdmin: "Retour a l'administration",
       title: 'Parametres IA',
       description:
         'Configurer la cle IA partagee des super-admins pour les outils de revue plateforme. Les cles IA organisateur ne sont pas utilisees ici.',
@@ -2710,7 +2704,6 @@ export const fr = {
       },
     },
     dataQuality: {
-      backToAdmin: "Retour a l'administration",
       title: 'Qualite des donnees',
       description:
         "Lancer des scans super-admin pour les doublons de personnes globales, arbitres, clubs et trous d'identite.",
@@ -2767,7 +2760,6 @@ export const fr = {
       saveProfile: 'Enregistrer le profil',
     },
     clubs: {
-      backToAdmin: "Retour a l'administration",
       title: 'Clubs',
       description: 'Modifier les noms, abreviations et localisations des clubs.',
       loadError: 'Chargement des clubs impossible.',
@@ -2929,7 +2921,6 @@ export const fr = {
       },
     },
     backups: {
-      backToAdmin: "Retour Ã  l'administration",
       title: 'Gestion des sauvegardes',
       description:
         'Consulter, tÃ©lÃ©charger, envoyer, lancer et restaurer les sauvegardes de la plateforme.',
@@ -3015,7 +3006,6 @@ export const fr = {
       },
     },
     systemVersions: {
-      backToAdmin: "Retour Ã  l'administration",
       title: 'Versions systÃ¨me',
       description:
         "Versions de l'app, des frameworks, des conteneurs et de l'infrastructure visibles par les super-administrateurs.",

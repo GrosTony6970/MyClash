@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 type RulesetStatus = 'pending' | 'approved' | 'rejected';
@@ -96,11 +95,6 @@ export default function AdminRulesetsPage() {
 
   return (
     <main className="p-8">
-      <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          Back to admin
-        </Link>
-      </div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Rulesets</h1>

@@ -457,11 +457,6 @@ export default function AdminFightersPage() {
 
   return (
     <main className="p-8">
-      <div className="mb-2">
-        <Link href="/admin" className="text-sm text-gray-500 hover:underline">
-          Back to admin
-        </Link>
-      </div>
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">Global Profiles</h1>

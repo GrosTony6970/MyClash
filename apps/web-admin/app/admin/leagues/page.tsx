@@ -91,11 +91,6 @@ export default function AdminLeaguesPage() {
 
   return (
     <main className="p-8">
-      <div className="mb-2 text-sm">
-        <Link href="/admin" className="text-slate-500 hover:underline">
-          Back to admin
-        </Link>
-      </div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Leagues</h1>
