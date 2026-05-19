@@ -24,10 +24,11 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
+COPY packages/feature-flags/package.json ./packages/feature-flags/
 COPY packages/db/package.json ./packages/db/
 # Install with frozen lockfile; cache the pnpm store
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/db
+    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/feature-flags --filter @myclash/db
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
@@ -38,9 +39,11 @@ COPY tsconfig.base.json ./
 COPY apps/api/ ./apps/api/
 COPY packages/types/ ./packages/types/
 COPY packages/rulesets/ ./packages/rulesets/
+COPY packages/feature-flags/ ./packages/feature-flags/
 # Build shared packages first, then the API
 RUN pnpm --filter @myclash/types build
 RUN pnpm --filter @myclash/rulesets build
+RUN pnpm --filter @myclash/feature-flags build
 RUN pnpm --filter @myclash/api build
 
 # Runtime dependencies only. This avoids shipping pnpm, Vite, Vitest, esbuild,
@@ -50,9 +53,10 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
+COPY packages/feature-flags/package.json ./packages/feature-flags/
 COPY packages/db/package.json ./packages/db/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/db
+    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/feature-flags --filter @myclash/db
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
@@ -71,11 +75,13 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/ap
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/package.json ./packages/types/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/package.json ./packages/rulesets/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/node_modules ./packages/rulesets/node_modules
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/feature-flags/package.json ./packages/feature-flags/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/package.json ./packages/db/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./packages/types/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages/rulesets/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/feature-flags/dist ./packages/feature-flags/dist
 COPY --chown=nestjs:nodejs VERSION ./VERSION
 COPY --chown=nestjs:nodejs infra/docker-compose.prod.yml ./infra/docker-compose.prod.yml
 COPY --chown=nestjs:nodejs apps/web-admin/package.json ./apps/web-admin/package.json
