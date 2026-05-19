@@ -37,6 +37,7 @@ export interface UserOrgMembership {
 type ListedPlatformUser = SupabaseAdminUser & {
   display_name: string | null;
   organizations: UserOrgMembership[];
+  is_super_admin: boolean;
 };
 
 @Injectable()
@@ -57,9 +58,14 @@ export class AdminUsersService {
       throw new BadRequestException('Could not inspect platform accounts');
     }
     const ids = response.data.users.map((u) => u.id);
-    const orgsByUser = await this.fetchOrgMembershipsByUser(ids);
+    const [orgsByUser, superAdminIds] = await Promise.all([
+      this.fetchOrgMembershipsByUser(ids),
+      this.fetchSuperAdminIds(),
+    ]);
     return {
-      users: response.data.users.map((user) => this.toListedUser(user, orgsByUser.get(user.id))),
+      users: response.data.users.map((user) =>
+        this.toListedUser(user, orgsByUser.get(user.id), superAdminIds.has(user.id)),
+      ),
     };
   }
 
@@ -68,8 +74,13 @@ export class AdminUsersService {
     if (!response.ok || !response.data?.id) {
       throw new NotFoundException(`User ${userId} not found`);
     }
-    const orgsByUser = await this.fetchOrgMembershipsByUser([userId]);
-    return { user: this.toListedUser(response.data, orgsByUser.get(userId)) };
+    const [orgsByUser, superAdminIds] = await Promise.all([
+      this.fetchOrgMembershipsByUser([userId]),
+      this.fetchSuperAdminIds(),
+    ]);
+    return {
+      user: this.toListedUser(response.data, orgsByUser.get(userId), superAdminIds.has(userId)),
+    };
   }
 
   async updateUser(userId: string, dto: UpdatePlatformUserDto, actorUserId: string) {
@@ -512,21 +523,35 @@ export class AdminUsersService {
 
     const start = Math.max(page - 1, 0) * perPage;
     const slice = users.slice(start, start + perPage);
-    const orgsByUser = await this.fetchOrgMembershipsByUser(slice.map((u) => u.id));
+    const [orgsByUser, superAdminIds] = await Promise.all([
+      this.fetchOrgMembershipsByUser(slice.map((u) => u.id)),
+      this.fetchSuperAdminIds(),
+    ]);
     return {
-      users: slice.map((u) => ({ ...u, organizations: orgsByUser.get(u.id) ?? [] })),
+      users: slice.map((u) => ({
+        ...u,
+        organizations: orgsByUser.get(u.id) ?? [],
+        is_super_admin: superAdminIds.has(u.id),
+      })),
     };
   }
 
   private toListedUser(
     user: SupabaseAdminUser,
     organizations: UserOrgMembership[] = [],
+    isSuperAdmin = false,
   ): ListedPlatformUser {
     return {
       ...user,
       display_name: this.normalizeDisplayName(user),
       organizations,
+      is_super_admin: isSuperAdmin,
     };
+  }
+
+  private async fetchSuperAdminIds(): Promise<Set<string>> {
+    const admins = await this.listSuperAdmins();
+    return new Set(admins.map((admin) => admin.userId));
   }
 
   private userMatchesSearch(user: ListedPlatformUser, normalizedSearch: string): boolean {

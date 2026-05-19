@@ -21,6 +21,7 @@ import {
   ListOrgsQueryDto,
   PromoteSuperAdminDto,
   ReassignOwnerDto,
+  UpdateOrganizationDto,
 } from './dto/admin-organizations.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
@@ -67,6 +68,20 @@ export class OrganizationsAdminController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async detail(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.getOrganization(id);
+  }
+
+  /**
+   * PATCH /api/v1/admin/organizations/:id
+   * Update organization basics (name, slug).
+   */
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update organization basics (super admin)' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrganizationDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.updateOrganization(id, dto, getActorId(req));
   }
 
   /**

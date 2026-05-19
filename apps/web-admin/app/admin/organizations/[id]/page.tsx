@@ -52,7 +52,26 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-type PickerMode = 'reassign' | 'promote';
+type PickerMode = 'reassign' | 'addMember';
+
+const ADDABLE_ROLES = [
+  'admin',
+  'editor',
+  'scorekeeper',
+  'referee',
+  'workshop_lead',
+  'read_only',
+] as const;
+type AddableRole = (typeof ADDABLE_ROLES)[number];
+
+const ASSIGNABLE_ROLES = [
+  'admin',
+  'editor',
+  'scorekeeper',
+  'referee',
+  'workshop_lead',
+  'read_only',
+];
 
 function normalizeSearch(value: string): string {
   return value
@@ -88,6 +107,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
   const [platformLoading, setPlatformLoading] = useState(false);
   const [platformError, setPlatformError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [addRole, setAddRole] = useState<AddableRole>('admin');
 
   useEffect(() => {
     void params.then(({ id }) => setOrgId(id));
@@ -155,10 +175,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
     setPlatformError(null);
   }
 
-  function openPromotePicker() {
-    setPickerMode('promote');
+  function openAddMemberPicker() {
+    setPickerMode('addMember');
     setPickerSearch('');
     setPlatformError(null);
+    setAddRole('admin');
     void loadPlatformAccounts('');
   }
 
@@ -222,32 +243,71 @@ export default function AdminOrgDetailPage({ params }: Props) {
     }
   }
 
-  async function handlePromoteSuperAdmin(account: PlatformAccount) {
-    if (actionLoading) return;
+  async function handleAddMember(account: PlatformAccount) {
+    if (!orgId || actionLoading) return;
+    setActionLoading(true);
+    const res = await fetch(`${apiUrl}/api/v1/admin/users/${account.id}/organizations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ organizationId: orgId, role: addRole }),
+    });
+    setActionLoading(false);
+    if (res.ok || res.status === 204) {
+      closePicker();
+      window.location.reload();
+    } else {
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      alert(data?.message ?? t('admin.organizations.detail.addMemberFailed'));
+    }
+  }
+
+  async function handleUpdateMemberRole(member: Member, role: string) {
+    if (!orgId || actionLoading) return;
+    setActionLoading(true);
+    const res = await fetch(
+      `${apiUrl}/api/v1/admin/users/${member.user_id}/organizations/${orgId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ role }),
+      },
+    );
+    setActionLoading(false);
+    if (res.ok || res.status === 204) {
+      window.location.reload();
+    } else {
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      alert(data?.message ?? t('admin.organizations.detail.roleUpdateFailed'));
+    }
+  }
+
+  async function handleRemoveMember(member: Member) {
+    if (!orgId || actionLoading) return;
     if (
       !confirm(
-        t('admin.organizations.detail.confirmPromoteMember', {
-          account: accountLabel(account),
+        t('admin.organizations.detail.confirmRemoveMember', {
+          account: member.username || member.email || member.user_id,
         }),
       )
     ) {
       return;
     }
-
     setActionLoading(true);
-    const res = await fetch(`${apiUrl}/api/v1/admin/users/promote-super-admin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ userId: account.id }),
-    });
+    const res = await fetch(
+      `${apiUrl}/api/v1/admin/users/${member.user_id}/organizations/${orgId}`,
+      {
+        method: 'DELETE',
+        credentials: 'include',
+      },
+    );
     setActionLoading(false);
-
     if (res.ok || res.status === 204) {
-      closePicker();
-      alert(t('admin.organizations.detail.promoteSuccess'));
+      window.location.reload();
     } else {
-      alert(t('admin.organizations.detail.promoteFailed'));
+      const data = (await res.json().catch(() => null)) as { message?: string } | null;
+      alert(data?.message ?? t('admin.organizations.detail.removeMemberFailed'));
     }
   }
 
@@ -349,14 +409,6 @@ export default function AdminOrgDetailPage({ params }: Props) {
           >
             {t('admin.organizations.detail.reassignOwner')}
           </button>
-          <button
-            onClick={() => {
-              openPromotePicker();
-            }}
-            className="rounded-md bg-purple-100 px-4 py-2 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-200"
-          >
-            {t('admin.organizations.detail.promoteMember')}
-          </button>
           {org.is_protected ? null : (
             <button
               onClick={() => {
@@ -371,9 +423,18 @@ export default function AdminOrgDetailPage({ params }: Props) {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">
-          {t('admin.organizations.detail.membersTitle', { count: org.members.length })}
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">
+            {t('admin.organizations.detail.membersTitle', { count: org.members.length })}
+          </h2>
+          <button
+            type="button"
+            onClick={() => openAddMemberPicker()}
+            className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-800"
+          >
+            {t('admin.organizations.detail.addMember')}
+          </button>
+        </div>
         {org.members.length === 0 ? (
           <p className="text-sm text-gray-400">{t('admin.organizations.detail.noMembers')}</p>
         ) : (
@@ -383,7 +444,8 @@ export default function AdminOrgDetailPage({ params }: Props) {
                 <th className="py-2 pr-4">{t('admin.organizations.detail.user')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.userId')}</th>
                 <th className="py-2 pr-4">{t('admin.organizations.detail.role')}</th>
-                <th className="py-2">{t('admin.organizations.detail.joined')}</th>
+                <th className="py-2 pr-4">{t('admin.organizations.detail.joined')}</th>
+                <th className="py-2">{t('admin.organizations.detail.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -397,18 +459,39 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   </td>
                   <td className="py-2 pr-4 font-mono text-xs text-gray-600">{member.user_id}</td>
                   <td className="py-2 pr-4">
-                    <span
-                      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
-                        member.role === 'owner'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {member.role}
-                    </span>
+                    {member.role === 'owner' ? (
+                      <span className="inline-block rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                        {member.role}
+                      </span>
+                    ) : (
+                      <select
+                        value={member.role}
+                        disabled={actionLoading}
+                        onChange={(e) => void handleUpdateMemberRole(member, e.target.value)}
+                        className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                      >
+                        {ASSIGNABLE_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
-                  <td className="py-2 text-gray-500">
+                  <td className="py-2 pr-4 text-gray-500">
                     {new Date(member.joined_at).toLocaleDateString('fr-FR')}
+                  </td>
+                  <td className="py-2">
+                    {member.role !== 'owner' ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveMember(member)}
+                        disabled={actionLoading}
+                        className="rounded-md border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {t('admin.organizations.detail.removeMember')}
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -451,7 +534,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
           aria-label={
             pickerMode === 'reassign'
               ? t('admin.organizations.detail.selectOwnerTitle')
-              : t('admin.organizations.detail.selectSuperAdminTitle')
+              : t('admin.organizations.detail.addMemberTitle')
           }
         >
           <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white shadow-xl">
@@ -461,12 +544,12 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   <h2 className="text-lg font-semibold text-slate-950">
                     {pickerMode === 'reassign'
                       ? t('admin.organizations.detail.selectOwnerTitle')
-                      : t('admin.organizations.detail.selectSuperAdminTitle')}
+                      : t('admin.organizations.detail.addMemberTitle')}
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
                     {pickerMode === 'reassign'
                       ? t('admin.organizations.detail.selectOwnerDescription')
-                      : t('admin.organizations.detail.selectSuperAdminDescription')}
+                      : t('admin.organizations.detail.addMemberDescription')}
                   </p>
                 </div>
                 <button
@@ -477,6 +560,22 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   {t('actions.cancel')}
                 </button>
               </div>
+              {pickerMode === 'addMember' ? (
+                <label className="mt-4 block text-sm font-semibold text-slate-700">
+                  {t('admin.organizations.detail.addMemberRole')}
+                  <select
+                    value={addRole}
+                    onChange={(e) => setAddRole(e.target.value as AddableRole)}
+                    className="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {ADDABLE_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label className="mt-4 block text-sm font-semibold text-slate-700">
                 {t('admin.organizations.detail.memberSearch')}
                 <input
@@ -485,7 +584,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   onChange={(event) => {
                     const value = event.target.value;
                     setPickerSearch(value);
-                    if (pickerMode === 'promote') void loadPlatformAccounts(value);
+                    if (pickerMode === 'addMember') void loadPlatformAccounts(value);
                   }}
                   placeholder={
                     pickerMode === 'reassign'
@@ -498,12 +597,12 @@ export default function AdminOrgDetailPage({ params }: Props) {
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto p-3">
-              {pickerMode === 'promote' && platformLoading ? (
+              {pickerMode === 'addMember' && platformLoading ? (
                 <p className="p-4 text-sm text-slate-500">
                   {t('admin.organizations.detail.accountSearchLoading')}
                 </p>
               ) : null}
-              {pickerMode === 'promote' && platformError ? (
+              {pickerMode === 'addMember' && platformError ? (
                 <p className="p-4 text-sm text-red-600">{platformError}</p>
               ) : null}
               {pickerMode === 'reassign' && filteredMembers.length === 0 ? (
@@ -511,7 +610,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   {t('admin.organizations.detail.noMemberMatches')}
                 </p>
               ) : null}
-              {pickerMode === 'promote' &&
+              {pickerMode === 'addMember' &&
               !platformLoading &&
               !platformError &&
               platformAccounts.length === 0 ? (
@@ -543,27 +642,29 @@ export default function AdminOrgDetailPage({ params }: Props) {
                         </span>
                       </button>
                     ))
-                  : platformAccounts.map((account) => (
-                      <button
-                        key={account.id}
-                        type="button"
-                        disabled={actionLoading}
-                        onClick={() => {
-                          void handlePromoteSuperAdmin(account);
-                        }}
-                        className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-purple-300 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <span className="block font-semibold text-slate-950">
-                          {accountLabel(account)}
-                        </span>
-                        <span className="mt-1 block text-sm text-slate-600">
-                          {account.email || t('admin.users.noEmail')}
-                        </span>
-                        <span className="mt-1 block font-mono text-xs text-slate-500">
-                          {account.id}
-                        </span>
-                      </button>
-                    ))}
+                  : platformAccounts
+                      .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
+                      .map((account) => (
+                        <button
+                          key={account.id}
+                          type="button"
+                          disabled={actionLoading}
+                          onClick={() => {
+                            void handleAddMember(account);
+                          }}
+                          className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <span className="block font-semibold text-slate-950">
+                            {accountLabel(account)}
+                          </span>
+                          <span className="mt-1 block text-sm text-slate-600">
+                            {account.email || t('admin.users.noEmail')}
+                          </span>
+                          <span className="mt-1 block font-mono text-xs text-slate-500">
+                            {account.id}
+                          </span>
+                        </button>
+                      ))}
               </div>
             </div>
           </div>

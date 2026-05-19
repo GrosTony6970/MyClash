@@ -97,40 +97,61 @@ export class AdminOrganizationsService {
     actorUserId: string,
   ): Promise<CreateOrganizationResult> {
     const slug = dto.slug.trim().toLowerCase();
-    const ownerEmail = dto.ownerEmail.trim().toLowerCase();
-    const ownerDisplayName = dto.ownerDisplayName?.trim() || ownerEmail;
+    const hasUserId = !!dto.ownerUserId;
+    const hasEmail = !!dto.ownerEmail;
+    if (hasUserId === hasEmail) {
+      throw new BadRequestException('Provide exactly one of ownerUserId or ownerEmail');
+    }
 
     await this.ensureSlugAvailable(slug);
 
-    let authUser = await this.findAuthUserByEmail(ownerEmail);
+    let authUser: { id: string; email?: string | null } | null = null;
     let ownerCreated = false;
     let temporaryPassword: string | undefined;
     let createdOrgId: string | undefined;
+    let ownerEmail: string;
+    let ownerDisplayName: string;
 
-    if (!authUser) {
-      temporaryPassword = this.generateTemporaryPassword();
-      const response = await this.supabase.createAuthAdminUser({
-        email: ownerEmail,
-        password: temporaryPassword,
-        email_confirm: true,
-        user_metadata: { display_name: ownerDisplayName },
-      });
+    if (dto.ownerUserId) {
+      const response = await this.supabase.getAuthAdminUser(dto.ownerUserId);
+      if (!response.ok || !response.data?.id) {
+        throw new BadRequestException(`User ${dto.ownerUserId} not found`);
+      }
+      authUser = { id: response.data.id, email: response.data.email ?? null };
+      ownerEmail = (authUser.email ?? '').toLowerCase();
+      const meta = response.data.user_metadata?.['display_name'];
+      ownerDisplayName = typeof meta === 'string' && meta.trim() ? meta.trim() : ownerEmail;
+    } else {
+      ownerEmail = dto.ownerEmail!.trim().toLowerCase();
+      ownerDisplayName = dto.ownerDisplayName?.trim() || ownerEmail;
 
-      if (!response.ok || !response.data) {
-        if (this.isAlreadyExistsResponse(response.detail)) {
-          authUser = await this.findAuthUserByEmail(ownerEmail);
+      authUser = await this.findAuthUserByEmail(ownerEmail);
+
+      if (!authUser) {
+        temporaryPassword = this.generateTemporaryPassword();
+        const response = await this.supabase.createAuthAdminUser({
+          email: ownerEmail,
+          password: temporaryPassword,
+          email_confirm: true,
+          user_metadata: { display_name: ownerDisplayName },
+        });
+
+        if (!response.ok || !response.data) {
+          if (this.isAlreadyExistsResponse(response.detail)) {
+            authUser = await this.findAuthUserByEmail(ownerEmail);
+          }
+          if (!authUser) {
+            this.logger.error(
+              `Failed to create organizer account for ${ownerEmail}: ${this.formatGoTrueDetail(
+                response,
+              )}`,
+            );
+            throw new BadRequestException('Failed to create organizer account');
+          }
+        } else {
+          authUser = { id: response.data.id, email: response.data.email ?? ownerEmail };
+          ownerCreated = true;
         }
-        if (!authUser) {
-          this.logger.error(
-            `Failed to create organizer account for ${ownerEmail}: ${this.formatGoTrueDetail(
-              response,
-            )}`,
-          );
-          throw new BadRequestException('Failed to create organizer account');
-        }
-      } else {
-        authUser = { id: response.data.id, email: response.data.email ?? ownerEmail };
-        ownerCreated = true;
       }
     }
 
@@ -177,11 +198,19 @@ export class AdminOrganizationsService {
         },
       );
 
-      const magicLinkSent = await this.trySendOwnerMagicLink(
-        ownerEmail,
-        ownerDisplayName,
-        organization.slug,
-      );
+      const magicLinkSent = ownerEmail
+        ? await this.trySendOwnerMagicLink(ownerEmail, ownerDisplayName, organization.slug)
+        : false;
+
+      if (ownerCreated && temporaryPassword && ownerEmail) {
+        await this.trySendOwnerWelcomePassword(
+          ownerEmail,
+          ownerDisplayName,
+          organization.name,
+          organization.slug,
+          temporaryPassword,
+        );
+      }
 
       return {
         organization,
@@ -328,6 +357,48 @@ export class AdminOrganizationsService {
       this.logger.warn(`Could not fetch org ${id}: ${String(err)}`);
       throw new NotFoundException(`Organization ${id} not found`);
     }
+  }
+
+  // ── Update basics ────────────────────────────────────────────────────────
+
+  async updateOrganization(
+    id: string,
+    dto: { name?: string; slug?: string },
+    actorUserId: string,
+  ): Promise<{ id: string; name: string; slug: string }> {
+    const patch: { name?: string; slug?: string } = {};
+    if (dto.name !== undefined) patch.name = dto.name.trim();
+    if (dto.slug !== undefined) {
+      const slug = dto.slug.trim().toLowerCase();
+      const { data: existing } = await this.supabase.service
+        .from('organizations')
+        .select('id')
+        .eq('slug', slug)
+        .neq('id', id)
+        .maybeSingle();
+      if (existing) throw new BadRequestException(`Slug "${slug}" is already in use`);
+      patch.slug = slug;
+    }
+    if (Object.keys(patch).length === 0) {
+      const { data } = await this.supabase.service
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('id', id)
+        .maybeSingle();
+      if (!data) throw new NotFoundException(`Organization ${id} not found`);
+      return data as { id: string; name: string; slug: string };
+    }
+    const { data, error } = await this.supabase.service
+      .from('organizations')
+      .update(patch)
+      .eq('id', id)
+      .select('id, name, slug')
+      .single();
+    if (error || !data) {
+      throw new BadRequestException(error?.message ?? 'Failed to update organization');
+    }
+    await this.writeAuditLog(actorUserId, 'org.update', 'organization', id, patch);
+    return data as { id: string; name: string; slug: string };
   }
 
   // ── Suspend ──────────────────────────────────────────────────────────────
@@ -643,6 +714,31 @@ export class AdminOrganizationsService {
     } catch (err) {
       this.logger.warn(`Could not send organizer magic link for ${email}: ${String(err)}`);
       return false;
+    }
+  }
+
+  private async trySendOwnerWelcomePassword(
+    email: string,
+    displayName: string,
+    orgName: string,
+    orgSlug: string,
+    temporaryPassword: string,
+  ): Promise<void> {
+    if (!this.mail) return;
+    const domain = this.config?.get<string>('DOMAIN', 'myclash.localhost') ?? 'myclash.localhost';
+    const loginUrl = `https://admin.${domain}/login`;
+    const orgUrl = `https://admin.${domain}/org/${orgSlug}`;
+    try {
+      await this.mail.sendOwnerWelcomePassword({
+        to: email,
+        displayName,
+        orgName,
+        temporaryPassword,
+        loginUrl,
+        orgUrl,
+      });
+    } catch (err) {
+      this.logger.warn(`Could not send owner welcome-password email to ${email}: ${String(err)}`);
     }
   }
 

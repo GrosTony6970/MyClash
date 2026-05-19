@@ -64,7 +64,9 @@ describe('AdminUsersService', () => {
     const result = await service.listUsers({ page: 2, perPage: 25 });
 
     expect(listAuthAdminUsers).toHaveBeenCalledWith(2, 25);
-    expect(result.users).toEqual([{ id: 'user-1', display_name: null, organizations: [] }]);
+    expect(result.users).toEqual([
+      { id: 'user-1', display_name: null, organizations: [], is_super_admin: false },
+    ]);
   });
 
   it('normalizes display names from Auth user metadata when listing accounts', async () => {

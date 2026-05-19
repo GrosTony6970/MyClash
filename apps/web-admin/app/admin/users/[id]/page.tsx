@@ -29,6 +29,7 @@ interface AdminUser {
   email?: string;
   display_name?: string | null;
   organizations: UserOrgMembership[];
+  is_super_admin?: boolean;
 }
 
 interface OrgRow {
@@ -55,6 +56,20 @@ export default function AdminUserEditPage() {
 
   const [addOrgId, setAddOrgId] = useState('');
   const [addRole, setAddRole] = useState<OrgRole>('admin');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${apiUrl}/api/v1/auth/me`, { credentials: 'include' })
+      .then(async (res) => (res.ok ? ((await res.json()) as { id?: string }) : null))
+      .then((data) => {
+        if (!cancelled) setCurrentUserId(data?.id ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl]);
 
   const fetchUser = useCallback(async () => {
     const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}`, {
@@ -169,6 +184,36 @@ export default function AdminUserEditPage() {
     }
   }
 
+  async function toggleSuperAdmin() {
+    if (!user) return;
+    const isCurrentlySuperAdmin = user.is_super_admin === true;
+    const confirmMsg = isCurrentlySuperAdmin
+      ? t('admin.users.edit.superAdminRevokeConfirm')
+      : t('admin.users.edit.superAdminGrantConfirm');
+    if (!window.confirm(confirmMsg)) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const url = isCurrentlySuperAdmin
+        ? `${apiUrl}/api/v1/admin/users/${userId}/super-admin`
+        : `${apiUrl}/api/v1/admin/users/${userId}/promote-super-admin`;
+      const res = await fetch(url, {
+        method: isCurrentlySuperAdmin ? 'DELETE' : 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.users.edit.superAdminFailed'));
+      }
+      await fetchUser();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.users.edit.superAdminFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addMembership() {
     if (!addOrgId) return;
     setBusy(true);
@@ -244,6 +289,39 @@ export default function AdminUserEditPage() {
         >
           {t('admin.users.edit.save')}
         </button>
+      </section>
+
+      <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          {t('admin.users.edit.superAdminSection')}
+        </h2>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-slate-700">
+            {user?.is_super_admin
+              ? t('admin.users.edit.superAdminCurrent')
+              : t('admin.users.edit.superAdminNotGranted')}
+          </p>
+          {currentUserId === userId ? (
+            <span className="text-xs italic text-slate-500">
+              {t('admin.users.edit.superAdminSelfDisabled')}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void toggleSuperAdmin()}
+              disabled={busy || !user}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+                user?.is_super_admin
+                  ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                  : 'bg-purple-700 text-white hover:bg-purple-800'
+              }`}
+            >
+              {user?.is_super_admin
+                ? t('admin.users.edit.superAdminRevoke')
+                : t('admin.users.edit.superAdminGrant')}
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

@@ -32,6 +32,15 @@ export interface EmailChangeConfirmationOptions {
   displayName?: string;
 }
 
+export interface OwnerWelcomePasswordOptions {
+  to: string;
+  displayName: string;
+  orgName: string;
+  temporaryPassword: string;
+  loginUrl: string;
+  orgUrl: string;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -213,6 +222,62 @@ export class MailService {
     }
 
     this.logger.log(`Email-change confirmation sent to ${opts.to}`);
+  }
+
+  async sendOwnerWelcomePassword(opts: OwnerWelcomePasswordOptions): Promise<void> {
+    const displayName = escapeHtml(opts.displayName);
+    const orgName = escapeHtml(opts.orgName);
+    const temporaryPassword = escapeHtml(opts.temporaryPassword);
+    const loginUrl = escapeHtml(opts.loginUrl);
+    const orgUrl = escapeHtml(opts.orgUrl);
+
+    const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  <p>Bonjour ${displayName},</p>
+  <p>Un compte MyClash a ete cree pour vous en tant qu organisateur de <strong>${orgName}</strong>.</p>
+  <p>A MyClash account has been created for you as organizer of <strong>${orgName}</strong>.</p>
+  <p style="margin:24px 0;padding:16px;background:#f8f8f8;border-radius:6px">
+    <strong>Email :</strong> ${escapeHtml(opts.to)}<br>
+    <strong>Mot de passe temporaire / Temporary password :</strong>
+    <code style="font-family:monospace;background:#fff;padding:4px 8px;border-radius:4px;border:1px solid #ddd">${temporaryPassword}</code>
+  </p>
+  <p style="margin:32px 0">
+    <a href="${loginUrl}"
+       style="background:#c0392b;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block">
+      Se connecter / Log in
+    </a>
+  </p>
+  <p style="color:#666;font-size:13px">
+    Apres connexion, changez immediatement votre mot de passe dans vos parametres.<br>
+    After logging in, change your password immediately in your settings.
+  </p>
+  <p style="color:#666;font-size:13px">
+    Votre espace d organisation : <a href="${orgUrl}">${orgUrl}</a>
+  </p>
+  <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+  <p style="color:#999;font-size:12px">MyClash - Plateforme libre pour les evenements HEMA</p>
+</body>
+</html>`;
+
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to: opts.to,
+      subject: `Votre compte MyClash pour ${opts.orgName} / Your MyClash account for ${opts.orgName}`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Failed to send owner welcome-password email to ${opts.to}: ${JSON.stringify(error)}`,
+      );
+      throw new Error(`Mail delivery failed: ${error.message}`);
+    }
+
+    this.logger.log(`Owner welcome-password email sent to ${opts.to}`);
   }
 
   private renderBasicNotification(opts: NotificationEmailOptions): string {

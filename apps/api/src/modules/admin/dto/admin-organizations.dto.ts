@@ -52,9 +52,14 @@ export class CreateOrganizationDto {
   })
   slug!: string;
 
-  @ApiProperty({ example: 'organizer@example.com' })
+  @ApiProperty({
+    example: 'organizer@example.com',
+    required: false,
+    description: 'Email for a new owner account. Use with ownerDisplayName.',
+  })
+  @IsOptional()
   @IsEmail()
-  ownerEmail!: string;
+  ownerEmail?: string;
 
   @ApiProperty({ example: 'Jean Dupont', required: false })
   @IsOptional()
@@ -62,6 +67,34 @@ export class CreateOrganizationDto {
   @MinLength(2)
   @MaxLength(100)
   ownerDisplayName?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Existing platform user ID to assign as owner. Mutually exclusive with ownerEmail.',
+  })
+  @IsOptional()
+  @IsUUID()
+  ownerUserId?: string;
+}
+
+export class UpdateOrganizationDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(50)
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'Slug must contain only lowercase letters, digits, and hyphens',
+  })
+  slug?: string;
 }
 
 export class ReassignOwnerDto {
