@@ -1,53 +1,104 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  FEATURE_FLAG_REGISTRY,
+  isKnownFlagKey,
+  type KnownFeatureFlagKey,
+} from '@myclash/feature-flags';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { UpsertFeatureFlagDto } from './dto/admin-feature-flags.dto';
+
+interface StoredFlag {
+  key: string;
+  description: string | null;
+  enabled: boolean;
+  updated_at: string;
+  updated_by_user_id: string | null;
+}
+
+export interface RegistryFlag {
+  key: string;
+  enabled: boolean;
+  description: string | null;
+  updated_at: string | null;
+}
+
+const FLAG_CACHE_TTL_MS = 5_000;
 
 @Injectable()
 export class AdminFeatureFlagsService {
   private readonly logger = new Logger(AdminFeatureFlagsService.name);
+  private readonly cache = new Map<string, { value: boolean; expiresAt: number }>();
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  async listFlags() {
+  async listFlagsWithRegistry(): Promise<RegistryFlag[]> {
     const { data, error } = await this.supabase.service
       .from('feature_flags')
-      .select('*')
-      .order('key', { ascending: true });
+      .select('key, description, enabled, updated_at, updated_by_user_id');
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+
+    const stored = new Map<string, StoredFlag>();
+    for (const row of (data ?? []) as StoredFlag[]) stored.set(row.key, row);
+
+    return FEATURE_FLAG_REGISTRY.map((def) => {
+      const row = stored.get(def.key);
+      return {
+        key: def.key,
+        enabled: row?.enabled ?? def.default,
+        description: row?.description ?? null,
+        updated_at: row?.updated_at ?? null,
+      };
+    });
   }
 
   async upsertFlag(key: string, dto: UpsertFeatureFlagDto, actorUserId: string): Promise<void> {
-    const trimmedKey = key.trim();
-    if (!trimmedKey) throw new BadRequestException('Feature flag key is required');
+    if (!isKnownFlagKey(key)) {
+      throw new BadRequestException(`Unknown feature flag: ${key}`);
+    }
 
     const now = new Date().toISOString();
     const { error } = await this.supabase.service.from('feature_flags').upsert({
-      key: trimmedKey,
+      key,
       description: dto.description ?? null,
       enabled: dto.enabled,
-      payload_json: dto.payload ?? null,
+      payload_json: null,
       updated_by_user_id: actorUserId,
       updated_at: now,
     });
     if (error) throw new BadRequestException(error.message);
 
-    await this.writeAuditLog(actorUserId, 'feature_flag.upsert', 'feature_flag', trimmedKey, {
+    this.cache.delete(key);
+
+    await this.writeAuditLog(actorUserId, 'feature_flag.upsert', 'feature_flag', key, {
       enabled: dto.enabled,
     });
   }
 
-  async deleteFlag(key: string, actorUserId: string): Promise<void> {
-    const trimmedKey = key.trim();
-    if (!trimmedKey) throw new BadRequestException('Feature flag key is required');
+  async isEnabled(key: KnownFeatureFlagKey): Promise<boolean> {
+    const cached = this.cache.get(key);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) return cached.value;
 
-    const { error } = await this.supabase.service
-      .from('feature_flags')
-      .delete()
-      .eq('key', trimmedKey);
-    if (error) throw new BadRequestException(error.message);
+    const def = FEATURE_FLAG_REGISTRY.find((f) => f.key === key);
+    const fallback = def?.default ?? false;
 
-    await this.writeAuditLog(actorUserId, 'feature_flag.delete', 'feature_flag', trimmedKey, {});
+    try {
+      const { data, error } = await this.supabase.service
+        .from('feature_flags')
+        .select('enabled')
+        .eq('key', key)
+        .maybeSingle();
+      if (error) {
+        this.cache.set(key, { value: fallback, expiresAt: now + FLAG_CACHE_TTL_MS });
+        return fallback;
+      }
+      const value = (data as { enabled?: boolean } | null)?.enabled ?? fallback;
+      this.cache.set(key, { value, expiresAt: now + FLAG_CACHE_TTL_MS });
+      return value;
+    } catch {
+      this.cache.set(key, { value: fallback, expiresAt: now + FLAG_CACHE_TTL_MS });
+      return fallback;
+    }
   }
 
   private async writeAuditLog(

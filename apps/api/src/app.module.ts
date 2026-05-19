@@ -1,6 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -35,6 +35,7 @@ import { SupabaseModule } from './modules/supabase/supabase.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
+import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 
 @Module({
   imports: [
@@ -99,6 +100,10 @@ import { RequestLoggingMiddleware } from './common/observability/request-logging
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LockdownInterceptor,
     },
   ],
 })

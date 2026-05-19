@@ -15,6 +15,7 @@
   "dependencies": {
     "@myclash/api-client": "workspace:^",
     "@myclash/design-tokens": "workspace:^",
+    "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",

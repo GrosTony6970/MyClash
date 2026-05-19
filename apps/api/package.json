@@ -18,6 +18,7 @@
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^10.0.0",
     "@mistralai/mistralai": "^2.2.1",
+    "@myclash/feature-flags": "workspace:^",
     "@myclash/rulesets": "workspace:^",
     "@myclash/types": "workspace:^",
     "@nestjs/bullmq": "^11.0.4",

@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -28,9 +27,9 @@ export class FeatureFlagsAdminController {
   constructor(private readonly service: AdminFeatureFlagsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List feature flags (super admin)' })
+  @ApiOperation({ summary: 'List feature flags merged with registry (super admin)' })
   async list() {
-    return this.service.listFlags();
+    return this.service.listFlagsWithRegistry();
   }
 
   @Put(':key')
@@ -42,12 +41,5 @@ export class FeatureFlagsAdminController {
     @Req() req: FastifyRequest,
   ) {
     await this.service.upsertFlag(key, dto, getActorId(req));
-  }
-
-  @Delete(':key')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete feature flag (super admin)' })
-  async delete(@Param('key') key: string, @Req() req: FastifyRequest) {
-    await this.service.deleteFlag(key, getActorId(req));
   }
 }

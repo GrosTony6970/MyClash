@@ -48,6 +48,9 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password, redirectTo: '/dashboard' }),
       });
 
+      if (res.status === 503) {
+        throw new Error(t('admin.featureFlags.lockdownBanner'));
+      }
       if (!res.ok) {
         throw new Error(t('auth.login.errors.passwordLoginFailed'));
       }

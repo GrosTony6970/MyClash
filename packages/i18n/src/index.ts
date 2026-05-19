@@ -796,6 +796,23 @@ export const en = {
         superAdminSelfDisabled: 'You cannot change your own super-admin status.',
       },
     },
+    featureFlags: {
+      title: 'Feature Flags',
+      description: 'Platform-wide toggles for opt-in features and incident mitigations.',
+      loading: 'Loading...',
+      loadError: 'Could not load feature flags.',
+      toggleFailed: 'Could not change the flag value.',
+      enable: 'Enable',
+      disable: 'Disable',
+      lastUpdated: 'Last updated {date}',
+      lockdown: {
+        title: 'Admin lockdown',
+        description:
+          'When enabled, only super admins can sign in to admin.myclash.fr. Useful during maintenance windows or live incidents.',
+      },
+      lockdownBanner:
+        'MyClash admin is currently in maintenance mode. Only super admins can sign in.',
+    },
     aiSettings: {
       title: 'AI Settings',
       description:
@@ -2689,6 +2706,24 @@ export const fr = {
         superAdminFailed: 'Impossible de changer le statut super-admin.',
         superAdminSelfDisabled: 'Vous ne pouvez pas changer votre propre statut super-admin.',
       },
+    },
+    featureFlags: {
+      title: 'Indicateurs de fonctionnalite',
+      description:
+        'Interrupteurs plateforme pour les fonctionnalites optionnelles et la gestion d incidents.',
+      loading: 'Chargement...',
+      loadError: 'Impossible de charger les indicateurs.',
+      toggleFailed: 'Impossible de changer la valeur de l indicateur.',
+      enable: 'Activer',
+      disable: 'Desactiver',
+      lastUpdated: 'Derniere mise a jour {date}',
+      lockdown: {
+        title: 'Verrouillage administrateur',
+        description:
+          'Quand active, seuls les super-administrateurs peuvent se connecter a admin.myclash.fr. Utile pendant une maintenance ou un incident.',
+      },
+      lockdownBanner:
+        'MyClash admin est actuellement en mode maintenance. Seuls les super-administrateurs peuvent se connecter.',
     },
     aiSettings: {
       title: 'Parametres IA',

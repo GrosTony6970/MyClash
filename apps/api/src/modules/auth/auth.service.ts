@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -132,6 +133,7 @@ export class AuthService {
       if (!allowed) {
         throw new ForbiddenException('No organizer or super admin access for this account');
       }
+      await this.assertNotLockedOut(user.id);
       destination = destination === '/' ? '/dashboard' : destination;
     }
 
@@ -178,6 +180,8 @@ export class AuthService {
       throw new ForbiddenException('No organizer or super admin access for this account');
     }
 
+    await this.assertNotLockedOut(tokenResponse.user.id);
+
     this.setAuthCookies(
       reply,
       tokenResponse.access_token,
@@ -185,6 +189,40 @@ export class AuthService {
       tokenResponse.expires_in,
     );
     void reply.send({ next: destination === '/' ? '/dashboard' : destination });
+  }
+
+  private async assertNotLockedOut(userId: string): Promise<void> {
+    const lockdownOn = await this.isAdminLockdownEnabled();
+    if (!lockdownOn) return;
+
+    try {
+      const { data } = await this.supabase.service
+        .from('platform_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'super_admin')
+        .maybeSingle();
+      if (data) return; // super admin bypasses lockdown
+    } catch {
+      // platform_roles missing in early bootstrap — fall through to block
+    }
+
+    throw new ServiceUnavailableException(
+      'MyClash admin is temporarily restricted to super admins. Please try again later.',
+    );
+  }
+
+  private async isAdminLockdownEnabled(): Promise<boolean> {
+    try {
+      const { data } = await this.supabase.service
+        .from('feature_flags')
+        .select('enabled')
+        .eq('key', 'admin_lockdown')
+        .maybeSingle();
+      return Boolean((data as { enabled?: boolean } | null)?.enabled);
+    } catch {
+      return false;
+    }
   }
 
   logout(reply: FastifyReply): { ok: true } {
@@ -217,6 +255,10 @@ export class AuthService {
     }
 
     const { session } = data;
+
+    if (type === 'login') {
+      await this.assertNotLockedOut(session.user.id);
+    }
 
     this.setAuthCookies(
       reply,

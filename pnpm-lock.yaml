@@ -93,6 +93,9 @@ importers:
       '@mistralai/mistralai':
         specifier: ^2.2.1
         version: 2.2.1
+      '@myclash/feature-flags':
+        specifier: workspace:^
+        version: link:../../packages/feature-flags
       '@myclash/rulesets':
         specifier: workspace:^
         version: link:../../packages/rulesets
@@ -202,6 +205,9 @@ importers:
       '@myclash/design-tokens':
         specifier: workspace:^
         version: link:../../packages/design-tokens
+      '@myclash/feature-flags':
+        specifier: workspace:^
+        version: link:../../packages/feature-flags
       '@myclash/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
@@ -405,6 +411,12 @@ importers:
         version: 2.1.9(@types/node@22.19.17)(@vitest/ui@2.1.9)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.46.2)
 
   packages/design-tokens:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/feature-flags:
     devDependencies:
       typescript:
         specifier: ^5.6.0
