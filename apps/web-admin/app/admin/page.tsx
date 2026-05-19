@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
 
@@ -30,87 +29,6 @@ type DashboardStats = {
     completedMatches: number;
   };
 };
-
-const sections = [
-  {
-    href: '/admin/organizations',
-    titleKey: 'admin.dashboard.cards.organizationsTitle',
-    descriptionKey: 'admin.dashboard.cards.organizationsDescription',
-    badge: 'OR',
-  },
-  {
-    href: '/admin/users',
-    titleKey: 'admin.dashboard.cards.usersTitle',
-    descriptionKey: 'admin.dashboard.cards.usersDescription',
-    badge: 'PA',
-  },
-  {
-    href: '/admin/fighters',
-    titleKey: 'admin.dashboard.cards.fightersTitle',
-    descriptionKey: 'admin.dashboard.cards.fightersDescription',
-    badge: 'F',
-  },
-  {
-    href: '/admin/clubs',
-    titleKey: 'admin.dashboard.cards.clubsTitle',
-    descriptionKey: 'admin.dashboard.cards.clubsDescription',
-    badge: 'C',
-  },
-  {
-    href: '/admin/leagues',
-    titleKey: 'admin.dashboard.leaguesTitle',
-    descriptionKey: 'admin.dashboard.leaguesDescription',
-    badge: 'L',
-  },
-  {
-    href: '/admin/rulesets',
-    titleKey: 'admin.dashboard.cards.rulesetsTitle',
-    descriptionKey: 'admin.dashboard.cards.rulesetsDescription',
-    badge: 'R',
-  },
-  {
-    href: '/admin/feature-flags',
-    titleKey: 'admin.dashboard.cards.featureFlagsTitle',
-    descriptionKey: 'admin.dashboard.cards.featureFlagsDescription',
-    badge: 'FF',
-  },
-  {
-    href: '/admin/audit-log',
-    titleKey: 'admin.dashboard.cards.auditLogTitle',
-    descriptionKey: 'admin.dashboard.cards.auditLogDescription',
-    badge: 'A',
-  },
-  {
-    href: '/admin/exchange-edit-requests',
-    titleKey: 'admin.dashboard.cards.frozenResultsTitle',
-    descriptionKey: 'admin.dashboard.cards.frozenResultsDescription',
-    badge: 'FR',
-  },
-  {
-    href: '/admin/system-versions',
-    titleKey: 'admin.dashboard.systemVersionsTitle',
-    descriptionKey: 'admin.dashboard.systemVersionsDescription',
-    badge: 'S',
-  },
-  {
-    href: '/admin/backups',
-    titleKey: 'admin.dashboard.backupsTitle',
-    descriptionKey: 'admin.dashboard.backupsDescription',
-    badge: 'B',
-  },
-  {
-    href: '/admin/ai-settings',
-    titleKey: 'admin.dashboard.aiSettingsTitle',
-    descriptionKey: 'admin.dashboard.aiSettingsDescription',
-    badge: 'AI',
-  },
-  {
-    href: '/admin/data-quality',
-    titleKey: 'admin.dashboard.dataQualityTitle',
-    descriptionKey: 'admin.dashboard.dataQualityDescription',
-    badge: 'DQ',
-  },
-] as const;
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('fr-FR').format(value);
@@ -293,34 +211,6 @@ export default function SuperAdminDashboardPage() {
             </div>
           </>
         ) : null}
-      </section>
-
-      <section>
-        <h2 className="mb-4 text-xl font-bold text-[#0f172a]">{t('admin.dashboard.toolsTitle')}</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {sections.map((section) => (
-            <Link
-              key={section.href}
-              href={section.href}
-              className="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-[#1d4ed8]/40 hover:bg-[#1d4ed8]/5"
-            >
-              <div className="flex items-start gap-4">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[#0f172a]/10 bg-[#0f172a] text-xs font-bold text-[#f59e0b]"
-                  aria-hidden="true"
-                >
-                  {section.badge}
-                </span>
-                <div>
-                  <h3 className="text-base font-bold text-[#0f172a]">{t(section.titleKey)}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {t(section.descriptionKey)}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
       </section>
     </main>
   );
