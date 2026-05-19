@@ -261,6 +261,7 @@ export const en = {
   },
   common: {
     all: 'All',
+    cancel: 'Cancel',
     error: 'Something went wrong.',
     loading: 'Loading...',
     none: 'None',
@@ -2086,6 +2087,7 @@ export const fr = {
   },
   common: {
     all: 'Tout',
+    cancel: 'Annuler',
     error: 'Une erreur est survenue.',
     loading: 'Chargement...',
     none: 'Aucun',
