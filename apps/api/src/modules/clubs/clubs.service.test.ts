@@ -224,6 +224,62 @@ describe('ClubsService', () => {
     ).rejects.toThrow('PNG, JPEG, or WebP');
   });
 
+  it('removes a club logo: deletes every storage object under the club prefix then nulls logo_url', async () => {
+    const lookupChain = makeChain({
+      data: {
+        id: 'club-1',
+        logo_url:
+          'https://assets.test/storage/v1/object/public/event-assets/clubs/club-1/logo-1.png',
+      },
+      error: null,
+    });
+    const updateChain = makeChain({
+      data: { id: 'club-1', logo_url: null },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(lookupChain).mockReturnValueOnce(updateChain);
+
+    const listMock = vi.fn().mockResolvedValue({
+      data: [{ name: 'logo-1.png' }, { name: 'logo-2.webp' }],
+      error: null,
+    });
+    const removeMock = vi.fn().mockResolvedValue({ error: null });
+    storageFromMock.mockReturnValue({ list: listMock, remove: removeMock });
+
+    await expect(service.deleteLogo('club-1')).resolves.toEqual({
+      id: 'club-1',
+      logo_url: null,
+    });
+
+    expect(storageFromMock).toHaveBeenCalledWith('event-assets');
+    expect(listMock).toHaveBeenCalledWith('clubs/club-1');
+    expect(removeMock).toHaveBeenCalledWith([
+      'clubs/club-1/logo-1.png',
+      'clubs/club-1/logo-2.webp',
+    ]);
+    expect(updateChain.update).toHaveBeenCalledWith(expect.objectContaining({ logo_url: null }));
+  });
+
+  it('removing a logo on a club without one is a no-op (no storage call, no update)', async () => {
+    const lookupChain = makeChain({
+      data: { id: 'club-1', logo_url: null },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(lookupChain);
+
+    const listMock = vi.fn();
+    const removeMock = vi.fn();
+    storageFromMock.mockReturnValue({ list: listMock, remove: removeMock });
+
+    await expect(service.deleteLogo('club-1')).resolves.toEqual({
+      id: 'club-1',
+      logo_url: null,
+    });
+
+    expect(listMock).not.toHaveBeenCalled();
+    expect(removeMock).not.toHaveBeenCalled();
+  });
+
   it('creates organizer-submitted clubs as unverified', async () => {
     const createChain = makeChain({
       data: { id: 'club-1', name: 'New Club', unverified: 'true' },

@@ -251,6 +251,48 @@ export class ClubsService {
     return { url: data.publicUrl };
   }
 
+  async deleteLogo(id: string): Promise<{ id: string; logo_url: null }> {
+    const { data: club, error: lookupError } = await this.supabase.service
+      .from('clubs')
+      .select('id, logo_url')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (lookupError) throw new BadRequestException(lookupError.message);
+    if (!club) throw new NotFoundException(`Club ${id} not found`);
+
+    const current = (club as { id: string; logo_url: string | null }).logo_url;
+    if (!current) {
+      return { id, logo_url: null };
+    }
+
+    const prefix = `clubs/${id}`;
+    const bucket = this.supabase.service.storage.from(CLUB_LOGO_BUCKET);
+    const { data: objects, error: listError } = await bucket.list(prefix);
+    if (listError && !/not found/iu.test(listError.message)) {
+      throw new BadRequestException(listError.message);
+    }
+    const keys = (objects ?? [])
+      .map((obj) => (obj && typeof obj === 'object' ? (obj as { name?: string }).name : undefined))
+      .filter((name): name is string => typeof name === 'string' && name.length > 0)
+      .map((name) => `${prefix}/${name}`);
+    if (keys.length > 0) {
+      const { error: removeError } = await bucket.remove(keys);
+      if (removeError && !/not found/iu.test(removeError.message)) {
+        throw new BadRequestException(removeError.message);
+      }
+    }
+
+    const { data: updated, error: updateError } = await this.supabase.service
+      .from('clubs')
+      .update({ logo_url: null, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, logo_url')
+      .single();
+    if (updateError) throw new BadRequestException(updateError.message);
+    return updated as { id: string; logo_url: null };
+  }
+
   async deleteClub(id: string, mode: DeleteClubMode = 'safe') {
     if (!['safe', 'archive', 'cleanup'].includes(mode)) {
       throw new BadRequestException('Unknown club deletion mode');

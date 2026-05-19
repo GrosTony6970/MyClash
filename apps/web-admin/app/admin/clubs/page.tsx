@@ -52,6 +52,16 @@ const emptyCreateState: CreateState = {
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const LIGHTBOX_PREVIEW_SIZE = 256;
+
+function initialsFor(club: { name: string | null; abbreviation: string | null }): string {
+  const source = (club.name?.trim() || club.abbreviation?.trim() || '?').toString();
+  const parts = source.split(/\s+/u).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0]!.charAt(0) + parts[1]!.charAt(0)).toUpperCase();
+  }
+  return source.slice(0, 2).toUpperCase();
+}
 
 function formatBlockers(blockers: unknown): string | null {
   if (!blockers || typeof blockers !== 'object') return null;
@@ -80,6 +90,10 @@ export default function AdminClubsPage() {
   const [createState, setCreateState] = useState<CreateState>(emptyCreateState);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+  const [editLogoPreviewUrl, setEditLogoPreviewUrl] = useState<string | null>(null);
+  const [lightboxClub, setLightboxClub] = useState<ClubRow | null>(null);
+  const [lightboxBusy, setLightboxBusy] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [requests, setRequests] = useState<ClubReviewRequest[]>([]);
@@ -88,6 +102,7 @@ export default function AdminClubsPage() {
   const [linkQueryByRequest, setLinkQueryByRequest] = useState<Record<string, string>>({});
   const [linkMatchesByRequest, setLinkMatchesByRequest] = useState<Record<string, ClubRow[]>>({});
   const previewUrlRef = useRef<string | null>(null);
+  const editPreviewUrlRef = useRef<string | null>(null);
 
   const fetchClubs = useCallback(
     async (q: string, signal?: AbortSignal) => {
@@ -156,8 +171,18 @@ export default function AdminClubsPage() {
   useEffect(() => {
     return () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      if (editPreviewUrlRef.current) URL.revokeObjectURL(editPreviewUrlRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!lightboxClub) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLightboxClub(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxClub]);
 
   async function search(q: string) {
     setLoading(true);
@@ -179,10 +204,12 @@ export default function AdminClubsPage() {
       city: club.city ?? '',
       country_code: club.country_code ?? '',
     });
+    updateEditLogoPreview(null);
     setError(null);
   }
 
   function cancelEdit() {
+    updateEditLogoPreview(null);
     setEditingId(null);
   }
 
@@ -221,6 +248,111 @@ export default function AdminClubsPage() {
     updateLogoPreview(file);
   }
 
+  function updateEditLogoPreview(file: File | null) {
+    if (editPreviewUrlRef.current) {
+      URL.revokeObjectURL(editPreviewUrlRef.current);
+      editPreviewUrlRef.current = null;
+    }
+    if (!file) {
+      setEditLogoFile(null);
+      setEditLogoPreviewUrl(null);
+      return;
+    }
+    const nextUrl = URL.createObjectURL(file);
+    editPreviewUrlRef.current = nextUrl;
+    setEditLogoFile(file);
+    setEditLogoPreviewUrl(nextUrl);
+  }
+
+  function handleEditLogoFile(file: File | null) {
+    setError(null);
+    if (!file) {
+      updateEditLogoPreview(null);
+      return;
+    }
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      updateEditLogoPreview(null);
+      setError(t('admin.clubs.logoTypeError'));
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      updateEditLogoPreview(null);
+      setError(t('admin.clubs.logoSizeError'));
+      return;
+    }
+    updateEditLogoPreview(file);
+  }
+
+  async function uploadLogoFor(clubId: string, file: File): Promise<string> {
+    const form = new FormData();
+    form.set('file', file);
+    const res = await fetch(`${apiUrl}/api/v1/clubs/${clubId}/logo`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      throw new Error(data.message ?? t('admin.clubs.logoUpdateError'));
+    }
+    const upload = (await res.json()) as { url: string };
+    return upload.url;
+  }
+
+  function applyLogoUrlToClub(clubId: string, logoUrl: string | null) {
+    setClubs((prev) => prev.map((c) => (c.id === clubId ? { ...c, logo_url: logoUrl } : c)));
+    setLightboxClub((current) =>
+      current && current.id === clubId ? { ...current, logo_url: logoUrl } : current,
+    );
+  }
+
+  async function replaceLogoFromLightbox(club: ClubRow, file: File) {
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setError(t('admin.clubs.logoTypeError'));
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setError(t('admin.clubs.logoSizeError'));
+      return;
+    }
+    setLightboxBusy(true);
+    setError(null);
+    setCreateSuccess(null);
+    try {
+      const url = await uploadLogoFor(club.id, file);
+      applyLogoUrlToClub(club.id, url);
+      setCreateSuccess(t('admin.clubs.logoReplaced'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.clubs.logoUpdateError'));
+    } finally {
+      setLightboxBusy(false);
+    }
+  }
+
+  async function removeLogoFromLightbox(club: ClubRow) {
+    if (!window.confirm(t('admin.clubs.logoRemoveConfirm', { club: club.name }))) return;
+    setLightboxBusy(true);
+    setError(null);
+    setCreateSuccess(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/clubs/${club.id}/logo`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? t('admin.clubs.logoUpdateError'));
+      }
+      applyLogoUrlToClub(club.id, null);
+      setCreateSuccess(t('admin.clubs.logoRemoved'));
+      setLightboxClub(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.clubs.logoUpdateError'));
+    } finally {
+      setLightboxBusy(false);
+    }
+  }
+
   async function saveEdit(id: string) {
     setSaving(true);
     setError(null);
@@ -244,8 +376,20 @@ export default function AdminClubsPage() {
         throw new Error(data.message ?? 'Save failed');
       }
 
-      const updated = (await res.json()) as ClubRow;
+      let updated = (await res.json()) as ClubRow;
+      if (editLogoFile) {
+        try {
+          const url = await uploadLogoFor(id, editLogoFile);
+          updated = { ...updated, logo_url: url };
+        } catch (uploadErr) {
+          setClubs((prev) => prev.map((c) => (c.id === id ? updated : c)));
+          updateEditLogoPreview(null);
+          setEditingId(null);
+          throw uploadErr;
+        }
+      }
       setClubs((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      updateEditLogoPreview(null);
       setEditingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
@@ -280,23 +424,16 @@ export default function AdminClubsPage() {
 
       let created = (await res.json()) as ClubRow;
       if (logoFile) {
-        const form = new FormData();
-        form.set('file', logoFile);
-        const uploadRes = await fetch(`${apiUrl}/api/v1/clubs/${created.id}/logo`, {
-          method: 'POST',
-          credentials: 'include',
-          body: form,
-        });
-        if (!uploadRes.ok) {
-          const data = (await uploadRes.json().catch(() => ({}))) as { message?: string };
+        try {
+          const url = await uploadLogoFor(created.id, logoFile);
+          created = { ...created, logo_url: url };
+        } catch (uploadErr) {
           setClubs((prev) => [created, ...prev]);
           setCreateState(emptyCreateState);
           updateLogoPreview(null);
           setCreateSuccess(t('admin.clubs.createSuccess', { club: created.name }));
-          throw new Error(data.message ?? t('admin.clubs.logoUploadError'));
+          throw uploadErr;
         }
-        const upload = (await uploadRes.json()) as { url: string };
-        created = { ...created, logo_url: upload.url };
       }
       setClubs((prev) => [created, ...prev]);
       setCreateState(emptyCreateState);
@@ -708,6 +845,7 @@ export default function AdminClubsPage() {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-500 text-xs uppercase tracking-wide">
+              <th className="py-3 px-4 w-20">{t('admin.clubs.logo')}</th>
               <th className="py-3 px-4">{t('admin.clubs.name')}</th>
               <th className="py-3 px-4">{t('admin.clubs.abbreviation')}</th>
               <th className="py-3 px-4">{t('admin.clubs.city')}</th>
@@ -719,7 +857,7 @@ export default function AdminClubsPage() {
           <tbody>
             {clubs.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-gray-400 text-sm">
+                <td colSpan={7} className="py-8 text-center text-gray-400 text-sm">
                   {loading ? t('common.loading') : t('admin.clubs.empty')}
                 </td>
               </tr>
@@ -727,6 +865,28 @@ export default function AdminClubsPage() {
             {clubs.map((club) =>
               editingId === club.id ? (
                 <tr key={club.id} className="border-b border-gray-100 bg-amber-50">
+                  <td className="py-2 px-4">
+                    <div className="flex items-center gap-2">
+                      <LogoButton club={club} onOpen={setLightboxClub} />
+                      <label className="text-[11px] font-medium text-slate-600">
+                        <span className="block">{t('admin.clubs.logoReplace')}</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={(e) => handleEditLogoFile(e.target.files?.[0] ?? null)}
+                          className="mt-1 block w-40 rounded-md border border-gray-300 px-2 py-1 text-[11px] file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                        />
+                      </label>
+                      {editLogoPreviewUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={editLogoPreviewUrl}
+                          alt={t('admin.clubs.logoPreviewAlt')}
+                          className="h-8 w-8 rounded-md border border-slate-200 bg-white object-contain"
+                        />
+                      )}
+                    </div>
+                  </td>
                   <td className="py-2 px-4" aria-label={t('admin.clubs.actions')}>
                     <input
                       aria-label={t('admin.clubs.editNameLabel', { club: club.name })}
@@ -790,6 +950,9 @@ export default function AdminClubsPage() {
                 </tr>
               ) : (
                 <tr key={club.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="py-2.5 px-4">
+                    <LogoButton club={club} onOpen={setLightboxClub} />
+                  </td>
                   <td className="py-2.5 px-4 font-medium text-gray-900">{club.name}</td>
                   <td className="py-2.5 px-4">
                     {club.abbreviation ? (
@@ -858,6 +1021,110 @@ export default function AdminClubsPage() {
           {t('admin.clubs.count', { count: clubs.length })}
         </p>
       )}
+
+      {lightboxClub && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          onClick={() => {
+            if (!lightboxBusy) setLightboxClub(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h2 className="text-base font-semibold text-slate-900">
+                {t('admin.clubs.logoLightboxTitle', { club: lightboxClub.name })}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setLightboxClub(null)}
+                disabled={lightboxBusy}
+                className="text-sm text-slate-500 hover:text-slate-900 disabled:opacity-50"
+              >
+                {t('actions.close')}
+              </button>
+            </div>
+            <div className="mb-5 flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 p-4">
+              {lightboxClub.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={lightboxClub.logo_url}
+                  alt={lightboxClub.name}
+                  style={{
+                    maxWidth: LIGHTBOX_PREVIEW_SIZE,
+                    maxHeight: LIGHTBOX_PREVIEW_SIZE,
+                  }}
+                  className="rounded-md bg-white object-contain"
+                />
+              ) : (
+                <div
+                  style={{ width: LIGHTBOX_PREVIEW_SIZE, height: LIGHTBOX_PREVIEW_SIZE }}
+                  className="flex items-center justify-center rounded-full bg-slate-200 text-3xl font-semibold text-slate-500"
+                  aria-label={t('admin.clubs.logoInitialsAlt', { club: lightboxClub.name })}
+                >
+                  {initialsFor(lightboxClub)}
+                </div>
+              )}
+            </div>
+            <label className="block text-xs font-medium text-slate-600">
+              {lightboxClub.logo_url
+                ? t('admin.clubs.logoReplace')
+                : t('admin.clubs.logoUploadAction')}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={lightboxBusy}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file && lightboxClub) void replaceLogoFromLightbox(lightboxClub, file);
+                  e.target.value = '';
+                }}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 disabled:opacity-50"
+              />
+              <span className="mt-1 block text-[11px] text-slate-500">
+                {t('admin.clubs.logoHelp')}
+              </span>
+            </label>
+            {lightboxClub.logo_url && (
+              <button
+                type="button"
+                onClick={() => void removeLogoFromLightbox(lightboxClub)}
+                disabled={lightboxBusy}
+                className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                {t('admin.clubs.logoRemove')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+function LogoButton({ club, onOpen }: { club: ClubRow; onOpen: (club: ClubRow) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(club)}
+      className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white transition hover:border-slate-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+      aria-label={
+        club.logo_url
+          ? t('admin.clubs.logoLightboxTitle', { club: club.name })
+          : t('admin.clubs.logoInitialsAlt', { club: club.name })
+      }
+    >
+      {club.logo_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={club.logo_url} alt={club.name} className="h-full w-full object-contain" />
+      ) : (
+        <span className="text-[11px] font-semibold text-slate-500">{initialsFor(club)}</span>
+      )}
+    </button>
   );
 }

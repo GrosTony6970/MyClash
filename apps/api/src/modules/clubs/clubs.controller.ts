@@ -151,6 +151,17 @@ export class ClubsController {
     });
   }
 
+  /** DELETE /api/v1/clubs/:id/logo */
+  @Delete(':id/logo')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Remove a club logo (super admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteLogo(@Param('id', ParseUUIDPipe) id: string) {
+    return this.clubs.deleteLogo(id);
+  }
+
   /** DELETE /api/v1/clubs/:id?mode=safe|archive|cleanup */
   @Delete(':id')
   @ApiBearerAuth()
