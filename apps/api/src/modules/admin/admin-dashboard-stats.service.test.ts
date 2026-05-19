@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminDashboardStatsService } from './admin-dashboard-stats.service';
 
 const fromMock = vi.fn();
+const countAuthAdminUsersMock = vi.fn();
 
 const mockSupabase = {
   service: {
     from: fromMock,
   },
+  countAuthAdminUsers: countAuthAdminUsersMock,
 };
 
 type CountResult = { count: number | null; error: unknown };
@@ -17,11 +19,13 @@ function makeCountChain(result: CountResult) {
     eq: vi.fn(),
     gte: vi.fn(),
     in: vi.fn(),
+    is: vi.fn(),
   });
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.gte.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
+  chain.is.mockReturnValue(chain);
   return chain;
 }
 
@@ -33,6 +37,12 @@ describe('AdminDashboardStatsService', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-16T12:00:00Z'));
     fromMock.mockReturnValue(makeCountChain({ count: 0, error: null }));
+    countAuthAdminUsersMock.mockResolvedValue({
+      ok: true,
+      data: { total: 0 },
+      status: 200,
+      detail: {},
+    });
     service = new AdminDashboardStatsService(mockSupabase as never);
   });
 
@@ -42,9 +52,15 @@ describe('AdminDashboardStatsService', () => {
 
   it('aggregates platform totals and 30-day activity', async () => {
     const counts = [
-      4, 3, 1, 8, 2, 3, 3, 12, 5, 4, 120, 90, 250, 42, 320, 900, 760, 5600, 1, 2, 3, 4, 55,
+      4, 3, 1, 8, 2, 3, 3, 12, 5, 4, 120, 90, 250, 42, 320, 900, 760, 5600, 1, 2, 3, 4, 55, 42, 3,
     ];
     fromMock.mockImplementation(() => makeCountChain({ count: counts.shift() ?? 0, error: null }));
+    countAuthAdminUsersMock.mockResolvedValue({
+      ok: true,
+      data: { total: 1234 },
+      status: 200,
+      detail: {},
+    });
 
     const stats = await service.getStats();
 
@@ -77,6 +93,9 @@ describe('AdminDashboardStatsService', () => {
       newGlobalPersons: 4,
       completedMatches: 55,
     });
+    expect(stats.clubs).toEqual({ total: 42 });
+    expect(stats.leagues).toEqual({ total: 3 });
+    expect(stats.platformUsers).toEqual({ total: 1234 });
   });
 
   it('returns zero for count failures without failing the whole dashboard', async () => {

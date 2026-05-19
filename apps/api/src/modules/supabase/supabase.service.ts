@@ -134,6 +134,15 @@ export class SupabaseService {
     };
   }
 
+  async countAuthAdminUsers(): Promise<GoTrueAdminResponse<{ total: number }>> {
+    const response = await this.requestGoTrueAdmin<{ total?: number; users?: unknown }>(
+      '/admin/users?page=1&per_page=1',
+      { method: 'GET' },
+    );
+    const total = typeof response.data?.total === 'number' ? response.data.total : 0;
+    return { ...response, data: response.ok ? { total } : null };
+  }
+
   async createAuthAdminUser(input: {
     email: string;
     password: string;

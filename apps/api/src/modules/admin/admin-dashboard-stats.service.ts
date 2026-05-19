@@ -5,6 +5,7 @@ type CountQuery = PromiseLike<{ count: number | null; error: { message?: string 
   eq(column: string, value: unknown): CountQuery;
   gte(column: string, value: string): CountQuery;
   in(column: string, values: unknown[]): CountQuery;
+  is(column: string, value: unknown): CountQuery;
 };
 
 export interface AdminDashboardStats {
@@ -46,6 +47,15 @@ export interface AdminDashboardStats {
     newGlobalPersons: number;
     completedMatches: number;
   };
+  clubs: {
+    total: number;
+  };
+  leagues: {
+    total: number;
+  };
+  platformUsers: {
+    total: number;
+  };
 }
 
 @Injectable()
@@ -80,6 +90,9 @@ export class AdminDashboardStatsService {
       newTournaments,
       newGlobalPersons,
       recentCompletedMatches,
+      clubsTotal,
+      leaguesTotal,
+      platformUsersTotal,
     ] = await Promise.all([
       this.countRows('organizations'),
       this.countRows('organizations', (query) => query.eq('status', 'active')),
@@ -104,6 +117,12 @@ export class AdminDashboardStatsService {
       this.countRows('tournaments', (query) => query.gte('created_at', since)),
       this.countRows('global_persons', (query) => query.gte('created_at', since)),
       this.countRows('matches', (query) => query.eq('status', 'completed').gte('ended_at', since)),
+      this.countRows('clubs', (query) => query.is('archived_at', null)),
+      this.countRows('leagues'),
+      this.supabase
+        .countAuthAdminUsers()
+        .then((r) => r.data?.total ?? 0)
+        .catch(() => 0),
     ]);
 
     return {
@@ -145,6 +164,9 @@ export class AdminDashboardStatsService {
         newGlobalPersons,
         completedMatches: recentCompletedMatches,
       },
+      clubs: { total: clubsTotal },
+      leagues: { total: leaguesTotal },
+      platformUsers: { total: platformUsersTotal },
     };
   }
 

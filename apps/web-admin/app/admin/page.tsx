@@ -28,6 +28,9 @@ type DashboardStats = {
     newGlobalPersons: number;
     completedMatches: number;
   };
+  clubs: { total: number };
+  leagues: { total: number };
+  platformUsers: { total: number };
 };
 
 function formatNumber(value: number) {
@@ -141,6 +144,24 @@ export default function SuperAdminDashboardPage() {
         detail: t('admin.dashboard.stats.exchangesDetail', {
           claimed: stats.people.claimedProfiles,
         }),
+        accent: 'border-[#f59e0b]',
+      },
+      {
+        label: t('admin.dashboard.stats.clubs'),
+        value: stats.clubs.total,
+        detail: t('admin.dashboard.stats.clubsDetail'),
+        accent: 'border-[#1d4ed8]',
+      },
+      {
+        label: t('admin.dashboard.stats.leagues'),
+        value: stats.leagues.total,
+        detail: t('admin.dashboard.stats.leaguesDetail'),
+        accent: 'border-[#dc2626]',
+      },
+      {
+        label: t('admin.dashboard.stats.platformUsers'),
+        value: stats.platformUsers.total,
+        detail: t('admin.dashboard.stats.platformUsersDetail'),
         accent: 'border-[#f59e0b]',
       },
     ];
