@@ -64,6 +64,17 @@ const appContainerLabels: Record<string, string> = {
   'web-marketing': 'Marketing container',
 };
 
+const infrastructureServiceKeys: Record<string, string> = {
+  traefik: 'traefik',
+  db: 'postgres',
+  redis: 'redis',
+  'supabase-auth': 'supabaseAuth',
+  'supabase-realtime': 'supabaseRealtime',
+  'supabase-storage': 'supabaseStorage',
+  kong: 'kong',
+  'supabase-rest': 'postgrest',
+};
+
 @Injectable()
 export class AdminSystemVersionsService {
   private readonly logger = new Logger(AdminSystemVersionsService.name);
@@ -183,10 +194,17 @@ export class AdminSystemVersionsService {
       path.join(this.rootDir, 'apps', 'web-admin', 'package.json'),
     );
     const appVersion = (await readTextIfExists(path.join(this.rootDir, 'VERSION'))).trim();
+    const composeText = await readTextIfExists(
+      path.join(this.rootDir, 'infra', 'docker-compose.prod.yml'),
+    );
+    const composeImages = parseComposeImages(composeText);
+    const deployedCommit = valueOrUnknown(process.env['GIT_COMMIT']);
 
     return {
       generatedAt: new Date().toISOString(),
-      deploy: {},
+      deploy: {
+        deployedCommit,
+      },
       app: { version: appVersion || UNKNOWN },
       workspaces: await this.readWorkspaceVersions(),
       framework: {
@@ -198,8 +216,27 @@ export class AdminSystemVersionsService {
         pnpm: rootPackage?.packageManager ?? UNKNOWN,
         typescript: dependencyVersion(rootPackage, 'typescript'),
       },
-      infrastructure: {},
-      containers: {},
+      infrastructure: Object.fromEntries(
+        Object.entries(infrastructureServiceKeys).map(([serviceName, key]) => {
+          const image = composeImages[serviceName] ?? UNKNOWN;
+          return [
+            key,
+            {
+              image,
+              version: image === UNKNOWN ? UNKNOWN : image.split(':').slice(1).join(':') || UNKNOWN,
+            },
+          ];
+        }),
+      ),
+      containers: Object.fromEntries(
+        Object.keys(appContainerLabels).map((key) => [
+          key,
+          {
+            version: appVersion || UNKNOWN,
+            commit: deployedCommit,
+          },
+        ]),
+      ),
     };
   }
 
@@ -290,6 +327,22 @@ function component(
 
 function dependencyVersion(manifest: PackageManifest | null, key: string): string {
   return manifest?.dependencies?.[key] ?? manifest?.devDependencies?.[key] ?? UNKNOWN;
+}
+
+function parseComposeImages(composeText: string): Record<string, string> {
+  const images: Record<string, string> = {};
+  let currentService: string | null = null;
+  for (const line of composeText.split(/\r?\n/u)) {
+    const serviceMatch = /^  ([A-Za-z0-9_-]+):\s*$/u.exec(line);
+    if (serviceMatch) {
+      currentService = serviceMatch[1] ?? null;
+      continue;
+    }
+
+    const imageMatch = /^\s{4}image:\s*['"]?([^'"]+)['"]?\s*$/u.exec(line);
+    if (currentService && imageMatch?.[1]) images[currentService] = imageMatch[1];
+  }
+  return images;
 }
 
 function valueOrUnknown(value: string | undefined): string {

@@ -165,6 +165,48 @@ describe('AdminSystemVersionsService', () => {
         expect.objectContaining({ key: 'typescript', version: '^5.9.0' }),
       ]),
     );
+    expect(result.deploy.deployedCommit).toBe('unknown');
+    expect(result.groups.find((group) => group.key === 'infrastructure')?.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'traefik', version: 'v3.7.1', source: 'compose' }),
+        expect.objectContaining({ key: 'postgrest', version: 'v12.2.3', source: 'compose' }),
+      ]),
+    );
+    expect(result.groups.find((group) => group.key === 'containers')?.components).toContainEqual(
+      expect.objectContaining({ key: 'api', version: 'v8.8.8', source: 'manifest' }),
+    );
+  });
+
+  it('uses GIT_COMMIT as fallback deploy and app container metadata', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-api-'));
+    await writeFile(path.join(dir, 'VERSION'), 'v10.0.0\n');
+    await writeJson(path.join(dir, 'package.json'), { packageManager: 'pnpm@10.27.0' });
+    await mkdir(path.join(dir, 'infra'), { recursive: true });
+    await writeFile(path.join(dir, 'infra', 'docker-compose.prod.yml'), 'services:\n');
+    const previousCommit = process.env['GIT_COMMIT'];
+    process.env['GIT_COMMIT'] = '1234567890abcdef';
+    try {
+      const service = new AdminSystemVersionsService({
+        rootDir: dir,
+        manifestPath: path.join(dir, 'data', 'missing.json'),
+        runtimeNodeVersion: 'v26.1.0',
+      });
+
+      const result = await service.getSystemVersions();
+
+      expect(result.deploy.deployedCommit).toBe('1234567890abcdef');
+      expect(result.groups.find((group) => group.key === 'containers')?.components).toContainEqual(
+        expect.objectContaining({
+          key: 'api',
+          version: 'v10.0.0 (12345678)',
+          source: 'manifest',
+          status: 'ok',
+        }),
+      );
+    } finally {
+      if (previousCommit === undefined) delete process.env['GIT_COMMIT'];
+      else process.env['GIT_COMMIT'] = previousCommit;
+    }
   });
 
   it('falls back cleanly when the manifest path is a directory', async () => {

@@ -135,6 +135,15 @@ const superAdminSystemVersionsPagePath = path.join(
   'system-versions',
   'page.tsx',
 );
+const adminSystemVersionsServicePath = path.join(
+  rootDir,
+  'apps',
+  'api',
+  'src',
+  'modules',
+  'admin',
+  'system-versions.service.ts',
+);
 const superAdminLayoutPath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'layout.tsx');
 const superAdminShellPath = path.join(
   rootDir,
@@ -441,6 +450,7 @@ const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
 const superAdminBackupsPageText = await readFile(superAdminBackupsPagePath, 'utf8');
 const adminBackLinkText = await readFile(adminBackLinkPath, 'utf8');
 const superAdminSystemVersionsPageText = await readFile(superAdminSystemVersionsPagePath, 'utf8');
+const adminSystemVersionsServiceText = await readFile(adminSystemVersionsServicePath, 'utf8');
 const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
 const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
 const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
@@ -1409,6 +1419,18 @@ for (const expected of [
   'SYSTEM_VERSIONS_PATH: /app/data/system-versions.json',
 ]) {
   requireContains(composeText, 'infra/docker-compose.prod.yml', expected);
+}
+for (const expected of [
+  'parseComposeImages',
+  "process.env['GIT_COMMIT']",
+  'infrastructureServiceKeys',
+  'appContainerLabels',
+]) {
+  requireContains(
+    adminSystemVersionsServiceText,
+    'apps/api/src/modules/admin/system-versions.service.ts',
+    expected,
+  );
 }
 if (!deployText.includes('run --rm api node packages/db/scripts/migrate.mjs')) {
   errors.push('deploy.sh must run migrations from packages/db/scripts/migrate.mjs.');

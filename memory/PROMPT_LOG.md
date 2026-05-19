@@ -895,3 +895,7 @@ Implement organizer dashboard/events refactor: make `/org/[slug]` a metrics dash
 ## 16:15:45_18-05-2026
 
 Implement the Event Overview Dashboard And Club Review Flow plan: replace the selected event overview card hub with dashboard metrics, add all-clubs/event-clubs tabs with fighter details and organizer club submission, add event dashboard/club/request APIs and `club_review_requests`, and extend super-admin club review with approve/link/reject.
+
+## 10:28:32_19-05-2026
+
+Troubleshoot and fix the System Versions page still showing unknown for deploy, infrastructure, and app container values.
