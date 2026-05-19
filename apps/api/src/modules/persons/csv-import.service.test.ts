@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CsvImportService } from './csv-import.service';
+import { CsvImportService, detectCsvDelimiter } from './csv-import.service';
 
 describe('CsvImportService', () => {
   let service: CsvImportService;
@@ -116,6 +116,19 @@ Jean,Dupont,jean@example.com`;
       expect(result.rows[0]?.hema_ratings_id).toBeUndefined();
     });
 
+    it('parses a semicolon-separated CSV end-to-end', () => {
+      const csv = `given_name;family_name;email
+Jean;Dupont;jean@example.com
+Marie;Lefèvre;marie@example.com`;
+
+      const result = service.parse(Buffer.from(csv, 'utf-8'));
+      expect(result.rows).toHaveLength(2);
+      expect(result.invalid).toHaveLength(0);
+      expect(result.rows[0]?.given_name).toBe('Jean');
+      expect(result.rows[0]?.email).toBe('jean@example.com');
+      expect(result.rows[1]?.family_name).toBe('Lefèvre');
+    });
+
     // ── The key AC test: 100 rows, 3 invalid, 5 duplicates (detected in service) ──
     it('parses 100-row CSV and correctly identifies invalid rows', () => {
       const validRows = Array.from(
@@ -135,6 +148,48 @@ Jean,Dupont,jean@example.com`;
       const result = service.parse(Buffer.from(csv, 'utf-8'));
       expect(result.invalid).toHaveLength(2);
       expect(result.rows).toHaveLength(93);
+    });
+  });
+
+  // ── detectCsvDelimiter ─────────────────────────────────────────────────────
+
+  describe('detectCsvDelimiter', () => {
+    it('detects comma from a comma-separated header', () => {
+      expect(detectCsvDelimiter('given_name,family_name,email\nJean,Dupont,j@x.co')).toBe(',');
+    });
+
+    it('detects semicolon from a semicolon-separated header', () => {
+      expect(detectCsvDelimiter('given_name;family_name;email\nJean;Dupont;j@x.co')).toBe(';');
+    });
+
+    it('strips a leading BOM before sniffing', () => {
+      expect(detectCsvDelimiter('﻿given_name;family_name;email')).toBe(';');
+    });
+
+    it('ignores separator characters inside quoted fields', () => {
+      // Header has 1 comma inside quotes and 2 semicolons outside → semicolon wins
+      expect(detectCsvDelimiter('"a,b";c;d')).toBe(';');
+    });
+
+    it('handles RFC 4180 escaped quotes inside quoted fields', () => {
+      // "" inside the quoted field is a literal quote; the comma stays in-quotes
+      expect(detectCsvDelimiter('"a""b,c";d;e')).toBe(';');
+    });
+
+    it('falls back to comma for a single-column file', () => {
+      expect(detectCsvDelimiter('given_name\nJean\nMarie')).toBe(',');
+    });
+
+    it('falls back to comma for empty input', () => {
+      expect(detectCsvDelimiter('')).toBe(',');
+    });
+
+    it('falls back to comma on a tie', () => {
+      expect(detectCsvDelimiter('a,b;c')).toBe(',');
+    });
+
+    it('skips blank leading lines', () => {
+      expect(detectCsvDelimiter('\n\n   \ngiven_name;family_name;email')).toBe(';');
     });
   });
 });

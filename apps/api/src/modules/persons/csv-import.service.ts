@@ -24,6 +24,45 @@ export interface ParsedCsvResult {
 }
 
 /**
+ * Sniff the column separator from the first non-empty line of a CSV.
+ * Returns ';' if semicolons strictly outnumber commas outside quoted fields;
+ * otherwise ',' (the historical default and the assumed schema).
+ */
+export function detectCsvDelimiter(content: string): ',' | ';' {
+  let text = content;
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  let line = '';
+  for (const candidate of text.split(/\r?\n/u)) {
+    if (candidate.trim().length > 0) {
+      line = candidate;
+      break;
+    }
+  }
+  if (!line) return ',';
+
+  let inQuotes = false;
+  let commas = 0;
+  let semis = 0;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        i += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (inQuotes) continue;
+    if (ch === ',') commas += 1;
+    else if (ch === ';') semis += 1;
+  }
+
+  return semis > commas ? ';' : ',';
+}
+
+/**
  * Parses a CSV buffer into validated rows.
  * Handles: BOM, quoted commas, accented characters, missing optional columns.
  * Email is optional. Club is expected but absence is valid (Unaffiliated).
@@ -41,6 +80,8 @@ export class CsvImportService {
       content = content.slice(1);
     }
 
+    const delimiter = detectCsvDelimiter(content);
+
     let rawRows: Record<string, string>[];
     try {
       rawRows = parse(content, {
@@ -49,6 +90,7 @@ export class CsvImportService {
         trim: true,
         relax_column_count: true,
         bom: true,
+        delimiter,
       }) as Record<string, string>[];
     } catch (err) {
       this.logger.error(`CSV parse error: ${String(err)}`);

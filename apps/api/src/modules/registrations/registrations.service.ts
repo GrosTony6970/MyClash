@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../supabase/supabase.service';
+import { detectCsvDelimiter } from '../persons/csv-import.service';
 import {
   REGISTRATION_STATUS_TRANSITIONS,
   type CreateRegistrationDto,
@@ -74,6 +75,8 @@ export class RegistrationsService {
     let content = buffer.toString('utf-8');
     if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
 
+    const delimiter = detectCsvDelimiter(content);
+
     let rows: Record<string, string>[];
     try {
       rows = parse(content, {
@@ -81,6 +84,7 @@ export class RegistrationsService {
         skip_empty_lines: true,
         trim: true,
         bom: true,
+        delimiter,
       }) as Record<string, string>[];
     } catch (err) {
       throw new BadRequestException(`CSV parse error: ${String(err)}`);
