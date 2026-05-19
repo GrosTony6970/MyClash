@@ -713,8 +713,10 @@ export default function ParticipantsPage() {
                           hemaRatingsId: g.hemaRatingsId ?? '',
                         }));
                         if (g.clubLabel) {
+                          setSelectedClubId(g.clubId);
                           setSelectedClubLabel(g.clubLabel);
                           setClubSearch(g.clubLabel);
+                          setClubSuggestions([]);
                         }
                       }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"

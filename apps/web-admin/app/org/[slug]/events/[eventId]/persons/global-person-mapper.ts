@@ -3,6 +3,7 @@ export interface GlobalPersonSuggestion {
   displayName: string;
   givenName: string;
   familyName: string;
+  clubId: string | null;
   clubLabel: string | null;
   hemaRatingsId: string | null;
 }
@@ -17,16 +18,17 @@ function readOptionalString(value: unknown): string | null {
 
 export function mapGlobalPersonSuggestion(row: Record<string, unknown>): GlobalPersonSuggestion {
   const clubs = row['clubs'];
-  const clubLabel =
+  const club =
     clubs && typeof clubs === 'object' && !Array.isArray(clubs)
-      ? readOptionalString((clubs as Record<string, unknown>)['name'])
+      ? (clubs as Record<string, unknown>)
       : null;
   return {
     id: readString(row['id']),
     displayName: readString(row['display_name']),
     givenName: readString(row['given_name']),
     familyName: readString(row['family_name']),
-    clubLabel,
+    clubId: club ? readOptionalString(club['id']) : null,
+    clubLabel: club ? readOptionalString(club['name']) : null,
     hemaRatingsId: readOptionalString(row['hema_ratings_id']),
   };
 }

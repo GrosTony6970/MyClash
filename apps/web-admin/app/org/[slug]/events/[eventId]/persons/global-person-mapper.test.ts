@@ -17,8 +17,30 @@ describe('mapGlobalPersonSuggestion', () => {
       displayName: 'Jean Dupont',
       givenName: 'Jean',
       familyName: 'Dupont',
+      clubId: 'club-1',
       clubLabel: 'Lyon AMHE',
       hemaRatingsId: 'hr-12345',
+    });
+  });
+
+  it('returns null for clubId and clubLabel when the nested clubs object is absent', () => {
+    expect(
+      mapGlobalPersonSuggestion({
+        id: 'gp-2',
+        display_name: 'Marie Martin',
+        given_name: 'Marie',
+        family_name: 'Martin',
+        hema_ratings_id: null,
+        clubs: null,
+      }),
+    ).toEqual({
+      id: 'gp-2',
+      displayName: 'Marie Martin',
+      givenName: 'Marie',
+      familyName: 'Martin',
+      clubId: null,
+      clubLabel: null,
+      hemaRatingsId: null,
     });
   });
 });
