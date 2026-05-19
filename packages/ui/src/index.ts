@@ -54,3 +54,16 @@ export type { StatusBadgeProps, StatusBadgeVariant } from './components/StatusBa
 
 export { FormField } from './components/FormField';
 export type { FormFieldProps } from './components/FormField';
+
+// ── Phase 2: dialogs + toasts + focus trap ────────────────────────────────
+
+export { ConfirmDialog } from './components/ConfirmDialog';
+export type { ConfirmDialogProps } from './components/ConfirmDialog';
+
+export { PromptDialog } from './components/PromptDialog';
+export type { PromptDialogProps } from './components/PromptDialog';
+
+export { ToastProvider, useToast } from './components/Toast';
+export type { ToastVariant } from './components/Toast';
+
+export { useFocusTrap } from './hooks/useFocusTrap';

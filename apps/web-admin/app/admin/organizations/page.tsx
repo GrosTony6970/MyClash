@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AdminPageHeader, Button, StatusBadge } from '@myclash/ui';
+import { AdminPageHeader, Button, ConfirmDialog, StatusBadge, useToast } from '@myclash/ui';
+import { useUrlState } from '../../../src/hooks/useUrlState';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface OrgListItem {
@@ -59,8 +60,11 @@ export default function AdminOrganizationsPage() {
   const [orgs, setOrgs] = useState<OrgListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
+  const [search, setSearch] = useUrlState<string>('q', '');
+  const [statusFilter, setStatusFilter] = useUrlState<'all' | 'active' | 'suspended'>(
+    'status',
+    'all',
+  );
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -85,6 +89,12 @@ export default function AdminOrganizationsPage() {
     ownerMode: 'new',
     slugDetached: false,
   });
+  const toast = useToast();
+  const [pendingAction, setPendingAction] = useState<{
+    orgId: string;
+    action: 'suspend' | 'approve' | 'delete';
+  } | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [ownerSearch, setOwnerSearch] = useState('');
   const [ownerResults, setOwnerResults] = useState<
     Array<{ id: string; email?: string; display_name?: string | null }>
@@ -229,22 +239,27 @@ export default function AdminOrganizationsPage() {
     }
   }
 
-  async function handleAction(orgId: string, action: 'suspend' | 'approve' | 'delete') {
-    const labels = {
-      suspend: t('admin.organizations.actions.suspend'),
-      approve: t('admin.organizations.actions.approve'),
-      delete: t('admin.organizations.actions.delete'),
-    };
-    if (!confirm(t('admin.organizations.actions.confirm', { action: labels[action] }))) return;
+  function requestAction(orgId: string, action: 'suspend' | 'approve' | 'delete') {
+    setPendingAction({ orgId, action });
+  }
 
-    const method = action === 'delete' ? 'DELETE' : 'PATCH';
-    const url = `${apiUrl}/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
-
-    const res = await fetch(url, { method, credentials: 'include' });
-    if (res.ok || res.status === 204) {
-      refresh();
-    } else {
-      alert(t('admin.organizations.actions.failed'));
+  async function performAction() {
+    if (!pendingAction) return;
+    const { orgId, action } = pendingAction;
+    setActionBusy(true);
+    try {
+      const method = action === 'delete' ? 'DELETE' : 'PATCH';
+      const url = `${apiUrl}/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
+      const res = await fetch(url, { method, credentials: 'include' });
+      if (res.ok || res.status === 204) {
+        toast.success(t(`admin.organizations.actions.${action}`));
+        setPendingAction(null);
+        refresh();
+      } else {
+        toast.error(t('admin.organizations.actions.failed'));
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -640,7 +655,7 @@ export default function AdminOrganizationsPage() {
                       {org.status === 'active' && !org.is_protected ? (
                         <button
                           onClick={() => {
-                            void handleAction(org.id, 'suspend');
+                            requestAction(org.id, 'suspend');
                           }}
                           className="text-xs text-orange-600 hover:underline"
                         >
@@ -649,7 +664,7 @@ export default function AdminOrganizationsPage() {
                       ) : org.status === 'suspended' ? (
                         <button
                           onClick={() => {
-                            void handleAction(org.id, 'approve');
+                            requestAction(org.id, 'approve');
                           }}
                           className="text-xs text-green-600 hover:underline"
                         >
@@ -663,7 +678,7 @@ export default function AdminOrganizationsPage() {
                       ) : (
                         <button
                           onClick={() => {
-                            void handleAction(org.id, 'delete');
+                            requestAction(org.id, 'delete');
                           }}
                           className="text-xs text-red-600 hover:underline"
                         >
@@ -678,6 +693,26 @@ export default function AdminOrganizationsPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        onConfirm={() => void performAction()}
+        onCancel={() => setPendingAction(null)}
+        title={
+          pendingAction
+            ? t('admin.organizations.actions.confirm', {
+                action: t(`admin.organizations.actions.${pendingAction.action}`),
+              })
+            : ''
+        }
+        confirmLabel={
+          pendingAction
+            ? t(`admin.organizations.actions.${pendingAction.action}`)
+            : t('admin.organizations.actions.confirm', { action: '' })
+        }
+        danger={pendingAction?.action === 'delete' || pendingAction?.action === 'suspend'}
+        busy={actionBusy}
+      />
     </main>
   );
 }

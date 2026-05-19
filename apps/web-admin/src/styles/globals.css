@@ -42,3 +42,40 @@
     opacity: 1;
   }
 }
+
+/*
+ * Dialog mount — scale-95 → 100 + fade, 120ms. Card slides up 4px.
+ */
+@keyframes dialog-backdrop-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes dialog-card-enter {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dialog-enter {
+  animation: dialog-backdrop-enter 120ms ease-out;
+}
+.dialog-card-enter {
+  animation: dialog-card-enter 140ms ease-out;
+}
+
+/*
+ * Toast — slide in from above-right, 180ms.
+ */
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.toast-enter {
+  animation: toast-enter 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-enter,
+  .dialog-card-enter,
+  .toast-enter {
+    animation: none;
+  }
+}
