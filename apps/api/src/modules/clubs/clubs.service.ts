@@ -2,10 +2,17 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
+
+export interface BulkClubActionResult {
+  succeeded: number;
+  failed: number;
+  errors: { id: string; message: string }[];
+}
 
 export type DeleteClubMode = 'safe' | 'archive' | 'cleanup';
 
@@ -39,6 +46,7 @@ function slugify(name: string): string {
 
 @Injectable()
 export class ClubsService {
+  private readonly logger = new Logger(ClubsService.name);
   constructor(private readonly supabase: SupabaseService) {}
 
   async list(query: ClubQueryDto) {
@@ -429,4 +437,149 @@ export class ClubsService {
     const { error } = await this.supabase.service.from('clubs').delete().eq('id', id);
     if (error) throw new BadRequestException(error.message);
   }
+
+  // ── Verify / Unverify ────────────────────────────────────────────────────
+  //
+  // `clubs.unverified` is a TEXT column storing 'true' / 'false' (see
+  // packages/db/src/schema/fighters.ts). Verifying = writing 'false';
+  // unverifying = writing 'true'. We follow the existing convention.
+
+  /**
+   * Toggle a single club's verified state. Records the action in the
+   * audit log so reviewers can trace who marked a club verified outside
+   * the review-request flow.
+   */
+  async setVerified(id: string, verified: boolean, actorUserId = 'unknown') {
+    const { data, error } = await this.supabase.service
+      .from('clubs')
+      .update({ unverified: verified ? 'false' : 'true' })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Club ${id} not found`);
+
+    await this.writeAuditLog(
+      actorUserId,
+      verified ? 'club.verify' : 'club.unverify',
+      'club',
+      id,
+      {},
+    );
+    return data;
+  }
+
+  // ── Bulk variants — sequential fan-out over the single-item logic ────────
+  //
+  // We process ids sequentially (rather than Promise.all) so the audit log
+  // ordering matches the request ordering and so partial failures surface as
+  // per-row entries instead of throwing the whole batch away. Each method
+  // writes one extra batch-level audit row with the success/failure counts.
+
+  async bulkSetVerified(
+    ids: readonly string[],
+    verified: boolean,
+    actorUserId = 'unknown',
+  ): Promise<BulkClubActionResult> {
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.setVerified(id, verified, actorUserId);
+        succeeded += 1;
+      } catch (err) {
+        errors.push({ id, message: err instanceof Error ? err.message : 'Update failed' });
+      }
+    }
+    await this.writeAuditLog(
+      actorUserId,
+      verified ? 'club.bulk_verify' : 'club.bulk_unverify',
+      'club',
+      'batch',
+      { count: ids.length, succeeded, failed: errors.length },
+    );
+    return { succeeded, failed: errors.length, errors };
+  }
+
+  async bulkArchive(
+    ids: readonly string[],
+    actorUserId = 'unknown',
+  ): Promise<BulkClubActionResult> {
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.deleteClub(id, 'archive');
+        succeeded += 1;
+      } catch (err) {
+        errors.push({ id, message: err instanceof Error ? err.message : 'Archive failed' });
+      }
+    }
+    await this.writeAuditLog(actorUserId, 'club.bulk_archive', 'club', 'batch', {
+      count: ids.length,
+      succeeded,
+      failed: errors.length,
+    });
+    return { succeeded, failed: errors.length, errors };
+  }
+
+  /**
+   * Bulk safe-delete. Rows still referenced by other tables surface as
+   * per-row errors rather than aborting the batch (matching the single-item
+   * Safe Delete behaviour where a `BadRequestException` is thrown with the
+   * blockers payload).
+   */
+  async bulkSafeDelete(
+    ids: readonly string[],
+    actorUserId = 'unknown',
+  ): Promise<BulkClubActionResult> {
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.deleteClub(id, 'safe');
+        succeeded += 1;
+      } catch (err) {
+        const message = extractBlockerMessage(err);
+        errors.push({ id, message });
+      }
+    }
+    await this.writeAuditLog(actorUserId, 'club.bulk_safe_delete', 'club', 'batch', {
+      count: ids.length,
+      succeeded,
+      failed: errors.length,
+    });
+    return { succeeded, failed: errors.length, errors };
+  }
+
+  private async writeAuditLog(
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.supabase.service.from('audit_log').insert({
+        actor_user_id: actorUserId,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        payload_json: payload,
+      });
+    } catch {
+      this.logger.warn(`Could not write audit log for ${action} on ${entityType}:${entityId}`);
+    }
+  }
+}
+
+/**
+ * Pulls a human-readable message out of the BadRequestException the safe-
+ * delete path throws. The exception carries `response.blockers` plus a
+ * `message` string; for partial-failure UI we just want a short reason.
+ */
+function extractBlockerMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return 'Delete failed';
 }

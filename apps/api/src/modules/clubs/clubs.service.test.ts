@@ -357,4 +357,49 @@ describe('ClubsService', () => {
       archived_at: expect.any(String),
     });
   });
+
+  // ── Bulk verify / unverify / archive / safe-delete ──────────────────────
+
+  it('bulk-verifies a batch of clubs and writes a single batch audit row', async () => {
+    // Each setVerified call: update().eq().select().single() → one chain.
+    // Plus one audit_log insert per single-item op + one batch row at the end.
+    fromMock.mockImplementation(() => makeChain({ data: { id: 'ok' }, error: null }));
+
+    const result = await service.bulkSetVerified(['club-1', 'club-2', 'club-3'], true, 'actor');
+
+    expect(result).toEqual({ succeeded: 3, failed: 0, errors: [] });
+    // 3 single-item updates + 3 single-item audit rows + 1 batch audit row = 7
+    const auditCalls = fromMock.mock.calls.filter((args) => args[0] === 'audit_log');
+    expect(auditCalls.length).toBe(4);
+  });
+
+  it('bulk safe-delete surfaces still-referenced rows as per-row errors and keeps the batch alive', async () => {
+    // Sequence per id:
+    //   - safe path → 3 countReferences chains (global_persons, persons, fighter_clubs)
+    //   - if all zero → one deleteClubRow chain
+    //   - then one audit_log insert
+    //
+    // For id 'club-1': all zeros → safe delete succeeds.
+    // For id 'club-2': global_persons returns 2 references → throws → caught as per-row error.
+    fromMock
+      // club-1 — safe path, no references, delete succeeds, audit logged
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null })) // global_persons
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null })) // persons
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null })) // fighter_clubs
+      .mockReturnValueOnce(makeAwaitableChain({ data: null, error: null })) // delete
+      .mockReturnValueOnce(makeAwaitableChain({ data: null, error: null })) // audit_log
+      // club-2 — still referenced → BadRequestException → caught as error
+      .mockReturnValueOnce(makeAwaitableChain({ count: 2, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null }))
+      // batch audit row at the end
+      .mockReturnValueOnce(makeAwaitableChain({ data: null, error: null }));
+
+    const result = await service.bulkSafeDelete(['club-1', 'club-2'], 'actor');
+
+    expect(result.succeeded).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.id).toBe('club-2');
+  });
 });

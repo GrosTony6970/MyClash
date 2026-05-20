@@ -28,6 +28,7 @@ import { CATALOG_READ_THROTTLE } from '../../common/throttling/throttle-profiles
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { ClubsService, type DeleteClubMode } from './clubs.service';
 import {
+  BulkClubIdsDto,
   ClubQueryDto,
   ClubReviewRequestQueryDto,
   CreateClubDto,
@@ -35,6 +36,10 @@ import {
   RejectClubReviewRequestDto,
   UpdateClubDto,
 } from './dto/clubs.dto';
+
+function getActorId(req: FastifyRequest): string {
+  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
+}
 
 @ApiTags('clubs')
 @Controller('clubs')
@@ -94,6 +99,48 @@ export class ClubsController {
     return this.clubs.rejectReviewRequest(id, dto.notes);
   }
 
+  // ── Bulk admin endpoints ──────────────────────────────────────────────
+  // Registered BEFORE the catch-all `GET /:slug` and `PATCH /:id` so the
+  // literal path segments ("bulk-verify" etc.) match before the param routes.
+
+  /** POST /api/v1/clubs/bulk-verify */
+  @Post('bulk-verify')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Mark a batch of clubs as verified (super admin)' })
+  async bulkVerify(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
+    return this.clubs.bulkSetVerified(dto.ids, true, getActorId(req));
+  }
+
+  /** POST /api/v1/clubs/bulk-unverify */
+  @Post('bulk-unverify')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Mark a batch of clubs as unverified (super admin)' })
+  async bulkUnverify(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
+    return this.clubs.bulkSetVerified(dto.ids, false, getActorId(req));
+  }
+
+  /** POST /api/v1/clubs/bulk-archive */
+  @Post('bulk-archive')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Archive a batch of clubs (super admin)' })
+  async bulkArchive(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
+    return this.clubs.bulkArchive(dto.ids, getActorId(req));
+  }
+
+  /** POST /api/v1/clubs/bulk-delete */
+  @Post('bulk-delete')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({
+    summary: 'Safe-delete a batch of clubs; referenced rows surface as per-row errors',
+  })
+  async bulkDelete(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
+    return this.clubs.bulkSafeDelete(dto.ids, getActorId(req));
+  }
+
   /** GET /api/v1/clubs/:slug */
   @Get(':slug')
   @ApiOperation({ summary: 'Get club by slug (public)' })
@@ -108,6 +155,26 @@ export class ClubsController {
   @ApiOperation({ summary: 'Create a club (organizer+)' })
   async create(@Body() dto: CreateClubDto) {
     return this.clubs.create(dto);
+  }
+
+  /** PATCH /api/v1/clubs/:id/verify */
+  @Patch(':id/verify')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Mark a club as verified (super admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async verify(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.clubs.setVerified(id, true, getActorId(req));
+  }
+
+  /** PATCH /api/v1/clubs/:id/unverify */
+  @Patch(':id/unverify')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Mark a club as unverified (super admin)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async unverify(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.clubs.setVerified(id, false, getActorId(req));
   }
 
   /** PATCH /api/v1/clubs/:id */

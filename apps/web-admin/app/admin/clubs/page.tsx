@@ -1,7 +1,7 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import { AdminPageHeader } from '@myclash/ui';
+import { AdminPageHeader, BulkActionBar, ConfirmDialog, useSelection, useToast } from '@myclash/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ClubRow {
@@ -14,7 +14,18 @@ interface ClubRow {
   logo_url: string | null;
   unverified: string | null;
   archived_at: string | null;
+  created_at: string | null;
 }
+
+/** Locale-aware short date for the "Added" column. Returns "—" on missing/invalid. */
+function formatAddedDate(value: string | null): string {
+  if (!value) return '—';
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) return value;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(ts));
+}
+
+type BulkAction = 'verify' | 'unverify' | 'archive' | 'delete';
 
 interface ClubReviewRequest {
   id: string;
@@ -103,6 +114,15 @@ export default function AdminClubsPage() {
   const [linkMatchesByRequest, setLinkMatchesByRequest] = useState<Record<string, ClubRow[]>>({});
   const previewUrlRef = useRef<string | null>(null);
   const editPreviewUrlRef = useRef<string | null>(null);
+
+  // Bulk-action selection + dialog state
+  const toast = useToast();
+  const selection = useSelection();
+  const [pendingBulk, setPendingBulk] = useState<BulkAction | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Per-row verify/unverify busy flag (separate from delete busy so the two
+  // can't collide when an operator chains operations on the same row).
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
   const fetchClubs = useCallback(
     async (q: string, signal?: AbortSignal) => {
@@ -494,6 +514,95 @@ export default function AdminClubsPage() {
     }
   }
 
+  // ── Verify / Unverify (per-row) ───────────────────────────────────────
+  async function setClubVerified(club: ClubRow, verified: boolean) {
+    setVerifyingId(club.id);
+    setError(null);
+    try {
+      const action = verified ? 'verify' : 'unverify';
+      const res = await fetch(`${apiUrl}/api/v1/clubs/${club.id}/${action}`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? t('admin.clubs.deleteError'));
+      }
+      const updated = (await res.json()) as ClubRow;
+      setClubs((prev) => prev.map((c) => (c.id === club.id ? updated : c)));
+      toast.success(
+        verified
+          ? t('admin.clubs.verifySuccess', { club: club.name })
+          : t('admin.clubs.unverifySuccess', { club: club.name }),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('admin.clubs.deleteError');
+      toast.error(message);
+    } finally {
+      setVerifyingId(null);
+    }
+  }
+
+  // ── Bulk verify / unverify / archive / safe-delete ────────────────────
+  async function runBulk(action: BulkAction) {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    try {
+      const route =
+        action === 'verify'
+          ? 'bulk-verify'
+          : action === 'unverify'
+            ? 'bulk-unverify'
+            : action === 'archive'
+              ? 'bulk-archive'
+              : 'bulk-delete';
+      const res = await fetch(`${apiUrl}/api/v1/clubs/${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? t('admin.clubs.deleteError'));
+      }
+      const result = (await res.json()) as {
+        succeeded: number;
+        failed: number;
+        errors: { id: string; message: string }[];
+      };
+
+      if (result.failed === 0) {
+        const successKey =
+          action === 'verify'
+            ? 'admin.clubs.bulkVerifySuccess'
+            : action === 'unverify'
+              ? 'admin.clubs.bulkUnverifySuccess'
+              : action === 'archive'
+                ? 'admin.clubs.bulkArchiveSuccess'
+                : 'admin.clubs.bulkDeleteSuccess';
+        toast.success(t(successKey, { count: String(result.succeeded) }));
+      } else {
+        toast.warning(
+          t('admin.clubs.bulkPartial', {
+            succeeded: String(result.succeeded),
+            failed: String(result.failed),
+          }),
+        );
+      }
+      selection.clear();
+      setPendingBulk(null);
+      void search(query);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('admin.clubs.deleteError');
+      toast.error(message);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function refreshRequests() {
     setRequestLoading(true);
     try {
@@ -841,11 +950,21 @@ export default function AdminClubsPage() {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
+              <th className="w-10 px-4 py-3">
+                <input
+                  type="checkbox"
+                  aria-label={t('admin.clubs.selectAll')}
+                  checked={clubs.length > 0 && clubs.every((c) => selection.has(c.id))}
+                  onChange={() => selection.toggleAll(clubs.map((c) => c.id))}
+                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                />
+              </th>
               <th className="py-3 px-4 w-20">{t('admin.clubs.logo')}</th>
               <th className="py-3 px-4">{t('admin.clubs.name')}</th>
               <th className="py-3 px-4">{t('admin.clubs.abbreviation')}</th>
               <th className="py-3 px-4">{t('admin.clubs.city')}</th>
               <th className="py-3 px-4">{t('admin.clubs.country')}</th>
+              <th className="py-3 px-4">{t('admin.clubs.createdAt')}</th>
               <th className="py-3 px-4">{t('admin.clubs.status')}</th>
               <th className="py-3 px-4">{t('admin.clubs.actions')}</th>
             </tr>
@@ -853,7 +972,7 @@ export default function AdminClubsPage() {
           <tbody>
             {clubs.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-400 text-sm">
+                <td colSpan={9} className="py-8 text-center text-slate-400 text-sm">
                   {loading ? t('common.loading') : t('admin.clubs.empty')}
                 </td>
               </tr>
@@ -861,6 +980,7 @@ export default function AdminClubsPage() {
             {clubs.map((club) =>
               editingId === club.id ? (
                 <tr key={club.id} className="border-b border-slate-100 bg-amber-50">
+                  <td className="px-4 py-2" />
                   <td className="py-2 px-4">
                     <div className="flex items-center gap-2">
                       <LogoButton club={club} onOpen={setLightboxClub} />
@@ -923,6 +1043,9 @@ export default function AdminClubsPage() {
                       className="border border-slate-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-red-800/30"
                     />
                   </td>
+                  <td className="py-2 px-4 text-xs text-slate-500">
+                    {formatAddedDate(club.created_at)}
+                  </td>
                   <td className="py-2 px-4">
                     <span className="sr-only">{t('admin.clubs.status')}</span>
                   </td>
@@ -946,6 +1069,15 @@ export default function AdminClubsPage() {
                 </tr>
               ) : (
                 <tr key={club.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      aria-label={t('admin.clubs.selectRow', { club: club.name })}
+                      checked={selection.has(club.id)}
+                      onChange={() => selection.toggle(club.id)}
+                      className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                    />
+                  </td>
                   <td className="py-2.5 px-4">
                     <LogoButton club={club} onOpen={setLightboxClub} />
                   </td>
@@ -962,6 +1094,9 @@ export default function AdminClubsPage() {
                   <td className="py-2.5 px-4 text-slate-600">{club.city ?? t('common.none')}</td>
                   <td className="py-2.5 px-4 text-slate-600">
                     {club.country_code ?? t('common.none')}
+                  </td>
+                  <td className="py-2.5 px-4 text-xs text-slate-500">
+                    {formatAddedDate(club.created_at)}
                   </td>
                   <td className="py-2.5 px-4">
                     {club.unverified === 'true' ? (
@@ -981,6 +1116,15 @@ export default function AdminClubsPage() {
                         className="text-xs text-red-700 hover:underline"
                       >
                         {t('actions.edit')}
+                      </button>
+                      <button
+                        onClick={() => void setClubVerified(club, club.unverified === 'true')}
+                        disabled={verifyingId === club.id}
+                        className="text-xs text-green-700 hover:underline disabled:opacity-50"
+                      >
+                        {club.unverified === 'true'
+                          ? t('admin.clubs.verify')
+                          : t('admin.clubs.unverify')}
                       </button>
                       <button
                         onClick={() => void deleteClub(club, 'safe')}
@@ -1099,6 +1243,98 @@ export default function AdminClubsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingBulk !== null}
+        title={
+          pendingBulk
+            ? t(
+                pendingBulk === 'verify'
+                  ? 'admin.clubs.bulkVerifyTitle'
+                  : pendingBulk === 'unverify'
+                    ? 'admin.clubs.bulkUnverifyTitle'
+                    : pendingBulk === 'archive'
+                      ? 'admin.clubs.bulkArchiveTitle'
+                      : 'admin.clubs.bulkDeleteTitle',
+              )
+            : ''
+        }
+        description={
+          pendingBulk
+            ? t(
+                pendingBulk === 'verify'
+                  ? 'admin.clubs.bulkVerifyConfirm'
+                  : pendingBulk === 'unverify'
+                    ? 'admin.clubs.bulkUnverifyConfirm'
+                    : pendingBulk === 'archive'
+                      ? 'admin.clubs.bulkArchiveConfirm'
+                      : 'admin.clubs.bulkDeleteConfirm',
+                { count: String(selection.count) },
+              )
+            : ''
+        }
+        confirmLabel={
+          pendingBulk
+            ? t(
+                pendingBulk === 'verify'
+                  ? 'admin.clubs.verify'
+                  : pendingBulk === 'unverify'
+                    ? 'admin.clubs.unverify'
+                    : pendingBulk === 'archive'
+                      ? 'admin.clubs.archive'
+                      : 'admin.clubs.safeDelete',
+              )
+            : ''
+        }
+        danger={pendingBulk === 'delete' || pendingBulk === 'archive'}
+        busy={bulkBusy}
+        onCancel={() => setPendingBulk(null)}
+        onConfirm={() => {
+          if (pendingBulk) void runBulk(pendingBulk);
+        }}
+      />
+
+      <BulkActionBar
+        count={selection.count}
+        itemLabel={{
+          singular: t('admin.clubs.bulkUnitSingular'),
+          plural: t('admin.clubs.bulkUnitPlural'),
+        }}
+        onClear={() => selection.clear()}
+      >
+        <button
+          type="button"
+          onClick={() => setPendingBulk('verify')}
+          disabled={bulkBusy}
+          className="rounded-md bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkVerifyAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('unverify')}
+          disabled={bulkBusy}
+          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkUnverifyAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('archive')}
+          disabled={bulkBusy}
+          className="rounded-md bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkArchiveAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('delete')}
+          disabled={bulkBusy}
+          className="rounded-md bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkDeleteAction')}
+        </button>
+      </BulkActionBar>
     </main>
   );
 }

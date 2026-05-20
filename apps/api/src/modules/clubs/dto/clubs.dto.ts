@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateClubDto {
   @ApiProperty({ example: 'Lyon AMHE' })
@@ -123,4 +133,18 @@ export class RejectClubReviewRequestDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+}
+
+/**
+ * Body shape for the four bulk admin endpoints
+ * (`POST /clubs/bulk-verify | bulk-unverify | bulk-archive | bulk-delete`).
+ * Max 200 ids per call to keep the sequential fan-out bounded.
+ */
+export class BulkClubIdsDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  ids!: string[];
 }
