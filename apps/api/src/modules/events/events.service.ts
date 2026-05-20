@@ -23,6 +23,7 @@ import {
   normalizeTournamentScoringConfig,
   validateTournamentRulesetConfig,
 } from './tournament-config';
+import { deepMergeJson } from '../../common/deep-merge';
 
 @Injectable()
 export class EventsService {
@@ -597,15 +598,19 @@ export class EventsService {
   }
 
   async updateTournament(tournamentId: string, dto: UpdateTournamentDto, userId: string) {
-    const { data: tournament } = await this.supabase.service
+    // Read the full current row so we can deep-merge any nested JSONB fields the
+    // caller included in the patch. Without this, a wizard step saving only one
+    // nested key would wipe everything else under that JSONB column.
+    const { data: current, error: readError } = await this.supabase.service
       .from('tournaments')
-      .select('event_id, ruleset_code')
+      .select('*')
       .eq('id', tournamentId)
       .maybeSingle();
 
-    if (!tournament) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    if (readError) throw new BadRequestException(readError.message);
+    if (!current) throw new NotFoundException(`Tournament ${tournamentId} not found`);
 
-    const event = await this.getEventById((tournament as { event_id: string }).event_id);
+    const event = await this.getEventById((current as { event_id: string }).event_id);
     await this.orgs.assertOrgRole(
       (event as { organization_id: string }).organization_id,
       userId,
@@ -617,16 +622,32 @@ export class EventsService {
     if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.status !== undefined) updates['status'] = dto.status;
+    if (dto.rulesetCode !== undefined) updates['ruleset_code'] = dto.rulesetCode;
+    if (dto.rulesetVersion !== undefined) updates['ruleset_version'] = dto.rulesetVersion;
+    if (dto.penaltyRulesetId !== undefined) updates['penalty_ruleset_id'] = dto.penaltyRulesetId;
+
     if (dto.scoringConfig !== undefined) {
-      updates['scoring_config_json'] = normalizeTournamentScoringConfig(dto.scoringConfig);
+      const merged = deepMergeJson(
+        (current as Record<string, unknown>)['scoring_config_json'] ?? {},
+        dto.scoringConfig,
+      );
+      updates['scoring_config_json'] = normalizeTournamentScoringConfig(merged);
     }
     if (dto.lockConfig !== undefined) {
-      updates['lock_config_json'] = normalizeTournamentLockConfig(dto.lockConfig);
+      const merged = deepMergeJson(
+        (current as Record<string, unknown>)['lock_config_json'] ?? {},
+        dto.lockConfig,
+      );
+      updates['lock_config_json'] = normalizeTournamentLockConfig(merged);
     }
     if (dto.rulesetConfig !== undefined) {
-      updates['ruleset_config'] = validateTournamentRulesetConfig(
-        (tournament as { ruleset_code?: string }).ruleset_code ?? 'TF_v1',
+      const merged = deepMergeJson(
+        (current as Record<string, unknown>)['ruleset_config'] ?? {},
         dto.rulesetConfig,
+      );
+      updates['ruleset_config'] = validateTournamentRulesetConfig(
+        (current as { ruleset_code?: string }).ruleset_code ?? 'TF_v1',
+        merged,
       );
     }
 

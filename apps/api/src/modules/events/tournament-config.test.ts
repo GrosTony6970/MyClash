@@ -5,6 +5,7 @@ import {
   normalizeTournamentScoringConfig,
   validateTournamentRulesetConfig,
 } from './tournament-config';
+import { deepMergeJson } from '../../common/deep-merge';
 
 describe('tournament config validation', () => {
   it('normalizes display side colors with defaults', () => {
@@ -55,5 +56,27 @@ describe('tournament config validation', () => {
         matchFormat: { pointCap: -1 },
       }),
     ).toThrow(BadRequestException);
+  });
+});
+
+describe('updateTournament — deep-merge of nested config (unit-level on the merge primitive)', () => {
+  it('PATCH with { rulesetConfig: { winBonus: 5 } } preserves other rulesetConfig keys', () => {
+    const stored = { winBonus: 3, targetValues: { deepTarget: 2, shallowTarget: 1 } };
+    const patch = { winBonus: 5 };
+    const merged = deepMergeJson(stored, patch);
+    expect(merged).toEqual({
+      winBonus: 5,
+      targetValues: { deepTarget: 2, shallowTarget: 1 },
+    });
+  });
+
+  it('PATCH with { scoringConfig: { pointCap: 7 } } preserves stored buttons array', () => {
+    const stored = { pointCap: 5, buttons: { clean: [{ label: 'A' }] } };
+    const patch = { pointCap: 7 };
+    const merged = deepMergeJson(stored, patch);
+    expect(merged).toEqual({
+      pointCap: 7,
+      buttons: { clean: [{ label: 'A' }] },
+    });
   });
 });
