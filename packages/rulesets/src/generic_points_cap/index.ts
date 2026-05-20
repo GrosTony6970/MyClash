@@ -26,6 +26,8 @@ import type {
   PoolStandingRow,
   Registration,
   Ruleset,
+  StandingsColumn,
+  RankingRule,
 } from '../types';
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -178,6 +180,23 @@ function standings(
   return rows.map(({ seed: _seed, ...row }) => row);
 }
 
+// ── Standings / ranking declarations ─────────────────────────────────────────
+
+const GENERIC_STANDINGS_COLUMNS: StandingsColumn[] = [
+  { key: 'W', label: 'Wins', type: 'number', sortDesc: true },
+  { key: 'L', label: 'Losses', type: 'number', sortDesc: false },
+  { key: 'D', label: 'Draws', type: 'number', sortDesc: true },
+  { key: 'ptsScored', label: 'Points scored', type: 'number', sortDesc: true },
+  { key: 'ptsConceded', label: 'Points conceded', type: 'number', sortDesc: false },
+  { key: 'diff', label: 'Differential', type: 'number', sortDesc: true },
+];
+
+const GENERIC_RANKING_CHAIN: RankingRule[] = [
+  { key: 'W', direction: 'desc' },
+  { key: 'diff', direction: 'desc' },
+  { key: 'ptsScored', direction: 'desc' },
+];
+
 // ── Ruleset ───────────────────────────────────────────────────────────────────
 
 export const Generic_PointsCap: Ruleset = {
@@ -205,4 +224,7 @@ export const Generic_PointsCap: Ruleset = {
     const cfg = normalizeGenericPointsCapConfig(config);
     return standings(pool, matches, registrations, cfg);
   },
+
+  standingsColumns: GENERIC_STANDINGS_COLUMNS,
+  rankingChain: GENERIC_RANKING_CHAIN,
 };

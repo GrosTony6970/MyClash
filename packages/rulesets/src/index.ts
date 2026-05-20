@@ -18,6 +18,8 @@ export type {
   PoolStandingRow,
   FinalRankingRow,
   FighterAggregates,
+  StandingsColumn,
+  RankingRule,
 } from './types';
 
 // Registry

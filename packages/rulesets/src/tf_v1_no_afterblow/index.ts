@@ -9,7 +9,15 @@
  * concept (pure first-hit)."
  */
 import { z } from 'zod';
-import type { Exchange, Match, Pool, Registration, Ruleset } from '../types';
+import type {
+  Exchange,
+  Match,
+  Pool,
+  Registration,
+  Ruleset,
+  StandingsColumn,
+  RankingRule,
+} from '../types';
 import { TFv1ConfigSchema, TFv1DefaultConfig } from '../tf_v1/config';
 import { computePoolStandings } from '../tf_v1/standings';
 import { isMatchOver } from '../tf_v1/score';
@@ -78,6 +86,24 @@ function computeMatchScoreNoAfterblow(match: Match, exchanges: Exchange[]) {
   };
 }
 
+// ── Standings / ranking declarations ─────────────────────────────────────────
+
+const TF_V1_NO_AFTERBLOW_STANDINGS_COLUMNS: StandingsColumn[] = [
+  { key: 'W', label: 'Wins', type: 'number', sortDesc: true },
+  { key: 'L', label: 'Losses', type: 'number', sortDesc: false },
+  { key: 'D', label: 'Draws', type: 'number', sortDesc: true },
+  { key: 'F', label: 'Forfeits', type: 'number', sortDesc: false },
+  { key: 'ptsScored', label: 'Points scored', type: 'number', sortDesc: true },
+  { key: 'ptsConceded', label: 'Points conceded', type: 'number', sortDesc: false },
+  { key: 'diff', label: 'Differential', type: 'number', sortDesc: true },
+];
+
+const TF_V1_NO_AFTERBLOW_RANKING_CHAIN: RankingRule[] = [
+  { key: 'ptsScored', direction: 'desc' },
+  { key: 'W', direction: 'desc' },
+  { key: 'diff', direction: 'desc' },
+];
+
 // ── Ruleset ───────────────────────────────────────────────────────────────────
 
 export const TF_v1_no_afterblow: Ruleset = {
@@ -106,4 +132,7 @@ export const TF_v1_no_afterblow: Ruleset = {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
     return computePoolStandings(pool, matches, registrations, cfg);
   },
+
+  standingsColumns: TF_V1_NO_AFTERBLOW_STANDINGS_COLUMNS,
+  rankingChain: TF_V1_NO_AFTERBLOW_RANKING_CHAIN,
 };

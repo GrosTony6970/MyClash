@@ -102,6 +102,26 @@ export interface FighterAggregates {
   doubles: number;
 }
 
+// ── Standings / ranking metadata ─────────────────────────────────────────────
+
+export interface StandingsColumn {
+  /** Stable key used in row.stats[key] and in the rankingChain. */
+  key: string;
+  /** Header label, e.g. 'Wins'. Plain string; consumer applies i18n on top if needed. */
+  label: string;
+  /** Render hint. */
+  type: 'number' | 'string';
+  /** True when higher = better (e.g. wins, points). False/undefined for fields where lower is better (doubles, hits received). */
+  sortDesc?: boolean;
+}
+
+export interface RankingRule {
+  /** Matches a StandingsColumn.key. */
+  key: string;
+  /** 'desc' = higher is better. */
+  direction: 'asc' | 'desc';
+}
+
 // ── Plugin contract ───────────────────────────────────────────────────────────
 
 export interface Ruleset {
@@ -150,4 +170,12 @@ export interface Ruleset {
    * Must be a pure function — no DB, no I/O.
    */
   computeFinalRanking?(event: Event, phases: Phase[], config: unknown): FinalRankingRow[];
+
+  /** Declarative column schema for the pool-standings table. Dynamic columns shown
+   *  alongside fixed Rank/Fighter/Status chrome columns. */
+  standingsColumns: StandingsColumn[];
+
+  /** Tiebreaker chain applied to standings. Order matters — first rule is primary,
+   *  later rules break ties. */
+  rankingChain: RankingRule[];
 }

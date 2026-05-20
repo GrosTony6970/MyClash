@@ -7,7 +7,16 @@
  * where the formula lives.
  */
 import { Generic_PointsCap } from '../generic_points_cap';
-import type { Exchange, Match, Pool, PoolStandingRow, Registration, Ruleset } from '../types';
+import type {
+  Exchange,
+  Match,
+  Pool,
+  PoolStandingRow,
+  Registration,
+  Ruleset,
+  StandingsColumn,
+  RankingRule,
+} from '../types';
 import { deriveFighterStats } from './derive-stats';
 import { evaluateFormula, type FormulaScope } from './evaluator';
 import {
@@ -40,6 +49,12 @@ function compareTiebreakers(
   }
   return 0;
 }
+
+// FormulaRuleset doesn't expose pre-defined standings; the standings tab will
+// render a "Ruleset doesn't expose standings yet" empty state for tournaments
+// using this ruleset.
+const FORMULA_STANDINGS_COLUMNS: StandingsColumn[] = [];
+const FORMULA_RANKING_CHAIN: RankingRule[] = [];
 
 export function createFormulaRuleset(
   code: string,
@@ -95,6 +110,9 @@ export function createFormulaRuleset(
         score: row.score,
       }));
     },
+
+    standingsColumns: FORMULA_STANDINGS_COLUMNS,
+    rankingChain: FORMULA_RANKING_CHAIN,
   };
 }
 
