@@ -361,7 +361,7 @@ export default function OrgEventsPage() {
                           STATUS_COLORS[event.status] ?? STATUS_COLORS['draft']!,
                         ].join(' ')}
                       >
-                        {event.status}
+                        {t(`organizer.events.statuses.${event.status}`) || event.status}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{event.tournamentCount}</td>
@@ -457,12 +457,17 @@ export default function OrgEventsPage() {
                   onChange={(event) => setForm({ ...form, status: event.target.value })}
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                 >
-                  {['draft', 'published', 'running', 'completed', 'archived'].map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
+                  {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
+                    (status) => (
+                      <option key={status} value={status}>
+                        {t(`organizer.events.statuses.${status}`) || status}
+                      </option>
+                    ),
+                  )}
                 </select>
+                <span className="text-xs font-normal text-slate-500">
+                  {t('organizer.events.statusHelp')}
+                </span>
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 {t('organizer.newEvent.startDate')}

@@ -1509,6 +1509,15 @@ export const en = {
       archive: 'Archive',
       hardDelete: 'Hard delete',
       status: 'Status',
+      statusHelp:
+        'Change the status to mark the event as running, completed, or back to draft. Saved with the rest of the form.',
+      statuses: {
+        draft: 'Draft',
+        published: 'Published',
+        running: 'Running',
+        completed: 'Completed',
+        archived: 'Archived',
+      },
       save: 'Save changes',
       saved: 'Event updated.',
       saveError: 'Could not update event.',
@@ -3665,6 +3674,15 @@ export const fr = {
       archive: 'Archiver',
       hardDelete: 'Suppression definitive',
       status: 'Statut',
+      statusHelp:
+        "Modifiez le statut pour passer l'evenement en cours, termine, ou le repasser en brouillon. Enregistre avec le reste du formulaire.",
+      statuses: {
+        draft: 'Brouillon',
+        published: 'Publie',
+        running: 'En cours',
+        completed: 'Termine',
+        archived: 'Archive',
+      },
       save: 'Enregistrer',
       saved: 'Evenement mis a jour.',
       saveError: "Impossible de mettre a jour l'evenement.",
