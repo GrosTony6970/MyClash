@@ -16,6 +16,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { ConfirmDialog, RowActionButton, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -92,6 +93,11 @@ export default function PoolsPage() {
   const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
   const [notifyHref, setNotifyHref] = useState<string | null>(null);
   const [existingPhase, setExistingPhase] = useState(false);
+  // Lifecycle (delete one, delete all, add empty)
+  const [pendingDeletePoolId, setPendingDeletePoolId] = useState<string | null>(null);
+  const [pendingDeleteAll, setPendingDeleteAll] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const toast = useToast();
 
   // Drag state. fromPoolId === UNASSIGNED_DROP_ID means the fighter is dragged
   // from the unassigned bucket (no source pool delete needed).
@@ -196,8 +202,16 @@ export default function PoolsPage() {
       }
 
       if (!res.ok) {
-        const body2 = (await res.json()) as { message?: string };
-        throw new Error(body2.message ?? 'Generation failed');
+        // Try hard to surface the real server message — both the structured
+        // Nest field and any raw string body. Anything is better than the
+        // previous silent "Generation failed".
+        const body2 = (await res.json().catch(() => null)) as {
+          message?: string | string[];
+        } | null;
+        const message = Array.isArray(body2?.message)
+          ? body2!.message.join(', ')
+          : (body2?.message ?? `Pool generation failed (HTTP ${res.status}).`);
+        throw new Error(message);
       }
 
       // Discard the generate response body; the GET endpoint is the source of
@@ -212,9 +226,90 @@ export default function PoolsPage() {
       // Check conflicts
       await checkConflicts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
+      const message = err instanceof Error ? err.message : 'Pool generation failed.';
+      setError(message);
+      toast.error(message);
     } finally {
       setGenerating(false);
+    }
+  }
+
+  // ── Pool lifecycle (delete one / delete all / add empty) ──────────────────
+
+  async function confirmDeleteOne() {
+    if (!pendingDeletePoolId) return;
+    setLifecycleBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${pendingDeletePoolId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? 'Could not delete the pool.');
+      }
+      toast.success('Pool deleted.');
+      setPendingDeletePoolId(null);
+      if (selectedTournament) await loadPools(selectedTournament);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not delete the pool.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
+  async function confirmDeleteAll() {
+    if (!selectedTournament) return;
+    setLifecycleBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/pools`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 204) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? 'Could not clear the pool layout.');
+      }
+      toast.success('All pools deleted.');
+      setPendingDeleteAll(false);
+      setExistingPhase(false);
+      await loadPools(selectedTournament);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not clear the pool layout.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
+  async function addEmptyPool() {
+    if (!selectedTournament) return;
+    setLifecycleBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/pools/empty`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? 'Could not add an empty pool.');
+      }
+      const created = (await res.json()) as { id: string; name: string; sortOrder: number };
+      toast.success(`${created.name} added.`);
+      setExistingPhase(true);
+      await loadPools(selectedTournament);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not add an empty pool.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLifecycleBusy(false);
     }
   }
 
@@ -521,12 +616,13 @@ export default function PoolsPage() {
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
         <h2 className="text-sm font-bold text-gray-700 mb-4">Pool configuration</h2>
         <div className="flex flex-wrap gap-6 items-start">
-          {/* Mode toggle */}
+          {/* Mode toggle — clearer copy makes it obvious what the operator's choosing. */}
           <div>
-            <p className="text-xs font-medium text-gray-600 mb-2">Size mode</p>
+            <p className="text-xs font-medium text-gray-600 mb-2">Sizing</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setMode('targetSize')}
+                title="Aim for this many fighters in each pool; pool count is derived."
                 className={[
                   'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
                   mode === 'targetSize'
@@ -534,10 +630,11 @@ export default function PoolsPage() {
                     : 'bg-white text-gray-700 border-gray-300',
                 ].join(' ')}
               >
-                Target size
+                Auto · target size per pool
               </button>
               <button
                 onClick={() => setMode('poolCount')}
+                title="Choose the exact number of pools. Fighters are distributed evenly."
                 className={[
                   'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
                   mode === 'poolCount'
@@ -545,7 +642,7 @@ export default function PoolsPage() {
                     : 'bg-white text-gray-700 border-gray-300',
                 ].join(' ')}
               >
-                Pool count
+                Manual · choose pool count
               </button>
             </div>
           </div>
@@ -604,17 +701,57 @@ export default function PoolsPage() {
             </label>
           </div>
 
-          {/* Generate button */}
-          <div className="flex items-end">
+          {/* Generate + lifecycle buttons */}
+          <div className="flex flex-wrap items-end gap-2">
             <button
               onClick={() => void generate(false)}
               disabled={generating || !selectedTournament}
               className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
             >
-              {generating ? 'Generating…' : existingPhase ? 'Regenerate' : 'Generate pools'}
+              {generating
+                ? 'Generating…'
+                : existingPhase
+                  ? 'Regenerate'
+                  : unassigned.length === 0
+                    ? 'Generate empty pools'
+                    : 'Generate pools'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void addEmptyPool()}
+              disabled={lifecycleBusy || !selectedTournament}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              + Add empty pool
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingDeleteAll(true)}
+              disabled={lifecycleBusy || !existingPhase || !selectedTournament}
+              className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+            >
+              Delete all pools
             </button>
           </div>
         </div>
+
+        {/* Preview line — clear up-front what the next click will produce. */}
+        {selectedTournament && !existingPhase && (
+          <p className="mt-3 text-xs text-slate-500">
+            {(() => {
+              const fighters = unassigned.length;
+              const count =
+                mode === 'poolCount'
+                  ? Math.max(1, poolCount)
+                  : Math.max(1, Math.ceil((fighters || 1) / Math.max(1, targetSize)));
+              if (fighters === 0) {
+                return `Will generate ${count} empty pool${count > 1 ? 's' : ''} — add fighters later.`;
+              }
+              const avg = Math.round(fighters / count);
+              return `Will generate ${count} pool${count > 1 ? 's' : ''} of ~${avg} fighter${avg === 1 ? '' : 's'} (${fighters} total).`;
+            })()}
+          </p>
+        )}
       </div>
 
       {error && (
@@ -702,7 +839,17 @@ export default function PoolsPage() {
                     {pool.name}
                   </button>
                 )}
-                <span className="text-xs text-gray-400">{pool.members.length} fighters</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">{pool.members.length} fighters</span>
+                  <RowActionButton
+                    variant="danger"
+                    onClick={() => setPendingDeletePoolId(pool.id)}
+                    disabled={lifecycleBusy || renamingPoolId === pool.id}
+                    title="Delete this pool"
+                  >
+                    Delete
+                  </RowActionButton>
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 {pool.members.map((m) => (
@@ -816,6 +963,32 @@ export default function PoolsPage() {
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDeletePoolId !== null}
+        title="Delete pool"
+        description={(() => {
+          const p = (pools ?? []).find((x) => x.id === pendingDeletePoolId);
+          if (!p) return 'Delete this pool? Its matches will be removed.';
+          return `Delete ${p.name}? Its ${p.members.length} member(s) will be unassigned and any scheduled matches will be removed.`;
+        })()}
+        confirmLabel="Delete pool"
+        danger
+        busy={lifecycleBusy}
+        onCancel={() => setPendingDeletePoolId(null)}
+        onConfirm={() => void confirmDeleteOne()}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteAll}
+        title="Delete all pools"
+        description="Drop the entire pool layout for this tournament. Every pool, every member assignment, and every scheduled match in this phase will be removed."
+        confirmLabel="Delete all"
+        danger
+        busy={lifecycleBusy}
+        onCancel={() => setPendingDeleteAll(false)}
+        onConfirm={() => void confirmDeleteAll()}
+      />
     </main>
   );
 }

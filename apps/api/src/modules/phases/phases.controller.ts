@@ -134,6 +134,42 @@ export class PhasesController {
     return this.phases.removePoolMember(poolId, registrationId, userId);
   }
 
+  /** DELETE /api/v1/pools/:poolId */
+  @Delete('pools/:poolId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a single pool and its matches (org admin+)' })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async deletePool(@Param('poolId', ParseUUIDPipe) poolId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.phases.deletePool(poolId, userId);
+  }
+
+  /** DELETE /api/v1/tournaments/:tournamentId/pools */
+  @Delete('tournaments/:tournamentId/pools')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete every pool in this tournament (org admin+)' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async deleteAllPools(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.phases.deleteAllPools(tournamentId, userId);
+  }
+
+  /** POST /api/v1/tournaments/:tournamentId/pools/empty */
+  @Post('tournaments/:tournamentId/pools/empty')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Append a single empty pool to the layout (org admin+)' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async addEmptyPool(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.addEmptyPool(tournamentId, userId);
+  }
+
   /**
    * POST /api/v1/tournaments/:tournamentId/generate-bracket
    *

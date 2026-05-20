@@ -57,6 +57,9 @@ export class PhasesService {
    * Idempotent: returns 409 if a pool phase already exists, unless force=true.
    */
   async generatePools(tournamentId: string, dto: GeneratePoolsDto, force = false) {
+    this.logger.log(
+      `generatePools: tournament=${tournamentId} dto=${JSON.stringify(dto)} force=${force}`,
+    );
     // Check for existing pool phase
     const { data: existing } = await this.supabase.service
       .from('phases')
@@ -87,11 +90,8 @@ export class PhasesService {
       .in('status', ['registered', 'checked_in']);
 
     if (regsError) throw new BadRequestException(regsError.message);
-    if (!regs || regs.length < 2) {
-      throw new BadRequestException('Need at least 2 registered fighters to generate pools');
-    }
-
-    const fighterCount = regs.length;
+    const allRegs = regs ?? [];
+    const fighterCount = allRegs.length;
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
@@ -101,75 +101,85 @@ export class PhasesService {
     if (tournamentError) throw new BadRequestException(tournamentError.message);
     const tournamentWeapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
 
-    // Resolve pool count
+    // Resolve pool count. When there are zero fighters we still need a sensible
+    // default so the operator can stand up the layout before any registrations
+    // exist — fall back to the explicit `poolCount` or 1.
     let poolCount: number;
     if (dto.poolCount !== undefined) {
       poolCount = dto.poolCount;
+    } else if (fighterCount === 0) {
+      poolCount = 1;
     } else {
       const targetSize = dto.targetSize ?? 8;
       poolCount = Math.max(1, Math.ceil(fighterCount / targetSize));
     }
 
-    if (poolCount > fighterCount) {
+    // Still guard against an obviously-impossible request (e.g. 5 pools for
+    // 3 fighters would leave silent gaps). Allowed when fighterCount is 0
+    // because every pool is intentionally empty.
+    if (fighterCount > 0 && poolCount > fighterCount) {
       throw new BadRequestException(
         `Cannot create ${poolCount} pools with only ${fighterCount} fighters`,
       );
     }
 
-    const hemaIds = Array.from(
-      new Set(
-        regs
-          .map((reg) => {
-            const r = reg as Record<string, unknown>;
-            const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
-            return fighter?.hema_ratings_id ?? null;
-          })
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
-    const weightedRatings =
-      this.hemaRatings && tournamentWeapon
-        ? await this.hemaRatings.resolveWeightedRatings(hemaIds, tournamentWeapon)
-        : new Map<string, number>();
-
-    // Map to Fighter type
-    const fighters: Fighter[] = regs.map((reg, idx) => {
-      const r = reg as Record<string, unknown>;
-      const person = r['persons'] as { club_id: string | null } | null;
-      const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
-      const hemaRatingsId = fighter?.hema_ratings_id ?? null;
-      return {
-        registrationId: r['id'] as string,
-        clubId: person?.club_id ?? null,
-        skillRating: hemaRatingsId ? (weightedRatings.get(hemaRatingsId) ?? null) : null,
-        seed: (r['seed'] as number | null) ?? (r['bib_number'] as number | null) ?? idx + 1,
-      };
-    });
-
-    const settings = {
-      enforceSchoolSeparation: dto.enforceSchoolSeparation ?? true,
-      schoolSeparationStrictness: 'soft' as const,
-      enforceSkillBalance: dto.enforceSkillBalance ?? true,
-    };
-
-    // Snake seed + local search
-    const initial = snakeSeed(fighters, poolCount);
-    const optimized = localSearch(
-      initial,
-      fighters,
-      poolCount,
-      settings,
-      undefined,
-      dto.seed ?? 42,
-    );
-    const costReport = buildCostReport(optimized, fighters, poolCount, settings);
-
-    // Group by pool
+    // Algorithm phase. When no fighters are registered we skip seeding +
+    // local search entirely and just stand up the empty pool layout.
     const poolMap = new Map<number, string[]>();
-    for (const a of optimized) {
-      const existing = poolMap.get(a.poolIndex) ?? [];
-      existing.push(a.registrationId);
-      poolMap.set(a.poolIndex, existing);
+    let costReport: unknown = null;
+
+    if (fighterCount > 0) {
+      const hemaIds = Array.from(
+        new Set(
+          allRegs
+            .map((reg) => {
+              const r = reg as Record<string, unknown>;
+              const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
+              return fighter?.hema_ratings_id ?? null;
+            })
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+      const weightedRatings =
+        this.hemaRatings && tournamentWeapon
+          ? await this.hemaRatings.resolveWeightedRatings(hemaIds, tournamentWeapon)
+          : new Map<string, number>();
+
+      const fighters: Fighter[] = allRegs.map((reg, idx) => {
+        const r = reg as Record<string, unknown>;
+        const person = r['persons'] as { club_id: string | null } | null;
+        const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
+        const hemaRatingsId = fighter?.hema_ratings_id ?? null;
+        return {
+          registrationId: r['id'] as string,
+          clubId: person?.club_id ?? null,
+          skillRating: hemaRatingsId ? (weightedRatings.get(hemaRatingsId) ?? null) : null,
+          seed: (r['seed'] as number | null) ?? (r['bib_number'] as number | null) ?? idx + 1,
+        };
+      });
+
+      const settings = {
+        enforceSchoolSeparation: dto.enforceSchoolSeparation ?? true,
+        schoolSeparationStrictness: 'soft' as const,
+        enforceSkillBalance: dto.enforceSkillBalance ?? true,
+      };
+
+      const initial = snakeSeed(fighters, poolCount);
+      const optimized = localSearch(
+        initial,
+        fighters,
+        poolCount,
+        settings,
+        undefined,
+        dto.seed ?? 42,
+      );
+      costReport = buildCostReport(optimized, fighters, poolCount, settings);
+
+      for (const a of optimized) {
+        const existing = poolMap.get(a.poolIndex) ?? [];
+        existing.push(a.registrationId);
+        poolMap.set(a.poolIndex, existing);
+      }
     }
 
     // Create phase
@@ -207,37 +217,44 @@ export class PhasesService {
         throw new BadRequestException(poolError?.message ?? 'Failed to create pool');
       const poolId = (pool as { id: string }).id;
 
-      // Insert pool_members
-      await this.supabase.service.from('pool_members').insert(
-        registrationIds.map((regId, seed) => ({
-          pool_id: poolId,
-          registration_id: regId,
-          seed: seed + 1,
-        })),
-      );
+      // Insert pool_members — only when this pool has fighters. PostgREST
+      // doesn't accept empty array inserts (used to surface as an opaque 500).
+      let bergerMatches: ReturnType<typeof bergerSchedule> = [];
+      if (registrationIds.length > 0) {
+        const memberRes = await this.supabase.service.from('pool_members').insert(
+          registrationIds.map((regId, seed) => ({
+            pool_id: poolId,
+            registration_id: regId,
+            seed: seed + 1,
+          })),
+        );
+        if (memberRes.error)
+          throw new BadRequestException(memberRes.error.message ?? 'Failed to insert pool members');
 
-      // Generate Berger matches
-      const bergerMatches = bergerSchedule(registrationIds.length, {
-        liceLabel: '1',
-        poolLabel: String.fromCharCode(65 + i),
-      });
+        bergerMatches = bergerSchedule(registrationIds.length, {
+          liceLabel: '1',
+          poolLabel: String.fromCharCode(65 + i),
+        });
 
-      // Insert matches
-      const matchInserts = bergerMatches.map((bm) => ({
-        phase_id: phaseId,
-        pool_id: poolId,
-        lice_id: dto.liceId ?? null,
-        red_registration_id: registrationIds[bm.homeIndex]!,
-        blue_registration_id: registrationIds[bm.awayIndex]!,
-        ruleset_code: 'TF_v1',
-        ruleset_version: '1.0.0',
-        match_number_label: bm.label,
-        status: 'scheduled',
-        red_score: 0,
-        blue_score: 0,
-      }));
-
-      await this.supabase.service.from('matches').insert(matchInserts);
+        if (bergerMatches.length > 0) {
+          const matchInserts = bergerMatches.map((bm) => ({
+            phase_id: phaseId,
+            pool_id: poolId,
+            lice_id: dto.liceId ?? null,
+            red_registration_id: registrationIds[bm.homeIndex]!,
+            blue_registration_id: registrationIds[bm.awayIndex]!,
+            ruleset_code: 'TF_v1',
+            ruleset_version: '1.0.0',
+            match_number_label: bm.label,
+            status: 'scheduled',
+            red_score: 0,
+            blue_score: 0,
+          }));
+          const matchRes = await this.supabase.service.from('matches').insert(matchInserts);
+          if (matchRes.error)
+            throw new BadRequestException(matchRes.error.message ?? 'Failed to insert matches');
+        }
+      }
 
       createdPools.push({ id: poolId, name: poolName, matchCount: bergerMatches.length });
     }
@@ -952,5 +969,168 @@ export class PhasesService {
               : null,
         };
       });
+  }
+
+  // ── Pool lifecycle (delete one / delete all / add empty) ─────────────────
+
+  /**
+   * Delete a single pool: clears the matches scheduled in it, removes the
+   * pool_members rows, drops the pool itself. If the pool's phase ends up
+   * with no remaining pools, the phase row is dropped too so operators
+   * return to the "no pool layout yet" state cleanly.
+   */
+  async deletePool(poolId: string, userId: string): Promise<void> {
+    const ctx = await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    // Cascade by hand — FK cascade is not enabled everywhere in the schema.
+    const matchesRes = await this.supabase.service.from('matches').delete().eq('pool_id', poolId);
+    if (matchesRes.error) throw new BadRequestException(matchesRes.error.message);
+
+    const membersRes = await this.supabase.service
+      .from('pool_members')
+      .delete()
+      .eq('pool_id', poolId);
+    if (membersRes.error) throw new BadRequestException(membersRes.error.message);
+
+    const poolRes = await this.supabase.service.from('pools').delete().eq('id', poolId);
+    if (poolRes.error) throw new BadRequestException(poolRes.error.message);
+
+    // If this was the last pool in the phase, drop the phase too.
+    const { data: siblings } = await this.supabase.service
+      .from('pools')
+      .select('id')
+      .eq('phase_id', ctx.phaseId);
+    if (!siblings || siblings.length === 0) {
+      await this.supabase.service.from('phases').delete().eq('id', ctx.phaseId);
+    }
+  }
+
+  /**
+   * Drop the entire pool layout for a tournament — every pool, every member
+   * row, every match in those pools, and the phase row. No-op when there is
+   * no pool phase yet.
+   */
+  async deleteAllPools(tournamentId: string, userId: string): Promise<void> {
+    const { data: phase } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+    if (!phase) return;
+    if (this.orgs) {
+      const { data: tournament } = await this.supabase.service
+        .from('tournaments')
+        .select('events ( organization_id )')
+        .eq('id', tournamentId)
+        .maybeSingle();
+      const organizationId = (tournament as { events?: { organization_id?: string } | null } | null)
+        ?.events?.organization_id;
+      if (!organizationId) throw new BadRequestException('Could not resolve organization');
+      await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    }
+
+    const phaseId = (phase as { id: string }).id;
+
+    // Order matters: matches → pool_members → pools → phase.
+    const matchesRes = await this.supabase.service.from('matches').delete().eq('phase_id', phaseId);
+    if (matchesRes.error) throw new BadRequestException(matchesRes.error.message);
+
+    const { data: pools } = await this.supabase.service
+      .from('pools')
+      .select('id')
+      .eq('phase_id', phaseId);
+    const poolIds = (pools ?? []).map((p) => (p as { id: string }).id);
+    if (poolIds.length > 0) {
+      const membersRes = await this.supabase.service
+        .from('pool_members')
+        .delete()
+        .in('pool_id', poolIds);
+      if (membersRes.error) throw new BadRequestException(membersRes.error.message);
+
+      const poolsRes = await this.supabase.service.from('pools').delete().eq('phase_id', phaseId);
+      if (poolsRes.error) throw new BadRequestException(poolsRes.error.message);
+    }
+
+    const phaseRes = await this.supabase.service.from('phases').delete().eq('id', phaseId);
+    if (phaseRes.error) throw new BadRequestException(phaseRes.error.message);
+  }
+
+  /**
+   * Append a single empty pool to the existing layout. If no pool phase
+   * exists yet, this stands one up first. Useful when operators want to
+   * pre-stage pools before fighters register, or carve out an extra pool
+   * by hand after generation.
+   */
+  async addEmptyPool(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{ id: string; name: string; sortOrder: number }> {
+    // Org auth — same check generatePools does (org admin).
+    if (this.orgs) {
+      const { data: tournament } = await this.supabase.service
+        .from('tournaments')
+        .select('events ( organization_id )')
+        .eq('id', tournamentId)
+        .maybeSingle();
+      const organizationId = (tournament as { events?: { organization_id?: string } | null } | null)
+        ?.events?.organization_id;
+      if (!organizationId) throw new BadRequestException('Could not resolve organization');
+      await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    }
+
+    let phaseId: string;
+    const { data: existingPhase } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+    if (existingPhase) {
+      phaseId = (existingPhase as { id: string }).id;
+    } else {
+      const { data: phase, error: phaseError } = await this.supabase.service
+        .from('phases')
+        .insert({
+          tournament_id: tournamentId,
+          type: 'pool',
+          sort_order: 1,
+          status: 'pending',
+          visibility_status: 'hidden',
+          config_json: { poolCount: 0, costReport: null },
+        })
+        .select('id')
+        .single();
+      if (phaseError || !phase)
+        throw new BadRequestException(phaseError?.message ?? 'Failed to create phase');
+      phaseId = (phase as { id: string }).id;
+    }
+
+    // Next sort_order = max existing + 1.
+    const { data: existingPools } = await this.supabase.service
+      .from('pools')
+      .select('sort_order')
+      .eq('phase_id', phaseId);
+    const nextSortOrder =
+      ((existingPools ?? []).reduce(
+        (max, p) => Math.max(max, (p as { sort_order: number }).sort_order ?? 0),
+        -1,
+      ) ?? -1) + 1;
+
+    const { data: pool, error: poolError } = await this.supabase.service
+      .from('pools')
+      .insert({
+        phase_id: phaseId,
+        name: `Pool ${nextSortOrder + 1}`,
+        sort_order: nextSortOrder,
+      })
+      .select('id, name, sort_order')
+      .single();
+    if (poolError || !pool)
+      throw new BadRequestException(poolError?.message ?? 'Failed to create pool');
+
+    const row = pool as { id: string; name: string; sort_order: number };
+    return { id: row.id, name: row.name, sortOrder: row.sort_order };
   }
 }

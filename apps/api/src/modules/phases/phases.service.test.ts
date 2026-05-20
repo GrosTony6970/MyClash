@@ -130,19 +130,71 @@ describe('PhasesService', () => {
       );
     });
 
-    it('throws BadRequestException when fewer than 2 fighters', async () => {
-      const oneReg = [{ id: 'r1', seed: 1, bib_number: null, persons: null }];
-
+    it('creates empty pools when there are zero registrations (operator pre-stages the layout)', async () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
-      const regsChain = makeAwaitableChain({ data: oneReg, error: null });
+      const regsChain = makeAwaitableChain({ data: [], error: null });
+      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
+      const phaseInsertChain = makeChain({ data: null, error: null });
+      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
+      const poolInsertChain = makeChain({ data: null, error: null });
+      poolInsertChain.single.mockResolvedValue({ data: { id: 'pool-1' }, error: null });
 
-      fromMock.mockReturnValueOnce(phaseCheckChain).mockReturnValueOnce(regsChain);
+      fromMock
+        .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValue(poolInsertChain);
 
-      await expect(service.generatePools('tournament-1', {}, false)).rejects.toThrow(
-        BadRequestException,
-      );
+      const result = await service.generatePools('tournament-1', { poolCount: 3 }, false);
+      expect(result.poolCount).toBe(3);
+      expect(result.totalMatches).toBe(0);
+      // pool_members.insert must NOT be called with [] (used to surface as 500).
+      // We can't directly assert "never called with []" across this loose mock,
+      // but the totalMatches=0 + lack of throw is the behavioural contract.
+    });
+  });
+
+  // ── Pool lifecycle — delete one / delete all / add empty ──────────────────
+
+  describe('pool lifecycle', () => {
+    it('addEmptyPool stands up a new phase + one pool when none exists', async () => {
+      const lookupPhase = makeChain({ data: null, error: null });
+      lookupPhase.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const tournamentLookup = makeChain({
+        data: { events: { organization_id: 'org-1' } },
+        error: null,
+      });
+      const phaseInsert = makeChain({ data: null, error: null });
+      phaseInsert.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
+      const existingPools = makeAwaitableChain({ data: [], error: null });
+      const poolInsert = makeChain({ data: null, error: null });
+      poolInsert.single.mockResolvedValue({
+        data: { id: 'pool-1', name: 'Pool 1', sort_order: 0 },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(tournamentLookup)
+        .mockReturnValueOnce(lookupPhase)
+        .mockReturnValueOnce(phaseInsert)
+        .mockReturnValueOnce(existingPools)
+        .mockReturnValueOnce(poolInsert);
+
+      const result = await service.addEmptyPool('tournament-1', 'user-1');
+      expect(result).toMatchObject({ id: 'pool-1', name: 'Pool 1', sortOrder: 0 });
+    });
+
+    it('deleteAllPools is a no-op when there is no pool phase', async () => {
+      const lookupPhase = makeChain({ data: null, error: null });
+      lookupPhase.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      fromMock.mockReturnValueOnce(lookupPhase);
+
+      // Should resolve without throwing or making destructive calls.
+      await expect(service.deleteAllPools('tournament-1', 'user-1')).resolves.toBeUndefined();
     });
   });
 
