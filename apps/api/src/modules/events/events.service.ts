@@ -617,6 +617,7 @@ export class EventsService {
       'admin',
     );
 
+    const currentJson = current as Record<string, unknown>;
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
@@ -627,26 +628,17 @@ export class EventsService {
     if (dto.penaltyRulesetId !== undefined) updates['penalty_ruleset_id'] = dto.penaltyRulesetId;
 
     if (dto.scoringConfig !== undefined) {
-      const merged = deepMergeJson(
-        (current as Record<string, unknown>)['scoring_config_json'] ?? {},
-        dto.scoringConfig,
-      );
+      const merged = deepMergeJson(currentJson['scoring_config_json'] ?? {}, dto.scoringConfig);
       updates['scoring_config_json'] = normalizeTournamentScoringConfig(merged);
     }
     if (dto.lockConfig !== undefined) {
-      const merged = deepMergeJson(
-        (current as Record<string, unknown>)['lock_config_json'] ?? {},
-        dto.lockConfig,
-      );
+      const merged = deepMergeJson(currentJson['lock_config_json'] ?? {}, dto.lockConfig);
       updates['lock_config_json'] = normalizeTournamentLockConfig(merged);
     }
     if (dto.rulesetConfig !== undefined) {
-      const merged = deepMergeJson(
-        (current as Record<string, unknown>)['ruleset_config'] ?? {},
-        dto.rulesetConfig,
-      );
+      const merged = deepMergeJson(currentJson['ruleset_config'] ?? {}, dto.rulesetConfig);
       updates['ruleset_config'] = validateTournamentRulesetConfig(
-        (current as { ruleset_code?: string }).ruleset_code ?? 'TF_v1',
+        (currentJson['ruleset_code'] as string | undefined) ?? 'TF_v1',
         merged,
       );
     }

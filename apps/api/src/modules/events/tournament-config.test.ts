@@ -59,7 +59,10 @@ describe('tournament config validation', () => {
   });
 });
 
-describe('updateTournament — deep-merge of nested config (unit-level on the merge primitive)', () => {
+// Contract test: documents the merge semantics that updateTournament relies on.
+// The service-level integration (that updateTournament actually invokes deepMergeJson
+// in the right order) is covered by the existing PATCH integration tests.
+describe('deepMergeJson contract as it applies to updateTournament nested-config patches', () => {
   it('PATCH with { rulesetConfig: { winBonus: 5 } } preserves other rulesetConfig keys', () => {
     const stored = { winBonus: 3, targetValues: { deepTarget: 2, shallowTarget: 1 } };
     const patch = { winBonus: 5 };
