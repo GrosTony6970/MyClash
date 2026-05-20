@@ -586,6 +586,7 @@ export class EventsService {
         category: dto.category ?? null,
         ruleset_code: dto.rulesetCode ?? 'TF_v1',
         ruleset_version: dto.rulesetVersion ?? '1',
+        penalty_ruleset_id: dto.penaltyRulesetId ?? null,
         status: 'draft',
       })
       .select('*')

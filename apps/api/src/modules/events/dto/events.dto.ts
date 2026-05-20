@@ -16,7 +16,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { TournamentScoringConfig } from '@myclash/types';
 
 export class CreateEventDto {
   @ApiProperty({ example: 'FAL 2026' })
@@ -206,28 +205,77 @@ export class SubmitEventClubRequestDto {
 }
 
 class TargetValuesDto {
-  @IsOptional() @IsNumber() @Min(0) @Max(20) deepTarget?: number;
-  @IsOptional() @IsNumber() @Min(0) @Max(20) shallowTarget?: number;
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(20)
+  deepTarget?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(20)
+  shallowTarget?: number;
 }
 
 class ForfeitPolicyDto {
-  @IsOptional() @IsBoolean() forfeitDrawsCount?: boolean;
-  @IsOptional() @IsBoolean() forfeitFighterBefore1stMatch?: boolean;
-  @IsOptional() @IsNumber() @Min(1) @Max(10) disqualifyAfter?: number;
+  @IsOptional()
+  @IsBoolean()
+  forfeitDrawsCount?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  forfeitFighterBefore1stMatch?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  disqualifyAfter?: number;
 }
 
 class TournamentRulesetConfigDto {
-  @IsOptional() @IsNumber() @Min(0) @Max(20) winBonus?: number;
-  @IsOptional() @IsNumber() @Min(0) @Max(10_000) afterblowWindowMs?: number;
-  @IsOptional() @ValidateNested() @Type(() => TargetValuesDto) targetValues?: TargetValuesDto;
-  @IsOptional() @ValidateNested() @Type(() => ForfeitPolicyDto) forfeitPolicy?: ForfeitPolicyDto;
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(20)
+  winBonus?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(10_000)
+  afterblowWindowMs?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TargetValuesDto)
+  targetValues?: TargetValuesDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ForfeitPolicyDto)
+  forfeitPolicy?: ForfeitPolicyDto;
 }
 
 class TournamentLockConfigDto {
-  @IsOptional() @IsBoolean() autoLockEnabled?: boolean;
-  @IsOptional() @IsNumber() @Min(0) @Max(1440) autoLockDelayMinutes?: number;
-  @IsOptional() @IsBoolean() autoLockCompletedPools?: boolean;
-  @IsOptional() @IsBoolean() autoLockCompletedBrackets?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  autoLockEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1440)
+  autoLockDelayMinutes?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  autoLockCompletedPools?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoLockCompletedBrackets?: boolean;
 }
 
 export class CreateTournamentDto {
@@ -316,7 +364,7 @@ export class UpdateTournamentDto {
   })
   @IsOptional()
   @IsObject()
-  scoringConfig?: TournamentScoringConfig;
+  scoringConfig?: Record<string, unknown>;
 
   @ApiProperty({
     required: false,
@@ -336,7 +384,20 @@ export class UpdateTournamentDto {
   @Type(() => TournamentLockConfigDto)
   lockConfig?: TournamentLockConfigDto;
 
-  @IsOptional() @IsUUID() penaltyRulesetId?: string | null;
-  @IsOptional() @IsString() @MaxLength(50) rulesetCode?: string;
-  @IsOptional() @IsString() @MaxLength(20) rulesetVersion?: string;
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  penaltyRulesetId?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  rulesetCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  rulesetVersion?: string;
 }
