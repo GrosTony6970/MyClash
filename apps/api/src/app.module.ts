@@ -31,6 +31,7 @@ import { AIUsageModule } from './modules/ai-usage/ai-usage.module';
 import { ProgrammeModule } from './modules/programme/programme.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
+import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
@@ -93,6 +94,7 @@ import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor'
     ExportsModule,
     WorkersModule,
     RealtimeModule,
+    RulesetsModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
