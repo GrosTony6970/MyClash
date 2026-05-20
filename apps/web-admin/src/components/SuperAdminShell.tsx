@@ -209,6 +209,13 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-stone-50 text-slate-900">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-red-800 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        {t('admin.shell.skipToContent')}
+      </a>
+
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-900 px-4 py-5 text-white lg:flex">
         <Link href="/admin" className="mb-7 flex items-center gap-3">
           <Image

@@ -497,6 +497,7 @@ export const en = {
       sectionOperations: 'Operations',
       sectionPlatformHealth: 'Platform health',
       sectionSettings: 'Settings',
+      skipToContent: 'Skip to main content',
       nav: {
         overview: 'Overview',
         organizations: 'Organizations',
@@ -1338,6 +1339,7 @@ export const en = {
       logout: 'Log out',
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of organizer admin',
+      skipToContent: 'Skip to main content',
       nav: {
         overview: 'Overview',
         events: 'Events',
@@ -2522,6 +2524,7 @@ export const fr = {
       sectionOperations: 'Operations',
       sectionPlatformHealth: 'Sante plateforme',
       sectionSettings: 'Parametres',
+      skipToContent: 'Aller au contenu principal',
       nav: {
         overview: 'Vue generale',
         organizations: 'Organisations',
@@ -3372,6 +3375,7 @@ export const fr = {
       logout: 'Se deconnecter',
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: "Se deconnecter de l'administration organisateur",
+      skipToContent: 'Aller au contenu principal',
       nav: {
         overview: 'Vue generale',
         events: 'Evenements',

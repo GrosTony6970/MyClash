@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 
 const orgNavItems = [
@@ -76,6 +77,19 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState(slug);
   const [eventName, setEventName] = useState('');
+
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, drawerRef);
+
+  // Escape closes the mobile drawer.
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [open]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -195,15 +209,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   }
 
   const sidebar = (
-    <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-5">
-      {navSections.map((section) => {
+    <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-6">
+      {navSections.map((section, idx) => {
         const activeHref = pickActiveHref(
           pathname,
           section.items.map((i) => i.href),
         );
         return (
-          <div key={section.key}>
-            <p className="mb-2 px-3 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          <div key={section.key} className={idx === 0 ? '' : 'border-t border-slate-800 pt-5'}>
+            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {section.title}
             </p>
             <div className="flex flex-col gap-1">
@@ -217,7 +231,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                     className={[
                       'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                       active
-                        ? 'bg-[#1d4ed8] text-white shadow-sm'
+                        ? 'bg-red-800 text-white shadow-sm'
                         : 'text-slate-300 hover:bg-white/10 hover:text-white',
                     ].join(' ')}
                   >
@@ -226,7 +240,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                         'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
                         active
                           ? 'border-white/30 bg-white/15 text-white'
-                          : 'border-slate-600 bg-slate-900 text-[#f59e0b] group-hover:border-slate-400',
+                          : 'border-slate-600 bg-slate-900 text-amber-500 group-hover:border-slate-400',
                       ].join(' ')}
                       aria-hidden="true"
                     >
@@ -246,7 +260,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const logoutAction = (
     <button
       type="button"
-      className="flex w-full items-center gap-3 rounded-md border border-slate-700 bg-slate-950/40 px-3 py-2 text-left text-sm font-semibold text-slate-200 transition-colors hover:border-[#dc2626]/60 hover:bg-[#dc2626]/15 hover:text-white disabled:cursor-wait disabled:opacity-70"
+      className="flex w-full items-center gap-3 rounded-md border border-slate-700 bg-slate-950/40 px-3 py-2 text-left text-sm font-semibold text-slate-200 transition-colors hover:border-red-700/60 hover:bg-red-800/15 hover:text-white disabled:cursor-wait disabled:opacity-70"
       aria-label={t('organizer.shell.logoutAriaLabel')}
       disabled={loggingOut}
       onClick={() => {
@@ -254,7 +268,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
       }}
     >
       <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-900 text-[0.65rem] font-bold text-[#f59e0b]"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-600 bg-slate-900 text-[0.65rem] font-bold text-amber-500"
         aria-hidden="true"
       >
         LO
@@ -264,8 +278,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] text-[#0f172a]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-[#0f172a] px-4 py-5 text-white shadow-2xl lg:flex">
+    <div className="min-h-screen bg-stone-50 text-slate-900">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-red-800 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        {t('organizer.shell.skipToContent')}
+      </a>
+
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-900 px-4 py-5 text-white lg:flex">
         <Link href={orgBase} className="mb-7 flex items-center gap-3">
           <Image
             src="/brand/Logomini_nobackground.png"
@@ -276,10 +297,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             priority
           />
           <div className="min-w-0">
-            <p className="truncate font-serif text-lg font-bold tracking-wide">
+            <p className="truncate font-display text-lg font-medium tracking-wide">
               {t('organizer.shell.brand')}
             </p>
-            <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-[#f59e0b]">
+            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
               {orgName || slug}
             </p>
           </div>
@@ -288,7 +309,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
       </aside>
 
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-stone-50/90 backdrop-blur lg:left-72">
         <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
@@ -304,18 +325,18 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </span>
             </button>
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
                 {eventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
               </p>
-              <p className="truncate text-base font-bold text-[#0f172a] sm:text-lg">
+              <p className="truncate font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
                 {eventId
                   ? t('organizer.shell.eventTitle', { event: eventName || eventId })
                   : t('organizer.shell.title', { organization: orgName || slug })}
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-[#dc2626]" aria-hidden="true" />
+          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">
+            <span className="h-2 w-2 rounded-full bg-red-700" aria-hidden="true" />
             {t('organizer.shell.status')}
           </div>
         </div>
@@ -329,7 +350,13 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             className="absolute inset-0 bg-slate-950/60"
             onClick={() => setOpen(false)}
           />
-          <div className="relative flex h-full w-80 max-w-[85vw] flex-col bg-[#0f172a] px-4 py-5 text-white shadow-2xl">
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('organizer.shell.navigationLabel')}
+            className="relative flex h-full w-80 max-w-[85vw] flex-col bg-slate-900 px-4 py-5 text-white shadow-2xl"
+          >
             <div className="mb-6 flex items-center justify-between">
               <Link
                 href={orgBase}
@@ -337,7 +364,9 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                 onClick={() => setOpen(false)}
               >
                 <Image src="/brand/Logomini_nobackground.png" alt="" width={40} height={40} />
-                <span className="font-serif text-lg font-bold">{t('organizer.shell.brand')}</span>
+                <span className="font-display text-lg font-medium">
+                  {t('organizer.shell.brand')}
+                </span>
               </Link>
               <button
                 type="button"
