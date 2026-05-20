@@ -35,6 +35,7 @@ import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { OrganizerAIAssistantModule } from './modules/organizer-ai-assistant/organizer-ai-assistant.module';
 import { TournamentQueryModule } from './modules/tournament-query/tournament-query.module';
+import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
 
@@ -95,6 +96,7 @@ import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor'
     WorkersModule,
     RealtimeModule,
     RulesetsModule,
+    PoolStandingsModule,
   ],
   providers: [
     // Apply ThrottlerGuard globally — individual controllers can override
