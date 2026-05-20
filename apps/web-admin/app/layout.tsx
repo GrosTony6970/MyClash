@@ -39,6 +39,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Web-admin is fully auth-gated (super-admin + organizer routes + /login).
+// Static prerender produces an empty skeleton that the client immediately
+// replaces after cookie-auth + /api/v1 fetch — zero value, and it trips
+// Next.js 16's CSR-bailout rule whenever any page uses useSearchParams()
+// (e.g. via the useUrlState hook on /admin/organizations). Opt out at the
+// layout level so future pages don't need to opt out individually.
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: Readonly<{
