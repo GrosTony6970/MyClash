@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { HemaRatingsSuggest, type HemaRatingsSuggestion } from '@/components/HemaRatingsSuggest';
+import { ConfirmDialog, useToast } from '@myclash/ui';
+import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 
 interface Person {
@@ -14,6 +15,7 @@ interface Person {
   clubLabel: string | null;
   claimStatus: 'unclaimed' | 'guest_active' | 'claimed';
   hemaRatingsId: string | null;
+  globalPersonId: string | null;
 }
 
 interface Registration {
@@ -70,6 +72,7 @@ export default function ParticipantsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const toast = useToast();
 
   const [persons, setPersons] = useState<Person[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -80,6 +83,15 @@ export default function ParticipantsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Global profiles already linked to a person in this event. Used to grey out
+  // matching suggestions in the Add-Participant typeahead so operators can't
+  // accidentally create a duplicate. The server has its own guard for the
+  // direct-API case.
+  const existingGlobalIds = useMemo(
+    () => new Set(persons.map((p) => p.globalPersonId).filter((id): id is string => Boolean(id))),
+    [persons],
+  );
   const [bulkAssignTournamentId, setBulkAssignTournamentId] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
 
@@ -95,7 +107,6 @@ export default function ParticipantsPage() {
   const [clubSuggestions, setClubSuggestions] = useState<ClubSuggestion[]>([]);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [selectedClubLabel, setSelectedClubLabel] = useState('');
-  const [selectedHemaRating, setSelectedHemaRating] = useState<HemaRatingsSuggestion | null>(null);
   const [editPerson, setEditPerson] = useState<Person | null>(null);
   const [editForm, setEditForm] = useState<AddForm>(EMPTY_ADD_FORM);
   const [editError, setEditError] = useState<string | null>(null);
@@ -104,6 +115,13 @@ export default function ParticipantsPage() {
   const [editClubSuggestions, setEditClubSuggestions] = useState<ClubSuggestion[]>([]);
   const [editClubId, setEditClubId] = useState<string | null>(null);
   const [editClubLabel, setEditClubLabel] = useState('');
+  // Tournament assignments inside the Edit modal. Initialized to the
+  // participant's current registrations in openEdit(); on save we diff
+  // against the original set and fan POST/DELETE per added/removed id.
+  const [editSelectedTournaments, setEditSelectedTournaments] = useState<Set<string>>(new Set());
+  const [editOriginalTournaments, setEditOriginalTournaments] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<Person | null>(null);
+  const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -223,7 +241,6 @@ export default function ParticipantsPage() {
     setClubSuggestions([]);
     setSelectedClubId(null);
     setSelectedClubLabel('');
-    setSelectedHemaRating(null);
     setSelectedTournaments(new Set());
   }
 
@@ -234,6 +251,7 @@ export default function ParticipantsPage() {
     }
     setAddSaving(true);
     setAddError(null);
+    const hemaRatingsId = addForm.hemaRatingsId.trim() || null;
     try {
       const personRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
         method: 'POST',
@@ -244,7 +262,7 @@ export default function ParticipantsPage() {
           familyName: addForm.familyName.trim(),
           email: addForm.email.trim() || null,
           clubId: selectedClubId || null,
-          hemaRatingsId: selectedHemaRating?.id ?? (addForm.hemaRatingsId.trim() || null),
+          hemaRatingsId,
           globalPersonId: selectedGlobalId || null,
         }),
       });
@@ -253,17 +271,34 @@ export default function ParticipantsPage() {
         throw new Error(body.message ?? 'Failed to create participant');
       }
       const person = (await personRes.json()) as { id: string };
+
+      // Per-tournament registrations — capture failures so a network blip
+      // on one tournament doesn't silently lose the others.
+      const failedTournaments: string[] = [];
       for (const tournamentId of selectedTournaments) {
-        await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
+        const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             personId: person.id,
-            hemaRatingsId: selectedHemaRating?.id ?? (addForm.hemaRatingsId.trim() || null),
+            hemaRatingsId,
             seed: addForm.seed ? parseInt(addForm.seed, 10) : undefined,
           }),
         });
+        if (!res.ok) {
+          const t = tournaments.find((x) => x.id === tournamentId);
+          failedTournaments.push(t?.name ?? tournamentId);
+        }
+      }
+      if (failedTournaments.length > 0) {
+        toast.warning(
+          `Created participant, but failed to register in: ${failedTournaments.join(', ')}.`,
+        );
+      } else if (selectedTournaments.size > 0) {
+        toast.success(
+          `Added ${addForm.givenName.trim()} ${addForm.familyName.trim()} to ${selectedTournaments.size} tournament(s).`,
+        );
       }
       closeAddModal();
       refresh();
@@ -287,6 +322,11 @@ export default function ParticipantsPage() {
     setEditClubId(null);
     setEditClubLabel(p.clubLabel ?? '');
     setEditError(null);
+    const initial = new Set(
+      registrations.filter((r) => r.personId === p.id).map((r) => r.tournamentId),
+    );
+    setEditSelectedTournaments(initial);
+    setEditOriginalTournaments(initial);
   }
 
   async function handleEditSave() {
@@ -314,6 +354,51 @@ export default function ParticipantsPage() {
         const body = (await res.json()) as { message?: string };
         throw new Error(body.message ?? 'Save failed');
       }
+
+      // Diff tournament selection vs the original set.
+      const toAdd = [...editSelectedTournaments].filter((id) => !editOriginalTournaments.has(id));
+      const toRemove = [...editOriginalTournaments].filter(
+        (id) => !editSelectedTournaments.has(id),
+      );
+      const failed: string[] = [];
+
+      for (const tournamentId of toAdd) {
+        const r = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            personId: editPerson.id,
+            hemaRatingsId: editForm.hemaRatingsId.trim() || null,
+          }),
+        });
+        if (!r.ok) {
+          const t = tournaments.find((x) => x.id === tournamentId);
+          failed.push(t?.name ?? tournamentId);
+        }
+      }
+      for (const tournamentId of toRemove) {
+        const reg = registrations.find(
+          (x) => x.personId === editPerson.id && x.tournamentId === tournamentId,
+        );
+        if (!reg) continue;
+        const r = await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!r.ok) {
+          const t = tournaments.find((x) => x.id === tournamentId);
+          failed.push(t?.name ?? tournamentId);
+        }
+      }
+      if (failed.length > 0) {
+        toast.warning(
+          `Saved profile, but failed to update tournament assignments for: ${failed.join(', ')}.`,
+        );
+      } else if (toAdd.length > 0 || toRemove.length > 0) {
+        toast.success('Profile and tournament assignments updated.');
+      }
+
       setEditPerson(null);
       refresh();
     } catch (err) {
@@ -325,17 +410,47 @@ export default function ParticipantsPage() {
 
   async function handleBulkDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} participant(s)? This cannot be undone.`)) return;
-    setBulkLoading(true);
-    for (const personId of selected) {
-      await fetch(`${apiUrl}/api/v1/persons/${personId}`, {
+    setPendingBulkDelete(true);
+  }
+
+  /**
+   * Delete one person. If the server refuses because they have tournament
+   * registrations, cascade-delete the registrations first then retry.
+   * Returns true on success, false on irrecoverable failure (so callers can
+   * count outcomes).
+   */
+  async function deletePersonCascading(person: Person): Promise<boolean> {
+    const firstRes = await fetch(`${apiUrl}/api/v1/persons/${person.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (firstRes.ok) return true;
+    const body = (await firstRes.json().catch(() => null)) as { message?: string } | null;
+    const message = body?.message ?? '';
+    if (!/tournament registrations/iu.test(message)) {
+      toast.error(message || `Could not delete ${person.givenName} ${person.familyName}.`);
+      return false;
+    }
+    // Cascade — drop every registration this person has, then retry.
+    const regs = registrations.filter((r) => r.personId === person.id);
+    for (const reg of regs) {
+      await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
     }
-    setSelected(new Set());
-    setBulkLoading(false);
-    refresh();
+    const retry = await fetch(`${apiUrl}/api/v1/persons/${person.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!retry.ok) {
+      const retryBody = (await retry.json().catch(() => null)) as { message?: string } | null;
+      toast.error(
+        retryBody?.message ?? `Could not delete ${person.givenName} ${person.familyName}.`,
+      );
+      return false;
+    }
+    return true;
   }
 
   async function handleBulkCheckIn() {
@@ -396,13 +511,49 @@ export default function ParticipantsPage() {
   }
 
   async function handleDelete(personId: string) {
-    if (!confirm('Delete this person? This also removes all their tournament registrations.'))
-      return;
-    await fetch(`${apiUrl}/api/v1/persons/${personId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    refresh();
+    const person = persons.find((p) => p.id === personId);
+    if (!person) return;
+    setPendingDelete(person);
+  }
+
+  async function confirmDeleteSingle() {
+    if (!pendingDelete) return;
+    setBulkLoading(true);
+    try {
+      const ok = await deletePersonCascading(pendingDelete);
+      if (ok) {
+        toast.success(`Deleted ${pendingDelete.givenName} ${pendingDelete.familyName}.`);
+      }
+      setPendingDelete(null);
+      refresh();
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function confirmBulkDelete() {
+    setPendingBulkDelete(false);
+    setBulkLoading(true);
+    try {
+      let succeeded = 0;
+      let failed = 0;
+      for (const personId of selected) {
+        const person = persons.find((p) => p.id === personId);
+        if (!person) continue;
+        const ok = await deletePersonCascading(person);
+        if (ok) succeeded += 1;
+        else failed += 1;
+      }
+      if (failed === 0) {
+        toast.success(`Deleted ${succeeded} participant(s).`);
+      } else {
+        toast.warning(`Deleted ${succeeded}, ${failed} failed.`);
+      }
+      setSelected(new Set());
+      refresh();
+    } finally {
+      setBulkLoading(false);
+    }
   }
 
   function toggleSelect(id: string) {
@@ -677,6 +828,64 @@ export default function ParticipantsPage() {
         </div>
       )}
 
+      {/* Claim-status legend. Pills match the column palette exactly so the
+          column reads as documented. */}
+      <div className="mt-3 flex flex-col gap-1 text-xs text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+        <span className="font-semibold text-gray-500">Claim status:</span>
+        <span className="inline-flex items-center gap-2">
+          <span className={`${CLAIM_COLORS.unclaimed} px-2 py-0.5 rounded-full font-medium`}>
+            unclaimed
+          </span>
+          <span>no MyClash account yet; organizer added them, no claim made</span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className={`${CLAIM_COLORS.guest_active} px-2 py-0.5 rounded-full font-medium`}>
+            guest active
+          </span>
+          <span>guest session active (followed the event, no permanent account)</span>
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className={`${CLAIM_COLORS.claimed} px-2 py-0.5 rounded-full font-medium`}>
+            claimed
+          </span>
+          <span>linked to a real MyClash account</span>
+        </span>
+      </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete participant"
+        description={
+          pendingDelete
+            ? (() => {
+                const regCount = registrations.filter(
+                  (r) => r.personId === pendingDelete.id,
+                ).length;
+                const name = `${pendingDelete.givenName} ${pendingDelete.familyName}`;
+                return regCount > 0
+                  ? `Delete ${name}? They are registered in ${regCount} tournament(s) — those registrations will also be removed.`
+                  : `Delete ${name} from this event roster?`;
+              })()
+            : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={bulkLoading}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDeleteSingle()}
+      />
+
+      <ConfirmDialog
+        open={pendingBulkDelete}
+        title="Delete participants"
+        description={`Delete ${selected.size} participant(s)? Any tournament registrations they have will also be removed.`}
+        confirmLabel="Delete all"
+        danger
+        busy={bulkLoading}
+        onCancel={() => setPendingBulkDelete(false)}
+        onConfirm={() => void confirmBulkDelete()}
+      />
+
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -698,35 +907,49 @@ export default function ParticipantsPage() {
               />
               {globalSuggestions.length > 0 && !selectedGlobalId && (
                 <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
-                  {globalSuggestions.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedGlobalId(g.id);
-                        setGlobalSearch(g.displayName);
-                        setGlobalSuggestions([]);
-                        setAddForm((f) => ({
-                          ...f,
-                          givenName: g.givenName,
-                          familyName: g.familyName,
-                          hemaRatingsId: g.hemaRatingsId ?? '',
-                        }));
-                        if (g.clubLabel) {
-                          setSelectedClubId(g.clubId);
-                          setSelectedClubLabel(g.clubLabel);
-                          setClubSearch(g.clubLabel);
-                          setClubSuggestions([]);
+                  {globalSuggestions.map((g) => {
+                    const alreadyAdded = existingGlobalIds.has(g.id);
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        disabled={alreadyAdded}
+                        onClick={() => {
+                          if (alreadyAdded) return;
+                          setSelectedGlobalId(g.id);
+                          setGlobalSearch(g.displayName);
+                          setGlobalSuggestions([]);
+                          setAddForm((f) => ({
+                            ...f,
+                            givenName: g.givenName,
+                            familyName: g.familyName,
+                            hemaRatingsId: g.hemaRatingsId ?? '',
+                          }));
+                          if (g.clubLabel) {
+                            setSelectedClubId(g.clubId);
+                            setSelectedClubLabel(g.clubLabel);
+                            setClubSearch(g.clubLabel);
+                            setClubSuggestions([]);
+                          }
+                        }}
+                        className={
+                          alreadyAdded
+                            ? 'w-full text-left px-3 py-2 text-sm bg-slate-50 text-slate-400 border-b border-gray-100 last:border-0 cursor-not-allowed'
+                            : 'w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0'
                         }
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                    >
-                      <span className="font-medium">{g.displayName}</span>
-                      {g.clubLabel && (
-                        <span className="text-gray-400 ml-2 text-xs">{g.clubLabel}</span>
-                      )}
-                    </button>
-                  ))}
+                      >
+                        <span className="font-medium">{g.displayName}</span>
+                        {g.clubLabel && (
+                          <span className="text-gray-400 ml-2 text-xs">{g.clubLabel}</span>
+                        )}
+                        {alreadyAdded && (
+                          <span className="ml-2 text-xs italic text-slate-500">
+                            already in event
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               {selectedGlobalId && (
@@ -747,6 +970,10 @@ export default function ParticipantsPage() {
             </div>
 
             <hr className="my-3 border-gray-100" />
+
+            <p className="mb-3 text-sm font-semibold text-slate-700">
+              Or create profile manually if it does not exist:
+            </p>
 
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
@@ -837,11 +1064,24 @@ export default function ParticipantsPage() {
                 )}
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  HEMA Ratings ID (optional)
+                </label>
+                <input
+                  type="text"
+                  value={addForm.hemaRatingsId}
+                  onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                  placeholder="Paste an ID or pick from the suggestions below"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+
               <HemaRatingsSuggest
                 apiUrl={apiUrl}
                 personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
-                selectedId={selectedHemaRating?.id ?? addForm.hemaRatingsId}
-                onSelect={setSelectedHemaRating}
+                selectedId={addForm.hemaRatingsId}
+                onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
               />
 
               <div>
@@ -1013,6 +1253,33 @@ export default function ParticipantsPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
               </div>
+              {tournaments.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Tournaments
+                  </label>
+                  <div className="flex flex-col gap-1.5">
+                    {tournaments.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editSelectedTournaments.has(t.id)}
+                          onChange={() =>
+                            setEditSelectedTournaments((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(t.id)) next.delete(t.id);
+                              else next.add(t.id);
+                              return next;
+                            })
+                          }
+                          className="rounded"
+                        />
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             {editError && (
               <p className="text-sm text-red-600 mt-3" role="alert">

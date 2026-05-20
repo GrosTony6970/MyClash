@@ -83,6 +83,24 @@ export class PersonsService {
       }
     }
 
+    // Reject re-linking the same global profile to an event row twice. The
+    // organizer UI greys this out preemptively; this is the server-side
+    // backstop against direct API calls.
+    if (dto.globalPersonId) {
+      const { data: dupe } = await this.supabase.service
+        .from('persons')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('global_person_id', dto.globalPersonId)
+        .maybeSingle();
+
+      if (dupe) {
+        throw new ConflictException(
+          'This global profile is already linked to a participant in this event.',
+        );
+      }
+    }
+
     const { data, error } = await this.supabase.service
       .from('persons')
       .insert({
