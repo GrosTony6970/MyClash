@@ -37,6 +37,14 @@ export class RegistrationsController {
     return this.registrations.list(tournamentId);
   }
 
+  /** GET /api/v1/events/:eventId/registrations */
+  @Get('events/:eventId/registrations')
+  @ApiOperation({ summary: 'List every registration across all tournaments under an event' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.registrations.listForEvent(eventId);
+  }
+
   /** POST /api/v1/tournaments/:tournamentId/registrations */
   @Post('tournaments/:tournamentId/registrations')
   @HttpCode(HttpStatus.CREATED)

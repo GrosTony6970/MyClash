@@ -216,6 +216,68 @@ describe('RegistrationsService', () => {
     });
   });
 
+  // ── listForEvent ─────────────────────────────────────────────────────────
+
+  describe('listForEvent — flat per-event roster used by /persons sub-page', () => {
+    it('filters by tournaments.event_id (via !inner join) and maps rows to camelCase', async () => {
+      // Supabase chain: from('registrations').select(...).eq(...).order(...) → awaitable
+      const chain = makeAwaitableChain({
+        data: [
+          {
+            id: 'reg-1',
+            person_id: 'person-1',
+            tournament_id: 'tourn-1',
+            status: 'registered',
+            seed: 3,
+            bib_number: 7,
+            tournaments: { id: 'tourn-1', name: 'Longsword Open', event_id: 'event-1' },
+          },
+          {
+            id: 'reg-2',
+            person_id: 'person-2',
+            tournament_id: 'tourn-2',
+            status: 'checked_in',
+            seed: null,
+            bib_number: 8,
+            tournaments: { id: 'tourn-2', name: 'Rapier Open', event_id: 'event-1' },
+          },
+        ],
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(chain);
+
+      const result = await service.listForEvent('event-1');
+
+      expect(result).toEqual([
+        {
+          id: 'reg-1',
+          personId: 'person-1',
+          tournamentId: 'tourn-1',
+          tournamentName: 'Longsword Open',
+          status: 'registered',
+          seed: 3,
+        },
+        {
+          id: 'reg-2',
+          personId: 'person-2',
+          tournamentId: 'tourn-2',
+          tournamentName: 'Rapier Open',
+          status: 'checked_in',
+          seed: null,
+        },
+      ]);
+      // The PostgREST .eq() is the gate that limits rows to this event.
+      expect(chain.eq).toHaveBeenCalledWith('tournaments.event_id', 'event-1');
+    });
+
+    it('returns an empty array when no rows match (no error, no exception)', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      await expect(service.listForEvent('event-empty')).resolves.toEqual([]);
+    });
+  });
+
   // ── Transition table completeness ─────────────────────────────────────────
 
   describe('REGISTRATION_STATUS_TRANSITIONS', () => {

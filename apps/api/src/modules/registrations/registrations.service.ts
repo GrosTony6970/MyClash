@@ -40,6 +40,70 @@ export class RegistrationsService {
     return data ?? [];
   }
 
+  /**
+   * Flat list of every registration under the given event. Joins through
+   * `tournaments` with `!inner` so the PostgREST `.eq('tournaments.event_id', …)`
+   * filter actually narrows the set instead of being silently dropped.
+   *
+   * The /persons sub-page in web-admin needs this exact view to drive its
+   * tournament chips, per-tournament tab filter, and edit-modal delete fan-out
+   * — it expects camelCase keys (`personId`, `tournamentId`, …), which is why
+   * we map rather than returning raw rows like `list(tournamentId)` does.
+   */
+  async listForEvent(eventId: string): Promise<
+    Array<{
+      id: string;
+      personId: string;
+      tournamentId: string;
+      tournamentName: string;
+      status: string;
+      seed: number | null;
+    }>
+  > {
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .select(
+        `
+        id,
+        person_id,
+        tournament_id,
+        status,
+        seed,
+        bib_number,
+        tournaments!inner(id, name, event_id)
+      `,
+      )
+      .eq('tournaments.event_id', eventId)
+      .order('bib_number', { ascending: true, nullsFirst: false });
+
+    if (error) throw new BadRequestException(error.message);
+    // PostgREST auto-types the joined `tournaments` as an array even when the
+    // FK is many-to-one — runtime returns a single object. Cast via unknown
+    // and handle either shape.
+    const rows = (data ?? []) as unknown as Array<{
+      id: string;
+      person_id: string;
+      tournament_id: string;
+      status: string;
+      seed: number | null;
+      tournaments:
+        | { id: string; name: string; event_id: string }
+        | { id: string; name: string; event_id: string }[]
+        | null;
+    }>;
+    return rows.map((row) => {
+      const tournament = Array.isArray(row.tournaments) ? row.tournaments[0] : row.tournaments;
+      return {
+        id: row.id,
+        personId: row.person_id,
+        tournamentId: row.tournament_id,
+        tournamentName: tournament?.name ?? '',
+        status: row.status,
+        seed: row.seed,
+      };
+    });
+  }
+
   // ── Create (single) ──────────────────────────────────────────────────────────
 
   async create(tournamentId: string, dto: CreateRegistrationDto) {
