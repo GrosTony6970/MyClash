@@ -4,6 +4,7 @@
  */
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { lices } from './events';
+import { persons } from './persons';
 import { pools, registrations } from './tournaments';
 
 // ── Matches ───────────────────────────────────────────────────────────────────
@@ -13,6 +14,7 @@ export const matches = pgTable('matches', {
   poolId: uuid('pool_id').references(() => pools.id, { onDelete: 'set null' }),
   bracketSlotId: uuid('bracket_slot_id'),
   liceId: uuid('lice_id').references(() => lices.id, { onDelete: 'set null' }),
+  refereeId: uuid('referee_id').references(() => persons.id, { onDelete: 'set null' }),
   redRegistrationId: uuid('red_registration_id').references(() => registrations.id, {
     onDelete: 'restrict',
   }),
