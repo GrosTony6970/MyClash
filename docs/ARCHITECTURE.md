@@ -229,19 +229,26 @@ Three distinct mechanisms, each addressing a different concern:
 
 ### 4.1 Service responsibilities
 
-| Service       | Responsibility                                                              |
-| ------------- | --------------------------------------------------------------------------- |
-| `web-public`  | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`). |
-| `web-scoring` | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                     |
-| `web-admin`   | Organizer Admin + Super Admin SPA-like experience.                          |
-| `api`         | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.           |
-| `worker`      | NestJS in worker mode — BullMQ consumer (stats, exports, Ratings sync).     |
-| `db`          | Postgres (Supabase image or vanilla `postgres:16`).                         |
-| `redis`       | Redis 7.                                                                    |
-| `supabase-*`  | If self-hosting full Supabase: kong, auth, storage, realtime, postgrest.    |
-| `traefik`     | Reverse proxy.                                                              |
+| Service             | Responsibility                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `web-public`        | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`).                                  |
+| `web-scoring`       | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                      |
+| `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                           |
+| `web-marketing`     | Static HTML on nginx — `myclash.fr` apex landing page.                                                       |
+| `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                            |
+| `worker`            | NestJS in worker mode (`--worker`) — BullMQ consumer (stats, exports, Ratings sync, notifications).          |
+| `db`                | Postgres 17 from the Supabase image (`supabase/postgres:17.6.1.121`), with the Supabase init scripts.        |
+| `redis`             | Redis 8 — cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                            |
+| `supabase-auth`     | GoTrue — email magic link + Google OAuth, JWT-based session.                                                 |
+| `supabase-realtime` | Phoenix Channels broadcasting Postgres row changes to subscribers.                                           |
+| `supabase-storage`  | S3-compatible object storage for fighter photos, club logos.                                                 |
+| `supabase-rest`     | PostgREST over the public schema, served at `/rest/v1`.                                                      |
+| `traefik`           | Reverse proxy + TLS termination (Let's Encrypt). Routes by hostname to every public-facing service.          |
+| `ops-runner`        | Bearer-authed sidecar with `/var/run/docker.sock` mounted. Backups, restore, container lifecycle. See §17.4. |
 
 > The three frontends could be a single Next.js app with route-based feature flags. **Decision: keep them as three apps in the monorepo**, sharing UI components via a `packages/ui` workspace. This isolates the scoring app (offline-first, very different UX) and the admin app (heavier, desktop-first) from the lean public PWA.
+>
+> The production stack does **not** include Kong. Earlier Supabase self-hosting setups used Kong as an API gateway, but MyClash's prod stack fronts every Supabase service directly through Traefik labels. Kong remains in `infra/docker-compose.dev.yml` for the local dev gateway only.
 
 ---
 
@@ -2022,144 +2029,83 @@ Each Next.js app wraps its root layout with `<I18nProvider locale={defaultLocale
 
 ## 17. Deployment (Docker Compose + Traefik)
 
-### 17.1 `docker-compose.yml` (sketch)
+### 17.1 Service inventory
 
-```yaml
-version: '3.9'
+The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share a single internal `myclash` network; only Traefik publishes ports 80/443.
 
-networks:
-  myclash:
-    external: false
+| Service             | Container                   | Image / Build                              | Role                                                                                                 |
+| ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `traefik`           | `myclash-traefik`           | `traefik:v3.7.1`                           | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.              |
+| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.121-mg-1`        | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.             |
+| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                              |
+| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.189.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                               |
+| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.94.1`                | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                        |
+| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.58.19`            | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.               |
+| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v12.2.3`              | PostgREST over the public schema. Served at `/rest/v1`.                                              |
+| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                     |
+| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                      |
+| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                       |
+| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                         |
+| `web-scoring`       | `myclash-web-scoring`       | Built from `apps/web-scoring/Dockerfile`   | Next.js 16 on internal port 3000. Routed at `scoring.${DOMAIN}`.                                     |
+| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on nginx, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).            |
+| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4. |
 
-volumes:
-  postgres_data:
-  redis_data:
-  supabase_storage_data:
-  letsencrypt:
+Traefik routes by Host header. Key mappings:
 
-services:
-  traefik:
-    image: traefik:v3.1
-    restart: unless-stopped
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.le.acme.tlschallenge=true
-    ports:
-      - '80:80'
-      - '443:443'
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - letsencrypt:/letsencrypt
-    networks: [myclash]
-
-  db:
-    image: supabase/postgres:15.6.1.115
-    restart: unless-stopped
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks: [myclash]
-
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    networks: [myclash]
-
-  supabase-auth:
-    image: supabase/gotrue:v2.158.1
-    restart: unless-stopped
-    env_file: .env.supabase
-    networks: [myclash]
-
-  supabase-realtime:
-    image: supabase/realtime:v2.30.34
-    restart: unless-stopped
-    env_file: .env.supabase
-    networks: [myclash]
-
-  supabase-storage:
-    image: supabase/storage-api:v1.10.0
-    restart: unless-stopped
-    env_file: .env.supabase
-    volumes:
-      - supabase_storage_data:/var/lib/storage
-    networks: [myclash]
-
-  api:
-    build: ./apps/api
-    restart: unless-stopped
-    env_file: .env
-    depends_on: [db, redis]
-    networks: [myclash]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.api.rule=Host(`api.${ROOT_DOMAIN}`)
-      - traefik.http.routers.api.entrypoints=websecure
-      - traefik.http.routers.api.tls.certresolver=le
-
-  worker:
-    build: ./apps/api
-    command: ['node', 'dist/main.js', '--worker']
-    restart: unless-stopped
-    env_file: .env
-    depends_on: [db, redis]
-    networks: [myclash]
-
-  web-public:
-    build: ./apps/web-public
-    restart: unless-stopped
-    env_file: .env
-    networks: [myclash]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.public.rule=Host(`${ROOT_DOMAIN}`) || HostRegexp(`{subdomain:[a-z0-9-]+}.${ROOT_DOMAIN}`)
-      - traefik.http.routers.public.entrypoints=websecure
-      - traefik.http.routers.public.tls.certresolver=le
-
-  web-scoring:
-    build: ./apps/web-scoring
-    restart: unless-stopped
-    env_file: .env
-    networks: [myclash]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.scoring.rule=Host(`scoring.${ROOT_DOMAIN}`)
-      - traefik.http.routers.scoring.entrypoints=websecure
-      - traefik.http.routers.scoring.tls.certresolver=le
-
-  web-admin:
-    build: ./apps/web-admin
-    restart: unless-stopped
-    env_file: .env
-    networks: [myclash]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.admin.rule=Host(`admin.${ROOT_DOMAIN}`)
-      - traefik.http.routers.admin.entrypoints=websecure
-      - traefik.http.routers.admin.tls.certresolver=le
-```
+| Hostname            | Service                 | Path / Notes                                                                                                                                                            |
+| ------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `${DOMAIN}`         | `web-marketing`         | Apex landing page. `www.${DOMAIN}` permanent-redirects to apex.                                                                                                         |
+| `app.${DOMAIN}`     | `web-public` + Supabase | Root → web-public. `/auth/v1` → supabase-auth · `/realtime/v1` → supabase-realtime · `/storage/v1` → supabase-storage · `/rest/v1` → supabase-rest (all StripPrefix'd). |
+| `admin.${DOMAIN}`   | `web-admin` + `api`     | `/api/v1/*` → api (priority 30), everything else → web-admin.                                                                                                           |
+| `scoring.${DOMAIN}` | `web-scoring`           | Scorekeeper tablet PWA.                                                                                                                                                 |
+| `api.${DOMAIN}`     | `api`                   | NestJS REST endpoint (used by web-scoring + dev tools).                                                                                                                 |
+| `traefik.${DOMAIN}` | `traefik`               | Dashboard, basic-auth gated via `TRAEFIK_DASHBOARD_AUTH`.                                                                                                               |
 
 ### 17.2 Environments
 
 - `.env.example` committed; `.env` gitignored.
-- Local dev: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up`.
-- Production: same compose, with overrides for resource limits and Traefik labels.
+- Local dev: `docker compose --env-file .env -f infra/docker-compose.dev.yml up -d --build` (Traefik with self-signed certs at `*.myclash.localhost`, includes Kong as the Supabase gateway). Or run a partial stack (data services only) and `pnpm dev` for the apps — see the project [README](../README.md#quick-start-developers).
+- Production: `docker compose --env-file .env -f infra/docker-compose.prod.yml`, wrapped by `infra/scripts/deploy.sh`, `start.sh`, `stop.sh`, `rollback.sh`.
 
 ### 17.3 Backups
 
-- Postgres: nightly `pg_dump` to S3-compatible storage.
-- Storage: daily rsync of `supabase_storage_data` to off-site.
-- Retention: 30 days rolling.
+Backups now run as **ops-runner operations** rather than direct cron-on-host (see §17.4 for the sidecar's HTTP surface). The schedule, the dump scripts, and the off-site mirror all live behind the ops-runner.
+
+- **Postgres:** nightly `pg_dump` of the `db` container, gzip + optional GPG encryption (`BACKUP_GPG_RECIPIENT`).
+- **Storage:** nightly tarball of the `supabase-storage` data volume (`storage_data`).
+- **Off-site mirror:** Scaleway Object Storage (S3-compatible). Configured via `BACKUP_SCW_ACCESS_KEY`, `BACKUP_SCW_SECRET_KEY`, `BACKUP_SCW_BUCKET`, `BACKUP_SCW_ENDPOINT`, `BACKUP_SCW_REGION`. When unset, backups stay local-only.
+- **Retention:** 30 days rolling, enforced on each new backup.
+- **Schedule:** configurable from `/admin/backups` (hour + minute UTC). Persisted by the ops-runner; not in Postgres.
+- **Restore:** triggered from `/admin/backups` against a local file, an uploaded archive, or an S3 object. The UI requires typed confirmation matching `RESTORE MYCLASH <backupId>` before running.
+
+### 17.4 ops-runner sidecar
+
+The ops-runner ([`infra/ops-runner/server.mjs`](../infra/ops-runner/server.mjs)) is a small Node HTTP service that mounts `/var/run/docker.sock` and exposes a bearer-authed RPC surface to the rest of the stack. **Only this container holds the Docker socket.** A compromise of the NestJS API container therefore does not grant Docker root — that's the threat-model reason it exists as a separate service rather than as an `AdminBackupsService` shelling out from the API.
+
+The HTTP surface is exposed on the internal `myclash` network at port `4075`, never published. Every request must carry `Authorization: Bearer ${OPS_RUNNER_SECRET}`. The API talks to it through `OPS_RUNNER_URL` + `OPS_RUNNER_SECRET` env vars (see [`apps/api/src/modules/admin/backups.service.ts`](../apps/api/src/modules/admin/backups.service.ts) and [`apps/api/src/modules/admin/system-actions.service.ts`](../apps/api/src/modules/admin/system-actions.service.ts) for the client pattern).
+
+| Method   | Path                               | Purpose                                                                                |
+| -------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `GET`    | `/status`                          | Cloud-config flag, last backup summary, currently-running operation.                   |
+| `GET`    | `/backups`                         | List all backup sets across local + S3, with per-artifact `sizeBytes`.                 |
+| `DELETE` | `/backups/{backupId}?location=...` | Delete a backup's artifacts at the given location (`local` or `s3`).                   |
+| `GET`    | `/schedule`                        | Read the nightly backup schedule (`enabled`, `hourUtc`, `minuteUtc`, `nextRunAt`).     |
+| `PUT`    | `/schedule`                        | Update the schedule.                                                                   |
+| `POST`   | `/operations/backup`               | Start an ad-hoc backup. Returns the operation id (poll via `/operations/{id}`).        |
+| `POST`   | `/operations/restore`              | Start a restore from `{location, backupId, includeStorage, confirmation}`.             |
+| `GET`    | `/operations/{id}`                 | Poll operation status; includes a tail of stdout/stderr.                               |
+| `POST`   | `/uploads`                         | Stage a backup uploaded from the admin UI (base64 body).                               |
+| `GET`    | `/download/{backupId}?...`         | Stream a backup artifact back to the admin UI.                                         |
+| `POST`   | `/containers/{service}/{action}`   | Start / stop / restart an allowlisted service (`action` ∈ `start`, `stop`, `restart`). |
+
+The lifecycle endpoint accepts only the **10-service restartable allowlist** (mirrored server-side as `RESTARTABLE_COMPONENTS` in `system-actions.service.ts` and as `RESTARTABLE_SERVICES` in `server.mjs`): `worker`, `web-admin`, `web-public`, `web-scoring`, `web-marketing`, `redis`, `supabase-auth`, `supabase-realtime`, `supabase-storage`, `supabase-rest`. Catastrophic / self-referential services are intentionally excluded:
+
+- `api` — would kill the calling request mid-flight.
+- `postgres` (`db`) — full data outage.
+- `traefik` — lose HTTPS routing for the entire stack.
+- `ops-runner` — lose the channel that would restart anything else.
+
+Both the API controller and the ops-runner re-validate the action and the service against this list, so a tampered request cannot escalate into restarting Postgres or stopping Traefik.
 
 ---
 
@@ -2193,20 +2139,21 @@ myclash/
 │   ├── web-admin/              # Next.js (SPA — organiser + super-admin)
 │   └── web-marketing/          # Static HTML — marketing site (myclash.fr apex)
 ├── packages/
-│   ├── ui/                     # Shared shadcn/ui components + design tokens
-│   ├── design-tokens/          # Cinzel + Inter, color palette, spacing
+│   ├── ui/                     # Shared shadcn/ui components + Tournament Manual aesthetic
+│   ├── design-tokens/          # Fonts, color palette, spacing
 │   ├── db/                     # Drizzle schema, migrations
-│   ├── rulesets/               # @myclash/rulesets — TF_v1 etc.
+│   ├── rulesets/               # @myclash/rulesets — TF_v1 + custom-ruleset runtime
+│   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry
 │   ├── types/                  # Shared TS types (Match, Exchange, etc.)
 │   ├── api-client/             # Generated OpenAPI client
-│   └── i18n/                   # Shared translation strings
+│   └── i18n/                   # Shared translation strings (EN + FR)
 ├── infra/
-│   ├── docker-compose.yml          # dev compose
 │   ├── docker-compose.prod.yml     # prod compose (used by infra/scripts/*)
-│   ├── docker-compose.dev.yml
+│   ├── docker-compose.dev.yml      # local dev stack (Traefik + Kong + Supabase + apps)
 │   ├── docker-compose.staging-certs.yml
-│   ├── traefik/
-│   ├── supabase/                   # self-hosted supabase config
+│   ├── traefik/                    # static config + dashboard auth
+│   ├── supabase/                   # self-hosted Supabase config (init scripts, Kong config for dev)
+│   ├── ops-runner/                 # bearer-authed sidecar (docker.sock + backups + lifecycle); see §17.4
 │   └── scripts/                    # bash scripts that run ON THE VPS
 │       ├── lib/log.sh              # shared color/log helpers (sourced by all)
 │       ├── deploy.sh               # full deploy: validate → backup → migrate → up
