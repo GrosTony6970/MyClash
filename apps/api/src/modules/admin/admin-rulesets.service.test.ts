@@ -66,4 +66,38 @@ describe('AdminRulesetsService', () => {
     expect(result).toEqual([]);
     expect(fromMock).toHaveBeenCalledWith('ruleset_submissions');
   });
+
+  it('bulk-approves a batch and writes a single batch audit entry', async () => {
+    const updates: { eqId: string }[] = [];
+    const audits: Record<string, unknown>[] = [];
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: Record<string, unknown>) => {
+            audits.push(payload);
+            return Promise.resolve({ data: null, error: null });
+          }),
+        };
+      }
+      const chain = makeChain({ data: null, error: null });
+      chain.update.mockImplementation(() => ({
+        eq: vi.fn((_col: string, id: string) => {
+          updates.push({ eqId: id });
+          return Promise.resolve({ data: null, error: null });
+        }),
+      }));
+      return chain;
+    });
+
+    const result = await service.bulkApprove(['r1', 'r2', 'r3'], 'actor');
+
+    expect(result.succeeded).toBe(3);
+    expect(result.failed).toBe(0);
+    expect(updates.map((u) => u.eqId)).toEqual(['r1', 'r2', 'r3']);
+    expect(audits.some((a) => a['action'] === 'ruleset.bulk_approve')).toBe(true);
+  });
+
+  it('bulk-reject rejects when reason is empty', async () => {
+    await expect(service.bulkReject(['r1'], '   ', 'actor')).rejects.toThrow(BadRequestException);
+  });
 });

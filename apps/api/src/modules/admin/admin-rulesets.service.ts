@@ -53,6 +53,63 @@ export class AdminRulesetsService {
     await this.writeAuditLog(actorUserId, 'ruleset.reject', 'ruleset_submission', id, { reason });
   }
 
+  /**
+   * Bulk-approve a batch of ruleset submissions. Runs sequentially so a
+   * mid-batch failure surfaces the offending id without rolling back prior
+   * successes. Reports `{ succeeded, failed, errors }` for the UI.
+   */
+  async bulkApprove(
+    ids: readonly string[],
+    actorUserId: string,
+  ): Promise<{ succeeded: number; failed: number; errors: { id: string; message: string }[] }> {
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.approveRuleset(id, actorUserId);
+        succeeded += 1;
+      } catch (err) {
+        errors.push({ id, message: err instanceof Error ? err.message : 'Approve failed' });
+      }
+    }
+    await this.writeAuditLog(actorUserId, 'ruleset.bulk_approve', 'ruleset_submission', 'batch', {
+      count: ids.length,
+      succeeded,
+      failed: errors.length,
+    });
+    return { succeeded, failed: errors.length, errors };
+  }
+
+  /**
+   * Bulk-reject a batch of ruleset submissions with a single shared reason.
+   */
+  async bulkReject(
+    ids: readonly string[],
+    reason: string,
+    actorUserId: string,
+  ): Promise<{ succeeded: number; failed: number; errors: { id: string; message: string }[] }> {
+    const trimmed = reason.trim();
+    if (!trimmed) throw new BadRequestException('Rejection reason is required');
+
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.rejectRuleset(id, { reason: trimmed }, actorUserId);
+        succeeded += 1;
+      } catch (err) {
+        errors.push({ id, message: err instanceof Error ? err.message : 'Reject failed' });
+      }
+    }
+    await this.writeAuditLog(actorUserId, 'ruleset.bulk_reject', 'ruleset_submission', 'batch', {
+      count: ids.length,
+      succeeded,
+      failed: errors.length,
+      reason: trimmed,
+    });
+    return { succeeded, failed: errors.length, errors };
+  }
+
   private async writeAuditLog(
     actorUserId: string,
     action: string,

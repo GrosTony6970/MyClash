@@ -72,10 +72,22 @@
   animation: toast-enter 180ms ease-out;
 }
 
+/*
+ * BulkActionBar — slides up from below the viewport when selection > 0.
+ */
+@keyframes bulk-bar-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.bulk-bar-enter {
+  animation: bulk-bar-enter 200ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dialog-enter,
   .dialog-card-enter,
-  .toast-enter {
+  .toast-enter,
+  .bulk-bar-enter {
     animation: none;
   }
 }

@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   Req,
   UseGuards,
@@ -14,7 +15,12 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AdminRulesetsService } from './admin-rulesets.service';
-import { ListRulesetsQueryDto, RejectRulesetDto } from './dto/admin-rulesets.dto';
+import {
+  BulkApproveRulesetsDto,
+  BulkRejectRulesetsDto,
+  ListRulesetsQueryDto,
+  RejectRulesetDto,
+} from './dto/admin-rulesets.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
 function getActorId(req: FastifyRequest): string {
@@ -50,5 +56,17 @@ export class RulesetsAdminController {
     @Req() req: FastifyRequest,
   ) {
     await this.service.rejectRuleset(id, dto, getActorId(req));
+  }
+
+  @Post('bulk-approve')
+  @ApiOperation({ summary: 'Bulk-approve ruleset submissions (super admin)' })
+  async bulkApprove(@Body() dto: BulkApproveRulesetsDto, @Req() req: FastifyRequest) {
+    return this.service.bulkApprove(dto.ids, getActorId(req));
+  }
+
+  @Post('bulk-reject')
+  @ApiOperation({ summary: 'Bulk-reject ruleset submissions (super admin)' })
+  async bulkReject(@Body() dto: BulkRejectRulesetsDto, @Req() req: FastifyRequest) {
+    return this.service.bulkReject(dto.ids, dto.reason, getActorId(req));
   }
 }

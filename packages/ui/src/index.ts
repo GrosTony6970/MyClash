@@ -67,3 +67,11 @@ export { ToastProvider, useToast } from './components/Toast';
 export type { ToastVariant } from './components/Toast';
 
 export { useFocusTrap } from './hooks/useFocusTrap';
+
+// ── Phase 4: bulk actions ─────────────────────────────────────────────────
+
+export { useSelection } from './hooks/useSelection';
+export type { UseSelectionResult } from './hooks/useSelection';
+
+export { BulkActionBar } from './components/BulkActionBar';
+export type { BulkActionBarProps } from './components/BulkActionBar';

@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AdminPageHeader, ConfirmDialog, PromptDialog, useToast } from '@myclash/ui';
+import {
+  AdminPageHeader,
+  BulkActionBar,
+  ConfirmDialog,
+  PromptDialog,
+  useSelection,
+  useToast,
+} from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type RulesetStatus = 'pending' | 'approved' | 'rejected';
@@ -55,6 +62,11 @@ export default function AdminRulesetsPage() {
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+
+  // ── Bulk selection state ───────────────────────────────────────────────
+  const selection = useSelection();
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   const refreshSubmissions = useCallback(() => setSubmissionsRefreshKey((k) => k + 1), []);
   const refreshCurated = useCallback(() => setCuratedRefreshKey((k) => k + 1), []);
@@ -178,6 +190,84 @@ export default function AdminRulesetsPage() {
     }
   }
 
+  async function bulkApprove() {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/bulk-approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) {
+        const result = (await res.json()) as {
+          succeeded: number;
+          failed: number;
+          errors: { id: string; message: string }[];
+        };
+        if (result.failed === 0) {
+          toast.success(
+            t('admin.rulesets.bulkApproveSuccess', { count: String(result.succeeded) }),
+          );
+        } else {
+          toast.warning(
+            t('admin.rulesets.bulkPartial', {
+              succeeded: String(result.succeeded),
+              failed: String(result.failed),
+            }),
+          );
+        }
+        selection.clear();
+        setBulkConfirmOpen(false);
+        refreshSubmissions();
+      } else {
+        toast.error(t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function bulkReject(reason: string) {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/bulk-reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids, reason: reason.trim() }),
+      });
+      if (res.ok) {
+        const result = (await res.json()) as {
+          succeeded: number;
+          failed: number;
+          errors: { id: string; message: string }[];
+        };
+        if (result.failed === 0) {
+          toast.success(t('admin.rulesets.bulkRejectSuccess', { count: String(result.succeeded) }));
+        } else {
+          toast.warning(
+            t('admin.rulesets.bulkPartial', {
+              succeeded: String(result.succeeded),
+              failed: String(result.failed),
+            }),
+          );
+        }
+        selection.clear();
+        setBulkRejectOpen(false);
+        refreshSubmissions();
+      } else {
+        toast.error(t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setActionBusy(true);
@@ -240,6 +330,17 @@ export default function AdminRulesetsPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="w-10 px-4 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label={t('admin.rulesets.selectAll')}
+                      checked={
+                        submissions.length > 0 && submissions.every((s) => selection.has(s.id))
+                      }
+                      onChange={() => selection.toggleAll(submissions.map((s) => s.id))}
+                      className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                    />
+                  </th>
                   <th className="px-4 py-2">{t('admin.rulesets.colRuleset')}</th>
                   <th className="px-4 py-2">{t('admin.rulesets.colPackage')}</th>
                   <th className="px-4 py-2">{t('admin.rulesets.colSubmittedBy')}</th>
@@ -251,6 +352,15 @@ export default function AdminRulesetsPage() {
               <tbody>
                 {submissions.map((row) => (
                   <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label={t('admin.rulesets.selectRow')}
+                        checked={selection.has(row.id)}
+                        onChange={() => selection.toggle(row.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
+                      />
+                    </td>
                     <td className="px-4 py-2">
                       <p className="font-medium">{row.display_name}</p>
                       <p className="font-mono text-xs text-slate-500">
@@ -470,6 +580,55 @@ export default function AdminRulesetsPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
       />
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        title={t('admin.rulesets.bulkApproveTitle')}
+        description={t('admin.rulesets.bulkApproveConfirm', { count: String(selection.count) })}
+        confirmLabel={t('admin.rulesets.approveAction')}
+        busy={actionBusy}
+        onCancel={() => setBulkConfirmOpen(false)}
+        onConfirm={() => void bulkApprove()}
+      />
+
+      <PromptDialog
+        open={bulkRejectOpen}
+        title={t('admin.rulesets.bulkRejectTitle')}
+        description={t('admin.rulesets.bulkRejectConfirm', { count: String(selection.count) })}
+        placeholder={t('admin.rulesets.rejectReasonPrompt')}
+        confirmLabel={t('admin.rulesets.rejectAction')}
+        danger
+        multiline
+        busy={actionBusy}
+        onCancel={() => setBulkRejectOpen(false)}
+        onConfirm={(reason) => void bulkReject(reason)}
+      />
+
+      <BulkActionBar
+        count={selection.count}
+        itemLabel={{
+          singular: t('admin.rulesets.bulkUnitSingular'),
+          plural: t('admin.rulesets.bulkUnitPlural'),
+        }}
+        onClear={() => selection.clear()}
+      >
+        <button
+          type="button"
+          onClick={() => setBulkConfirmOpen(true)}
+          disabled={actionBusy}
+          className="rounded-md bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:opacity-50"
+        >
+          {t('admin.rulesets.bulkApproveAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setBulkRejectOpen(true)}
+          disabled={actionBusy}
+          className="rounded-md bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+        >
+          {t('admin.rulesets.bulkRejectAction')}
+        </button>
+      </BulkActionBar>
     </main>
   );
 }
