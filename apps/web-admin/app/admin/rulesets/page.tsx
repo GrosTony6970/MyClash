@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AdminPageHeader } from '@myclash/ui';
+import { AdminPageHeader, ConfirmDialog, PromptDialog, useToast } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type RulesetStatus = 'pending' | 'approved' | 'rejected';
@@ -50,6 +50,11 @@ export default function AdminRulesetsPage() {
   const [curatedRefreshKey, setCuratedRefreshKey] = useState(0);
 
   const [error, setError] = useState<string | null>(null);
+
+  const toast = useToast();
+  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const refreshSubmissions = useCallback(() => setSubmissionsRefreshKey((k) => k + 1), []);
   const refreshCurated = useCallback(() => setCuratedRefreshKey((k) => k + 1), []);
@@ -116,41 +121,81 @@ export default function AdminRulesetsPage() {
     };
   }, [curatedRefreshKey, t]);
 
-  async function handleSubmissionAction(id: string, action: 'approve' | 'reject') {
-    let body: BodyInit | undefined;
-    const headers: HeadersInit = {};
-    if (action === 'reject') {
-      const reason = prompt(t('admin.rulesets.rejectReasonPrompt'));
-      if (!reason?.trim()) return;
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify({ reason: reason.trim() });
+  async function approveSubmission(id: string) {
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/${id}/approve`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 204) {
+        toast.success(t('admin.rulesets.approveAction'));
+        refreshSubmissions();
+      } else {
+        toast.error(t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setActionBusy(false);
     }
-    const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/${id}/${action}`, {
-      method: 'PATCH',
-      headers,
-      credentials: 'include',
-      body,
-    });
-    if (res.ok || res.status === 204) refreshSubmissions();
-    else alert(t('admin.rulesets.actionFailed'));
   }
 
-  async function handleCuratedAction(
+  async function confirmReject(reason: string) {
+    if (!rejectTarget) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/rulesets/${rejectTarget}/reject`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (res.ok || res.status === 204) {
+        toast.success(t('admin.rulesets.rejectAction'));
+        setRejectTarget(null);
+        refreshSubmissions();
+      } else {
+        toast.error(t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function performCuratedAction(
     id: string,
-    action: 'publish' | 'unpublish' | 'clone' | 'delete' | 'set-default',
+    action: 'publish' | 'unpublish' | 'clone' | 'set-default',
   ) {
-    if (action === 'delete' && !confirm(t('admin.rulesets.confirmDelete'))) return;
-    const method = action === 'delete' ? 'DELETE' : 'POST';
-    const url =
-      action === 'delete'
-        ? `${apiUrl}/api/v1/admin/custom-rulesets/${id}`
-        : `${apiUrl}/api/v1/admin/custom-rulesets/${id}/${action}`;
-    const res = await fetch(url, { method, credentials: 'include' });
+    const url = `${apiUrl}/api/v1/admin/custom-rulesets/${id}/${action}`;
+    const res = await fetch(url, { method: 'POST', credentials: 'include' });
     if (res.ok || res.status === 204) {
+      toast.success(
+        t(`admin.rulesets.${action === 'set-default' ? 'setDefaultAction' : `${action}Action`}`),
+      );
       refreshCurated();
     } else {
       const body = (await res.json().catch(() => null)) as { message?: string } | null;
-      alert(body?.message ?? t('admin.rulesets.actionFailed'));
+      toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${deleteTarget}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 204) {
+        toast.success(t('admin.rulesets.deleteAction'));
+        setDeleteTarget(null);
+        refreshCurated();
+      } else {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -237,14 +282,14 @@ export default function AdminRulesetsPage() {
                     <td className="px-4 py-2">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => void handleSubmissionAction(row.id, 'approve')}
+                          onClick={() => void approveSubmission(row.id)}
                           disabled={row.status === 'approved'}
                           className="text-xs text-green-700 hover:underline disabled:text-slate-300"
                         >
                           {t('admin.rulesets.approveAction')}
                         </button>
                         <button
-                          onClick={() => void handleSubmissionAction(row.id, 'reject')}
+                          onClick={() => setRejectTarget(row.id)}
                           disabled={row.status === 'rejected'}
                           className="text-xs text-red-700 hover:underline disabled:text-slate-300"
                         >
@@ -351,7 +396,7 @@ export default function AdminRulesetsPage() {
                         </Link>
                         <button
                           type="button"
-                          onClick={() => void handleCuratedAction(row.id, 'clone')}
+                          onClick={() => void performCuratedAction(row.id, 'clone')}
                           className="text-xs font-semibold text-slate-700 hover:underline"
                         >
                           {t('admin.rulesets.cloneAction')}
@@ -359,7 +404,7 @@ export default function AdminRulesetsPage() {
                         {!row.is_system && row.status !== 'published' ? (
                           <button
                             type="button"
-                            onClick={() => void handleCuratedAction(row.id, 'publish')}
+                            onClick={() => void performCuratedAction(row.id, 'publish')}
                             className="text-xs font-semibold text-green-700 hover:underline"
                           >
                             {t('admin.rulesets.publishAction')}
@@ -368,7 +413,7 @@ export default function AdminRulesetsPage() {
                         {!row.is_system && row.status === 'published' ? (
                           <button
                             type="button"
-                            onClick={() => void handleCuratedAction(row.id, 'unpublish')}
+                            onClick={() => void performCuratedAction(row.id, 'unpublish')}
                             className="text-xs font-semibold text-amber-700 hover:underline"
                           >
                             {t('admin.rulesets.unpublishAction')}
@@ -377,7 +422,7 @@ export default function AdminRulesetsPage() {
                         {row.status === 'published' && !row.is_default ? (
                           <button
                             type="button"
-                            onClick={() => void handleCuratedAction(row.id, 'set-default')}
+                            onClick={() => void performCuratedAction(row.id, 'set-default')}
                             className="text-xs font-semibold text-amber-700 hover:underline"
                           >
                             {t('admin.rulesets.setDefaultAction')}
@@ -386,7 +431,7 @@ export default function AdminRulesetsPage() {
                         {!row.is_system ? (
                           <button
                             type="button"
-                            onClick={() => void handleCuratedAction(row.id, 'delete')}
+                            onClick={() => setDeleteTarget(row.id)}
                             className="text-xs font-semibold text-red-700 hover:underline"
                           >
                             {t('admin.rulesets.deleteAction')}
@@ -401,6 +446,30 @@ export default function AdminRulesetsPage() {
           </div>
         )}
       </section>
+
+      <PromptDialog
+        open={rejectTarget !== null}
+        title={t('admin.rulesets.rejectAction')}
+        description={t('admin.rulesets.rejectReasonPrompt')}
+        placeholder={t('admin.rulesets.rejectReasonPrompt')}
+        confirmLabel={t('admin.rulesets.rejectAction')}
+        danger
+        multiline
+        busy={actionBusy}
+        onCancel={() => setRejectTarget(null)}
+        onConfirm={(reason) => void confirmReject(reason)}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={t('admin.rulesets.deleteAction')}
+        description={t('admin.rulesets.confirmDelete')}
+        confirmLabel={t('admin.rulesets.deleteAction')}
+        danger
+        busy={actionBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </main>
   );
 }

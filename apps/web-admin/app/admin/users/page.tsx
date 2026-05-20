@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { AdminPageHeader, Button } from '@myclash/ui';
+import { AdminPageHeader, Button, ConfirmDialog, useToast } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface UserOrgMembership {
@@ -188,53 +188,66 @@ export default function AdminUsersPage() {
     refresh();
   }
 
-  async function handleUserAction(user: AdminUser, action: 'disable' | 'enable') {
-    const actionLabel = t(`admin.users.actions.${action}`);
-    const account = getAccountLabel(user);
-    if (!confirm(t('admin.users.actions.confirmToggle', { action: actionLabel, account }))) return;
+  const toast = useToast();
+  const [pending, setPending] = useState<
+    | { kind: 'toggle'; user: AdminUser; action: 'disable' | 'enable' }
+    | { kind: 'delete'; user: AdminUser; mode: 'safe' | 'cleanup' }
+    | null
+  >(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
-    const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}/${action}`, {
-      method: 'PATCH',
-      credentials: 'include',
-    });
-
-    if (res.ok || res.status === 204) {
-      refresh();
-      return;
+  async function performToggle(user: AdminUser, action: 'disable' | 'enable') {
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}/${action}`, {
+        method: 'PATCH',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 204) {
+        toast.success(t(`admin.users.actions.${action}`));
+        setPending(null);
+        refresh();
+      } else {
+        toast.error(
+          await readError(
+            res,
+            res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
+          ),
+        );
+      }
+    } finally {
+      setActionBusy(false);
     }
-
-    alert(
-      await readError(
-        res,
-        res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
-      ),
-    );
   }
 
-  async function handleDelete(user: AdminUser, mode: 'safe' | 'cleanup') {
-    const account = getAccountLabel(user);
-    const confirmKey =
-      mode === 'safe'
-        ? 'admin.users.actions.confirmSafeDelete'
-        : 'admin.users.actions.confirmCleanupDelete';
-    if (!confirm(t(confirmKey, { account }))) return;
-
-    const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}?mode=${mode}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-
-    if (res.ok) {
-      refresh();
-      return;
+  async function performDelete(user: AdminUser, mode: 'safe' | 'cleanup') {
+    setActionBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}?mode=${mode}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        toast.success(
+          t(
+            mode === 'safe'
+              ? 'admin.users.actions.safeDelete'
+              : 'admin.users.actions.cleanupDelete',
+          ),
+        );
+        setPending(null);
+        refresh();
+      } else {
+        toast.error(
+          await readError(
+            res,
+            res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
+          ),
+        );
+      }
+    } finally {
+      setActionBusy(false);
     }
-
-    alert(
-      await readError(
-        res,
-        res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
-      ),
-    );
   }
 
   return (
@@ -420,7 +433,11 @@ export default function AdminUsersPage() {
                               : t('admin.users.actions.disableHelp')
                           }
                           onClick={() => {
-                            void handleUserAction(user, disabled ? 'enable' : 'disable');
+                            setPending({
+                              kind: 'toggle',
+                              user,
+                              action: disabled ? 'enable' : 'disable',
+                            });
                           }}
                           className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${
                             disabled
@@ -432,7 +449,7 @@ export default function AdminUsersPage() {
                           label={t('admin.users.actions.safeDelete')}
                           description={t('admin.users.actions.safeDeleteHelp')}
                           onClick={() => {
-                            void handleDelete(user, 'safe');
+                            setPending({ kind: 'delete', user, mode: 'safe' });
                           }}
                           className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         />
@@ -440,7 +457,7 @@ export default function AdminUsersPage() {
                           label={t('admin.users.actions.cleanupDelete')}
                           description={t('admin.users.actions.cleanupDeleteHelp')}
                           onClick={() => {
-                            void handleDelete(user, 'cleanup');
+                            setPending({ kind: 'delete', user, mode: 'cleanup' });
                           }}
                           className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
                         />
@@ -453,6 +470,57 @@ export default function AdminUsersPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pending !== null}
+        title={
+          pending?.kind === 'toggle'
+            ? t(`admin.users.actions.${pending.action}`)
+            : pending?.kind === 'delete'
+              ? t(
+                  pending.mode === 'safe'
+                    ? 'admin.users.actions.safeDelete'
+                    : 'admin.users.actions.cleanupDelete',
+                )
+              : ''
+        }
+        description={
+          pending?.kind === 'toggle'
+            ? t('admin.users.actions.confirmToggle', {
+                action: t(`admin.users.actions.${pending.action}`),
+                account: getAccountLabel(pending.user),
+              })
+            : pending?.kind === 'delete'
+              ? t(
+                  pending.mode === 'safe'
+                    ? 'admin.users.actions.confirmSafeDelete'
+                    : 'admin.users.actions.confirmCleanupDelete',
+                  { account: getAccountLabel(pending.user) },
+                )
+              : ''
+        }
+        confirmLabel={
+          pending?.kind === 'toggle'
+            ? t(`admin.users.actions.${pending.action}`)
+            : pending?.kind === 'delete'
+              ? t(
+                  pending.mode === 'safe'
+                    ? 'admin.users.actions.safeDelete'
+                    : 'admin.users.actions.cleanupDelete',
+                )
+              : ''
+        }
+        danger={
+          pending?.kind === 'delete' || (pending?.kind === 'toggle' && pending.action === 'disable')
+        }
+        busy={actionBusy}
+        onCancel={() => setPending(null)}
+        onConfirm={() => {
+          if (!pending) return;
+          if (pending.kind === 'toggle') void performToggle(pending.user, pending.action);
+          else void performDelete(pending.user, pending.mode);
+        }}
+      />
     </main>
   );
 }

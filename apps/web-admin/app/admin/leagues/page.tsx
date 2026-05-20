@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AdminPageHeader } from '@myclash/ui';
+import { AdminPageHeader, ConfirmDialog, useToast } from '@myclash/ui';
 
 interface League {
   id: string;
@@ -69,8 +69,12 @@ export default function AdminLeaguesPage() {
     return () => controller.abort();
   }, [fetchLeagues]);
 
-  async function handleDelete(league: League) {
-    if (!window.confirm(`Delete league "${league.name}"? This cannot be undone.`)) return;
+  const toast = useToast();
+  const [pendingDelete, setPendingDelete] = useState<League | null>(null);
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const league = pendingDelete;
     setBusyId(league.id);
     setError(null);
     try {
@@ -83,8 +87,12 @@ export default function AdminLeaguesPage() {
         throw new Error(body.message ?? 'Delete failed');
       }
       setLeagues((prev) => prev.filter((l) => l.id !== league.id));
+      toast.success(`Deleted "${league.name}"`);
+      setPendingDelete(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
+      const msg = err instanceof Error ? err.message : 'Delete failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -195,7 +203,7 @@ export default function AdminLeaguesPage() {
                     </Link>
                     <button
                       type="button"
-                      onClick={() => void handleDelete(league)}
+                      onClick={() => setPendingDelete(league)}
                       disabled={busyId === league.id}
                       className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                     >
@@ -208,6 +216,19 @@ export default function AdminLeaguesPage() {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete league"
+        description={
+          pendingDelete ? `Delete league "${pendingDelete.name}"? This cannot be undone.` : ''
+        }
+        confirmLabel="Delete"
+        danger
+        busy={busyId === pendingDelete?.id}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </main>
   );
 }
