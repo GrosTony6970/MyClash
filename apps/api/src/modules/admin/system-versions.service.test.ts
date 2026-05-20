@@ -76,6 +76,27 @@ describe('AdminSystemVersionsService', () => {
         source: 'compose',
       }),
     );
+
+    // Kong was a relic of an older Supabase gateway setup; it is not part
+    // of the current production stack and should not appear at all.
+    expect(
+      result.groups.find((group) => group.key === 'infrastructure')?.components.map((c) => c.key),
+    ).not.toContain('kong');
+
+    // The deploy section now shows "Deploy date" (formatted client-side)
+    // instead of the old raw-ISO "Deployed at" label.
+    expect(result.groups.find((group) => group.key === 'deploy')?.components).toContainEqual(
+      expect.objectContaining({ key: 'deployedAt', label: 'Deploy date' }),
+    );
+
+    // Framework versions are stripped of leading semver prefixes (^, ~).
+    expect(result.groups.find((group) => group.key === 'framework')?.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'react', version: '19.1.0' }),
+        expect.objectContaining({ key: 'nestjs', version: '10.4.0' }),
+        expect.objectContaining({ key: 'typescript', version: '5.6.0' }),
+      ]),
+    );
   });
 
   it('falls back cleanly when the manifest is missing', async () => {
@@ -161,8 +182,8 @@ describe('AdminSystemVersionsService', () => {
     expect(result.groups.find((group) => group.key === 'framework')?.components).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'next', version: '15.5.0' }),
-        expect.objectContaining({ key: 'nestjs', version: '^11.0.0' }),
-        expect.objectContaining({ key: 'typescript', version: '^5.9.0' }),
+        expect.objectContaining({ key: 'nestjs', version: '11.0.0' }),
+        expect.objectContaining({ key: 'typescript', version: '5.9.0' }),
       ]),
     );
     expect(result.deploy.deployedCommit).toBe('unknown');

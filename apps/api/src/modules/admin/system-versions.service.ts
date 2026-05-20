@@ -51,7 +51,6 @@ const infrastructureLabels: Record<string, string> = {
   supabaseAuth: 'Supabase Auth',
   supabaseRealtime: 'Supabase Realtime',
   supabaseStorage: 'Supabase Storage',
-  kong: 'Kong',
   postgrest: 'PostgREST',
 };
 
@@ -71,7 +70,6 @@ const infrastructureServiceKeys: Record<string, string> = {
   'supabase-auth': 'supabaseAuth',
   'supabase-realtime': 'supabaseRealtime',
   'supabase-storage': 'supabaseStorage',
-  kong: 'kong',
   'supabase-rest': 'postgrest',
 };
 
@@ -117,7 +115,7 @@ export class AdminSystemVersionsService {
           label: 'Deploy',
           components: [
             component('deployedCommit', 'Deployed commit', deploy.deployedCommit, 'deploy'),
-            component('deployedAt', 'Deployed at', deploy.deployedAt, 'deploy'),
+            component('deployedAt', 'Deploy date', deploy.deployedAt, 'deploy'),
             component('deployedBy', 'Deployed by', deploy.deployedBy, 'deploy'),
             component('backupFile', 'Backup file', deploy.backupFile, 'deploy'),
           ],
@@ -133,13 +131,38 @@ export class AdminSystemVersionsService {
           key: 'framework',
           label: 'Framework and runtime',
           components: [
-            component('react', 'React', manifest.framework?.react, 'package.json'),
-            component('reactDom', 'React DOM', manifest.framework?.reactDom, 'package.json'),
-            component('next', 'Next.js', manifest.framework?.next, 'package.json'),
-            component('nestjs', 'NestJS', manifest.framework?.nestjs, 'package.json'),
+            component(
+              'react',
+              'React',
+              stripSemverPrefix(manifest.framework?.react),
+              'package.json',
+            ),
+            component(
+              'reactDom',
+              'React DOM',
+              stripSemverPrefix(manifest.framework?.reactDom),
+              'package.json',
+            ),
+            component(
+              'next',
+              'Next.js',
+              stripSemverPrefix(manifest.framework?.next),
+              'package.json',
+            ),
+            component(
+              'nestjs',
+              'NestJS',
+              stripSemverPrefix(manifest.framework?.nestjs),
+              'package.json',
+            ),
             component('node', 'Node.js', this.runtimeNodeVersion, 'runtime'),
             component('pnpm', 'pnpm', manifest.framework?.pnpm, 'package.json'),
-            component('typescript', 'TypeScript', manifest.framework?.typescript, 'package.json'),
+            component(
+              'typescript',
+              'TypeScript',
+              stripSemverPrefix(manifest.framework?.typescript),
+              'package.json',
+            ),
           ],
         },
         {
@@ -347,6 +370,11 @@ function parseComposeImages(composeText: string): Record<string, string> {
 
 function valueOrUnknown(value: string | undefined): string {
   return typeof value === 'string' && value.trim() ? value.trim() : UNKNOWN;
+}
+
+function stripSemverPrefix(value: string | undefined): string | undefined {
+  if (typeof value !== 'string') return value;
+  return value.replace(/^\s*[\^~]/u, '');
 }
 
 function withCommit(version: string | undefined, commit: string | undefined): string {

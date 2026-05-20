@@ -1359,7 +1359,7 @@ export const en = {
       components: {
         myclash: 'MyClash app',
         deployedCommit: 'Deployed commit',
-        deployedAt: 'Deployed at',
+        deployedAt: 'Deploy date',
         deployedBy: 'Deployed by',
         backupFile: 'Backup file',
         '@myclash/api': 'API workspace',
@@ -3465,7 +3465,7 @@ export const fr = {
       components: {
         myclash: 'App MyClash',
         deployedCommit: 'Commit dÃ©ployÃ©',
-        deployedAt: 'DÃ©ployÃ© le',
+        deployedAt: 'Date de dÃ©ploiement',
         deployedBy: 'DÃ©ployÃ© par',
         backupFile: 'Fichier de sauvegarde',
         '@myclash/api': 'Workspace API',
