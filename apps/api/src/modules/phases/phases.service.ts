@@ -1156,4 +1156,105 @@ export class PhasesService {
     const row = pool as { id: string; name: string; sort_order: number };
     return { id: row.id, name: row.name, sortOrder: row.sort_order };
   }
+
+  /**
+   * Returns pools with their enriched matches for the Matches tab.
+   * Queries the vw_tournament_query_matches view (red_name, blue_name, lice_id …)
+   * and supplements referee_id from the raw matches table.
+   */
+  async listPoolsWithMatches(
+    tournamentId: string,
+  ): Promise<Array<{ poolId: string; poolName: string; matches: unknown[] }>> {
+    // 1. Get the pool phase
+    const { data: phase } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+
+    if (!phase) return [];
+    const phaseId = (phase as { id: string }).id;
+
+    // 2. Get pools ordered by sort_order
+    const { data: pools } = await this.supabase.service
+      .from('pools')
+      .select('id, name, sort_order')
+      .eq('phase_id', phaseId)
+      .order('sort_order', { ascending: true });
+
+    if (!pools || pools.length === 0) return [];
+
+    // 3. Get enriched matches from view
+    const { data: viewMatches } = await this.supabase.service
+      .from('vw_tournament_query_matches')
+      .select(
+        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, status, match_number_label',
+      )
+      .eq('tournament_id', tournamentId)
+      .eq('phase_type', 'pool')
+      .order('match_number_label', { ascending: true });
+
+    // 4. Get referee_id from raw matches table (not in view)
+    const { data: rawMatches } = await this.supabase.service
+      .from('matches')
+      .select('id, referee_id')
+      .eq('phase_id', phaseId);
+
+    const refereeMap = new Map<string, string | null>(
+      ((rawMatches ?? []) as Array<{ id: string; referee_id: string | null }>).map((m) => [
+        m.id,
+        m.referee_id,
+      ]),
+    );
+
+    // 5. Group matches by pool
+    type ViewMatch = {
+      match_id: string;
+      pool_id: string | null;
+      lice_id: string | null;
+      red_registration_id: string | null;
+      blue_registration_id: string | null;
+      red_name: string | null;
+      blue_name: string | null;
+      red_club: string | null;
+      blue_club: string | null;
+      red_score: number | null;
+      blue_score: number | null;
+      status: string;
+      match_number_label: string | null;
+    };
+
+    const matchesByPool = new Map<string, ViewMatch[]>();
+    for (const m of (viewMatches ?? []) as ViewMatch[]) {
+      if (!m.pool_id) continue;
+      const existing = matchesByPool.get(m.pool_id) ?? [];
+      existing.push(m);
+      matchesByPool.set(m.pool_id, existing);
+    }
+
+    return ((pools ?? []) as Array<{ id: string; name: string; sort_order: number }>).map(
+      (pool) => ({
+        poolId: pool.id,
+        poolName: pool.name,
+        matches: (matchesByPool.get(pool.id) ?? []).map((m, idx) => ({
+          id: m.match_id,
+          pool_id: m.pool_id,
+          round_number: idx + 1,
+          red_registration_id: m.red_registration_id,
+          blue_registration_id: m.blue_registration_id,
+          red_name: m.red_name ?? '',
+          red_club_abbrev: m.red_club ?? null,
+          blue_name: m.blue_name ?? '',
+          blue_club_abbrev: m.blue_club ?? null,
+          red_score: m.red_score,
+          blue_score: m.blue_score,
+          status: m.status,
+          lice_id: m.lice_id,
+          referee_id: refereeMap.get(m.match_id) ?? null,
+          match_number_label: m.match_number_label,
+        })),
+      }),
+    );
+  }
 }

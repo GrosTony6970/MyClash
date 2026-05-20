@@ -83,6 +83,14 @@ export class PhasesController {
     return this.phases.listTournamentPools(tournamentId);
   }
 
+  /** GET /api/v1/tournaments/:tournamentId/pools-with-matches */
+  @Get('tournaments/:tournamentId/pools-with-matches')
+  @ApiOperation({ summary: 'List pools with enriched match rows for the Matches tab' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async listPoolsWithMatches(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.phases.listPoolsWithMatches(tournamentId);
+  }
+
   /** GET /api/v1/tournaments/:tournamentId/unassigned-fighters */
   @Get('tournaments/:tournamentId/unassigned-fighters')
   @ApiOperation({ summary: 'List tournament registrations not yet assigned to any pool' })
