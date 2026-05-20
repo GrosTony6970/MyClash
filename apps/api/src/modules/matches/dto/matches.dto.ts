@@ -211,3 +211,15 @@ export class LockMatchDto {
   @IsString()
   reason?: string;
 }
+
+export class UpdateMatchDto {
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  liceId?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  refereeId?: string | null;
+}

@@ -26,6 +26,7 @@ import {
   EditExchangeDto,
   LockMatchDto,
   ResetMatchDto,
+  UpdateMatchDto,
   UpdateMatchStatusDto,
   VoidExchangeDto,
 } from './dto/matches.dto';
@@ -89,6 +90,14 @@ export class MatchesController {
     @Body() dto: { liceId?: string | null; scheduledAt?: string | null },
   ) {
     return this.matches.scheduleMatch(id, dto.liceId ?? null, dto.scheduledAt ?? null);
+  }
+
+  @Patch('matches/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update lice and/or referee assignment for a match' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMatchDto) {
+    return this.matches.update(id, dto);
   }
 
   @Post('matches/:id/void')

@@ -11,6 +11,7 @@ import type {
   CreateMatchDto,
   EditExchangeDto,
   ResetMatchDto,
+  UpdateMatchDto,
   UpdateMatchStatusDto,
   VoidExchangeDto,
 } from './dto/matches.dto';
@@ -128,6 +129,26 @@ export class MatchesService {
     if (error) throw new BadRequestException(error.message);
     await this.notifications.scheduleMatchStarting(matchId);
     await this.followNotifications.scheduleMatchStarting(matchId);
+    return data;
+  }
+
+  async update(matchId: string, dto: UpdateMatchDto) {
+    const updates: Record<string, unknown> = {};
+    if (dto.liceId !== undefined) updates['lice_id'] = dto.liceId;
+    if (dto.refereeId !== undefined) updates['referee_id'] = dto.refereeId;
+    if (Object.keys(updates).length === 0) {
+      throw new BadRequestException('No fields to update');
+    }
+    updates['updated_at'] = new Date().toISOString();
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .update(updates)
+      .eq('id', matchId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
     return data;
   }
 
