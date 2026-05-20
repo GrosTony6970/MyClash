@@ -473,29 +473,48 @@ export default function AdminBackupsPage() {
                 </tr>
               </thead>
               <tbody>
-                {backups.map((backup) => (
-                  <tr key={backup.id} className="border-b border-slate-50 align-top">
-                    <td className="px-4 py-3 font-mono text-xs text-slate-800">
-                      {formatTimestamp(backup.timestamp)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <LocationBadges backup={backup} />
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {formatBytes(totalBackupSize(backup))}
-                    </td>
-                    <td className="px-4 py-3">
-                      <BackupActions
-                        backup={backup}
-                        apiUrl={apiUrl}
-                        busy={busy}
-                        onRestore={(location) => setPendingRestore({ backup, location })}
-                        onDelete={(location) => setPendingDelete({ backup, location })}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {backups.map((backup) => {
+                  const sizes = backupSizes(backup);
+                  return (
+                    <tr key={backup.id} className="border-b border-slate-50 align-top">
+                      <td className="px-4 py-3 font-mono text-xs text-slate-800">
+                        {formatTimestamp(backup.timestamp)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <LocationBadges backup={backup} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-800">{formatBytes(sizes.total)}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {t('admin.backups.dbSize', { size: formatBytes(sizes.db) })}
+                          {' · '}
+                          {t('admin.backups.storageSize', { size: formatBytes(sizes.storage) })}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <BackupActions
+                          backup={backup}
+                          apiUrl={apiUrl}
+                          busy={busy}
+                          onRestore={(location) => setPendingRestore({ backup, location })}
+                          onDelete={(location) => setPendingDelete({ backup, location })}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-200 bg-slate-50 text-sm font-medium text-slate-700">
+                  <td colSpan={3} className="px-4 py-3 text-right">
+                    {t('admin.backups.grandTotal', {
+                      count: backups.length,
+                      size: formatBytes(grandTotalSize(backups)),
+                    })}
+                  </td>
+                  <td className="px-4 py-3" />
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
@@ -682,12 +701,28 @@ function scheduleLabel(
   });
 }
 
-function totalBackupSize(backup: BackupSet): number {
-  return [
+/**
+ * Returns the size breakdown for a single backup set.
+ *
+ * Per-kind, take the max across locations: a backup that's mirrored locally
+ * AND in S3 stores the same artifact twice, but we report the disk footprint
+ * of the backup itself — not bytes-spent-across-every-location.
+ */
+function backupSizes(backup: BackupSet): { db: number; storage: number; total: number } {
+  const byKind: Record<'db' | 'storage', number> = { db: 0, storage: 0 };
+  const allArtifacts = [
     ...backup.local.artifacts,
     ...backup.cloud.artifacts,
     ...(backup.upload?.artifacts ?? []),
-  ].reduce((total, artifact) => total + artifact.sizeBytes, 0);
+  ];
+  for (const artifact of allArtifacts) {
+    byKind[artifact.kind] = Math.max(byKind[artifact.kind], artifact.sizeBytes);
+  }
+  return { db: byKind.db, storage: byKind.storage, total: byKind.db + byKind.storage };
+}
+
+function grandTotalSize(backups: BackupSet[]): number {
+  return backups.reduce((acc, backup) => acc + backupSizes(backup).total, 0);
 }
 
 function formatTimestamp(value: string): string {
@@ -708,7 +743,8 @@ function formatTimestamp(value: string): string {
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
-  return `${Math.round(value / 1024 / 1024)} MB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function ConfirmDialog({
