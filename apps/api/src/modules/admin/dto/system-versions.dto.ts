@@ -7,6 +7,12 @@ export interface SystemVersionComponentDto {
   version: string;
   source: SystemVersionSource;
   status?: SystemVersionStatus;
+  /**
+   * When true, the UI may render Start/Stop/Restart buttons for this row.
+   * The server validates the action separately on POST, so this is purely
+   * a display hint — the backend allowlist is authoritative.
+   */
+  restartable?: boolean;
 }
 
 export interface SystemVersionGroupDto {

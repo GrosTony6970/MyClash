@@ -73,6 +73,25 @@ const infrastructureServiceKeys: Record<string, string> = {
   'supabase-rest': 'postgrest',
 };
 
+/**
+ * UI keys for components that the admin UI may surface lifecycle buttons for.
+ * Mirrored by [`system-actions.service.ts`](./system-actions.service.ts) and
+ * by the ops-runner allowlist; the backend re-validates on POST so this is
+ * purely a display hint.
+ */
+const restartableKeys: ReadonlySet<string> = new Set([
+  'worker',
+  'web-admin',
+  'web-public',
+  'web-scoring',
+  'web-marketing',
+  'redis',
+  'supabaseAuth',
+  'supabaseRealtime',
+  'supabaseStorage',
+  'postgrest',
+]);
+
 @Injectable()
 export class AdminSystemVersionsService {
   private readonly logger = new Logger(AdminSystemVersionsService.name);
@@ -339,13 +358,15 @@ function component(
   source: SystemVersionSource,
 ): SystemVersionComponentDto {
   const version = valueOrUnknown(rawVersion);
-  return {
+  const result: SystemVersionComponentDto = {
     key,
     label,
     version,
     source,
     status: version === UNKNOWN ? 'unknown' : 'ok',
   };
+  if (restartableKeys.has(key)) result.restartable = true;
+  return result;
 }
 
 function dependencyVersion(manifest: PackageManifest | null, key: string): string {

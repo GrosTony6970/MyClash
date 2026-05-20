@@ -22,6 +22,7 @@ import { OrganizationsAdminController } from './organizations.controller';
 import { PlatformAISettingsController } from './platform-ai-settings.controller';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 import { RulesetsAdminController } from './rulesets.controller';
+import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
 import { UsersAdminController } from './users.controller';
@@ -52,6 +53,7 @@ import { UsersAdminController } from './users.controller';
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,
     { provide: AdminSystemVersionsService, useFactory: () => new AdminSystemVersionsService() },
+    AdminSystemActionsService,
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
     AIDataQualityService,

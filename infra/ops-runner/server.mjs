@@ -27,6 +27,31 @@ const operations = new Map();
 let backupSchedule = await readBackupSchedule(ROOT_DIR);
 let lastScheduledRunKey = null;
 
+// Allowlist of compose service names that may be controlled via the lifecycle
+// endpoints. Mirrored verbatim by the API's system-actions service for
+// defense in depth. Excludes: api (would kill the calling request), postgres
+// (data outage), traefik (lose HTTPS for the whole stack), ops-runner (lose
+// the channel that would restart anything else).
+const CONTAINER_ACTIONS = new Set(['start', 'stop', 'restart']);
+const RESTARTABLE_SERVICES = new Set([
+  'worker',
+  'web-admin',
+  'web-public',
+  'web-scoring',
+  'web-marketing',
+  'redis',
+  'supabase-auth',
+  'supabase-realtime',
+  'supabase-storage',
+  'supabase-rest',
+]);
+const COMPOSE_FLAGS = [
+  '--env-file',
+  path.join(ROOT_DIR, '.env'),
+  '-f',
+  'infra/docker-compose.prod.yml',
+];
+
 if (!SECRET) {
   console.error('OPS_RUNNER_SECRET is required');
   process.exit(1);
@@ -90,6 +115,14 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname.startsWith('/download/')) {
       await downloadBackup(url, res);
+      return;
+    }
+    const containerMatch = /^\/containers\/([A-Za-z0-9_-]+)\/(start|stop|restart)$/u.exec(
+      url.pathname,
+    );
+    if (req.method === 'POST' && containerMatch) {
+      const [, service, action] = containerMatch;
+      sendJson(res, 200, await runContainerAction(service, action));
       return;
     }
     sendJson(res, 404, { error: 'not_found' });
@@ -418,6 +451,66 @@ async function appendProcess(operation, command) {
 
 function runScript(args) {
   return Promise.resolve(['bash', ...args]);
+}
+
+/**
+ * Run a `docker compose <action> <service>` against the production compose
+ * file. Bounded to the RESTARTABLE_SERVICES allowlist; rejects everything
+ * else with 400/403. Times out after 30 s and returns the captured stdio.
+ */
+async function runContainerAction(service, action) {
+  if (!CONTAINER_ACTIONS.has(action)) {
+    return { ok: false, error: 'invalid_action' };
+  }
+  if (!RESTARTABLE_SERVICES.has(service)) {
+    return { ok: false, error: 'service_not_allowed' };
+  }
+  const result = await spawnCaptureWithTimeout(
+    'docker',
+    ['compose', ...COMPOSE_FLAGS, action, service],
+    30_000,
+  );
+  return {
+    ok: result.code === 0,
+    service,
+    action,
+    exitCode: result.code,
+    stdout: result.stdout.slice(-4000),
+    stderr: result.stderr.slice(-4000),
+    timedOut: result.timedOut ?? false,
+  };
+}
+
+/**
+ * Same shape as spawnCapture(), but kills the child after `timeoutMs` and
+ * surfaces a `timedOut: true` flag so callers can distinguish "process
+ * exited non-zero" from "we never heard back".
+ */
+async function spawnCaptureWithTimeout(command, args, timeoutMs) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { cwd: ROOT_DIR, env: process.env });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr, timedOut });
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ code: 1, stdout, stderr: error.message, timedOut });
+    });
+  });
 }
 
 async function spawnCapture(command, args) {
