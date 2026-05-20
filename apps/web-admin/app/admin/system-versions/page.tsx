@@ -3,6 +3,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
+/**
+ * Formats an ISO timestamp as a locale-aware "long date + short time" string
+ * (e.g. "19 May 2026, 14:23"). Returns the input untouched when it doesn't
+ * parse as a date — e.g. when `deployedAt` is "unknown" because the deploy
+ * manifest never ran.
+ */
+function formatDeployDate(value: string): string {
+  const ts = Date.parse(value);
+  if (Number.isNaN(ts)) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  }).format(new Date(ts));
+}
+
 type VersionSource = 'manifest' | 'package.json' | 'compose' | 'runtime' | 'deploy';
 type VersionStatus = 'ok' | 'unknown';
 
@@ -116,75 +131,102 @@ export default function AdminSystemVersionsPage() {
             {formatValue(versions.generatedAt, t('admin.systemVersions.unknown'))}
           </div>
           <div className="grid gap-5 xl:grid-cols-2">
-            {versions.groups.map((group) => (
-              <section
-                key={group.key}
-                className="border border-slate-200 rounded-lg overflow-hidden"
-              >
-                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                  <h2 className="text-base font-semibold text-gray-950">
-                    {translateWithFallback(
-                      t,
-                      `admin.systemVersions.groups.${group.key}`,
-                      group.label,
-                    )}
-                  </h2>
-                </div>
-                {group.components.length === 0 ? (
-                  <p className="px-4 py-4 text-sm text-slate-400">
-                    {t('admin.systemVersions.noComponents')}
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-100 text-left text-slate-500">
-                          <th className="py-2 px-4">{t('admin.systemVersions.component')}</th>
-                          <th className="py-2 px-4">{t('admin.systemVersions.version')}</th>
-                          <th className="py-2 px-4">{t('admin.systemVersions.source')}</th>
-                          <th className="py-2 px-4">{t('admin.systemVersions.status')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.components.map((component) => (
-                          <tr
-                            key={`${group.key}-${component.key}`}
-                            className="border-b border-slate-50 last:border-0"
-                          >
-                            <td className="py-2 px-4 text-slate-800">
-                              {translateWithFallback(
-                                t,
-                                `admin.systemVersions.components.${component.key}`,
-                                component.label,
-                              )}
-                            </td>
-                            <td className="py-2 px-4 font-mono text-xs text-slate-700">
-                              {formatValue(component.version, t('admin.systemVersions.unknown'))}
-                            </td>
-                            <td className="py-2 px-4">
-                              <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                                {component.source}
-                              </span>
-                            </td>
-                            <td className="py-2 px-4">
-                              <span
-                                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                                  component.status === 'unknown'
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-green-100 text-green-700'
-                                }`}
-                              >
-                                {t(`admin.systemVersions.statuses.${component.status ?? 'ok'}`)}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            {versions.groups.map((group) => {
+              // The "deploy" group is metadata (commit hash, date, backup file),
+              // not health signals — the status pill is always "ok" and adds noise,
+              // so we hide the column entirely on that group.
+              const showStatus = group.key !== 'deploy';
+              return (
+                <section
+                  key={group.key}
+                  className="border border-slate-200 rounded-lg overflow-hidden"
+                >
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                    <h2 className="text-base font-semibold text-gray-950">
+                      {translateWithFallback(
+                        t,
+                        `admin.systemVersions.groups.${group.key}`,
+                        group.label,
+                      )}
+                    </h2>
                   </div>
-                )}
-              </section>
-            ))}
+                  {group.components.length === 0 ? (
+                    <p className="px-4 py-4 text-sm text-slate-400">
+                      {t('admin.systemVersions.noComponents')}
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-left text-slate-500">
+                            <th className="py-2 px-4">{t('admin.systemVersions.component')}</th>
+                            <th className="py-2 px-4">{t('admin.systemVersions.version')}</th>
+                            <th className="py-2 px-4">{t('admin.systemVersions.source')}</th>
+                            {showStatus && (
+                              <th className="py-2 px-4">{t('admin.systemVersions.status')}</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.components.map((component) => {
+                            // In the deploy group, render `deployedAt` as a locale-aware
+                            // date instead of the raw ISO string from the manifest.
+                            const isDeployDate =
+                              group.key === 'deploy' && component.key === 'deployedAt';
+                            const displayValue = isDeployDate
+                              ? formatDeployDate(component.version)
+                              : formatValue(component.version, t('admin.systemVersions.unknown'));
+                            return (
+                              <tr
+                                key={`${group.key}-${component.key}`}
+                                className="border-b border-slate-50 last:border-0"
+                              >
+                                <td className="py-2 px-4 text-slate-800">
+                                  {translateWithFallback(
+                                    t,
+                                    `admin.systemVersions.components.${component.key}`,
+                                    component.label,
+                                  )}
+                                </td>
+                                <td
+                                  className={
+                                    isDeployDate
+                                      ? 'py-2 px-4 text-xs text-slate-700'
+                                      : 'py-2 px-4 font-mono text-xs text-slate-700'
+                                  }
+                                >
+                                  {displayValue}
+                                </td>
+                                <td className="py-2 px-4">
+                                  <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                    {component.source}
+                                  </span>
+                                </td>
+                                {showStatus && (
+                                  <td className="py-2 px-4">
+                                    <span
+                                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                        component.status === 'unknown'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-green-100 text-green-700'
+                                      }`}
+                                    >
+                                      {t(
+                                        `admin.systemVersions.statuses.${component.status ?? 'ok'}`,
+                                      )}
+                                    </span>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         </>
       ) : null}
