@@ -283,8 +283,7 @@ export class PhasesService {
    * Idempotent: returns 409 if an elim phase already exists, unless force=true.
    */
   async generateBracket(tournamentId: string, dto: GenerateBracketDto, force = false) {
-    const phaseType =
-      (dto as GenerateBracketDto & { phaseType?: string }).phaseType ?? 'single_elim';
+    const phaseType = dto.phaseType ?? 'single_elim';
     const isDoubleElim = phaseType === 'double_elim';
 
     // Check for existing elim phase

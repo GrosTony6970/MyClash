@@ -8,15 +8,23 @@ import { EventStatusTickerWorker } from './event-status-ticker.worker';
  * direction — our mocks model that fluent chain.
  */
 
-function makeUpdateChain(returnedIds: string[]) {
+interface UpdateChain {
+  update: ReturnType<typeof vi.fn>;
+  eq: ReturnType<typeof vi.fn>;
+  lte: ReturnType<typeof vi.fn>;
+  lt: ReturnType<typeof vi.fn>;
+  select: ReturnType<typeof vi.fn>;
+}
+
+function makeUpdateChain(returnedIds: string[]): UpdateChain {
   // Chains: from('events').update(...).eq(...).lte(...) | .lt(...) .select('id')
   // The terminal `.select('id')` resolves with the row payload.
-  const chain: Record<string, unknown> = {};
-  chain['update'] = vi.fn().mockReturnValue(chain);
-  chain['eq'] = vi.fn().mockReturnValue(chain);
-  chain['lte'] = vi.fn().mockReturnValue(chain);
-  chain['lt'] = vi.fn().mockReturnValue(chain);
-  chain['select'] = vi
+  const chain = {} as UpdateChain;
+  chain.update = vi.fn().mockReturnValue(chain);
+  chain.eq = vi.fn().mockReturnValue(chain);
+  chain.lte = vi.fn().mockReturnValue(chain);
+  chain.lt = vi.fn().mockReturnValue(chain);
+  chain.select = vi
     .fn()
     .mockResolvedValue({ data: returnedIds.map((id) => ({ id })), error: null });
   return chain;

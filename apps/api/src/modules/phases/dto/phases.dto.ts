@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class GeneratePoolsDto {
   /**
@@ -49,6 +49,26 @@ export class GeneratePoolsDto {
 }
 
 export class GenerateBracketDto {
+  /**
+   * Bracket format. `single_elim` (default) generates a single-elimination
+   * tree; `double_elim` adds a losers bracket plus optional grand-final
+   * reset. The phases.service consumes this to pick the right scheduler.
+   */
+  @ApiProperty({ required: false, enum: ['single_elim', 'double_elim'], default: 'single_elim' })
+  @IsOptional()
+  @IsIn(['single_elim', 'double_elim'])
+  phaseType?: 'single_elim' | 'double_elim';
+
+  /**
+   * Double-elim only: if true and the lower-bracket finalist beats the
+   * upper-bracket finalist in the grand final, run a "reset" match to
+   * decide the title. Ignored when phaseType is single_elim.
+   */
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  grandFinalReset?: boolean;
+
   /**
    * Number of fighters to qualify from pool phase (top N by standings).
    * Defaults to next power of 2 ≤ total pool finishers.
