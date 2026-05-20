@@ -255,11 +255,40 @@ describe('PhasesService', () => {
 
       const defaultChain = makeChain({ data: null, error: null });
 
+      // Trailing reads from the post-write getTournamentBracket() delegation.
+      // generateBracket now reads back the canonical shape so the response
+      // matches what GET /tournaments/:id/bracket returns.
+      const phaseReadChain = makeChain({ data: null, error: null });
+      phaseReadChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-new',
+          type: 'single_elim',
+          visibility_status: 'hidden',
+          config_json: {
+            bracketSize: 8,
+            fighterCount: 8,
+            byeCount: 0,
+            byeSeedCount: 0,
+            playInMatchCount: 0,
+            hasPlayInRound: false,
+            rounds: 3,
+          },
+        },
+        error: null,
+      });
+      const slotsReadChain = makeAwaitableChain({
+        data: Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, round: 0, position: i })),
+        error: null,
+      });
+
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
         .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValueOnce(defaultChain) // bracket_slots insert — no-op
+        .mockReturnValueOnce(phaseReadChain) // delegation read 1
+        .mockReturnValueOnce(slotsReadChain) // delegation read 2
         .mockReturnValue(defaultChain);
 
       const result = await service.generateBracket('tournament-1', {}, false);
@@ -270,6 +299,8 @@ describe('PhasesService', () => {
       expect((result as { rounds: number }).rounds).toBe(3);
       expect((result as { byeCount: number }).byeCount).toBe(0);
       expect((result as { totalSlots: number }).totalSlots).toBe(8); // 4+2+1+bronze
+      // New: the response now exposes the `slots` array the client renders.
+      expect((result as { slots: unknown[] }).slots).toHaveLength(8);
     });
 
     it('respects explicit bracketSize option', async () => {
@@ -289,11 +320,37 @@ describe('PhasesService', () => {
 
       const defaultChain = makeChain({ data: null, error: null });
 
+      const phaseReadChain = makeChain({ data: null, error: null });
+      phaseReadChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-new',
+          type: 'single_elim',
+          visibility_status: 'hidden',
+          config_json: {
+            bracketSize: 8,
+            fighterCount: 6,
+            byeCount: 2,
+            byeSeedCount: 2,
+            playInMatchCount: 0,
+            hasPlayInRound: false,
+            rounds: 3,
+          },
+        },
+        error: null,
+      });
+      const slotsReadChain = makeAwaitableChain({
+        data: Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, round: 0, position: i })),
+        error: null,
+      });
+
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
         .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValueOnce(defaultChain) // bracket_slots insert — no-op
+        .mockReturnValueOnce(phaseReadChain) // delegation read 1
+        .mockReturnValueOnce(slotsReadChain) // delegation read 2
         .mockReturnValue(defaultChain);
 
       const result = await service.generateBracket('tournament-1', { bracketSize: 8 }, false);
@@ -341,12 +398,39 @@ describe('PhasesService', () => {
       });
       const matchInsertChain = makeChain({ data: null, error: null });
 
+      // Trailing reads from the post-write getTournamentBracket() delegation.
+      const phaseReadChain = makeChain({ data: null, error: null });
+      phaseReadChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-new',
+          type: 'single_elim',
+          visibility_status: 'hidden',
+          config_json: {
+            bracketSize: 16,
+            mainBracketSize: 16,
+            fighterCount: 18,
+            byeCount: 14,
+            byeSeedCount: 14,
+            playInMatchCount: 2,
+            hasPlayInRound: true,
+            rounds: 4,
+          },
+        },
+        error: null,
+      });
+      const slotsReadChain = makeAwaitableChain({
+        data: Array.from({ length: 17 }, (_, i) => ({ id: `s${i}`, round: 0, position: i })),
+        error: null,
+      });
+
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(bracketSlotInsertChain)
-        .mockReturnValueOnce(matchInsertChain);
+        .mockReturnValueOnce(matchInsertChain)
+        .mockReturnValueOnce(phaseReadChain) // delegation read 1
+        .mockReturnValueOnce(slotsReadChain); // delegation read 2
 
       const result = await service.generateBracket('tournament-1', { qualifyCount: 18 }, false);
 

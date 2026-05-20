@@ -465,18 +465,11 @@ export class PhasesService {
       `Generated ${phaseType} bracket (size ${(configJson['bracketSize'] as number) ?? qualifyCount}, ${(configJson['byeCount'] as number) ?? 0} byes) for tournament ${tournamentId}`,
     );
 
-    return {
-      phaseId,
-      phaseType,
-      bracketSize: (configJson['bracketSize'] as number) ?? qualifyCount,
-      fighterCount: qualifyCount,
-      byeCount: (configJson['byeCount'] as number) ?? 0,
-      byeSeedCount: (configJson['byeSeedCount'] as number) ?? 0,
-      playInMatchCount: (configJson['playInMatchCount'] as number) ?? 0,
-      hasPlayInRound: (configJson['hasPlayInRound'] as boolean) ?? false,
-      rounds: summaryRounds,
-      totalSlots,
-    };
+    // Read back the canonical bracket so the response shape matches the GET
+    // endpoint (includes `slots`, `visibility`, `wbRounds`, etc.) — the bracket
+    // page renders <BracketView slots={bracket.slots} /> immediately after a
+    // successful POST, and a missing `slots` field crashes the render.
+    return this.getTournamentBracket(tournamentId);
   }
 
   private async createInitialBracketMatches(insertedSlots: unknown[]): Promise<void> {
