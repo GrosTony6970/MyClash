@@ -55,6 +55,9 @@ export type { StatusBadgeProps, StatusBadgeVariant } from './components/StatusBa
 export { FormField } from './components/FormField';
 export type { FormFieldProps } from './components/FormField';
 
+export { HelpTooltip } from './components/HelpTooltip';
+export type { HelpTooltipProps } from './components/HelpTooltip';
+
 // ── Phase 2: dialogs + toasts + focus trap ────────────────────────────────
 
 export { ConfirmDialog } from './components/ConfirmDialog';
