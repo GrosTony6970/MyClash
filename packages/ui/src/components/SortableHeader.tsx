@@ -1,0 +1,121 @@
+import * as React from 'react';
+
+/**
+ * Header cell content with a click-to-sort affordance for `<DataTableHead>`.
+ *
+ * Clicking cycles `null → asc → desc → null` so the operator can return to
+ * the API-returned order. The chevron is reserved-space (always laid out)
+ * but only visible on the active column — that keeps column widths stable
+ * across sort toggles.
+ */
+export interface SortableHeaderProps {
+  label: string;
+  columnKey: string;
+  currentKey: string | null;
+  direction: 'asc' | 'desc' | null;
+  onToggle: (columnKey: string) => void;
+  /** Accessible label for the sort button — passed to aria-label. */
+  ariaSortAsc?: string;
+  ariaSortDesc?: string;
+  className?: string;
+}
+
+export const SortableHeader: React.FC<SortableHeaderProps> = ({
+  label,
+  columnKey,
+  currentKey,
+  direction,
+  onToggle,
+  ariaSortAsc = 'Sort ascending',
+  ariaSortDesc = 'Sort descending',
+  className = '',
+}) => {
+  const active = currentKey === columnKey && direction !== null;
+  const ariaSort = active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none';
+  const nextLabel = direction === 'asc' && active ? ariaSortDesc : ariaSortAsc;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(columnKey)}
+      aria-sort={ariaSort}
+      aria-label={`${label} — ${nextLabel}`}
+      className={[
+        'inline-flex w-full items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+        active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700',
+        className,
+      ].join(' ')}
+    >
+      <span>{label}</span>
+      <SortChevron active={active} direction={direction} />
+    </button>
+  );
+};
+
+const SortChevron: React.FC<{ active: boolean; direction: 'asc' | 'desc' | null }> = ({
+  active,
+  direction,
+}) => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 10 14"
+    width="10"
+    height="14"
+    className={[
+      'shrink-0 transition-opacity',
+      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-40',
+    ].join(' ')}
+  >
+    <path d={direction === 'desc' ? 'M5 13 L1 6 L9 6 Z' : 'M5 1 L9 8 L1 8 Z'} fill="currentColor" />
+  </svg>
+);
+
+/**
+ * Stable, locale-aware sort over an in-memory list.
+ *
+ * Returns the original array (reference-equal) when no sort is active so
+ * consumers can rely on identity for downstream memoization.
+ */
+export function sortRows<T>(
+  rows: readonly T[],
+  sortKey: string | null,
+  direction: 'asc' | 'desc' | null,
+  getValue: (row: T, key: string) => unknown,
+): readonly T[] {
+  if (!sortKey || !direction) return rows;
+  const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+  const indexed = rows.map((row, index) => ({ row, index }));
+  indexed.sort((a, b) => {
+    const va = getValue(a.row, sortKey);
+    const vb = getValue(b.row, sortKey);
+    const cmp = compareValues(va, vb, collator);
+    if (cmp !== 0) return direction === 'asc' ? cmp : -cmp;
+    return a.index - b.index;
+  });
+  return indexed.map((entry) => entry.row);
+}
+
+function compareValues(a: unknown, b: unknown, collator: Intl.Collator): number {
+  const aMissing = a === null || a === undefined || a === '';
+  const bMissing = b === null || b === undefined || b === '';
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  if (a instanceof Date && b instanceof Date) return a.getTime() - b.getTime();
+  return collator.compare(String(a), String(b));
+}
+
+/**
+ * `[sortKey, direction]` cycler that pairs with `<SortableHeader>`'s
+ * `onToggle`. Cycle: null → asc → desc → null.
+ */
+export function nextSortState(
+  currentKey: string | null,
+  currentDir: 'asc' | 'desc' | null,
+  columnKey: string,
+): { key: string | null; direction: 'asc' | 'desc' | null } {
+  if (currentKey !== columnKey) return { key: columnKey, direction: 'asc' };
+  if (currentDir === 'asc') return { key: columnKey, direction: 'desc' };
+  return { key: null, direction: null };
+}

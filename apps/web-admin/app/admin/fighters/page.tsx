@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { SortableHeader, useSortableList } from '@myclash/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -171,12 +172,23 @@ export default function AdminFightersPage() {
   const [personsLoading, setPersonsLoading] = useState(false);
   const [personsError, setPersonsError] = useState<string | null>(null);
 
-  async function searchPersons(q: string) {
+  async function searchPersons(q: string, signal?: AbortSignal) {
     setPersonsLoading(true);
     setPersonsError(null);
-    const res = await fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(q.trim())}`, {
-      credentials: 'include',
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(q.trim())}`, {
+        credentials: 'include',
+        signal,
+      });
+    } catch (err) {
+      // Aborted by a newer keystroke — stay in the loading state of the
+      // newer request rather than overwriting it with an error.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setPersonsLoading(false);
+      setPersonsError(t('admin.globalProfiles.loadError'));
+      return;
+    }
     setPersonsLoading(false);
     if (res.ok) {
       setPersons((await res.json()) as FighterRow[]);
@@ -185,33 +197,20 @@ export default function AdminFightersPage() {
     setPersonsError(await readErrorMessage(res, t('admin.globalProfiles.loadError')));
   }
 
+  // Debounced server-side search: fire `q=...` ~250 ms after each keystroke
+  // settles. An AbortController cancels the in-flight request when the
+  // operator keeps typing — see searchPersons above.
   useEffect(() => {
     const controller = new AbortController();
-
-    Promise.resolve()
-      .then(() => {
-        setPersonsLoading(true);
-        return fetch(`${apiUrl}/api/v1/global-persons?q=`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-      })
-      .then(async (res) => {
-        if (!res.ok)
-          throw new Error(await readErrorMessage(res, t('admin.globalProfiles.loadError')));
-        setPersons((await res.json()) as FighterRow[]);
-        setPersonsError(null);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setPersons([]);
-          setPersonsError(err instanceof Error ? err.message : t('admin.globalProfiles.loadError'));
-        }
-      })
-      .finally(() => setPersonsLoading(false));
-
-    return () => controller.abort();
-  }, [apiUrl]);
+    const handle = setTimeout(() => {
+      void searchPersons(personQuery, controller.signal);
+    }, 250);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchPersons is stable
+  }, [personQuery, apiUrl]);
 
   // ── Create profile ───────────────────────────────────────────────────────────
   const [form, setForm] = useState<ProfileForm>(emptyProfileForm);
@@ -462,6 +461,32 @@ export default function AdminFightersPage() {
     setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.revertFailed')));
   }
 
+  // ── Sort over the current persons result set ─────────────────────────────
+  // Sort runs on whatever the server returned for the active query — i.e. it
+  // re-orders the visible page-level result set, not the underlying dataset.
+  const getPersonSortValue = useCallback((row: FighterRow, key: string): unknown => {
+    switch (key) {
+      case 'givenName':
+        return row.given_name;
+      case 'familyName':
+        return row.family_name;
+      case 'displayName':
+        return row.display_name;
+      case 'club':
+        return row.clubs?.name ?? '';
+      case 'hemaRatingsId':
+        return row.hema_ratings_id ?? '';
+      default:
+        return null;
+    }
+  }, []);
+  const {
+    sorted: sortedPersons,
+    sortKey: personSortKey,
+    direction: personSortDir,
+    toggle: togglePersonSort,
+  } = useSortableList(persons, getPersonSortValue);
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -521,37 +546,57 @@ export default function AdminFightersPage() {
               </button>
             </div>
           )}
-          <div className="flex gap-2 mb-4">
+          {/* Live debounced server-side search — query fires ~250 ms after typing stops. */}
+          <div className="mb-4 flex items-center gap-2">
             <input
               value={personQuery}
               onChange={(e) => setPersonQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void searchPersons(personQuery);
-              }}
               placeholder={t('admin.globalProfiles.searchByName')}
-              className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-72"
+              className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
             />
-            <button
-              onClick={() => void searchPersons(personQuery)}
-              disabled={personsLoading}
-              className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-            >
-              {t('admin.globalProfiles.searchAction')}
-            </button>
+            {personQuery && (
+              <button
+                type="button"
+                onClick={() => setPersonQuery('')}
+                className="px-2 text-sm text-slate-500 hover:text-slate-700"
+              >
+                {t('actions.clear')}
+              </button>
+            )}
           </div>
           <div className="overflow-x-auto border border-slate-200 rounded-lg">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
-                  <th className="py-3 px-4">{t('admin.globalProfiles.colName')}</th>
-                  <th className="py-3 px-4">{t('admin.globalProfiles.colClub')}</th>
+                  <th className="py-3 px-4">
+                    <SortableHeader
+                      label={t('admin.globalProfiles.colName')}
+                      columnKey="displayName"
+                      currentKey={personSortKey}
+                      direction={personSortDir}
+                      onToggle={togglePersonSort}
+                      ariaSortAsc={t('admin.common.sortAscLabel')}
+                      ariaSortDesc={t('admin.common.sortDescLabel')}
+                    />
+                  </th>
+                  <th className="py-3 px-4">
+                    <SortableHeader
+                      label={t('admin.globalProfiles.colClub')}
+                      columnKey="club"
+                      currentKey={personSortKey}
+                      direction={personSortDir}
+                      onToggle={togglePersonSort}
+                      ariaSortAsc={t('admin.common.sortAscLabel')}
+                      ariaSortDesc={t('admin.common.sortDescLabel')}
+                    />
+                  </th>
                   <th className="py-3 px-4">{t('admin.globalProfiles.colRoles')}</th>
                   <th className="py-3 px-4">{t('admin.globalProfiles.colCountry')}</th>
                   <th className="py-3 px-4">{t('admin.globalProfiles.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
-                {persons.length === 0 && (
+                {sortedPersons.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">
                       {personsLoading
@@ -560,7 +605,7 @@ export default function AdminFightersPage() {
                     </td>
                   </tr>
                 )}
-                {persons.map((p) => (
+                {sortedPersons.map((p) => (
                   <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="py-2.5 px-4">
                       <p className="font-medium text-slate-900">{p.display_name}</p>

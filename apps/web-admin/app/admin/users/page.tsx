@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   AdminPageHeader,
   Button,
   ConfirmDialog,
+  SortableHeader,
+  fuzzyMatch,
   rowActionClasses,
+  useSortableList,
   useToast,
   type RowActionVariant,
 } from '@myclash/ui';
@@ -113,6 +116,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [search, setSearch] = useState('');
   const [createEmail, setCreateEmail] = useState('');
   const [createDisplayName, setCreateDisplayName] = useState('');
   const [createSuperAdmin, setCreateSuperAdmin] = useState(false);
@@ -257,8 +261,48 @@ export default function AdminUsersPage() {
     }
   }
 
+  // ── Live fuzzy filter + sort ─────────────────────────────────────────────
+  // The page already loads the first 100 rows on mount. Filter + sort both
+  // run client-side on whatever the API returned.
+  const filteredUsers = useMemo(() => {
+    if (!search.trim()) return users;
+    return users.filter((user) =>
+      fuzzyMatch(
+        search,
+        [
+          user.display_name ?? '',
+          user.email ?? '',
+          user.id,
+          (user.organizations ?? []).map((org) => `${org.name} ${org.role}`).join(' '),
+        ]
+          .filter(Boolean)
+          .join(' '),
+      ),
+    );
+  }, [users, search]);
+  const getUserSortValue = useCallback((row: AdminUser, key: string): unknown => {
+    switch (key) {
+      case 'displayName':
+        return row.display_name ?? '';
+      case 'email':
+        return row.email ?? '';
+      case 'created':
+        return row.created_at ?? null;
+      case 'lastSignIn':
+        return row.last_sign_in_at ?? null;
+      default:
+        return null;
+    }
+  }, []);
+  const {
+    sorted: visibleUsers,
+    sortKey,
+    direction,
+    toggle,
+  } = useSortableList(filteredUsers, getUserSortValue);
+
   return (
-    <main id="main-content" className="mx-auto max-w-7xl space-y-6 px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full space-y-6 px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.dashboard.eyebrow')}
         title={t('admin.users.title')}
@@ -350,6 +394,25 @@ export default function AdminUsersPage() {
         </div>
       )}
 
+      <div className="flex items-center gap-2">
+        <input
+          aria-label={t('admin.common.searchPlaceholder')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('admin.common.searchPlaceholder')}
+          className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="px-2 text-sm text-slate-500 hover:text-slate-700"
+          >
+            {t('actions.clear')}
+          </button>
+        )}
+      </div>
+
       {loading ? (
         <p className="text-sm text-slate-500">{t('admin.users.loading')}</p>
       ) : users.length === 0 ? (
@@ -359,18 +422,58 @@ export default function AdminUsersPage() {
           <table className="w-full min-w-[980px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                <th className="px-4 py-3">{t('admin.users.table.displayName')}</th>
-                <th className="px-4 py-3">{t('admin.users.table.email')}</th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label={t('admin.users.table.displayName')}
+                    columnKey="displayName"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label={t('admin.users.table.email')}
+                    columnKey="email"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
                 <th className="px-4 py-3">{t('admin.users.table.organizations')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.userId')}</th>
-                <th className="px-4 py-3">{t('admin.users.table.created')}</th>
-                <th className="px-4 py-3">{t('admin.users.table.lastSignIn')}</th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label={t('admin.users.table.created')}
+                    columnKey="created"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label={t('admin.users.table.lastSignIn')}
+                    columnKey="lastSignIn"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
                 <th className="px-4 py-3">{t('admin.users.table.status')}</th>
                 <th className="px-4 py-3">{t('admin.users.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
+              {visibleUsers.map((user) => {
                 const disabled = isDisabled(user);
                 return (
                   <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50">

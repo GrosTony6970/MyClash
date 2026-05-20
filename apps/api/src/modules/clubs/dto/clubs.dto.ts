@@ -148,3 +148,23 @@ export class BulkClubIdsDto {
   @IsUUID('all', { each: true })
   ids!: string[];
 }
+
+/**
+ * Body shape for `POST /clubs/bulk-update`. Only the fields that make sense
+ * to apply across many clubs are exposed: `city` and `countryCode`. Either
+ * (but not both) may be omitted; if both are absent the service rejects with
+ * `BadRequestException('No fields to update')`.
+ */
+export class BulkClubUpdateDto extends BulkClubIdsDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  countryCode?: string;
+}

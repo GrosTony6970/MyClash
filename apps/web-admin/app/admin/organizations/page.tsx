@@ -7,8 +7,10 @@ import {
   Button,
   ConfirmDialog,
   RowActionButton,
+  SortableHeader,
   rowActionClasses,
   StatusBadge,
+  useSortableList,
   useToast,
 } from '@myclash/ui';
 import { useUrlState } from '../../../src/hooks/useUrlState';
@@ -48,8 +50,6 @@ interface CreateOrganizationResult {
   magicLinkSent: boolean;
 }
 
-type SortField = 'name' | 'created_at' | 'member_count' | 'event_count';
-
 function slugify(value: string) {
   return value
     .normalize('NFD')
@@ -73,8 +73,6 @@ export default function AdminOrganizationsPage() {
     'status',
     'all',
   );
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [refreshKey, setRefreshKey] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -152,11 +150,10 @@ export default function AdminOrganizationsPage() {
     const params = new URLSearchParams();
     if (search) params.set('q', search);
     if (statusFilter !== 'all') params.set('status', statusFilter);
-    params.set(
-      'sortBy',
-      sortField === 'member_count' || sortField === 'event_count' ? 'created_at' : sortField,
-    );
-    params.set('order', sortOrder);
+    // Column sorting now runs client-side via `useSortableList` — the server
+    // returns the default (created_at desc) order and we re-sort in memory.
+    params.set('sortBy', 'created_at');
+    params.set('order', 'desc');
 
     const controller = new AbortController();
 
@@ -190,7 +187,7 @@ export default function AdminOrganizationsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [apiUrl, search, statusFilter, sortField, sortOrder, refreshKey, t]);
+  }, [apiUrl, search, statusFilter, refreshKey, t]);
 
   async function handleCreateSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -271,20 +268,29 @@ export default function AdminOrganizationsPage() {
     }
   }
 
-  function toggleSort(field: SortField) {
-    if (sortField === field) {
-      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortOrder('desc');
+  const getOrgSortValue = useCallback((row: OrgListItem, key: string): unknown => {
+    switch (key) {
+      case 'name':
+        return row.name;
+      case 'slug':
+        return row.slug;
+      case 'status':
+        return row.status;
+      case 'created':
+        return row.created_at;
+      default:
+        return null;
     }
-  }
-
-  const sortIcon = (field: SortField) =>
-    sortField === field ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
+  }, []);
+  const {
+    sorted: visibleOrgs,
+    sortKey,
+    direction,
+    toggle,
+  } = useSortableList(orgs, getOrgSortValue);
 
   return (
-    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.organizations.eyebrow')}
         title={t('admin.organizations.title')}
@@ -589,41 +595,47 @@ export default function AdminOrganizationsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-500">
-                <th
-                  className="cursor-pointer py-2 pr-4 pl-4 hover:text-slate-800"
-                  onClick={() => toggleSort('name')}
-                >
-                  {t('admin.organizations.table.name')}
-                  {sortIcon('name')}
+                <th className="py-2 pr-4 pl-4">
+                  <SortableHeader
+                    label={t('admin.organizations.table.name')}
+                    columnKey="name"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
                 </th>
                 <th className="py-2 pr-4">{t('admin.organizations.table.owner')}</th>
-                <th
-                  className="cursor-pointer py-2 pr-4 hover:text-slate-800"
-                  onClick={() => toggleSort('member_count')}
-                >
-                  {t('admin.organizations.table.members')}
-                  {sortIcon('member_count')}
+                <th className="py-2 pr-4">{t('admin.organizations.table.members')}</th>
+                <th className="py-2 pr-4">{t('admin.organizations.table.events')}</th>
+                <th className="py-2 pr-4">
+                  <SortableHeader
+                    label={t('admin.organizations.table.status')}
+                    columnKey="status"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
                 </th>
-                <th
-                  className="cursor-pointer py-2 pr-4 hover:text-slate-800"
-                  onClick={() => toggleSort('event_count')}
-                >
-                  {t('admin.organizations.table.events')}
-                  {sortIcon('event_count')}
-                </th>
-                <th className="py-2 pr-4">{t('admin.organizations.table.status')}</th>
-                <th
-                  className="cursor-pointer py-2 pr-4 hover:text-slate-800"
-                  onClick={() => toggleSort('created_at')}
-                >
-                  {t('admin.organizations.table.created')}
-                  {sortIcon('created_at')}
+                <th className="py-2 pr-4">
+                  <SortableHeader
+                    label={t('admin.organizations.table.created')}
+                    columnKey="created"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
                 </th>
                 <th className="py-2">{t('admin.organizations.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
-              {orgs.map((org) => (
+              {visibleOrgs.map((org) => (
                 <tr key={org.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-2 pr-4 pl-4">
                     <Link

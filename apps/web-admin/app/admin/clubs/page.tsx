@@ -6,10 +6,13 @@ import {
   BulkActionBar,
   ConfirmDialog,
   RowActionButton,
+  SortableHeader,
+  fuzzyMatch,
   useSelection,
+  useSortableList,
   useToast,
 } from '@myclash/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface ClubRow {
   id: string;
@@ -32,7 +35,7 @@ function formatAddedDate(value: string | null): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(ts));
 }
 
-type BulkAction = 'verify' | 'unverify' | 'archive' | 'delete';
+type BulkAction = 'verify' | 'unverify' | 'archive' | 'delete' | 'cleanup-delete';
 
 interface ClubReviewRequest {
   id: string;
@@ -106,6 +109,7 @@ export default function AdminClubsPage() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [createState, setCreateState] = useState<CreateState>(emptyCreateState);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
@@ -130,9 +134,17 @@ export default function AdminClubsPage() {
   // Per-row verify/unverify busy flag (separate from delete busy so the two
   // can't collide when an operator chains operations on the same row).
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  // Bulk-edit modal state — `city` / `country` form fields.
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditCity, setBulkEditCity] = useState('');
+  const [bulkEditCountry, setBulkEditCountry] = useState('');
 
   const fetchClubs = useCallback(
     async (q: string, signal?: AbortSignal) => {
+      // We deliberately load every club once on mount and filter client-side
+      // (see the live fuzzy filter below). When `q` is provided the server
+      // still does a server-side narrow — used by the review-request link
+      // search, which needs broader matches than the on-page filter.
       const params = new URLSearchParams();
       if (q.trim()) {
         params.set('q', q.trim());
@@ -148,6 +160,18 @@ export default function AdminClubsPage() {
     },
     [apiUrl],
   );
+
+  const refreshClubs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setClubs(await fetchClubs(''));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('common.error'));
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchClubs]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -211,17 +235,43 @@ export default function AdminClubsPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [lightboxClub]);
 
-  async function search(q: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      setClubs(await fetchClubs(q));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('common.error'));
-    } finally {
-      setLoading(false);
+  // ── Live fuzzy filter + locale-aware sort ───────────────────────────────
+  // Order matters: filter first (cheap rejection on the haystack), then sort.
+  // Selection survives across filters — a row that was selected but is hidden
+  // by the current query still counts toward `selection.count` and reappears
+  // when the operator clears the search.
+  const filteredClubs = useMemo(() => {
+    if (!query.trim()) return clubs;
+    return clubs.filter((club) =>
+      fuzzyMatch(
+        query,
+        [club.name, club.abbreviation ?? '', club.city ?? '', club.country_code ?? '']
+          .filter(Boolean)
+          .join(' '),
+      ),
+    );
+  }, [clubs, query]);
+
+  const getClubSortValue = useCallback((row: ClubRow, key: string): unknown => {
+    switch (key) {
+      case 'name':
+        return row.name;
+      case 'city':
+        return row.city;
+      case 'country':
+        return row.country_code;
+      case 'createdAt':
+        return row.created_at;
+      default:
+        return null;
     }
-  }
+  }, []);
+  const {
+    sorted: visibleClubs,
+    sortKey,
+    direction,
+    toggle,
+  } = useSortableList(filteredClubs, getClubSortValue);
 
   function startEdit(club: ClubRow) {
     setEditingId(club.id);
@@ -425,7 +475,7 @@ export default function AdminClubsPage() {
     }
   }
 
-  async function createClub() {
+  async function createClub(): Promise<boolean> {
     setCreating(true);
     setError(null);
     setCreateSuccess(null);
@@ -466,8 +516,10 @@ export default function AdminClubsPage() {
       setCreateState(emptyCreateState);
       updateLogoPreview(null);
       setCreateSuccess(t('admin.clubs.createSuccess', { club: created.name }));
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.clubs.createError'));
+      return false;
     } finally {
       setCreating(false);
     }
@@ -550,21 +602,14 @@ export default function AdminClubsPage() {
     }
   }
 
-  // ── Bulk verify / unverify / archive / safe-delete ────────────────────
+  // ── Bulk verify / unverify / archive / safe-delete / cleanup-delete ────
   async function runBulk(action: BulkAction) {
     const ids = Array.from(selection.selected);
     if (ids.length === 0) return;
     setBulkBusy(true);
     setError(null);
     try {
-      const route =
-        action === 'verify'
-          ? 'bulk-verify'
-          : action === 'unverify'
-            ? 'bulk-unverify'
-            : action === 'archive'
-              ? 'bulk-archive'
-              : 'bulk-delete';
+      const route = bulkRoute(action);
       const res = await fetch(`${apiUrl}/api/v1/clubs/${route}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -582,15 +627,7 @@ export default function AdminClubsPage() {
       };
 
       if (result.failed === 0) {
-        const successKey =
-          action === 'verify'
-            ? 'admin.clubs.bulkVerifySuccess'
-            : action === 'unverify'
-              ? 'admin.clubs.bulkUnverifySuccess'
-              : action === 'archive'
-                ? 'admin.clubs.bulkArchiveSuccess'
-                : 'admin.clubs.bulkDeleteSuccess';
-        toast.success(t(successKey, { count: String(result.succeeded) }));
+        toast.success(t(bulkSuccessKey(action), { count: String(result.succeeded) }));
       } else {
         toast.warning(
           t('admin.clubs.bulkPartial', {
@@ -601,13 +638,73 @@ export default function AdminClubsPage() {
       }
       selection.clear();
       setPendingBulk(null);
-      void search(query);
+      void refreshClubs();
     } catch (err) {
       const message = err instanceof Error ? err.message : t('admin.clubs.deleteError');
       toast.error(message);
     } finally {
       setBulkBusy(false);
     }
+  }
+
+  // Apply city / country across the selected clubs via POST /clubs/bulk-update.
+  async function runBulkEdit() {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    const city = bulkEditCity.trim();
+    const country = bulkEditCountry.trim();
+    if (!city && !country) {
+      toast.error(t('admin.clubs.bulkEditNoFields'));
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/clubs/bulk-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ids,
+          city: city || undefined,
+          countryCode: country || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? t('admin.clubs.deleteError'));
+      }
+      const result = (await res.json()) as {
+        succeeded: number;
+        failed: number;
+        errors: { id: string; message: string }[];
+      };
+      if (result.failed === 0) {
+        toast.success(t('admin.clubs.bulkEditSuccess', { count: String(result.succeeded) }));
+      } else {
+        toast.warning(
+          t('admin.clubs.bulkPartial', {
+            succeeded: String(result.succeeded),
+            failed: String(result.failed),
+          }),
+        );
+      }
+      selection.clear();
+      setShowBulkEditModal(false);
+      setBulkEditCity('');
+      setBulkEditCountry('');
+      void refreshClubs();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('admin.clubs.deleteError'));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  // Modal wrapper around `createClub()` — closes the modal on success;
+  // leaves it open on failure so the operator can fix the input and retry.
+  async function createClubFromModal() {
+    const ok = await createClub();
+    if (ok) setShowCreateModal(false);
   }
 
   async function refreshRequests() {
@@ -637,7 +734,7 @@ export default function AdminClubsPage() {
         throw new Error(data.message ?? t('admin.clubs.reviewError'));
       }
       await refreshRequests();
-      await search(query);
+      await refreshClubs();
       setCreateSuccess(
         action === 'approve' ? t('admin.clubs.requestApproved') : t('admin.clubs.requestRejected'),
       );
@@ -676,7 +773,7 @@ export default function AdminClubsPage() {
         throw new Error(data.message ?? t('admin.clubs.reviewError'));
       }
       await refreshRequests();
-      await search(query);
+      await refreshClubs();
       setCreateSuccess(t('admin.clubs.requestLinked'));
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.clubs.reviewError'));
@@ -686,11 +783,20 @@ export default function AdminClubsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Clubs"
         title={t('admin.clubs.title')}
         subtitle={t('admin.clubs.description')}
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900"
+          >
+            + {t('admin.clubs.create')}
+          </button>
+        }
       />
 
       {error && (
@@ -698,7 +804,7 @@ export default function AdminClubsPage() {
           <span>{error}</span>
           <button
             type="button"
-            onClick={() => void search(query)}
+            onClick={() => void refreshClubs()}
             className="w-fit rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
           >
             {t('actions.retry')}
@@ -823,129 +929,21 @@ export default function AdminClubsPage() {
         )}
       </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
-        <div className="mb-3">
-          <h2 className="text-base font-semibold text-slate-900">{t('admin.clubs.createTitle')}</h2>
-          <p className="text-xs text-slate-500">{t('admin.clubs.createDescription')}</p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.clubs.name')} *
-            <input
-              value={createState.name}
-              onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.clubs.abbreviation')}
-            <input
-              value={createState.abbreviation}
-              onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
-              maxLength={20}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.clubs.city')}
-            <input
-              value={createState.city}
-              onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.clubs.country')}
-            <input
-              value={createState.country_code}
-              onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
-              maxLength={100}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.clubs.website')}
-            <input
-              value={createState.website}
-              onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.clubs.logoUrl')}
-            <input
-              value={createState.logoUrl}
-              onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-          </label>
-          <label className="text-xs font-medium text-slate-600 md:col-span-2">
-            {t('admin.clubs.logoUpload')}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
-              className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-red-800/30"
-            />
-            <span className="mt-1 block text-[11px] font-normal text-slate-500">
-              {t('admin.clubs.logoHelp')}
-            </span>
-          </label>
-          {logoPreviewUrl && (
-            <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:col-span-1">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoPreviewUrl}
-                alt={t('admin.clubs.logoPreviewAlt')}
-                className="h-12 w-12 rounded-md border border-slate-200 bg-white object-contain"
-              />
-              <button
-                type="button"
-                onClick={() => handleLogoFile(null)}
-                className="text-xs font-semibold text-slate-600 hover:text-slate-900"
-              >
-                {t('actions.clear')}
-              </button>
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => void createClub()}
-          disabled={creating || !createState.name.trim()}
-          className="mt-4 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
-        >
-          {creating ? t('admin.clubs.creating') : t('admin.clubs.create')}
-        </button>
-      </section>
-
-      {/* Search */}
-      <div className="flex gap-2 mb-6">
+      {/* Search — live client-side fuzzy filter across name / abbreviation / city / country */}
+      <div className="mb-6 flex items-center gap-2">
         <input
           id="admin-clubs-search"
           aria-label={t('admin.clubs.searchLabel')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void search(query);
-          }}
           placeholder={t('admin.clubs.searchPlaceholder')}
-          className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-72"
+          className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
         />
-        <button
-          onClick={() => void search(query)}
-          disabled={loading}
-          className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-        >
-          {t('actions.search')}
-        </button>
         {query && (
           <button
-            onClick={() => {
-              setQuery('');
-              void search('');
-            }}
-            className="text-sm text-slate-500 hover:text-slate-700 px-2"
+            type="button"
+            onClick={() => setQuery('')}
+            className="px-2 text-sm text-slate-500 hover:text-slate-700"
           >
             {t('actions.clear')}
           </button>
@@ -961,30 +959,72 @@ export default function AdminClubsPage() {
                 <input
                   type="checkbox"
                   aria-label={t('admin.clubs.selectAll')}
-                  checked={clubs.length > 0 && clubs.every((c) => selection.has(c.id))}
-                  onChange={() => selection.toggleAll(clubs.map((c) => c.id))}
+                  checked={
+                    visibleClubs.length > 0 && visibleClubs.every((c) => selection.has(c.id))
+                  }
+                  onChange={() => selection.toggleAll(visibleClubs.map((c) => c.id))}
                   className="h-4 w-4 cursor-pointer rounded border-slate-300 text-red-800 focus:ring-2 focus:ring-red-800/30"
                 />
               </th>
               <th className="py-3 px-4 w-20">{t('admin.clubs.logo')}</th>
-              <th className="py-3 px-4">{t('admin.clubs.name')}</th>
+              <th className="py-3 px-4">
+                <SortableHeader
+                  label={t('admin.clubs.name')}
+                  columnKey="name"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
               <th className="py-3 px-4">{t('admin.clubs.abbreviation')}</th>
-              <th className="py-3 px-4">{t('admin.clubs.city')}</th>
-              <th className="py-3 px-4">{t('admin.clubs.country')}</th>
-              <th className="py-3 px-4">{t('admin.clubs.createdAt')}</th>
+              <th className="py-3 px-4">
+                <SortableHeader
+                  label={t('admin.clubs.city')}
+                  columnKey="city"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
+              <th className="py-3 px-4">
+                <SortableHeader
+                  label={t('admin.clubs.country')}
+                  columnKey="country"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
+              <th className="py-3 px-4">
+                <SortableHeader
+                  label={t('admin.clubs.createdAt')}
+                  columnKey="createdAt"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
               <th className="py-3 px-4">{t('admin.clubs.status')}</th>
               <th className="py-3 px-4">{t('admin.clubs.actions')}</th>
             </tr>
           </thead>
           <tbody>
-            {clubs.length === 0 && (
+            {visibleClubs.length === 0 && (
               <tr>
                 <td colSpan={9} className="py-8 text-center text-slate-400 text-sm">
                   {loading ? t('common.loading') : t('admin.clubs.empty')}
                 </td>
               </tr>
             )}
-            {clubs.map((club) =>
+            {visibleClubs.map((club) =>
               editingId === club.id ? (
                 <tr key={club.id} className="border-b border-slate-100 bg-amber-50">
                   <td className="px-4 py-2" />
@@ -1160,9 +1200,9 @@ export default function AdminClubsPage() {
         </table>
       </div>
 
-      {clubs.length > 0 && (
+      {visibleClubs.length > 0 && (
         <p className="text-xs text-slate-400 mt-2">
-          {t('admin.clubs.count', { count: clubs.length })}
+          {t('admin.clubs.count', { count: visibleClubs.length })}
         </p>
       )}
 
@@ -1250,53 +1290,209 @@ export default function AdminClubsPage() {
 
       <ConfirmDialog
         open={pendingBulk !== null}
-        title={
-          pendingBulk
-            ? t(
-                pendingBulk === 'verify'
-                  ? 'admin.clubs.bulkVerifyTitle'
-                  : pendingBulk === 'unverify'
-                    ? 'admin.clubs.bulkUnverifyTitle'
-                    : pendingBulk === 'archive'
-                      ? 'admin.clubs.bulkArchiveTitle'
-                      : 'admin.clubs.bulkDeleteTitle',
-              )
-            : ''
-        }
+        title={pendingBulk ? t(bulkTitleKey(pendingBulk)) : ''}
         description={
-          pendingBulk
-            ? t(
-                pendingBulk === 'verify'
-                  ? 'admin.clubs.bulkVerifyConfirm'
-                  : pendingBulk === 'unverify'
-                    ? 'admin.clubs.bulkUnverifyConfirm'
-                    : pendingBulk === 'archive'
-                      ? 'admin.clubs.bulkArchiveConfirm'
-                      : 'admin.clubs.bulkDeleteConfirm',
-                { count: String(selection.count) },
-              )
-            : ''
+          pendingBulk ? t(bulkConfirmKey(pendingBulk), { count: String(selection.count) }) : ''
         }
-        confirmLabel={
-          pendingBulk
-            ? t(
-                pendingBulk === 'verify'
-                  ? 'admin.clubs.verify'
-                  : pendingBulk === 'unverify'
-                    ? 'admin.clubs.unverify'
-                    : pendingBulk === 'archive'
-                      ? 'admin.clubs.archive'
-                      : 'admin.clubs.safeDelete',
-              )
-            : ''
+        confirmLabel={pendingBulk ? t(bulkConfirmButtonKey(pendingBulk)) : ''}
+        danger={
+          pendingBulk === 'delete' || pendingBulk === 'archive' || pendingBulk === 'cleanup-delete'
         }
-        danger={pendingBulk === 'delete' || pendingBulk === 'archive'}
         busy={bulkBusy}
         onCancel={() => setPendingBulk(null)}
         onConfirm={() => {
           if (pendingBulk) void runBulk(pendingBulk);
         }}
       />
+
+      {/* Bulk-edit modal — applies city / country across the selected clubs */}
+      {showBulkEditModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !bulkBusy) setShowBulkEditModal(false);
+          }}
+        >
+          <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
+            <h2 className="font-display text-xl font-medium tracking-tight text-slate-900">
+              {t('admin.clubs.bulkEditTitle', { count: String(selection.count) })}
+            </h2>
+            <p className="mt-2 text-xs text-slate-500">{t('admin.clubs.bulkEditEmptyHint')}</p>
+            <label className="mt-4 block text-xs font-medium text-slate-600">
+              {t('admin.clubs.bulkEditCityLabel')}
+              <input
+                value={bulkEditCity}
+                onChange={(e) => setBulkEditCity(e.target.value)}
+                maxLength={100}
+                placeholder={t('admin.clubs.bulkEditEmptyHint')}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              />
+            </label>
+            <label className="mt-3 block text-xs font-medium text-slate-600">
+              {t('admin.clubs.bulkEditCountryLabel')}
+              <input
+                value={bulkEditCountry}
+                onChange={(e) => setBulkEditCountry(e.target.value)}
+                maxLength={100}
+                placeholder={t('admin.clubs.bulkEditEmptyHint')}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              />
+            </label>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => setShowBulkEditModal(false)}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                {t('actions.cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={bulkBusy || (!bulkEditCity.trim() && !bulkEditCountry.trim())}
+                onClick={() => void runBulkEdit()}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 disabled:opacity-50"
+              >
+                {t('admin.clubs.bulkEditConfirm', { count: String(selection.count) })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create-club modal — opens from the +Create CTA in the page header */}
+      {showCreateModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('admin.clubs.createTitle')}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !creating) setShowCreateModal(false);
+          }}
+        >
+          <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-xl font-medium tracking-tight text-slate-900">
+                  {t('admin.clubs.createTitle')}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">{t('admin.clubs.createDescription')}</p>
+              </div>
+              <button
+                type="button"
+                disabled={creating}
+                onClick={() => setShowCreateModal(false)}
+                className="text-sm text-slate-500 hover:text-slate-900 disabled:opacity-50"
+              >
+                {t('actions.close')}
+              </button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="text-xs font-medium text-slate-600">
+                {t('admin.clubs.name')} *
+                <input
+                  value={createState.name}
+                  onChange={(e) => setCreateState((s) => ({ ...s, name: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                {t('admin.clubs.abbreviation')}
+                <input
+                  value={createState.abbreviation}
+                  onChange={(e) => setCreateState((s) => ({ ...s, abbreviation: e.target.value }))}
+                  maxLength={20}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                {t('admin.clubs.city')}
+                <input
+                  value={createState.city}
+                  onChange={(e) => setCreateState((s) => ({ ...s, city: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                {t('admin.clubs.country')}
+                <input
+                  value={createState.country_code}
+                  onChange={(e) => setCreateState((s) => ({ ...s, country_code: e.target.value }))}
+                  maxLength={100}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                {t('admin.clubs.website')}
+                <input
+                  value={createState.website}
+                  onChange={(e) => setCreateState((s) => ({ ...s, website: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600">
+                {t('admin.clubs.logoUrl')}
+                <input
+                  value={createState.logoUrl}
+                  onChange={(e) => setCreateState((s) => ({ ...s, logoUrl: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-600 md:col-span-2">
+                {t('admin.clubs.logoUpload')}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => handleLogoFile(e.target.files?.[0] ?? null)}
+                  className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                />
+                <span className="mt-1 block text-[11px] font-normal text-slate-500">
+                  {t('admin.clubs.logoHelp')}
+                </span>
+              </label>
+              {logoPreviewUrl && (
+                <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logoPreviewUrl}
+                    alt={t('admin.clubs.logoPreviewAlt')}
+                    className="h-12 w-12 rounded-md border border-slate-200 bg-white object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleLogoFile(null)}
+                    className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                  >
+                    {t('actions.clear')}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={creating}
+                onClick={() => setShowCreateModal(false)}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                {t('actions.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void createClubFromModal()}
+                disabled={creating || !createState.name.trim()}
+                className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+              >
+                {creating ? t('admin.clubs.creating') : t('admin.clubs.create')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BulkActionBar
         count={selection.count}
@@ -1338,9 +1534,104 @@ export default function AdminClubsPage() {
         >
           {t('admin.clubs.bulkDeleteAction')}
         </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('cleanup-delete')}
+          disabled={bulkBusy}
+          className="rounded-md bg-red-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkCleanupDeleteAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setBulkEditCity('');
+            setBulkEditCountry('');
+            setShowBulkEditModal(true);
+          }}
+          disabled={bulkBusy}
+          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkEditAction')}
+        </button>
       </BulkActionBar>
     </main>
   );
+}
+
+function bulkRoute(action: BulkAction): string {
+  switch (action) {
+    case 'verify':
+      return 'bulk-verify';
+    case 'unverify':
+      return 'bulk-unverify';
+    case 'archive':
+      return 'bulk-archive';
+    case 'delete':
+      return 'bulk-delete';
+    case 'cleanup-delete':
+      return 'bulk-cleanup-delete';
+  }
+}
+
+function bulkTitleKey(action: BulkAction): string {
+  switch (action) {
+    case 'verify':
+      return 'admin.clubs.bulkVerifyTitle';
+    case 'unverify':
+      return 'admin.clubs.bulkUnverifyTitle';
+    case 'archive':
+      return 'admin.clubs.bulkArchiveTitle';
+    case 'delete':
+      return 'admin.clubs.bulkDeleteTitle';
+    case 'cleanup-delete':
+      return 'admin.clubs.bulkCleanupDeleteTitle';
+  }
+}
+
+function bulkConfirmKey(action: BulkAction): string {
+  switch (action) {
+    case 'verify':
+      return 'admin.clubs.bulkVerifyConfirm';
+    case 'unverify':
+      return 'admin.clubs.bulkUnverifyConfirm';
+    case 'archive':
+      return 'admin.clubs.bulkArchiveConfirm';
+    case 'delete':
+      return 'admin.clubs.bulkDeleteConfirm';
+    case 'cleanup-delete':
+      return 'admin.clubs.bulkCleanupDeleteConfirm';
+  }
+}
+
+function bulkConfirmButtonKey(action: BulkAction): string {
+  switch (action) {
+    case 'verify':
+      return 'admin.clubs.verify';
+    case 'unverify':
+      return 'admin.clubs.unverify';
+    case 'archive':
+      return 'admin.clubs.archive';
+    case 'delete':
+      return 'admin.clubs.safeDelete';
+    case 'cleanup-delete':
+      return 'admin.clubs.cleanupDelete';
+  }
+}
+
+function bulkSuccessKey(action: BulkAction): string {
+  switch (action) {
+    case 'verify':
+      return 'admin.clubs.bulkVerifySuccess';
+    case 'unverify':
+      return 'admin.clubs.bulkUnverifySuccess';
+    case 'archive':
+      return 'admin.clubs.bulkArchiveSuccess';
+    case 'delete':
+      return 'admin.clubs.bulkDeleteSuccess';
+    case 'cleanup-delete':
+      return 'admin.clubs.bulkCleanupDeleteSuccess';
+  }
 }
 
 function LogoButton({ club, onOpen }: { club: ClubRow; onOpen: (club: ClubRow) => void }) {

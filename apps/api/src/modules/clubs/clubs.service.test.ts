@@ -373,6 +373,50 @@ describe('ClubsService', () => {
     expect(auditCalls.length).toBe(4);
   });
 
+  it('bulk cleanup-delete clears references and deletes each row, then writes a single batch audit row', async () => {
+    // Each `cleanup` deleteClub call: 3 reference-clearing chains
+    // (global_persons, persons, fighter_clubs) + 1 deleteClubRow chain.
+    // No per-item audit row is written by deleteClub itself in cleanup mode.
+    // So for N ids: N * 4 chains + 1 final batch audit row.
+    fromMock.mockImplementation(() => makeAwaitableChain({ data: null, error: null }));
+
+    const result = await service.bulkCleanupDelete(['club-1', 'club-2'], 'actor');
+
+    expect(result).toEqual({ succeeded: 2, failed: 0, errors: [] });
+    const auditCalls = fromMock.mock.calls.filter((args) => args[0] === 'audit_log');
+    expect(auditCalls.length).toBe(1);
+    expect(auditCalls[0]?.[0]).toBe('audit_log');
+  });
+
+  it('bulk-update rejects when neither city nor countryCode is supplied', async () => {
+    await expect(service.bulkUpdate(['club-1', 'club-2'], {} as never, 'actor')).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(service.bulkUpdate(['club-1'], {} as never, 'actor')).rejects.toThrow(
+      'No fields to update',
+    );
+  });
+
+  it('bulk-update applies only the supplied fields across the batch', async () => {
+    // Each update() call: update().eq().select().single() → one chain.
+    // Followed by one final audit_log insert for the batch row.
+    const updateChain = makeChain({ data: { id: 'ok', city: 'Lyon' }, error: null });
+    fromMock.mockReturnValue(updateChain);
+
+    const result = await service.bulkUpdate(
+      ['club-1', 'club-2', 'club-3'],
+      { ids: ['club-1', 'club-2', 'club-3'], city: 'Lyon' },
+      'actor',
+    );
+
+    expect(result).toEqual({ succeeded: 3, failed: 0, errors: [] });
+    // The patch passed into update() only includes `city`, not `countryCode`.
+    expect(updateChain.update).toHaveBeenCalledWith({ city: 'Lyon' });
+    expect(updateChain.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ country_code: expect.anything() }),
+    );
+  });
+
   it('bulk safe-delete surfaces still-referenced rows as per-row errors and keeps the batch alive', async () => {
     // Sequence per id:
     //   - safe path → 3 countReferences chains (global_persons, persons, fighter_clubs)

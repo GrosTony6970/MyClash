@@ -6,9 +6,12 @@ import {
   AdminPageHeader,
   ConfirmDialog,
   RowActionButton,
+  SortableHeader,
   rowActionClasses,
+  useSortableList,
   useToast,
 } from '@myclash/ui';
+import { t } from '@myclash/i18n';
 
 interface League {
   id: string;
@@ -104,8 +107,31 @@ export default function AdminLeaguesPage() {
     }
   }
 
+  const getLeagueSortValue = useCallback((row: League, key: string): unknown => {
+    switch (key) {
+      case 'name':
+        return row.name;
+      case 'year':
+        return row.season_year;
+      case 'category':
+        return row.scoring_config?.rankingDimensions ?? '';
+      case 'scoringSystem':
+        return formatScoringSystem(row.scoring_system);
+      case 'status':
+        return row.status;
+      default:
+        return null;
+    }
+  }, []);
+  const {
+    sorted: visibleLeagues,
+    sortKey,
+    direction,
+    toggle,
+  } = useSortableList(leagues, getLeagueSortValue);
+
   return (
-    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Leagues"
         title="Leagues"
@@ -131,11 +157,61 @@ export default function AdminLeaguesPage() {
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3 w-16">Logo</th>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Year</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3">Scoring system</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">
+                <SortableHeader
+                  label="Name"
+                  columnKey="name"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
+              <th className="px-4 py-3">
+                <SortableHeader
+                  label="Year"
+                  columnKey="year"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
+              <th className="px-4 py-3">
+                <SortableHeader
+                  label="Category"
+                  columnKey="category"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
+              <th className="px-4 py-3">
+                <SortableHeader
+                  label="Scoring system"
+                  columnKey="scoringSystem"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
+              <th className="px-4 py-3">
+                <SortableHeader
+                  label="Status"
+                  columnKey="status"
+                  currentKey={sortKey}
+                  direction={direction}
+                  onToggle={toggle}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                />
+              </th>
               <th className="px-4 py-3">Public</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
@@ -155,7 +231,7 @@ export default function AdminLeaguesPage() {
                 </td>
               </tr>
             )}
-            {leagues.map((league) => (
+            {visibleLeagues.map((league) => (
               <tr key={league.id} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3">
                   {league.logo_url ? (

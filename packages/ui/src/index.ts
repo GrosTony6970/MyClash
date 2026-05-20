@@ -78,3 +78,12 @@ export type { BulkActionBarProps } from './components/BulkActionBar';
 
 export { RowActionButton, rowActionClasses } from './components/RowActionButton';
 export type { RowActionButtonProps, RowActionVariant } from './components/RowActionButton';
+
+// ── Sortable headers + live fuzzy search (Phase 5 — admin list pages) ─────
+
+export { SortableHeader, sortRows, nextSortState } from './components/SortableHeader';
+export type { SortableHeaderProps } from './components/SortableHeader';
+
+export { useSortableList } from './hooks/useSortableList';
+
+export { fuzzyMatch, normalizeForSearch } from './utils/fuzzy-match';

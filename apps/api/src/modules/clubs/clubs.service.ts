@@ -6,7 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import type { ClubQueryDto, CreateClubDto, UpdateClubDto } from './dto/clubs.dto';
+import type {
+  BulkClubUpdateDto,
+  ClubQueryDto,
+  CreateClubDto,
+  UpdateClubDto,
+} from './dto/clubs.dto';
 
 export interface BulkClubActionResult {
   succeeded: number;
@@ -549,6 +554,71 @@ export class ClubsService {
       count: ids.length,
       succeeded,
       failed: errors.length,
+    });
+    return { succeeded, failed: errors.length, errors };
+  }
+
+  /**
+   * Bulk cleanup-delete. Same as the per-row `deleteClub(id, 'cleanup')`:
+   * clears supported references (global_persons.club_id, persons.club_id,
+   * fighter_clubs) before dropping the row. Failures surface per-row.
+   */
+  async bulkCleanupDelete(
+    ids: readonly string[],
+    actorUserId = 'unknown',
+  ): Promise<BulkClubActionResult> {
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.deleteClub(id, 'cleanup');
+        succeeded += 1;
+      } catch (err) {
+        errors.push({ id, message: err instanceof Error ? err.message : 'Cleanup delete failed' });
+      }
+    }
+    await this.writeAuditLog(actorUserId, 'club.bulk_cleanup_delete', 'club', 'batch', {
+      count: ids.length,
+      succeeded,
+      failed: errors.length,
+    });
+    return { succeeded, failed: errors.length, errors };
+  }
+
+  /**
+   * Bulk update — applies the same `city` and/or `countryCode` across every
+   * club in the batch. Refuses the call if neither field is provided so we
+   * never write empty patches. Other fields are deliberately out of scope:
+   * name/abbreviation are per-club, slug is immutable, logo/status each have
+   * their own dedicated endpoints.
+   */
+  async bulkUpdate(
+    ids: readonly string[],
+    dto: BulkClubUpdateDto,
+    actorUserId = 'unknown',
+  ): Promise<BulkClubActionResult> {
+    const patch: { city?: string; countryCode?: string } = {};
+    if (dto.city !== undefined) patch.city = dto.city;
+    if (dto.countryCode !== undefined) patch.countryCode = dto.countryCode;
+    if (patch.city === undefined && patch.countryCode === undefined) {
+      throw new BadRequestException('No fields to update');
+    }
+
+    const errors: { id: string; message: string }[] = [];
+    let succeeded = 0;
+    for (const id of ids) {
+      try {
+        await this.update(id, patch);
+        succeeded += 1;
+      } catch (err) {
+        errors.push({ id, message: err instanceof Error ? err.message : 'Update failed' });
+      }
+    }
+    await this.writeAuditLog(actorUserId, 'club.bulk_update', 'club', 'batch', {
+      count: ids.length,
+      succeeded,
+      failed: errors.length,
+      fields: Object.keys(patch),
     });
     return { succeeded, failed: errors.length, errors };
   }

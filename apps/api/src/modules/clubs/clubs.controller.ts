@@ -29,6 +29,7 @@ import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { ClubsService, type DeleteClubMode } from './clubs.service';
 import {
   BulkClubIdsDto,
+  BulkClubUpdateDto,
   ClubQueryDto,
   ClubReviewRequestQueryDto,
   CreateClubDto,
@@ -139,6 +140,28 @@ export class ClubsController {
   })
   async bulkDelete(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
     return this.clubs.bulkSafeDelete(dto.ids, getActorId(req));
+  }
+
+  /** POST /api/v1/clubs/bulk-cleanup-delete */
+  @Post('bulk-cleanup-delete')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({
+    summary: 'Cleanup-delete a batch of clubs (clears supported references first; super admin)',
+  })
+  async bulkCleanupDelete(@Body() dto: BulkClubIdsDto, @Req() req: FastifyRequest) {
+    return this.clubs.bulkCleanupDelete(dto.ids, getActorId(req));
+  }
+
+  /** POST /api/v1/clubs/bulk-update */
+  @Post('bulk-update')
+  @ApiBearerAuth()
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({
+    summary: 'Apply city / countryCode across a batch of clubs (super admin)',
+  })
+  async bulkUpdate(@Body() dto: BulkClubUpdateDto, @Req() req: FastifyRequest) {
+    return this.clubs.bulkUpdate(dto.ids, dto, getActorId(req));
   }
 
   /** GET /api/v1/clubs/:slug */
