@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ConfirmDialog, useToast } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 /**
@@ -20,6 +21,7 @@ function formatDeployDate(value: string): string {
 
 type VersionSource = 'manifest' | 'package.json' | 'compose' | 'runtime' | 'deploy';
 type VersionStatus = 'ok' | 'unknown';
+type ComponentAction = 'start' | 'stop' | 'restart';
 
 interface VersionComponent {
   key: string;
@@ -27,6 +29,7 @@ interface VersionComponent {
   version: string;
   source: VersionSource;
   status?: VersionStatus;
+  restartable?: boolean;
 }
 
 interface VersionGroup {
@@ -47,14 +50,31 @@ interface SystemVersionsResponse {
   groups: VersionGroup[];
 }
 
+interface ComponentActionResult {
+  ok: boolean;
+  exitCode?: number;
+  stderr?: string;
+  timedOut?: boolean;
+}
+
+interface PendingAction {
+  componentKey: string;
+  componentLabel: string;
+  action: ComponentAction;
+}
+
 export default function AdminSystemVersionsPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const toast = useToast();
 
   const [versions, setVersions] = useState<SystemVersionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const loadVersions = useCallback(
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
@@ -97,6 +117,62 @@ export default function AdminSystemVersionsPage() {
     };
   }, [loadVersions]);
 
+  async function confirmPendingAction() {
+    if (!pending) return;
+    const { componentKey, componentLabel, action } = pending;
+    setBusyKey(componentKey);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/admin/system-versions/components/${encodeURIComponent(componentKey)}/${action}`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      const result = (await res.json()) as ComponentActionResult;
+      if (!result.ok) {
+        throw new Error(
+          result.stderr?.trim() ||
+            (result.timedOut ? 'Timed out waiting for docker compose.' : 'Action failed.'),
+        );
+      }
+      const successKey =
+        action === 'start'
+          ? 'admin.systemVersions.actions.successStart'
+          : action === 'stop'
+            ? 'admin.systemVersions.actions.successStop'
+            : 'admin.systemVersions.actions.successRestart';
+      toast.success(t(successKey, { component: componentLabel }));
+      setPending(null);
+      loadVersions({ refresh: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(t('admin.systemVersions.actions.failed', { message }));
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  const confirmTitleKey =
+    pending?.action === 'start'
+      ? 'admin.systemVersions.actions.confirmStartTitle'
+      : pending?.action === 'stop'
+        ? 'admin.systemVersions.actions.confirmStopTitle'
+        : 'admin.systemVersions.actions.confirmRestartTitle';
+  const confirmDescriptionKey =
+    pending?.action === 'start'
+      ? 'admin.systemVersions.actions.confirmStartDescription'
+      : pending?.action === 'stop'
+        ? 'admin.systemVersions.actions.confirmStopDescription'
+        : 'admin.systemVersions.actions.confirmRestartDescription';
+  const confirmLabelKey =
+    pending?.action === 'start'
+      ? 'admin.systemVersions.actions.start'
+      : pending?.action === 'stop'
+        ? 'admin.systemVersions.actions.stop'
+        : 'admin.systemVersions.actions.restart';
+
   return (
     <main id="main-content" className="p-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -136,6 +212,7 @@ export default function AdminSystemVersionsPage() {
               // not health signals — the status pill is always "ok" and adds noise,
               // so we hide the column entirely on that group.
               const showStatus = group.key !== 'deploy';
+              const showActions = group.components.some((c) => c.restartable);
               return (
                 <section
                   key={group.key}
@@ -165,6 +242,11 @@ export default function AdminSystemVersionsPage() {
                             {showStatus && (
                               <th className="py-2 px-4">{t('admin.systemVersions.status')}</th>
                             )}
+                            {showActions && (
+                              <th className="py-2 px-4">
+                                {t('admin.systemVersions.actions.columnLabel')}
+                              </th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
@@ -176,18 +258,18 @@ export default function AdminSystemVersionsPage() {
                             const displayValue = isDeployDate
                               ? formatDeployDate(component.version)
                               : formatValue(component.version, t('admin.systemVersions.unknown'));
+                            const componentLabel = translateWithFallback(
+                              t,
+                              `admin.systemVersions.components.${component.key}`,
+                              component.label,
+                            );
+                            const isBusy = busyKey === component.key;
                             return (
                               <tr
                                 key={`${group.key}-${component.key}`}
                                 className="border-b border-slate-50 last:border-0"
                               >
-                                <td className="py-2 px-4 text-slate-800">
-                                  {translateWithFallback(
-                                    t,
-                                    `admin.systemVersions.components.${component.key}`,
-                                    component.label,
-                                  )}
-                                </td>
+                                <td className="py-2 px-4 text-slate-800">{componentLabel}</td>
                                 <td
                                   className={
                                     isDeployDate
@@ -217,6 +299,50 @@ export default function AdminSystemVersionsPage() {
                                     </span>
                                   </td>
                                 )}
+                                {showActions && (
+                                  <td className="py-2 px-4">
+                                    {component.restartable ? (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        <ActionButton
+                                          label={t('admin.systemVersions.actions.start')}
+                                          busy={isBusy}
+                                          variant="neutral"
+                                          onClick={() =>
+                                            setPending({
+                                              componentKey: component.key,
+                                              componentLabel,
+                                              action: 'start',
+                                            })
+                                          }
+                                        />
+                                        <ActionButton
+                                          label={t('admin.systemVersions.actions.stop')}
+                                          busy={isBusy}
+                                          variant="danger"
+                                          onClick={() =>
+                                            setPending({
+                                              componentKey: component.key,
+                                              componentLabel,
+                                              action: 'stop',
+                                            })
+                                          }
+                                        />
+                                        <ActionButton
+                                          label={t('admin.systemVersions.actions.restart')}
+                                          busy={isBusy}
+                                          variant="primary"
+                                          onClick={() =>
+                                            setPending({
+                                              componentKey: component.key,
+                                              componentLabel,
+                                              action: 'restart',
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    ) : null}
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}
@@ -230,7 +356,47 @@ export default function AdminSystemVersionsPage() {
           </div>
         </>
       ) : null}
+
+      <ConfirmDialog
+        open={pending !== null}
+        title={pending ? t(confirmTitleKey, { component: pending.componentLabel }) : ''}
+        description={pending ? t(confirmDescriptionKey, { component: pending.componentLabel }) : ''}
+        confirmLabel={pending ? t(confirmLabelKey) : ''}
+        danger={pending?.action === 'stop'}
+        busy={busyKey !== null}
+        onCancel={() => setPending(null)}
+        onConfirm={() => void confirmPendingAction()}
+      />
     </main>
+  );
+}
+
+function ActionButton({
+  label,
+  onClick,
+  busy,
+  variant,
+}: {
+  label: string;
+  onClick: () => void;
+  busy: boolean;
+  variant: 'primary' | 'danger' | 'neutral';
+}) {
+  const variantClasses =
+    variant === 'primary'
+      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+      : variant === 'danger'
+        ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-50 ${variantClasses}`}
+    >
+      {label}
+    </button>
   );
 }
 
