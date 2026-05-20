@@ -26,10 +26,7 @@ export class RulesetsController {
     return registry.list().map((ruleset) => ({
       code: ruleset.code,
       version: ruleset.version,
-      label:
-        (ruleset as { label?: string }).label ??
-        ruleset.displayName ??
-        `${ruleset.code} v${ruleset.version}`,
+      label: ruleset.displayName ?? `${ruleset.code} v${ruleset.version}`,
     }));
   }
 }
