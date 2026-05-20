@@ -1134,7 +1134,12 @@ export default function PoolsPage() {
       )}
 
       {activeTab === 'matches' && poolPhaseId && (
-        <MatchesTab tournamentId={selectedTournament} poolPhaseId={poolPhaseId} />
+        <MatchesTab
+          tournamentId={selectedTournament}
+          poolPhaseId={poolPhaseId}
+          slug={slug}
+          eventId={eventId}
+        />
       )}
 
       {activeTab === 'standings' && poolPhaseId && (
