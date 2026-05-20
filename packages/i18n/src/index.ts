@@ -2087,6 +2087,40 @@ export const en = {
       bracketSummarySlots: '{count} match slots',
       playIns: 'Play-ins',
     },
+    pools: {
+      tabs: {
+        configure: 'Configure',
+        matches: 'Matches',
+        standings: 'Standings',
+        disabledHint: 'Generate pools first',
+      },
+      configure: {
+        constraints: 'Constraints',
+        schoolSeparation: 'School separation',
+        skillBalance: 'Skill balance',
+        refNoBackToBack: 'No back-to-back refereeing',
+        refRestMinSlots: 'Min rest slots between refs',
+        refDedicatedRest: 'Dedicated rest slot for refs',
+        refFighterNoOverlap: 'Fighter cannot referee own pool',
+        refPreferHighRated: 'Prefer high-rated referees',
+        help: {
+          schoolSeparation:
+            'Fighters from the same school or club are placed in different pools where possible.',
+          skillBalance:
+            'Pools are seeded so that rating levels are distributed evenly across all pools.',
+          refNoBackToBack:
+            'A referee will not be assigned to two consecutive matches without a rest slot between them.',
+          refRestMinSlots:
+            'Minimum number of match slots a referee must sit out between assignments. Only active when "No back-to-back refereeing" is enabled.',
+          refDedicatedRest:
+            'Reserves at least one explicit rest slot per pool for each assigned referee.',
+          refFighterNoOverlap:
+            'A fighter registered in a pool cannot be assigned as referee for a match in that same pool.',
+          refPreferHighRated:
+            'When multiple referees are available, those with higher HEMA ratings are preferred.',
+        },
+      },
+    },
     staff: {
       navLabel: 'Event Staff',
       backToEvent: 'Back to event',
@@ -4338,6 +4372,40 @@ export const fr = {
       bracketSummaryPlayIns: '{count} barrages',
       bracketSummarySlots: '{count} emplacements de match',
       playIns: 'Barrages',
+    },
+    pools: {
+      tabs: {
+        configure: 'Configuration',
+        matches: 'Matchs',
+        standings: 'Classements',
+        disabledHint: 'Generez d abord les poules',
+      },
+      configure: {
+        constraints: 'Contraintes',
+        schoolSeparation: 'Separation par club',
+        skillBalance: 'Equilibrage du niveau',
+        refNoBackToBack: 'Pas d arbitrage consecutif',
+        refRestMinSlots: 'Slots de repos min entre arbitrages',
+        refDedicatedRest: 'Slot de repos dedie pour les arbitres',
+        refFighterNoOverlap: 'Un combattant ne peut arbitrer sa propre poule',
+        refPreferHighRated: 'Privilegier les arbitres mieux notes',
+        help: {
+          schoolSeparation:
+            'Les combattants du meme club sont places dans des poules differentes autant que possible.',
+          skillBalance:
+            'Les poules sont seedees de sorte que les niveaux de classement sont repartis equitablement.',
+          refNoBackToBack:
+            'Un arbitre ne sera pas affecte a deux matchs consecutifs sans slot de repos entre les deux.',
+          refRestMinSlots:
+            'Nombre minimum de slots de match qu un arbitre doit passer sans arbitrer entre deux affectations. Actif uniquement si "Pas d arbitrage consecutif" est active.',
+          refDedicatedRest:
+            'Reserve au moins un slot de repos explicite par poule pour chaque arbitre affecte.',
+          refFighterNoOverlap:
+            'Un combattant inscrit dans une poule ne peut pas etre affecte comme arbitre pour un match de cette meme poule.',
+          refPreferHighRated:
+            'Lorsque plusieurs arbitres sont disponibles, ceux ayant les meilleurs classements HEMA sont privilegies.',
+        },
+      },
     },
     staff: {
       navLabel: 'Staff evenement',

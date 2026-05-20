@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, RowActionButton, useToast } from '@myclash/ui';
+import { ConfirmDialog, HelpTooltip, RowActionButton, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
@@ -102,6 +102,13 @@ export default function PoolsPage() {
   const [targetSize, setTargetSize] = useState(8);
   const [schoolSep, setSchoolSep] = useState(true);
   const [skillBalance, setSkillBalance] = useState(true);
+
+  // Referee constraints
+  const [refNoBackToBack, setRefNoBackToBack] = useState(true);
+  const [refRestMinSlots, setRefRestMinSlots] = useState(1);
+  const [refDedicatedRest, setRefDedicatedRest] = useState(true);
+  const [refFighterNoOverlap, setRefFighterNoOverlap] = useState(true);
+  const [refPreferHighRated, setRefPreferHighRated] = useState(true);
 
   // UI state
   const [generating, setGenerating] = useState(false);
@@ -216,6 +223,11 @@ export default function PoolsPage() {
       const body: Record<string, unknown> = {
         enforceSchoolSeparation: schoolSep,
         enforceSkillBalance: skillBalance,
+        enforceRefereeNoBackToBack: refNoBackToBack,
+        refereeRestMinSlots: refRestMinSlots,
+        enforceDedicatedRefereeRest: refDedicatedRest,
+        enforceFighterRefereeNoOverlap: refFighterNoOverlap,
+        preferHighRatedReferees: refPreferHighRated,
       };
       if (mode === 'poolCount') body['poolCount'] = poolCount;
       else body['targetSize'] = targetSize;
@@ -559,139 +571,360 @@ export default function PoolsPage() {
       </div>
 
       {activeTab === 'configure' && (
-        <>
-          {/* … all existing Configure content stays here unchanged for now;
-             Task 10 refactors the layout to sticky sidebar */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+          {/* ── Left column: banners + pool grid ────────────────────────────── */}
+          <div className="space-y-4">
+            {/* Tournament selector */}
+            {tournaments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {tournaments.map((tour) => {
+                  const active = selectedTournament === tour.id;
+                  return (
+                    <button
+                      key={tour.id}
+                      type="button"
+                      onClick={() => setSelectedTournament(tour.id)}
+                      className={[
+                        'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                        active
+                          ? 'bg-red-700 text-white border-red-700'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                      ].join(' ')}
+                    >
+                      {tour.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-          {/* Conflict warning — hard constraint */}
-          {poolPhaseId && (
-            <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
-              <span
+            {/* Visibility / publish banner */}
+            {poolPhaseId && (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
+                <span
+                  className={[
+                    'rounded-full px-2.5 py-1 text-xs font-semibold',
+                    visibility === 'published'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-600',
+                  ].join(' ')}
+                >
+                  {visibility === 'published'
+                    ? t('organizer.phaseVisibility.published')
+                    : t('organizer.phaseVisibility.hidden')}
+                </span>
+                <button
+                  type="button"
+                  disabled={visibilityBusy || visibility === 'published'}
+                  onClick={() => void updateVisibility('published')}
+                  className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
+                >
+                  {t('organizer.phaseVisibility.publishPools')}
+                </button>
+                <button
+                  type="button"
+                  disabled={visibilityBusy || visibility === 'hidden'}
+                  onClick={() => void updateVisibility('hidden')}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
+                >
+                  {t('organizer.phaseVisibility.unpublishPools')}
+                </button>
+                {notifyHref && (
+                  <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
+                    {t('organizer.phaseVisibility.notifyParticipants')}
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {showUnpublishConfirm && (
+              <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+                <p className="font-semibold">
+                  {t('organizer.phaseVisibility.unpublishStartedWarning')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void updateVisibility('hidden', true)}
+                  className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
+                >
+                  {t('organizer.phaseVisibility.confirmUnpublish')}
+                </button>
+              </div>
+            )}
+
+            {/* Fighter/referee conflict banner */}
+            {conflicts && (conflicts.hasConfirmedConflicts || conflicts.hasPotentialConflicts) && (
+              <div
                 className={[
-                  'rounded-full px-2.5 py-1 text-xs font-semibold',
-                  visibility === 'published'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-600',
+                  'border rounded-xl px-4 py-3 text-sm',
+                  conflicts.hasConfirmedConflicts
+                    ? 'bg-red-50 border-red-300 text-red-700'
+                    : 'bg-yellow-50 border-yellow-300 text-yellow-700',
                 ].join(' ')}
               >
-                {visibility === 'published'
-                  ? t('organizer.phaseVisibility.published')
-                  : t('organizer.phaseVisibility.hidden')}
-              </span>
-              <button
-                type="button"
-                disabled={visibilityBusy || visibility === 'published'}
-                onClick={() => void updateVisibility('published')}
-                className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
-              >
-                {t('organizer.phaseVisibility.publishPools')}
-              </button>
-              <button
-                type="button"
-                disabled={visibilityBusy || visibility === 'hidden'}
-                onClick={() => void updateVisibility('hidden')}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
-              >
-                {t('organizer.phaseVisibility.unpublishPools')}
-              </button>
-              {notifyHref && (
-                <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
-                  {t('organizer.phaseVisibility.notifyParticipants')}
-                </Link>
-              )}
-            </div>
-          )}
+                <p className="font-bold mb-1">
+                  {conflicts.hasConfirmedConflicts
+                    ? '⛔ Fighter/referee conflicts detected (hard constraint)'
+                    : '⚠ Potential fighter/referee conflicts'}
+                </p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {conflicts.conflicts.map((c, i) => (
+                    <li key={i}>
+                      <strong>{c.personName}</strong> fights in <em>{c.fightingMatchLabel}</em> and
+                      referees <em>{c.refereeingMatchLabel}</em>
+                      {!c.confirmed && ' (unscheduled — potential conflict)'}
+                    </li>
+                  ))}
+                </ul>
+                {conflicts.hasConfirmedConflicts && (
+                  <p className="mt-2 font-medium">
+                    Reassign referees before publishing this event.
+                  </p>
+                )}
+              </div>
+            )}
 
-          {showUnpublishConfirm && (
-            <div className="mb-6 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
-              <p className="font-semibold">
-                {t('organizer.phaseVisibility.unpublishStartedWarning')}
-              </p>
-              <button
-                type="button"
-                onClick={() => void updateVisibility('hidden', true)}
-                className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
-              >
-                {t('organizer.phaseVisibility.confirmUnpublish')}
-              </button>
-            </div>
-          )}
+            {lockBanner && (
+              <div className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-900">
+                <strong className="font-semibold">{lockBanner}</strong>
+                <span className="ml-2 text-yellow-700">
+                  Clear scores in the matches view to unlock the pool.
+                </span>
+              </div>
+            )}
 
-          {conflicts && (conflicts.hasConfirmedConflicts || conflicts.hasPotentialConflicts) && (
-            <div
-              className={[
-                'border rounded-xl px-4 py-3 mb-6 text-sm',
-                conflicts.hasConfirmedConflicts
-                  ? 'bg-red-50 border-red-300 text-red-700'
-                  : 'bg-yellow-50 border-yellow-300 text-yellow-700',
-              ].join(' ')}
-            >
-              <p className="font-bold mb-1">
-                {conflicts.hasConfirmedConflicts
-                  ? '⛔ Fighter/referee conflicts detected (hard constraint)'
-                  : '⚠ Potential fighter/referee conflicts'}
-              </p>
-              <ul className="list-disc list-inside space-y-0.5">
-                {conflicts.conflicts.map((c, i) => (
-                  <li key={i}>
-                    <strong>{c.personName}</strong> fights in <em>{c.fightingMatchLabel}</em> and
-                    referees <em>{c.refereeingMatchLabel}</em>
-                    {!c.confirmed && ' (unscheduled — potential conflict)'}
-                  </li>
-                ))}
-              </ul>
-              {conflicts.hasConfirmedConflicts && (
-                <p className="mt-2 font-medium">Reassign referees before publishing this event.</p>
-              )}
-            </div>
-          )}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                {error}
+              </div>
+            )}
 
-          {/* Tournament tabs */}
-          {tournaments.length > 0 && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {tournaments.map((tour) => {
-                const active = selectedTournament === tour.id;
-                return (
-                  <button
-                    key={tour.id}
-                    type="button"
-                    onClick={() => setSelectedTournament(tour.id)}
+            {/* Force regenerate confirmation */}
+            {showForceConfirm && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
+                  <p className="text-4xl mb-3">⚠️</p>
+                  <h2 className="text-lg font-bold mb-2">Regenerate pools?</h2>
+                  <p className="text-gray-500 text-sm mb-5">
+                    Existing pools and all their matches will be deleted. This cannot be undone.
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={() => setShowForceConfirm(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => void generate(true)}
+                      className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm"
+                    >
+                      Yes, regenerate
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pool cards with drag-drop */}
+            {pools && pools.length > 0 && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {pools.map((pool) => (
+                  <div
+                    key={pool.id}
                     className={[
-                      'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
-                      active
-                        ? 'bg-red-700 text-white border-red-700'
-                        : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                      'border-2 rounded-xl p-4 transition-colors',
+                      dragging ? 'border-dashed border-red-300 bg-red-50/30' : 'border-gray-200',
                     ].join(' ')}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => void handleDrop(pool.id)}
                   >
-                    {tour.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      {renamingPoolId === pool.id ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            value={renameDraft}
+                            onChange={(e) => setRenameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void saveRename(pool.id);
+                              if (e.key === 'Escape') setRenamingPoolId(null);
+                            }}
+                            autoFocus
+                            className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                          />
+                          <button
+                            type="button"
+                            disabled={renameBusy}
+                            onClick={() => void saveRename(pool.id)}
+                            className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRenamingPoolId(null)}
+                            className="rounded-md px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void startRename(pool)}
+                          title="Rename pool"
+                          className="font-bold text-gray-900 hover:text-red-700 hover:underline decoration-dotted"
+                        >
+                          {pool.name}
+                        </button>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">
+                          {pool.members.length} fighters
+                        </span>
+                        <RowActionButton
+                          variant="danger"
+                          onClick={() => setPendingDeletePoolId(pool.id)}
+                          disabled={lifecycleBusy || renamingPoolId === pool.id}
+                          title="Delete this pool"
+                        >
+                          Delete
+                        </RowActionButton>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {pool.members.map((m) => (
+                        <div
+                          key={m.registrationId}
+                          draggable
+                          onDragStart={() =>
+                            setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
+                          }
+                          onDragEnd={() => setDragging(null)}
+                          className="group flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="font-medium text-gray-900">{m.personName}</span>
+                            {m.clubLabel && (
+                              <span className="text-gray-400 text-xs ml-2">{m.clubLabel}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {m.hemaWeightedRating !== null && (
+                              <span
+                                className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                                title="HEMA weighted rating"
+                              >
+                                {m.hemaWeightedRating.toFixed(1)}
+                              </span>
+                            )}
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                              #{m.seed}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={editBusy}
+                              onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
+                              title="Move to unassigned"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {pool.members.length === 0 && (
+                        <p className="text-xs text-gray-400 italic">Drop fighters here.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-          {lockBanner && (
-            <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-900">
-              <strong className="font-semibold">{lockBanner}</strong>
-              <span className="ml-2 text-yellow-700">
-                Clear scores in the matches view to unlock the pool.
-              </span>
-            </div>
-          )}
+            {/* Unassigned fighters bucket */}
+            {pools && pools.length > 0 && (
+              <div
+                className={[
+                  'rounded-xl border-2 p-4 transition-colors',
+                  dragging
+                    ? 'border-dashed border-red-300 bg-red-50/30'
+                    : 'border-gray-200 bg-gray-50',
+                ].join(' ')}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => void handleDropOnUnassigned()}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-bold text-gray-900">Unassigned fighters</h3>
+                  <span className="text-xs text-gray-400">{unassigned.length} fighters</span>
+                </div>
+                {unassigned.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">
+                    All registered fighters are in a pool. Drag a fighter here to remove them from
+                    their pool.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    {unassigned.map((u) => (
+                      <div
+                        key={u.registrationId}
+                        draggable
+                        onDragStart={() =>
+                          setDragging({
+                            memberId: u.registrationId,
+                            fromPoolId: UNASSIGNED_DROP_ID,
+                          })
+                        }
+                        onDragEnd={() => setDragging(null)}
+                        className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-gray-900">{u.personName}</span>
+                          {u.clubLabel && (
+                            <span className="text-gray-400 text-xs ml-2">{u.clubLabel}</span>
+                          )}
+                        </div>
+                        {u.hemaWeightedRating !== null && (
+                          <span
+                            className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 shrink-0"
+                            title="HEMA weighted rating"
+                          >
+                            {u.hemaWeightedRating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-          {/* Config panel */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">Pool configuration</h2>
-            <div className="flex flex-wrap gap-6 items-start">
-              {/* Mode toggle — clearer copy makes it obvious what the operator's choosing. */}
-              <div>
+            {!pools && !generating && (
+              <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+                <p className="text-gray-400 text-sm">
+                  No pools generated yet. Configure and click Generate.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Right sidebar: config form + constraints + lifecycle ─────────── */}
+          <aside className="sticky top-6 self-start space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+            {/* Basic config: sizing mode + count/size stepper */}
+            <div>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Pool configuration
+              </h2>
+
+              {/* Mode toggle */}
+              <div className="mb-3">
                 <p className="text-xs font-medium text-gray-600 mb-2">Sizing</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-1.5">
                   <button
                     onClick={() => setMode('targetSize')}
                     title="Aim for this many fighters in each pool; pool count is derived."
                     className={[
-                      'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
+                      'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-left',
                       mode === 'targetSize'
                         ? 'bg-red-700 text-white border-red-700'
                         : 'bg-white text-gray-700 border-gray-300',
@@ -703,7 +936,7 @@ export default function PoolsPage() {
                     onClick={() => setMode('poolCount')}
                     title="Choose the exact number of pools. Fighters are distributed evenly."
                     className={[
-                      'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
+                      'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors text-left',
                       mode === 'poolCount'
                         ? 'bg-red-700 text-white border-red-700'
                         : 'bg-white text-gray-700 border-gray-300',
@@ -714,7 +947,7 @@ export default function PoolsPage() {
                 </div>
               </div>
 
-              {/* Value */}
+              {/* Value stepper */}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-2">
                   {mode === 'targetSize' ? 'Fighters per pool' : 'Number of pools'}
@@ -746,293 +979,158 @@ export default function PoolsPage() {
                 </div>
               </div>
 
-              {/* Toggles */}
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={schoolSep}
-                    onChange={(e) => setSchoolSep(e.target.checked)}
-                    className="rounded"
-                  />
-                  School separation
-                </label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={skillBalance}
-                    onChange={(e) => setSkillBalance(e.target.checked)}
-                    className="rounded"
-                  />
-                  Skill balance
-                </label>
-              </div>
-
-              {/* Generate + lifecycle buttons */}
-              <div className="flex flex-wrap items-end gap-2">
-                <button
-                  onClick={() => void generate(false)}
-                  disabled={generating || !selectedTournament}
-                  className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
-                >
-                  {generating
-                    ? 'Generating…'
-                    : existingPhase
-                      ? 'Regenerate'
-                      : unassigned.length === 0
-                        ? 'Generate empty pools'
-                        : 'Generate pools'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void addEmptyPool()}
-                  disabled={lifecycleBusy || !selectedTournament}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                >
-                  + Add empty pool
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingDeleteAll(true)}
-                  disabled={lifecycleBusy || !existingPhase || !selectedTournament}
-                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
-                >
-                  Delete all pools
-                </button>
-              </div>
-            </div>
-
-            {/* Preview line — clear up-front what the next click will produce. */}
-            {selectedTournament && !existingPhase && (
-              <p className="mt-3 text-xs text-slate-500">
-                {(() => {
-                  const fighters = unassigned.length;
-                  const count =
-                    mode === 'poolCount'
-                      ? Math.max(1, poolCount)
-                      : Math.max(1, Math.ceil((fighters || 1) / Math.max(1, targetSize)));
-                  if (fighters === 0) {
-                    return `Will generate ${count} empty pool${count > 1 ? 's' : ''} — add fighters later.`;
-                  }
-                  const avg = Math.round(fighters / count);
-                  return `Will generate ${count} pool${count > 1 ? 's' : ''} of ~${avg} fighter${avg === 1 ? '' : 's'} (${fighters} total).`;
-                })()}
-              </p>
-            )}
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Force regenerate confirmation */}
-          {showForceConfirm && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
-                <p className="text-4xl mb-3">⚠️</p>
-                <h2 className="text-lg font-bold mb-2">Regenerate pools?</h2>
-                <p className="text-gray-500 text-sm mb-5">
-                  Existing pools and all their matches will be deleted. This cannot be undone.
+              {/* Preview line */}
+              {selectedTournament && !existingPhase && (
+                <p className="mt-3 text-xs text-slate-500">
+                  {(() => {
+                    const fighters = unassigned.length;
+                    const count =
+                      mode === 'poolCount'
+                        ? Math.max(1, poolCount)
+                        : Math.max(1, Math.ceil((fighters || 1) / Math.max(1, targetSize)));
+                    if (fighters === 0) {
+                      return `Will generate ${count} empty pool${count > 1 ? 's' : ''} — add fighters later.`;
+                    }
+                    const avg = Math.round(fighters / count);
+                    return `Will generate ${count} pool${count > 1 ? 's' : ''} of ~${avg} fighter${avg === 1 ? '' : 's'} (${fighters} total).`;
+                  })()}
                 </p>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={() => setShowForceConfirm(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => void generate(true)}
-                    className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm"
-                  >
-                    Yes, regenerate
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Pool cards with drag-drop */}
-          {pools && pools.length > 0 && (
-            <div className="grid grid-cols-2 gap-4">
-              {pools.map((pool) => (
-                <div
-                  key={pool.id}
-                  className={[
-                    'border-2 rounded-xl p-4 transition-colors',
-                    dragging ? 'border-dashed border-red-300 bg-red-50/30' : 'border-gray-200',
-                  ].join(' ')}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => void handleDrop(pool.id)}
-                >
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    {renamingPoolId === pool.id ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <input
-                          value={renameDraft}
-                          onChange={(e) => setRenameDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') void saveRename(pool.id);
-                            if (e.key === 'Escape') setRenamingPoolId(null);
-                          }}
-                          autoFocus
-                          className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                        />
-                        <button
-                          type="button"
-                          disabled={renameBusy}
-                          onClick={() => void saveRename(pool.id)}
-                          className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRenamingPoolId(null)}
-                          className="rounded-md px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => void startRename(pool)}
-                        title="Rename pool"
-                        className="font-bold text-gray-900 hover:text-red-700 hover:underline decoration-dotted"
-                      >
-                        {pool.name}
-                      </button>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">{pool.members.length} fighters</span>
-                      <RowActionButton
-                        variant="danger"
-                        onClick={() => setPendingDeletePoolId(pool.id)}
-                        disabled={lifecycleBusy || renamingPoolId === pool.id}
-                        title="Delete this pool"
-                      >
-                        Delete
-                      </RowActionButton>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {pool.members.map((m) => (
-                      <div
-                        key={m.registrationId}
-                        draggable
-                        onDragStart={() =>
-                          setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
-                        }
-                        onDragEnd={() => setDragging(null)}
-                        className="group flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className="font-medium text-gray-900">{m.personName}</span>
-                          {m.clubLabel && (
-                            <span className="text-gray-400 text-xs ml-2">{m.clubLabel}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {m.hemaWeightedRating !== null && (
-                            <span
-                              className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
-                              title="HEMA weighted rating"
-                            >
-                              {m.hemaWeightedRating.toFixed(1)}
-                            </span>
-                          )}
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
-                            #{m.seed}
-                          </span>
-                          <button
-                            type="button"
-                            disabled={editBusy}
-                            onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
-                            title="Move to unassigned"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {pool.members.length === 0 && (
-                      <p className="text-xs text-gray-400 italic">Drop fighters here.</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Unassigned fighters bucket */}
-          {pools && pools.length > 0 && (
-            <div
-              className={[
-                'mt-6 rounded-xl border-2 p-4 transition-colors',
-                dragging
-                  ? 'border-dashed border-red-300 bg-red-50/30'
-                  : 'border-gray-200 bg-gray-50',
-              ].join(' ')}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => void handleDropOnUnassigned()}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-bold text-gray-900">Unassigned fighters</h3>
-                <span className="text-xs text-gray-400">{unassigned.length} fighters</span>
-              </div>
-              {unassigned.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">
-                  All registered fighters are in a pool. Drag a fighter here to remove them from
-                  their pool.
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                  {unassigned.map((u) => (
-                    <div
-                      key={u.registrationId}
-                      draggable
-                      onDragStart={() =>
-                        setDragging({
-                          memberId: u.registrationId,
-                          fromPoolId: UNASSIGNED_DROP_ID,
-                        })
-                      }
-                      onDragEnd={() => setDragging(null)}
-                      className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium text-gray-900">{u.personName}</span>
-                        {u.clubLabel && (
-                          <span className="text-gray-400 text-xs ml-2">{u.clubLabel}</span>
-                        )}
-                      </div>
-                      {u.hemaWeightedRating !== null && (
-                        <span
-                          className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 shrink-0"
-                          title="HEMA weighted rating"
-                        >
-                          {u.hemaWeightedRating.toFixed(1)}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
               )}
             </div>
-          )}
 
-          {!pools && !generating && (
-            <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-              <p className="text-gray-400 text-sm">
-                No pools generated yet. Configure above and click Generate.
-              </p>
+            {/* Constraints section: school sep, skill balance, + 5 referee constraints */}
+            <div className="space-y-3 border-t border-slate-200 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t('organizer.pools.configure.constraints')}
+              </h3>
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.schoolSeparation')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.schoolSeparation')} />
+                </span>
+                <input
+                  type="checkbox"
+                  checked={schoolSep}
+                  onChange={(e) => setSchoolSep(e.target.checked)}
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.skillBalance')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.skillBalance')} />
+                </span>
+                <input
+                  type="checkbox"
+                  checked={skillBalance}
+                  onChange={(e) => setSkillBalance(e.target.checked)}
+                />
+              </label>
+
+              <div className="border-t border-slate-100 pt-3" />
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.refNoBackToBack')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.refNoBackToBack')} />
+                </span>
+                <input
+                  type="checkbox"
+                  checked={refNoBackToBack}
+                  onChange={(e) => setRefNoBackToBack(e.target.checked)}
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.refRestMinSlots')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.refRestMinSlots')} />
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={refRestMinSlots}
+                  onChange={(e) =>
+                    setRefRestMinSlots(Math.max(0, Math.min(10, parseInt(e.target.value, 10) || 0)))
+                  }
+                  disabled={!refNoBackToBack}
+                  className="w-16 rounded-md border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-50"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.refDedicatedRest')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.refDedicatedRest')} />
+                </span>
+                <input
+                  type="checkbox"
+                  checked={refDedicatedRest}
+                  onChange={(e) => setRefDedicatedRest(e.target.checked)}
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.refFighterNoOverlap')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.refFighterNoOverlap')} />
+                </span>
+                <input
+                  type="checkbox"
+                  checked={refFighterNoOverlap}
+                  onChange={(e) => setRefFighterNoOverlap(e.target.checked)}
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center">
+                  {t('organizer.pools.configure.refPreferHighRated')}
+                  <HelpTooltip text={t('organizer.pools.configure.help.refPreferHighRated')} />
+                </span>
+                <input
+                  type="checkbox"
+                  checked={refPreferHighRated}
+                  onChange={(e) => setRefPreferHighRated(e.target.checked)}
+                />
+              </label>
             </div>
-          )}
-        </>
+
+            {/* Lifecycle actions */}
+            <div className="space-y-2 border-t border-slate-200 pt-4">
+              <button
+                onClick={() => void generate(false)}
+                disabled={generating || !selectedTournament}
+                className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+              >
+                {generating
+                  ? 'Generating…'
+                  : existingPhase
+                    ? 'Regenerate'
+                    : unassigned.length === 0
+                      ? 'Generate empty pools'
+                      : 'Generate pools'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void addEmptyPool()}
+                disabled={lifecycleBusy || !selectedTournament}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                + Add empty pool
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingDeleteAll(true)}
+                disabled={lifecycleBusy || !existingPhase || !selectedTournament}
+                className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+              >
+                Delete all pools
+              </button>
+            </div>
+          </aside>
+        </div>
       )}
 
       {activeTab === 'matches' && poolPhaseId && (
