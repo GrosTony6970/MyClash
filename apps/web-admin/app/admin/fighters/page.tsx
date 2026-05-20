@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 import { t } from '@myclash/i18n';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -102,12 +100,16 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
     <section className="border border-slate-200 rounded-lg p-4 min-h-64">
       <p className="text-xs text-slate-500 uppercase tracking-wide mb-3">{label}</p>
       {!fighter ? (
-        <p className="text-sm text-slate-400">No fighter selected.</p>
+        <p className="text-sm text-slate-400">
+          {t('admin.globalProfiles.merge.noFighterSelected')}
+        </p>
       ) : (
         <div>
           <div className="flex items-start gap-3">
             <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-500 overflow-hidden">
-              {fighter.photo_url ? 'Photo' : fighter.display_name.slice(0, 2).toUpperCase()}
+              {fighter.photo_url
+                ? t('admin.globalProfiles.merge.cardPhoto')
+                : fighter.display_name.slice(0, 2).toUpperCase()}
             </div>
             <div>
               <h2 className="text-lg font-semibold">{fighter.display_name}</h2>
@@ -117,21 +119,23 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
           </div>
           <dl className="grid grid-cols-2 gap-3 mt-5 text-sm">
             <div>
-              <dt className="text-slate-400">Name</dt>
+              <dt className="text-slate-400">{t('admin.globalProfiles.merge.cardName')}</dt>
               <dd>
                 {fighter.given_name} {fighter.family_name}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-400">Country</dt>
+              <dt className="text-slate-400">{t('admin.globalProfiles.merge.cardCountry')}</dt>
               <dd>{fighter.country_code ?? '-'}</dd>
             </div>
             <div>
-              <dt className="text-slate-400">HEMA Ratings</dt>
+              <dt className="text-slate-400">{t('admin.globalProfiles.merge.cardHemaRatings')}</dt>
               <dd>{fighter.hema_ratings_id ?? '-'}</dd>
             </div>
             <div>
-              <dt className="text-slate-400">Gender category</dt>
+              <dt className="text-slate-400">
+                {t('admin.globalProfiles.merge.cardGenderCategory')}
+              </dt>
               <dd>{fighter.gender_category ?? '-'}</dd>
             </div>
           </dl>
@@ -384,12 +388,17 @@ export default function AdminFightersPage() {
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to load merge audit log'));
+        if (!res.ok)
+          throw new Error(
+            await readErrorMessage(res, t('admin.globalProfiles.merge.auditLoadError')),
+          );
         setAudits((await res.json()) as MergeAuditEntry[]);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setMergeError(err instanceof Error ? err.message : 'Something went wrong');
+          setMergeError(
+            err instanceof Error ? err.message : t('admin.globalProfiles.merge.somethingWrong'),
+          );
         }
       });
     return () => controller.abort();
@@ -404,7 +413,7 @@ export default function AdminFightersPage() {
     });
     setLoading(false);
     if (!res.ok) {
-      setMergeError(await readErrorMessage(res, 'Fighter search failed.'));
+      setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.searchFailed')));
       return;
     }
     setFighters((await res.json()) as FighterRow[]);
@@ -413,11 +422,11 @@ export default function AdminFightersPage() {
   async function mergeFighters() {
     if (!source || !target) return;
     if (source.id === target.id) {
-      setMergeError('Source and target must be different fighters.');
+      setMergeError(t('admin.globalProfiles.merge.sourceTargetDifferent'));
       return;
     }
     if (confirmName !== source.display_name) {
-      setMergeError('Typed confirmation must match the source display name.');
+      setMergeError(t('admin.globalProfiles.merge.confirmMismatch'));
       return;
     }
 
@@ -437,11 +446,11 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setMergeError(await readErrorMessage(res, 'Merge failed.'));
+    setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.mergeFailed')));
   }
 
   async function revertMerge(auditId: string) {
-    if (!confirm('Revert this fighter merge?')) return;
+    if (!confirm(t('admin.globalProfiles.merge.revertConfirm'))) return;
     const res = await fetch(`${apiUrl}/api/v1/fighters/merge/${auditId}/revert`, {
       method: 'POST',
       credentials: 'include',
@@ -450,7 +459,7 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setMergeError(await readErrorMessage(res, 'Merge revert failed.'));
+    setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.revertFailed')));
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -459,16 +468,14 @@ export default function AdminFightersPage() {
     <main className="p-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Global Profiles</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Manage global fighter, referee, and workshop participant profiles.
-          </p>
+          <h1 className="text-2xl font-bold">{t('admin.globalProfiles.title')}</h1>
+          <p className="text-slate-500 text-sm mt-1">{t('admin.globalProfiles.description')}</p>
         </div>
         <Link
           href="/admin/global-persons/import"
           className="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg"
         >
-          CSV import
+          {t('admin.globalProfiles.csvImport')}
         </Link>
       </div>
 
@@ -476,9 +483,9 @@ export default function AdminFightersPage() {
       <div className="flex border-b border-slate-200 mb-6 gap-0">
         {(
           [
-            { key: 'profiles', label: 'Profiles' },
-            { key: 'create', label: 'New profile' },
-            { key: 'merge', label: 'Merge' },
+            { key: 'profiles', label: t('admin.globalProfiles.tabs.profiles') },
+            { key: 'create', label: t('admin.globalProfiles.tabs.create') },
+            { key: 'merge', label: t('admin.globalProfiles.tabs.merge') },
           ] as { key: Tab; label: string }[]
         ).map(({ key, label }) => (
           <button
@@ -521,7 +528,7 @@ export default function AdminFightersPage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void searchPersons(personQuery);
               }}
-              placeholder="Search by name…"
+              placeholder={t('admin.globalProfiles.searchByName')}
               className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-72"
             />
             <button
@@ -529,25 +536,27 @@ export default function AdminFightersPage() {
               disabled={personsLoading}
               className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
             >
-              Search
+              {t('admin.globalProfiles.searchAction')}
             </button>
           </div>
           <div className="overflow-x-auto border border-slate-200 rounded-lg">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-left text-slate-500 text-xs uppercase tracking-wide">
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Club</th>
-                  <th className="py-3 px-4">Roles</th>
-                  <th className="py-3 px-4">Country</th>
-                  <th className="py-3 px-4">Actions</th>
+                  <th className="py-3 px-4">{t('admin.globalProfiles.colName')}</th>
+                  <th className="py-3 px-4">{t('admin.globalProfiles.colClub')}</th>
+                  <th className="py-3 px-4">{t('admin.globalProfiles.colRoles')}</th>
+                  <th className="py-3 px-4">{t('admin.globalProfiles.colCountry')}</th>
+                  <th className="py-3 px-4">{t('admin.globalProfiles.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {persons.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">
-                      {personsLoading ? 'Loading…' : 'No profiles found.'}
+                      {personsLoading
+                        ? t('admin.globalProfiles.loading')
+                        : t('admin.globalProfiles.noProfilesFound')}
                     </td>
                   </tr>
                 )}
@@ -566,17 +575,17 @@ export default function AdminFightersPage() {
                       <div className="flex gap-1 flex-wrap">
                         {p.is_fighter && (
                           <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">
-                            fighter
+                            {t('admin.globalProfiles.roleFighter')}
                           </span>
                         )}
                         {p.is_referee && (
                           <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                            referee
+                            {t('admin.globalProfiles.roleReferee')}
                           </span>
                         )}
                         {p.is_workshop_participant && (
                           <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
-                            workshop
+                            {t('admin.globalProfiles.roleWorkshop')}
                           </span>
                         )}
                       </div>
@@ -597,7 +606,9 @@ export default function AdminFightersPage() {
             </table>
           </div>
           {persons.length > 0 && (
-            <p className="text-xs text-slate-400 mt-2">{persons.length} profiles</p>
+            <p className="text-xs text-slate-400 mt-2">
+              {t('admin.globalProfiles.profilesCount', { count: persons.length })}
+            </p>
           )}
         </div>
       )}
@@ -641,7 +652,7 @@ export default function AdminFightersPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Given name <span className="text-red-600">*</span>
+                  {t('admin.globalProfiles.givenNameLabel')} <span className="text-red-600">*</span>
                 </label>
                 <input
                   value={form.givenName}
@@ -651,7 +662,8 @@ export default function AdminFightersPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Family name <span className="text-red-600">*</span>
+                  {t('admin.globalProfiles.familyNameLabel')}{' '}
+                  <span className="text-red-600">*</span>
                 </label>
                 <input
                   value={form.familyName}
@@ -663,7 +675,7 @@ export default function AdminFightersPage() {
 
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Display name (leave blank to auto-generate)
+                {t('admin.globalProfiles.displayNameLabel')}
               </label>
               <input
                 value={form.displayName}
@@ -689,7 +701,9 @@ export default function AdminFightersPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Club</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {t('admin.globalProfiles.clubLabel')}
+              </label>
               <div className="relative">
                 <input
                   value={form.clubQuery}
@@ -722,11 +736,13 @@ export default function AdminFightersPage() {
                       setClubResults([]);
                     }
                   }}
-                  placeholder="Search clubs by name or abbreviation…"
+                  placeholder={t('admin.globalProfiles.clubSearchPlaceholder')}
                   className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
                 />
                 {form.clubId && (
-                  <p className="text-xs text-green-700 mt-1">Selected: {form.clubName}</p>
+                  <p className="text-xs text-green-700 mt-1">
+                    {t('admin.globalProfiles.clubSelected', { club: form.clubName })}
+                  </p>
                 )}
                 {clubResults.length > 0 && !form.clubId && (
                   <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
@@ -792,13 +808,18 @@ export default function AdminFightersPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-2">Roles</label>
+              <label className="block text-xs font-medium text-slate-600 mb-2">
+                {t('admin.globalProfiles.rolesLabel')}
+              </label>
               <div className="flex gap-4">
                 {(
                   [
-                    { key: 'isFighter', label: 'Fighter' },
-                    { key: 'isReferee', label: 'Referee' },
-                    { key: 'isWorkshopParticipant', label: 'Workshop' },
+                    { key: 'isFighter', label: t('admin.globalProfiles.roleFighterLabel') },
+                    { key: 'isReferee', label: t('admin.globalProfiles.roleRefereeLabel') },
+                    {
+                      key: 'isWorkshopParticipant',
+                      label: t('admin.globalProfiles.roleWorkshopLabel'),
+                    },
                   ] as {
                     key: keyof Pick<
                       ProfileForm,
@@ -866,7 +887,7 @@ export default function AdminFightersPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void searchFighters();
                 }}
-                placeholder="Search fighters by name"
+                placeholder={t('admin.globalProfiles.merge.searchPlaceholder')}
                 className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30 w-80"
               />
               <button
@@ -874,7 +895,7 @@ export default function AdminFightersPage() {
                 disabled={loading}
                 className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
               >
-                Search
+                {t('admin.globalProfiles.merge.searchAction')}
               </button>
             </div>
             {fighters.length > 0 && (
@@ -882,9 +903,11 @@ export default function AdminFightersPage() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-slate-500">
-                      <th className="py-2 pr-4">Fighter</th>
-                      <th className="py-2 pr-4">HEMA Ratings</th>
-                      <th className="py-2">Select</th>
+                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colFighter')}</th>
+                      <th className="py-2 pr-4">
+                        {t('admin.globalProfiles.merge.colHemaRatings')}
+                      </th>
+                      <th className="py-2">{t('admin.globalProfiles.merge.colSelect')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -903,13 +926,13 @@ export default function AdminFightersPage() {
                               onClick={() => setSource(fighter)}
                               className="text-xs text-red-700 hover:underline"
                             >
-                              Source
+                              {t('admin.globalProfiles.merge.markSource')}
                             </button>
                             <button
                               onClick={() => setTarget(fighter)}
                               className="text-xs text-green-700 hover:underline"
                             >
-                              Target
+                              {t('admin.globalProfiles.merge.markTarget')}
                             </button>
                           </div>
                         </td>
@@ -922,24 +945,28 @@ export default function AdminFightersPage() {
           </section>
 
           <div className="grid gap-4 lg:grid-cols-2 mb-6">
-            <FighterCard label="Source: profile to merge away" fighter={source} />
-            <FighterCard label="Target: profile to keep" fighter={target} />
+            <FighterCard label={t('admin.globalProfiles.merge.sourceCardLabel')} fighter={source} />
+            <FighterCard label={t('admin.globalProfiles.merge.targetCardLabel')} fighter={target} />
           </div>
 
           <section className="border border-slate-200 rounded-lg p-4 mb-8">
-            <h2 className="text-base font-semibold mb-4">Confirm merge</h2>
+            <h2 className="text-base font-semibold mb-4">
+              {t('admin.globalProfiles.merge.confirmTitle')}
+            </h2>
             <div className="grid gap-3 lg:grid-cols-2">
               <input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Reason"
+                placeholder={t('admin.globalProfiles.merge.reasonPlaceholder')}
                 className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
               <input
                 value={confirmName}
                 onChange={(e) => setConfirmName(e.target.value)}
                 placeholder={
-                  source ? `Type: ${source.display_name}` : 'Select a source fighter first'
+                  source
+                    ? t('admin.globalProfiles.merge.typePrefix', { name: source.display_name })
+                    : t('admin.globalProfiles.merge.selectSourceFirst')
                 }
                 className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
@@ -949,23 +976,25 @@ export default function AdminFightersPage() {
               disabled={!source || !target || confirmName !== source?.display_name}
               className="mt-3 bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
             >
-              Merge source into target
+              {t('admin.globalProfiles.merge.mergeAction')}
             </button>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3">Recent merges</h2>
+            <h2 className="text-lg font-semibold mb-3">
+              {t('admin.globalProfiles.merge.recentTitle')}
+            </h2>
             {audits.length === 0 ? (
-              <p className="text-slate-400 text-sm">No fighter merges yet.</p>
+              <p className="text-slate-400 text-sm">{t('admin.globalProfiles.merge.noMerges')}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-slate-500">
-                      <th className="py-2 pr-4">Merge</th>
-                      <th className="py-2 pr-4">Reason</th>
-                      <th className="py-2 pr-4">Created</th>
-                      <th className="py-2">Actions</th>
+                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colMerge')}</th>
+                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colReason')}</th>
+                      <th className="py-2 pr-4">{t('admin.globalProfiles.merge.colCreated')}</th>
+                      <th className="py-2">{t('admin.globalProfiles.merge.colMergeActions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -982,10 +1011,12 @@ export default function AdminFightersPage() {
                               '-'}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Persons {audit.payload_json.moved?.personIds?.length ?? 0},
-                            registrations {audit.payload_json.moved?.registrationIds?.length ?? 0},
-                            instructors{' '}
-                            {audit.payload_json.moved?.workshopInstructorIds?.length ?? 0}
+                            {t('admin.globalProfiles.merge.movedSummary', {
+                              persons: audit.payload_json.moved?.personIds?.length ?? 0,
+                              registrations: audit.payload_json.moved?.registrationIds?.length ?? 0,
+                              instructors:
+                                audit.payload_json.moved?.workshopInstructorIds?.length ?? 0,
+                            })}
                           </p>
                         </td>
                         <td className="py-2 pr-4 text-slate-600">
@@ -1000,7 +1031,7 @@ export default function AdminFightersPage() {
                             disabled={nowMs === null || !canRevert(audit.created_at, nowMs)}
                             className="text-xs text-red-700 hover:underline disabled:text-slate-300"
                           >
-                            Revert
+                            {t('admin.globalProfiles.merge.revert')}
                           </button>
                         </td>
                       </tr>
