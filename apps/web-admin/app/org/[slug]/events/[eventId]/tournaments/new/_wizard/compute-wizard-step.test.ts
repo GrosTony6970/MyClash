@@ -44,6 +44,12 @@ describe('computeWizardStep', () => {
     ).toBe(null);
   });
 
+  it('returns 3 when buttons.clean exists as an empty array', () => {
+    expect(
+      computeWizardStep(row({ scoring_config: { pointCap: 5, buttons: { clean: [] } } })),
+    ).toBe(3);
+  });
+
   it('returns 1 when basics are missing (defensive)', () => {
     expect(computeWizardStep(row({ name: '' }))).toBe(1);
   });
