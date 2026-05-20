@@ -22,6 +22,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { SettingsService } from '../referees/settings.service';
 import type {
   GenerateBracketDto,
   GeneratePoolsDto,
@@ -41,6 +42,8 @@ export class PhasesService {
     private readonly orgs?: OrganizationsService,
     @Optional()
     private readonly bracketAdvance?: BracketAdvanceService,
+    @Optional()
+    private readonly settingsService?: SettingsService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -95,11 +98,39 @@ export class PhasesService {
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('weapon')
+      .select('weapon, event_id')
       .eq('id', tournamentId)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
     const tournamentWeapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
+    const eventId = (tournament as { event_id?: string | null } | null)?.event_id ?? null;
+
+    // Merge any referee constraint overrides from the DTO into pool_assignment_settings
+    // and persist them so they survive across regenerations.
+    if (this.settingsService && eventId) {
+      const anyRefereeOverride =
+        dto.enforceRefereeNoBackToBack !== undefined ||
+        dto.refereeRestMinSlots !== undefined ||
+        dto.enforceDedicatedRefereeRest !== undefined ||
+        dto.preferHighRatedReferees !== undefined;
+      if (anyRefereeOverride) {
+        await this.settingsService.upsertSettings(eventId, tournamentId, {
+          ...(dto.enforceRefereeNoBackToBack !== undefined && {
+            enforceRefereeNoBackToBack: dto.enforceRefereeNoBackToBack,
+          }),
+          ...(dto.refereeRestMinSlots !== undefined && {
+            refereeRestMinSlots: dto.refereeRestMinSlots,
+          }),
+          ...(dto.enforceDedicatedRefereeRest !== undefined && {
+            enforceDedicatedRefereeRest: dto.enforceDedicatedRefereeRest,
+          }),
+          // enforceFighterRefereeNoOverlap is a HARD constraint (always true) and excluded from upsert
+          ...(dto.preferHighRatedReferees !== undefined && {
+            ratingBasedOrdering: dto.preferHighRatedReferees,
+          }),
+        });
+      }
+    }
 
     // Resolve pool count. When there are zero fighters we still need a sensible
     // default so the operator can stand up the layout before any registrations

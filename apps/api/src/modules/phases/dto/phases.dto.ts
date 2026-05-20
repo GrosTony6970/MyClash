@@ -46,6 +46,38 @@ export class GeneratePoolsDto {
   @IsOptional()
   @IsUUID()
   liceId?: string;
+
+  /** Prevent a referee from being scheduled back-to-back across pools (default: true) */
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  enforceRefereeNoBackToBack?: boolean;
+
+  /** Number of pool slots a referee must rest between officiating duties (default: 1) */
+  @ApiProperty({ required: false, default: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  refereeRestMinSlots?: number;
+
+  /** Ensure competing referees get a rest between the pool they ref and the pool they fight in (default: true) */
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  enforceDedicatedRefereeRest?: boolean;
+
+  /** Never schedule a fighter to referee the same pool they're fighting in (default: true) */
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  enforceFighterRefereeNoOverlap?: boolean;
+
+  /** Prefer referees with higher ratings when multiple candidates are available (default: true) */
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  preferHighRatedReferees?: boolean;
 }
 
 export class GenerateBracketDto {
