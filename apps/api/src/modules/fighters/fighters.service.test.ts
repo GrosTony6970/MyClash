@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { FightersService } from './fighters.service';
+import { FightersService, parseBoolCell } from './fighters.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -368,5 +368,41 @@ describe('FightersService', () => {
       expect(result).not.toHaveProperty('date_of_birth');
       expect(result).not.toHaveProperty('dateOfBirth');
     });
+  });
+});
+
+describe('parseBoolCell', () => {
+  it('treats empty / missing values as false', () => {
+    expect(parseBoolCell(undefined)).toBe(false);
+    expect(parseBoolCell(null)).toBe(false);
+    expect(parseBoolCell('')).toBe(false);
+    expect(parseBoolCell('   ')).toBe(false);
+  });
+
+  it('parses numeric truthy / falsy', () => {
+    expect(parseBoolCell('1')).toBe(true);
+    expect(parseBoolCell('0')).toBe(false);
+  });
+
+  it('parses textual booleans case-insensitively', () => {
+    expect(parseBoolCell('true')).toBe(true);
+    expect(parseBoolCell('TRUE')).toBe(true);
+    expect(parseBoolCell('True')).toBe(true);
+    expect(parseBoolCell('false')).toBe(false);
+    expect(parseBoolCell('FALSE')).toBe(false);
+    expect(parseBoolCell('False')).toBe(false);
+  });
+
+  it('parses yes/no for spreadsheet ergonomics', () => {
+    expect(parseBoolCell('yes')).toBe(true);
+    expect(parseBoolCell('YES')).toBe(true);
+    expect(parseBoolCell('no')).toBe(false);
+    expect(parseBoolCell('NO')).toBe(false);
+  });
+
+  it('returns false for unrecognised values rather than leaking truthiness', () => {
+    expect(parseBoolCell('maybe')).toBe(false);
+    expect(parseBoolCell('2')).toBe(false);
+    expect(parseBoolCell('-1')).toBe(false);
   });
 });

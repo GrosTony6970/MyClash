@@ -1007,10 +1007,9 @@ export class FightersService {
           clubLabel: row.club ?? null,
           clubAbbreviation: row.club_abv ?? null,
           clubCity: row.club_city ?? null,
-          isFighter: row.is_fighter === 'true' || row.is_fighter === '1',
-          isReferee: row.is_referee === 'true' || row.is_referee === '1',
-          isWorkshopParticipant:
-            row.is_workshop_participant === 'true' || row.is_workshop_participant === '1',
+          isFighter: parseBoolCell(row.is_fighter),
+          isReferee: parseBoolCell(row.is_referee),
+          isWorkshopParticipant: parseBoolCell(row.is_workshop_participant),
         },
       });
     }
@@ -1074,9 +1073,9 @@ export class FightersService {
         family_name: familyName,
         club_id: clubId,
         hema_ratings_id: decision.hemaRatingsId?.trim() || null,
-        is_fighter: decision.isFighter ? 'true' : null,
-        is_referee: decision.isReferee ? 'true' : null,
-        is_workshop_participant: decision.isWorkshopParticipant ? 'true' : null,
+        is_fighter: decision.isFighter ? 'true' : 'false',
+        is_referee: decision.isReferee ? 'true' : 'false',
+        is_workshop_participant: decision.isWorkshopParticipant ? 'true' : 'false',
       };
 
       try {
@@ -1309,4 +1308,16 @@ export class FightersService {
 
     if (error) throw new BadRequestException(error.message);
   }
+}
+
+/**
+ * Parse a CSV cell as a boolean. Accepts (case-insensitive):
+ *   "1" / "0", "true" / "false", "yes" / "no". Empty / undefined → false.
+ * Anything else also → false — we never want a half-imported row to inherit
+ * accidental truthiness.
+ */
+export function parseBoolCell(value: string | undefined | null): boolean {
+  if (value === undefined || value === null) return false;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed === '1' || trimmed === 'true' || trimmed === 'yes';
 }
