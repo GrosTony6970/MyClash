@@ -24,6 +24,7 @@ import {
   validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
+import { defaultRulesetConfigFor } from './ruleset-defaults';
 
 @Injectable()
 export class EventsService {
@@ -635,12 +636,30 @@ export class EventsService {
       const merged = deepMergeJson(currentJson['lock_config_json'] ?? {}, dto.lockConfig);
       updates['lock_config_json'] = normalizeTournamentLockConfig(merged);
     }
-    if (dto.rulesetConfig !== undefined) {
-      const merged = deepMergeJson(currentJson['ruleset_config'] ?? {}, dto.rulesetConfig);
-      updates['ruleset_config'] = validateTournamentRulesetConfig(
-        (currentJson['ruleset_code'] as string | undefined) ?? 'TF_v1',
-        merged,
+    const currentCode = currentJson['ruleset_code'] as string | undefined;
+    const currentVersion = currentJson['ruleset_version'] as string | undefined;
+    const codeChanged = dto.rulesetCode !== undefined && dto.rulesetCode !== currentCode;
+    const versionChanged =
+      dto.rulesetVersion !== undefined && dto.rulesetVersion !== currentVersion;
+
+    if (codeChanged || versionChanged) {
+      // Switching ruleset wipes the existing config and seeds defaults from the
+      // new ruleset. Caller-provided rulesetConfig in the same PATCH (rare) is
+      // merged on top of the new defaults.
+      const newDefaults = defaultRulesetConfigFor(
+        dto.rulesetCode ?? currentCode ?? 'TF_v1',
+        dto.rulesetVersion ?? currentVersion ?? '1',
       );
+      const callerPatch = dto.rulesetConfig ?? {};
+      updates['ruleset_config'] = validateTournamentRulesetConfig(
+        dto.rulesetCode ?? currentCode ?? 'TF_v1',
+        deepMergeJson(newDefaults, callerPatch),
+      );
+    } else if (dto.rulesetConfig !== undefined) {
+      // Same ruleset — merge caller patch onto the existing stored config
+      // (unchanged from Task 4's behavior).
+      const merged = deepMergeJson(currentJson['ruleset_config'] ?? {}, dto.rulesetConfig);
+      updates['ruleset_config'] = validateTournamentRulesetConfig(currentCode ?? 'TF_v1', merged);
     }
 
     const { data, error } = await this.supabase.service

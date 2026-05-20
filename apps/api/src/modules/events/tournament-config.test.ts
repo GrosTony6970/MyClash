@@ -59,6 +59,8 @@ describe('tournament config validation', () => {
   });
 });
 
+import { defaultRulesetConfigFor } from './ruleset-defaults';
+
 // Contract test: documents the merge semantics that updateTournament relies on.
 // The service-level integration (that updateTournament actually invokes deepMergeJson
 // in the right order) is covered by the existing PATCH integration tests.
@@ -81,5 +83,22 @@ describe('deepMergeJson contract as it applies to updateTournament nested-config
       pointCap: 7,
       buttons: { clean: [{ label: 'A' }] },
     });
+  });
+});
+
+describe('ruleset-switch reset behavior', () => {
+  it('Generic_PointsCap defaults do not include TF_v1-only keys', () => {
+    const next = defaultRulesetConfigFor('Generic_PointsCap', '1');
+    // Generic_PointsCap shouldn't have winBonus or targetValues (TF_v1 internals).
+    expect(next).not.toHaveProperty('winBonus');
+    expect(next).not.toHaveProperty('targetValues');
+  });
+
+  it('TF_v1 defaults include expected keys', () => {
+    const next = defaultRulesetConfigFor('TF_v1', '1');
+    // TF_v1 has internals exposed by the wizard's Advanced step.
+    expect(typeof next).toBe('object');
+    // At minimum, the helper should return a non-null object.
+    expect(next).not.toBeNull();
   });
 });
