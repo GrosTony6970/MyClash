@@ -7,6 +7,8 @@ import {
   BulkActionBar,
   ConfirmDialog,
   PromptDialog,
+  RowActionButton,
+  rowActionClasses,
   useSelection,
   useToast,
 } from '@myclash/ui';
@@ -290,7 +292,7 @@ export default function AdminRulesetsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Rulesets"
         title={t('admin.rulesets.title')}
@@ -391,20 +393,20 @@ export default function AdminRulesetsPage() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex gap-2">
-                        <button
+                        <RowActionButton
+                          variant="success"
                           onClick={() => void approveSubmission(row.id)}
                           disabled={row.status === 'approved'}
-                          className="text-xs text-green-700 hover:underline disabled:text-slate-300"
                         >
                           {t('admin.rulesets.approveAction')}
-                        </button>
-                        <button
+                        </RowActionButton>
+                        <RowActionButton
+                          variant="danger"
                           onClick={() => setRejectTarget(row.id)}
                           disabled={row.status === 'rejected'}
-                          className="text-xs text-red-700 hover:underline disabled:text-slate-300"
                         >
                           {t('admin.rulesets.rejectAction')}
-                        </button>
+                        </RowActionButton>
                       </div>
                     </td>
                   </tr>
@@ -495,57 +497,49 @@ export default function AdminRulesetsPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex gap-2">
                         <Link
                           href={`/admin/rulesets/${row.id}/edit`}
-                          className="text-xs font-semibold text-blue-700 hover:underline"
+                          className={rowActionClasses('edit')}
                         >
                           {row.is_system
                             ? t('admin.rulesets.viewAction')
                             : t('admin.rulesets.editAction')}
                         </Link>
-                        <button
-                          type="button"
+                        <RowActionButton
+                          variant="neutral"
                           onClick={() => void performCuratedAction(row.id, 'clone')}
-                          className="text-xs font-semibold text-slate-700 hover:underline"
                         >
                           {t('admin.rulesets.cloneAction')}
-                        </button>
+                        </RowActionButton>
                         {!row.is_system && row.status !== 'published' ? (
-                          <button
-                            type="button"
+                          <RowActionButton
+                            variant="success"
                             onClick={() => void performCuratedAction(row.id, 'publish')}
-                            className="text-xs font-semibold text-green-700 hover:underline"
                           >
                             {t('admin.rulesets.publishAction')}
-                          </button>
+                          </RowActionButton>
                         ) : null}
                         {!row.is_system && row.status === 'published' ? (
-                          <button
-                            type="button"
+                          <RowActionButton
+                            variant="warning"
                             onClick={() => void performCuratedAction(row.id, 'unpublish')}
-                            className="text-xs font-semibold text-amber-700 hover:underline"
                           >
                             {t('admin.rulesets.unpublishAction')}
-                          </button>
+                          </RowActionButton>
                         ) : null}
                         {row.status === 'published' && !row.is_default ? (
-                          <button
-                            type="button"
+                          <RowActionButton
+                            variant="neutral"
                             onClick={() => void performCuratedAction(row.id, 'set-default')}
-                            className="text-xs font-semibold text-amber-700 hover:underline"
                           >
                             {t('admin.rulesets.setDefaultAction')}
-                          </button>
+                          </RowActionButton>
                         ) : null}
                         {!row.is_system ? (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(row.id)}
-                            className="text-xs font-semibold text-red-700 hover:underline"
-                          >
+                          <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
                             {t('admin.rulesets.deleteAction')}
-                          </button>
+                          </RowActionButton>
                         ) : null}
                       </div>
                     </td>

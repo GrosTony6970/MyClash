@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AdminPageHeader, ConfirmDialog, useToast } from '@myclash/ui';
+import {
+  AdminPageHeader,
+  ConfirmDialog,
+  RowActionButton,
+  rowActionClasses,
+  useToast,
+} from '@myclash/ui';
 
 interface League {
   id: string;
@@ -99,7 +105,7 @@ export default function AdminLeaguesPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Leagues"
         title="Leagues"
@@ -194,21 +200,20 @@ export default function AdminLeaguesPage() {
                   {league.public_visibility ? 'Yes' : 'No'}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex gap-2">
                     <Link
                       href={`/admin/leagues/${league.id}/edit`}
-                      className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                      className={rowActionClasses('edit')}
                     >
                       Edit
                     </Link>
-                    <button
-                      type="button"
+                    <RowActionButton
+                      variant="danger"
                       onClick={() => setPendingDelete(league)}
                       disabled={busyId === league.id}
-                      className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                     >
                       Delete
-                    </button>
+                    </RowActionButton>
                   </div>
                 </td>
               </tr>

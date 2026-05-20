@@ -1,5 +1,6 @@
 'use client';
 
+import { RowActionButton } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type RequestStatus = 'pending' | 'approved' | 'rejected' | 'all';
@@ -211,23 +212,23 @@ export default function ExchangeEditRequestsPage() {
                   <td className="py-3 pr-4">
                     {request.status === 'pending' ? (
                       <div className="flex gap-2">
-                        <button
+                        <RowActionButton
+                          variant="success"
                           onClick={() => void approve(request.id)}
                           disabled={busyId === request.id}
-                          className="rounded-md bg-green-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:opacity-50"
                         >
                           Approve
-                        </button>
-                        <button
+                        </RowActionButton>
+                        <RowActionButton
+                          variant="danger"
                           onClick={() => {
                             setRejectTarget(request);
                             setRejectReason('');
                           }}
                           disabled={busyId === request.id}
-                          className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                         >
                           Reject
-                        </button>
+                        </RowActionButton>
                       </div>
                     ) : (
                       <div className="text-xs text-slate-500">

@@ -1,7 +1,14 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import { AdminPageHeader, BulkActionBar, ConfirmDialog, useSelection, useToast } from '@myclash/ui';
+import {
+  AdminPageHeader,
+  BulkActionBar,
+  ConfirmDialog,
+  RowActionButton,
+  useSelection,
+  useToast,
+} from '@myclash/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ClubRow {
@@ -679,7 +686,7 @@ export default function AdminClubsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow="Clubs"
         title={t('admin.clubs.title')}
@@ -1110,43 +1117,40 @@ export default function AdminClubsPage() {
                     )}
                   </td>
                   <td className="py-2.5 px-4">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => startEdit(club)}
-                        className="text-xs text-red-700 hover:underline"
-                      >
+                    <div className="flex gap-2">
+                      <RowActionButton variant="edit" onClick={() => startEdit(club)}>
                         {t('actions.edit')}
-                      </button>
-                      <button
+                      </RowActionButton>
+                      <RowActionButton
+                        variant={club.unverified === 'true' ? 'success' : 'warning'}
                         onClick={() => void setClubVerified(club, club.unverified === 'true')}
                         disabled={verifyingId === club.id}
-                        className="text-xs text-green-700 hover:underline disabled:opacity-50"
                       >
                         {club.unverified === 'true'
                           ? t('admin.clubs.verify')
                           : t('admin.clubs.unverify')}
-                      </button>
-                      <button
+                      </RowActionButton>
+                      <RowActionButton
+                        variant="neutral"
                         onClick={() => void deleteClub(club, 'safe')}
                         disabled={deletingId === club.id}
-                        className="text-xs text-slate-600 hover:text-slate-900 disabled:opacity-50"
                       >
                         {t('admin.clubs.safeDelete')}
-                      </button>
-                      <button
+                      </RowActionButton>
+                      <RowActionButton
+                        variant="warning"
                         onClick={() => void deleteClub(club, 'archive')}
                         disabled={deletingId === club.id}
-                        className="text-xs text-amber-700 hover:text-amber-900 disabled:opacity-50"
                       >
                         {t('admin.clubs.archive')}
-                      </button>
-                      <button
+                      </RowActionButton>
+                      <RowActionButton
+                        variant="danger"
                         onClick={() => void deleteClub(club, 'cleanup')}
                         disabled={deletingId === club.id}
-                        className="text-xs text-red-700 hover:text-red-900 disabled:opacity-50"
                       >
                         {t('admin.clubs.cleanupDelete')}
-                      </button>
+                      </RowActionButton>
                     </div>
                   </td>
                 </tr>

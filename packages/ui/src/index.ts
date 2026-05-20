@@ -75,3 +75,6 @@ export type { UseSelectionResult } from './hooks/useSelection';
 
 export { BulkActionBar } from './components/BulkActionBar';
 export type { BulkActionBarProps } from './components/BulkActionBar';
+
+export { RowActionButton, rowActionClasses } from './components/RowActionButton';
+export type { RowActionButtonProps, RowActionVariant } from './components/RowActionButton';

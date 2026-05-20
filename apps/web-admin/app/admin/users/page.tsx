@@ -2,7 +2,14 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { AdminPageHeader, Button, ConfirmDialog, useToast } from '@myclash/ui';
+import {
+  AdminPageHeader,
+  Button,
+  ConfirmDialog,
+  rowActionClasses,
+  useToast,
+  type RowActionVariant,
+} from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface UserOrgMembership {
@@ -72,12 +79,12 @@ async function readError(res: Response, fallback: string): Promise<string> {
 function ActionButton({
   label,
   description,
-  className,
+  variant,
   onClick,
 }: {
   label: string;
   description: string;
-  className: string;
+  variant: RowActionVariant;
   onClick: () => void;
 }) {
   return (
@@ -87,7 +94,7 @@ function ActionButton({
         title={description}
         aria-label={`${label}: ${description}`}
         onClick={onClick}
-        className={className}
+        className={rowActionClasses(variant)}
       >
         {label}
       </button>
@@ -251,7 +258,7 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl space-y-6 px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl space-y-6 px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.dashboard.eyebrow')}
         title={t('admin.users.title')}
@@ -414,11 +421,8 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/admin/users/${user.id}`}
-                          className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                        >
+                      <div className="flex gap-2">
+                        <Link href={`/admin/users/${user.id}`} className={rowActionClasses('edit')}>
                           {t('admin.users.actions.edit')}
                         </Link>
                         <ActionButton
@@ -439,11 +443,7 @@ export default function AdminUsersPage() {
                               action: disabled ? 'enable' : 'disable',
                             });
                           }}
-                          className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${
-                            disabled
-                              ? 'border-green-200 text-green-700 hover:bg-green-50'
-                              : 'border-red-200 text-red-700 hover:bg-red-50'
-                          }`}
+                          variant={disabled ? 'success' : 'warning'}
                         />
                         <ActionButton
                           label={t('admin.users.actions.safeDelete')}
@@ -451,7 +451,7 @@ export default function AdminUsersPage() {
                           onClick={() => {
                             setPending({ kind: 'delete', user, mode: 'safe' });
                           }}
-                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          variant="neutral"
                         />
                         <ActionButton
                           label={t('admin.users.actions.cleanupDelete')}
@@ -459,7 +459,7 @@ export default function AdminUsersPage() {
                           onClick={() => {
                             setPending({ kind: 'delete', user, mode: 'cleanup' });
                           }}
-                          className="rounded-md border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50"
+                          variant="danger"
                         />
                       </div>
                     </td>

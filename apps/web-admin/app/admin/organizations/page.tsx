@@ -2,7 +2,15 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AdminPageHeader, Button, ConfirmDialog, StatusBadge, useToast } from '@myclash/ui';
+import {
+  AdminPageHeader,
+  Button,
+  ConfirmDialog,
+  RowActionButton,
+  rowActionClasses,
+  StatusBadge,
+  useToast,
+} from '@myclash/ui';
 import { useUrlState } from '../../../src/hooks/useUrlState';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
@@ -276,7 +284,7 @@ export default function AdminOrganizationsPage() {
     sortField === field ? (sortOrder === 'asc' ? ' ↑' : ' ↓') : '';
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
       <AdminPageHeader
         eyebrow={t('admin.organizations.eyebrow')}
         title={t('admin.organizations.title')}
@@ -648,42 +656,42 @@ export default function AdminOrganizationsPage() {
                     <div className="flex gap-2">
                       <Link
                         href={`/admin/organizations/${org.id}/edit`}
-                        className="text-xs text-blue-600 hover:underline"
+                        className={rowActionClasses('edit')}
                       >
                         {t('admin.organizations.actions.edit')}
                       </Link>
                       {org.status === 'active' && !org.is_protected ? (
-                        <button
+                        <RowActionButton
+                          variant="warning"
                           onClick={() => {
                             requestAction(org.id, 'suspend');
                           }}
-                          className="text-xs text-orange-600 hover:underline"
                         >
                           {t('admin.organizations.actions.suspend')}
-                        </button>
+                        </RowActionButton>
                       ) : org.status === 'suspended' ? (
-                        <button
+                        <RowActionButton
+                          variant="success"
                           onClick={() => {
                             requestAction(org.id, 'approve');
                           }}
-                          className="text-xs text-green-600 hover:underline"
                         >
                           {t('admin.organizations.actions.approve')}
-                        </button>
+                        </RowActionButton>
                       ) : null}
                       {org.is_protected ? (
-                        <span className="text-xs font-medium text-slate-400">
+                        <span className="inline-flex items-center px-2.5 text-xs font-medium text-slate-400">
                           {t('admin.organizations.actions.protected')}
                         </span>
                       ) : (
-                        <button
+                        <RowActionButton
+                          variant="danger"
                           onClick={() => {
                             requestAction(org.id, 'delete');
                           }}
-                          className="text-xs text-red-600 hover:underline"
                         >
                           {t('admin.organizations.actions.delete')}
-                        </button>
+                        </RowActionButton>
                       )}
                     </div>
                   </td>
