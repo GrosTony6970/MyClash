@@ -24,7 +24,7 @@ import {
   validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
-import { defaultRulesetConfigFor } from './ruleset-defaults';
+import { defaultRulesetConfigFor, normalizeRulesetVersion } from './ruleset-defaults';
 
 @Injectable()
 export class EventsService {
@@ -637,10 +637,13 @@ export class EventsService {
       updates['lock_config_json'] = normalizeTournamentLockConfig(merged);
     }
     const currentCode = currentJson['ruleset_code'] as string | undefined;
-    const currentVersion = currentJson['ruleset_version'] as string | undefined;
+    const currentVersionRaw = currentJson['ruleset_version'] as string | undefined;
+    const currentVersion = currentVersionRaw
+      ? normalizeRulesetVersion(currentVersionRaw)
+      : undefined;
+    const dtoVersion = dto.rulesetVersion ? normalizeRulesetVersion(dto.rulesetVersion) : undefined;
     const codeChanged = dto.rulesetCode !== undefined && dto.rulesetCode !== currentCode;
-    const versionChanged =
-      dto.rulesetVersion !== undefined && dto.rulesetVersion !== currentVersion;
+    const versionChanged = dtoVersion !== undefined && dtoVersion !== currentVersion;
 
     if (codeChanged || versionChanged) {
       // Switching ruleset wipes the existing config and seeds defaults from the
@@ -648,7 +651,7 @@ export class EventsService {
       // merged on top of the new defaults.
       const newDefaults = defaultRulesetConfigFor(
         dto.rulesetCode ?? currentCode ?? 'TF_v1',
-        dto.rulesetVersion ?? currentVersion ?? '1',
+        dtoVersion ?? currentVersion ?? '1.0.0',
       );
       const callerPatch = dto.rulesetConfig ?? {};
       updates['ruleset_config'] = validateTournamentRulesetConfig(

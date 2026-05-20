@@ -59,7 +59,7 @@ describe('tournament config validation', () => {
   });
 });
 
-import { defaultRulesetConfigFor } from './ruleset-defaults';
+import { defaultRulesetConfigFor, normalizeRulesetVersion } from './ruleset-defaults';
 
 // Contract test: documents the merge semantics that updateTournament relies on.
 // The service-level integration (that updateTournament actually invokes deepMergeJson
@@ -96,9 +96,16 @@ describe('ruleset-switch reset behavior', () => {
 
   it('TF_v1 defaults include expected keys', () => {
     const next = defaultRulesetConfigFor('TF_v1', '1');
-    // TF_v1 has internals exposed by the wizard's Advanced step.
-    expect(typeof next).toBe('object');
-    // At minimum, the helper should return a non-null object.
-    expect(next).not.toBeNull();
+    expect(next).toHaveProperty('winBonus');
+    expect(next).toHaveProperty('targetValues');
+  });
+});
+
+describe('normalizeRulesetVersion', () => {
+  it('maps "1" and "1.0" to canonical "1.0.0"', () => {
+    expect(normalizeRulesetVersion('1')).toBe('1.0.0');
+    expect(normalizeRulesetVersion('1.0')).toBe('1.0.0');
+    expect(normalizeRulesetVersion('1.0.0')).toBe('1.0.0');
+    expect(normalizeRulesetVersion('2.0.0')).toBe('2.0.0');
   });
 });
