@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MatchesModule } from '../matches/matches.module';
+import { SupabaseService } from '../supabase/supabase.service';
 import { AIDataQualityController } from './ai-data-quality.controller';
 import { AIDataQualityService } from './ai-data-quality.service';
 import { AdminAuditLogService } from './admin-audit-log.service';
@@ -53,7 +54,15 @@ import { UsersAdminController } from './users.controller';
     AdminAuditLogService,
     ExchangeEditRequestsAdminService,
     { provide: AdminSystemVersionsService, useFactory: () => new AdminSystemVersionsService() },
-    AdminSystemActionsService,
+    {
+      provide: AdminSystemActionsService,
+      // Use useFactory so Nest only injects SupabaseService; the second
+      // constructor param (AdminSystemActionsServiceOptions) is an interface
+      // — it has no runtime token, so leaving the service as a plain provider
+      // crashes DI with "Cannot resolve parameter at index [1]".
+      useFactory: (supabase: SupabaseService) => new AdminSystemActionsService(supabase),
+      inject: [SupabaseService],
+    },
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
     AIDataQualityService,
