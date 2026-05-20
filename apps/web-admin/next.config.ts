@@ -17,6 +17,19 @@ const nextConfig: NextConfig = {
     '@myclash/i18n',
     '@myclash/api-client',
   ],
+
+  // Permanent redirect for the legacy tournament config URL.
+  // The scoring-config page was renamed to /settings as part of the tournament
+  // configuration wizard; bookmarks and external links must still resolve.
+  async redirects() {
+    return [
+      {
+        source: '/org/:slug/events/:eventId/tournaments/:tournamentId/scoring-config',
+        destination: '/org/:slug/events/:eventId/tournaments/:tournamentId/settings#match-format',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
