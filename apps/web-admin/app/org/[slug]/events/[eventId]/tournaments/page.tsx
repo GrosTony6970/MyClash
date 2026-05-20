@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 
 interface Tournament {
   id: string;
@@ -13,12 +14,15 @@ interface Tournament {
   weapon: string | null;
   category: string | null;
   status: string;
+  ruleset_code: string | null;
+  ruleset_version: string | null;
+  scoring_config_json: Record<string, unknown> | null;
+  ruleset_config: Record<string, unknown> | null;
+  lock_config_json: Record<string, unknown> | null;
 }
 
 interface TournamentForm {
   name: string;
-  weapon: string;
-  category: string;
   status: string;
 }
 
@@ -38,14 +42,32 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     weapon: typeof row['weapon'] === 'string' ? row['weapon'] : null,
     category: typeof row['category'] === 'string' ? row['category'] : null,
     status: String(row['status'] ?? 'draft'),
+    ruleset_code: typeof row['ruleset_code'] === 'string' ? row['ruleset_code'] : null,
+    ruleset_version: typeof row['ruleset_version'] === 'string' ? row['ruleset_version'] : null,
+    scoring_config_json:
+      row['scoring_config_json'] != null &&
+      typeof row['scoring_config_json'] === 'object' &&
+      !Array.isArray(row['scoring_config_json'])
+        ? (row['scoring_config_json'] as Record<string, unknown>)
+        : null,
+    ruleset_config:
+      row['ruleset_config'] != null &&
+      typeof row['ruleset_config'] === 'object' &&
+      !Array.isArray(row['ruleset_config'])
+        ? (row['ruleset_config'] as Record<string, unknown>)
+        : null,
+    lock_config_json:
+      row['lock_config_json'] != null &&
+      typeof row['lock_config_json'] === 'object' &&
+      !Array.isArray(row['lock_config_json'])
+        ? (row['lock_config_json'] as Record<string, unknown>)
+        : null,
   };
 }
 
 function toForm(tournament: Tournament): TournamentForm {
   return {
     name: tournament.name,
-    weapon: tournament.weapon ?? '',
-    category: tournament.category ?? '',
     status: tournament.status,
   };
 }
@@ -139,8 +161,6 @@ export default function EventTournamentsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
-          weapon: form.weapon || null,
-          category: form.category || null,
           status: form.status,
         }),
       });
@@ -349,6 +369,40 @@ export default function EventTournamentsPage() {
                         >
                           {t('organizer.tournaments.edit')}
                         </Button>
+                        <Link
+                          href={`/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings#basics`}
+                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          {t('organizer.tournaments.settings.action')}
+                        </Link>
+                        {(() => {
+                          if (tournament.status !== 'draft') return null;
+                          const wizardStep = computeWizardStep({
+                            id: tournament.id,
+                            name: tournament.name,
+                            slug: tournament.slug,
+                            ruleset_code: tournament.ruleset_code,
+                            ruleset_version: tournament.ruleset_version,
+                            scoring_config: tournament.scoring_config_json,
+                            ruleset_config: tournament.ruleset_config,
+                            lock_config: tournament.lock_config_json,
+                            status: tournament.status,
+                          });
+                          if (wizardStep === null) return null;
+                          return (
+                            <>
+                              <Link
+                                href={`/org/${slug}/events/${eventId}/tournaments/new?id=${tournament.id}&step=${wizardStep}`}
+                                className="rounded-md bg-red-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-900"
+                              >
+                                {t('organizer.tournaments.list.resumeSetup')}
+                              </Link>
+                              <span className="text-xs text-slate-400">
+                                Draft — step {wizardStep} of 4
+                              </span>
+                            </>
+                          );
+                        })()}
                         {tournament.status === 'draft' && (
                           <Button
                             type="button"
@@ -418,22 +472,6 @@ export default function EventTournamentsPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                {t('organizer.tournaments.table.weapon')}
-                <input
-                  value={form.weapon}
-                  onChange={(event) => setForm({ ...form, weapon: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                {t('organizer.tournaments.table.category')}
-                <input
-                  value={form.category}
-                  onChange={(event) => setForm({ ...form, category: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
                 {t('organizer.tournaments.status')}
                 <select
@@ -448,6 +486,16 @@ export default function EventTournamentsPage() {
                   ))}
                 </select>
               </label>
+            </div>
+            <div className="my-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              {t('organizer.tournaments.editModal.openSettingsHint')}{' '}
+              <Link
+                href={`/org/${slug}/events/${eventId}/tournaments/${editing.id}/settings#basics`}
+                className="font-semibold underline"
+                onClick={() => setEditing(null)}
+              >
+                {t('organizer.tournaments.editModal.openSettingsLink')} →
+              </Link>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <Button type="button" variant="cancel" onClick={() => setEditing(null)}>
