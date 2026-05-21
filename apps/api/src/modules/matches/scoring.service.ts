@@ -8,7 +8,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   registry,
   TF_v1,
-  TF_v1_no_afterblow,
   Generic_PointsCap,
   getPointCapWinnerRegistrationId,
   normalizeMatchFormatConfig,
@@ -20,7 +19,7 @@ import { RulesetResolver } from './ruleset-resolver.service';
 // Register all built-in rulesets on module load
 // (idempotent — registry.register throws on duplicate, so we guard)
 function registerBuiltins() {
-  for (const ruleset of [TF_v1, TF_v1_no_afterblow, Generic_PointsCap]) {
+  for (const ruleset of [TF_v1, Generic_PointsCap]) {
     if (!registry.has(ruleset.code, ruleset.version)) {
       registry.register(ruleset);
     }

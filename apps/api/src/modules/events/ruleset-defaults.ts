@@ -27,9 +27,6 @@ type DefaultsMap = Record<string, Record<string, unknown>>;
 const RULESET_DEFAULTS: DefaultsMap = {
   'TF_v1:1': TFv1DefaultConfig as Record<string, unknown>,
   'TF_v1:1.0.0': TFv1DefaultConfig as Record<string, unknown>,
-  // TF_v1_no_afterblow shares TF_v1's config schema and defaults by design.
-  'TF_v1_no_afterblow:1': TFv1DefaultConfig as Record<string, unknown>,
-  'TF_v1_no_afterblow:1.0.0': TFv1DefaultConfig as Record<string, unknown>,
   'Generic_PointsCap:1': GenericPointsCapDefaultConfig as Record<string, unknown>,
   'Generic_PointsCap:1.0.0': GenericPointsCapDefaultConfig as Record<string, unknown>,
 };

@@ -39,7 +39,7 @@ export class RulesetResolver {
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > now) return cached.ruleset;
 
-    // 1. In-memory code registry: TF_v1, TF_v1_no_afterblow, Generic_PointsCap.
+    // 1. In-memory code registry: TF_v1, Generic_PointsCap.
     if (registry.has(code, version)) {
       const ruleset = registry.get(code, version);
       this.cache.set(cacheKey, { ruleset, expiresAt: now + CACHE_TTL_MS });

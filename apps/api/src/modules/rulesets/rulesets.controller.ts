@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { registry, TF_v1, TF_v1_no_afterblow, Generic_PointsCap } from '@myclash/rulesets';
+import { registry, TF_v1, Generic_PointsCap } from '@myclash/rulesets';
 
 interface RulesetSummary {
   code: string;
@@ -10,7 +10,7 @@ interface RulesetSummary {
 
 // Ensure all built-in rulesets are registered (idempotent — guarded with has()).
 // This mirrors the same guard in scoring.service.ts so either module can load first.
-for (const ruleset of [TF_v1, TF_v1_no_afterblow, Generic_PointsCap]) {
+for (const ruleset of [TF_v1, Generic_PointsCap]) {
   if (!registry.has(ruleset.code, ruleset.version)) {
     registry.register(ruleset);
   }
