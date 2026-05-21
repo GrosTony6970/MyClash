@@ -98,9 +98,36 @@ export class UpdateOrganizationDto {
 }
 
 export class ReassignOwnerDto {
-  @ApiProperty({ description: 'User ID of the new owner (must be an existing member)' })
+  @ApiProperty({
+    required: false,
+    description:
+      'Existing platform user ID to assign as owner. Mutually exclusive with ownerEmail.',
+  })
+  @IsOptional()
   @IsUUID()
-  newOwnerUserId!: string;
+  ownerUserId?: string;
+
+  @ApiProperty({
+    required: false,
+    example: 'organizer@example.com',
+    description: 'Email for a new owner account. Use with ownerDisplayName.',
+  })
+  @IsOptional()
+  @IsEmail()
+  ownerEmail?: string;
+
+  @ApiProperty({ required: false, example: 'Jean Dupont' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  ownerDisplayName?: string;
+
+  /** @deprecated Use `ownerUserId` instead. Kept for backwards compatibility. */
+  @ApiProperty({ required: false, description: 'Deprecated alias for ownerUserId.' })
+  @IsOptional()
+  @IsUUID()
+  newOwnerUserId?: string;
 }
 
 export class PromoteSuperAdminDto {
