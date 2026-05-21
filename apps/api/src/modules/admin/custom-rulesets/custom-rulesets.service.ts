@@ -12,7 +12,11 @@ import {
   FormulaConstantsSchema,
   FormulaNodeSchema,
   TiebreakerSchema,
+  registry,
   type FormulaConfig,
+  type RankingRule,
+  type RulesetMetadata,
+  type StandingsColumn,
   type Tiebreaker,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -33,6 +37,19 @@ export interface CustomRulesetRow {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * For `is_system: true` rows, the editable `tiebreakers` array is empty
+ * because the real ranking rules live on the coded ruleset's
+ * `rankingChain`. We surface them as a sibling field along with the
+ * ruleset's audit-friendly metadata so the admin UI can render a
+ * read-only "system ruleset details" panel.
+ */
+export interface CustomRulesetRowHydrated extends CustomRulesetRow {
+  systemRankingChain?: RankingRule[];
+  systemStandingsColumns?: StandingsColumn[];
+  systemMetadata?: RulesetMetadata;
 }
 
 // Zod's `z.array(TiebreakerSchema).max(16)` — but we don't pull zod here. Use
@@ -67,7 +84,7 @@ export class CustomRulesetsService {
     return (data ?? []) as CustomRulesetRow[];
   }
 
-  async getById(id: string): Promise<CustomRulesetRow> {
+  async getById(id: string): Promise<CustomRulesetRowHydrated> {
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .select('*')
@@ -75,7 +92,25 @@ export class CustomRulesetsService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Custom ruleset ${id} not found`);
-    return data as CustomRulesetRow;
+    return this.hydrateSystemRow(data as CustomRulesetRow);
+  }
+
+  /**
+   * For `is_system: true` rows, look up the coded ruleset in the registry
+   * and attach its `rankingChain`, `standingsColumns`, and `metadata` so
+   * the admin UI can render the real tie-breakers (currently hidden
+   * because the DB row's `tiebreakers` array is empty for system rows).
+   */
+  private hydrateSystemRow(row: CustomRulesetRow): CustomRulesetRowHydrated {
+    if (!row.is_system) return row;
+    const coded = registry.has(row.code, row.version) ? registry.get(row.code, row.version) : null;
+    if (!coded) return row;
+    return {
+      ...row,
+      systemRankingChain: coded.rankingChain ?? [],
+      systemStandingsColumns: coded.standingsColumns ?? [],
+      systemMetadata: coded.metadata ?? {},
+    };
   }
 
   async create(dto: CreateCustomRulesetDto, actorUserId: string): Promise<CustomRulesetRow> {

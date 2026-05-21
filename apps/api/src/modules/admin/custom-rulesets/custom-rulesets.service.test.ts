@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { registry, TF_v1 } from '@myclash/rulesets';
 import { CustomRulesetsService } from './custom-rulesets.service';
 
 const fromMock = vi.fn();
@@ -36,6 +37,10 @@ describe('CustomRulesetsService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Register the TF_v1 built-in so hydration tests can resolve it.
+    if (!registry.has(TF_v1.code, TF_v1.version)) {
+      registry.register(TF_v1);
+    }
     service = new CustomRulesetsService(mockSupabase as never);
   });
 
@@ -98,5 +103,68 @@ describe('CustomRulesetsService', () => {
       makeChain({ data: { id: 'r1', status: 'draft', is_system: false }, error: null }),
     );
     await expect(service.setDefault('r1', 'actor-1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('hydrates a system ruleset detail with the coded rankingChain + metadata', async () => {
+    fromMock.mockReturnValue(
+      makeChain({
+        data: {
+          id: 'tf-v1-row',
+          code: 'TF_v1',
+          version: '1.0.0',
+          name: 'TF (Tournois Fédéraux FFAMHE)',
+          description: null,
+          status: 'published',
+          score_formula: {},
+          constants: {},
+          tiebreakers: [],
+          is_default: true,
+          is_system: true,
+          created_by_user_id: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+        error: null,
+      }),
+    );
+
+    const result = await service.getById('tf-v1-row');
+
+    // The DB row's `tiebreakers` is empty, but the response should now
+    // surface the coded rankingChain (4 entries for TF v1).
+    expect(result.systemRankingChain).toEqual([
+      { key: 'ptsScored', direction: 'desc' },
+      { key: 'W', direction: 'desc' },
+      { key: 'doubles', direction: 'asc' },
+      { key: 'hitsReceived', direction: 'asc' },
+    ]);
+    // And the audit-friendly metadata block.
+    expect(result.systemMetadata).toMatchObject({
+      hasAfterblow: true,
+      afterblowWindowMs: 1000,
+      winBonus: 3,
+      doublePenaltyFormula: 'n*(n-1)/3',
+      deepTargetDefault: 2,
+      shallowTargetDefault: 1,
+    });
+  });
+
+  it('does not hydrate a non-system row', async () => {
+    fromMock.mockReturnValue(
+      makeChain({
+        data: {
+          id: 'custom-row',
+          code: 'custom_x',
+          version: '1.0.0',
+          is_system: false,
+          tiebreakers: [],
+        },
+        error: null,
+      }),
+    );
+
+    const result = await service.getById('custom-row');
+    expect(result.systemRankingChain).toBeUndefined();
+    expect(result.systemMetadata).toBeUndefined();
   });
 });
