@@ -399,6 +399,13 @@ export class CompensationService {
           totalTokens += subtotal;
           breakdown.push({
             phase,
+            // `role` may be a custom skill ID (e.g. "custom-abc123") introduced by Task 6's
+            // DTO loosening. The rate lookup above already handles this safely: unknown roles
+            // produce tokensPerMatch = 0 via the `?? 0` fallback, so custom skills contribute
+            // nothing to totalTokens. The cast below is kept for type compatibility but the
+            // value may not be one of the three system roles.
+            // TODO: if compensation plans should support custom skill rates in the future,
+            // extend referee_compensation_role_rates to accept arbitrary skill IDs.
             role: role as RefereeRole,
             matchCount,
             tokensPerMatch,
