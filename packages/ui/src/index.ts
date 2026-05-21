@@ -43,6 +43,9 @@ export type {
   PodiumData,
 } from './components/BracketView';
 
+export { TournamentColorDot } from './components/TournamentColorDot';
+export type { TournamentColorDotProps } from './components/TournamentColorDot';
+
 // ── Tournament Manual admin components (Phase 1 of the frontend overhaul) ──
 
 export { FoilMark } from './components/FoilMark';
