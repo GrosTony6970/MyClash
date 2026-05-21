@@ -186,7 +186,7 @@ function SkillModal({
 
       onSaved();
     } catch {
-      setError('Could not save skill.');
+      setError(t('organizer.refereesPage.skillSaveFailed'));
     } finally {
       setSaving(false);
     }
