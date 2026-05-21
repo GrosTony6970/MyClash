@@ -1563,6 +1563,9 @@ export const en = {
     events: {
       eyebrow: 'Event management',
       title: 'Events',
+      manageTitle: 'Manage events',
+      manageDescription: 'Rename, publish, archive, or delete events for {organization}.',
+      redirecting: 'Loading your latest event…',
       description: 'Manage events for {organization}.',
       create: 'Create event',
       loading: 'Loading events...',
@@ -3944,6 +3947,10 @@ export const fr = {
     events: {
       eyebrow: 'Gestion des evenements',
       title: 'Evenements',
+      manageTitle: 'Gerer les evenements',
+      manageDescription:
+        'Renommez, publiez, archivez ou supprimez les evenements de {organization}.',
+      redirecting: 'Chargement de votre dernier evenement...',
       description: 'Gerez les evenements de {organization}.',
       create: 'Creer un evenement',
       loading: 'Chargement des evenements...',
