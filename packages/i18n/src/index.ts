@@ -2311,6 +2311,13 @@ export const en = {
         json: 'JSON archive',
       },
     },
+    persons: {
+      addAsReferee: 'Also register as referee for this event',
+      refereeColumn: 'Referee',
+      refereeTag: 'Referee',
+      refereeRegistrationFailed:
+        'Could not register as referee. Try adding from the Referees page.',
+    },
     scoringConfig: {
       breadcrumbEvent: 'Event',
       breadcrumbScoringConfig: 'Scoring config',
@@ -4720,6 +4727,13 @@ export const fr = {
         zip: 'Bundle ZIP',
         json: 'Archive JSON',
       },
+    },
+    persons: {
+      addAsReferee: 'Inscrire aussi comme arbitre pour cet evenement',
+      refereeColumn: 'Arbitre',
+      refereeTag: 'Arbitre',
+      refereeRegistrationFailed:
+        "Impossible d'inscrire comme arbitre. Essayez depuis la page Arbitres.",
     },
     scoringConfig: {
       breadcrumbEvent: 'Evenement',

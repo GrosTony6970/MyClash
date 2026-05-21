@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, TournamentColorDot, useToast } from '@myclash/ui';
+import { ConfirmDialog, SkillBadge, TournamentColorDot, useToast } from '@myclash/ui';
+import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 
@@ -16,6 +17,7 @@ interface Person {
   claimStatus: 'unclaimed' | 'guest_active' | 'claimed';
   hemaRatingsId: string | null;
   globalPersonId: string | null;
+  claimedByUserId: string | null;
 }
 
 interface Registration {
@@ -45,6 +47,7 @@ interface AddForm {
   email: string;
   hemaRatingsId: string;
   seed: string;
+  isReferee: boolean;
 }
 
 const EMPTY_ADD_FORM: AddForm = {
@@ -53,6 +56,7 @@ const EMPTY_ADD_FORM: AddForm = {
   email: '',
   hemaRatingsId: '',
   seed: '',
+  isReferee: false,
 };
 
 const CLAIM_COLORS: Record<string, string> = {
@@ -123,6 +127,7 @@ export default function ParticipantsPage() {
   const [editOriginalTournaments, setEditOriginalTournaments] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
+  const [refereeUserIds, setRefereeUserIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -149,6 +154,25 @@ export default function ParticipantsPage() {
       })
       .catch((err: unknown) => {
         setLoading(false);
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [eventId, apiUrl, refreshKey]);
+
+  // Fetch the event's referee list once per refresh to populate the Referee column.
+  // event_referees rows are keyed by user_id (Supabase auth UUID).
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const rows = (await res.json()) as Array<{ userId: string }>;
+        setRefereeUserIds(new Set(rows.map((r) => r.userId)));
+      })
+      .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
       });
     return () => controller.abort();
@@ -271,7 +295,28 @@ export default function ParticipantsPage() {
         const body = (await personRes.json()) as { message?: string };
         throw new Error(body.message ?? 'Failed to create participant');
       }
-      const person = (await personRes.json()) as { id: string };
+      const person = (await personRes.json()) as { id: string; claimedByUserId?: string | null };
+
+      // If "also a referee" was checked, fire-and-forget the referee registration.
+      // Uses claimedByUserId (Supabase auth UUID) — only possible when the person
+      // already has a claimed account. The endpoint is idempotent.
+      if (addForm.isReferee && person.claimedByUserId) {
+        fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${person.claimedByUserId}`, {
+          method: 'POST',
+          credentials: 'include',
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              const body = (await res.json().catch(() => null)) as { message?: string } | null;
+              console.error('Referee registration failed', res.status, body);
+              toast.warning(t('organizer.persons.refereeRegistrationFailed'));
+            }
+          })
+          .catch((err: unknown) => {
+            console.error('Referee registration network error', err);
+            toast.warning(t('organizer.persons.refereeRegistrationFailed'));
+          });
+      }
 
       // Per-tournament registrations — capture failures so a network blip
       // on one tournament doesn't silently lose the others.
@@ -288,8 +333,8 @@ export default function ParticipantsPage() {
           }),
         });
         if (!res.ok) {
-          const t = tournaments.find((x) => x.id === tournamentId);
-          failedTournaments.push(t?.name ?? tournamentId);
+          const tour = tournaments.find((x) => x.id === tournamentId);
+          failedTournaments.push(tour?.name ?? tournamentId);
         }
       }
       if (failedTournaments.length > 0) {
@@ -318,6 +363,7 @@ export default function ParticipantsPage() {
       email: p.email ?? '',
       hemaRatingsId: p.hemaRatingsId ?? '',
       seed: '',
+      isReferee: false,
     });
     setEditClubSearch(p.clubLabel ?? '');
     setEditClubId(null);
@@ -374,8 +420,8 @@ export default function ParticipantsPage() {
           }),
         });
         if (!r.ok) {
-          const t = tournaments.find((x) => x.id === tournamentId);
-          failed.push(t?.name ?? tournamentId);
+          const tour = tournaments.find((x) => x.id === tournamentId);
+          failed.push(tour?.name ?? tournamentId);
         }
       }
       for (const tournamentId of toRemove) {
@@ -388,8 +434,8 @@ export default function ParticipantsPage() {
           credentials: 'include',
         });
         if (!r.ok) {
-          const t = tournaments.find((x) => x.id === tournamentId);
-          failed.push(t?.name ?? tournamentId);
+          const tour = tournaments.find((x) => x.id === tournamentId);
+          failed.push(tour?.name ?? tournamentId);
         }
       }
       if (failed.length > 0) {
@@ -618,11 +664,11 @@ export default function ParticipantsPage() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {(['all', ...tournaments.map((t) => t.id)] as string[]).map((tabId) => {
+        {(['all', ...tournaments.map((tour) => tour.id)] as string[]).map((tabId) => {
           const label =
             tabId === 'all'
               ? 'All event'
-              : (tournaments.find((t) => t.id === tabId)?.name ?? tabId);
+              : (tournaments.find((tour) => tour.id === tabId)?.name ?? tabId);
           const active = activeTab === tabId;
           return (
             <button
@@ -662,9 +708,9 @@ export default function ParticipantsPage() {
                 className="border border-gray-300 rounded px-2 py-1 text-xs"
               >
                 <option value="">Assign to tournament…</option>
-                {tournaments.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
+                {tournaments.map((tour) => (
+                  <option key={tour.id} value={tour.id}>
+                    {tour.name}
                   </option>
                 ))}
               </select>
@@ -693,9 +739,10 @@ export default function ParticipantsPage() {
                 disabled={bulkLoading}
                 className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
               >
-                Unassign from {tournaments.find((t) => t.id === activeTab)?.name ?? 'tournament'}
+                Unassign from{' '}
+                {tournaments.find((tour) => tour.id === activeTab)?.name ?? 'tournament'}
               </button>
-              {tournaments.filter((t) => t.id !== activeTab).length > 0 && (
+              {tournaments.filter((tour) => tour.id !== activeTab).length > 0 && (
                 <div className="flex items-center gap-2">
                   <select
                     value={bulkAssignTournamentId}
@@ -704,10 +751,10 @@ export default function ParticipantsPage() {
                   >
                     <option value="">Assign to another…</option>
                     {tournaments
-                      .filter((t) => t.id !== activeTab)
-                      .map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
+                      .filter((tour) => tour.id !== activeTab)
+                      .map((tour) => (
+                        <option key={tour.id} value={tour.id}>
+                          {tour.name}
                         </option>
                       ))}
                   </select>
@@ -750,6 +797,7 @@ export default function ParticipantsPage() {
                 <th className="py-2 pr-4 font-medium">Club</th>
                 <th className="py-2 pr-4 font-medium">Claim status</th>
                 <th className="py-2 pr-4 font-medium">Tournaments</th>
+                <th className="py-2 pr-4 font-medium">{t('organizer.persons.refereeColumn')}</th>
                 <th className="py-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -791,7 +839,7 @@ export default function ParticipantsPage() {
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {displayRegs.map((r) => {
-                            const tour = tournaments.find((t) => t.id === r.tournamentId);
+                            const tour = tournaments.find((tour) => tour.id === r.tournamentId);
                             return (
                               <span
                                 key={r.id}
@@ -810,6 +858,11 @@ export default function ParticipantsPage() {
                           })}
                         </div>
                       )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {p.claimedByUserId && refereeUserIds.has(p.claimedByUserId) ? (
+                        <SkillBadge color="violet" label={t('organizer.persons.refereeTag')} />
+                      ) : null}
                     </td>
                     <td className="py-2">
                       <div className="flex gap-2">
@@ -1104,28 +1157,40 @@ export default function ParticipantsPage() {
                 />
               </div>
 
+              <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={addForm.isReferee}
+                  onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
+                />
+                {t('organizer.persons.addAsReferee')}
+              </label>
+
               {tournaments.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-2">
                     Register in tournaments (optional)
                   </label>
                   <div className="flex flex-col gap-1.5">
-                    {tournaments.map((t) => (
-                      <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    {tournaments.map((tour) => (
+                      <label
+                        key={tour.id}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
                         <input
                           type="checkbox"
-                          checked={selectedTournaments.has(t.id)}
+                          checked={selectedTournaments.has(tour.id)}
                           onChange={() =>
                             setSelectedTournaments((prev) => {
                               const next = new Set(prev);
-                              if (next.has(t.id)) next.delete(t.id);
-                              else next.add(t.id);
+                              if (next.has(tour.id)) next.delete(tour.id);
+                              else next.add(tour.id);
                               return next;
                             })
                           }
                           className="rounded"
                         />
-                        {t.name}
+                        {tour.name}
                       </label>
                     ))}
                   </div>
@@ -1266,22 +1331,25 @@ export default function ParticipantsPage() {
                     Tournaments
                   </label>
                   <div className="flex flex-col gap-1.5">
-                    {tournaments.map((t) => (
-                      <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    {tournaments.map((tour) => (
+                      <label
+                        key={tour.id}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
                         <input
                           type="checkbox"
-                          checked={editSelectedTournaments.has(t.id)}
+                          checked={editSelectedTournaments.has(tour.id)}
                           onChange={() =>
                             setEditSelectedTournaments((prev) => {
                               const next = new Set(prev);
-                              if (next.has(t.id)) next.delete(t.id);
-                              else next.add(t.id);
+                              if (next.has(tour.id)) next.delete(tour.id);
+                              else next.add(tour.id);
                               return next;
                             })
                           }
                           className="rounded"
                         />
-                        {t.name}
+                        {tour.name}
                       </label>
                     ))}
                   </div>
