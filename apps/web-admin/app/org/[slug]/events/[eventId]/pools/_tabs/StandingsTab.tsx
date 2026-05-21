@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -54,7 +55,7 @@ function readHashMode(): Mode {
   return 'overall';
 }
 
-export function StandingsTab({ tournamentId }: StandingsTabProps) {
+export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   const [mode, setMode] = useState<Mode>('overall');
   const [overall, setOverall] = useState<OverallResponse | null>(null);
   const [byPool, setByPool] = useState<ByPoolResponse | null>(null);
@@ -83,6 +84,16 @@ export function StandingsTab({ tournamentId }: StandingsTabProps) {
         setLoading(false);
       });
   }, [tournamentId, mode, refreshKey]);
+
+  useRealtimeWithFallback({
+    channelName: `pool-standings-${tournamentId}-${mode}`,
+    table: 'matches',
+    filter: `phase_id=eq.${poolPhaseId}`,
+    event: '*',
+    onEvent: refresh,
+    onFallbackPoll: refresh,
+    fallbackPollMs: 30_000,
+  });
 
   function selectMode(m: Mode) {
     window.location.hash = m === 'overall' ? '#standings-overall' : '#standings-by-pool';
