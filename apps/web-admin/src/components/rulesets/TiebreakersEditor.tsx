@@ -1,17 +1,34 @@
 'use client';
 
 import { FORMULA_VARIABLE_KEYS } from '@myclash/rulesets';
-import type { Tiebreaker, VariableKey } from '@myclash/rulesets';
+import type { RankingRule, Tiebreaker, VariableKey } from '@myclash/rulesets';
 import { useI18n } from '../../i18n/I18nProvider';
 
 interface Props {
   value: Tiebreaker[];
   onChange: (next: Tiebreaker[]) => void;
   disabled?: boolean;
+  /** When `value` is empty AND this fallback is provided, render the fallback
+   *  as a read-only list with a "Read-only" badge instead of the "no
+   *  tie-breakers configured" message. Used for is_system rulesets whose
+   *  real ranking rules live on the coded `rankingChain` (with keys that
+   *  don't map to the FORMULA_VARIABLE_KEYS whitelist). */
+  systemFallback?: RankingRule[];
 }
 
-export function TiebreakersEditor({ value, onChange, disabled }: Props) {
+export function TiebreakersEditor({ value, onChange, disabled, systemFallback }: Props) {
   const { t } = useI18n();
+
+  function formatRankingKey(key: string): string {
+    const i18nKey = `admin.rulesets.rankingKey_${key}`;
+    const translated = t(i18nKey);
+    return translated === i18nKey ? key : translated;
+  }
+  function formatDirection(direction: 'asc' | 'desc'): string {
+    return direction === 'desc'
+      ? t('admin.rulesets.systemPanelDirectionHighest')
+      : t('admin.rulesets.systemPanelDirectionLowest');
+  }
 
   function update(idx: number, patch: Partial<Tiebreaker>) {
     if (disabled) return;
@@ -37,7 +54,24 @@ export function TiebreakersEditor({ value, onChange, disabled }: Props) {
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4">
       {value.length === 0 ? (
-        <p className="text-sm italic text-slate-400">{t('admin.rulesets.tiebreakersEmpty')}</p>
+        systemFallback && systemFallback.length > 0 ? (
+          <ol className="mb-3 space-y-2">
+            {systemFallback.map((rule, idx) => (
+              <li
+                key={`${rule.key}-${idx}`}
+                className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+              >
+                <span className="w-6 font-mono text-xs text-slate-500">{idx + 1}.</span>
+                <span className="font-medium text-slate-800">{formatRankingKey(rule.key)}</span>
+                <span className="ml-auto rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                  {formatDirection(rule.direction)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="text-sm italic text-slate-400">{t('admin.rulesets.tiebreakersEmpty')}</p>
+        )
       ) : (
         <ol className="mb-3 space-y-2">
           {value.map((tb, idx) => (

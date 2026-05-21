@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import type { FormulaConfig, FormulaConstants, FormulaNode, Tiebreaker } from '@myclash/rulesets';
+import type {
+  FormulaConfig,
+  FormulaConstants,
+  FormulaNode,
+  RankingRule,
+  RulesetMetadata,
+  Tiebreaker,
+} from '@myclash/rulesets';
 import { useI18n } from '../../i18n/I18nProvider';
 import { FormulaEditor } from './FormulaEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
@@ -20,13 +27,28 @@ interface Props {
   disabled?: boolean;
   busy?: boolean;
   submitLabel: string;
+  /** Optional read-only metadata for is_system rulesets — sourced from the
+   *  coded ruleset registry via the API. When provided, a System ruleset
+   *  details panel renders above the form and the TiebreakersEditor's
+   *  "no tie-breakers" fallback is replaced by a read-only list. */
+  systemMetadata?: RulesetMetadata;
+  systemRankingChain?: RankingRule[];
   onSubmit: (
     config: { name: string; description: string; version: string } & FormulaConfig,
   ) => void;
   onCancel?: () => void;
 }
 
-export function RulesetForm({ initial, disabled, busy, submitLabel, onSubmit, onCancel }: Props) {
+export function RulesetForm({
+  initial,
+  disabled,
+  busy,
+  submitLabel,
+  systemMetadata,
+  systemRankingChain,
+  onSubmit,
+  onCancel,
+}: Props) {
   const { t } = useI18n();
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
@@ -65,12 +87,21 @@ export function RulesetForm({ initial, disabled, busy, submitLabel, onSubmit, on
     });
   }
 
+  const showSystemPanel = !!systemMetadata || (systemRankingChain && systemRankingChain.length > 0);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {validationError && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {validationError}
         </div>
+      )}
+
+      {showSystemPanel && (
+        <SystemRulesetPanel
+          metadata={systemMetadata ?? {}}
+          rankingChain={systemRankingChain ?? []}
+        />
       )}
 
       <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
@@ -154,7 +185,12 @@ export function RulesetForm({ initial, disabled, busy, submitLabel, onSubmit, on
           {t('admin.rulesets.tiebreakersTitle')}
         </h3>
         <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.tiebreakersHelp')}</p>
-        <TiebreakersEditor value={tiebreakers} onChange={setTiebreakers} disabled={disabled} />
+        <TiebreakersEditor
+          value={tiebreakers}
+          onChange={setTiebreakers}
+          disabled={disabled}
+          systemFallback={systemRankingChain}
+        />
       </div>
 
       <div className="flex gap-2">
@@ -176,5 +212,116 @@ export function RulesetForm({ initial, disabled, busy, submitLabel, onSubmit, on
         ) : null}
       </div>
     </form>
+  );
+}
+
+// ── System ruleset details panel ─────────────────────────────────────────────
+
+function SystemRulesetPanel({
+  metadata,
+  rankingChain,
+}: {
+  metadata: RulesetMetadata;
+  rankingChain: RankingRule[];
+}) {
+  const { t } = useI18n();
+
+  function formatRankingKey(key: string): string {
+    // Soft i18n: known keys get a translated label; anything else falls back
+    // to the raw key (camelCase looks readable enough).
+    const i18nKey = `admin.rulesets.rankingKey_${key}`;
+    const translated = t(i18nKey);
+    return translated === i18nKey ? key : translated;
+  }
+
+  function formatDirection(direction: 'asc' | 'desc'): string {
+    return direction === 'desc'
+      ? t('admin.rulesets.systemPanelDirectionHighest')
+      : t('admin.rulesets.systemPanelDirectionLowest');
+  }
+
+  function formatYesNo(value: boolean | null | undefined): string {
+    if (value === true) return t('admin.rulesets.systemPanelTrue');
+    if (value === false) return t('admin.rulesets.systemPanelFalse');
+    return '—';
+  }
+
+  function formatNumber(value: number | null | undefined): string {
+    return value === null || value === undefined ? '—' : String(value);
+  }
+
+  function formatString(value: string | null | undefined): string {
+    return value === null || value === undefined || value === '' ? '—' : value;
+  }
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-5 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-600">
+          {t('admin.rulesets.systemPanelTitle')}
+        </h3>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+          {t('admin.rulesets.systemPanelReadOnlyBadge')}
+        </span>
+      </div>
+
+      <dl className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <MetadataField
+          label={t('admin.rulesets.systemPanelHasAfterblow')}
+          value={formatYesNo(metadata.hasAfterblow)}
+        />
+        <MetadataField
+          label={t('admin.rulesets.systemPanelAfterblowWindow')}
+          value={formatNumber(metadata.afterblowWindowMs)}
+        />
+        <MetadataField
+          label={t('admin.rulesets.systemPanelWinBonus')}
+          value={formatNumber(metadata.winBonus)}
+        />
+        <MetadataField
+          label={t('admin.rulesets.systemPanelDeepTarget')}
+          value={formatNumber(metadata.deepTargetDefault)}
+        />
+        <MetadataField
+          label={t('admin.rulesets.systemPanelShallowTarget')}
+          value={formatNumber(metadata.shallowTargetDefault)}
+        />
+        <MetadataField
+          label={t('admin.rulesets.systemPanelDoublePenalty')}
+          value={formatString(metadata.doublePenaltyFormula)}
+        />
+      </dl>
+
+      {rankingChain.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            {t('admin.rulesets.systemPanelTiebreakers')}
+          </p>
+          <ol className="space-y-1 text-sm text-slate-800">
+            {rankingChain.map((rule, idx) => (
+              <li
+                key={`${rule.key}-${idx}`}
+                className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
+              >
+                <span className="w-6 font-mono text-xs text-slate-500">{idx + 1}.</span>
+                <span className="font-medium">{formatRankingKey(rule.key)}</span>
+                <span className="ml-auto rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                  {formatDirection(rule.direction)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetadataField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className="mt-1 font-mono text-sm text-slate-800">{value}</dd>
+    </div>
   );
 }

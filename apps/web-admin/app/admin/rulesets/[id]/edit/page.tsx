@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
-import type { FormulaConstants, FormulaNode, Tiebreaker } from '@myclash/rulesets';
+import type {
+  FormulaConstants,
+  FormulaNode,
+  RankingRule,
+  RulesetMetadata,
+  Tiebreaker,
+} from '@myclash/rulesets';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
@@ -25,6 +31,10 @@ interface CustomRulesetDetail {
   tiebreakers: Tiebreaker[];
   is_default: boolean;
   is_system: boolean;
+  // Hydrated for is_system rows by the API: surfaced from the registered
+  // ruleset so the read-only "System ruleset details" panel can render.
+  systemRankingChain?: RankingRule[];
+  systemMetadata?: RulesetMetadata;
 }
 
 export default function EditRulesetPage() {
@@ -36,7 +46,14 @@ export default function EditRulesetPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initial, setInitial] = useState<(RulesetFormValue & { isSystem: boolean }) | null>(null);
+  const [initial, setInitial] = useState<
+    | (RulesetFormValue & {
+        isSystem: boolean;
+        systemRankingChain?: RankingRule[];
+        systemMetadata?: RulesetMetadata;
+      })
+    | null
+  >(null);
 
   useEffect(() => {
     if (!id) return;
@@ -60,6 +77,8 @@ export default function EditRulesetPage() {
           constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(data.constants ?? {}) },
           tiebreakers: data.tiebreakers ?? [],
           isSystem: data.is_system,
+          systemRankingChain: data.systemRankingChain,
+          systemMetadata: data.systemMetadata,
         });
       })
       .catch((err: unknown) => {
@@ -102,6 +121,8 @@ export default function EditRulesetPage() {
             initial={initial}
             disabled={initial.isSystem}
             busy={busy}
+            systemMetadata={initial.systemMetadata}
+            systemRankingChain={initial.systemRankingChain}
             submitLabel={t('admin.rulesets.saveAction')}
             onSubmit={async (data) => {
               setBusy(true);
