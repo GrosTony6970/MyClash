@@ -122,6 +122,28 @@ export interface RankingRule {
   direction: 'asc' | 'desc';
 }
 
+/**
+ * Audit-friendly summary of a ruleset's defaults. Surfaced through
+ * `GET /api/v1/rulesets` so the admin UI can render a read-only
+ * "ruleset details" panel without re-implementing config parsing.
+ *
+ * All fields are optional — rulesets only populate what's relevant.
+ */
+export interface RulesetMetadata {
+  /** Whether this ruleset uses the afterblow concept. */
+  hasAfterblow?: boolean;
+  /** Afterblow window in ms (when hasAfterblow is true). */
+  afterblowWindowMs?: number | null;
+  /** Win bonus (points awarded for a pool win), or null if not used. */
+  winBonus?: number | null;
+  /** Human-readable double-hit penalty formula, or null if no doubles concept. */
+  doublePenaltyFormula?: string | null;
+  /** Default deep-target points value (e.g. 2 in TF v1). */
+  deepTargetDefault?: number | null;
+  /** Default shallow-target points value (e.g. 1 in TF v1). */
+  shallowTargetDefault?: number | null;
+}
+
 // ── Plugin contract ───────────────────────────────────────────────────────────
 
 export interface Ruleset {
@@ -178,4 +200,7 @@ export interface Ruleset {
   /** Tiebreaker chain applied to standings. Order matters — first rule is primary,
    *  later rules break ties. */
   rankingChain: RankingRule[];
+
+  /** Optional ruleset-specific defaults surfaced to admin audit UIs. */
+  metadata?: RulesetMetadata;
 }

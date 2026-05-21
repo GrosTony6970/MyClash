@@ -65,6 +65,15 @@ export const TF_v1: Ruleset = {
 
   standingsColumns: TF_V1_STANDINGS_COLUMNS,
   rankingChain: TF_V1_RANKING_CHAIN,
+
+  metadata: {
+    hasAfterblow: true,
+    afterblowWindowMs: TFv1DefaultConfig.afterblowWindowMs,
+    winBonus: TFv1DefaultConfig.winBonus,
+    doublePenaltyFormula: TFv1DefaultConfig.doublePenaltyFormula,
+    deepTargetDefault: TFv1DefaultConfig.targetValues.deepTarget,
+    shallowTargetDefault: TFv1DefaultConfig.targetValues.shallowTarget,
+  },
 };
 
 export { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config };

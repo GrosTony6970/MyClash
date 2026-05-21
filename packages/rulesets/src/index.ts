@@ -20,6 +20,7 @@ export type {
   FighterAggregates,
   StandingsColumn,
   RankingRule,
+  RulesetMetadata,
 } from './types';
 
 // Registry
