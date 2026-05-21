@@ -360,13 +360,14 @@ export class QualificationsService {
 
     if (upsertError) throw new BadRequestException(upsertError.message);
 
-    // Best-effort: set global_persons.is_referee = 'true' for the claimed profile.
-    // Silently succeed if no matching row — never throw.
+    // Best-effort: set is_referee = 'true' only on profiles where it is currently NULL.
+    // We never overwrite an existing value, so existing referee profiles are unchanged
+    // and ad-hoc strings (e.g. legacy '1', 'yes') are preserved.
     await this.supabase.service
       .from('global_persons')
       .update({ is_referee: 'true', updated_at: new Date().toISOString() })
       .eq('claimed_by_user_id', targetUserId)
-      .or('is_referee.is.null,is_referee.neq.true');
+      .is('is_referee', null);
     // Ignore error — best-effort only.
   }
 
@@ -641,7 +642,6 @@ export class QualificationsService {
       const tid = phaseToTournament.get(pool.phase_id);
       if (tid) poolToTournament.set(pool.id, tid);
     }
-    const poolIds = pools.map((p) => p.id);
 
     // ── Step 3: load matches (for dedup set + referee_id source) ─────────────
     const { data: matchRows, error: mErr } = await this.supabase.service
@@ -689,6 +689,9 @@ export class QualificationsService {
       .from('referee_assignments')
       .select('user_id, scope_type, pool_id, match_id')
       .eq('event_id', eventId)
+      // 'lice' scope assignments are intentionally excluded: they cover a full session/day,
+      // not a determinate match list, so they don't contribute to per-tournament match counts.
+      // Per-lice referee work is surfaced separately (out of scope for v1 Referees list).
       .in('scope_type', ['pool', 'match']);
 
     if (aErr) throw new BadRequestException(aErr.message);
@@ -757,11 +760,6 @@ export class QualificationsService {
       if (!tid) continue;
       addCount(userId, m.id, tid);
     }
-
-    // ── Step 8: filter to only userIds that have pool_id in this event ─────────
-    // (already filtered by event scope via phaseIds from event's tournaments)
-    // Suppress unused variable warning for poolIds
-    void poolIds;
 
     return result;
   }

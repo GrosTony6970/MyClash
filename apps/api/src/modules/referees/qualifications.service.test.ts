@@ -30,6 +30,7 @@ function makeChain(result: unknown) {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
     or: vi.fn() as ReturnType<typeof vi.fn>,
+    is: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
@@ -44,6 +45,7 @@ function makeChain(result: unknown) {
     'select',
     'eq',
     'or',
+    'is',
     'order',
     'insert',
     'update',
@@ -65,6 +67,7 @@ function makeResolvedChain(result: unknown) {
     'select',
     'eq',
     'or',
+    'is',
     'order',
     'insert',
     'update',
@@ -762,6 +765,94 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
         }),
         expect.objectContaining({ ignoreDuplicates: true }),
       );
+    });
+  });
+
+  // ── countAssignmentsByReferee — dedup invariant ───────────────────────────────
+
+  describe('countAssignmentsByReferee (via listEventReferees)', () => {
+    it('dedups (matchId, userId) across referee_assignments match-scope and matches.referee_id', async () => {
+      // Scenario:
+      //   - 1 tournament "T1", 1 phase "ph1", 1 pool "pool1"
+      //   - 1 match "m1" in pool1
+      //   - 1 user "u1", 1 person "p1" (claimed by u1)
+      //   - referee_assignments: scope_type='match', scope_id=m1, user_id=u1
+      //   - matches.referee_id = p1 on the same m1
+      //   Expected: m1 counted ONCE → totalMatchCount = 1
+
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      // event_referees: one row for u1
+      const refRows = [
+        { user_id: 'u1', available_all_tournaments: true, available_all_event_duration: true },
+      ];
+
+      // referee_qualifications: none
+      const qualRows: unknown[] = [];
+
+      // global_persons: p1 claimed by u1
+      const gpRows = [
+        {
+          id: 'p1',
+          claimed_by_user_id: 'u1',
+          given_name: 'User',
+          family_name: 'One',
+          display_name: 'User One',
+          club_id: null,
+        },
+      ];
+
+      // countAssignmentsByReferee internals:
+      // tournaments
+      const tournamentsRows = [{ id: 't1', name: 'T1' }];
+      // phases
+      const phaseRows = [{ id: 'ph1', tournament_id: 't1' }];
+      // pools
+      const poolRows = [{ id: 'pool1', phase_id: 'ph1' }];
+      // matches — m1 belongs to ph1/pool1, referee_id = p1
+      const matchRows = [{ id: 'm1', phase_id: 'ph1', pool_id: 'pool1', referee_id: 'p1' }];
+      // persons — p1 claimed by u1
+      const personRows = [{ id: 'p1', claimed_by_user_id: 'u1' }];
+      // referee_assignments — match-scope for m1/u1
+      const assignmentRows = [
+        { user_id: 'u1', scope_type: 'match', pool_id: null, match_id: 'm1' },
+      ];
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const refChain = makeResolvedChain({ data: refRows, error: null });
+      const qualChain = makeResolvedChain({ data: qualRows, error: null });
+      const gpChain = makeResolvedChain({ data: gpRows, error: null });
+      // No clubs query (no club_id)
+      const tournChain = makeResolvedChain({ data: tournamentsRows, error: null });
+      const phaseChain = makeResolvedChain({ data: phaseRows, error: null });
+      const poolChain = makeResolvedChain({ data: poolRows, error: null });
+      const matchChain = makeResolvedChain({ data: matchRows, error: null });
+      const personChain = makeResolvedChain({ data: personRows, error: null });
+      const assignmentChain = makeResolvedChain({ data: assignmentRows, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(refChain) // event_referees
+        .mockReturnValueOnce(qualChain) // referee_qualifications
+        .mockReturnValueOnce(gpChain) // global_persons
+        // countAssignmentsByReferee:
+        .mockReturnValueOnce(tournChain) // tournaments
+        .mockReturnValueOnce(phaseChain) // phases
+        .mockReturnValueOnce(poolChain) // pools
+        .mockReturnValueOnce(matchChain) // matches
+        .mockReturnValueOnce(personChain) // persons (for referee_id resolution)
+        .mockReturnValueOnce(assignmentChain); // referee_assignments
+
+      const result = await service.listEventReferees('event-1', 'actor-user');
+
+      expect(result).toHaveLength(1);
+      const row = result[0]!;
+      // m1 must be counted exactly once despite appearing in both sources
+      expect(row.totalMatchCount).toBe(1);
+      expect(row.assignments).toHaveLength(1);
+      expect(row.assignments[0]!.matchCount).toBe(1);
     });
   });
 });
