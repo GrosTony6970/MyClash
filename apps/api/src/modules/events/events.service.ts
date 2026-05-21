@@ -456,11 +456,18 @@ export class EventsService {
   private async getEventTournaments(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, slug, name, status')
+      .select('id, slug, name, status, color, ruleset_code')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    return (data ?? []) as Array<{ id: string; slug: string; name: string; status: string }>;
+    return (data ?? []) as Array<{
+      id: string;
+      slug: string;
+      name: string;
+      status: string;
+      color: string | null;
+      ruleset_code: string | null;
+    }>;
   }
 
   private async getRegistrationsForTournaments(tournamentIds: string[]) {
@@ -660,6 +667,7 @@ export class EventsService {
         ruleset_code: dto.rulesetCode ?? 'TF_v1',
         ruleset_version: dto.rulesetVersion ?? '1',
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
+        color: dto.color ?? null,
         status: 'draft',
       })
       .select('*')
@@ -698,6 +706,7 @@ export class EventsService {
     if (dto.rulesetCode !== undefined) updates['ruleset_code'] = dto.rulesetCode;
     if (dto.rulesetVersion !== undefined) updates['ruleset_version'] = dto.rulesetVersion;
     if (dto.penaltyRulesetId !== undefined) updates['penalty_ruleset_id'] = dto.penaltyRulesetId;
+    if (dto.color !== undefined) updates['color'] = dto.color;
 
     if (dto.scoringConfig !== undefined) {
       const merged = deepMergeJson(currentJson['scoring_config_json'] ?? {}, dto.scoringConfig);

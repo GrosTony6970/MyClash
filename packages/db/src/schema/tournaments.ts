@@ -22,6 +22,9 @@ export const tournaments = pgTable('tournaments', {
   rulesetConfig: jsonb('ruleset_config'),
   scoringConfig: jsonb('scoring_config_json'),
   lockConfig: jsonb('lock_config_json'),
+  /** Optional identity color (ColorToken string). Rendered as a small bubble
+   *  next to the tournament name across the admin UI. */
+  color: text('color'),
   penaltyRulesetId: uuid('penalty_ruleset_id'),
   status: text('status').notNull().default('draft'),
   // draft | published | running | completed | archived

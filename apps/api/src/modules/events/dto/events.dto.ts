@@ -333,6 +333,16 @@ export class CreateTournamentDto {
   @IsOptional()
   @IsUUID()
   penaltyRulesetId?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Tournament identity color token (e.g. "red", "amber"). Rendered as a small bubble next to the tournament name across the admin UI.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  color?: string;
 }
 
 export class UpdateTournamentDto {
@@ -400,4 +410,14 @@ export class UpdateTournamentDto {
   @IsString()
   @MaxLength(20)
   rulesetVersion?: string;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Tournament identity color token (e.g. "red", "amber"). Pass null to clear.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  color?: string | null;
 }
