@@ -36,6 +36,7 @@ function makeChain(result: unknown) {
     eq: vi.fn() as ReturnType<typeof vi.fn>,
     or: vi.fn() as ReturnType<typeof vi.fn>,
     is: vi.fn() as ReturnType<typeof vi.fn>,
+    limit: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
@@ -51,6 +52,7 @@ function makeChain(result: unknown) {
     'eq',
     'or',
     'is',
+    'limit',
     'order',
     'insert',
     'update',
@@ -795,6 +797,10 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
+      // claimed global_person check — found
+      const claimedChain = makeChain({ data: { id: 'gp-1' }, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: { id: 'gp-1' }, error: null });
+
       // event_referees upsert
       const upsertChain = makeResolvedChain({ data: null, error: null });
 
@@ -803,6 +809,7 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
 
       fromMock
         .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(claimedChain) // claimed global_person check
         .mockReturnValueOnce(upsertChain) // event_referees upsert
         .mockReturnValueOnce(gpUpdateChain); // global_persons update
 
@@ -819,13 +826,18 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
+      // claimed global_person check — found
+      const claimedChain = makeChain({ data: { id: 'gp-1' }, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: { id: 'gp-1' }, error: null });
+
       const upsertChain = makeResolvedChain({ data: null, error: null });
       const gpUpdateChain = makeResolvedChain({ data: null, error: null });
 
       fromMock
-        .mockReturnValueOnce(eventChain)
-        .mockReturnValueOnce(upsertChain)
-        .mockReturnValueOnce(gpUpdateChain);
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(claimedChain) // claimed global_person check
+        .mockReturnValueOnce(upsertChain) // event_referees upsert
+        .mockReturnValueOnce(gpUpdateChain); // global_persons update
 
       await service.ensureEventReferee('event-1', 'user-new', 'actor-admin');
 
@@ -839,6 +851,52 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
         }),
         expect.objectContaining({ ignoreDuplicates: true }),
       );
+    });
+
+    it('rejects when targetUserId is not linked to any global_person', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      // claimed global_person check — not found
+      const claimedChain = makeChain({ data: null, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(claimedChain); // claimed global_person check → null
+
+      await expect(
+        service.ensureEventReferee('event-1', 'unclaimed-user-id', 'actor-admin'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('succeeds and calls upsert when targetUserId is linked to a global_person', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      // claimed global_person check — found
+      const claimedChain = makeChain({ data: { id: 'gp-claimed' }, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: { id: 'gp-claimed' }, error: null });
+
+      const upsertChain = makeResolvedChain({ data: null, error: null });
+      const gpUpdateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(claimedChain) // claimed global_person check
+        .mockReturnValueOnce(upsertChain) // event_referees upsert
+        .mockReturnValueOnce(gpUpdateChain); // global_persons update
+
+      await expect(
+        service.ensureEventReferee('event-1', 'claimed-user-id', 'actor-admin'),
+      ).resolves.toBeUndefined();
+
+      const upsertCall = (upsertChain as unknown as { upsert: ReturnType<typeof vi.fn> }).upsert;
+      expect(upsertCall).toHaveBeenCalled();
     });
   });
 

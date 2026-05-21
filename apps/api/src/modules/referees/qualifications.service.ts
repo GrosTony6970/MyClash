@@ -358,6 +358,23 @@ export class QualificationsService {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
+    // Defense in depth: verify targetUserId is linked to a claimed global_person.
+    // The UI gates on claimed_by_user_id being non-null, but a malicious caller
+    // could still POST an arbitrary UUID and silently corrupt event_referees.
+    const { data: claimed, error: claimedErr } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', targetUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if (claimedErr) throw new BadRequestException(claimedErr.message);
+    if (!claimed) {
+      throw new BadRequestException(
+        `User ${targetUserId} is not linked to a claimed global profile.`,
+      );
+    }
+
     // Upsert event_referees row — idempotent via ON CONFLICT DO NOTHING
     const { error: upsertError } = await this.supabase.service.from('event_referees').upsert(
       {

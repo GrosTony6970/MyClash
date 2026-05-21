@@ -345,6 +345,7 @@ interface PersonResult {
   given_name: string;
   family_name: string;
   club_label: string | null;
+  claimed_by_user_id: string | null;
 }
 
 export default function RefereesPage() {
@@ -720,16 +721,25 @@ export default function RefereesPage() {
                     </p>
                     {p.club_label && <p className="text-xs text-gray-400">{p.club_label}</p>}
                   </div>
-                  <button
-                    onClick={() => {
-                      void addReferee(p.id);
-                      setSearch('');
-                      setSearchResults([]);
-                    }}
-                    className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
-                  >
-                    {t('organizer.refereesPage.addQualification')}
-                  </button>
+                  {p.claimed_by_user_id ? (
+                    <button
+                      onClick={() => {
+                        void addReferee(p.claimed_by_user_id!);
+                        setSearch('');
+                        setSearchResults([]);
+                      }}
+                      className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
+                    >
+                      {t('organizer.refereesPage.addQualification')}
+                    </button>
+                  ) : (
+                    <span
+                      title={t('organizer.refereesPage.linkProfileFirst')}
+                      className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5 cursor-not-allowed"
+                    >
+                      {t('organizer.refereesPage.addQualification')}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

@@ -99,6 +99,15 @@ function simulateLookup(query: string, threshold = 0.3, limit = 10) {
 
 function makeMockSupabase(query: string) {
   const results = simulateLookup(query);
+  // Stub for the supplemental fetchClaimedByUserIds query that runs after the RPC.
+  // Returns claimed_by_user_id: null for all persons (sufficient for lookup tests).
+  const claimedStub = {
+    select: vi.fn().mockReturnThis(),
+    in: vi.fn().mockResolvedValue({
+      data: results.map((p) => ({ id: p.id, claimed_by_user_id: null })),
+      error: null,
+    }),
+  };
   return {
     service: {
       rpc: vi.fn().mockResolvedValue({
@@ -111,6 +120,7 @@ function makeMockSupabase(query: string) {
         })),
         error: null,
       }),
+      from: vi.fn().mockReturnValue(claimedStub),
     },
   };
 }
@@ -164,17 +174,24 @@ describe('LookupController', () => {
 
   describe('lookup — max 10 results', () => {
     it('passes limit=10 to the RPC (capped at 10)', async () => {
-      const rpcMock = vi.fn().mockResolvedValue({
-        data: Array.from({ length: 10 }, (_, i) => ({
-          id: `${i}`,
-          given_name: 'Jean',
-          family_name: `Person${i}`,
-          club_label: null,
-          masked_email: 'j***@e***.com',
-        })),
-        error: null,
-      });
-      const mockSupabase = { service: { rpc: rpcMock } };
+      const rows = Array.from({ length: 10 }, (_, i) => ({
+        id: `${i}`,
+        given_name: 'Jean',
+        family_name: `Person${i}`,
+        club_label: null,
+        masked_email: 'j***@e***.com',
+      }));
+      const rpcMock = vi.fn().mockResolvedValue({ data: rows, error: null });
+      const claimedStub = {
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockResolvedValue({
+          data: rows.map((r) => ({ id: r.id, claimed_by_user_id: null })),
+          error: null,
+        }),
+      };
+      const mockSupabase = {
+        service: { rpc: rpcMock, from: vi.fn().mockReturnValue(claimedStub) },
+      };
       const controller = new LookupController(mockSupabase as never, csvService);
       await controller.lookup('event-1', { q: 'jean', limit: '50' });
       // Verify the RPC was called with p_limit capped at 10
