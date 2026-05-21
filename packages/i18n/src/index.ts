@@ -640,6 +640,8 @@ export const en = {
         protectedNote:
           'MyClash HQ is the bootstrap super-admin organization and cannot be suspended or deleted.',
         reassignOwner: 'Reassign ownership',
+        assignOwner: 'Assign owner',
+        noOwnerAssigned: 'no owner assigned',
         reassignPrompt: 'Enter the user ID of the new owner:',
         reassignFailed: 'Failed to reassign owner',
         promoteMember: 'Promote member to super admin',
@@ -648,7 +650,19 @@ export const en = {
         promoteFailed: 'Failed to promote user.',
         selectOwnerTitle: 'Select the new owner',
         selectOwnerDescription:
-          'Choose an existing organization member. Ownership cannot be assigned to a non-member.',
+          'Pick an existing platform user to make them the owner, or create a brand-new account by email.',
+        assignOwnerTitle: 'Assign the organization owner',
+        assignOwnerDescription:
+          'This organization has no owner yet. Pick an existing platform user or create a brand-new account by email.',
+        assignModeNewAccount: 'Create new account',
+        assignModeExistingUser: 'Use existing user',
+        assignNewAccountEmail: 'Email',
+        assignNewAccountDisplayName: 'Display name',
+        assignNewAccountSubmit: 'Create account & assign',
+        assignNewAccountSubmitting: 'Assigning...',
+        assignSuccess: 'Owner assigned. A login link was sent.',
+        assignSuccessNoEmail:
+          'Owner assigned. (Magic link could not be sent — the new owner should sign in with the temporary password.)',
         selectSuperAdminTitle: 'Select platform account',
         selectSuperAdminDescription:
           'Search platform accounts by display name, email, or user ID, then grant super-admin access.',
@@ -2969,6 +2983,8 @@ export const fr = {
         protectedNote:
           "MyClash HQ est l'organisation bootstrap du super-admin et ne peut pas etre suspendue ou supprimee.",
         reassignOwner: 'Reassigner le responsable',
+        assignOwner: 'Attribuer un responsable',
+        noOwnerAssigned: 'sans responsable',
         reassignPrompt: 'Saisir l ID utilisateur du nouveau responsable :',
         reassignFailed: 'Impossible de reassigner le responsable',
         promoteMember: 'Promouvoir un membre super-admin',
@@ -2977,7 +2993,19 @@ export const fr = {
         promoteFailed: 'Impossible de promouvoir cet utilisateur.',
         selectOwnerTitle: 'Choisir le nouveau responsable',
         selectOwnerDescription:
-          'Choisir un membre existant de l organisation. La responsabilite ne peut pas etre donnee a un non-membre.',
+          'Choisir un utilisateur plateforme existant pour le promouvoir, ou creer un nouveau compte par email.',
+        assignOwnerTitle: 'Attribuer le responsable de l organisation',
+        assignOwnerDescription:
+          'Cette organisation n a pas encore de responsable. Choisissez un utilisateur plateforme existant ou creez un nouveau compte par email.',
+        assignModeNewAccount: 'Creer un nouveau compte',
+        assignModeExistingUser: 'Utiliser un compte existant',
+        assignNewAccountEmail: 'Email',
+        assignNewAccountDisplayName: 'Nom affiche',
+        assignNewAccountSubmit: 'Creer le compte et attribuer',
+        assignNewAccountSubmitting: 'Attribution...',
+        assignSuccess: 'Responsable attribue. Un lien de connexion a ete envoye.',
+        assignSuccessNoEmail:
+          'Responsable attribue. (Lien magique non envoye - le responsable peut se connecter avec le mot de passe temporaire.)',
         selectSuperAdminTitle: 'Choisir un compte plateforme',
         selectSuperAdminDescription:
           'Rechercher les comptes plateforme par nom affiche, email ou ID utilisateur, puis donner l acces super-admin.',

@@ -108,6 +108,9 @@ export default function AdminOrgDetailPage({ params }: Props) {
   const [platformError, setPlatformError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [addRole, setAddRole] = useState<AddableRole>('admin');
+  const [assignMode, setAssignMode] = useState<'new' | 'existing'>('existing');
+  const [assignEmail, setAssignEmail] = useState('');
+  const [assignDisplayName, setAssignDisplayName] = useState('');
 
   useEffect(() => {
     void params.then(({ id }) => setOrgId(id));
@@ -173,6 +176,10 @@ export default function AdminOrgDetailPage({ params }: Props) {
     setPickerMode('reassign');
     setPickerSearch('');
     setPlatformError(null);
+    setAssignMode('existing');
+    setAssignEmail('');
+    setAssignDisplayName('');
+    void loadPlatformAccounts('');
   }
 
   function openAddMemberPicker() {
@@ -214,24 +221,16 @@ export default function AdminOrgDetailPage({ params }: Props) {
     }
   }
 
-  async function handleReassignOwner(member: Member) {
+  async function submitAssignOwner(body: Record<string, unknown>, confirmLabel?: string) {
     if (!orgId || actionLoading) return;
-    if (
-      !confirm(
-        t('admin.organizations.detail.confirmReassignOwner', {
-          account: member.username || member.email || member.user_id,
-        }),
-      )
-    ) {
-      return;
-    }
+    if (confirmLabel && !confirm(confirmLabel)) return;
 
     setActionLoading(true);
     const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}/reassign-owner`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ newOwnerUserId: member.user_id }),
+      body: JSON.stringify(body),
     });
     setActionLoading(false);
 
@@ -241,6 +240,22 @@ export default function AdminOrgDetailPage({ params }: Props) {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
       alert(data?.message ?? t('admin.organizations.detail.reassignFailed'));
     }
+  }
+
+  async function handlePickExistingUser(userId: string, label: string) {
+    await submitAssignOwner(
+      { ownerUserId: userId },
+      t('admin.organizations.detail.confirmReassignOwner', { account: label }),
+    );
+  }
+
+  async function handleAssignByEmail(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assignEmail.trim()) return;
+    await submitAssignOwner({
+      ownerEmail: assignEmail.trim(),
+      ownerDisplayName: assignDisplayName.trim() || undefined,
+    });
   }
 
   async function handleAddMember(account: PlatformAccount) {
@@ -329,6 +344,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
 
   if (!org) return null;
   const filteredMembers = org.members.filter((member) => memberMatchesSearch(member, pickerSearch));
+  const hasOwner = Boolean(org.owner_username || org.owner_email);
 
   return (
     <main className="max-w-4xl p-8">
@@ -342,6 +358,11 @@ export default function AdminOrgDetailPage({ params }: Props) {
         <div>
           <h1 className="text-2xl font-bold">{org.name}</h1>
           <p className="mt-0.5 font-mono text-sm text-slate-500">{org.slug}</p>
+          {!hasOwner && (
+            <span className="mt-2 inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+              {t('admin.organizations.detail.noOwnerAssigned')}
+            </span>
+          )}
         </div>
         <span
           className={`mt-1 inline-block rounded-full px-3 py-1 text-sm font-medium ${
@@ -407,7 +428,9 @@ export default function AdminOrgDetailPage({ params }: Props) {
             }}
             className="rounded-md bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-200"
           >
-            {t('admin.organizations.detail.reassignOwner')}
+            {hasOwner
+              ? t('admin.organizations.detail.reassignOwner')
+              : t('admin.organizations.detail.assignOwner')}
           </button>
           {org.is_protected ? null : (
             <button
@@ -533,7 +556,9 @@ export default function AdminOrgDetailPage({ params }: Props) {
           aria-modal="true"
           aria-label={
             pickerMode === 'reassign'
-              ? t('admin.organizations.detail.selectOwnerTitle')
+              ? hasOwner
+                ? t('admin.organizations.detail.selectOwnerTitle')
+                : t('admin.organizations.detail.assignOwnerTitle')
               : t('admin.organizations.detail.addMemberTitle')
           }
         >
@@ -543,12 +568,16 @@ export default function AdminOrgDetailPage({ params }: Props) {
                 <div>
                   <h2 className="text-lg font-semibold text-slate-950">
                     {pickerMode === 'reassign'
-                      ? t('admin.organizations.detail.selectOwnerTitle')
+                      ? hasOwner
+                        ? t('admin.organizations.detail.selectOwnerTitle')
+                        : t('admin.organizations.detail.assignOwnerTitle')
                       : t('admin.organizations.detail.addMemberTitle')}
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
                     {pickerMode === 'reassign'
-                      ? t('admin.organizations.detail.selectOwnerDescription')
+                      ? hasOwner
+                        ? t('admin.organizations.detail.selectOwnerDescription')
+                        : t('admin.organizations.detail.assignOwnerDescription')
                       : t('admin.organizations.detail.addMemberDescription')}
                   </p>
                 </div>
@@ -576,95 +605,202 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   </select>
                 </label>
               ) : null}
-              <label className="mt-4 block text-sm font-semibold text-slate-700">
-                {t('admin.organizations.detail.memberSearch')}
-                <input
-                  type="search"
-                  value={pickerSearch}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setPickerSearch(value);
-                    if (pickerMode === 'addMember') void loadPlatformAccounts(value);
-                  }}
-                  placeholder={
-                    pickerMode === 'reassign'
-                      ? t('admin.organizations.detail.reassignSearchPlaceholder')
-                      : t('admin.organizations.detail.promoteSearchPlaceholder')
-                  }
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
-                />
-              </label>
+              {pickerMode === 'reassign' ? (
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAssignMode('existing')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                      assignMode === 'existing'
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t('admin.organizations.detail.assignModeExistingUser')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAssignMode('new')}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                      assignMode === 'new'
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {t('admin.organizations.detail.assignModeNewAccount')}
+                  </button>
+                </div>
+              ) : null}
+              {pickerMode === 'reassign' && assignMode === 'existing' ? (
+                <label className="mt-4 block text-sm font-semibold text-slate-700">
+                  {t('admin.organizations.detail.memberSearch')}
+                  <input
+                    type="search"
+                    value={pickerSearch}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPickerSearch(value);
+                      void loadPlatformAccounts(value);
+                    }}
+                    placeholder={t('admin.organizations.detail.reassignSearchPlaceholder')}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                  />
+                </label>
+              ) : pickerMode === 'addMember' ? (
+                <label className="mt-4 block text-sm font-semibold text-slate-700">
+                  {t('admin.organizations.detail.memberSearch')}
+                  <input
+                    type="search"
+                    value={pickerSearch}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPickerSearch(value);
+                      void loadPlatformAccounts(value);
+                    }}
+                    placeholder={t('admin.organizations.detail.promoteSearchPlaceholder')}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                  />
+                </label>
+              ) : null}
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto p-3">
-              {pickerMode === 'addMember' && platformLoading ? (
+              {pickerMode === 'reassign' && assignMode === 'new' ? (
+                <form
+                  onSubmit={(event) => {
+                    void handleAssignByEmail(event);
+                  }}
+                  className="space-y-3 p-3"
+                >
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {t('admin.organizations.detail.assignNewAccountEmail')}
+                    <input
+                      required
+                      type="email"
+                      value={assignEmail}
+                      onChange={(e) => setAssignEmail(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    {t('admin.organizations.detail.assignNewAccountDisplayName')}
+                    <input
+                      minLength={2}
+                      maxLength={100}
+                      value={assignDisplayName}
+                      onChange={(e) => setAssignDisplayName(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-700"
+                    />
+                  </label>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+                    >
+                      {actionLoading
+                        ? t('admin.organizations.detail.assignNewAccountSubmitting')
+                        : t('admin.organizations.detail.assignNewAccountSubmit')}
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
+              {(pickerMode === 'addMember' ||
+                (pickerMode === 'reassign' && assignMode === 'existing')) &&
+              platformLoading ? (
                 <p className="p-4 text-sm text-slate-500">
                   {t('admin.organizations.detail.accountSearchLoading')}
                 </p>
               ) : null}
-              {pickerMode === 'addMember' && platformError ? (
+              {(pickerMode === 'addMember' ||
+                (pickerMode === 'reassign' && assignMode === 'existing')) &&
+              platformError ? (
                 <p className="p-4 text-sm text-red-600">{platformError}</p>
-              ) : null}
-              {pickerMode === 'reassign' && filteredMembers.length === 0 ? (
-                <p className="p-4 text-sm text-slate-500">
-                  {t('admin.organizations.detail.noMemberMatches')}
-                </p>
-              ) : null}
-              {pickerMode === 'addMember' &&
-              !platformLoading &&
-              !platformError &&
-              platformAccounts.length === 0 ? (
-                <p className="p-4 text-sm text-slate-500">
-                  {t('admin.organizations.detail.noAccountMatches')}
-                </p>
               ) : null}
 
               <div className="space-y-2">
-                {pickerMode === 'reassign'
-                  ? filteredMembers.map((member) => (
-                      <button
-                        key={member.user_id}
-                        type="button"
-                        disabled={actionLoading || member.role === 'owner'}
-                        onClick={() => {
-                          void handleReassignOwner(member);
-                        }}
-                        className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <span className="block font-semibold text-slate-950">
-                          {member.username || member.email || member.user_id}
-                        </span>
-                        <span className="mt-1 block text-sm text-slate-600">
-                          {member.email || t('admin.users.noEmail')}
-                        </span>
-                        <span className="mt-1 block font-mono text-xs text-slate-500">
-                          {member.user_id}
-                        </span>
-                      </button>
-                    ))
-                  : platformAccounts
-                      .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
-                      .map((account) => (
+                {pickerMode === 'reassign' && assignMode === 'existing'
+                  ? // Merge org members with platform accounts (dedup by user_id) so
+                    // the operator can pick from either. Members come first.
+                    [
+                      ...filteredMembers.map((m) => ({
+                        id: m.user_id,
+                        email: m.email,
+                        display_name: m.display_name,
+                        username: m.username,
+                        isMember: true,
+                        role: m.role,
+                      })),
+                      ...platformAccounts
+                        .filter((a) => !org.members.some((m) => m.user_id === a.id))
+                        .map((a) => ({
+                          id: a.id,
+                          email: a.email ?? null,
+                          display_name: a.display_name ?? null,
+                          username: a.email ?? a.id,
+                          isMember: false,
+                          role: null as string | null,
+                        })),
+                    ].map((row) => {
+                      const isCurrentOwner = row.role === 'owner';
+                      const label = row.display_name?.trim() || row.email || row.username || row.id;
+                      return (
                         <button
-                          key={account.id}
+                          key={row.id}
                           type="button"
-                          disabled={actionLoading}
+                          disabled={actionLoading || isCurrentOwner}
                           onClick={() => {
-                            void handleAddMember(account);
+                            void handlePickExistingUser(row.id, label);
                           }}
                           className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <span className="block font-semibold text-slate-950">
-                            {accountLabel(account)}
+                            {label}
+                            {isCurrentOwner ? (
+                              <span className="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-yellow-700">
+                                owner
+                              </span>
+                            ) : row.isMember ? (
+                              <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                                {row.role}
+                              </span>
+                            ) : null}
                           </span>
                           <span className="mt-1 block text-sm text-slate-600">
-                            {account.email || t('admin.users.noEmail')}
+                            {row.email || t('admin.users.noEmail')}
                           </span>
                           <span className="mt-1 block font-mono text-xs text-slate-500">
-                            {account.id}
+                            {row.id}
                           </span>
                         </button>
-                      ))}
+                      );
+                    })
+                  : pickerMode === 'addMember'
+                    ? platformAccounts
+                        .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
+                        .map((account) => (
+                          <button
+                            key={account.id}
+                            type="button"
+                            disabled={actionLoading}
+                            onClick={() => {
+                              void handleAddMember(account);
+                            }}
+                            className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <span className="block font-semibold text-slate-950">
+                              {accountLabel(account)}
+                            </span>
+                            <span className="mt-1 block text-sm text-slate-600">
+                              {account.email || t('admin.users.noEmail')}
+                            </span>
+                            <span className="mt-1 block font-mono text-xs text-slate-500">
+                              {account.id}
+                            </span>
+                          </button>
+                        ))
+                    : null}
               </div>
             </div>
           </div>
