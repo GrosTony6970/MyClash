@@ -586,39 +586,57 @@ export class ClubsService {
   }
 
   /**
-   * Bulk update — applies the same `city` and/or `countryCode` across every
-   * club in the batch. Refuses the call if neither field is provided so we
-   * never write empty patches. Other fields are deliberately out of scope:
-   * name/abbreviation are per-club, slug is immutable, logo/status each have
-   * their own dedicated endpoints.
+   * Bulk update — applies the same `city`, `countryCode`, and/or `unverified`
+   * status across every club in the batch. Refuses the call if none are
+   * provided so we never write empty patches. Other fields are deliberately
+   * out of scope: name/abbreviation are per-club, slug is immutable, logo
+   * has its own endpoints. Bypasses `this.update()` because the legacy
+   * `unverified` text column isn't on `UpdateClubDto`; we write directly so
+   * one patch covers all three fields. When unverified is set to false
+   * (verify), also clears `archived_at` to mirror the single-club verify
+   * path at line 150.
    */
   async bulkUpdate(
     ids: readonly string[],
     dto: BulkClubUpdateDto,
     actorUserId = 'unknown',
   ): Promise<BulkClubActionResult> {
-    const patch: { city?: string; countryCode?: string } = {};
-    if (dto.city !== undefined) patch.city = dto.city;
-    if (dto.countryCode !== undefined) patch.countryCode = dto.countryCode;
-    if (patch.city === undefined && patch.countryCode === undefined) {
+    const patch: Record<string, unknown> = {};
+    const touched: string[] = [];
+    if (dto.city !== undefined) {
+      patch['city'] = dto.city;
+      touched.push('city');
+    }
+    if (dto.countryCode !== undefined) {
+      patch['country_code'] = dto.countryCode.trim() || null;
+      touched.push('country_code');
+    }
+    if (dto.unverified !== undefined) {
+      patch['unverified'] = dto.unverified ? 'true' : 'false';
+      if (dto.unverified === false) {
+        patch['archived_at'] = null;
+      }
+      touched.push('unverified');
+    }
+    if (touched.length === 0) {
       throw new BadRequestException('No fields to update');
     }
 
     const errors: { id: string; message: string }[] = [];
     let succeeded = 0;
     for (const id of ids) {
-      try {
-        await this.update(id, patch);
+      const { error } = await this.supabase.service.from('clubs').update(patch).eq('id', id);
+      if (error) {
+        errors.push({ id, message: error.message });
+      } else {
         succeeded += 1;
-      } catch (err) {
-        errors.push({ id, message: err instanceof Error ? err.message : 'Update failed' });
       }
     }
     await this.writeAuditLog(actorUserId, 'club.bulk_update', 'club', 'batch', {
       count: ids.length,
       succeeded,
       failed: errors.length,
-      fields: Object.keys(patch),
+      fields: touched,
     });
     return { succeeded, failed: errors.length, errors };
   }

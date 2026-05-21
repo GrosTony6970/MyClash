@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -150,10 +151,12 @@ export class BulkClubIdsDto {
 }
 
 /**
- * Body shape for `POST /clubs/bulk-update`. Only the fields that make sense
- * to apply across many clubs are exposed: `city` and `countryCode`. Either
- * (but not both) may be omitted; if both are absent the service rejects with
- * `BadRequestException('No fields to update')`.
+ * Body shape for `POST /clubs/bulk-update`. Only fields that make sense to
+ * apply across many clubs are exposed: `city`, `countryCode`, and
+ * `unverified`. All three are optional but at least one must be present —
+ * the service rejects with `BadRequestException('No fields to update')`
+ * otherwise. The boolean `unverified` is translated to the legacy text
+ * column inside the service.
  */
 export class BulkClubUpdateDto extends BulkClubIdsDto {
   @ApiProperty({ required: false })
@@ -167,4 +170,15 @@ export class BulkClubUpdateDto extends BulkClubIdsDto {
   @IsString()
   @MaxLength(100)
   countryCode?: string;
+
+  /**
+   * When true, marks the selected clubs as unverified. When false, marks
+   * them verified AND clears archived_at (matches the single-club verify
+   * path that re-activates archived clubs on verify). Omit to leave the
+   * status untouched.
+   */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  unverified?: boolean;
 }

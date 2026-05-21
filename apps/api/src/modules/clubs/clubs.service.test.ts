@@ -398,9 +398,9 @@ describe('ClubsService', () => {
   });
 
   it('bulk-update applies only the supplied fields across the batch', async () => {
-    // Each update() call: update().eq().select().single() → one chain.
-    // Followed by one final audit_log insert for the batch row.
-    const updateChain = makeChain({ data: { id: 'ok', city: 'Lyon' }, error: null });
+    // Each update writes directly via from('clubs').update(patch).eq('id', id)
+    // (awaited on the chain), then one final audit_log insert.
+    const updateChain = makeAwaitableChain({ data: null, error: null });
     fromMock.mockReturnValue(updateChain);
 
     const result = await service.bulkUpdate(
@@ -410,11 +410,54 @@ describe('ClubsService', () => {
     );
 
     expect(result).toEqual({ succeeded: 3, failed: 0, errors: [] });
-    // The patch passed into update() only includes `city`, not `countryCode`.
+    // The patch only includes `city`, not `country_code` or `unverified`.
     expect(updateChain.update).toHaveBeenCalledWith({ city: 'Lyon' });
     expect(updateChain.update).not.toHaveBeenCalledWith(
       expect.objectContaining({ country_code: expect.anything() }),
     );
+    expect(updateChain.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ unverified: expect.anything() }),
+    );
+  });
+
+  it('bulk-update writes unverified=true across the batch without touching archived_at', async () => {
+    const updateChain = makeAwaitableChain({ data: null, error: null });
+    fromMock.mockReturnValue(updateChain);
+
+    const result = await service.bulkUpdate(
+      ['club-1', 'club-2', 'club-3'],
+      { ids: ['club-1', 'club-2', 'club-3'], unverified: true },
+      'actor',
+    );
+
+    expect(result).toEqual({ succeeded: 3, failed: 0, errors: [] });
+    // Stored as legacy text "true", and archived_at is NOT touched on unverify.
+    expect(updateChain.update).toHaveBeenCalledTimes(3);
+    expect(updateChain.update).toHaveBeenCalledWith({ unverified: 'true' });
+    expect(updateChain.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ archived_at: expect.anything() }),
+    );
+  });
+
+  it('bulk-update clears archived_at when verifying and combines with countryCode', async () => {
+    const updateChain = makeAwaitableChain({ data: null, error: null });
+    fromMock.mockReturnValue(updateChain);
+
+    const result = await service.bulkUpdate(
+      ['club-1', 'club-2'],
+      { ids: ['club-1', 'club-2'], countryCode: 'FR', unverified: false },
+      'actor',
+    );
+
+    expect(result).toEqual({ succeeded: 2, failed: 0, errors: [] });
+    // Country goes to country_code, unverified=false writes 'false' AND
+    // clears archived_at (mirrors the single-club verify path).
+    expect(updateChain.update).toHaveBeenCalledWith({
+      country_code: 'FR',
+      unverified: 'false',
+      archived_at: null,
+    });
+    expect(updateChain.update).toHaveBeenCalledTimes(2);
   });
 
   it('bulk safe-delete surfaces still-referenced rows as per-row errors and keeps the batch alive', async () => {
