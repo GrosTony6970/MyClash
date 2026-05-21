@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { WorkersModule } from '../../workers/workers.module';
 import { AutoAssignController } from './auto-assign.controller';
 import { QualificationsController } from './qualifications.controller';
@@ -7,7 +8,7 @@ import { SettingsController } from './settings.controller';
 import { SettingsService } from './settings.service';
 
 @Module({
-  imports: [WorkersModule],
+  imports: [OrganizationsModule, WorkersModule],
   controllers: [QualificationsController, SettingsController, AutoAssignController],
   providers: [QualificationsService, SettingsService],
   exports: [QualificationsService, SettingsService],
