@@ -184,6 +184,7 @@ describe('EventsService', () => {
               email: 'ada@example.test',
               club_id: 'club-1',
               claim_status: 'claimed',
+              global_person_id: null,
             },
           ],
           error: null,
@@ -197,12 +198,102 @@ describe('EventsService', () => {
           ],
           error: null,
         }),
+      )
+      .mockReturnValueOnce(
+        // global_persons.select('...').in('club_id', clubIds) — no globals
+        // in this fixture, just an event-only fighter.
+        makeAwaitableChain({ data: [], error: null }),
       );
     assertOrgRole.mockResolvedValue(undefined);
 
     await expect(service.listEventClubs('event-1', { scope: 'all' }, 'user-1')).resolves.toEqual([
       expect.objectContaining({ id: 'club-1', eventFighterCount: 1 }),
       expect.objectContaining({ id: 'club-2', eventFighterCount: 0 }),
+    ]);
+  });
+
+  it('listEventClubs merges global club members with event roster and flags inEvent', async () => {
+    fromMock
+      .mockReturnValueOnce(
+        // getEventById
+        makeChain({
+          data: { id: 'event-1', organization_id: 'org-1', status: 'published' },
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        // getEventPersons — Alice is linked to global G1; Bob is event-only.
+        makeAwaitableChain({
+          data: [
+            {
+              id: 'person-alice',
+              given_name: 'Alice',
+              family_name: 'A',
+              email: 'alice@example.test',
+              club_id: 'club-1',
+              claim_status: 'claimed',
+              global_person_id: 'G1',
+            },
+            {
+              id: 'person-bob',
+              given_name: 'Bob',
+              family_name: 'B',
+              email: 'bob@example.test',
+              club_id: 'club-1',
+              claim_status: 'guest_active',
+              global_person_id: null,
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        // getClubsForEventScope — single club with both global + event members.
+        makeAwaitableChain({
+          data: [{ id: 'club-1', name: 'Lyon AMHE', abbreviation: 'LAMHE' }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        // global_persons for club-1: Alice (G1) is in the event; Carol (G2) is not.
+        makeAwaitableChain({
+          data: [
+            {
+              id: 'G1',
+              club_id: 'club-1',
+              given_name: 'Alice',
+              family_name: 'A',
+              email: 'alice@example.test',
+            },
+            {
+              id: 'G2',
+              club_id: 'club-1',
+              given_name: 'Carol',
+              family_name: 'C',
+              email: 'carol@example.test',
+            },
+          ],
+          error: null,
+        }),
+      );
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = await service.listEventClubs('event-1', { scope: 'all' }, 'user-1');
+
+    const club = result[0] as {
+      id: string;
+      eventFighterCount: number;
+      fighters: Array<{ id: string; inEvent: boolean; givenName: string }>;
+    };
+    expect(club.id).toBe('club-1');
+    // eventFighterCount counts ONLY event-roster persons (preserved).
+    expect(club.eventFighterCount).toBe(2);
+    // Fighters list: G1 (Alice in event), G2 (Carol not in event), Bob (event-only,
+    // no global link). Note: dedup means G1 appears once, not twice.
+    expect(club.fighters).toEqual([
+      expect.objectContaining({ id: 'G1', givenName: 'Alice', inEvent: true }),
+      expect.objectContaining({ id: 'G2', givenName: 'Carol', inEvent: false }),
+      expect.objectContaining({ id: 'person-bob', givenName: 'Bob', inEvent: true }),
     ]);
   });
 

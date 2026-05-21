@@ -267,18 +267,88 @@ export class EventsService {
       Array.from(personsByClub.keys()),
     );
 
+    // Fetch the GLOBAL members of every club we're about to return so the
+    // UI can show "all the club's fighters" with an `inEvent` flag — letting
+    // an organiser see at a glance which global members are not yet on the
+    // event roster. Single batched query bounded by the club count.
+    const clubIds = clubs.map((club) => (club as { id: string }).id);
+    const globalsByClub = new Map<
+      string,
+      Array<{
+        id: string;
+        given_name: string;
+        family_name: string;
+        email: string | null;
+      }>
+    >();
+    if (clubIds.length > 0) {
+      const { data: globals, error: globalsErr } = await this.supabase.service
+        .from('global_persons')
+        .select('id, club_id, given_name, family_name, email')
+        .in('club_id', clubIds);
+      if (globalsErr) throw new BadRequestException(globalsErr.message);
+      const rows = (globals ?? []) as Array<{
+        id: string;
+        club_id: string | null;
+        given_name: string;
+        family_name: string;
+        email: string | null;
+      }>;
+      for (const g of rows) {
+        if (!g.club_id) continue;
+        const arr = globalsByClub.get(g.club_id) ?? [];
+        arr.push({
+          id: g.id,
+          given_name: g.given_name,
+          family_name: g.family_name,
+          email: g.email,
+        });
+        globalsByClub.set(g.club_id, arr);
+      }
+    }
+
+    // Index event_persons that have a global_person_id so we can quickly
+    // mark the global rows as "in event".
+    const eventGlobalIds = new Set<string>();
+    for (const p of eventPersons) {
+      if (p.global_person_id) eventGlobalIds.add(p.global_person_id);
+    }
+
     return clubs.map((club) => {
-      const fighters = personsByClub.get(club.id) ?? [];
+      const eventFighters = personsByClub.get(club.id) ?? [];
+      const globalFighters = globalsByClub.get(club.id) ?? [];
+
+      // Start from the global members (canonical list).
+      const seenGlobalIds = new Set<string>();
+      const merged = globalFighters.map((g) => {
+        seenGlobalIds.add(g.id);
+        return {
+          id: g.id,
+          givenName: g.given_name,
+          familyName: g.family_name,
+          email: g.email ?? '',
+          claimStatus: 'global',
+          inEvent: eventGlobalIds.has(g.id),
+        };
+      });
+      // Add any event-roster persons that don't link to a global row in
+      // this same club (unclaimed guests, or stale links).
+      for (const p of eventFighters) {
+        if (p.global_person_id && seenGlobalIds.has(p.global_person_id)) continue;
+        merged.push({
+          id: p.id,
+          givenName: p.given_name,
+          familyName: p.family_name,
+          email: p.email,
+          claimStatus: p.claim_status,
+          inEvent: true,
+        });
+      }
+
       return {
         ...club,
-        eventFighterCount: fighters.length,
-        fighters: fighters.map((person) => ({
-          id: person.id,
-          givenName: person.given_name,
-          familyName: person.family_name,
-          email: person.email,
-          claimStatus: person.claim_status,
-        })),
+        eventFighterCount: eventFighters.length,
+        fighters: merged,
       };
     });
   }
@@ -408,7 +478,7 @@ export class EventsService {
   private async getEventPersons(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, email, club_id, claim_status')
+      .select('id, given_name, family_name, email, club_id, claim_status, global_person_id')
       .eq('event_id', eventId)
       .order('family_name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -419,6 +489,7 @@ export class EventsService {
       email: string;
       club_id: string | null;
       claim_status: string;
+      global_person_id: string | null;
     }>;
   }
 
