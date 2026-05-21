@@ -134,10 +134,13 @@ export default function AdminClubsPage() {
   // Per-row verify/unverify busy flag (separate from delete busy so the two
   // can't collide when an operator chains operations on the same row).
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  // Bulk-edit modal state — `city` / `country` form fields.
+  // Bulk-edit modal state — `city` / `country` / `status` form fields.
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [bulkEditCity, setBulkEditCity] = useState('');
   const [bulkEditCountry, setBulkEditCountry] = useState('');
+  const [bulkEditStatus, setBulkEditStatus] = useState<'no_change' | 'verified' | 'unverified'>(
+    'no_change',
+  );
 
   const fetchClubs = useCallback(
     async (q: string, signal?: AbortSignal) => {
@@ -653,7 +656,8 @@ export default function AdminClubsPage() {
     if (ids.length === 0) return;
     const city = bulkEditCity.trim();
     const country = bulkEditCountry.trim();
-    if (!city && !country) {
+    const statusChange = bulkEditStatus !== 'no_change';
+    if (!city && !country && !statusChange) {
       toast.error(t('admin.clubs.bulkEditNoFields'));
       return;
     }
@@ -667,6 +671,7 @@ export default function AdminClubsPage() {
           ids,
           city: city || undefined,
           countryCode: country || undefined,
+          unverified: statusChange ? bulkEditStatus === 'unverified' : undefined,
         }),
       });
       if (!res.ok) {
@@ -692,6 +697,7 @@ export default function AdminClubsPage() {
       setShowBulkEditModal(false);
       setBulkEditCity('');
       setBulkEditCountry('');
+      setBulkEditStatus('no_change');
       void refreshClubs();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('admin.clubs.deleteError'));
@@ -1341,18 +1347,40 @@ export default function AdminClubsPage() {
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
               />
             </label>
+            <label className="mt-3 block text-xs font-medium text-slate-600">
+              {t('admin.clubs.bulkEditStatusLabel')}
+              <select
+                value={bulkEditStatus}
+                onChange={(e) =>
+                  setBulkEditStatus(e.target.value as 'no_change' | 'verified' | 'unverified')
+                }
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              >
+                <option value="no_change">{t('admin.clubs.bulkEditStatusNoChange')}</option>
+                <option value="verified">{t('admin.clubs.bulkEditStatusVerified')}</option>
+                <option value="unverified">{t('admin.clubs.bulkEditStatusUnverified')}</option>
+              </select>
+            </label>
             <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
                 disabled={bulkBusy}
-                onClick={() => setShowBulkEditModal(false)}
+                onClick={() => {
+                  setShowBulkEditModal(false);
+                  setBulkEditStatus('no_change');
+                }}
                 className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
                 {t('actions.cancel')}
               </button>
               <button
                 type="button"
-                disabled={bulkBusy || (!bulkEditCity.trim() && !bulkEditCountry.trim())}
+                disabled={
+                  bulkBusy ||
+                  (!bulkEditCity.trim() &&
+                    !bulkEditCountry.trim() &&
+                    bulkEditStatus === 'no_change')
+                }
                 onClick={() => void runBulkEdit()}
                 className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 disabled:opacity-50"
               >
