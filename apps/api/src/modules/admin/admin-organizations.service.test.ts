@@ -14,6 +14,7 @@ const authAdminMock = {
 const listAuthAdminUsersMock = vi.fn();
 const createAuthAdminUserMock = vi.fn();
 const deleteAuthAdminUserMock = vi.fn();
+const getAuthAdminUserMock = vi.fn();
 const mockMail = { sendMagicLink: vi.fn() };
 const mockConfig = { get: vi.fn((_key: string, fallback?: string) => fallback ?? 'myclash.fr') };
 
@@ -23,6 +24,7 @@ const mockSupabase = {
   listAuthAdminUsers: listAuthAdminUsersMock,
   createAuthAdminUser: createAuthAdminUserMock,
   deleteAuthAdminUser: deleteAuthAdminUserMock,
+  getAuthAdminUser: getAuthAdminUserMock,
 };
 
 type ChainResult = { data: unknown; error: unknown };
@@ -371,6 +373,187 @@ describe('AdminOrganizationsService', () => {
       expect(result.magicLinkSent).toBe(false);
       expect(result.owner).not.toBeNull();
       expect(result.owner!.temporaryPassword).toEqual(expect.any(String));
+    });
+
+    it('creates an org without an owner when no owner inputs are provided', async () => {
+      const orgChain = makeChain({
+        data: { id: 'org-no-owner', name: 'No Owner Org', slug: 'no-owner-org', status: 'active' },
+        error: null,
+      });
+      const slugCheckChain = makeChain({ data: null, error: null });
+      const memberChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      const auditChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+      let orgCall = 0;
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          orgCall += 1;
+          return orgCall === 1 ? slugCheckChain : orgChain;
+        }
+        if (table === 'organization_members') return memberChain;
+        if (table === 'audit_log') return auditChain;
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.createOrganizationWithOwner(
+        { name: 'No Owner Org', slug: 'no-owner-org' },
+        'actor-super-admin',
+      );
+
+      // No auth-user bootstrap should have run.
+      expect(createAuthAdminUserMock).not.toHaveBeenCalled();
+      expect(listAuthAdminUsersMock).not.toHaveBeenCalled();
+
+      // Org row should be inserted with the super-admin as created_by.
+      expect(orgChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'No Owner Org',
+          slug: 'no-owner-org',
+          created_by_user_id: 'actor-super-admin',
+        }),
+      );
+
+      // No member row should be inserted.
+      expect(memberChain.insert).not.toHaveBeenCalled();
+
+      // Audit log should reflect the ownerless creation.
+      expect(auditChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'org.create_without_owner',
+          payload_json: expect.objectContaining({ owner_user_id: null, owner_created: false }),
+        }),
+      );
+
+      // Response shape: no owner / no membership / no magic link.
+      expect(result.owner).toBeNull();
+      expect(result.membership).toBeNull();
+      expect(result.magicLinkSent).toBe(false);
+      expect(mockMail.sendMagicLink).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reassignOwner — assign-later flows', () => {
+    function setupOrgFixture(opts: { currentOwnerUserId?: string }) {
+      const orgExistsChain = makeChain({ data: { id: 'org-1' }, error: null });
+
+      const hasCurrentOwner = !!opts.currentOwnerUserId;
+      const currentOwnersChain = makeAwaitableChain({
+        data: hasCurrentOwner ? [{ user_id: opts.currentOwnerUserId }] : [],
+        error: null,
+      });
+
+      const demoteChain = makeChain({ data: null, error: null });
+
+      const existingMemberChain = makeChain({ data: null, error: null });
+      existingMemberChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      const insertMemberChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+
+      const auditChain = { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+
+      const orgRowChain = makeChain({
+        data: { name: 'Test Org', slug: 'test-org' },
+        error: null,
+      });
+
+      let orgCall = 0;
+      let memberCall = 0;
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'organizations') {
+          orgCall += 1;
+          return orgCall === 1 ? orgExistsChain : orgRowChain;
+        }
+        if (table === 'organization_members') {
+          memberCall += 1;
+          // Sequence:
+          //   1: SELECT current owners
+          //   2: UPDATE demote (skipped when no current owner)
+          //   N-1: SELECT existing member row for new owner
+          //   N: INSERT new owner member (when not already a member)
+          if (memberCall === 1) return currentOwnersChain;
+          if (hasCurrentOwner && memberCall === 2) return demoteChain;
+          const positionAfterDemote = hasCurrentOwner ? memberCall - 1 : memberCall;
+          if (positionAfterDemote === 2) return existingMemberChain;
+          return insertMemberChain;
+        }
+        if (table === 'audit_log') return auditChain;
+        return makeChain({ data: null, error: null });
+      });
+
+      return { auditChain, insertMemberChain, demoteChain };
+    }
+
+    it('assigns a brand-new owner via email on an ownerless org', async () => {
+      const { auditChain, insertMemberChain, demoteChain } = setupOrgFixture({
+        // no currentOwnerUserId → ownerless
+      });
+
+      const result = await service.reassignOwner(
+        'org-1',
+        { ownerEmail: 'new-owner@example.com', ownerDisplayName: 'New Owner' },
+        'actor-super-admin',
+      );
+
+      // bootstrap creates the user
+      expect(createAuthAdminUserMock).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'new-owner@example.com' }),
+      );
+      // no demotion (no current owner)
+      expect(demoteChain.update).not.toHaveBeenCalled();
+      // member row inserted as owner
+      expect(insertMemberChain.insert).toHaveBeenCalledWith({
+        organization_id: 'org-1',
+        user_id: 'user-new',
+        role: 'owner',
+      });
+      // audit action distinguishes from reassign
+      expect(auditChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'org.owner_assigned',
+          payload_json: expect.objectContaining({ new_owner_user_id: 'user-new' }),
+        }),
+      );
+      expect(result.action).toBe('org.owner_assigned');
+      expect(result.ownerCreated).toBe(true);
+    });
+
+    it('reassigns ownership via existing userId on an org that already has an owner', async () => {
+      // Existing platform user lookup → user-existing
+      getAuthAdminUserMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { id: 'user-existing', email: 'existing@example.com', user_metadata: {} },
+        detail: {},
+      });
+
+      const { auditChain, insertMemberChain, demoteChain } = setupOrgFixture({
+        currentOwnerUserId: 'old-owner-user-id',
+      });
+
+      const result = await service.reassignOwner(
+        'org-1',
+        { ownerUserId: 'user-existing' },
+        'actor-super-admin',
+      );
+
+      // Old owner demoted
+      expect(demoteChain.update).toHaveBeenCalledWith({ role: 'admin' });
+      // New owner inserted as member (since maybeSingle returned null)
+      expect(insertMemberChain.insert).toHaveBeenCalledWith({
+        organization_id: 'org-1',
+        user_id: 'user-existing',
+        role: 'owner',
+      });
+      // No new auth user created
+      expect(createAuthAdminUserMock).not.toHaveBeenCalled();
+      // Audit reflects reassignment, not first-time assignment
+      expect(auditChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'org.owner_reassigned',
+        }),
+      );
+      expect(result.action).toBe('org.owner_reassigned');
+      expect(result.ownerCreated).toBe(false);
     });
   });
 
