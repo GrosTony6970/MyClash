@@ -1,11 +1,18 @@
 /**
- * qualifications.service.test.ts — T-906
+ * qualifications.service.test.ts — T-906 / T-903
  *
  * Tests for referee skills catalog methods:
  *   ✓ listEventSkills returns system skills + event's custom skills (excludes other events')
  *   ✓ createCustomSkill creates with given color and returns new row
  *   ✓ updateCustomSkill refuses to edit a system skill (throws ForbiddenException)
  *   ✓ deleteCustomSkill refuses when active qualifications reference the skill
+ *
+ * Task 3 additions:
+ *   ✓ updateAvailability upserts when row is missing
+ *   ✓ updateAvailability updates existing row preserving unset fields
+ *   ✓ listEventReferees returns merged qualifications + assignments + availability
+ *   ✓ ensureEventReferee sets global_persons.is_referee = 'true' when profile exists
+ *   ✓ updateAvailability propagates ForbiddenException on auth failure
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -26,14 +33,49 @@ function makeChain(result: unknown) {
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
+    upsert: vi.fn() as ReturnType<typeof vi.fn>,
     delete: vi.fn() as ReturnType<typeof vi.fn>,
+    in: vi.fn() as ReturnType<typeof vi.fn>,
+    not: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
-  for (const key of ['select', 'eq', 'or', 'order', 'insert', 'update', 'delete']) {
+  for (const key of [
+    'select',
+    'eq',
+    'or',
+    'order',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'in',
+    'not',
+  ]) {
     chain[key as keyof typeof chain] = vi.fn().mockReturnValue(chain);
   }
   return chain;
+}
+
+function makeResolvedChain(result: unknown) {
+  // A chain that resolves to result when awaited AND chains methods
+  const chain = makeChain(result);
+  const awaitable = Object.assign(Promise.resolve(result), chain);
+  for (const key of [
+    'select',
+    'eq',
+    'or',
+    'order',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+    'in',
+    'not',
+  ]) {
+    (awaitable as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(awaitable);
+  }
+  return awaitable;
 }
 
 function makeCountChain(count: number) {
@@ -378,6 +420,348 @@ describe('QualificationsService — skills catalog', () => {
           'low-priv-user',
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+});
+
+// ── Task 3 tests ──────────────────────────────────────────────────────────────
+
+describe('QualificationsService — Task 3: availability + referees list', () => {
+  let service: QualificationsService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrganizations.assertOrgRole.mockResolvedValue(undefined);
+    service = new QualificationsService(mockSupabase as never, mockOrganizations as never);
+  });
+
+  // ── updateAvailability ────────────────────────────────────────────────────────
+
+  describe('updateAvailability', () => {
+    it('inserts a new event_referees row when the row is missing (upsert path)', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      // Check existing row → not found
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      // Insert chain
+      const insertChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(checkChain) // check existing
+        .mockReturnValueOnce(insertChain); // insert
+
+      await service.updateAvailability(
+        'event-1',
+        'user-target',
+        { availableAllTournaments: false },
+        'user-actor',
+      );
+
+      // insert was called with the dto value overriding the default
+      const insertCall = (insertChain as unknown as { insert: ReturnType<typeof vi.fn> }).insert;
+      expect(insertCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_id: 'event-1',
+          user_id: 'user-target',
+          available_all_tournaments: false,
+          available_all_event_duration: true, // default preserved
+        }),
+      );
+    });
+
+    it('updates existing row preserving fields not in dto', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+      const existingRow = { event_id: 'event-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const checkChain = makeChain({ data: existingRow, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: existingRow, error: null });
+
+      // Update chain — resolves on .eq('user_id', ...)
+      const updateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(checkChain) // check existing
+        .mockReturnValueOnce(updateChain); // update
+
+      await service.updateAvailability(
+        'event-1',
+        'user-target',
+        { availableAllEventDuration: false }, // only one field
+        'user-actor',
+      );
+
+      const updateCall = (updateChain as unknown as { update: ReturnType<typeof vi.fn> }).update;
+      // Only the provided field + updated_at should be in the update payload
+      expect(updateCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          available_all_event_duration: false,
+        }),
+      );
+      // The missing field should NOT be in the update payload (preserves existing DB value)
+      const payload = updateCall.mock.calls[0]![0] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty('available_all_tournaments');
+    });
+
+    it('propagates ForbiddenException when actor lacks admin role', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+      fromMock.mockReturnValueOnce(eventChain);
+
+      mockOrganizations.assertOrgRole.mockRejectedValueOnce(
+        new ForbiddenException('Requires admin role or higher'),
+      );
+
+      await expect(
+        service.updateAvailability('event-1', 'user-target', {}, 'low-priv-user'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // ── listEventReferees ─────────────────────────────────────────────────────────
+
+  describe('listEventReferees', () => {
+    it('returns merged EventRefereeRow with qualifications + availability (no assignments)', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      // event_referees rows
+      const refRows = [
+        {
+          user_id: 'user-a',
+          available_all_tournaments: true,
+          available_all_event_duration: false,
+        },
+      ];
+
+      // referee_qualifications rows
+      const qualRows = [{ user_id: 'user-a', role: 'arbitre_declarant', rating: 4 }];
+
+      // global_persons row
+      const gpRows = [
+        {
+          id: 'gp-a',
+          claimed_by_user_id: 'user-a',
+          given_name: 'Alice',
+          family_name: 'Dupont',
+          display_name: 'Alice Dupont',
+          club_id: null,
+        },
+      ];
+
+      // For countAssignmentsByReferee: tournaments → empty (no assignments)
+      const tournamentsRows: unknown[] = [];
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const refChain = makeResolvedChain({ data: refRows, error: null });
+      const qualChain = makeResolvedChain({ data: qualRows, error: null });
+      const gpChain = makeResolvedChain({ data: gpRows, error: null });
+      // tournaments query — returns empty
+      const tournChain = makeResolvedChain({ data: tournamentsRows, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(refChain) // event_referees
+        .mockReturnValueOnce(qualChain) // referee_qualifications
+        .mockReturnValueOnce(gpChain) // global_persons
+        .mockReturnValueOnce(tournChain); // tournaments (in countAssignmentsByReferee)
+
+      const result = await service.listEventReferees('event-1', 'actor-user');
+
+      expect(result).toHaveLength(1);
+      const row = result[0]!;
+      expect(row.userId).toBe('user-a');
+      expect(row.personId).toBe('gp-a');
+      expect(row.displayName).toBe('Alice Dupont');
+      expect(row.availableAllTournaments).toBe(true);
+      expect(row.availableAllEventDuration).toBe(false);
+      expect(row.qualifications).toHaveLength(1);
+      expect(row.qualifications[0]).toEqual({ skillId: 'arbitre_declarant', rating: 4 });
+      expect(row.assignments).toHaveLength(0);
+      expect(row.totalMatchCount).toBe(0);
+    });
+
+    it('returns empty array when no event_referees rows exist', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const refChain = makeResolvedChain({ data: [], error: null });
+
+      fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(refChain);
+
+      const result = await service.listEventReferees('event-1', 'actor-user');
+      expect(result).toEqual([]);
+    });
+
+    it('populates clubLabel when global person has a club_id', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const refRows = [
+        {
+          user_id: 'user-b',
+          available_all_tournaments: true,
+          available_all_event_duration: true,
+        },
+      ];
+
+      const qualRows: unknown[] = [];
+
+      const gpRows = [
+        {
+          id: 'gp-b',
+          claimed_by_user_id: 'user-b',
+          given_name: 'Bob',
+          family_name: 'Martin',
+          display_name: 'Bob Martin',
+          club_id: 'club-42',
+        },
+      ];
+
+      // clubs batch lookup
+      const clubsRows = [{ id: 'club-42', name: 'Club Épée de Paris' }];
+
+      // tournaments → empty (no assignments)
+      const tournamentsRows: unknown[] = [];
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const refChain = makeResolvedChain({ data: refRows, error: null });
+      const qualChain = makeResolvedChain({ data: qualRows, error: null });
+      const gpChain = makeResolvedChain({ data: gpRows, error: null });
+      const clubsChain = makeResolvedChain({ data: clubsRows, error: null });
+      const tournChain = makeResolvedChain({ data: tournamentsRows, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(refChain) // event_referees
+        .mockReturnValueOnce(qualChain) // referee_qualifications
+        .mockReturnValueOnce(gpChain) // global_persons
+        .mockReturnValueOnce(clubsChain) // clubs batch lookup
+        .mockReturnValueOnce(tournChain); // tournaments (in countAssignmentsByReferee)
+
+      const result = await service.listEventReferees('event-1', 'actor-user');
+
+      expect(result).toHaveLength(1);
+      const row = result[0]!;
+      expect(row.clubLabel).toBe('Club Épée de Paris');
+    });
+
+    it('leaves clubLabel null when global person has no club_id', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const refRows = [
+        {
+          user_id: 'user-c',
+          available_all_tournaments: true,
+          available_all_event_duration: true,
+        },
+      ];
+
+      const qualRows: unknown[] = [];
+
+      const gpRows = [
+        {
+          id: 'gp-c',
+          claimed_by_user_id: 'user-c',
+          given_name: 'Carol',
+          family_name: 'Lemaire',
+          display_name: 'Carol Lemaire',
+          club_id: null,
+        },
+      ];
+
+      const tournamentsRows: unknown[] = [];
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const refChain = makeResolvedChain({ data: refRows, error: null });
+      const qualChain = makeResolvedChain({ data: qualRows, error: null });
+      const gpChain = makeResolvedChain({ data: gpRows, error: null });
+      // No clubs query expected (club_ids is empty)
+      const tournChain = makeResolvedChain({ data: tournamentsRows, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(refChain)
+        .mockReturnValueOnce(qualChain)
+        .mockReturnValueOnce(gpChain)
+        .mockReturnValueOnce(tournChain);
+
+      const result = await service.listEventReferees('event-1', 'actor-user');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.clubLabel).toBeNull();
+    });
+  });
+
+  // ── ensureEventReferee ────────────────────────────────────────────────────────
+
+  describe('ensureEventReferee', () => {
+    it('sets global_persons.is_referee = "true" when a claimed profile exists', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      // event_referees upsert
+      const upsertChain = makeResolvedChain({ data: null, error: null });
+
+      // global_persons update
+      const gpUpdateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(upsertChain) // event_referees upsert
+        .mockReturnValueOnce(gpUpdateChain); // global_persons update
+
+      await service.ensureEventReferee('event-1', 'user-target', 'actor-admin');
+
+      // Verify global_persons update was called with is_referee = 'true'
+      const updateCall = (gpUpdateChain as unknown as { update: ReturnType<typeof vi.fn> }).update;
+      expect(updateCall).toHaveBeenCalledWith(expect.objectContaining({ is_referee: 'true' }));
+    });
+
+    it('upserts event_referees with default availability flags', async () => {
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const upsertChain = makeResolvedChain({ data: null, error: null });
+      const gpUpdateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(upsertChain)
+        .mockReturnValueOnce(gpUpdateChain);
+
+      await service.ensureEventReferee('event-1', 'user-new', 'actor-admin');
+
+      const upsertCall = (upsertChain as unknown as { upsert: ReturnType<typeof vi.fn> }).upsert;
+      expect(upsertCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_id: 'event-1',
+          user_id: 'user-new',
+          available_all_tournaments: true,
+          available_all_event_duration: true,
+        }),
+        expect.objectContaining({ ignoreDuplicates: true }),
+      );
     });
   });
 });

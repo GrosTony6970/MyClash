@@ -1,5 +1,5 @@
 /**
- * qualifications.controller.ts — T-901 / T-906
+ * qualifications.controller.ts — T-901 / T-906 / T-903 (Task 3)
  */
 
 import {
@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -69,6 +70,16 @@ class UpdateRefereeSkillDto {
   @IsString()
   @MaxLength(32)
   color?: string;
+}
+
+export class UpdateRefereeAvailabilityDto {
+  @IsOptional()
+  @IsBoolean()
+  availableAllTournaments?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  availableAllEventDuration?: boolean;
 }
 
 /** Resolve the authenticated user UUID from the Supabase access token. */
@@ -171,5 +182,44 @@ export class QualificationsController {
   async deleteSkill(@Param('skillId') skillId: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
     await this.qualifications.deleteCustomSkill(skillId, userId);
+  }
+
+  // ── Task 3: Event referees ────────────────────────────────────────────────────
+
+  @Get('events/:eventId/referees')
+  @ApiOperation({ summary: 'List referees for an event with qualifications + assignments' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async listReferees(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    const actorUserId = await getUserId(req, this.supabase);
+    return this.qualifications.listEventReferees(eventId, actorUserId);
+  }
+
+  @Post('events/:eventId/referees/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Register a user as referee for this event (admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
+  async ensureReferee(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const actorUserId = await getUserId(req, this.supabase);
+    await this.qualifications.ensureEventReferee(eventId, userId, actorUserId);
+  }
+
+  @Patch('events/:eventId/referees/:userId/availability')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Update availability flags for a referee (admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
+  async updateAvailability(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: UpdateRefereeAvailabilityDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const actorUserId = await getUserId(req, this.supabase);
+    await this.qualifications.updateAvailability(eventId, userId, dto, actorUserId);
   }
 }
