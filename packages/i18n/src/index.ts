@@ -1696,6 +1696,10 @@ export const en = {
         scoringNormal: 'Normal',
         scoringReverse: 'Reverse (zero loses)',
         sideColors: 'Fighter side colors',
+        colorLabel: 'Tournament color',
+        colorNone: 'No color',
+        colorHelp:
+          'Optional. Shown as a small dot next to the tournament name across the admin UI (schedule, pools, bracket, registrations).',
         cleanButtons: 'Clean-hit buttons',
         afterblowButtons: 'Afterblow buttons',
         save: 'Save changes',
@@ -4088,6 +4092,10 @@ export const fr = {
         scoringNormal: 'Normal',
         scoringReverse: 'Inverse (zero perd)',
         sideColors: 'Couleurs des cotes',
+        colorLabel: 'Couleur du tournoi',
+        colorNone: 'Pas de couleur',
+        colorHelp:
+          'Optionnel. Affiche un petit point a cote du nom du tournoi dans l interface (calendrier, poules, tableau, inscriptions).',
         cleanButtons: 'Boutons coups nets',
         afterblowButtons: 'Boutons contre-frappes',
         save: 'Enregistrer',

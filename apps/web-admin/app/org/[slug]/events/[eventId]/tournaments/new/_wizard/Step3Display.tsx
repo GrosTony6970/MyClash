@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { useToast } from '@myclash/ui';
+import { TournamentColorDot, useToast } from '@myclash/ui';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -32,6 +32,26 @@ const DEFAULTS: DisplayState = {
 
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];
 
+/** Full ColorToken palette from @myclash/ui — used for the tournament
+ *  identity color (separate from sideColors). */
+const TOURNAMENT_COLORS = [
+  'red',
+  'blue',
+  'green',
+  'amber',
+  'violet',
+  'teal',
+  'orange',
+  'purple',
+  'yellow',
+  'gold',
+  'silver',
+  'bronze',
+  'slate',
+  'black',
+  'white',
+];
+
 export function Step3Display({
   tournamentId,
   onNext,
@@ -44,6 +64,7 @@ export function Step3Display({
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
+  const [tournamentColor, setTournamentColor] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,6 +73,7 @@ export function Step3Display({
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
+        setTournamentColor((row.color as string | null) ?? '');
         const sc = (row.scoring_config ?? {}) as {
           display?: { sideColors?: { red: string; blue: string } };
           buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
@@ -78,6 +100,7 @@ export function Step3Display({
             display: { sideColors: data.sideColors },
             buttons: data.buttons,
           },
+          color: tournamentColor || null,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -130,6 +153,30 @@ export function Step3Display({
             </label>
           ))}
         </div>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-slate-600">
+          {t('organizer.tournaments.settings.colorLabel')}
+        </legend>
+        <div className="flex items-center gap-2">
+          <TournamentColorDot color={tournamentColor || null} size="md" />
+          <select
+            value={tournamentColor}
+            onChange={(e) => setTournamentColor(e.target.value)}
+            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">{t('organizer.tournaments.settings.colorNone')}</option>
+            {TOURNAMENT_COLORS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          {t('organizer.tournaments.settings.colorHelp')}
+        </p>
       </fieldset>
 
       <fieldset className="space-y-2">
