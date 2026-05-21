@@ -68,16 +68,39 @@ export interface CreateOrganizationResult {
     slug: string;
     status: 'active' | 'suspended';
   };
+  /** Owner details. Null when the org was created without an owner. */
   owner: {
     userId: string;
     email: string;
     created: boolean;
     temporaryPassword?: string;
-  };
+  } | null;
+  /** Membership info. Null when no owner was assigned at creation. */
   membership: {
     role: 'owner';
-  };
+  } | null;
   magicLinkSent: boolean;
+}
+
+export interface AssignOwnerResult {
+  ownerUserId: string;
+  ownerCreated: boolean;
+  magicLinkSent: boolean;
+  /** 'org.owner_assigned' when there was no prior owner; 'org.owner_reassigned' otherwise. */
+  action: 'org.owner_assigned' | 'org.owner_reassigned';
+}
+
+/**
+ * Internal shape returned by `bootstrapOwnerAccount` — resolves an owner
+ * identity from either an existing userId or an email (creating an auth
+ * user when needed). Used by both org creation and assign-owner.
+ */
+interface BootstrappedOwner {
+  userId: string;
+  email: string;
+  displayName: string;
+  created: boolean;
+  temporaryPassword?: string;
 }
 
 @Injectable()
@@ -99,60 +122,20 @@ export class AdminOrganizationsService {
     const slug = dto.slug.trim().toLowerCase();
     const hasUserId = !!dto.ownerUserId;
     const hasEmail = !!dto.ownerEmail;
-    if (hasUserId === hasEmail) {
-      throw new BadRequestException('Provide exactly one of ownerUserId or ownerEmail');
+    if (hasUserId && hasEmail) {
+      throw new BadRequestException(
+        'Provide at most one of ownerUserId or ownerEmail (or omit both to create an org without an owner)',
+      );
     }
+    const hasOwnerInput = hasUserId || hasEmail;
 
     await this.ensureSlugAvailable(slug);
 
-    let authUser: { id: string; email?: string | null } | null = null;
-    let ownerCreated = false;
-    let temporaryPassword: string | undefined;
+    let owner: BootstrappedOwner | null = null;
     let createdOrgId: string | undefined;
-    let ownerEmail: string;
-    let ownerDisplayName: string;
 
-    if (dto.ownerUserId) {
-      const response = await this.supabase.getAuthAdminUser(dto.ownerUserId);
-      if (!response.ok || !response.data?.id) {
-        throw new BadRequestException(`User ${dto.ownerUserId} not found`);
-      }
-      authUser = { id: response.data.id, email: response.data.email ?? null };
-      ownerEmail = (authUser.email ?? '').toLowerCase();
-      const meta = response.data.user_metadata?.['display_name'];
-      ownerDisplayName = typeof meta === 'string' && meta.trim() ? meta.trim() : ownerEmail;
-    } else {
-      ownerEmail = dto.ownerEmail!.trim().toLowerCase();
-      ownerDisplayName = dto.ownerDisplayName?.trim() || ownerEmail;
-
-      authUser = await this.findAuthUserByEmail(ownerEmail);
-
-      if (!authUser) {
-        temporaryPassword = this.generateTemporaryPassword();
-        const response = await this.supabase.createAuthAdminUser({
-          email: ownerEmail,
-          password: temporaryPassword,
-          email_confirm: true,
-          user_metadata: { display_name: ownerDisplayName },
-        });
-
-        if (!response.ok || !response.data) {
-          if (this.isAlreadyExistsResponse(response.detail)) {
-            authUser = await this.findAuthUserByEmail(ownerEmail);
-          }
-          if (!authUser) {
-            this.logger.error(
-              `Failed to create organizer account for ${ownerEmail}: ${this.formatGoTrueDetail(
-                response,
-              )}`,
-            );
-            throw new BadRequestException('Failed to create organizer account');
-          }
-        } else {
-          authUser = { id: response.data.id, email: response.data.email ?? ownerEmail };
-          ownerCreated = true;
-        }
-      }
+    if (hasOwnerInput) {
+      owner = await this.bootstrapOwnerAccount(dto);
     }
 
     try {
@@ -162,7 +145,7 @@ export class AdminOrganizationsService {
           name: dto.name.trim(),
           slug,
           status: 'active',
-          created_by_user_id: authUser.id,
+          created_by_user_id: owner?.userId ?? actorUserId,
         })
         .select('id, name, slug, status')
         .single();
@@ -174,57 +157,68 @@ export class AdminOrganizationsService {
       const organization = org as CreateOrganizationResult['organization'];
       createdOrgId = organization.id;
 
-      const { error: memberError } = await this.supabase.service
-        .from('organization_members')
-        .insert({
-          organization_id: organization.id,
-          user_id: authUser.id,
-          role: 'owner',
-        });
+      if (owner) {
+        const { error: memberError } = await this.supabase.service
+          .from('organization_members')
+          .insert({
+            organization_id: organization.id,
+            user_id: owner.userId,
+            role: 'owner',
+          });
 
-      if (memberError) {
-        throw new Error(`Failed to create owner membership: ${memberError.message}`);
+        if (memberError) {
+          throw new Error(`Failed to create owner membership: ${memberError.message}`);
+        }
       }
 
       await this.writeAuditLog(
         actorUserId,
-        'org.create_with_owner',
+        owner ? 'org.create_with_owner' : 'org.create_without_owner',
         'organization',
         organization.id,
         {
           slug,
-          owner_user_id: authUser.id,
-          owner_created: ownerCreated,
+          owner_user_id: owner?.userId ?? null,
+          owner_created: owner?.created ?? false,
         },
       );
 
-      const magicLinkSent = ownerEmail
-        ? await this.trySendOwnerMagicLink(ownerEmail, ownerDisplayName, organization.slug)
-        : false;
-
-      if (ownerCreated && temporaryPassword && ownerEmail) {
-        await this.trySendOwnerWelcomePassword(
-          ownerEmail,
-          ownerDisplayName,
-          organization.name,
+      let magicLinkSent = false;
+      if (owner) {
+        magicLinkSent = await this.trySendOwnerMagicLink(
+          owner.email,
+          owner.displayName,
           organization.slug,
-          temporaryPassword,
         );
+
+        if (owner.created && owner.temporaryPassword) {
+          await this.trySendOwnerWelcomePassword(
+            owner.email,
+            owner.displayName,
+            organization.name,
+            organization.slug,
+            owner.temporaryPassword,
+          );
+        }
       }
 
       return {
         organization,
-        owner: {
-          userId: authUser.id,
-          email: authUser.email ?? ownerEmail,
-          created: ownerCreated,
-          ...(ownerCreated && temporaryPassword ? { temporaryPassword } : {}),
-        },
-        membership: { role: 'owner' },
+        owner: owner
+          ? {
+              userId: owner.userId,
+              email: owner.email,
+              created: owner.created,
+              ...(owner.created && owner.temporaryPassword
+                ? { temporaryPassword: owner.temporaryPassword }
+                : {}),
+            }
+          : null,
+        membership: owner ? { role: 'owner' } : null,
         magicLinkSent,
       };
     } catch (err) {
-      await this.cleanupFailedCreate(createdOrgId, ownerCreated ? authUser.id : undefined);
+      await this.cleanupFailedCreate(createdOrgId, owner?.created ? owner.userId : undefined);
       this.logger.error(`Failed to create organization ${slug}: ${String(err)}`);
       throw new BadRequestException('Failed to create organization');
     }
@@ -459,48 +453,227 @@ export class AdminOrganizationsService {
     }
   }
 
-  // ── Reassign ownership ───────────────────────────────────────────────────
+  // ── Reassign / assign ownership ──────────────────────────────────────────
 
-  async reassignOwner(orgId: string, dto: ReassignOwnerDto, actorUserId: string): Promise<void> {
+  /**
+   * Assigns an owner to an org. Handles three cases uniformly:
+   *   - Org has no current owner → first-time assignment.
+   *   - Org has a current owner, new owner is an existing member → promote.
+   *   - Org has a current owner, new owner is a brand-new user → create
+   *     account then promote.
+   *
+   * The DTO accepts `ownerUserId` (existing user), `ownerEmail` +
+   * `ownerDisplayName` (new account), or `newOwnerUserId` (deprecated
+   * alias for `ownerUserId`).
+   */
+  async reassignOwner(
+    orgId: string,
+    dto: ReassignOwnerDto,
+    actorUserId: string,
+  ): Promise<AssignOwnerResult> {
+    // Accept deprecated alias for backwards compat with older clients.
+    const resolved: { ownerUserId?: string; ownerEmail?: string; ownerDisplayName?: string } = {
+      ownerUserId: dto.ownerUserId ?? dto.newOwnerUserId,
+      ownerEmail: dto.ownerEmail,
+      ownerDisplayName: dto.ownerDisplayName,
+    };
+
+    if (!resolved.ownerUserId && !resolved.ownerEmail) {
+      throw new BadRequestException('Provide ownerUserId or ownerEmail');
+    }
+    if (resolved.ownerUserId && resolved.ownerEmail) {
+      throw new BadRequestException('Provide at most one of ownerUserId or ownerEmail');
+    }
+
     try {
-      // Verify new owner is an existing member
-      const { data: member } = await this.supabase.service
+      // Verify the org exists.
+      const { data: org } = await this.supabase.service
+        .from('organizations')
+        .select('id')
+        .eq('id', orgId)
+        .maybeSingle();
+      if (!org) {
+        throw new NotFoundException(`Organization ${orgId} not found`);
+      }
+
+      const owner = await this.bootstrapOwnerAccount(resolved);
+
+      // Find current owner(s) — may be zero.
+      const { data: currentOwners } = await this.supabase.service
         .from('organization_members')
         .select('user_id')
         .eq('organization_id', orgId)
-        .eq('user_id', dto.newOwnerUserId)
-        .maybeSingle();
+        .eq('role', 'owner');
+      const hadPriorOwner = (currentOwners ?? []).length > 0;
 
-      if (!member) {
-        throw new BadRequestException('New owner must be an existing member of the organization');
+      // Demote each (no-op if empty). Skip if the same user already holds
+      // the owner role — nothing to do.
+      for (const cur of currentOwners ?? []) {
+        const curUserId = (cur as { user_id: string }).user_id;
+        if (curUserId === owner.userId) continue;
+        await this.supabase.service
+          .from('organization_members')
+          .update({ role: 'admin' })
+          .eq('organization_id', orgId)
+          .eq('user_id', curUserId);
       }
 
-      // Demote current owner(s) to admin
-      await this.supabase.service
+      // Insert or promote the new owner's membership row.
+      const { data: existingMember } = await this.supabase.service
         .from('organization_members')
-        .update({ role: 'admin' })
+        .select('user_id, role')
         .eq('organization_id', orgId)
-        .eq('role', 'owner');
+        .eq('user_id', owner.userId)
+        .maybeSingle();
 
-      // Promote new owner
-      await this.supabase.service
-        .from('organization_members')
-        .update({ role: 'owner' })
-        .eq('organization_id', orgId)
-        .eq('user_id', dto.newOwnerUserId);
+      if (existingMember) {
+        if ((existingMember as { role: string }).role !== 'owner') {
+          await this.supabase.service
+            .from('organization_members')
+            .update({ role: 'owner' })
+            .eq('organization_id', orgId)
+            .eq('user_id', owner.userId);
+        }
+      } else {
+        const { error: insertErr } = await this.supabase.service
+          .from('organization_members')
+          .insert({
+            organization_id: orgId,
+            user_id: owner.userId,
+            role: 'owner',
+          });
+        if (insertErr) {
+          throw new Error(`Failed to insert owner membership: ${insertErr.message}`);
+        }
+      }
 
-      await this.writeAuditLog(actorUserId, 'org.reassign_owner', 'organization', orgId, {
-        new_owner_user_id: dto.newOwnerUserId,
+      const action: AssignOwnerResult['action'] = hadPriorOwner
+        ? 'org.owner_reassigned'
+        : 'org.owner_assigned';
+
+      await this.writeAuditLog(actorUserId, action, 'organization', orgId, {
+        new_owner_user_id: owner.userId,
+        owner_created: owner.created,
       });
 
-      this.logger.log(
-        `Org ${orgId} ownership reassigned to ${dto.newOwnerUserId} by ${actorUserId}`,
+      // Send a magic link so the new owner can sign in. If the account
+      // was just created, also send the welcome-password email.
+      const { data: orgRow } = await this.supabase.service
+        .from('organizations')
+        .select('name, slug')
+        .eq('id', orgId)
+        .maybeSingle();
+      const orgName = (orgRow as { name?: string } | null)?.name ?? 'your organization';
+      const orgSlug = (orgRow as { slug?: string } | null)?.slug ?? '';
+      const magicLinkSent = await this.trySendOwnerMagicLink(
+        owner.email,
+        owner.displayName,
+        orgSlug,
       );
+      if (owner.created && owner.temporaryPassword) {
+        await this.trySendOwnerWelcomePassword(
+          owner.email,
+          owner.displayName,
+          orgName,
+          orgSlug,
+          owner.temporaryPassword,
+        );
+      }
+
+      this.logger.log(
+        `Org ${orgId} ${hadPriorOwner ? 'reassigned' : 'assigned'} owner ${owner.userId} by ${actorUserId}`,
+      );
+
+      return {
+        ownerUserId: owner.userId,
+        ownerCreated: owner.created,
+        magicLinkSent,
+        action,
+      };
     } catch (err) {
-      if (err instanceof BadRequestException) throw err;
-      this.logger.error(`Failed to reassign owner for org ${orgId}: ${String(err)}`);
-      throw new BadRequestException('Failed to reassign ownership');
+      if (err instanceof BadRequestException || err instanceof NotFoundException) throw err;
+      this.logger.error(`Failed to assign owner for org ${orgId}: ${String(err)}`);
+      throw new BadRequestException('Failed to assign ownership');
     }
+  }
+
+  /**
+   * Resolves the owner identity from either an existing userId or an
+   * email (creating an auth user when needed). Returns a normalized
+   * {@link BootstrappedOwner} for the caller to persist as a member.
+   *
+   * Caller is expected to gate "neither input present" — this helper
+   * throws if both are missing, but the error message assumes the caller
+   * already validated DTO shape.
+   */
+  private async bootstrapOwnerAccount(input: {
+    ownerUserId?: string;
+    ownerEmail?: string;
+    ownerDisplayName?: string;
+  }): Promise<BootstrappedOwner> {
+    if (input.ownerUserId) {
+      const response = await this.supabase.getAuthAdminUser(input.ownerUserId);
+      if (!response.ok || !response.data?.id) {
+        throw new BadRequestException(`User ${input.ownerUserId} not found`);
+      }
+      const email = (response.data.email ?? '').toLowerCase();
+      const metaName = response.data.user_metadata?.['display_name'];
+      const displayName = typeof metaName === 'string' && metaName.trim() ? metaName.trim() : email;
+      return { userId: response.data.id, email, displayName, created: false };
+    }
+
+    if (!input.ownerEmail) {
+      throw new BadRequestException('Provide ownerUserId or ownerEmail');
+    }
+
+    const ownerEmail = input.ownerEmail.trim().toLowerCase();
+    const ownerDisplayName = input.ownerDisplayName?.trim() || ownerEmail;
+
+    const existing = await this.findAuthUserByEmail(ownerEmail);
+    if (existing) {
+      return {
+        userId: existing.id,
+        email: existing.email ?? ownerEmail,
+        displayName: ownerDisplayName,
+        created: false,
+      };
+    }
+
+    const temporaryPassword = this.generateTemporaryPassword();
+    const response = await this.supabase.createAuthAdminUser({
+      email: ownerEmail,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: { display_name: ownerDisplayName },
+    });
+
+    if (!response.ok || !response.data) {
+      // Race: someone else may have created the account between our
+      // lookup and our create.
+      if (this.isAlreadyExistsResponse(response.detail)) {
+        const raceWinner = await this.findAuthUserByEmail(ownerEmail);
+        if (raceWinner) {
+          return {
+            userId: raceWinner.id,
+            email: raceWinner.email ?? ownerEmail,
+            displayName: ownerDisplayName,
+            created: false,
+          };
+        }
+      }
+      this.logger.error(
+        `Failed to create organizer account for ${ownerEmail}: ${this.formatGoTrueDetail(response)}`,
+      );
+      throw new BadRequestException('Failed to create organizer account');
+    }
+
+    return {
+      userId: response.data.id,
+      email: response.data.email ?? ownerEmail,
+      displayName: ownerDisplayName,
+      created: true,
+      temporaryPassword,
+    };
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────

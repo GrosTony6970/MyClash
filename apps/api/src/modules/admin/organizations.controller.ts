@@ -130,17 +130,21 @@ export class OrganizationsAdminController {
 
   /**
    * POST /api/v1/admin/organizations/:id/reassign-owner
-   * Reassign ownership to another existing member.
+   *
+   * Assigns or reassigns ownership. Accepts an existing user (`ownerUserId`)
+   * or a new account by email (`ownerEmail` + `ownerDisplayName`). Works
+   * uniformly whether the org has a current owner or not — when there is
+   * none, this becomes the first-time assignment.
    */
   @Post(':id/reassign-owner')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Reassign organization owner (super admin)' })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Assign or reassign organization owner (super admin)' })
   async reassignOwner(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReassignOwnerDto,
     @Req() req: FastifyRequest,
   ) {
-    await this.service.reassignOwner(id, dto, getActorId(req));
+    return this.service.reassignOwner(id, dto, getActorId(req));
   }
 
   /**

@@ -184,8 +184,9 @@ describe('AdminOrganizationsService', () => {
         slug: 'lyon-amhe',
         status: 'active',
       });
-      expect(result.owner.created).toBe(true);
-      expect(result.owner.temporaryPassword).toEqual(expect.any(String));
+      expect(result.owner).not.toBeNull();
+      expect(result.owner!.created).toBe(true);
+      expect(result.owner!.temporaryPassword).toEqual(expect.any(String));
       expect(memberChain.insert).toHaveBeenCalledWith({
         organization_id: 'org-1',
         user_id: 'user-new',
@@ -368,7 +369,8 @@ describe('AdminOrganizationsService', () => {
       );
 
       expect(result.magicLinkSent).toBe(false);
-      expect(result.owner.temporaryPassword).toEqual(expect.any(String));
+      expect(result.owner).not.toBeNull();
+      expect(result.owner!.temporaryPassword).toEqual(expect.any(String));
     });
   });
 
@@ -583,13 +585,19 @@ describe('AdminOrganizationsService', () => {
   });
 
   describe('reassignOwner', () => {
-    it('throws BadRequestException when new owner is not a member', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      fromMock.mockReturnValue(chain);
+    it('throws BadRequestException when no owner identifier is provided', async () => {
+      await expect(service.reassignOwner('org-1', {}, 'actor')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
 
+    it('throws BadRequestException when both ownerUserId and ownerEmail are provided', async () => {
       await expect(
-        service.reassignOwner('org-1', { newOwnerUserId: 'non-member-user' }, 'actor'),
+        service.reassignOwner(
+          'org-1',
+          { ownerUserId: 'user-1', ownerEmail: 'x@example.com' },
+          'actor',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
