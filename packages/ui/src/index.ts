@@ -36,7 +36,12 @@ export { PageHeader } from './components/PageHeader';
 export type { PageHeaderProps } from './components/PageHeader';
 
 export { BracketView } from './components/BracketView';
-export type { BracketViewProps, BracketSlotData, BracketConfig } from './components/BracketView';
+export type {
+  BracketViewProps,
+  BracketSlotData,
+  BracketConfig,
+  PodiumData,
+} from './components/BracketView';
 
 // ── Tournament Manual admin components (Phase 1 of the frontend overhaul) ──
 
