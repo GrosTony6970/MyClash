@@ -696,7 +696,12 @@ export const en = {
         ownerMode: {
           new: 'Create new owner',
           existing: 'Use existing user',
+          none: 'No owner (assign later)',
         },
+        ownerModeNoneHint: 'You can assign an owner later from the organization detail page.',
+        noOwnerColumn: 'no owner',
+        successNoOwner:
+          'Organization created without an owner. Open the org detail page to assign one.',
         copy: 'Copy',
         copied: 'Copied',
         submit: 'Create organization',
@@ -3021,7 +3026,13 @@ export const fr = {
         ownerMode: {
           new: 'Creer un nouveau responsable',
           existing: 'Utiliser un compte existant',
+          none: 'Aucun responsable (a definir plus tard)',
         },
+        ownerModeNoneHint:
+          'Vous pourrez attribuer un responsable plus tard depuis la page de l organisation.',
+        noOwnerColumn: 'sans responsable',
+        successNoOwner:
+          'Organisation creee sans responsable. Ouvrez la page de l organisation pour en attribuer un.',
         copy: 'Copier',
         copied: 'Copie',
         submit: 'Creer l organisation',

@@ -43,10 +43,10 @@ interface CreateOrganizationResult {
     email: string;
     created: boolean;
     temporaryPassword?: string;
-  };
+  } | null;
   membership: {
     role: 'owner';
-  };
+  } | null;
   magicLinkSent: boolean;
 }
 
@@ -84,7 +84,7 @@ export default function AdminOrganizationsPage() {
     ownerEmail: string;
     ownerDisplayName: string;
     ownerUserId: string;
-    ownerMode: 'new' | 'existing';
+    ownerMode: 'new' | 'existing' | 'none';
     slugDetached: boolean;
   }>({
     name: '',
@@ -199,10 +199,12 @@ export default function AdminOrganizationsPage() {
       const ownerPayload =
         form.ownerMode === 'existing'
           ? { ownerUserId: form.ownerUserId }
-          : {
-              ownerEmail: form.ownerEmail,
-              ownerDisplayName: form.ownerDisplayName || undefined,
-            };
+          : form.ownerMode === 'new'
+            ? {
+                ownerEmail: form.ownerEmail,
+                ownerDisplayName: form.ownerDisplayName || undefined,
+              }
+            : {};
       const res = await fetch(`${apiUrl}/api/v1/admin/organizations`, {
         method: 'POST',
         credentials: 'include',
@@ -359,7 +361,7 @@ export default function AdminOrganizationsPage() {
             </label>
           </div>
           <div className="mt-4 border-t border-slate-200 pt-4">
-            <div className="mb-3 flex gap-2">
+            <div className="mb-3 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -395,9 +397,32 @@ export default function AdminOrganizationsPage() {
               >
                 {t('admin.organizations.create.ownerMode.existing')}
               </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm((c) => ({
+                    ...c,
+                    ownerMode: 'none',
+                    ownerEmail: '',
+                    ownerDisplayName: '',
+                    ownerUserId: '',
+                  }))
+                }
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                  form.ownerMode === 'none'
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {t('admin.organizations.create.ownerMode.none')}
+              </button>
             </div>
 
-            {form.ownerMode === 'new' ? (
+            {form.ownerMode === 'none' ? (
+              <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {t('admin.organizations.create.ownerModeNoneHint')}
+              </p>
+            ) : form.ownerMode === 'new' ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block text-sm font-semibold text-slate-700">
                   {t('admin.organizations.create.ownerEmail')}
@@ -505,54 +530,67 @@ export default function AdminOrganizationsPage() {
               slug: createResult.organization.slug,
             })}
           </p>
-          <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div>
-              <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                {t('admin.organizations.create.loginEmail')}
-              </dt>
-              <dd className="font-mono">{createResult.owner.email}</dd>
-            </div>
-            {createResult.owner.temporaryPassword ? (
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  {t('admin.organizations.create.temporaryPassword')}
-                </dt>
-                <dd className="mt-1 flex items-center gap-2">
-                  <code className="rounded bg-white px-2 py-1 font-mono text-sm border border-slate-200">
-                    {createResult.owner.temporaryPassword}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void navigator.clipboard
-                        .writeText(createResult.owner.temporaryPassword ?? '')
-                        .then(() => {
-                          setTempPasswordCopied(true);
-                          setTimeout(() => setTempPasswordCopied(false), 2000);
-                        });
-                    }}
-                    className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                  >
-                    {tempPasswordCopied
-                      ? t('admin.organizations.create.copied')
-                      : t('admin.organizations.create.copy')}
-                  </button>
-                </dd>
-              </div>
-            ) : (
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  {t('admin.organizations.create.existingAccountTitle')}
-                </dt>
-                <dd>{t('admin.organizations.create.existingAccount')}</dd>
-              </div>
-            )}
-          </dl>
-          <p className="mt-3 text-slate-600">
-            {createResult.magicLinkSent
-              ? t('admin.organizations.create.magicLinkSent')
-              : t('admin.organizations.create.magicLinkFailed')}
-          </p>
+          {createResult.owner ? (
+            <>
+              <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    {t('admin.organizations.create.loginEmail')}
+                  </dt>
+                  <dd className="font-mono">{createResult.owner.email}</dd>
+                </div>
+                {createResult.owner.temporaryPassword ? (
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {t('admin.organizations.create.temporaryPassword')}
+                    </dt>
+                    <dd className="mt-1 flex items-center gap-2">
+                      <code className="rounded bg-white px-2 py-1 font-mono text-sm border border-slate-200">
+                        {createResult.owner.temporaryPassword}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const password = createResult.owner?.temporaryPassword ?? '';
+                          void navigator.clipboard.writeText(password).then(() => {
+                            setTempPasswordCopied(true);
+                            setTimeout(() => setTempPasswordCopied(false), 2000);
+                          });
+                        }}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        {tempPasswordCopied
+                          ? t('admin.organizations.create.copied')
+                          : t('admin.organizations.create.copy')}
+                      </button>
+                    </dd>
+                  </div>
+                ) : (
+                  <div>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {t('admin.organizations.create.existingAccountTitle')}
+                    </dt>
+                    <dd>{t('admin.organizations.create.existingAccount')}</dd>
+                  </div>
+                )}
+              </dl>
+              <p className="mt-3 text-slate-600">
+                {createResult.magicLinkSent
+                  ? t('admin.organizations.create.magicLinkSent')
+                  : t('admin.organizations.create.magicLinkFailed')}
+              </p>
+            </>
+          ) : (
+            <p className="mt-3 text-slate-600">
+              {t('admin.organizations.create.successNoOwner')}{' '}
+              <Link
+                href={`/admin/organizations/${createResult.organization.id}`}
+                className="font-semibold text-red-700 underline"
+              >
+                /admin/organizations/{createResult.organization.id}
+              </Link>
+            </p>
+          )}
           <p className="mt-1 text-slate-600">
             {t('admin.organizations.create.orgUrl', {
               url: `/org/${createResult.organization.slug}`,
@@ -647,12 +685,20 @@ export default function AdminOrganizationsPage() {
                     <span className="ml-2 font-mono text-xs text-slate-400">{org.slug}</span>
                   </td>
                   <td className="py-2 pr-4 text-slate-600">
-                    <div className="font-medium text-slate-700">
-                      {org.owner_username ?? org.owner_email ?? '-'}
-                    </div>
-                    {org.owner_email && org.owner_email !== org.owner_username ? (
-                      <div className="text-xs text-slate-400">{org.owner_email}</div>
-                    ) : null}
+                    {org.owner_username || org.owner_email ? (
+                      <>
+                        <div className="font-medium text-slate-700">
+                          {org.owner_username ?? org.owner_email}
+                        </div>
+                        {org.owner_email && org.owner_email !== org.owner_username ? (
+                          <div className="text-xs text-slate-400">{org.owner_email}</div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-xs italic text-slate-400">
+                        {t('admin.organizations.create.noOwnerColumn')}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-4 text-slate-600">{org.member_count}</td>
                   <td className="py-2 pr-4 text-slate-600">{org.event_count}</td>
