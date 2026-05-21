@@ -20,6 +20,7 @@ interface EventClub {
     familyName: string;
     email: string;
     claimStatus: string;
+    inEvent: boolean;
   }>;
 }
 
@@ -61,7 +62,7 @@ export default function EventClubsPage() {
 
 function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: string }) {
   const { t } = useI18n();
-  const [scope, setScope] = useState<ClubScope>('all');
+  const [scope, setScope] = useState<ClubScope>('event');
   const [query, setQuery] = useState('');
   const [clubs, setClubs] = useState<EventClub[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,11 +260,19 @@ function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: strin
       </div>
 
       {selectedClub && (
-        <div className="mx-5 mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="font-semibold text-[#0f172a]">
-              {t('organizer.eventHub.clubs.fightersFor', { club: selectedClub.name })}
-            </h3>
+        <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-[#0f172a]">
+                {t('organizer.eventHub.clubs.fightersFor', { club: selectedClub.name })}
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {t('organizer.eventHub.clubs.fightersCountSummary', {
+                  inEvent: String(selectedClub.fighters.filter((f) => f.inEvent).length),
+                  other: String(selectedClub.fighters.filter((f) => !f.inEvent).length),
+                })}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setSelectedClub(null)}
@@ -272,13 +281,35 @@ function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: strin
               {t('actions.close')}
             </button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {selectedClub.fighters.map((fighter) => (
-              <div key={fighter.id} className="rounded-md border border-slate-200 bg-white p-3">
-                <div className="font-semibold text-slate-900">
-                  {fighter.givenName} {fighter.familyName}
+              <div
+                key={fighter.id}
+                className={[
+                  'rounded-md border p-2 text-sm',
+                  fighter.inEvent
+                    ? 'border-emerald-200 bg-white'
+                    : 'border-dashed border-slate-200 bg-slate-50/50',
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span
+                    className={[
+                      'truncate font-semibold',
+                      fighter.inEvent ? 'text-slate-900' : 'text-slate-500',
+                    ].join(' ')}
+                  >
+                    {fighter.givenName} {fighter.familyName}
+                  </span>
+                  {fighter.inEvent && (
+                    <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      {t('organizer.eventHub.clubs.fighterInEvent')}
+                    </span>
+                  )}
                 </div>
-                <div className="text-xs text-slate-500">{fighter.email}</div>
+                {fighter.email && (
+                  <div className="truncate text-[10px] text-slate-400">{fighter.email}</div>
+                )}
               </div>
             ))}
           </div>
