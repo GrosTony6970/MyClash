@@ -20,7 +20,6 @@ import {
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -32,14 +31,16 @@ import {
 } from 'class-validator';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
-import { REFEREE_ROLES, type RefereeRole, QualificationsService } from './qualifications.service';
+import { QualificationsService } from './qualifications.service';
 
 class UpsertQualificationDto {
   @IsUUID()
   personId!: string;
 
-  @IsIn(REFEREE_ROLES)
-  role!: RefereeRole;
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  role!: string;
 
   @IsOptional()
   @IsInt()

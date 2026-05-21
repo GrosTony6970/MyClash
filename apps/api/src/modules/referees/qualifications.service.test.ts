@@ -16,7 +16,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ForbiddenException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { QualificationsService } from './qualifications.service';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
@@ -400,6 +405,75 @@ describe('QualificationsService — skills catalog', () => {
       await expect(
         service.deleteCustomSkill('custom-aabbccdd-zz1234', 'user-id-1'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // ── upsert (role validation) ──────────────────────────────────────────────────
+
+  describe('upsert', () => {
+    it('upsertQualification accepts a custom skill ID belonging to this event', async () => {
+      const customSkillRow = {
+        id: 'custom-aabbccdd-xyz123',
+        is_system: false,
+        event_id: 'event-1',
+      };
+      const qualRow = {
+        id: 'qual-uuid-1',
+        event_id: 'event-1',
+        person_id: 'person-uuid-1',
+        role: 'custom-aabbccdd-xyz123',
+        rating: null,
+        active: true,
+        created_at: '2024-01-01T00:00:00Z',
+      };
+
+      // referee_skills lookup
+      const skillChain = makeChain({ data: customSkillRow, error: null });
+      skillChain.maybeSingle.mockResolvedValue({ data: customSkillRow, error: null });
+
+      // Check existing active qualification → not found
+      const existingChain = makeChain({ data: null, error: null });
+      existingChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      // Count active qualifications → 0
+      const countChain = makeCountChain(0);
+
+      // Insert new qualification
+      const insertChain = makeChain({ data: qualRow, error: null });
+      insertChain.single.mockResolvedValue({ data: qualRow, error: null });
+
+      fromMock
+        .mockReturnValueOnce(skillChain) // referee_skills lookup
+        .mockReturnValueOnce(existingChain) // check existing qualification
+        .mockReturnValueOnce(countChain) // count active qualifications
+        .mockReturnValueOnce(insertChain); // insert new qualification
+
+      const result = await service.upsert(
+        'event-1',
+        'person-uuid-1',
+        'custom-aabbccdd-xyz123',
+        null,
+      );
+
+      expect(result.role).toBe('custom-aabbccdd-xyz123');
+      expect(result.active).toBe(true);
+    });
+
+    it('upsertQualification rejects a custom skill ID belonging to a different event', async () => {
+      const foreignSkillRow = {
+        id: 'custom-aabbccdd-xyz123',
+        is_system: false,
+        event_id: 'other-event', // belongs to a DIFFERENT event
+      };
+
+      const skillChain = makeChain({ data: foreignSkillRow, error: null });
+      skillChain.maybeSingle.mockResolvedValue({ data: foreignSkillRow, error: null });
+
+      fromMock.mockReturnValueOnce(skillChain);
+
+      await expect(
+        service.upsert('event-1', 'person-uuid-1', 'custom-aabbccdd-xyz123', null),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

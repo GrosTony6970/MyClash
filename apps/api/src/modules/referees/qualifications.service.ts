@@ -126,12 +126,23 @@ export class QualificationsService {
   async upsert(
     eventId: string,
     personId: string,
-    role: RefereeRole,
+    role: string,
     rating: number | null,
   ): Promise<RefereeQualification> {
-    if (!REFEREE_ROLES.includes(role)) {
-      throw new BadRequestException(`Invalid role: ${role}`);
+    // Validate role refers to an existing skill that's usable for this event.
+    const { data: skill, error: skillError } = await this.supabase.service
+      .from('referee_skills')
+      .select('id, is_system, event_id')
+      .eq('id', role)
+      .maybeSingle();
+
+    if (skillError) throw new BadRequestException(skillError.message);
+    if (!skill) throw new BadRequestException(`Invalid role: ${role}`);
+    const skillRow = skill as { id: string; is_system: boolean; event_id: string | null };
+    if (!skillRow.is_system && skillRow.event_id !== eventId) {
+      throw new BadRequestException(`Skill '${role}' is not available for this event`);
     }
+
     if (rating !== null && (rating < 1 || rating > 5)) {
       throw new BadRequestException('Rating must be 1..5 or null');
     }
