@@ -271,20 +271,24 @@ export default function EventDetailPage() {
           />
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
               <tr>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.tournament')}</th>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.registered')}</th>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.assignedReferees')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colPools')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colBracket')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colElim')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colRuleset')}</th>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.status')}</th>
               </tr>
             </thead>
             <tbody>
               {(stats?.tournaments ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
                     {t('organizer.eventHub.dashboard.noTournaments')}
                   </td>
                 </tr>
@@ -299,6 +303,18 @@ export default function EventDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-700">{tournament.fighterCount}</td>
                   <td className="px-4 py-3 text-slate-700">{tournament.assignedRefereeCount}</td>
+                  <td className="px-4 py-3 text-slate-700">{tournament.poolCount ?? 0}</td>
+                  <td className="px-4 py-3 text-slate-700">{tournament.bracketSize ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {tournament.eliminationType === 'single_elim'
+                      ? t('organizer.eventHub.dashboard.elimSingle')
+                      : tournament.eliminationType === 'double_elim'
+                        ? t('organizer.eventHub.dashboard.elimDouble')
+                        : '—'}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                    {tournament.rulesetCode ?? '—'}
+                  </td>
                   <td className="px-4 py-3 text-slate-500">{tournament.status}</td>
                 </tr>
               ))}
