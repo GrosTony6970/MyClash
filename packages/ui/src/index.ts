@@ -90,3 +90,6 @@ export type { SortableHeaderProps } from './components/SortableHeader';
 export { useSortableList } from './hooks/useSortableList';
 
 export { fuzzyMatch, normalizeForSearch } from './utils/fuzzy-match';
+
+export { accentClassFor, tintBgClassFor, tintTextClassFor } from './utils/color-token';
+export type { ColorToken } from './utils/color-token';
