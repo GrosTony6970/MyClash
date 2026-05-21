@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@myclash/ui';
+import { Button, TournamentColorDot } from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -14,6 +14,7 @@ interface Tournament {
   weapon: string | null;
   category: string | null;
   status: string;
+  color: string | null;
   ruleset_code: string | null;
   ruleset_version: string | null;
   scoring_config_json: Record<string, unknown> | null;
@@ -42,6 +43,7 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     weapon: typeof row['weapon'] === 'string' ? row['weapon'] : null,
     category: typeof row['category'] === 'string' ? row['category'] : null,
     status: String(row['status'] ?? 'draft'),
+    color: typeof row['color'] === 'string' ? row['color'] : null,
     ruleset_code: typeof row['ruleset_code'] === 'string' ? row['ruleset_code'] : null,
     ruleset_version: typeof row['ruleset_version'] === 'string' ? row['ruleset_version'] : null,
     scoring_config_json:
@@ -344,7 +346,10 @@ export default function EventTournamentsPage() {
                 {tournaments.map((tournament) => (
                   <tr key={tournament.id} className="align-top">
                     <td className="px-4 py-4">
-                      <p className="font-semibold text-[#0f172a]">{tournament.name}</p>
+                      <p className="inline-flex items-center gap-1.5 font-semibold text-[#0f172a]">
+                        <TournamentColorDot color={tournament.color} />
+                        {tournament.name}
+                      </p>
                       <p className="mt-1 font-mono text-xs text-slate-400">/{tournament.slug}</p>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>

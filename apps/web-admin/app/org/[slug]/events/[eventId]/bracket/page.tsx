@@ -12,6 +12,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   BracketView,
+  TournamentColorDot,
   type BracketSlotData,
   type BracketConfig,
   type ColorToken,
@@ -23,6 +24,7 @@ import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 interface Tournament {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 interface BracketResult {
@@ -548,7 +550,11 @@ export default function BracketPage() {
 
       {/* Tournament selector */}
       {tournaments.length > 1 && (
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-2">
+          <TournamentColorDot
+            color={tournaments.find((t) => t.id === selectedTournament)?.color}
+            size="md"
+          />
           <select
             value={selectedTournament}
             onChange={(e) => setSelectedTournament(e.target.value)}

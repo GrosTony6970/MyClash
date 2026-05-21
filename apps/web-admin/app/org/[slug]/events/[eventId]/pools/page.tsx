@@ -16,7 +16,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, HelpTooltip, RowActionButton, useToast } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  HelpTooltip,
+  RowActionButton,
+  TournamentColorDot,
+  useToast,
+} from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
@@ -89,7 +95,9 @@ export default function PoolsPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
 
-  const [tournaments, setTournaments] = useState<Array<{ id: string; name: string }>>([]);
+  const [tournaments, setTournaments] = useState<
+    Array<{ id: string; name: string; color?: string | null }>
+  >([]);
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [pools, setPools] = useState<Pool[] | null>(null);
   const [poolPhaseId, setPoolPhaseId] = useState<string | null>(null);
@@ -585,12 +593,13 @@ export default function PoolsPage() {
                       type="button"
                       onClick={() => setSelectedTournament(tour.id)}
                       className={[
-                        'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
                         active
                           ? 'bg-red-700 text-white border-red-700'
                           : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
                       ].join(' ')}
                     >
+                      <TournamentColorDot color={tour.color} />
                       {tour.name}
                     </button>
                   );

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { TournamentColorDot } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 
@@ -11,6 +12,11 @@ interface Tournament {
   slug: string;
   name: string;
   status: string;
+  color?: string | null;
+  rulesetCode?: string | null;
+  poolCount?: number;
+  bracketSize?: number | null;
+  eliminationType?: string | null;
 }
 
 interface EventInfo {
@@ -285,7 +291,12 @@ export default function EventDetailPage() {
               )}
               {(stats?.tournaments ?? []).map((tournament) => (
                 <tr key={tournament.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-[#0f172a]">{tournament.name}</td>
+                  <td className="px-4 py-3 font-semibold text-[#0f172a]">
+                    <span className="inline-flex items-center gap-1.5">
+                      <TournamentColorDot color={tournament.color} />
+                      {tournament.name}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-slate-700">{tournament.fighterCount}</td>
                   <td className="px-4 py-3 text-slate-700">{tournament.assignedRefereeCount}</td>
                   <td className="px-4 py-3 text-slate-500">{tournament.status}</td>

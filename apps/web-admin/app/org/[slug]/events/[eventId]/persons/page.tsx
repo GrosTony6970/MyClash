@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, useToast } from '@myclash/ui';
+import { ConfirmDialog, TournamentColorDot, useToast } from '@myclash/ui';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 
@@ -30,6 +30,7 @@ interface Registration {
 interface Tournament {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 interface ClubSuggestion {
@@ -789,18 +790,24 @@ export default function ParticipantsPage() {
                         <span className="text-gray-400 text-xs">—</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
-                          {displayRegs.map((r) => (
-                            <span
-                              key={r.id}
-                              className={[
-                                'text-xs px-2 py-0.5 rounded-full font-medium',
-                                REG_STATUS_COLORS[r.status] ?? '',
-                              ].join(' ')}
-                              title={r.tournamentName}
-                            >
-                              {activeTab === 'all' ? r.tournamentName : r.status.replace('_', ' ')}
-                            </span>
-                          ))}
+                          {displayRegs.map((r) => {
+                            const tour = tournaments.find((t) => t.id === r.tournamentId);
+                            return (
+                              <span
+                                key={r.id}
+                                className={[
+                                  'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+                                  REG_STATUS_COLORS[r.status] ?? '',
+                                ].join(' ')}
+                                title={r.tournamentName}
+                              >
+                                <TournamentColorDot color={tour?.color} />
+                                {activeTab === 'all'
+                                  ? r.tournamentName
+                                  : r.status.replace('_', ' ')}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </td>
