@@ -61,6 +61,7 @@ export interface UseRealtimeOptions {
 export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
   const pollTimerRef = useRef<number | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
     const supabase = getSupabaseBrowser();
@@ -101,8 +102,18 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
       )
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
+          if (wasConnectedRef.current) {
+            // eslint-disable-next-line no-console
+            console.info(`[realtime] reconnected: ${opts.channelName}`);
+          } else {
+            // eslint-disable-next-line no-console
+            console.info(`[realtime] connected: ${opts.channelName}`);
+            wasConnectedRef.current = true;
+          }
           stopPolling();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          // eslint-disable-next-line no-console
+          console.info(`[realtime] dropped (${status}): ${opts.channelName}`);
           startPolling();
         }
       });
