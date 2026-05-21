@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
+import { t } from '@myclash/i18n';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -179,7 +180,7 @@ function SkillModal({
       }
 
       if (!res.ok) {
-        setError('Could not save skill.');
+        setError(t('organizer.refereesPage.skillSaveFailed'));
         return;
       }
 
@@ -214,7 +215,7 @@ function SkillModal({
           // ignore parse error
         }
         if (count !== null && count > 0) {
-          setError(`Cannot delete: ${count} referee(s) still have this skill assigned.`);
+          setError(t('organizer.refereesPage.skillDeleteConflict', { count }));
         } else {
           setError('Cannot delete this skill — it is still in use.');
         }
@@ -244,7 +245,9 @@ function SkillModal({
     >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
         <h2 className="text-lg font-semibold mb-4">
-          {mode === 'add' ? 'Add custom skill' : 'Edit skill'}
+          {mode === 'add'
+            ? t('organizer.refereesPage.addCustomSkill')
+            : t('organizer.refereesPage.editSkill')}
         </h2>
 
         {error && (
@@ -255,7 +258,9 @@ function SkillModal({
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Skill name</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('organizer.refereesPage.skillName')}
+            </label>
             <input
               ref={nameInputRef}
               type="text"
@@ -268,7 +273,9 @@ function SkillModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Skill color</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('organizer.refereesPage.skillColor')}
+            </label>
             <select
               value={color}
               onChange={(e) => setColor(e.target.value)}
@@ -294,7 +301,7 @@ function SkillModal({
                 disabled={deleting || saving}
                 className="text-sm text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-3 py-1.5 disabled:opacity-50"
               >
-                {deleting ? 'Deleting…' : 'Delete skill'}
+                {deleting ? 'Deleting…' : t('organizer.refereesPage.deleteSkill')}
               </button>
             )}
           </div>
@@ -559,7 +566,7 @@ export default function RefereesPage() {
     if (!res.ok) {
       // Revert
       setRefereesKey((k) => k + 1);
-      toast.error('Could not update availability.');
+      toast.error(t('organizer.refereesPage.availabilitySaveFailed'));
     }
   }
 
@@ -625,7 +632,7 @@ export default function RefereesPage() {
             onClick={() => setSkillModal({ mode: 'add' })}
             className="border border-red-300 text-red-700 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
-            + Add custom skill
+            + {t('organizer.refereesPage.addCustomSkill')}
           </button>
           <Link
             href={`/org/${slug}/events/${eventId}/pools`}
@@ -724,18 +731,20 @@ export default function RefereesPage() {
 
                 {/* Availability columns */}
                 <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                  Available all tournaments
+                  {t('organizer.refereesPage.availableAllTournaments')}
                 </th>
                 <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
                   Available all event
                 </th>
 
                 {/* Assignment summary */}
-                <th className="py-2 px-3 font-medium whitespace-nowrap">Assigned to</th>
+                <th className="py-2 px-3 font-medium whitespace-nowrap">
+                  {t('organizer.refereesPage.assignedTo')}
+                </th>
 
                 {/* Total matches */}
                 <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                  Total matches
+                  {t('organizer.refereesPage.totalMatches')}
                 </th>
               </tr>
             </thead>
@@ -895,7 +904,10 @@ export default function RefereesPage() {
                           >
                             {a.tournamentName}
                             <span className="text-gray-400">·</span>
-                            {a.matchCount} {a.matchCount === 1 ? 'match' : 'matches'}
+                            {a.matchCount}{' '}
+                            {a.matchCount === 1
+                              ? t('organizer.refereesPage.match')
+                              : t('organizer.refereesPage.matches')}
                           </span>
                         ))}
                         {ref.assignments.length > 3 && (
@@ -905,11 +917,13 @@ export default function RefereesPage() {
                               .slice(3)
                               .map(
                                 (a) =>
-                                  `${a.tournamentName} · ${a.matchCount} match${a.matchCount === 1 ? '' : 'es'}`,
+                                  `${a.tournamentName} · ${a.matchCount} ${a.matchCount === 1 ? t('organizer.refereesPage.match') : t('organizer.refereesPage.matches')}`,
                               )
                               .join(', ')}
                           >
-                            +{ref.assignments.length - 3} more
+                            {t('organizer.refereesPage.moreCount', {
+                              count: ref.assignments.length - 3,
+                            })}
                           </span>
                         )}
                       </div>
