@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
@@ -69,6 +69,7 @@ function pickActiveHref(pathname: string, hrefs: readonly string[]): string | nu
 export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const pathname = usePathname();
+  const router = useRouter();
   const params = useParams<{ slug?: string; eventId?: string }>();
   const slug = asString(params.slug);
   const eventId = asString(params.eventId);
@@ -76,7 +77,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [orgName, setOrgName] = useState(slug);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [eventName, setEventName] = useState('');
+  const [orgEvents, setOrgEvents] = useState<Array<{ id: string; name: string; status: string }>>(
+    [],
+  );
 
   const drawerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, drawerRef);
@@ -138,8 +143,9 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     })
       .then(async (res) => {
         if (!res.ok) return;
-        const org = (await res.json()) as { name?: string };
+        const org = (await res.json()) as { id?: string; name?: string };
         if (org.name) setOrgName(org.name);
+        if (org.id) setOrgId(org.id);
       })
       .catch(() => undefined);
 
@@ -165,6 +171,26 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
     return () => controller.abort();
   }, [apiUrl, eventId]);
+
+  // Fetch the org's events for the switcher dropdown. Only runs once the
+  // org id has been resolved AND we're inside an event-scoped page.
+  useEffect(() => {
+    if (!eventId || !orgId) return;
+    const controller = new AbortController();
+
+    fetch(`${apiUrl}/api/v1/organizations/${orgId}/events`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as Array<{ id: string; name: string; status: string }>;
+        setOrgEvents(data);
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [apiUrl, orgId, eventId]);
 
   const orgBase = `/org/${slug}`;
   const eventBase = eventId ? `/org/${slug}/events/${eventId}` : '';
@@ -328,11 +354,37 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
                 {eventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
               </p>
-              <p className="truncate font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
-                {eventId
-                  ? t('organizer.shell.eventTitle', { event: eventName || eventId })
-                  : t('organizer.shell.title', { organization: orgName || slug })}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="truncate font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
+                  {eventId
+                    ? t('organizer.shell.eventTitle', { event: eventName || eventId })
+                    : t('organizer.shell.title', { organization: orgName || slug })}
+                </p>
+                {eventId && orgEvents.length > 0 && (
+                  <select
+                    aria-label={t('organizer.shell.eventSwitcher.label')}
+                    value={eventId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '__manage') {
+                        router.push(`/org/${slug}/events/manage`);
+                      } else if (value !== eventId) {
+                        router.push(`/org/${slug}/events/${value}`);
+                      }
+                    }}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-800/30"
+                  >
+                    {orgEvents.map((ev) => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.name}
+                        {ev.status === 'running' ? ' • LIVE' : ''}
+                      </option>
+                    ))}
+                    <option disabled>──────────</option>
+                    <option value="__manage">{t('organizer.shell.eventSwitcher.manageAll')}</option>
+                  </select>
+                )}
+              </div>
             </div>
           </div>
           <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">

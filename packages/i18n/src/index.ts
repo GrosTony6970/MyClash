@@ -1522,6 +1522,10 @@ export const en = {
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of organizer admin',
       skipToContent: 'Skip to main content',
+      eventSwitcher: {
+        label: 'Switch event',
+        manageAll: 'Manage all events…',
+      },
       nav: {
         overview: 'Overview',
         events: 'Events',
@@ -3906,6 +3910,10 @@ export const fr = {
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: "Se deconnecter de l'administration organisateur",
       skipToContent: 'Aller au contenu principal',
+      eventSwitcher: {
+        label: 'Changer d evenement',
+        manageAll: 'Gerer tous les evenements...',
+      },
       nav: {
         overview: 'Vue generale',
         events: 'Evenements',
