@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from './color-token';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -92,6 +93,25 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       setLoading(false);
     });
   }, [tournamentId, eventId, poolPhaseId, refreshKey]);
+
+  useRealtimeWithFallback({
+    channelName: `pool-matches-list-${tournamentId}`,
+    table: 'matches',
+    filter: `phase_id=eq.${poolPhaseId}`,
+    event: '*',
+    onEvent: (payload) => {
+      const incoming = payload.new as MatchRow | null;
+      if (!incoming) return;
+      setPools((prev) =>
+        prev.map((pool) => ({
+          ...pool,
+          matches: pool.matches.map((m) => (m.id === incoming.id ? { ...m, ...incoming } : m)),
+        })),
+      );
+    },
+    onFallbackPoll: refresh,
+    fallbackPollMs: 30_000,
+  });
 
   async function updateMatchAssignment(
     matchId: string,
