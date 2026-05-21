@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable myclash/no-literal-string */
-
 /**
  * Referee admin — T-906 (rework)
  * Route: /org/[slug]/events/[eventId]/referees
@@ -60,7 +58,7 @@ function StarRating({
             'text-lg leading-none transition-colors',
             (value ?? 0) >= star ? 'text-amber-400' : 'text-gray-300',
           ].join(' ')}
-          title={`Rating ${star}`}
+          title={t('organizer.refereesPage.ratingTooltip', { star })}
         >
           ★
         </button>
@@ -155,7 +153,7 @@ function SkillModal({
 
   async function handleSave() {
     if (!name.trim()) {
-      setError('Skill name is required.');
+      setError(t('organizer.refereesPage.skillNameRequired'));
       return;
     }
     setSaving(true);
@@ -217,19 +215,19 @@ function SkillModal({
         if (count !== null && count > 0) {
           setError(t('organizer.refereesPage.skillDeleteConflict', { count }));
         } else {
-          setError('Cannot delete this skill — it is still in use.');
+          setError(t('organizer.refereesPage.skillDeleteInUse'));
         }
         return;
       }
 
       if (!res.ok) {
-        setError('Could not delete skill.');
+        setError(t('organizer.refereesPage.skillDeleteFailed'));
         return;
       }
 
       onDeleted?.();
     } catch {
-      setError('Could not delete skill.');
+      setError(t('organizer.refereesPage.skillDeleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -268,7 +266,7 @@ function SkillModal({
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              placeholder="e.g. Head judge"
+              placeholder={t('organizer.refereesPage.skillNamePlaceholder')}
             />
           </div>
 
@@ -288,7 +286,11 @@ function SkillModal({
               ))}
             </select>
             <div className="mt-1">
-              <SkillBadge color={color} label={name || 'Preview'} size="sm" />
+              <SkillBadge
+                color={color}
+                label={name || t('organizer.refereesPage.preview')}
+                size="sm"
+              />
             </div>
           </div>
         </div>
@@ -301,7 +303,9 @@ function SkillModal({
                 disabled={deleting || saving}
                 className="text-sm text-red-600 hover:text-red-800 border border-red-200 rounded-lg px-3 py-1.5 disabled:opacity-50"
               >
-                {deleting ? 'Deleting…' : t('organizer.refereesPage.deleteSkill')}
+                {deleting
+                  ? t('organizer.refereesPage.deleting')
+                  : t('organizer.refereesPage.deleteSkill')}
               </button>
             )}
           </div>
@@ -311,14 +315,14 @@ function SkillModal({
               disabled={saving || deleting}
               className="text-sm text-gray-600 border border-gray-300 rounded-lg px-4 py-1.5 hover:bg-gray-50 disabled:opacity-50"
             >
-              Cancel
+              {t('organizer.refereesPage.cancel')}
             </button>
             <button
               onClick={() => void handleSave()}
               disabled={saving || deleting || !name.trim()}
               className="text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg px-4 py-1.5 disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('organizer.refereesPage.saving') : t('organizer.refereesPage.save')}
             </button>
           </div>
         </div>
@@ -353,6 +357,9 @@ export default function RefereesPage() {
   const [referees, setReferees] = useState<EventRefereeRow[]>([]);
   const [qualIdMap, setQualIdMap] = useState<QualIdMap>(new Map());
   const [loading, setLoading] = useState(true);
+  // Ref (not state) so it does not re-trigger the effect when it flips.
+  // Prevents full-table flash on subsequent refetches (refereesKey increments).
+  const hasLoadedOnceRef = useRef(false);
 
   // ── Refresh keys ────────────────────────────────────────────────────────────
   const [skillsKey, setSkillsKey] = useState(0);
@@ -403,7 +410,9 @@ export default function RefereesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    // Only show the full-page loading skeleton on initial mount.
+    // Subsequent refetches (refereesKey increments) keep existing data visible.
+    if (!hasLoadedOnceRef.current) setLoading(true);
 
     Promise.all([
       fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
@@ -417,6 +426,7 @@ export default function RefereesPage() {
     ])
       .then(async ([refRes, qualRes]) => {
         setLoading(false);
+        hasLoadedOnceRef.current = true;
         if (!refRes.ok || !qualRes.ok) return;
 
         const refData = (await refRes.json()) as EventRefereeRow[];
@@ -439,6 +449,7 @@ export default function RefereesPage() {
       })
       .catch((err: unknown) => {
         setLoading(false);
+        hasLoadedOnceRef.current = true;
         if (err instanceof Error && err.name === 'AbortError') return;
       });
 
@@ -449,8 +460,8 @@ export default function RefereesPage() {
 
   useEffect(() => {
     if (search.trim().length < 2) {
-      const t = setTimeout(() => setSearchResults([]), 0);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setSearchResults([]), 0);
+      return () => clearTimeout(timer);
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -496,22 +507,35 @@ export default function RefereesPage() {
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   async function addReferee(userId: string) {
-    await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${userId}`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${userId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.addRefereeFailed'));
+      }
+    } catch {
+      toast.error(t('organizer.refereesPage.addRefereeFailed'));
+    }
     setRefereesKey((k) => k + 1);
   }
 
   async function upsertQualification(personId: string, skillId: string, rating: number | null) {
     setSavingQual(`${personId}-${skillId}`);
     try {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-qualifications`, {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-qualifications`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ personId, role: skillId, rating }),
       });
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.qualificationSaveFailed'));
+      }
+      setRefereesKey((k) => k + 1);
+    } catch {
+      toast.error(t('organizer.refereesPage.qualificationSaveFailed'));
       setRefereesKey((k) => k + 1);
     } finally {
       setSavingQual(null);
@@ -528,10 +552,16 @@ export default function RefereesPage() {
     }
     setSavingQual(`${personId}-${skillId}`);
     try {
-      await fetch(`${apiUrl}/api/v1/referee-qualifications/${qualId}`, {
+      const res = await fetch(`${apiUrl}/api/v1/referee-qualifications/${qualId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.qualificationRemoveFailed'));
+      }
+      setRefereesKey((k) => k + 1);
+    } catch {
+      toast.error(t('organizer.refereesPage.qualificationRemoveFailed'));
       setRefereesKey((k) => k + 1);
     } finally {
       setSavingQual(null);
@@ -571,12 +601,22 @@ export default function RefereesPage() {
   }
 
   async function linkToGlobalPerson(qualificationId: string, globalPersonId: string) {
-    await fetch(`${apiUrl}/api/v1/global-persons/${globalPersonId}/link-referee-qualification`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ qualificationId }),
-    });
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/global-persons/${globalPersonId}/link-referee-qualification`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ qualificationId }),
+        },
+      );
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.linkProfileFailed'));
+      }
+    } catch {
+      toast.error(t('organizer.refereesPage.linkProfileFailed'));
+    }
     setLinkingPersonId(null);
     setGlobalSearch('');
     setGlobalResults([]);
@@ -587,24 +627,33 @@ export default function RefereesPage() {
     const nameParts = ref.displayName.split(' ');
     const givenName = nameParts[0] ?? ref.displayName;
     const familyName = nameParts.slice(1).join(' ') || givenName;
-    const res = await fetch(`${apiUrl}/api/v1/global-persons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        givenName,
-        familyName,
-        displayName: ref.displayName,
-        isReferee: true,
-      }),
-    });
-    if (!res.ok) return;
-    const gp = (await res.json()) as { id: string };
-    // Find any qual id for this person
-    const firstQualId = Array.from(qualIdMap.entries()).find(([key]) =>
-      key.startsWith(`${ref.personId}:`),
-    )?.[1];
-    if (firstQualId) await linkToGlobalPerson(firstQualId, gp.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/global-persons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          givenName,
+          familyName,
+          displayName: ref.displayName,
+          isReferee: true,
+        }),
+      });
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.createProfileFailed'));
+        setRefereesKey((k) => k + 1);
+        return;
+      }
+      const gp = (await res.json()) as { id: string };
+      // Find any qual id for this person
+      const firstQualId = Array.from(qualIdMap.entries()).find(([key]) =>
+        key.startsWith(`${ref.personId}:`),
+      )?.[1];
+      if (firstQualId) await linkToGlobalPerson(firstQualId, gp.id);
+    } catch {
+      toast.error(t('organizer.refereesPage.createProfileFailed'));
+      setRefereesKey((k) => k + 1);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -620,12 +669,14 @@ export default function RefereesPage() {
             </Link>
             <span>/</span>
             <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
-              Event
+              {t('organizer.refereesPage.eventBreadcrumb')}
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Referees</span>
+            <span className="text-gray-900 font-medium">
+              {t('organizer.refereesPage.refereesTitle')}
+            </span>
           </div>
-          <h1 className="text-2xl font-bold">Referee qualifications</h1>
+          <h1 className="text-2xl font-bold">{t('organizer.refereesPage.pageTitle')}</h1>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -638,20 +689,22 @@ export default function RefereesPage() {
             href={`/org/${slug}/events/${eventId}/pools`}
             className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
-            ← Pools
+            {t('organizer.refereesPage.backToPools')}
           </Link>
         </div>
       </div>
 
       {/* Add referee search */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-        <p className="text-sm font-medium text-gray-700 mb-2">Add referee</p>
+        <p className="text-sm font-medium text-gray-700 mb-2">
+          {t('organizer.refereesPage.addRefereeButton')}
+        </p>
         <div className="relative">
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search participant by name…"
+            placeholder={t('organizer.refereesPage.searchParticipantPlaceholder')}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
           />
           {searchResults.length > 0 && (
@@ -675,7 +728,7 @@ export default function RefereesPage() {
                     }}
                     className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
                   >
-                    + Add
+                    {t('organizer.refereesPage.addQualification')}
                   </button>
                 </div>
               ))}
@@ -686,10 +739,10 @@ export default function RefereesPage() {
 
       {/* Referee table */}
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <p className="text-gray-400 text-sm">{t('organizer.refereesPage.loading')}</p>
       ) : referees.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">No referees registered yet. Search above to add.</p>
+          <p className="text-gray-400 text-sm">{t('organizer.refereesPage.noReferees')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -697,7 +750,9 @@ export default function RefereesPage() {
             <thead>
               <tr className="border-b border-gray-200 text-left text-gray-500">
                 {/* Name column */}
-                <th className="py-2 pr-4 font-medium whitespace-nowrap">Person</th>
+                <th className="py-2 pr-4 font-medium whitespace-nowrap">
+                  {t('organizer.refereesPage.personColumn')}
+                </th>
 
                 {/* Skill columns */}
                 {skills.map((skill) => (
@@ -720,7 +775,7 @@ export default function RefereesPage() {
                             })
                           }
                           className="text-gray-400 hover:text-gray-700 ml-0.5"
-                          title="Edit skill"
+                          title={t('organizer.refereesPage.editSkill')}
                         >
                           ✎
                         </button>
@@ -734,7 +789,7 @@ export default function RefereesPage() {
                   {t('organizer.refereesPage.availableAllTournaments')}
                 </th>
                 <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                  Available all event
+                  {t('organizer.refereesPage.availableAllEventDuration')}
                 </th>
 
                 {/* Assignment summary */}
@@ -757,7 +812,7 @@ export default function RefereesPage() {
                     {ref.clubLabel && <p className="text-xs text-gray-400">{ref.clubLabel}</p>}
                     {ref.personId ? (
                       <span className="text-xs text-emerald-600 font-medium">
-                        Global profile linked
+                        {t('organizer.refereesPage.globalProfileLinked')}
                       </span>
                     ) : (
                       <div className="mt-1">
@@ -767,7 +822,9 @@ export default function RefereesPage() {
                               type="search"
                               value={globalSearch}
                               onChange={(e) => setGlobalSearch(e.target.value)}
-                              placeholder="Search global persons…"
+                              placeholder={t(
+                                'organizer.refereesPage.searchGlobalPersonsPlaceholder',
+                              )}
                               className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                             {globalResults.length > 0 && (
@@ -794,7 +851,7 @@ export default function RefereesPage() {
                                 onClick={() => void createAndLinkGlobalPerson(ref)}
                                 className="text-xs text-amber-600 hover:text-amber-800"
                               >
-                                + Create global profile
+                                {t('organizer.refereesPage.createGlobalProfile')}
                               </button>
                               <button
                                 onClick={() => {
@@ -804,7 +861,7 @@ export default function RefereesPage() {
                                 }}
                                 className="text-xs text-gray-400 hover:text-gray-600"
                               >
-                                Cancel
+                                {t('organizer.refereesPage.cancel')}
                               </button>
                             </div>
                           </div>
@@ -813,7 +870,7 @@ export default function RefereesPage() {
                             onClick={() => setLinkingPersonId(ref.userId)}
                             className="text-xs text-amber-600 hover:text-amber-800"
                           >
-                            Link global profile
+                            {t('organizer.refereesPage.linkGlobalProfile')}
                           </button>
                         )}
                       </div>
@@ -846,7 +903,7 @@ export default function RefereesPage() {
                               disabled={isSaving}
                               className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
                             >
-                              – Remove
+                              {t('organizer.refereesPage.removeQualification')}
                             </button>
                           </div>
                         ) : (
@@ -858,9 +915,13 @@ export default function RefereesPage() {
                             }}
                             disabled={isSaving || !ref.personId}
                             className="text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-300 rounded px-2 py-0.5 disabled:opacity-50"
-                            title={!ref.personId ? 'Link a global profile first' : undefined}
+                            title={
+                              !ref.personId
+                                ? t('organizer.refereesPage.linkProfileFirst')
+                                : undefined
+                            }
                           >
-                            + Add
+                            {t('organizer.refereesPage.addQualification')}
                           </button>
                         )}
                       </td>
