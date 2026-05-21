@@ -18,6 +18,8 @@ function makeChain(result: unknown) {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
     in: vi.fn() as ReturnType<typeof vi.fn>,
+    not: vi.fn() as ReturnType<typeof vi.fn>,
+    limit: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
@@ -28,6 +30,8 @@ function makeChain(result: unknown) {
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
+  chain.not.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
@@ -47,6 +51,8 @@ function makeAwaitableChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    not: vi.fn(),
+    limit: vi.fn(),
     order: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
@@ -55,7 +61,7 @@ function makeAwaitableChain(result: unknown) {
     single: vi.fn().mockResolvedValue(result),
   });
   // All builder methods return the chain (Promise) itself
-  for (const key of ['select', 'eq', 'in', 'order', 'insert', 'update', 'delete']) {
+  for (const key of ['select', 'eq', 'in', 'not', 'limit', 'order', 'insert', 'update', 'delete']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -721,6 +727,143 @@ describe('PhasesService', () => {
           requiresConfirmation: true,
           startedMatchCount: 1,
           completedMatchCount: 1,
+        }),
+      });
+    });
+  });
+
+  describe('editBracketConfig', () => {
+    function bracketPhase(type: 'single_elim' | 'double_elim' = 'double_elim') {
+      const phaseChain = makeChain({ data: null, error: null });
+      phaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-1',
+          type,
+          tournament_id: 'tournament-1',
+          visibility_status: 'hidden',
+          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+        },
+        error: null,
+      });
+      return phaseChain;
+    }
+
+    it('persists grandFinalReset to config_json when no matches have completed', async () => {
+      const phaseChain = bracketPhase('double_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: { config_json: { bracketSize: 8, grandFinalReset: false } },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.single.mockResolvedValue({
+        data: { id: 'phase-1', config_json: { grandFinalReset: true } },
+        error: null,
+      });
+      const auditChain = makeChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain) // getPhaseForVisibility
+        .mockReturnValueOnce(configReadChain) // config_json read
+        .mockReturnValueOnce(completedCheckChain) // completed matches
+        .mockReturnValueOnce(updateChain) // phases update
+        .mockReturnValueOnce(auditChain); // audit log
+
+      const result = await service.editBracketConfig('phase-1', 'actor-1', {
+        grandFinalReset: true,
+      });
+
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config_json: expect.objectContaining({ grandFinalReset: true }),
+        }),
+      );
+      expect(result).toMatchObject({ id: 'phase-1' });
+    });
+
+    it('refuses the edit when at least one match has completed', async () => {
+      const phaseChain = bracketPhase('double_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: { config_json: {} },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({
+        data: [{ id: 'match-final' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(configReadChain)
+        .mockReturnValueOnce(completedCheckChain);
+
+      await expect(
+        service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects grandFinalReset edits on single-elim brackets', async () => {
+      const phaseChain = bracketPhase('single_elim');
+      const configReadChain = makeChain({ data: null, error: null });
+      configReadChain.maybeSingle.mockResolvedValue({
+        data: { config_json: {} },
+        error: null,
+      });
+      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(configReadChain)
+        .mockReturnValueOnce(completedCheckChain);
+
+      await expect(
+        service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('reseedBracketRoundOne', () => {
+    it('throws 501 for unimplemented strategies', async () => {
+      await expect(
+        service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' }),
+      ).rejects.toThrow(NotImplementedException);
+    });
+
+    it('refuses when any R1 match has started', async () => {
+      const phaseChain = makeChain({ data: null, error: null });
+      phaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-1',
+          type: 'single_elim',
+          tournament_id: 'tournament-1',
+          visibility_status: 'hidden',
+          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+        },
+        error: null,
+      });
+      const r1SlotsChain = makeAwaitableChain({
+        data: [
+          { id: 'slot-1', round: 1, position: 1, registration_a_id: 'r1', registration_b_id: 'r8' },
+        ],
+        error: null,
+      });
+      const blockingMatchesChain = makeAwaitableChain({
+        data: [{ id: 'match-running', bracket_slot_id: 'slot-1', status: 'running' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(phaseChain)
+        .mockReturnValueOnce(r1SlotsChain)
+        .mockReturnValueOnce(blockingMatchesChain);
+
+      await expect(
+        service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'snake' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          blockingMatchIds: ['match-running'],
         }),
       });
     });

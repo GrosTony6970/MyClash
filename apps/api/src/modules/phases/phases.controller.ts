@@ -23,6 +23,8 @@ import {
 import { PhasesService } from './phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GenerateBracketDto, GeneratePoolsDto, UpdatePhaseVisibilityDto } from './dto/phases.dto';
+import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
+import { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import type { FastifyRequest } from 'fastify';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -225,5 +227,35 @@ export class PhasesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.phases.updateVisibility(phaseId, userId, dto);
+  }
+
+  @Patch('phases/:phaseId/bracket-config')
+  @ApiOperation({ summary: 'Edit a bracket phase configuration (org admin+)' })
+  @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Bracket configuration updated' })
+  @ApiResponse({ status: 409, description: 'Configuration locked because matches have completed' })
+  async editBracketConfig(
+    @Param('phaseId', ParseUUIDPipe) phaseId: string,
+    @Body() dto: EditBracketConfigDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.editBracketConfig(phaseId, userId, dto);
+  }
+
+  @Post('phases/:phaseId/reseed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Re-apply Round 1 seeding without regenerating (org admin+)' })
+  @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Round 1 reseeded' })
+  @ApiResponse({ status: 409, description: 'At least one R1 match has already started' })
+  @ApiResponse({ status: 501, description: 'Seeding strategy not yet implemented' })
+  async reseedBracket(
+    @Param('phaseId', ParseUUIDPipe) phaseId: string,
+    @Body() dto: ReseedBracketDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.reseedBracketRoundOne(phaseId, userId, dto);
   }
 }

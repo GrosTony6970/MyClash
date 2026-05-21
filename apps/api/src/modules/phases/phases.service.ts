@@ -29,6 +29,8 @@ import type {
   GeneratePoolsDto,
   UpdatePhaseVisibilityDto,
 } from './dto/phases.dto';
+import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
+import type { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import type { BracketAdvanceService } from './bracket-advance.service';
 
 @Injectable()
@@ -621,6 +623,225 @@ export class PhasesService {
     });
 
     return data;
+  }
+
+  /**
+   * PATCH /api/v1/phases/:id/bracket-config
+   *
+   * Edits a generated bracket's configuration without regenerating slots
+   * or destroying match history. Currently only `grandFinalReset` is
+   * editable (double-elim). Refuses when the final or bronze match has
+   * already completed.
+   */
+  async editBracketConfig(phaseId: string, actorUserId: string, dto: EditBracketConfigDto) {
+    const phase = await this.getPhaseForVisibility(phaseId);
+    const phaseType = phase['type'] as string;
+    if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
+      throw new BadRequestException(`Phase ${phaseId} is not a bracket phase`);
+    }
+    const tournament = phase['tournaments'] as Record<string, unknown> | null;
+    const event = tournament?.['events'] as Record<string, unknown> | null;
+    const orgId = event?.['organization_id'];
+    if (!this.orgs || typeof orgId !== 'string') {
+      throw new BadRequestException('Phase organization could not be resolved');
+    }
+    await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+
+    const { data: phaseRow, error: phaseErr } = await this.supabase.service
+      .from('phases')
+      .select('config_json')
+      .eq('id', phaseId)
+      .maybeSingle();
+    if (phaseErr) throw new BadRequestException(phaseErr.message);
+    if (!phaseRow) throw new NotFoundException(`Phase ${phaseId} not found`);
+    const config = ((phaseRow as { config_json?: Record<string, unknown> }).config_json ??
+      {}) as Record<string, unknown>;
+
+    // Refuse if the final or bronze match has already completed.
+    const { data: completed } = await this.supabase.service
+      .from('matches')
+      .select('id')
+      .eq('phase_id', phaseId)
+      .eq('status', 'completed')
+      .limit(1);
+    if ((completed ?? []).length > 0) {
+      throw new ConflictException(
+        'Bracket configuration is locked because at least one match has completed.',
+      );
+    }
+
+    const next = { ...config };
+    if (dto.grandFinalReset !== undefined) {
+      if (phaseType !== 'double_elim') {
+        throw new BadRequestException('grandFinalReset only applies to double-elim brackets');
+      }
+      next['grandFinalReset'] = dto.grandFinalReset;
+    }
+
+    const { data: updated, error: updateErr } = await this.supabase.service
+      .from('phases')
+      .update({ config_json: next })
+      .eq('id', phaseId)
+      .select('id, config_json')
+      .single();
+    if (updateErr) throw new BadRequestException(updateErr.message);
+
+    await this.supabase.service.from('audit_log').insert({
+      actor_user_id: actorUserId,
+      action: 'phase.bracket_config_edited',
+      entity_type: 'phase',
+      entity_id: phaseId,
+      payload_json: { changes: dto, phaseType },
+    });
+
+    return updated;
+  }
+
+  /**
+   * POST /api/v1/phases/:id/reseed
+   *
+   * Re-applies Round 1 seeding without regenerating the bracket structure.
+   * Refuses when any R1 match has already started (status != 'scheduled').
+   * Today only `snake` is implemented; the other strategies return 501.
+   */
+  async reseedBracketRoundOne(phaseId: string, actorUserId: string, dto: ReseedBracketDto) {
+    if (dto.strategy !== 'snake') {
+      throw new NotImplementedException(
+        `Seeding strategy "${dto.strategy}" is not yet implemented`,
+      );
+    }
+
+    const phase = await this.getPhaseForVisibility(phaseId);
+    const phaseType = phase['type'] as string;
+    if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
+      throw new BadRequestException(`Phase ${phaseId} is not a bracket phase`);
+    }
+    const tournamentId = phase['tournament_id'] as string;
+    const tournament = phase['tournaments'] as Record<string, unknown> | null;
+    const event = tournament?.['events'] as Record<string, unknown> | null;
+    const orgId = event?.['organization_id'];
+    if (!this.orgs || typeof orgId !== 'string') {
+      throw new BadRequestException('Phase organization could not be resolved');
+    }
+    await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+
+    // Load all R1 bracket slots for this phase.
+    const r1Round = phaseType === 'double_elim' ? 1 : 1;
+    const { data: r1Slots, error: slotsErr } = await this.supabase.service
+      .from('bracket_slots')
+      .select('id, round, position, registration_a_id, registration_b_id')
+      .eq('phase_id', phaseId)
+      .eq('round', r1Round)
+      .order('position', { ascending: true });
+    if (slotsErr) throw new BadRequestException(slotsErr.message);
+    const slots = (r1Slots ?? []) as Array<{
+      id: string;
+      round: number;
+      position: number;
+      registration_a_id: string | null;
+      registration_b_id: string | null;
+    }>;
+
+    // Refuse if any R1 match has started.
+    const slotIds = slots.map((s) => s.id);
+    if (slotIds.length > 0) {
+      const { data: blockingMatches } = await this.supabase.service
+        .from('matches')
+        .select('id, bracket_slot_id, status')
+        .in('bracket_slot_id', slotIds)
+        .not('status', 'eq', 'scheduled')
+        .not('status', 'eq', 'voided');
+      if ((blockingMatches ?? []).length > 0) {
+        throw new ConflictException({
+          message: 'Cannot reseed Round 1 — at least one match has already started.',
+          blockingMatchIds: (blockingMatches ?? []).map((m) => (m as { id: string }).id),
+        });
+      }
+    }
+
+    // Re-fetch seeded registrations in seed order.
+    const { data: seededRegs } = await this.supabase.service
+      .from('registrations')
+      .select('id, seed, bib_number')
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in', 'done'])
+      .order('seed', { ascending: true, nullsFirst: false });
+    const ordered = (seededRegs ?? []) as Array<{
+      id: string;
+      seed: number | null;
+      bib_number: number | null;
+    }>;
+
+    // Build seed → registrationId map (snake: respect existing seed order).
+    const bySeed = new Map<number, string>();
+    ordered.forEach((reg, idx) => {
+      const seedNum = reg.seed ?? reg.bib_number ?? idx + 1;
+      bySeed.set(seedNum, reg.id);
+    });
+
+    // For each R1 slot, recompute red/blue based on position.
+    // Standard bracket seeding: slot at position P maps to seeds
+    // (2P-1, 2P). Position is 1-indexed in the generator output.
+    for (const slot of slots) {
+      const homeSeed = slot.position * 2 - 1;
+      const awaySeed = slot.position * 2;
+      const regA = bySeed.get(homeSeed) ?? null;
+      const regB = bySeed.get(awaySeed) ?? null;
+      const { error: updateErr } = await this.supabase.service
+        .from('bracket_slots')
+        .update({ registration_a_id: regA, registration_b_id: regB })
+        .eq('id', slot.id);
+      if (updateErr) throw new BadRequestException(updateErr.message);
+
+      // Update any scheduled match for this slot to point to the new fighters.
+      const { data: existingMatches } = await this.supabase.service
+        .from('matches')
+        .select('id, status')
+        .eq('bracket_slot_id', slot.id)
+        .eq('status', 'scheduled');
+      if (regA && regB) {
+        if ((existingMatches ?? []).length > 0) {
+          const matchId = (existingMatches![0] as { id: string }).id;
+          await this.supabase.service
+            .from('matches')
+            .update({ red_registration_id: regA, blue_registration_id: regB })
+            .eq('id', matchId);
+        } else {
+          await this.supabase.service.from('matches').insert({
+            phase_id: phaseId,
+            bracket_slot_id: slot.id,
+            red_registration_id: regA,
+            blue_registration_id: regB,
+            ruleset_code: 'TF_v1',
+            ruleset_version: '1.0.0',
+            status: 'scheduled',
+            red_score: 0,
+            blue_score: 0,
+          });
+        }
+      }
+    }
+
+    // Persist the chosen strategy in config_json for future reference.
+    const { data: phaseRow } = await this.supabase.service
+      .from('phases')
+      .select('config_json')
+      .eq('id', phaseId)
+      .maybeSingle();
+    const config = ((phaseRow as { config_json?: Record<string, unknown> })?.config_json ??
+      {}) as Record<string, unknown>;
+    config['seedingStrategy'] = dto.strategy;
+    await this.supabase.service.from('phases').update({ config_json: config }).eq('id', phaseId);
+
+    await this.supabase.service.from('audit_log').insert({
+      actor_user_id: actorUserId,
+      action: 'phase.bracket_reseeded',
+      entity_type: 'phase',
+      entity_id: phaseId,
+      payload_json: { strategy: dto.strategy, r1SlotCount: slots.length },
+    });
+
+    return { phaseId, strategy: dto.strategy, r1SlotCount: slots.length };
   }
 
   async listTournamentPools(tournamentId: string) {
