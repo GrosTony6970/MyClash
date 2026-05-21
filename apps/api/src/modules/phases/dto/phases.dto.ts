@@ -126,6 +126,20 @@ export class GenerateBracketDto {
   @IsOptional()
   @IsUUID()
   poolPhaseId?: string;
+
+  /**
+   * Seeding strategy for filling Round 1 slots. `snake` (default) uses the
+   * existing snake-seeding helper. The other three are accepted by the DTO
+   * but raise HTTP 501 until the corresponding helpers ship.
+   */
+  @ApiProperty({
+    required: false,
+    enum: ['snake', 'by-rating', 'random', 'by-pool-rank'],
+    default: 'snake',
+  })
+  @IsOptional()
+  @IsIn(['snake', 'by-rating', 'random', 'by-pool-rank'])
+  seedingStrategy?: 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
 }
 
 export class UpdatePhaseVisibilityDto {

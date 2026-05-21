@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotImplementedException } from '@nestjs/common';
 import { PhasesService } from './phases.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -488,6 +488,169 @@ describe('PhasesService', () => {
         byeCount: 14,
         playInMatchCount: 2,
       });
+    });
+
+    it('throws 501 NotImplementedException for unimplemented seeding strategies', async () => {
+      // The 501 throws before any Supabase call, so no mocks are needed —
+      // and crucially, no mockReturnValueOnce must be queued or it would
+      // leak into subsequent tests.
+      await expect(
+        service.generateBracket('tournament-1', { seedingStrategy: 'by-rating' }, false),
+      ).rejects.toThrow(NotImplementedException);
+      await expect(
+        service.generateBracket('tournament-1', { seedingStrategy: 'random' }, false),
+      ).rejects.toThrow(NotImplementedException);
+      await expect(
+        service.generateBracket('tournament-1', { seedingStrategy: 'by-pool-rank' }, false),
+      ).rejects.toThrow(NotImplementedException);
+    });
+
+    it('persists seedingStrategy and grandFinalReset into phases.config_json', async () => {
+      const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
+
+      const phaseCheckChain = makeChain({ data: null, error: null });
+      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
+      const seededRegsChain = makeAwaitableChain({
+        data: eightRegs.map((reg, idx) => ({ ...reg, seed: idx + 1, bib_number: null })),
+        error: null,
+      });
+      const phaseInsertChain = makeChain({ data: null, error: null });
+      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
+      const defaultChain = makeChain({ data: null, error: null });
+      const phaseReadChain = makeChain({ data: null, error: null });
+      phaseReadChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-new',
+          type: 'double_elim',
+          visibility_status: 'hidden',
+          config_json: {
+            bracketSize: 8,
+            fighterCount: 8,
+            byeCount: 0,
+            grandFinalReset: true,
+            seedingStrategy: 'snake',
+          },
+        },
+        error: null,
+      });
+      const slotsReadChain = makeAwaitableChain({ data: [], error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(seededRegsChain)
+        .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValueOnce(defaultChain) // bracket_slots insert
+        .mockReturnValueOnce(phaseReadChain) // delegation read 1
+        .mockReturnValueOnce(slotsReadChain) // delegation read 2
+        .mockReturnValue(defaultChain);
+
+      const result = await service.generateBracket(
+        'tournament-1',
+        { phaseType: 'double_elim', grandFinalReset: true },
+        false,
+      );
+
+      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config_json: expect.objectContaining({
+            grandFinalReset: true,
+            seedingStrategy: 'snake',
+          }),
+        }),
+      );
+      expect((result as { grandFinalReset: boolean }).grandFinalReset).toBe(true);
+      expect((result as { seedingStrategy: string }).seedingStrategy).toBe('snake');
+    });
+
+    it('captures bronzeSlotId on single-elim and exposes it on the bracket read', async () => {
+      const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
+
+      const phaseCheckChain = makeChain({ data: null, error: null });
+      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
+      const seededRegsChain = makeAwaitableChain({
+        data: eightRegs.map((reg, idx) => ({ ...reg, seed: idx + 1, bib_number: null })),
+        error: null,
+      });
+      const phaseInsertChain = makeChain({ data: null, error: null });
+      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
+
+      // Bracket slot insert returns the bronze slot (source_a_type='loser_of').
+      const slotInsertChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'slot-r1-1',
+            phase_id: 'phase-new',
+            round: 1,
+            position: 1,
+            source_a_type: 'seed',
+            source_b_type: 'seed',
+            registration_a_id: 'r0',
+            registration_b_id: 'r7',
+          },
+          {
+            id: 'slot-bronze',
+            phase_id: 'phase-new',
+            round: 3,
+            position: 2,
+            source_a_type: 'loser_of',
+            source_b_type: 'loser_of',
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+
+      const phaseUpdateChain = makeChain({ data: null, error: null });
+      const matchInsertChain = makeChain({ data: null, error: null });
+
+      const phaseReadChain = makeChain({ data: null, error: null });
+      phaseReadChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'phase-new',
+          type: 'single_elim',
+          visibility_status: 'hidden',
+          config_json: {
+            bracketSize: 8,
+            fighterCount: 8,
+            byeCount: 0,
+            rounds: 3,
+            seedingStrategy: 'snake',
+            bronzeSlotId: 'slot-bronze',
+          },
+        },
+        error: null,
+      });
+      const slotsReadChain = makeAwaitableChain({
+        data: [
+          { id: 'slot-r1-1', round: 1, position: 1 },
+          { id: 'slot-bronze', round: 3, position: 2 },
+        ],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(seededRegsChain)
+        .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValueOnce(slotInsertChain) // bracket_slots insert returns rows
+        .mockReturnValueOnce(phaseUpdateChain) // phases update (bronzeSlotId)
+        .mockReturnValueOnce(matchInsertChain) // initial matches insert
+        .mockReturnValueOnce(phaseReadChain) // delegation read 1
+        .mockReturnValueOnce(slotsReadChain); // delegation read 2
+
+      const result = await service.generateBracket('tournament-1', {}, false);
+
+      expect(phaseUpdateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config_json: expect.objectContaining({ bronzeSlotId: 'slot-bronze' }),
+        }),
+      );
+      expect((result as { bronzeSlotId: string | null }).bronzeSlotId).toBe('slot-bronze');
     });
   });
 

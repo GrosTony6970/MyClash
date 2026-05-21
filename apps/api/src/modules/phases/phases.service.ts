@@ -8,6 +8,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  NotImplementedException,
   Optional,
 } from '@nestjs/common';
 import {
@@ -316,6 +317,13 @@ export class PhasesService {
   async generateBracket(tournamentId: string, dto: GenerateBracketDto, force = false) {
     const phaseType = dto.phaseType ?? 'single_elim';
     const isDoubleElim = phaseType === 'double_elim';
+    const seedingStrategy = dto.seedingStrategy ?? 'snake';
+    if (seedingStrategy !== 'snake') {
+      throw new NotImplementedException(
+        `Seeding strategy "${seedingStrategy}" is not yet implemented`,
+      );
+    }
+    const grandFinalReset = isDoubleElim ? (dto.grandFinalReset ?? false) : false;
 
     // Check for existing elim phase
     const { data: existing } = await this.supabase.service
@@ -397,6 +405,8 @@ export class PhasesService {
         wbRounds: bracket.wbRounds,
         lbRounds: bracket.lbRounds,
         autoAdvance: true,
+        grandFinalReset,
+        seedingStrategy,
       };
       slotInserts = bracket.slots.map((slot) => {
         const regA =
@@ -434,6 +444,7 @@ export class PhasesService {
         hasPlayInRound: bracket.hasPlayInRound,
         rounds: bracket.rounds,
         autoAdvance: true,
+        seedingStrategy,
       };
       slotInserts = bracket.slots.map((slot) => {
         const regA =
@@ -479,10 +490,27 @@ export class PhasesService {
     const { data: insertedSlots, error: slotInsertError } = await this.supabase.service
       .from('bracket_slots')
       .insert(finalInserts)
-      .select('id, phase_id, source_b_type, registration_a_id, registration_b_id');
+      .select(
+        'id, phase_id, round, position, source_a_type, source_b_type, registration_a_id, registration_b_id',
+      );
 
     if (slotInsertError) {
       throw new BadRequestException(slotInsertError.message);
+    }
+
+    // Single-elim: identify the bronze slot (source_a_type === 'loser_of') and
+    // record its id in config_json so the frontend can locate it directly.
+    if (!isDoubleElim) {
+      const bronzeSlot = (insertedSlots ?? []).find(
+        (s) => (s as { source_a_type?: string }).source_a_type === 'loser_of',
+      ) as { id: string } | undefined;
+      if (bronzeSlot) {
+        configJson['bronzeSlotId'] = bronzeSlot.id;
+        await this.supabase.service
+          .from('phases')
+          .update({ config_json: configJson })
+          .eq('id', phaseId);
+      }
     }
 
     await this.createInitialBracketMatches(insertedSlots ?? []);
@@ -703,6 +731,9 @@ export class PhasesService {
       wbRounds?: number;
       lbRounds?: number;
       autoAdvance?: boolean;
+      grandFinalReset?: boolean;
+      seedingStrategy?: string;
+      bronzeSlotId?: string;
     };
     return {
       phaseId,
@@ -719,6 +750,9 @@ export class PhasesService {
       wbRounds: config.wbRounds ?? null,
       lbRounds: config.lbRounds ?? null,
       autoAdvance: config.autoAdvance ?? true,
+      grandFinalReset: config.grandFinalReset ?? false,
+      seedingStrategy: config.seedingStrategy ?? 'snake',
+      bronzeSlotId: config.bronzeSlotId ?? null,
       totalSlots: (slots ?? []).length,
       slots: slots ?? [],
     };
