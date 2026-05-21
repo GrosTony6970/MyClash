@@ -198,12 +198,14 @@ export class EventsService {
 
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, persons, refereeQualifications, refereeCounts] = await Promise.all([
-      this.getRegistrationsForTournaments(tournamentIds),
-      this.getEventPersons(eventId),
-      this.countRefereeQualifications(eventId),
-      this.countTournamentRefereeAssignments(eventId, tournamentIds),
-    ]);
+    const [registrations, persons, refereeQualifications, refereeCounts, phases] =
+      await Promise.all([
+        this.getRegistrationsForTournaments(tournamentIds),
+        this.getEventPersons(eventId),
+        this.countRefereeQualifications(eventId),
+        this.countTournamentRefereeAssignments(eventId, tournamentIds),
+        this.getPhasesForTournaments(tournamentIds),
+      ]);
 
     const registrationsByTournament = new Map<string, number>();
     for (const registration of registrations) {
@@ -217,6 +219,40 @@ export class EventsService {
     const representedClubIds = new Set(
       persons.map((person) => person.club_id).filter((clubId): clubId is string => Boolean(clubId)),
     );
+
+    // Index phases by tournament. A tournament has at most one pool phase
+    // and at most one elim phase (single_elim or double_elim).
+    const poolPhaseByTournament = new Map<string, { id: string }>();
+    const elimPhaseByTournament = new Map<
+      string,
+      { id: string; type: string; config_json: Record<string, unknown> | null }
+    >();
+    for (const phase of phases) {
+      if (phase.type === 'pool') {
+        poolPhaseByTournament.set(phase.tournament_id, { id: phase.id });
+      } else if (phase.type === 'single_elim' || phase.type === 'double_elim') {
+        elimPhaseByTournament.set(phase.tournament_id, {
+          id: phase.id,
+          type: phase.type,
+          config_json: phase.config_json,
+        });
+      }
+    }
+
+    // Count pools per pool-phase (single batched query bounded by the
+    // number of tournaments that already generated their pool phase).
+    const poolPhaseIds = Array.from(poolPhaseByTournament.values()).map((p) => p.id);
+    const poolCountByPhase = new Map<string, number>();
+    if (poolPhaseIds.length > 0) {
+      const { data: poolRows, error: poolsErr } = await this.supabase.service
+        .from('pools')
+        .select('id, phase_id')
+        .in('phase_id', poolPhaseIds);
+      if (poolsErr) throw new BadRequestException(poolsErr.message);
+      for (const row of (poolRows ?? []) as Array<{ phase_id: string }>) {
+        poolCountByPhase.set(row.phase_id, (poolCountByPhase.get(row.phase_id) ?? 0) + 1);
+      }
+    }
 
     return {
       event: {
@@ -236,15 +272,54 @@ export class EventsService {
         qualifiedReferees: refereeQualifications,
         clubsRepresented: representedClubIds.size,
       },
-      tournaments: tournaments.map((tournament) => ({
-        id: tournament.id,
-        name: tournament.name,
-        slug: tournament.slug,
-        status: tournament.status,
-        fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
-        assignedRefereeCount: refereeCounts.get(tournament.id) ?? 0,
-      })),
+      tournaments: tournaments.map((tournament) => {
+        const poolPhase = poolPhaseByTournament.get(tournament.id);
+        const elimPhase = elimPhaseByTournament.get(tournament.id);
+        const bracketSize = elimPhase
+          ? ((elimPhase.config_json?.['bracketSize'] as number | undefined) ?? null)
+          : null;
+        return {
+          id: tournament.id,
+          name: tournament.name,
+          slug: tournament.slug,
+          status: tournament.status,
+          color: tournament.color ?? null,
+          rulesetCode: tournament.ruleset_code ?? null,
+          poolCount: poolPhase ? (poolCountByPhase.get(poolPhase.id) ?? 0) : 0,
+          bracketSize,
+          eliminationType: elimPhase ? elimPhase.type : null,
+          fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
+          assignedRefereeCount: refereeCounts.get(tournament.id) ?? 0,
+        };
+      }),
     };
+  }
+
+  /**
+   * Phases for a set of tournaments. Used by the event dashboard to count
+   * pools (via the pool phase) and surface elim bracket size + type (via
+   * the elim phase's `config_json`).
+   */
+  private async getPhasesForTournaments(tournamentIds: string[]) {
+    if (tournamentIds.length === 0) {
+      return [] as Array<{
+        id: string;
+        tournament_id: string;
+        type: string;
+        config_json: Record<string, unknown> | null;
+      }>;
+    }
+    const { data, error } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id, type, config_json')
+      .in('tournament_id', tournamentIds);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Array<{
+      id: string;
+      tournament_id: string;
+      type: string;
+      config_json: Record<string, unknown> | null;
+    }>;
   }
 
   async listEventClubs(eventId: string, query: EventClubQueryDto, userId: string) {

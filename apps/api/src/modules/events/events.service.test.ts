@@ -116,7 +116,16 @@ describe('EventsService', () => {
       )
       .mockReturnValueOnce(
         makeAwaitableChain({
-          data: [{ id: 'tournament-1', slug: 'longsword', name: 'Longsword', status: 'draft' }],
+          data: [
+            {
+              id: 'tournament-1',
+              slug: 'longsword',
+              name: 'Longsword',
+              status: 'draft',
+              color: 'amber',
+              ruleset_code: 'TF_v1',
+            },
+          ],
           error: null,
         }),
       )
@@ -145,6 +154,9 @@ describe('EventsService', () => {
         }),
       )
       .mockReturnValueOnce(makeAwaitableChain({ count: 3, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      // NEW: getPhasesForTournaments — empty in this fixture so no pools
+      // count query follows. Per-tournament poolCount=0, bracketSize=null.
       .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
     assertOrgRole.mockResolvedValue(undefined);
 
@@ -160,6 +172,11 @@ describe('EventsService', () => {
           id: 'tournament-1',
           fighterCount: 1,
           assignedRefereeCount: 0,
+          color: 'amber',
+          rulesetCode: 'TF_v1',
+          poolCount: 0,
+          bracketSize: null,
+          eliminationType: null,
         },
       ],
     });
