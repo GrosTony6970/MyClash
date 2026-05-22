@@ -8,13 +8,7 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 interface RulesetConfigTF {
   winBonus: number;
-  afterblowWindowMs: number;
   targetValues: { deepTarget: number; shallowTarget: number };
-  forfeitPolicy: {
-    forfeitDrawsCount: boolean;
-    forfeitFighterBefore1stMatch: boolean;
-    disqualifyAfter: number;
-  };
 }
 interface LockConfig {
   autoLockEnabled: boolean;
@@ -25,13 +19,7 @@ interface LockConfig {
 
 const TF_DEFAULTS: RulesetConfigTF = {
   winBonus: 3,
-  afterblowWindowMs: 1000,
   targetValues: { deepTarget: 2, shallowTarget: 1 },
-  forfeitPolicy: {
-    forfeitDrawsCount: false,
-    forfeitFighterBefore1stMatch: false,
-    disqualifyAfter: 2,
-  },
 };
 const LOCK_DEFAULTS: LockConfig = {
   autoLockEnabled: false,
@@ -65,9 +53,7 @@ export function Step4Advanced({
         const rc = (row.ruleset_config ?? {}) as Partial<RulesetConfigTF>;
         setTf({
           winBonus: rc.winBonus ?? TF_DEFAULTS.winBonus,
-          afterblowWindowMs: rc.afterblowWindowMs ?? TF_DEFAULTS.afterblowWindowMs,
           targetValues: { ...TF_DEFAULTS.targetValues, ...(rc.targetValues ?? {}) },
-          forfeitPolicy: { ...TF_DEFAULTS.forfeitPolicy, ...(rc.forfeitPolicy ?? {}) },
         });
         const lc = (row.lock_config ?? {}) as Partial<LockConfig>;
         setLock({
@@ -91,7 +77,10 @@ export function Step4Advanced({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`Save failed (${res.status}): ${errBody.slice(0, 200)}`);
+      }
       onFinish(publishOnFinish);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error');
@@ -129,13 +118,6 @@ export function Step4Advanced({
             max={20}
           />
           <NumField
-            label="Afterblow window (ms)"
-            value={tf.afterblowWindowMs}
-            onChange={(v) => setTf({ ...tf, afterblowWindowMs: v })}
-            min={0}
-            max={10000}
-          />
-          <NumField
             label="Deep target points"
             value={tf.targetValues.deepTarget}
             onChange={(v) => setTf({ ...tf, targetValues: { ...tf.targetValues, deepTarget: v } })}
@@ -150,32 +132,6 @@ export function Step4Advanced({
             }
             min={0}
             max={20}
-          />
-          <BoolField
-            label="Forfeit counts as draw"
-            value={tf.forfeitPolicy.forfeitDrawsCount}
-            onChange={(v) =>
-              setTf({ ...tf, forfeitPolicy: { ...tf.forfeitPolicy, forfeitDrawsCount: v } })
-            }
-          />
-          <BoolField
-            label="Forfeit before 1st match → auto-DQ"
-            value={tf.forfeitPolicy.forfeitFighterBefore1stMatch}
-            onChange={(v) =>
-              setTf({
-                ...tf,
-                forfeitPolicy: { ...tf.forfeitPolicy, forfeitFighterBefore1stMatch: v },
-              })
-            }
-          />
-          <NumField
-            label="Disqualify after N forfeits"
-            value={tf.forfeitPolicy.disqualifyAfter}
-            onChange={(v) =>
-              setTf({ ...tf, forfeitPolicy: { ...tf.forfeitPolicy, disqualifyAfter: v } })
-            }
-            min={1}
-            max={10}
           />
         </fieldset>
       )}
