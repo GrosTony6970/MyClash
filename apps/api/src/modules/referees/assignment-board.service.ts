@@ -316,7 +316,7 @@ export class AssignmentBoardService {
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, given_name, family_name, display_name, club_id, clubs(name)))), matches(id, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, given_name, family_name, club_id, clubs(name)))), matches(id, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
       )
       .in('phase_id', phaseIds)
       .order('sort_order', { ascending: true });
@@ -399,7 +399,7 @@ export class AssignmentBoardService {
 
     const { data: personRows, error: personError } = await this.supabase.service
       .from('persons')
-      .select('id, claimed_by_user_id, given_name, family_name, display_name, club_id, clubs(name)')
+      .select('id, claimed_by_user_id, given_name, family_name, club_id, clubs(name)')
       .eq('event_id', eventId)
       .in('claimed_by_user_id', userIds);
     if (personError) throw new BadRequestException(personError.message);

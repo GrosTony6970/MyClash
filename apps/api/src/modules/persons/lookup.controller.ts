@@ -1,15 +1,15 @@
-import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CsvImportService } from './csv-import.service';
 
 class LookupQueryDto {
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(100)
-  q!: string;
+  q?: string;
 
   @IsOptional()
   @IsString()
@@ -64,11 +64,16 @@ export class LookupController {
     @Query() query: LookupQueryDto,
   ): Promise<LookupResult[]> {
     const q = (query.q ?? '').trim();
-    if (!q || q.length < 1) {
-      throw new BadRequestException('Query parameter "q" is required');
+    // Empty query = "show me all participants" (used by typeahead on focus).
+    // Caller can request up to 50 in that case; with a query we still cap at 10
+    // because the trigram RPC isn't useful past the top matches.
+    const limit = Math.min(
+      parseInt(query.limit ?? (q ? '10' : '50'), 10) || (q ? 10 : 50),
+      q ? 10 : 50,
+    );
+    if (!q) {
+      return this.listAllParticipants(eventId, limit);
     }
-
-    const limit = Math.min(parseInt(query.limit ?? '10', 10) || 10, 10);
 
     // Call the lookup_persons Postgres function (defined in 0003_lookup_functions.sql)
     const { data, error } = await this.supabase.service.rpc('lookup_persons', {
@@ -155,5 +160,39 @@ export class LookupController {
       map.set(r.id, r.claimed_by_user_id ?? null);
     }
     return map;
+  }
+
+  /**
+   * Returns up to `limit` participants for the event, sorted by family then
+   * given name. Used by typeahead inputs that want to show options on focus
+   * before the user has typed anything.
+   */
+  private async listAllParticipants(eventId: string, limit: number): Promise<LookupResult[]> {
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('id, given_name, family_name, email, claimed_by_user_id, clubs(name)')
+      .eq('event_id', eventId)
+      .order('family_name', { ascending: true })
+      .order('given_name', { ascending: true })
+      .limit(limit);
+
+    return (data ?? []).map((p) => {
+      const row = p as unknown as {
+        id: string;
+        given_name: string;
+        family_name: string;
+        email: string;
+        claimed_by_user_id: string | null;
+        clubs: { name: string } | null;
+      };
+      return {
+        id: row.id,
+        given_name: row.given_name,
+        family_name: row.family_name,
+        club_label: row.clubs?.name ?? null,
+        masked_email: this.csv.maskEmail(row.email),
+        claimed_by_user_id: row.claimed_by_user_id ?? null,
+      };
+    });
   }
 }

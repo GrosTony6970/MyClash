@@ -588,11 +588,39 @@ export class QualificationsService {
       gpByUser.set(gp.claimed_by_user_id, gp);
     }
 
+    // 3b. For any user_id that has no global_persons row, fall back to the
+    // event-scoped persons table so the referee still shows a real name in
+    // the list (instead of a raw UUID).
+    const missingUserIds = userIds.filter((u) => !gpByUser.has(u));
+    const personByUser = new Map<
+      string,
+      { id: string; given_name: string; family_name: string; club_id: string | null }
+    >();
+    if (missingUserIds.length > 0) {
+      const { data: pRows } = await this.supabase.service
+        .from('persons')
+        .select('id, claimed_by_user_id, given_name, family_name, club_id')
+        .eq('event_id', eventId)
+        .in('claimed_by_user_id', missingUserIds);
+      for (const p of (pRows ?? []) as Array<{
+        id: string;
+        claimed_by_user_id: string;
+        given_name: string;
+        family_name: string;
+        club_id: string | null;
+      }>) {
+        personByUser.set(p.claimed_by_user_id, p);
+      }
+    }
+
     // 4. Resolve club labels — best-effort: collect unique club_ids and batch-fetch names
     const clubIds = Array.from(
       new Set(
-        (gpRows ?? [])
-          .map((p: { club_id: string | null }) => p.club_id)
+        [
+          ...((gpRows ?? []) as Array<{ club_id: string | null }>),
+          ...Array.from(personByUser.values()),
+        ]
+          .map((p) => p.club_id)
           .filter((id): id is string => Boolean(id)),
       ),
     );
@@ -616,10 +644,13 @@ export class QualificationsService {
     // 6. Merge into EventRefereeRow[]
     return rows.map((r) => {
       const gp = gpByUser.get(r.user_id);
-      const personId = gp?.id ?? null;
+      const fallbackPerson = gp ? null : (personByUser.get(r.user_id) ?? null);
+      const personId = gp?.id ?? fallbackPerson?.id ?? null;
       const displayName = gp
         ? `${gp.given_name} ${gp.family_name}`.trim() || gp.display_name || r.user_id
-        : r.user_id;
+        : fallbackPerson
+          ? `${fallbackPerson.given_name} ${fallbackPerson.family_name}`.trim() || r.user_id
+          : r.user_id;
 
       const qualifications = qualsByUser.get(r.user_id) ?? [];
       const userAssignments = assignmentMap.get(r.user_id);
@@ -642,11 +673,12 @@ export class QualificationsService {
         }
       }
 
+      const clubId = gp?.club_id ?? fallbackPerson?.club_id ?? null;
       return {
         userId: r.user_id,
         personId,
         displayName,
-        clubLabel: gp?.club_id ? (clubsById.get(gp.club_id) ?? null) : null,
+        clubLabel: clubId ? (clubsById.get(clubId) ?? null) : null,
         qualifications,
         availableAllTournaments: r.available_all_tournaments,
         availableAllEventDuration: r.available_all_event_duration,

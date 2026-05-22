@@ -801,6 +801,7 @@ export default function RefereesPage() {
 
   // ── Search state ────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
 
   // ── Saving state ────────────────────────────────────────────────────────────
@@ -891,28 +892,35 @@ export default function RefereesPage() {
   }, [eventId, apiUrl, refereesKey]);
 
   // ── Person search ───────────────────────────────────────────────────────────
+  // Fires whenever the input has focus. Empty `search` returns all event
+  // participants (backend caps at 50) so the operator can pick someone to
+  // promote to referee without having to type first.
 
   useEffect(() => {
-    if (search.trim().length < 2) {
-      const timer = setTimeout(() => setSearchResults([]), 0);
-      return () => clearTimeout(timer);
+    if (!searchFocused) {
+      setSearchResults([]);
+      return;
     }
+    const trimmed = search.trim();
+    // For a typed query we still debounce; for the empty-on-focus case we
+    // fire immediately so the dropdown shows up as soon as the input opens.
     const controller = new AbortController();
+    const delay = trimmed.length === 0 ? 0 : 250;
     const timer = setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/events/${eventId}/persons/lookup?q=${encodeURIComponent(search)}`, {
-        signal: controller.signal,
-        credentials: 'include',
-      })
+      const url = trimmed
+        ? `${apiUrl}/api/v1/events/${eventId}/persons/lookup?q=${encodeURIComponent(trimmed)}`
+        : `${apiUrl}/api/v1/events/${eventId}/persons/lookup`;
+      fetch(url, { signal: controller.signal, credentials: 'include' })
         .then(async (res) => {
           if (res.ok) setSearchResults((await res.json()) as PersonResult[]);
         })
         .catch(() => undefined);
-    }, 250);
+    }, delay);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [search, eventId, apiUrl]);
+  }, [search, searchFocused, eventId, apiUrl]);
 
   // ── Global person search ────────────────────────────────────────────────────
 
@@ -1168,6 +1176,10 @@ export default function RefereesPage() {
                   value={search}
                   disabled={isReadOnly}
                   onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  // Delay so clicks on the result list register before the
+                  // dropdown closes; 200ms covers a fast click reliably.
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
                   placeholder={
                     isReadOnly
                       ? t('organizer.deletionRequest.archivedReadOnly')
@@ -1215,10 +1227,14 @@ export default function RefereesPage() {
             </div>
           )}
 
-          {/* Referee table */}
+          {/* Referee table.
+              On the Qualifications tab we render the header (with the 3
+              default skill columns) even when no referees exist yet, so the
+              operator can see what skills will be available. The body shows
+              an empty-state row instead of hiding the whole table. */}
           {loading ? (
             <p className="text-gray-400 text-sm">{t('organizer.refereesPage.loading')}</p>
-          ) : referees.length === 0 ? (
+          ) : referees.length === 0 && activeTab !== 'qualifications' ? (
             <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
               <p className="text-gray-400 text-sm">{t('organizer.refereesPage.noReferees')}</p>
             </div>
@@ -1296,6 +1312,16 @@ export default function RefereesPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {referees.length === 0 && activeTab === 'qualifications' && (
+                    <tr>
+                      <td
+                        colSpan={1 + skills.length}
+                        className="py-10 text-center text-sm text-gray-400"
+                      >
+                        {t('organizer.refereesPage.noReferees')}
+                      </td>
+                    </tr>
+                  )}
                   {referees.map((ref) => (
                     <tr key={ref.userId} className="border-b border-gray-100 hover:bg-gray-50">
                       {/* Name cell */}
