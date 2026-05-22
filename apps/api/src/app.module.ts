@@ -14,6 +14,7 @@ import { WorkshopsModule } from './modules/workshops/workshops.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { RefereesModule } from './modules/referees/referees.module';
 import { DeletionRequestsModule } from './modules/deletion-requests/deletion-requests.module';
+import { ReviewQueueModule } from './modules/admin/review-queue.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { ExportsModule } from './modules/exports/exports.module';
@@ -93,6 +94,7 @@ import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard
     ScheduleModule,
     RefereesModule,
     DeletionRequestsModule,
+    ReviewQueueModule,
     StaffModule,
     StatsModule,
     ExportsModule,
