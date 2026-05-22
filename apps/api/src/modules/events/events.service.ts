@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -458,6 +459,12 @@ export class EventsService {
     }
 
     const event = await this.getEventById(eventId);
+    if ((event as { status: string }).status === 'archived') {
+      throw new ForbiddenException(
+        'Archived events require super-admin approval. Submit a deletion request.',
+      );
+    }
+
     await this.orgs.assertOrgRole(
       (event as { organization_id: string }).organization_id,
       userId,
@@ -835,12 +842,41 @@ export class EventsService {
   }
 
   async deleteTournament(tournamentId: string, userId: string) {
-    const { data: row } = await this.supabase.service
+    const { data: row, error: fetchErr } = await this.supabase.service
       .from('tournaments')
-      .select('event_id')
+      .select('event_id, status')
       .eq('id', tournamentId)
       .maybeSingle();
+    if (fetchErr) throw new BadRequestException(fetchErr.message);
     if (!row) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+
+    const status = (row as { status: string }).status;
+    if (['running', 'completed', 'archived'].includes(status)) {
+      throw new ForbiddenException(
+        'This tournament has progressed past the planning phase. Submit a deletion request.',
+      );
+    }
+
+    // For draft/published: block if any match has results recorded.
+    // matches → phases → tournaments (matches have phase_id, phases have tournament_id).
+    const { data: scoredPhaseIds } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId);
+    const phaseIds = ((scoredPhaseIds ?? []) as Array<{ id: string }>).map((p) => p.id);
+    if (phaseIds.length > 0) {
+      const { count: scoredMatches } = await this.supabase.service
+        .from('matches')
+        .select('id', { count: 'exact', head: true })
+        .in('phase_id', phaseIds)
+        .neq('status', 'scheduled');
+      if ((scoredMatches ?? 0) > 0) {
+        throw new ForbiddenException(
+          'This tournament has scored matches. Submit a deletion request.',
+        );
+      }
+    }
+
     const event = await this.getEventById((row as { event_id: string }).event_id);
     await this.orgs.assertOrgRole(
       (event as { organization_id: string }).organization_id,

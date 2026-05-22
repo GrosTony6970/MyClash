@@ -10,6 +10,7 @@ function makeChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    neq: vi.fn(),
     order: vi.fn(),
     delete: vi.fn(),
     insert: vi.fn(),
@@ -19,6 +20,7 @@ function makeChain(result: unknown) {
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
+  chain.neq.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
   chain.delete.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
@@ -31,11 +33,12 @@ function makeAwaitableChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    neq: vi.fn(),
     order: vi.fn(),
     is: vi.fn(),
     or: vi.fn(),
   });
-  for (const key of ['select', 'eq', 'in', 'order', 'is', 'or']) {
+  for (const key of ['select', 'eq', 'in', 'neq', 'order', 'is', 'or']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -312,6 +315,76 @@ describe('EventsService', () => {
       expect.objectContaining({ id: 'G2', givenName: 'Carol', inEvent: false }),
       expect.objectContaining({ id: 'person-bob', givenName: 'Bob', inEvent: true }),
     ]);
+  });
+
+  // ── deleteEvent lifecycle protection ─────────────────────────────────────
+
+  it('deleteEvent throws ForbiddenException when event.status === "archived"', async () => {
+    // getEventById returns an archived event
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1', status: 'archived' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(eventChain);
+
+    await expect(service.deleteEvent('event-1', 'hard', 'user-1')).rejects.toThrow(
+      ForbiddenException,
+    );
+    // assertOrgRole should NOT have been called — we block before auth check
+    expect(assertOrgRole).not.toHaveBeenCalled();
+  });
+
+  // ── deleteTournament lifecycle protection ─────────────────────────────────
+
+  it('deleteTournament throws ForbiddenException when status is "running"', async () => {
+    const tournamentChain = makeChain({
+      data: { event_id: 'event-1', status: 'running' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(tournamentChain);
+
+    await expect(service.deleteTournament('tourn-1', 'user-1')).rejects.toThrow(ForbiddenException);
+    expect(assertOrgRole).not.toHaveBeenCalled();
+  });
+
+  it('deleteTournament throws ForbiddenException when status is "completed"', async () => {
+    const tournamentChain = makeChain({
+      data: { event_id: 'event-1', status: 'completed' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(tournamentChain);
+
+    await expect(service.deleteTournament('tourn-1', 'user-1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('deleteTournament throws ForbiddenException when status is "archived"', async () => {
+    const tournamentChain = makeChain({
+      data: { event_id: 'event-1', status: 'archived' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(tournamentChain);
+
+    await expect(service.deleteTournament('tourn-1', 'user-1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('deleteTournament throws ForbiddenException when a draft tournament has scored matches', async () => {
+    // 1. Fetch tournament row (draft) — uses .maybeSingle() → makeChain
+    const tournamentChain = makeChain({
+      data: { event_id: 'event-1', status: 'draft' },
+      error: null,
+    });
+    // 2. Fetch phases — service awaits the chain directly (no .maybeSingle)
+    const phasesChain = makeAwaitableChain({ data: [{ id: 'phase-1' }], error: null });
+    // 3. Count scored matches — service awaits the chain directly (head:true, no terminal method)
+    const matchesChain = makeAwaitableChain({ count: 2, error: null });
+
+    fromMock
+      .mockReturnValueOnce(tournamentChain)
+      .mockReturnValueOnce(phasesChain)
+      .mockReturnValueOnce(matchesChain);
+
+    await expect(service.deleteTournament('tourn-1', 'user-1')).rejects.toThrow(ForbiddenException);
+    expect(assertOrgRole).not.toHaveBeenCalled();
   });
 
   it('submits an unverified club review request for organizer-created clubs', async () => {

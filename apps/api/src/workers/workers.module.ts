@@ -11,6 +11,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LeaguesModule } from '../modules/leagues/leagues.module';
 import { NotificationEventsService } from '../modules/notifications/event-handlers/notification-events.service';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
+import { EVENT_ARCHIVE_QUEUE, EventArchiveWorker } from './event-archive.worker';
 import { EVENT_STATUS_TICK_QUEUE, EventStatusTickerWorker } from './event-status-ticker.worker';
 import { FollowNotificationSchedulerService } from './follow-notification-scheduler.worker';
 import { HEMA_RATINGS_QUEUE, HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
@@ -52,12 +53,16 @@ import {
     BullModule.registerQueue({
       name: EVENT_STATUS_TICK_QUEUE,
     }),
+    BullModule.registerQueue({
+      name: EVENT_ARCHIVE_QUEUE,
+    }),
     SupabaseModule,
     LeaguesModule,
   ],
   providers: [
     HemaRatingsSyncWorker,
     EventStatusTickerWorker,
+    EventArchiveWorker,
     FollowNotificationSchedulerService,
     NotificationEventsService,
     NotificationSchedulerService,
