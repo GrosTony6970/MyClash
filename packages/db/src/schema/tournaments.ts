@@ -129,6 +129,9 @@ export const poolAssignmentSettings = pgTable('pool_assignment_settings', {
     .notNull()
     .default(true),
   preferHighRatedReferees: boolean('prefer_high_rated_referees').notNull().default(true),
+  workshopConflictWarning: boolean('workshop_conflict_warning').notNull().default(true),
+  ratingBasedOrdering: boolean('rating_based_ordering').notNull().default(true),
+  workloadBalance: boolean('workload_balance').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

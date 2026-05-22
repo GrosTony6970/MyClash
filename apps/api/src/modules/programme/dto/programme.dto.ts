@@ -109,7 +109,7 @@ export class ProgrammeBlockDto {
   matchGapSeconds: number = 15;
 
   @IsInt()
-  @Min(1)
+  @Min(0)
   matchDurationMinutes: number = 5;
 }
 

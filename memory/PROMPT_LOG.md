@@ -903,3 +903,7 @@ Troubleshoot and fix the System Versions page still showing unknown for deploy, 
 ## 13:52:55_19-05-2026
 
 Use the brainstorming skill to discuss how to make backups consistent; user chose app-quiesced backups with a brief write pause.
+
+## 18:10:58_22-05-2026
+
+Implement the Schedule Save/Generate Bug Fix Plan: fix programme save validation, generate from current visible programme, restore GET /events/:eventId/schedule, align pool_assignment_settings schema, and add targeted tests.

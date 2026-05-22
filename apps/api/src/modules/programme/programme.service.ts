@@ -51,6 +51,8 @@ export class ProgrammeService {
   // ── Save (bulk replace) ────────────────────────────────────────────────────
 
   async saveBlocks(eventId: string, dto: SaveProgrammeDto): Promise<ProgrammeBlock[]> {
+    this.validateBlocks(dto.blocks);
+
     const { error: delError } = await this.supabase.service
       .from('event_programme_blocks')
       .delete()
@@ -562,6 +564,36 @@ export class ProgrammeService {
         red_registration_id: string;
         blue_registration_id: string;
       }>;
+    }
+  }
+
+  private validateBlocks(blocks: SaveProgrammeDto['blocks']): void {
+    for (const block of blocks) {
+      if (timeToMin(block.endTime) <= timeToMin(block.startTime)) {
+        throw new BadRequestException(`Block "${block.label}" must end after it starts`);
+      }
+
+      if (block.blockType !== 'competition') continue;
+
+      if (!block.competitionId) {
+        throw new BadRequestException(`Competition block "${block.label}" requires a tournament`);
+      }
+      if (!block.competitionPhase) {
+        throw new BadRequestException(`Competition block "${block.label}" requires a phase`);
+      }
+      if (!['pool', 'bracket', 'finals'].includes(block.competitionPhase)) {
+        throw new BadRequestException(`Competition block "${block.label}" has an invalid phase`);
+      }
+      if (block.liceCount < 1) {
+        throw new BadRequestException(
+          `Competition block "${block.label}" requires at least one lice`,
+        );
+      }
+      if (block.matchDurationMinutes < 1) {
+        throw new BadRequestException(
+          `Competition block "${block.label}" requires a match duration of at least 1 minute`,
+        );
+      }
     }
   }
 

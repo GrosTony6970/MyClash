@@ -122,18 +122,32 @@ export function ProgrammePlanner({
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
+  async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+    try {
+      const body = (await res.json()) as { message?: string | string[]; error?: string };
+      if (Array.isArray(body.message)) return body.message.join(', ');
+      return body.message ?? body.error ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  async function persistProgramme(): Promise<ProgrammeBlock[]> {
+    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blocks }),
+    });
+    if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save'));
+    return (await res.json()) as ProgrammeBlock[];
+  }
+
   async function saveProgramme() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blocks }),
-      });
-      if (!res.ok) throw new Error('Failed to save');
-      const saved = (await res.json()) as ProgrammeBlock[];
+      const saved = await persistProgramme();
       setBlocks(saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
@@ -149,11 +163,13 @@ export function ProgrammePlanner({
     setConfirmGenerate(false);
     setError(null);
     try {
+      const saved = await persistProgramme();
+      setBlocks(saved);
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/generate`, {
         method: 'POST',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Failed to generate');
+      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to generate'));
       const result = (await res.json()) as GenerateResult;
       setGenerateResult(result);
       setTimeout(() => onGenerateDone(), 1500);
