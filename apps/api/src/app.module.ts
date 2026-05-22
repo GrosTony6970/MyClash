@@ -13,6 +13,7 @@ import { HemaRatingsModule } from './modules/hema-ratings/hema-ratings.module';
 import { WorkshopsModule } from './modules/workshops/workshops.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
 import { RefereesModule } from './modules/referees/referees.module';
+import { DeletionRequestsModule } from './modules/deletion-requests/deletion-requests.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { ExportsModule } from './modules/exports/exports.module';
@@ -90,6 +91,7 @@ import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor'
     WorkshopsModule,
     ScheduleModule,
     RefereesModule,
+    DeletionRequestsModule,
     StaffModule,
     StatsModule,
     ExportsModule,
