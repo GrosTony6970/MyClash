@@ -49,6 +49,11 @@ const navSections: readonly NavSection[] = [
     headingKey: 'admin.shell.sectionOperations',
     items: [
       {
+        href: '/admin/review-queue',
+        labelKey: 'admin.reviewQueue.navTitle',
+        badge: 'RQ',
+      },
+      {
         href: '/admin/exchange-edit-requests',
         labelKey: 'admin.shell.nav.frozenResults',
         badge: 'FR',
