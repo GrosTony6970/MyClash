@@ -111,13 +111,6 @@ export default function PoolsPage() {
   const [schoolSep, setSchoolSep] = useState(true);
   const [skillBalance, setSkillBalance] = useState(true);
 
-  // Referee constraints
-  const [refNoBackToBack, setRefNoBackToBack] = useState(true);
-  const [refRestMinSlots, setRefRestMinSlots] = useState(1);
-  const [refDedicatedRest, setRefDedicatedRest] = useState(true);
-  const [refFighterNoOverlap, setRefFighterNoOverlap] = useState(true);
-  const [refPreferHighRated, setRefPreferHighRated] = useState(true);
-
   // UI state
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,11 +224,6 @@ export default function PoolsPage() {
       const body: Record<string, unknown> = {
         enforceSchoolSeparation: schoolSep,
         enforceSkillBalance: skillBalance,
-        enforceRefereeNoBackToBack: refNoBackToBack,
-        refereeRestMinSlots: refRestMinSlots,
-        enforceDedicatedRefereeRest: refDedicatedRest,
-        enforceFighterRefereeNoOverlap: refFighterNoOverlap,
-        preferHighRatedReferees: refPreferHighRated,
       };
       if (mode === 'poolCount') body['poolCount'] = poolCount;
       else body['targetSize'] = targetSize;
@@ -1007,7 +995,7 @@ export default function PoolsPage() {
               )}
             </div>
 
-            {/* Constraints section: school sep, skill balance, + 5 referee constraints */}
+            {/* Constraints section: pool generation constraints */}
             <div className="space-y-3 border-t border-slate-200 pt-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t('organizer.pools.configure.constraints')}
@@ -1034,74 +1022,6 @@ export default function PoolsPage() {
                   type="checkbox"
                   checked={skillBalance}
                   onChange={(e) => setSkillBalance(e.target.checked)}
-                />
-              </label>
-
-              <div className="border-t border-slate-100 pt-3" />
-
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.refNoBackToBack')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.refNoBackToBack')} />
-                </span>
-                <input
-                  type="checkbox"
-                  checked={refNoBackToBack}
-                  onChange={(e) => setRefNoBackToBack(e.target.checked)}
-                />
-              </label>
-
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.refRestMinSlots')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.refRestMinSlots')} />
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={refRestMinSlots}
-                  onChange={(e) =>
-                    setRefRestMinSlots(Math.max(0, Math.min(10, parseInt(e.target.value, 10) || 0)))
-                  }
-                  disabled={!refNoBackToBack}
-                  className="w-16 rounded-md border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-50"
-                />
-              </label>
-
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.refDedicatedRest')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.refDedicatedRest')} />
-                </span>
-                <input
-                  type="checkbox"
-                  checked={refDedicatedRest}
-                  onChange={(e) => setRefDedicatedRest(e.target.checked)}
-                />
-              </label>
-
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.refFighterNoOverlap')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.refFighterNoOverlap')} />
-                </span>
-                <input
-                  type="checkbox"
-                  checked={refFighterNoOverlap}
-                  onChange={(e) => setRefFighterNoOverlap(e.target.checked)}
-                />
-              </label>
-
-              <label className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center">
-                  {t('organizer.pools.configure.refPreferHighRated')}
-                  <HelpTooltip text={t('organizer.pools.configure.help.refPreferHighRated')} />
-                </span>
-                <input
-                  type="checkbox"
-                  checked={refPreferHighRated}
-                  onChange={(e) => setRefPreferHighRated(e.target.checked)}
                 />
               </label>
             </div>
@@ -1137,6 +1057,14 @@ export default function PoolsPage() {
               >
                 Delete all pools
               </button>
+              {existingPhase && (
+                <Link
+                  href={`/org/${slug}/events/${eventId}/referees#assignments`}
+                  className="block w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Assign referees
+                </Link>
+              )}
             </div>
           </aside>
         </div>

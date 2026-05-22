@@ -208,6 +208,8 @@ The unified **My Schedule** view aggregates all of a user's commitments and surf
 
 ## Pool population & referee assignment (v1 feature)
 
+- Pool generation is fighter-only: it creates pools/matches and then links organizers to the consolidated Referee workspace for referee assignment.
+- Admin referee UX is one event-level workspace at `/org/[slug]/events/[eventId]/referees` with tabs for Referees, Qualifications, and Assignments. The old `/referee-assignments` route redirects to `/referees#assignments`.
 - Pool generation honors **school separation** (configurable) and **skill balance** (configurable, uses HEMA Ratings per-weapon → overall → seed → registration order).
 - Referee assignment satisfies hard constraints (no fighter-referee overlap, qualification required) and configurable soft constraints (no back-to-back duties, dedicated-referee rest, workshop conflict warnings, rating-based ordering, workload balance).
 - Each pool needs **3 referees**, one per role.

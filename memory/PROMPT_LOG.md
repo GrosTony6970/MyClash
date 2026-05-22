@@ -907,3 +907,7 @@ Use the brainstorming skill to discuss how to make backups consistent; user chos
 ## 18:10:58_22-05-2026
 
 Implement the Schedule Save/Generate Bug Fix Plan: fix programme save validation, generate from current visible programme, restore GET /events/:eventId/schedule, align pool_assignment_settings schema, and add targeted tests.
+
+## 18:41:41_22-05-2026
+
+Implement the Referee Workspace Consolidation Plan: collapse Referees and Referee Assignments into one tabbed Referee workspace; keep pool generation separate; add assignment board payload, auto-assign preview/apply/manual assignment flow, optional swap suggestions, redirects, and tests.

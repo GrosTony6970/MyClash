@@ -38,6 +38,68 @@ interface EventRefereeRow {
 }
 
 // qual id lookup: key = `${personId}:${skillId}` → qualId
+type RefereeWorkspaceTab = 'referees' | 'qualifications' | 'assignments';
+type AssignmentRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
+
+interface AssignmentBoardCandidate {
+  userId: string;
+  personId: string | null;
+  displayName: string;
+  clubLabel: string | null;
+  qualifications: Array<{ role: AssignmentRole; rating: number | null }>;
+  workload: number;
+}
+
+interface AssignmentBoardRoleSlot {
+  role: AssignmentRole;
+  assignment: {
+    id: string;
+    userId: string;
+    personId: string | null;
+    displayName: string;
+    status: string;
+    autoAssigned: boolean;
+  } | null;
+  missingReasons: string[];
+  candidates: {
+    recommended: AssignmentBoardCandidate[];
+    warning: Array<AssignmentBoardCandidate & { warnings: string[] }>;
+    blocked: Array<AssignmentBoardCandidate & { reasons: string[] }>;
+  };
+}
+
+interface AssignmentBoardPool {
+  id: string;
+  name: string;
+  tournamentName: string;
+  liceId: string | null;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+  members: Array<{
+    registrationId: string;
+    personId: string;
+    personName: string;
+    clubLabel: string | null;
+  }>;
+  roleSlots: AssignmentBoardRoleSlot[];
+}
+
+interface AssignmentBoard {
+  roles: AssignmentRole[];
+  pools: AssignmentBoardPool[];
+  unscheduledPools: AssignmentBoardPool[];
+  candidates: AssignmentBoardCandidate[];
+  missingSlots: Array<{
+    poolId: string;
+    poolName: string;
+    role: AssignmentRole;
+    reasons: string[];
+  }>;
+  warnings: Array<{ poolId: string; poolName: string; role: AssignmentRole; detail: string }>;
+  locked: boolean;
+  swapSuggestions: [];
+}
+
 type QualIdMap = Map<string, string>;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -334,6 +396,357 @@ function SkillModal({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+function roleLabel(role: AssignmentRole) {
+  return t(`organizer.eventCompensation.roles.${role}`);
+}
+
+function formatTime(value: string | null) {
+  if (!value) return t('organizer.refereesPage.unscheduled');
+  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(
+    new Date(value),
+  );
+}
+
+function CandidateGroup({
+  title,
+  candidates,
+  disabled,
+  onSelect,
+}: {
+  title: string;
+  candidates: Array<AssignmentBoardCandidate & { reasons?: string[]; warnings?: string[] }>;
+  disabled?: boolean;
+  onSelect?: (candidate: AssignmentBoardCandidate) => void;
+}) {
+  if (candidates.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{title}</p>
+      <div className="space-y-2">
+        {candidates.map((candidate) => (
+          <button
+            type="button"
+            key={candidate.userId}
+            disabled={disabled}
+            onClick={() => onSelect?.(candidate)}
+            className="w-full rounded border border-gray-200 px-3 py-2 text-left text-sm hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+          >
+            <span className="block font-medium">{candidate.displayName}</span>
+            {candidate.clubLabel && <span className="block text-xs">{candidate.clubLabel}</span>}
+            {(candidate.reasons?.length ?? 0) > 0 && (
+              <span className="block text-xs">{candidate.reasons?.join(', ')}</span>
+            )}
+            {(candidate.warnings?.length ?? 0) > 0 && (
+              <span className="block text-xs">{candidate.warnings?.join(', ')}</span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AssignmentsTab({
+  eventId,
+  apiUrl,
+  isReadOnly,
+}: {
+  eventId: string;
+  apiUrl: string;
+  isReadOnly: boolean;
+}) {
+  const [board, setBoard] = useState<AssignmentBoard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [locking, setLocking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [picker, setPicker] = useState<{
+    pool: AssignmentBoardPool;
+    slot: AssignmentBoardRoleSlot;
+  } | null>(null);
+
+  async function loadBoard(signal?: AbortSignal) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignment-board`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentLoadFailed'));
+      }
+      setBoard((await res.json()) as AssignmentBoard);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentLoadFailed'),
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadBoard(controller.signal);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  async function applyPreview() {
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/events/${eventId}/referee-assignment-preview/apply`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
+      }
+      await loadBoard();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
+      );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function manualAssign(poolId: string, role: AssignmentRole, userId: string) {
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ poolId, role, userId }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
+      }
+      setPicker(null);
+      setBoard((await res.json()) as AssignmentBoard);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
+      );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function lockAssignments() {
+    setLocking(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lock-referee-assignments`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentLockFailed'));
+      }
+      await loadBoard();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentLockFailed'),
+      );
+    } finally {
+      setLocking(false);
+    }
+  }
+
+  function renderPoolRows(pools: AssignmentBoardPool[], unscheduled = false) {
+    if (pools.length === 0) return null;
+    return (
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+              <th className="px-3 py-2 font-medium">{t('organizer.refereesPage.poolColumn')}</th>
+              <th className="px-3 py-2 font-medium">
+                {t('organizer.refereesPage.scheduleColumn')}
+              </th>
+              {board?.roles.map((role) => (
+                <th key={role} className="px-3 py-2 font-medium">
+                  {roleLabel(role)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pools.map((pool) => (
+              <tr key={pool.id} className="border-b border-gray-100 last:border-0">
+                <td className="px-3 py-3 align-top">
+                  <p className="font-medium text-gray-900">{pool.name}</p>
+                  <p className="text-xs text-gray-500">{pool.tournamentName}</p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {pool.members.map((member) => member.personName).join(', ')}
+                  </p>
+                </td>
+                <td className="px-3 py-3 align-top text-xs text-gray-600">
+                  {unscheduled
+                    ? t('organizer.refereesPage.unscheduled')
+                    : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
+                </td>
+                {pool.roleSlots.map((slot) => (
+                  <td key={slot.role} className="px-3 py-3 align-top">
+                    <button
+                      type="button"
+                      disabled={isReadOnly || board?.locked}
+                      onClick={() => setPicker({ pool, slot })}
+                      className={[
+                        'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                        slot.assignment
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                          : slot.missingReasons.length
+                            ? 'border-red-200 bg-red-50 text-red-900'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                      ].join(' ')}
+                    >
+                      <span className="block font-medium">
+                        {slot.assignment?.displayName ?? t('organizer.refereesPage.unassigned')}
+                      </span>
+                      {slot.missingReasons.length > 0 && (
+                        <span className="block text-xs opacity-80">
+                          {slot.missingReasons.join(', ')}
+                        </span>
+                      )}
+                    </button>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void loadBoard()}
+          disabled={loading || running}
+          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+        >
+          {t('organizer.refereesPage.previewAssignments')}
+        </button>
+        <button
+          type="button"
+          onClick={() => void applyPreview()}
+          disabled={isReadOnly || running || board?.locked}
+          className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+        >
+          {running
+            ? t('organizer.refereesPage.applying')
+            : t('organizer.refereesPage.applyAssignments')}
+        </button>
+        <button
+          type="button"
+          onClick={() => void lockAssignments()}
+          disabled={isReadOnly || locking || board?.locked}
+          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+        >
+          {locking
+            ? t('organizer.refereesPage.locking')
+            : t('organizer.refereesPage.lockAssignments')}
+        </button>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {loading ? (
+        <p className="text-sm text-gray-400">{t('organizer.refereesPage.loading')}</p>
+      ) : !board || (board.pools.length === 0 && board.unscheduledPools.length === 0) ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+          <p className="text-gray-400 text-sm">
+            {t('organizer.refereesPage.noPoolsForAssignments')}
+          </p>
+        </div>
+      ) : (
+        <>
+          {renderPoolRows(board.pools)}
+          {board.unscheduledPools.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold text-gray-700">
+                {t('organizer.refereesPage.unscheduledPools')}
+              </h2>
+              {renderPoolRows(board.unscheduledPools, true)}
+            </div>
+          )}
+          {board.missingSlots.length > 0 && (
+            <div className="border border-red-200 bg-red-50 rounded-lg p-4">
+              <p className="text-sm font-semibold text-red-800">
+                {t('organizer.refereesPage.missingAssignments')}
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-red-700">
+                {board.missingSlots.map((missing) => (
+                  <li key={`${missing.poolId}:${missing.role}`}>
+                    {missing.poolName} - {roleLabel(missing.role)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+
+      {picker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {picker.pool.name} - {roleLabel(picker.slot.role)}
+                </h2>
+                <p className="text-sm text-gray-500">{picker.pool.tournamentName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPicker(null)}
+                className="text-sm text-gray-500 hover:text-gray-800"
+              >
+                {t('organizer.refereesPage.cancel')}
+              </button>
+            </div>
+
+            <div className="max-h-96 space-y-4 overflow-y-auto">
+              <CandidateGroup
+                title={t('organizer.refereesPage.recommendedCandidates')}
+                candidates={picker.slot.candidates.recommended}
+                onSelect={(candidate) =>
+                  void manualAssign(picker.pool.id, picker.slot.role, candidate.userId)
+                }
+              />
+              <CandidateGroup
+                title={t('organizer.refereesPage.warningCandidates')}
+                candidates={picker.slot.candidates.warning}
+                onSelect={(candidate) =>
+                  void manualAssign(picker.pool.id, picker.slot.role, candidate.userId)
+                }
+              />
+              <CandidateGroup
+                title={t('organizer.refereesPage.blockedCandidates')}
+                candidates={picker.slot.candidates.blocked}
+                disabled
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 interface GlobalPersonResult {
   id: string;
   given_name: string;
@@ -354,6 +767,24 @@ export default function RefereesPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { isReadOnly } = useEventStatus(eventId);
+  const [activeTab, setActiveTab] = useState<RefereeWorkspaceTab>('referees');
+
+  useEffect(() => {
+    function syncHash() {
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'assignments' || hash === 'qualifications' || hash === 'referees') {
+        setActiveTab(hash);
+      }
+    }
+    syncHash();
+    window.addEventListener('hashchange', syncHash);
+    return () => window.removeEventListener('hashchange', syncHash);
+  }, []);
+
+  function selectTab(tab: RefereeWorkspaceTab) {
+    setActiveTab(tab);
+    window.history.replaceState(null, '', `#${tab}`);
+  }
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [skills, setSkills] = useState<RefereeSkill[]>([]);
@@ -682,14 +1113,16 @@ export default function RefereesPage() {
           <h1 className="text-2xl font-bold">{t('organizer.refereesPage.pageTitle')}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSkillModal({ mode: 'add' })}
-            disabled={isReadOnly}
-            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-            className="border border-red-300 text-red-700 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
-          >
-            + {t('organizer.refereesPage.addCustomSkill')}
-          </button>
+          {activeTab === 'qualifications' && (
+            <button
+              onClick={() => setSkillModal({ mode: 'add' })}
+              disabled={isReadOnly}
+              title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+              className="border border-red-300 text-red-700 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+            >
+              + {t('organizer.refereesPage.addCustomSkill')}
+            </button>
+          )}
           <Link
             href={`/org/${slug}/events/${eventId}/pools`}
             className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
@@ -699,340 +1132,389 @@ export default function RefereesPage() {
         </div>
       </div>
 
-      {/* Add referee search */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-        <p className="text-sm font-medium text-gray-700 mb-2">
-          {t('organizer.refereesPage.addRefereeButton')}
-        </p>
-        <div className="relative">
-          <input
-            type="search"
-            value={search}
-            disabled={isReadOnly}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={
-              isReadOnly
-                ? t('organizer.deletionRequest.archivedReadOnly')
-                : t('organizer.refereesPage.searchParticipantPlaceholder')
-            }
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          {searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-              {searchResults.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {p.given_name} {p.family_name}
-                    </p>
-                    {p.club_label && <p className="text-xs text-gray-400">{p.club_label}</p>}
-                  </div>
-                  {p.claimed_by_user_id ? (
-                    <button
-                      onClick={() => {
-                        void addReferee(p.claimed_by_user_id!);
-                        setSearch('');
-                        setSearchResults([]);
-                      }}
-                      className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
-                    >
-                      {t('organizer.refereesPage.addQualification')}
-                    </button>
-                  ) : (
-                    <span
-                      title={t('organizer.refereesPage.linkProfileFirst')}
-                      className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5 cursor-not-allowed"
-                    >
-                      {t('organizer.refereesPage.addQualification')}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="mb-6 border-b border-gray-200">
+        <nav className="-mb-px flex gap-6">
+          {(['referees', 'qualifications', 'assignments'] as RefereeWorkspaceTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => selectTab(tab)}
+              className={[
+                'border-b-2 px-1 py-3 text-sm font-medium transition-colors',
+                activeTab === tab
+                  ? 'border-red-700 text-red-700'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+              ].join(' ')}
+            >
+              {t(`organizer.refereesPage.tabs.${tab}`)}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Referee table */}
-      {loading ? (
-        <p className="text-gray-400 text-sm">{t('organizer.refereesPage.loading')}</p>
-      ) : referees.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">{t('organizer.refereesPage.noReferees')}</p>
-        </div>
+      {activeTab === 'assignments' ? (
+        <AssignmentsTab eventId={eventId} apiUrl={apiUrl} isReadOnly={isReadOnly} />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500">
-                {/* Name column */}
-                <th className="py-2 pr-4 font-medium whitespace-nowrap">
-                  {t('organizer.refereesPage.personColumn')}
-                </th>
-
-                {/* Skill columns */}
-                {skills.map((skill) => (
-                  <th
-                    key={skill.id}
-                    className={[
-                      'py-2 px-3 font-medium text-center whitespace-nowrap rounded-t',
-                      tintBgClassFor(skill.color),
-                    ].join(' ')}
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <span>{skill.name}</span>
-                      {!skill.isSystem && (
-                        <button
-                          onClick={() =>
-                            setSkillModal({
-                              mode: 'edit',
-                              skillId: skill.id,
-                              initial: { name: skill.name, color: skill.color },
-                            })
-                          }
-                          disabled={isReadOnly}
-                          className="text-gray-400 hover:text-gray-700 ml-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={
-                            isReadOnly
-                              ? t('organizer.deletionRequest.archivedReadOnly')
-                              : t('organizer.refereesPage.editSkill')
-                          }
-                        >
-                          ✎
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                ))}
-
-                {/* Availability columns */}
-                <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                  {t('organizer.refereesPage.availableAllTournaments')}
-                </th>
-                <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                  {t('organizer.refereesPage.availableAllEventDuration')}
-                </th>
-
-                {/* Assignment summary */}
-                <th className="py-2 px-3 font-medium whitespace-nowrap">
-                  {t('organizer.refereesPage.assignedTo')}
-                </th>
-
-                {/* Total matches */}
-                <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                  {t('organizer.refereesPage.totalMatches')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {referees.map((ref) => (
-                <tr key={ref.userId} className="border-b border-gray-100 hover:bg-gray-50">
-                  {/* Name cell */}
-                  <td className="py-3 pr-4 align-top">
-                    <p className="font-medium text-gray-900">{ref.displayName}</p>
-                    {ref.clubLabel && <p className="text-xs text-gray-400">{ref.clubLabel}</p>}
-                    {ref.personId ? (
-                      <span className="text-xs text-emerald-600 font-medium">
-                        {t('organizer.refereesPage.globalProfileLinked')}
-                      </span>
-                    ) : (
-                      <div className="mt-1">
-                        {linkingPersonId === ref.userId ? (
-                          <div className="flex flex-col gap-1">
-                            <input
-                              type="search"
-                              value={globalSearch}
-                              onChange={(e) => setGlobalSearch(e.target.value)}
-                              placeholder={t(
-                                'organizer.refereesPage.searchGlobalPersonsPlaceholder',
-                              )}
-                              className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                            />
-                            {globalResults.length > 0 && (
-                              <div className="bg-white border border-gray-200 rounded shadow text-xs max-h-32 overflow-y-auto">
-                                {globalResults.map((gp) => (
-                                  <button
-                                    key={gp.id}
-                                    onClick={() => {
-                                      // Find any qual id for this user
-                                      const firstQualId = Array.from(qualIdMap.entries()).find(
-                                        ([key]) => key.startsWith(`${ref.personId}:`),
-                                      )?.[1];
-                                      if (firstQualId) void linkToGlobalPerson(firstQualId, gp.id);
-                                    }}
-                                    className="block w-full text-left px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                                  >
-                                    {gp.display_name}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => void createAndLinkGlobalPerson(ref)}
-                                className="text-xs text-amber-600 hover:text-amber-800"
-                              >
-                                {t('organizer.refereesPage.createGlobalProfile')}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setLinkingPersonId(null);
-                                  setGlobalSearch('');
-                                  setGlobalResults([]);
-                                }}
-                                className="text-xs text-gray-400 hover:text-gray-600"
-                              >
-                                {t('organizer.refereesPage.cancel')}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setLinkingPersonId(ref.userId)}
-                            className="text-xs text-amber-600 hover:text-amber-800"
-                          >
-                            {t('organizer.refereesPage.linkGlobalProfile')}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Skill cells */}
-                  {skills.map((skill) => {
-                    const qual = ref.qualifications.find((q) => q.skillId === skill.id);
-                    const isSaving = savingQual === `${ref.personId}-${skill.id}`;
-                    return (
-                      <td key={skill.id} className="py-3 px-3 text-center align-top">
-                        {qual ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <SkillBadge color={skill.color} label={skill.name} />
-                            <StarRating
-                              value={qual.rating}
-                              onChange={(v) => {
-                                if (!isReadOnly && ref.personId) {
-                                  void upsertQualification(ref.personId, skill.id, v);
-                                }
-                              }}
-                            />
-                            <button
-                              onClick={() => {
-                                if (ref.personId) {
-                                  void removeQualification(ref.personId, skill.id);
-                                }
-                              }}
-                              disabled={isSaving || isReadOnly}
-                              title={
-                                isReadOnly
-                                  ? t('organizer.deletionRequest.archivedReadOnly')
-                                  : undefined
-                              }
-                              className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
-                            >
-                              {t('organizer.refereesPage.removeQualification')}
-                            </button>
-                          </div>
-                        ) : (
+        <>
+          {/* Add referee search */}
+          {activeTab === 'referees' && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                {t('organizer.refereesPage.addRefereeButton')}
+              </p>
+              <div className="relative">
+                <input
+                  type="search"
+                  value={search}
+                  disabled={isReadOnly}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    isReadOnly
+                      ? t('organizer.deletionRequest.archivedReadOnly')
+                      : t('organizer.refereesPage.searchParticipantPlaceholder')
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                {searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                    {searchResults.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {p.given_name} {p.family_name}
+                          </p>
+                          {p.club_label && <p className="text-xs text-gray-400">{p.club_label}</p>}
+                        </div>
+                        {p.claimed_by_user_id ? (
                           <button
                             onClick={() => {
-                              if (ref.personId) {
-                                void upsertQualification(ref.personId, skill.id, null);
-                              }
+                              void addReferee(p.claimed_by_user_id!);
+                              setSearch('');
+                              setSearchResults([]);
                             }}
-                            disabled={isSaving || !ref.personId || isReadOnly}
-                            className="text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-300 rounded px-2 py-0.5 disabled:opacity-50"
-                            title={
-                              isReadOnly
-                                ? t('organizer.deletionRequest.archivedReadOnly')
-                                : !ref.personId
-                                  ? t('organizer.refereesPage.linkProfileFirst')
-                                  : undefined
-                            }
+                            className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
                           >
                             {t('organizer.refereesPage.addQualification')}
                           </button>
-                        )}
-                      </td>
-                    );
-                  })}
-
-                  {/* Available all tournaments toggle */}
-                  <td className="py-3 px-3 text-center align-middle">
-                    <div className="flex justify-center">
-                      <Toggle
-                        checked={ref.availableAllTournaments}
-                        disabled={isReadOnly}
-                        onChange={(v) =>
-                          void updateAvailability(ref.userId, { availableAllTournaments: v })
-                        }
-                      />
-                    </div>
-                  </td>
-
-                  {/* Available all event duration toggle */}
-                  <td className="py-3 px-3 text-center align-middle">
-                    <div className="flex justify-center">
-                      <Toggle
-                        checked={ref.availableAllEventDuration}
-                        disabled={isReadOnly}
-                        onChange={(v) =>
-                          void updateAvailability(ref.userId, { availableAllEventDuration: v })
-                        }
-                      />
-                    </div>
-                  </td>
-
-                  {/* Assignment summary cell */}
-                  <td className="py-3 px-3 align-top">
-                    {ref.assignments.length === 0 ? (
-                      <span className="text-xs text-gray-400">—</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {ref.assignments.slice(0, 3).map((a) => (
+                        ) : (
                           <span
-                            key={a.tournamentId}
-                            className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 rounded px-2 py-0.5"
+                            title={t('organizer.refereesPage.linkProfileFirst')}
+                            className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5 cursor-not-allowed"
                           >
-                            {a.tournamentName}
-                            <span className="text-gray-400">·</span>
-                            {a.matchCount}{' '}
-                            {a.matchCount === 1
-                              ? t('organizer.refereesPage.match')
-                              : t('organizer.refereesPage.matches')}
-                          </span>
-                        ))}
-                        {ref.assignments.length > 3 && (
-                          <span
-                            className="text-xs text-gray-500 cursor-default"
-                            title={ref.assignments
-                              .slice(3)
-                              .map(
-                                (a) =>
-                                  `${a.tournamentName} · ${a.matchCount} ${a.matchCount === 1 ? t('organizer.refereesPage.match') : t('organizer.refereesPage.matches')}`,
-                              )
-                              .join(', ')}
-                          >
-                            {t('organizer.refereesPage.moreCount', {
-                              count: ref.assignments.length - 3,
-                            })}
+                            {t('organizer.refereesPage.addQualification')}
                           </span>
                         )}
                       </div>
-                    )}
-                  </td>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-                  {/* Total matches */}
-                  <td className="py-3 px-3 text-center align-middle">
-                    <span className="font-medium text-gray-900">{ref.totalMatchCount}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {/* Referee table */}
+          {loading ? (
+            <p className="text-gray-400 text-sm">{t('organizer.refereesPage.loading')}</p>
+          ) : referees.length === 0 ? (
+            <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+              <p className="text-gray-400 text-sm">{t('organizer.refereesPage.noReferees')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                    {/* Name column */}
+                    <th className="py-2 pr-4 font-medium whitespace-nowrap">
+                      {t('organizer.refereesPage.personColumn')}
+                    </th>
+
+                    {/* Skill columns */}
+                    {activeTab === 'qualifications' &&
+                      skills.map((skill) => (
+                        <th
+                          key={skill.id}
+                          className={[
+                            'py-2 px-3 font-medium text-center whitespace-nowrap rounded-t',
+                            tintBgClassFor(skill.color),
+                          ].join(' ')}
+                        >
+                          <div className="flex items-center justify-center gap-1">
+                            <span>{skill.name}</span>
+                            {!skill.isSystem && (
+                              <button
+                                onClick={() =>
+                                  setSkillModal({
+                                    mode: 'edit',
+                                    skillId: skill.id,
+                                    initial: { name: skill.name, color: skill.color },
+                                  })
+                                }
+                                disabled={isReadOnly}
+                                className="text-gray-400 hover:text-gray-700 ml-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                  isReadOnly
+                                    ? t('organizer.deletionRequest.archivedReadOnly')
+                                    : t('organizer.refereesPage.editSkill')
+                                }
+                              >
+                                ✎
+                              </button>
+                            )}
+                          </div>
+                        </th>
+                      ))}
+
+                    {/* Availability columns */}
+                    {activeTab === 'referees' && (
+                      <>
+                        <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
+                          {t('organizer.refereesPage.availableAllTournaments')}
+                        </th>
+                        <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
+                          {t('organizer.refereesPage.availableAllEventDuration')}
+                        </th>
+                      </>
+                    )}
+
+                    {/* Assignment summary */}
+                    {activeTab === 'referees' && (
+                      <th className="py-2 px-3 font-medium whitespace-nowrap">
+                        {t('organizer.refereesPage.assignedTo')}
+                      </th>
+                    )}
+
+                    {/* Total matches */}
+                    {activeTab === 'referees' && (
+                      <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
+                        {t('organizer.refereesPage.totalMatches')}
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {referees.map((ref) => (
+                    <tr key={ref.userId} className="border-b border-gray-100 hover:bg-gray-50">
+                      {/* Name cell */}
+                      <td className="py-3 pr-4 align-top">
+                        <p className="font-medium text-gray-900">{ref.displayName}</p>
+                        {ref.clubLabel && <p className="text-xs text-gray-400">{ref.clubLabel}</p>}
+                        {ref.personId ? (
+                          <span className="text-xs text-emerald-600 font-medium">
+                            {t('organizer.refereesPage.globalProfileLinked')}
+                          </span>
+                        ) : (
+                          <div className="mt-1">
+                            {linkingPersonId === ref.userId ? (
+                              <div className="flex flex-col gap-1">
+                                <input
+                                  type="search"
+                                  value={globalSearch}
+                                  onChange={(e) => setGlobalSearch(e.target.value)}
+                                  placeholder={t(
+                                    'organizer.refereesPage.searchGlobalPersonsPlaceholder',
+                                  )}
+                                  className="border border-gray-300 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                />
+                                {globalResults.length > 0 && (
+                                  <div className="bg-white border border-gray-200 rounded shadow text-xs max-h-32 overflow-y-auto">
+                                    {globalResults.map((gp) => (
+                                      <button
+                                        key={gp.id}
+                                        onClick={() => {
+                                          // Find any qual id for this user
+                                          const firstQualId = Array.from(qualIdMap.entries()).find(
+                                            ([key]) => key.startsWith(`${ref.personId}:`),
+                                          )?.[1];
+                                          if (firstQualId)
+                                            void linkToGlobalPerson(firstQualId, gp.id);
+                                        }}
+                                        className="block w-full text-left px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                      >
+                                        {gp.display_name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => void createAndLinkGlobalPerson(ref)}
+                                    className="text-xs text-amber-600 hover:text-amber-800"
+                                  >
+                                    {t('organizer.refereesPage.createGlobalProfile')}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setLinkingPersonId(null);
+                                      setGlobalSearch('');
+                                      setGlobalResults([]);
+                                    }}
+                                    className="text-xs text-gray-400 hover:text-gray-600"
+                                  >
+                                    {t('organizer.refereesPage.cancel')}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setLinkingPersonId(ref.userId)}
+                                className="text-xs text-amber-600 hover:text-amber-800"
+                              >
+                                {t('organizer.refereesPage.linkGlobalProfile')}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Skill cells */}
+                      {activeTab === 'qualifications' &&
+                        skills.map((skill) => {
+                          const qual = ref.qualifications.find((q) => q.skillId === skill.id);
+                          const isSaving = savingQual === `${ref.personId}-${skill.id}`;
+                          return (
+                            <td key={skill.id} className="py-3 px-3 text-center align-top">
+                              {qual ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <SkillBadge color={skill.color} label={skill.name} />
+                                  <StarRating
+                                    value={qual.rating}
+                                    onChange={(v) => {
+                                      if (!isReadOnly && ref.personId) {
+                                        void upsertQualification(ref.personId, skill.id, v);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      if (ref.personId) {
+                                        void removeQualification(ref.personId, skill.id);
+                                      }
+                                    }}
+                                    disabled={isSaving || isReadOnly}
+                                    title={
+                                      isReadOnly
+                                        ? t('organizer.deletionRequest.archivedReadOnly')
+                                        : undefined
+                                    }
+                                    className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
+                                  >
+                                    {t('organizer.refereesPage.removeQualification')}
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    if (ref.personId) {
+                                      void upsertQualification(ref.personId, skill.id, null);
+                                    }
+                                  }}
+                                  disabled={isSaving || !ref.personId || isReadOnly}
+                                  className="text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-300 rounded px-2 py-0.5 disabled:opacity-50"
+                                  title={
+                                    isReadOnly
+                                      ? t('organizer.deletionRequest.archivedReadOnly')
+                                      : !ref.personId
+                                        ? t('organizer.refereesPage.linkProfileFirst')
+                                        : undefined
+                                  }
+                                >
+                                  {t('organizer.refereesPage.addQualification')}
+                                </button>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                      {/* Available all tournaments toggle */}
+                      {activeTab === 'referees' && (
+                        <td className="py-3 px-3 text-center align-middle">
+                          <div className="flex justify-center">
+                            <Toggle
+                              checked={ref.availableAllTournaments}
+                              disabled={isReadOnly}
+                              onChange={(v) =>
+                                void updateAvailability(ref.userId, { availableAllTournaments: v })
+                              }
+                            />
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Available all event duration toggle */}
+                      {activeTab === 'referees' && (
+                        <td className="py-3 px-3 text-center align-middle">
+                          <div className="flex justify-center">
+                            <Toggle
+                              checked={ref.availableAllEventDuration}
+                              disabled={isReadOnly}
+                              onChange={(v) =>
+                                void updateAvailability(ref.userId, {
+                                  availableAllEventDuration: v,
+                                })
+                              }
+                            />
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Assignment summary cell */}
+                      {activeTab === 'referees' && (
+                        <td className="py-3 px-3 align-top">
+                          {ref.assignments.length === 0 ? (
+                            <span className="text-xs text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {ref.assignments.slice(0, 3).map((a) => (
+                                <span
+                                  key={a.tournamentId}
+                                  className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 rounded px-2 py-0.5"
+                                >
+                                  {a.tournamentName}
+                                  <span className="text-gray-400">·</span>
+                                  {a.matchCount}{' '}
+                                  {a.matchCount === 1
+                                    ? t('organizer.refereesPage.match')
+                                    : t('organizer.refereesPage.matches')}
+                                </span>
+                              ))}
+                              {ref.assignments.length > 3 && (
+                                <span
+                                  className="text-xs text-gray-500 cursor-default"
+                                  title={ref.assignments
+                                    .slice(3)
+                                    .map(
+                                      (a) =>
+                                        `${a.tournamentName} · ${a.matchCount} ${a.matchCount === 1 ? t('organizer.refereesPage.match') : t('organizer.refereesPage.matches')}`,
+                                    )
+                                    .join(', ')}
+                                >
+                                  {t('organizer.refereesPage.moreCount', {
+                                    count: ref.assignments.length - 3,
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Total matches */}
+                      {activeTab === 'referees' && (
+                        <td className="py-3 px-3 text-center align-middle">
+                          <span className="font-medium text-gray-900">{ref.totalMatchCount}</span>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Skill modal */}

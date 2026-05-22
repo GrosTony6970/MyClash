@@ -27,11 +27,6 @@ const eventNavItems = [
   { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
   { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
   { href: 'referees', labelKey: 'organizer.eventHub.sections.referees', badge: 'J' },
-  {
-    href: 'referee-assignments',
-    labelKey: 'organizer.eventHub.sections.refereeAssignments',
-    badge: 'A',
-  },
   { href: 'compensation', labelKey: 'organizer.eventHub.sections.compensation', badge: 'C' },
   { href: 'workshops', labelKey: 'organizer.eventHub.sections.workshops', badge: 'W' },
   { href: 'staff', labelKey: 'organizer.eventHub.sections.staff', badge: 'ST' },
