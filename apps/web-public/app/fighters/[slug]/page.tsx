@@ -6,6 +6,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
+import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -638,10 +639,18 @@ export default async function FighterPage({ params }: Props) {
               );
             })}
           </div>
+          <MatchHistoryTrigger
+            slug={fighter.slug}
+            apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'}
+          />
         </section>
       ) : (
         <div className="py-12 text-center">
           <p className="text-sm text-gray-500">{t('publicApp.fighterProfile.noMatchHistory')}</p>
+          <MatchHistoryTrigger
+            slug={fighter.slug}
+            apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'}
+          />
         </div>
       )}
     </main>

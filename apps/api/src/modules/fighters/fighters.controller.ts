@@ -124,6 +124,26 @@ export class FightersController {
     return this.fighterMerge.listMergeAudits();
   }
 
+  /** GET /api/v1/fighters/:slug/matches?limit=20&offset=0&eventId=&year= */
+  @Get(':slug/matches')
+  @ApiOperation({ summary: 'Get paginated match history for a fighter (public)' })
+  async listMatches(
+    @Param('slug') slug: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('eventId') eventId?: string,
+    @Query('year') year?: string,
+  ) {
+    const parsedLimit = Math.min(Math.max(1, Number(limit) || 20), 100);
+    const parsedOffset = Math.max(0, Number(offset) || 0);
+    return this.fighters.listMatchesPaginated(slug, {
+      limit: parsedLimit,
+      offset: parsedOffset,
+      eventId: eventId || undefined,
+      year: year ? Number(year) : undefined,
+    });
+  }
+
   /** GET /api/v1/fighters/:slug */
   @Get(':slug/career')
   @ApiOperation({ summary: 'Get public Fighter career history and statistics' })

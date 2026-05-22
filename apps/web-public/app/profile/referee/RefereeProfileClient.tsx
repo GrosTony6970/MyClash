@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SkillBadge } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface RefereeStats {
@@ -29,6 +30,9 @@ interface RefereeStats {
     weapon: string | null;
     scheduledAt: string | null;
     durationMs: number;
+    skillId: string | null;
+    skillName: string | null;
+    skillColor: string | null;
   }>;
 }
 
@@ -92,11 +96,17 @@ export function RefereeProfileClient({ apiUrl }: { apiUrl: string }) {
                 <p className="text-sm font-semibold text-white">
                   {entry.eventName ?? t('common.unknown')}
                 </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {entry.tournamentName ?? t('common.unknown')} {' - '}
-                  {entry.weapon ?? t('common.unknown')} {' - '}
-                  {entry.role ?? t('common.unknown')}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                  <span>{entry.tournamentName ?? t('common.unknown')}</span>
+                  <span>-</span>
+                  <span>{entry.weapon ?? t('common.unknown')}</span>
+                  <span>-</span>
+                  {entry.skillName && entry.skillColor ? (
+                    <SkillBadge color={entry.skillColor} label={entry.skillName} size="xs" />
+                  ) : (
+                    <span>{entry.role ?? t('common.unknown')}</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

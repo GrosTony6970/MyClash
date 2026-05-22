@@ -34,6 +34,12 @@ export interface RefereeBuddyInput {
   displayName: string | null;
 }
 
+export interface RefereeSkillInfo {
+  skillId: string;
+  skillName: string;
+  skillColor: string;
+}
+
 export interface RefereeStatsInput {
   userId: string;
   assignments: RefereeAssignmentInput[];
@@ -41,6 +47,20 @@ export interface RefereeStatsInput {
   penalties: RefereePenaltyInput[];
   buddiesByUserId?: Record<string, RefereeBuddyInput>;
   includePrivateDetails?: boolean;
+  skillsByRole?: Map<string, RefereeSkillInfo>;
+}
+
+export interface RefereeHistoryEntry {
+  matchId: string;
+  role: string | null;
+  eventName: string | null;
+  tournamentName: string | null;
+  weapon: string | null;
+  scheduledAt: string | null;
+  durationMs: number;
+  skillId: string | null;
+  skillName: string | null;
+  skillColor: string | null;
 }
 
 export interface RefereeStats {
@@ -49,15 +69,7 @@ export interface RefereeStats {
   roles: Record<RefereeRole, number>;
   cards: Record<RefereeCard, number>;
   bestBuddies: Array<{ userId: string; displayName: string | null; matchesTogether: number }>;
-  history?: Array<{
-    matchId: string;
-    role: string | null;
-    eventName: string | null;
-    tournamentName: string | null;
-    weapon: string | null;
-    scheduledAt: string | null;
-    durationMs: number;
-  }>;
+  history?: RefereeHistoryEntry[];
 }
 
 const ROLE_KEYS: RefereeRole[] = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
@@ -120,15 +132,24 @@ export function buildRefereeStats(input: RefereeStatsInput): RefereeStats {
     bestBuddies,
     ...(input.includePrivateDetails
       ? {
-          history: mine.map((assignment) => ({
-            matchId: assignment.matchId,
-            role: assignment.role,
-            eventName: assignment.eventName ?? null,
-            tournamentName: assignment.tournamentName ?? null,
-            weapon: assignment.weapon ?? null,
-            scheduledAt: assignment.scheduledAt ?? null,
-            durationMs: durationByMatch.get(assignment.matchId) ?? 0,
-          })),
+          history: mine.map((assignment): RefereeHistoryEntry => {
+            const skill =
+              assignment.role && input.skillsByRole
+                ? (input.skillsByRole.get(assignment.role) ?? null)
+                : null;
+            return {
+              matchId: assignment.matchId,
+              role: assignment.role,
+              eventName: assignment.eventName ?? null,
+              tournamentName: assignment.tournamentName ?? null,
+              weapon: assignment.weapon ?? null,
+              scheduledAt: assignment.scheduledAt ?? null,
+              durationMs: durationByMatch.get(assignment.matchId) ?? 0,
+              skillId: skill?.skillId ?? null,
+              skillName: skill?.skillName ?? null,
+              skillColor: skill?.skillColor ?? null,
+            };
+          }),
         }
       : {}),
   };

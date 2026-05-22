@@ -32,7 +32,24 @@ import {
   type RefereeAssignmentInput,
   type RefereeMatchDurationInput,
   type RefereePenaltyInput,
+  type RefereeSkillInfo,
 } from './referee-stats';
+
+export interface MatchSummary {
+  id: string;
+  matchScheduledAt: string | null;
+  eventId: string;
+  eventName: string;
+  eventDate: string;
+  tournamentId: string;
+  tournamentName: string;
+  weapon: string;
+  opponentName: string;
+  ourScore: number;
+  opponentScore: number;
+  outcome: 'win' | 'loss' | 'draw';
+  status: string;
+}
 
 function slugify(name: string): string {
   return name
@@ -265,6 +282,160 @@ export class FightersService {
 
   async getMyRefereeStats(userId: string) {
     return this.getRefereeStatsForUser(userId, true);
+  }
+
+  async listMatchesPaginated(
+    slugOrId: string,
+    opts: { limit: number; offset: number; eventId?: string; year?: number },
+  ): Promise<{ items: MatchSummary[]; total: number }> {
+    // Resolve to fighter id
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
+    let fighterId: string;
+    if (isUuid) {
+      fighterId = slugOrId;
+    } else {
+      const { data, error } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .eq('slug', slugOrId)
+        .maybeSingle();
+      if (error) throw new BadRequestException(error.message);
+      if (!data) throw new NotFoundException(`Fighter "${slugOrId}" not found`);
+      fighterId = String((data as Row)['id']);
+    }
+
+    // Fetch all registrations for this fighter
+    const { data: regData, error: regError } = await this.supabase.service
+      .from('registrations')
+      .select(
+        `id, tournament_id, tournaments(id, name, weapon, events(id, name, start_date, end_date))`,
+      )
+      .eq('global_person_id', fighterId);
+    if (regError) throw new BadRequestException(regError.message);
+
+    const registrations = (regData ?? []) as Row[];
+    if (registrations.length === 0) return { items: [], total: 0 };
+
+    const regById = new Map<string, Row>();
+    for (const reg of registrations) {
+      regById.set(String(reg['id']), reg);
+    }
+    const registrationIds = registrations.map((r) => String(r['id']));
+
+    // Build match query
+    let matchQ = this.supabase.service
+      .from('matches')
+      .select(
+        'id, status, scheduled_at, created_at, red_registration_id, blue_registration_id, winner_registration_id, red_score, blue_score, phases(tournament_id)',
+        { count: 'exact' },
+      )
+      .or(
+        `red_registration_id.in.(${registrationIds.join(',')}),blue_registration_id.in.(${registrationIds.join(',')})`,
+      )
+      .neq('status', 'scheduled');
+
+    if (opts.eventId) {
+      // filter by checking if the registration's tournament belongs to this event
+      const eventRegIds = registrations
+        .filter((r) => {
+          const t = r['tournaments'] as Row | null;
+          const e = t?.['events'] as Row | null;
+          return e && String(e['id']) === opts.eventId;
+        })
+        .map((r) => String(r['id']));
+      if (eventRegIds.length === 0) return { items: [], total: 0 };
+      matchQ = matchQ.or(
+        `red_registration_id.in.(${eventRegIds.join(',')}),blue_registration_id.in.(${eventRegIds.join(',')})`,
+      ) as typeof matchQ;
+    }
+
+    if (opts.year) {
+      const yearStr = String(opts.year);
+      // Filter by scheduled_at year or event start_date year
+      const yearRegIds = registrations
+        .filter((r) => {
+          const t = r['tournaments'] as Row | null;
+          const e = t?.['events'] as Row | null;
+          const startDate = (e?.['start_date'] as string | null) ?? null;
+          return startDate?.startsWith(yearStr);
+        })
+        .map((r) => String(r['id']));
+      if (yearRegIds.length === 0) return { items: [], total: 0 };
+      matchQ = matchQ.or(
+        `red_registration_id.in.(${yearRegIds.join(',')}),blue_registration_id.in.(${yearRegIds.join(',')})`,
+      ) as typeof matchQ;
+    }
+
+    matchQ = matchQ
+      .order('scheduled_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .range(opts.offset, opts.offset + opts.limit - 1);
+
+    const { data: matchData, error: matchError, count } = await matchQ;
+    if (matchError) throw new BadRequestException(matchError.message);
+
+    // Fetch opponent names for all registrations involved
+    const opponentRegIds = new Set<string>();
+    for (const match of (matchData ?? []) as Row[]) {
+      const redId = (match['red_registration_id'] as string | null) ?? null;
+      const blueId = (match['blue_registration_id'] as string | null) ?? null;
+      // The opponent is the registration NOT owned by this fighter
+      if (redId && !regById.has(redId)) opponentRegIds.add(redId);
+      if (blueId && !regById.has(blueId)) opponentRegIds.add(blueId);
+    }
+
+    const opponentNames = new Map<string, string>();
+    if (opponentRegIds.size > 0) {
+      const { data: oppData } = await this.supabase.service
+        .from('registrations')
+        .select('id, global_person_id, global_persons(display_name)')
+        .in('id', [...opponentRegIds]);
+      for (const row of (oppData ?? []) as Row[]) {
+        const gp = row['global_persons'] as Row | null;
+        opponentNames.set(String(row['id']), String(gp?.['display_name'] ?? ''));
+      }
+    }
+
+    const items: MatchSummary[] = ((matchData ?? []) as Row[]).map((match) => {
+      const redId = (match['red_registration_id'] as string | null) ?? null;
+      const blueId = (match['blue_registration_id'] as string | null) ?? null;
+      const myRegId = regById.has(redId ?? '') ? redId : blueId;
+      const oppRegId = regById.has(redId ?? '') ? blueId : redId;
+      const myReg = myRegId ? regById.get(myRegId) : null;
+      const tournament = (myReg?.['tournaments'] as Row | null) ?? null;
+      const event = (tournament?.['events'] as Row | null) ?? null;
+      const winnerRegId = (match['winner_registration_id'] as string | null) ?? null;
+      const myScore =
+        myRegId === redId ? Number(match['red_score'] ?? 0) : Number(match['blue_score'] ?? 0);
+      const oppScore =
+        myRegId === redId ? Number(match['blue_score'] ?? 0) : Number(match['red_score'] ?? 0);
+
+      let outcome: 'win' | 'loss' | 'draw';
+      if (!winnerRegId) {
+        outcome = myScore === oppScore ? 'draw' : myScore > oppScore ? 'win' : 'loss';
+      } else {
+        outcome = winnerRegId === myRegId ? 'win' : 'loss';
+      }
+
+      const phase = match['phases'] as Row | null;
+      return {
+        id: String(match['id']),
+        matchScheduledAt: (match['scheduled_at'] as string | null) ?? null,
+        eventId: String(event?.['id'] ?? ''),
+        eventName: String(event?.['name'] ?? ''),
+        eventDate: String(event?.['start_date'] ?? event?.['end_date'] ?? ''),
+        tournamentId: String(tournament?.['id'] ?? phase?.['tournament_id'] ?? ''),
+        tournamentName: String(tournament?.['name'] ?? ''),
+        weapon: String(tournament?.['weapon'] ?? ''),
+        opponentName: oppRegId ? (opponentNames.get(oppRegId) ?? '') : '',
+        ourScore: myScore,
+        opponentScore: oppScore,
+        outcome,
+        status: String(match['status']),
+      };
+    });
+
+    return { items, total: count ?? 0 };
   }
 
   async getCareerBySlug(slug: string, query: { year?: string; weapon?: string } = {}) {
@@ -672,6 +843,9 @@ export class FightersService {
       (id) => id !== userId,
     );
     const buddiesByUserId = await this.fetchRefereeBuddyNames(buddyIds);
+    const skillsByRole = includePrivateDetails
+      ? await this.fetchRefereeSkillsByRole(allAssignments)
+      : undefined;
 
     return buildRefereeStats({
       userId,
@@ -680,7 +854,31 @@ export class FightersService {
       penalties,
       buddiesByUserId,
       includePrivateDetails,
+      skillsByRole,
     });
+  }
+
+  private async fetchRefereeSkillsByRole(
+    assignments: RefereeAssignmentInput[],
+  ): Promise<Map<string, RefereeSkillInfo>> {
+    const roleValues = [...new Set(assignments.map((a) => a.role).filter(Boolean))] as string[];
+    if (roleValues.length === 0) return new Map();
+
+    const { data } = await this.supabase.service
+      .from('referee_skills')
+      .select('id, name, color')
+      .in('id', roleValues);
+
+    const map = new Map<string, RefereeSkillInfo>();
+    for (const row of (data ?? []) as Row[]) {
+      const id = String(row['id']);
+      map.set(id, {
+        skillId: id,
+        skillName: String(row['name'] ?? ''),
+        skillColor: String(row['color'] ?? ''),
+      });
+    }
+    return map;
   }
 
   private async fetchRefereeAssignments(userId: string): Promise<RefereeAssignmentInput[]> {

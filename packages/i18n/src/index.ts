@@ -160,6 +160,11 @@ export const en = {
       noRefereeStats: 'No referee statistics yet.',
       loadingRefereeStats: 'Loading referee statistics...',
       loadRefereeStatsError: 'Could not load referee statistics.',
+      matchHistoryTitle: 'Match history',
+      matchHistoryShowAll: 'Show all matches',
+      matchHistoryLoadMore: 'Load more',
+      matchHistoryNoMore: 'No more matches.',
+      matchHistoryEmpty: 'No matches yet.',
     },
     emailChange: {
       title: 'Change email',
@@ -2656,6 +2661,11 @@ export const fr = {
       noRefereeStats: 'Aucune statistique arbitre pour le moment.',
       loadingRefereeStats: 'Chargement des statistiques arbitre...',
       loadRefereeStatsError: 'Impossible de charger les statistiques arbitre.',
+      matchHistoryTitle: 'Historique des matches',
+      matchHistoryShowAll: 'Voir tous les matches',
+      matchHistoryLoadMore: 'Charger plus',
+      matchHistoryNoMore: 'Plus de matches.',
+      matchHistoryEmpty: 'Aucun match.',
     },
     emailChange: {
       title: 'Changer l email',
