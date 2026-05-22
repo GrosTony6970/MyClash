@@ -27,6 +27,17 @@ interface MatchSummary {
   weapon: string;
 }
 
+function BackToPoolListButton({ slug, eventId }: { slug: string; eventId: string }) {
+  return (
+    <Link
+      href={`/org/${slug}/events/${eventId}/pools#matches`}
+      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+    >
+      {t('organizer.scoreboard.backToPoolList')}
+    </Link>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ScoreboardPage({
@@ -39,12 +50,12 @@ export default function ScoreboardPage({
 
   const [summary, setSummary] = useState<MatchSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [notFoundError, setNotFoundError] = useState(false);
+  const [summaryErrorStatus, setSummaryErrorStatus] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    setNotFoundError(false);
+    setSummaryErrorStatus(null);
 
     const controller = new AbortController();
 
@@ -54,12 +65,8 @@ export default function ScoreboardPage({
     })
       .then(async (res) => {
         if (cancelled) return;
-        if (res.status === 404) {
-          setNotFoundError(true);
-          return;
-        }
         if (!res.ok) {
-          setNotFoundError(true);
+          setSummaryErrorStatus(res.status);
           return;
         }
         const data = (await res.json()) as MatchSummary;
@@ -68,7 +75,7 @@ export default function ScoreboardPage({
       .catch((err: unknown) => {
         if (cancelled) return;
         if (err instanceof Error && err.name === 'AbortError') return;
-        setNotFoundError(true);
+        setSummaryErrorStatus(0);
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -81,29 +88,48 @@ export default function ScoreboardPage({
   }, [matchId, apiUrl]);
 
   if (isLoading) {
-    return <div className="p-6 text-sm text-slate-600">{t('organizer.scoreboard.loading')}</div>;
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <BackToPoolListButton slug={slug} eventId={eventId} />
+        <div className="text-sm text-slate-600">{t('organizer.scoreboard.loading')}</div>
+      </div>
+    );
   }
 
-  if (notFoundError || !summary) {
-    return <div className="p-6 text-sm text-red-700">{t('organizer.scoreboard.notFound')}</div>;
+  if (summaryErrorStatus !== null || !summary) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <BackToPoolListButton slug={slug} eventId={eventId} />
+        <div className="text-sm text-red-700">
+          {t('organizer.scoreboard.notFound', {
+            status: String(summaryErrorStatus ?? 0),
+          })}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {/* ── Top toolbar — always visible back button ── */}
+      <div className="flex items-center justify-between">
+        <BackToPoolListButton slug={slug} eventId={eventId} />
+        <Link
+          href={`/org/${slug}/events/${eventId}/matches/${matchId}`}
+          className="text-sm text-slate-700 hover:text-slate-900"
+        >
+          {t('organizer.scoreboard.auditLink')}
+        </Link>
+      </div>
+
       {/* ── Match header ── */}
       <header className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between text-sm">
           <Link
-            href={`/org/${slug}/events/${eventId}/pools?tab=matches`}
+            href={`/org/${slug}/events/${eventId}/pools#matches`}
             className="text-slate-700 hover:text-slate-900"
           >
             {t('organizer.scoreboard.backToPool', { poolNumber: summary.poolName })}
-          </Link>
-          <Link
-            href={`/org/${slug}/events/${eventId}/matches/${matchId}`}
-            className="text-slate-700 hover:text-slate-900"
-          >
-            {t('organizer.scoreboard.auditLink')}
           </Link>
         </div>
 

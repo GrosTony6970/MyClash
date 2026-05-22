@@ -2535,11 +2535,14 @@ export const en = {
     scoreboard: {
       pageTitle: 'Match scoreboard',
       backToPool: '← Back to pool {poolNumber}',
+      backToPoolList: '← Back to pool list',
       auditLink: 'Audit history →',
       matchHeaderFormat: '{matchLabel} · Pool {poolNumber} · {weapon}',
       vs: 'vs',
       loading: 'Loading scoreboard…',
-      notFound: 'Match not found.',
+      notFound: 'Match not found ({status}).',
+      loadError: 'Could not load scoreboard data ({status}).',
+      retry: 'Retry',
     },
   },
   test: {
@@ -5109,11 +5112,14 @@ export const fr = {
     scoreboard: {
       pageTitle: 'Tableau de score du match',
       backToPool: '← Retour a la poule {poolNumber}',
+      backToPoolList: '← Retour a la liste des poules',
       auditLink: 'Historique d audit →',
       matchHeaderFormat: '{matchLabel} · Poule {poolNumber} · {weapon}',
       vs: 'vs',
       loading: 'Chargement du tableau de score...',
-      notFound: 'Match introuvable.',
+      notFound: 'Match introuvable ({status}).',
+      loadError: 'Impossible de charger les donnees du tableau de score ({status}).',
+      retry: 'Reessayer',
     },
   },
   test: {

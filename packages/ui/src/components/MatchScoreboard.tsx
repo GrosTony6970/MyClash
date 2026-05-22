@@ -142,19 +142,42 @@ export function MatchScoreboard({
   const [penalties, setPenalties] = useState<Penalty[]>([]);
   const [clock, setClock] = useState<ClockState | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
 
   const refresh = useCallback(async () => {
-    const [matchRes, penaltyRes, clockRes] = await Promise.all([
-      fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/display`, { cache: 'no-store' }),
-      fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/penalties`, { cache: 'no-store' }),
-      fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/clock`, { cache: 'no-store' }),
-    ]);
-    if (matchRes.ok) setMatch((await matchRes.json()) as DisplayMatch);
-    if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
-    if (clockRes.ok) {
-      const nextClock = (await clockRes.json()) as ClockState;
-      setClock(nextClock);
-      setElapsedMs(computeElapsedMs(nextClock));
+    try {
+      const [matchRes, penaltyRes, clockRes] = await Promise.all([
+        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/display`, {
+          cache: 'no-store',
+          credentials: 'include',
+        }),
+        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/penalties`, {
+          cache: 'no-store',
+          credentials: 'include',
+        }),
+        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/clock`, {
+          cache: 'no-store',
+          credentials: 'include',
+        }),
+      ]);
+      if (!matchRes.ok) {
+        const body = (await matchRes.json().catch(() => null)) as { message?: string } | null;
+        setLoadError({ status: matchRes.status, message: body?.message ?? matchRes.statusText });
+        return;
+      }
+      setLoadError(null);
+      setMatch((await matchRes.json()) as DisplayMatch);
+      if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
+      if (clockRes.ok) {
+        const nextClock = (await clockRes.json()) as ClockState;
+        setClock(nextClock);
+        setElapsedMs(computeElapsedMs(nextClock));
+      }
+    } catch (err) {
+      setLoadError({
+        status: 0,
+        message: err instanceof Error ? err.message : 'Network error',
+      });
     }
   }, [apiBaseUrl, matchId]);
 
@@ -206,7 +229,36 @@ export function MatchScoreboard({
     return () => clearInterval(timer);
   }, [clock]);
 
-  if (!match) return null;
+  if (loadError) {
+    return (
+      <div
+        className={`flex min-h-[400px] flex-col items-center justify-center gap-3 bg-slate-900 p-8 text-slate-100 ${className ?? ''}`}
+      >
+        <p className="text-lg font-semibold">
+          {t('organizer.scoreboard.loadError', { status: String(loadError.status) })}
+        </p>
+        {loadError.message && <p className="text-sm text-slate-300">{loadError.message}</p>}
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="mt-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600"
+        >
+          {t('organizer.scoreboard.retry')}
+        </button>
+      </div>
+    );
+  }
+
+  if (!match) {
+    return (
+      <div
+        className={`flex min-h-[400px] flex-col items-center justify-center gap-3 bg-slate-900 p-8 text-slate-100 ${className ?? ''}`}
+      >
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+        <p className="text-sm text-slate-300">{t('organizer.scoreboard.loading')}</p>
+      </div>
+    );
+  }
 
   const activePenalties = penalties.filter((penalty) => !penalty.voided);
   const sideColors =
