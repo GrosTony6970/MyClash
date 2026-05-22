@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { TournamentColorDot } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
+import { useEventStatus } from './_hooks/useEventStatus';
+import { RequestDeletionModal } from './_components/RequestDeletionModal';
 
 interface Tournament {
   id: string;
@@ -77,6 +79,8 @@ export default function EventDetailPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const { isArchived, isReadOnly } = useEventStatus(eventId);
+  const [showDeletionModal, setShowDeletionModal] = useState(false);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -358,7 +362,8 @@ export default function EventDetailPage() {
                 <button
                   type="button"
                   onClick={() => void handleSaveCap()}
-                  disabled={savingCap}
+                  disabled={savingCap || isReadOnly}
+                  title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
                   className="rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                 >
                   {savingCap ? t('organizer.eventHub.saving') : t('organizer.eventHub.save')}
@@ -406,15 +411,38 @@ export default function EventDetailPage() {
         <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-600">{t('organizer.archive.description')}</p>
-            <Link
-              href={`/org/${slug}/events/${eventId}/archive`}
-              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-[#dc2626] hover:bg-red-100"
-            >
-              {t('organizer.archive.open')}
-            </Link>
+            <div className="flex items-center gap-2 flex-wrap">
+              {!isArchived && (
+                <Link
+                  href={`/org/${slug}/events/${eventId}/archive`}
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-[#dc2626] hover:bg-red-100"
+                >
+                  {t('organizer.archive.open')}
+                </Link>
+              )}
+              {isArchived && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeletionModal(true)}
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-[#dc2626] hover:bg-red-100"
+                >
+                  {t('organizer.deletionRequest.requestDeletion')}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </section>
+
+      {showDeletionModal && (
+        <RequestDeletionModal
+          targetType="event"
+          targetId={eventId}
+          targetLabel={event?.name ?? eventId}
+          onSuccess={() => setShowDeletionModal(false)}
+          onClose={() => setShowDeletionModal(false)}
+        />
+      )}
     </main>
   );
 }

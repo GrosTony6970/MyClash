@@ -2318,6 +2318,27 @@ export const en = {
       refereeRegistrationFailed:
         'Could not register as referee. Try adding from the Referees page.',
     },
+    deletionRequest: {
+      requestDeletion: 'Request deletion',
+      requestDeletionModalTitleEvent: 'Request event deletion',
+      requestDeletionModalTitleTournament: 'Request tournament deletion',
+      requestDeletionModalReason: 'Reason for deletion',
+      requestDeletionModalReasonPlaceholder:
+        'Please describe why this should be deleted (10-500 characters)...',
+      requestDeletionSubmit: 'Submit request',
+      requestDeletionPending: 'Pending review',
+      cancelRequest: 'Cancel request',
+      archivedReadOnly: 'This event is archived and read-only.',
+      archivedBannerCopy: 'This event is archived and read-only. Editing is no longer available.',
+      archivedBannerCta: 'Request deletion',
+      archivedBannerPendingCopy:
+        'Deletion requested by {requester} on {date} — pending super-admin review.',
+      archivedLastArchivedOn: 'Archived on {date}',
+      tournamentLocked: 'This tournament has progressed past the planning phase.',
+      deletionRequestSubmitted: 'Deletion request submitted. A super admin will review it.',
+      deletionRequestCancelled: 'Deletion request cancelled.',
+      deletionRequestConflict: 'A pending deletion request already exists for this target.',
+    },
     refereesPage: {
       addCustomSkill: 'Add custom skill',
       editSkill: 'Edit skill',
@@ -4783,6 +4804,28 @@ export const fr = {
       refereeTag: 'Arbitre',
       refereeRegistrationFailed:
         "Impossible d'inscrire comme arbitre. Essayez depuis la page Arbitres.",
+    },
+    deletionRequest: {
+      requestDeletion: 'Demander la suppression',
+      requestDeletionModalTitleEvent: "Demander la suppression de l'evenement",
+      requestDeletionModalTitleTournament: 'Demander la suppression du tournoi',
+      requestDeletionModalReason: 'Raison de la suppression',
+      requestDeletionModalReasonPlaceholder:
+        'Decrivez pourquoi cet element doit etre supprime (10-500 caracteres)...',
+      requestDeletionSubmit: 'Envoyer la demande',
+      requestDeletionPending: 'En attente de revue',
+      cancelRequest: 'Annuler la demande',
+      archivedReadOnly: 'Cet evenement est archive et en lecture seule.',
+      archivedBannerCopy:
+        'Cet evenement est archive et en lecture seule. La modification n est plus disponible.',
+      archivedBannerCta: 'Demander la suppression',
+      archivedBannerPendingCopy:
+        'Suppression demandee par {requester} le {date} — en attente de revue super-admin.',
+      archivedLastArchivedOn: 'Archive le {date}',
+      tournamentLocked: 'Ce tournoi a depasse la phase de planification.',
+      deletionRequestSubmitted: 'Demande de suppression envoyee. Un super-admin va la revoir.',
+      deletionRequestCancelled: 'Demande de suppression annulee.',
+      deletionRequestConflict: 'Une demande de suppression est deja en attente pour cet element.',
     },
     refereesPage: {
       addCustomSkill: 'Ajouter une competence personnalisee',

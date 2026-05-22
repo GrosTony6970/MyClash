@@ -12,6 +12,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -352,6 +353,7 @@ export default function RefereesPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { isReadOnly } = useEventStatus(eventId);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [skills, setSkills] = useState<RefereeSkill[]>([]);
@@ -682,7 +684,9 @@ export default function RefereesPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSkillModal({ mode: 'add' })}
-            className="border border-red-300 text-red-700 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
+            disabled={isReadOnly}
+            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+            className="border border-red-300 text-red-700 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
             + {t('organizer.refereesPage.addCustomSkill')}
           </button>
@@ -704,9 +708,14 @@ export default function RefereesPage() {
           <input
             type="search"
             value={search}
+            disabled={isReadOnly}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('organizer.refereesPage.searchParticipantPlaceholder')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            placeholder={
+              isReadOnly
+                ? t('organizer.deletionRequest.archivedReadOnly')
+                : t('organizer.refereesPage.searchParticipantPlaceholder')
+            }
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           {searchResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
@@ -784,8 +793,13 @@ export default function RefereesPage() {
                               initial: { name: skill.name, color: skill.color },
                             })
                           }
-                          className="text-gray-400 hover:text-gray-700 ml-0.5"
-                          title={t('organizer.refereesPage.editSkill')}
+                          disabled={isReadOnly}
+                          className="text-gray-400 hover:text-gray-700 ml-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={
+                            isReadOnly
+                              ? t('organizer.deletionRequest.archivedReadOnly')
+                              : t('organizer.refereesPage.editSkill')
+                          }
                         >
                           ✎
                         </button>
@@ -899,7 +913,7 @@ export default function RefereesPage() {
                             <StarRating
                               value={qual.rating}
                               onChange={(v) => {
-                                if (ref.personId) {
+                                if (!isReadOnly && ref.personId) {
                                   void upsertQualification(ref.personId, skill.id, v);
                                 }
                               }}
@@ -910,7 +924,12 @@ export default function RefereesPage() {
                                   void removeQualification(ref.personId, skill.id);
                                 }
                               }}
-                              disabled={isSaving}
+                              disabled={isSaving || isReadOnly}
+                              title={
+                                isReadOnly
+                                  ? t('organizer.deletionRequest.archivedReadOnly')
+                                  : undefined
+                              }
                               className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
                             >
                               {t('organizer.refereesPage.removeQualification')}
@@ -923,12 +942,14 @@ export default function RefereesPage() {
                                 void upsertQualification(ref.personId, skill.id, null);
                               }
                             }}
-                            disabled={isSaving || !ref.personId}
+                            disabled={isSaving || !ref.personId || isReadOnly}
                             className="text-xs text-gray-400 hover:text-gray-600 border border-dashed border-gray-300 rounded px-2 py-0.5 disabled:opacity-50"
                             title={
-                              !ref.personId
-                                ? t('organizer.refereesPage.linkProfileFirst')
-                                : undefined
+                              isReadOnly
+                                ? t('organizer.deletionRequest.archivedReadOnly')
+                                : !ref.personId
+                                  ? t('organizer.refereesPage.linkProfileFirst')
+                                  : undefined
                             }
                           >
                             {t('organizer.refereesPage.addQualification')}
@@ -943,6 +964,7 @@ export default function RefereesPage() {
                     <div className="flex justify-center">
                       <Toggle
                         checked={ref.availableAllTournaments}
+                        disabled={isReadOnly}
                         onChange={(v) =>
                           void updateAvailability(ref.userId, { availableAllTournaments: v })
                         }
@@ -955,6 +977,7 @@ export default function RefereesPage() {
                     <div className="flex justify-center">
                       <Toggle
                         checked={ref.availableAllEventDuration}
+                        disabled={isReadOnly}
                         onChange={(v) =>
                           void updateAvailability(ref.userId, { availableAllEventDuration: v })
                         }

@@ -6,6 +6,8 @@ import { useParams } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
+import { useEventStatus } from '../_hooks/useEventStatus';
+import { RequestDeletionModal } from '../_components/RequestDeletionModal';
 
 interface Tournament {
   id: string;
@@ -79,6 +81,7 @@ export default function EventTournamentsPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const { isArchived, isReadOnly } = useEventStatus(eventId);
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [eventName, setEventName] = useState<string>('');
@@ -87,6 +90,7 @@ export default function EventTournamentsPage() {
   const [editing, setEditing] = useState<Tournament | null>(null);
   const [form, setForm] = useState<TournamentForm | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Tournament | null>(null);
+  const [deletionRequestTarget, setDeletionRequestTarget] = useState<Tournament | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -279,12 +283,21 @@ export default function EventTournamentsPage() {
               {t('organizer.tournaments.description', { event: eventName || eventId })}
             </p>
           </div>
-          <Link
-            href={`/org/${slug}/events/${eventId}/tournaments/new`}
-            className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
-          >
-            {t('organizer.tournaments.create')}
-          </Link>
+          {isArchived ? (
+            <span
+              title={t('organizer.deletionRequest.archivedReadOnly')}
+              className="inline-flex w-fit items-center rounded-md bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-400 cursor-not-allowed"
+            >
+              {t('organizer.tournaments.create')}
+            </span>
+          ) : (
+            <Link
+              href={`/org/${slug}/events/${eventId}/tournaments/new`}
+              className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+            >
+              {t('organizer.tournaments.create')}
+            </Link>
+          )}
         </div>
       )}
 
@@ -370,6 +383,7 @@ export default function EventTournamentsPage() {
                           type="button"
                           size="sm"
                           variant="back"
+                          disabled={isReadOnly}
                           onClick={() => openEdit(tournament)}
                         >
                           {t('organizer.tournaments.edit')}
@@ -434,20 +448,35 @@ export default function EventTournamentsPage() {
                           type="button"
                           size="sm"
                           variant="cancel"
-                          disabled={busyId === tournament.id || tournament.status === 'archived'}
+                          disabled={
+                            busyId === tournament.id ||
+                            tournament.status === 'archived' ||
+                            isReadOnly
+                          }
                           onClick={() => void archiveTournament(tournament)}
                         >
                           {t('organizer.tournaments.archive')}
                         </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="danger"
-                          disabled={busyId === tournament.id}
-                          onClick={() => setConfirmDelete(tournament)}
-                        >
-                          {t('organizer.tournaments.hardDelete')}
-                        </Button>
+                        {isArchived ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            onClick={() => setDeletionRequestTarget(tournament)}
+                          >
+                            {t('organizer.deletionRequest.requestDeletion')}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            disabled={busyId === tournament.id}
+                            onClick={() => setConfirmDelete(tournament)}
+                          >
+                            {t('organizer.tournaments.hardDelete')}
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -538,6 +567,16 @@ export default function EventTournamentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {deletionRequestTarget && (
+        <RequestDeletionModal
+          targetType="tournament"
+          targetId={deletionRequestTarget.id}
+          targetLabel={deletionRequestTarget.name}
+          onSuccess={() => setDeletionRequestTarget(null)}
+          onClose={() => setDeletionRequestTarget(null)}
+        />
       )}
     </main>
   );

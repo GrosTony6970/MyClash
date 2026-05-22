@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface EventClub {
   id: string;
@@ -40,6 +41,7 @@ export default function EventClubsPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const { isReadOnly } = useEventStatus(eventId);
 
   return (
     <main className="p-6 lg:p-8">
@@ -55,12 +57,20 @@ export default function EventClubsPage() {
         <span className="font-medium text-[#0f172a]">{t('organizer.shell.nav.clubs')}</span>
       </div>
       <h1 className="mb-6 text-3xl font-bold text-[#0f172a]">{t('organizer.shell.nav.clubs')}</h1>
-      <EventClubsSection apiUrl={apiUrl} eventId={eventId} />
+      <EventClubsSection apiUrl={apiUrl} eventId={eventId} isReadOnly={isReadOnly} />
     </main>
   );
 }
 
-function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: string }) {
+function EventClubsSection({
+  apiUrl,
+  eventId,
+  isReadOnly,
+}: {
+  apiUrl: string;
+  eventId: string;
+  isReadOnly: boolean;
+}) {
   const { t } = useI18n();
   const [scope, setScope] = useState<ClubScope>('event');
   const [query, setQuery] = useState('');
@@ -349,7 +359,8 @@ function EventClubsSection({ apiUrl, eventId }: { apiUrl: string; eventId: strin
         <button
           type="button"
           onClick={() => void submitClubRequest()}
-          disabled={submitting || !form.name.trim()}
+          disabled={submitting || !form.name.trim() || isReadOnly}
+          title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
           className="mt-4 rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
         >
           {submitting

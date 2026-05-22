@@ -7,6 +7,7 @@ import { ConfirmDialog, SkillBadge, TournamentColorDot, useToast } from '@myclas
 import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface Person {
   id: string;
@@ -78,6 +79,7 @@ export default function ParticipantsPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const toast = useToast();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const [persons, setPersons] = useState<Person[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -646,7 +648,9 @@ export default function ParticipantsPage() {
           </Link>
           <button
             onClick={() => setShowAdd(true)}
-            className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
+            disabled={isReadOnly}
+            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+            className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
           >
             + Add participant
           </button>
@@ -695,7 +699,8 @@ export default function ParticipantsPage() {
           <span className="text-sm text-gray-600 font-medium">{selected.size} selected</span>
           <button
             onClick={() => void handleBulkDelete()}
-            disabled={bulkLoading}
+            disabled={bulkLoading || isReadOnly}
+            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
           >
             Delete selected
@@ -729,14 +734,16 @@ export default function ParticipantsPage() {
             <>
               <button
                 onClick={() => void handleBulkCheckIn()}
-                disabled={bulkLoading}
+                disabled={bulkLoading || isReadOnly}
+                title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
                 className="text-sm text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
               >
                 Check in selected
               </button>
               <button
                 onClick={() => void handleBulkUnassign()}
-                disabled={bulkLoading}
+                disabled={bulkLoading || isReadOnly}
+                title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
                 className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
               >
                 Unassign from{' '}
@@ -868,13 +875,21 @@ export default function ParticipantsPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => openEdit(p)}
-                          className="text-xs text-blue-600 hover:underline"
+                          disabled={isReadOnly}
+                          title={
+                            isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                          }
+                          className="text-xs text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => void handleDelete(p.id)}
-                          className="text-xs text-red-500 hover:underline"
+                          disabled={isReadOnly}
+                          title={
+                            isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                          }
+                          className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Delete
                         </button>
@@ -1161,6 +1176,7 @@ export default function ParticipantsPage() {
                 <input
                   type="checkbox"
                   checked={addForm.isReferee}
+                  disabled={isReadOnly}
                   onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
                 />
                 {t('organizer.persons.addAsReferee')}
