@@ -67,6 +67,13 @@ export class MatchesController {
     return this.matches.getMatch(id);
   }
 
+  @Get('matches/:id/summary')
+  @ApiOperation({ summary: 'Match header summary for the scoreboard page (public)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getMatchSummary(@Param('id', ParseUUIDPipe) id: string) {
+    return this.matches.getMatchSummary(id);
+  }
+
   @Post('phases/:phaseId/matches')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a match (org admin+)' })

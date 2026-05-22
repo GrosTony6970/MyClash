@@ -54,6 +54,54 @@ export class MatchesService {
     return data;
   }
 
+  /**
+   * Compact header summary for the scoreboard page.
+   * Returns fighter names, club abbreviations, pool name, match label, and weapon.
+   * Public endpoint — no auth required (same as getMatch).
+   */
+  async getMatchSummary(matchId: string) {
+    const { data, error } = await this.supabase.service
+      .from('vw_tournament_query_matches')
+      .select(
+        'match_id, match_number_label, status, pool_name, red_name, blue_name, red_club, blue_club, tournament_id',
+      )
+      .eq('match_id', matchId)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+
+    const row = data as {
+      match_id: string;
+      match_number_label: string | null;
+      status: string;
+      pool_name: string | null;
+      red_name: string | null;
+      blue_name: string | null;
+      red_club: string | null;
+      blue_club: string | null;
+      tournament_id: string;
+    };
+
+    // Fetch weapon from tournament (not in view)
+    const { data: tournament } = await this.supabase.service
+      .from('tournaments')
+      .select('weapon')
+      .eq('id', row.tournament_id)
+      .maybeSingle();
+
+    return {
+      matchLabel: row.match_number_label ?? '',
+      status: row.status,
+      poolName: row.pool_name ?? '',
+      redName: row.red_name ?? '',
+      redClub: row.red_club ?? null,
+      blueName: row.blue_name ?? '',
+      blueClub: row.blue_club ?? null,
+      weapon: (tournament as { weapon?: string | null } | null)?.weapon ?? '',
+    };
+  }
+
   async createMatch(dto: CreateMatchDto) {
     const { data, error } = await this.supabase.service
       .from('matches')
