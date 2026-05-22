@@ -49,6 +49,9 @@ export type { TournamentColorDotProps } from './components/TournamentColorDot';
 export { SkillBadge } from './components/SkillBadge';
 export type { SkillBadgeProps } from './components/SkillBadge';
 
+export { MatchScoreboard } from './components/MatchScoreboard';
+export type { MatchScoreboardProps } from './components/MatchScoreboard';
+
 // ── Tournament Manual admin components (Phase 1 of the frontend overhaul) ──
 
 export { FoilMark } from './components/FoilMark';

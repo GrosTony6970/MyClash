@@ -455,6 +455,12 @@ importers:
 
   packages/ui:
     dependencies:
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../i18n
+      '@myclash/types':
+        specifier: workspace:^
+        version: link:../types
       react:
         specifier: ^19.0.0
         version: 19.2.5
@@ -462,6 +468,9 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
     devDependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.0.0
+        version: 2.105.1
       '@types/react':
         specifier: ^19.1.4
         version: 19.2.14
