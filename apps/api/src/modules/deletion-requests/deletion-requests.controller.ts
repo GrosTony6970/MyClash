@@ -25,6 +25,7 @@ import {
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import type { FastifyRequest } from 'fastify';
+import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { DeletionRequestsService } from './deletion-requests.service';
 
@@ -70,6 +71,7 @@ export class DeletionRequestsController {
 
   @Post('deletion-requests')
   @HttpCode(HttpStatus.CREATED)
+  @AllowOnArchivedEvent()
   @ApiOperation({ summary: 'Submit a deletion request for an event or tournament (admin+)' })
   async create(@Body() dto: CreateDeletionRequestDto, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
@@ -78,6 +80,7 @@ export class DeletionRequestsController {
 
   @Patch('deletion-requests/:id/cancel')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @AllowOnArchivedEvent()
   @ApiOperation({ summary: 'Cancel a pending deletion request (admin+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async cancel(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {

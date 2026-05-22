@@ -39,6 +39,7 @@ import { TournamentQueryModule } from './modules/tournament-query/tournament-que
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
+import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard';
 
 @Module({
   imports: [
@@ -106,6 +107,13 @@ import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor'
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Block all mutations on archived events globally.
+    // Routes that must work on archived events (deletion-request flow, super-admin)
+    // opt out with @AllowOnArchivedEvent().
+    {
+      provide: APP_GUARD,
+      useClass: EventReadOnlyGuard,
     },
     {
       provide: APP_INTERCEPTOR,
