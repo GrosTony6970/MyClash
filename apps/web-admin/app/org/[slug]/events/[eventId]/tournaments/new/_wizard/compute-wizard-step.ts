@@ -22,7 +22,8 @@ export function computeWizardStep(row: WizardTournamentInput): 1 | 2 | 3 | 4 | n
   if (!row.name || !row.slug || !row.ruleset_code) return 1;
   const scoring = row.scoring_config ?? {};
   const ruleset = row.ruleset_config ?? {};
-  if (!('pointCap' in scoring)) return 2;
+  const matchFormat = (ruleset as { matchFormat?: Record<string, unknown> }).matchFormat ?? {};
+  if (!('pointCap' in matchFormat)) return 2;
   const buttons = (scoring as { buttons?: { clean?: unknown[] } }).buttons;
   if (!buttons || !Array.isArray(buttons.clean) || buttons.clean.length === 0) return 3;
   // Advanced is "done" if EITHER ruleset_config has been touched OR

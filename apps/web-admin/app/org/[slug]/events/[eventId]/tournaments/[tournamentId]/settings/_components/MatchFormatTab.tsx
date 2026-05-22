@@ -38,15 +38,17 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
-        const sc = (row.scoring_config ?? {}) as Partial<MatchFormat>;
+        const rc = (row.ruleset_config ?? {}) as { matchFormat?: Partial<MatchFormat> };
+        const mf = rc.matchFormat ?? {};
+        const sc = (row.scoring_config_json ?? {}) as Partial<MatchFormat>;
         setData({
-          pointCap: sc.pointCap ?? DEFAULTS.pointCap,
-          timerMode: sc.timerMode ?? DEFAULTS.timerMode,
-          timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(sc.timeLimitsSeconds ?? {}) },
-          softClockLimitSeconds: sc.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
-          maxDoubleHits: sc.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
+          pointCap: mf.pointCap ?? DEFAULTS.pointCap,
+          timerMode: mf.timerMode ?? DEFAULTS.timerMode,
+          timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
+          softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
+          maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
+          scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
           afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
-          scoringDirection: sc.scoringDirection ?? DEFAULTS.scoringDirection,
         });
       });
   }, [tournamentId]);
@@ -58,7 +60,19 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scoringConfig: data }),
+        body: JSON.stringify({
+          rulesetConfig: {
+            matchFormat: {
+              pointCap: data.pointCap,
+              scoringDirection: data.scoringDirection,
+              timerMode: data.timerMode,
+              timeLimitsSeconds: data.timeLimitsSeconds,
+              softClockLimitSeconds: data.softClockLimitSeconds,
+              maxDoubleHits: data.maxDoubleHits,
+            },
+          },
+          scoringConfig: { afterblowMode: data.afterblowMode },
+        }),
       });
       if (!res.ok) throw new Error('Save failed');
       toast.success(t('organizer.tournaments.settings.saved'));
