@@ -363,7 +363,7 @@ export class QualificationsService {
     // could still POST an arbitrary UUID and silently corrupt event_referees.
     const { data: claimed, error: claimedErr } = await this.supabase.service
       .from('global_persons')
-      .select('id')
+      .select('id, is_referee')
       .eq('claimed_by_user_id', targetUserId)
       .limit(1)
       .maybeSingle();
@@ -388,15 +388,78 @@ export class QualificationsService {
 
     if (upsertError) throw new BadRequestException(upsertError.message);
 
-    // Best-effort: set is_referee = 'true' only on profiles where it is currently NULL.
-    // We never overwrite an existing value, so existing referee profiles are unchanged
-    // and ad-hoc strings (e.g. legacy '1', 'yes') are preserved.
+    // Promote the global is_referee flag iff it is currently NULL.
+    // Provenance: record is_referee_event_managed = true so removeEventReferee
+    // can safely clear the flag when the last event_referees row goes away.
+    // Pre-existing referee tags (any non-NULL value) are preserved untouched.
+    if ((claimed as { is_referee: string | null }).is_referee === null) {
+      await this.supabase.service
+        .from('global_persons')
+        .update({
+          is_referee: 'true',
+          is_referee_event_managed: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('claimed_by_user_id', targetUserId)
+        .is('is_referee', null);
+      // Ignore error — best-effort only.
+    }
+  }
+
+  /**
+   * Remove a user as referee for an event.
+   * - Deletes referee_assignments for (event, user) defensively.
+   * - Deletes the event_referees row.
+   * - If the global is_referee flag was set by an event promotion
+   *   (is_referee_event_managed = true) AND no other event_referees row
+   *   exists for this user, clear is_referee back to NULL.
+   * - Idempotent: deleting a non-existent row is a no-op.
+   */
+  async removeEventReferee(
+    eventId: string,
+    targetUserId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const event = await this.getEvent(eventId);
+    await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
+
+    // Defensive cleanup: any referee_assignments scoped to this event for the
+    // user should not outlive the event_referees row.
+    await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('user_id', targetUserId);
+
+    const { error: delErr } = await this.supabase.service
+      .from('event_referees')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('user_id', targetUserId);
+
+    if (delErr) throw new BadRequestException(delErr.message);
+
+    // Is this user still a referee at any other event?
+    const { data: remaining, error: remErr } = await this.supabase.service
+      .from('event_referees')
+      .select('event_id')
+      .eq('user_id', targetUserId)
+      .limit(1);
+
+    if (remErr) throw new BadRequestException(remErr.message);
+    if (remaining && remaining.length > 0) return;
+
+    // No remaining event_referees rows — clear the global flag IFF we set it.
+    // The is_referee_event_managed guard preserves manually-set referee tags.
     await this.supabase.service
       .from('global_persons')
-      .update({ is_referee: 'true', updated_at: new Date().toISOString() })
+      .update({
+        is_referee: null,
+        is_referee_event_managed: false,
+        updated_at: new Date().toISOString(),
+      })
       .eq('claimed_by_user_id', targetUserId)
-      .is('is_referee', null);
-    // Ignore error — best-effort only.
+      .eq('is_referee_event_managed', true);
   }
 
   /**

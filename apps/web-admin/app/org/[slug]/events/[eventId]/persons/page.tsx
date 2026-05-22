@@ -130,6 +130,18 @@ export default function ParticipantsPage() {
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [refereeUserIds, setRefereeUserIds] = useState<Set<string>>(new Set());
+  type SortKey = 'name' | 'club' | 'claim' | 'tournaments' | 'referee';
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -254,8 +266,42 @@ export default function ParticipantsPage() {
       const q = search.toLowerCase();
       list = list.filter((p) => `${p.givenName} ${p.familyName}`.toLowerCase().includes(q));
     }
-    return list;
-  }, [persons, registrations, activeTab, search]);
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const sorted = [...list].sort((a, b) => {
+      switch (sortKey) {
+        case 'name':
+          return (
+            `${a.familyName} ${a.givenName}`.localeCompare(`${b.familyName} ${b.givenName}`) * dir
+          );
+        case 'club':
+          return (a.clubLabel ?? '').localeCompare(b.clubLabel ?? '') * dir;
+        case 'claim':
+          return a.claimStatus.localeCompare(b.claimStatus) * dir;
+        case 'tournaments': {
+          const ac = registrationsByPersonId.get(a.id)?.length ?? 0;
+          const bc = registrationsByPersonId.get(b.id)?.length ?? 0;
+          return (ac - bc) * dir;
+        }
+        case 'referee': {
+          const ar = !!(a.claimedByUserId && refereeUserIds.has(a.claimedByUserId));
+          const br = !!(b.claimedByUserId && refereeUserIds.has(b.claimedByUserId));
+          return (Number(br) - Number(ar)) * dir; // true first when asc
+        }
+        default:
+          return 0;
+      }
+    });
+    return sorted;
+  }, [
+    persons,
+    registrations,
+    activeTab,
+    search,
+    sortKey,
+    sortDir,
+    registrationsByPersonId,
+    refereeUserIds,
+  ]);
 
   function closeAddModal() {
     setShowAdd(false);
@@ -302,22 +348,26 @@ export default function ParticipantsPage() {
       // If "also a referee" was checked, fire-and-forget the referee registration.
       // Uses claimedByUserId (Supabase auth UUID) — only possible when the person
       // already has a claimed account. The endpoint is idempotent.
-      if (addForm.isReferee && person.claimedByUserId) {
-        fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${person.claimedByUserId}`, {
-          method: 'POST',
-          credentials: 'include',
-        })
-          .then(async (res) => {
-            if (!res.ok) {
-              const body = (await res.json().catch(() => null)) as { message?: string } | null;
-              console.error('Referee registration failed', res.status, body);
-              toast.warning(t('organizer.persons.refereeRegistrationFailed'));
-            }
+      if (addForm.isReferee) {
+        if (person.claimedByUserId) {
+          fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${person.claimedByUserId}`, {
+            method: 'POST',
+            credentials: 'include',
           })
-          .catch((err: unknown) => {
-            console.error('Referee registration network error', err);
-            toast.warning(t('organizer.persons.refereeRegistrationFailed'));
-          });
+            .then(async (res) => {
+              if (!res.ok) {
+                const body = (await res.json().catch(() => null)) as { message?: string } | null;
+                console.error('Referee registration failed', res.status, body);
+                toast.warning(t('organizer.persons.refereeRegistrationFailed'));
+              }
+            })
+            .catch((err: unknown) => {
+              console.error('Referee registration network error', err);
+              toast.warning(t('organizer.persons.refereeRegistrationFailed'));
+            });
+        } else {
+          toast.warning(t('organizer.persons.refereeNeedsClaimedAccount'));
+        }
       }
 
       // Per-tournament registrations — capture failures so a network blip
@@ -359,13 +409,14 @@ export default function ParticipantsPage() {
 
   function openEdit(p: Person) {
     setEditPerson(p);
+    const currentlyReferee = !!(p.claimedByUserId && refereeUserIds.has(p.claimedByUserId));
     setEditForm({
       givenName: p.givenName,
       familyName: p.familyName,
       email: p.email ?? '',
       hemaRatingsId: p.hemaRatingsId ?? '',
       seed: '',
-      isReferee: false,
+      isReferee: currentlyReferee,
     });
     setEditClubSearch(p.clubLabel ?? '');
     setEditClubId(null);
@@ -446,6 +497,20 @@ export default function ParticipantsPage() {
         );
       } else if (toAdd.length > 0 || toRemove.length > 0) {
         toast.success('Profile and tournament assignments updated.');
+      }
+
+      // Diff referee status — only when the person has a claimed account.
+      const claimedUserId = editPerson.claimedByUserId;
+      const wasReferee = !!(claimedUserId && refereeUserIds.has(claimedUserId));
+      if (claimedUserId && editForm.isReferee !== wasReferee) {
+        const method = editForm.isReferee ? 'POST' : 'DELETE';
+        const r = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${claimedUserId}`, {
+          method,
+          credentials: 'include',
+        });
+        if (!r.ok) {
+          toast.warning(t('organizer.persons.refereeUpdateFailed'));
+        }
       }
 
       setEditPerson(null);
@@ -800,11 +865,41 @@ export default function ParticipantsPage() {
                     className="rounded"
                   />
                 </th>
-                <th className="py-2 pr-4 font-medium">Name</th>
-                <th className="py-2 pr-4 font-medium">Club</th>
-                <th className="py-2 pr-4 font-medium">Claim status</th>
-                <th className="py-2 pr-4 font-medium">Tournaments</th>
-                <th className="py-2 pr-4 font-medium">{t('organizer.persons.refereeColumn')}</th>
+                <SortableTh
+                  label="Name"
+                  sortKey="name"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onClick={() => toggleSort('name')}
+                />
+                <SortableTh
+                  label="Club"
+                  sortKey="club"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onClick={() => toggleSort('club')}
+                />
+                <SortableTh
+                  label="Claim status"
+                  sortKey="claim"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onClick={() => toggleSort('claim')}
+                />
+                <SortableTh
+                  label="Tournaments"
+                  sortKey="tournaments"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onClick={() => toggleSort('tournaments')}
+                />
+                <SortableTh
+                  label={t('organizer.persons.refereeColumn')}
+                  sortKey="referee"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onClick={() => toggleSort('referee')}
+                />
                 <th className="py-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -1341,6 +1436,32 @@ export default function ParticipantsPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
               </div>
+              {(() => {
+                const canBeReferee = !!editPerson.claimedByUserId;
+                return (
+                  <div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editForm.isReferee}
+                        disabled={!canBeReferee}
+                        onChange={(e) =>
+                          setEditForm((f) => ({ ...f, isReferee: e.target.checked }))
+                        }
+                        className="rounded disabled:opacity-50"
+                      />
+                      <span className={canBeReferee ? 'text-gray-700' : 'text-gray-400'}>
+                        {t('organizer.persons.addAsReferee')}
+                      </span>
+                    </label>
+                    {!canBeReferee && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {t('organizer.persons.refereeRequiresClaim')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
               {tournaments.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-2">
@@ -1396,5 +1517,40 @@ export default function ParticipantsPage() {
         </div>
       )}
     </main>
+  );
+}
+
+function SortableTh<K extends string>({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onClick,
+}: {
+  label: string;
+  sortKey: K;
+  activeKey: K;
+  dir: 'asc' | 'desc';
+  onClick: () => void;
+}) {
+  const active = activeKey === sortKey;
+  const ariaSort: 'ascending' | 'descending' | 'none' = active
+    ? dir === 'asc'
+      ? 'ascending'
+      : 'descending'
+    : 'none';
+  return (
+    <th className="py-2 pr-4 font-medium" aria-sort={ariaSort}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 hover:text-gray-700 focus:outline-none"
+      >
+        <span>{label}</span>
+        <span className={active ? 'text-gray-700' : 'text-gray-300'}>
+          {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
   );
 }

@@ -223,4 +223,18 @@ export class QualificationsController {
     const actorUserId = await getUserId(req, this.supabase);
     await this.qualifications.updateAvailability(eventId, userId, dto, actorUserId);
   }
+
+  @Delete('events/:eventId/referees/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unregister a user as referee for this event (admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
+  async removeReferee(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const actorUserId = await getUserId(req, this.supabase);
+    await this.qualifications.removeEventReferee(eventId, userId, actorUserId);
+  }
 }

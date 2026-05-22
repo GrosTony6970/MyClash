@@ -2355,6 +2355,10 @@ export const en = {
       refereeTag: 'Referee',
       refereeRegistrationFailed:
         'Could not register as referee. Try adding from the Referees page.',
+      refereeNeedsClaimedAccount:
+        'Participant added, but they need to claim their account before they can be a referee.',
+      refereeRequiresClaim: 'Person must claim their account before they can be a referee.',
+      refereeUpdateFailed: 'Could not update referee status. Other changes were saved.',
     },
     deletionRequest: {
       requestDeletion: 'Request deletion',
@@ -4920,6 +4924,12 @@ export const fr = {
       refereeTag: 'Arbitre',
       refereeRegistrationFailed:
         "Impossible d'inscrire comme arbitre. Essayez depuis la page Arbitres.",
+      refereeNeedsClaimedAccount:
+        'Participant ajoute, mais il doit revendiquer son compte avant de pouvoir etre arbitre.',
+      refereeRequiresClaim:
+        'La personne doit revendiquer son compte avant de pouvoir etre arbitre.',
+      refereeUpdateFailed:
+        "Impossible de mettre a jour le statut d'arbitre. Les autres modifications ont ete enregistrees.",
     },
     deletionRequest: {
       requestDeletion: 'Demander la suppression',
