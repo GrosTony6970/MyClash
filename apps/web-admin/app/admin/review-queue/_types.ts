@@ -6,11 +6,14 @@ export interface ReviewQueueItem {
   targetHref: string | null;
   requesterUserId: string;
   requesterName: string;
+  requesterEmail: string | null;
   organizationId: string | null;
   organizationName: string | null;
   reason: string | null;
   rejectionReason: string | null;
   reviewedByUserId: string | null;
+  reviewedByName: string | null;
+  reviewedByEmail: string | null;
   reviewedAt: string | null;
   createdAt: string;
 }

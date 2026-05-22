@@ -956,6 +956,72 @@ export default function AdminClubsPage() {
         )}
       </div>
 
+      {/* Bulk action bar — sticky top, shown when 2+ clubs are selected.
+          For a single selection the operator has per-row buttons. */}
+      <BulkActionBar
+        count={selection.count}
+        placement="top-sticky"
+        minCount={2}
+        itemLabel={{
+          singular: t('admin.clubs.bulkUnitSingular'),
+          plural: t('admin.clubs.bulkUnitPlural'),
+        }}
+        onClear={() => selection.clear()}
+      >
+        <button
+          type="button"
+          onClick={() => setPendingBulk('verify')}
+          disabled={bulkBusy}
+          className="rounded-md bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkVerifyAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('unverify')}
+          disabled={bulkBusy}
+          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkUnverifyAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('archive')}
+          disabled={bulkBusy}
+          className="rounded-md bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkArchiveAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('delete')}
+          disabled={bulkBusy}
+          className="rounded-md bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkDeleteAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPendingBulk('cleanup-delete')}
+          disabled={bulkBusy}
+          className="rounded-md bg-red-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkCleanupDeleteAction')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setBulkEditCity('');
+            setBulkEditCountry('');
+            setShowBulkEditModal(true);
+          }}
+          disabled={bulkBusy}
+          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+        >
+          {t('admin.clubs.bulkEditAction')}
+        </button>
+      </BulkActionBar>
+
       {/* Table */}
       <div className="overflow-x-auto border border-slate-200 rounded-lg">
         <table className="w-full text-sm border-collapse">
@@ -1521,68 +1587,6 @@ export default function AdminClubsPage() {
           </div>
         </div>
       )}
-
-      <BulkActionBar
-        count={selection.count}
-        itemLabel={{
-          singular: t('admin.clubs.bulkUnitSingular'),
-          plural: t('admin.clubs.bulkUnitPlural'),
-        }}
-        onClear={() => selection.clear()}
-      >
-        <button
-          type="button"
-          onClick={() => setPendingBulk('verify')}
-          disabled={bulkBusy}
-          className="rounded-md bg-green-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:opacity-50"
-        >
-          {t('admin.clubs.bulkVerifyAction')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPendingBulk('unverify')}
-          disabled={bulkBusy}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
-        >
-          {t('admin.clubs.bulkUnverifyAction')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPendingBulk('archive')}
-          disabled={bulkBusy}
-          className="rounded-md bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50"
-        >
-          {t('admin.clubs.bulkArchiveAction')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPendingBulk('delete')}
-          disabled={bulkBusy}
-          className="rounded-md bg-red-800 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
-        >
-          {t('admin.clubs.bulkDeleteAction')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPendingBulk('cleanup-delete')}
-          disabled={bulkBusy}
-          className="rounded-md bg-red-950 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-900 disabled:opacity-50"
-        >
-          {t('admin.clubs.bulkCleanupDeleteAction')}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setBulkEditCity('');
-            setBulkEditCountry('');
-            setShowBulkEditModal(true);
-          }}
-          disabled={bulkBusy}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
-        >
-          {t('admin.clubs.bulkEditAction')}
-        </button>
-      </BulkActionBar>
     </main>
   );
 }
