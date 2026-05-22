@@ -448,7 +448,7 @@ export default function BracketPage() {
   }, [bracket]);
 
   return (
-    <main className="p-8">
+    <main className="px-4 py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -899,7 +899,7 @@ export default function BracketPage() {
               </>
             )}
           </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
             <BracketView
               slots={bracket.slots.filter((s) => s.id !== bronzeMatch?.id)}
               rounds={bracket.rounds}

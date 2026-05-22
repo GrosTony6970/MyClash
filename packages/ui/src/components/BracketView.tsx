@@ -185,10 +185,7 @@ function SingleElimLayout({
   return (
     <div className="space-y-8">
       <div className="overflow-x-auto pb-6">
-        <div
-          ref={containerRef}
-          className={`relative flex ${ROUND_GAP_CLASS} min-w-max items-stretch`}
-        >
+        <div ref={containerRef} className={`relative flex ${ROUND_GAP_CLASS} w-full items-stretch`}>
           <BracketConnectors
             cardRefs={cardRefs.current}
             edges={edges}
@@ -198,7 +195,10 @@ function SingleElimLayout({
             const isFinalRound = round > 0 && round === roundNumbers[roundNumbers.length - 1];
             const roundSlots = byRound.get(round) ?? [];
             return (
-              <div key={round} className="relative z-10 flex flex-col">
+              <div
+                key={round}
+                className="relative z-10 flex min-w-[180px] max-w-[320px] flex-1 flex-col"
+              >
                 <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">
                   {labels[round] ?? `R${round}`}
                 </p>
@@ -310,7 +310,7 @@ function DoubleElimLayout({
 
   return (
     <div className="space-y-6 overflow-x-auto pb-6">
-      <div ref={containerRef} className="relative min-w-max space-y-8">
+      <div ref={containerRef} className="relative w-full space-y-8">
         <BracketConnectors cardRefs={cardRefs.current} edges={edges} containerRef={containerRef} />
         <Lane
           title="Winners Bracket"
@@ -395,12 +395,12 @@ function Lane({
   return (
     <section>
       <p className={`mb-3 text-xs font-semibold uppercase tracking-widest ${accent}`}>{title}</p>
-      <div className="flex gap-16">
+      <div className="flex w-full gap-16">
         {rounds.map((round, idx) => {
           const rSlots = byRound.get(round) ?? [];
           const label = roundLabelFn ? roundLabelFn(round, idx, rounds.length) : `R${idx + 1}`;
           return (
-            <div key={round} className="flex flex-col">
+            <div key={round} className="flex min-w-[180px] max-w-[320px] flex-1 flex-col">
               <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 {label}
               </p>

@@ -47,7 +47,7 @@ export function MatchCard({
   const handleClick = onClick ? () => onClick(slot.matchId, slot.id) : undefined;
 
   const cardClasses = [
-    'group relative flex h-[52px] min-w-[160px] max-w-[180px] items-stretch rounded-md shadow-sm transition-shadow',
+    'group relative flex h-[52px] w-full min-w-[180px] max-w-[320px] items-stretch rounded-md shadow-sm transition-shadow',
     isReadyOrLive ? 'bg-amber-50' : isTbd ? 'bg-slate-50' : 'bg-white',
     isTbd
       ? 'border border-dashed border-slate-300'
