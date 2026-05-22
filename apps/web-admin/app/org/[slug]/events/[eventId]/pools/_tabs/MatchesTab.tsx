@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
@@ -52,6 +53,7 @@ interface MatchesTabProps {
 }
 
 export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: MatchesTabProps) {
+  const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [redColor, setRedColor] = useState<ColorToken>('red');
   const [blueColor, setBlueColor] = useState<ColorToken>('blue');
@@ -198,95 +200,129 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                     <th className="w-32 px-4 py-2">{t('organizer.pools.matches.status')}</th>
                     <th className="w-32 px-4 py-2">{t('organizer.pools.matches.lice')}</th>
                     <th className="w-32 px-4 py-2">{t('organizer.pools.matches.referee')}</th>
+                    <th className="w-10 px-4 py-2" />
                   </tr>
                 </thead>
                 <tbody>
-                  {pool.matches.map((m) => (
-                    <tr
-                      key={m.id}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
-                    >
-                      <td className="px-4 py-2 text-slate-500">
-                        {m.match_number_label ?? m.round_number}
-                      </td>
-                      <td className="px-4 py-2">
-                        <Link
-                          href={`/org/${slug}/events/${eventId}/matches/${m.id}`}
-                          className="flex items-center gap-2 hover:underline"
-                        >
-                          <span
-                            className={`h-6 w-1 rounded ${accentClassFor(redColor)}`}
-                            aria-hidden="true"
-                          />
-                          <span className="font-medium text-slate-900">{m.red_name}</span>
-                          {m.red_club_abbrev && (
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                              {m.red_club_abbrev}
-                            </span>
-                          )}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2">
-                        <Link
-                          href={`/org/${slug}/events/${eventId}/matches/${m.id}`}
-                          className="flex items-center gap-2 hover:underline"
-                        >
-                          <span
-                            className={`h-6 w-1 rounded ${accentClassFor(blueColor)}`}
-                            aria-hidden="true"
-                          />
-                          <span className="font-medium text-slate-900">{m.blue_name}</span>
-                          {m.blue_club_abbrev && (
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                              {m.blue_club_abbrev}
-                            </span>
-                          )}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 font-mono text-slate-700">
-                        {m.status === 'completed'
-                          ? `${m.red_score ?? 0} — ${m.blue_score ?? 0}`
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-2">
-                        <StatusPill status={m.status} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <select
-                          value={m.lice_id ?? ''}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            void updateMatchAssignment(m.id, 'liceId', e.target.value || null)
+                  {pool.matches.map((m) => {
+                    const scoreboardHref = `/org/${slug}/events/${eventId}/matches/${m.id}/scoreboard`;
+                    const auditHref = `/org/${slug}/events/${eventId}/matches/${m.id}`;
+                    return (
+                      <tr
+                        key={m.id}
+                        role="link"
+                        tabIndex={0}
+                        aria-label={t('organizer.pool.match.openScoreboard')}
+                        onClick={() => router.push(scoreboardHref)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            router.push(scoreboardHref);
                           }
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
-                        >
-                          <option value="">{t('common.none')}</option>
-                          {lices.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        <select
-                          value={m.referee_id ?? ''}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            void updateMatchAssignment(m.id, 'refereeId', e.target.value || null)
-                          }
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
-                        >
-                          <option value="">{t('common.none')}</option>
-                          {referees.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {refereeLabel(r)}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                        }}
+                        className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300"
+                      >
+                        <td className="px-4 py-2 text-slate-500">
+                          {m.match_number_label ?? m.round_number}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`h-6 w-1 rounded ${accentClassFor(redColor)}`}
+                              aria-hidden="true"
+                            />
+                            <span className="font-medium text-slate-900">{m.red_name}</span>
+                            {m.red_club_abbrev && (
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                {m.red_club_abbrev}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`h-6 w-1 rounded ${accentClassFor(blueColor)}`}
+                              aria-hidden="true"
+                            />
+                            <span className="font-medium text-slate-900">{m.blue_name}</span>
+                            {m.blue_club_abbrev && (
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                {m.blue_club_abbrev}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 font-mono text-slate-700">
+                          {m.status === 'completed'
+                            ? `${m.red_score ?? 0} — ${m.blue_score ?? 0}`
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-2">
+                          <StatusPill status={m.status} />
+                        </td>
+                        <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={m.lice_id ?? ''}
+                            onChange={(e) =>
+                              void updateMatchAssignment(m.id, 'liceId', e.target.value || null)
+                            }
+                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                          >
+                            <option value="">{t('common.none')}</option>
+                            {lices.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={m.referee_id ?? ''}
+                            onChange={(e) =>
+                              void updateMatchAssignment(m.id, 'refereeId', e.target.value || null)
+                            }
+                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                          >
+                            <option value="">{t('common.none')}</option>
+                            {referees.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {refereeLabel(r)}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                          <Link
+                            href={auditHref}
+                            className="inline-flex items-center justify-center rounded p-1 text-slate-600 hover:bg-slate-200"
+                            title={t('organizer.pool.match.openAudit')}
+                            aria-label={t('organizer.pool.match.openAudit')}
+                          >
+                            {/* Inline SVG: magnifying glass over a document (audit / file-search) */}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <circle cx="11.5" cy="14.5" r="2.5" />
+                              <line x1="13.5" y1="16.5" x2="16" y2="19" />
+                            </svg>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
