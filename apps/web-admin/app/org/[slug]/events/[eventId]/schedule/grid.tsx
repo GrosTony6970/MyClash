@@ -2,7 +2,7 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 
 interface Lice {
   id: string;
@@ -35,7 +35,9 @@ const SLOT_MINUTES = 5;
 const GRID_START_HOUR = 8;
 const GRID_END_HOUR = 20;
 const TOTAL_SLOTS = ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
-const SLOT_WIDTH_PX = 40;
+const SLOT_HEIGHT_PX = 16;
+const LICE_COL_WIDTH_PX = 120;
+const TIME_LABEL_COL_PX = 64;
 
 function minutesToSlot(minutes: number): number {
   return Math.floor(minutes / SLOT_MINUTES);
@@ -249,86 +251,89 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
           </div>
         </div>
 
-        {/* Day grid */}
-        <div className="flex-1 overflow-x-auto">
+        {/* Day grid — lice as columns, time as rows */}
+        <div className="flex-1 overflow-auto">
           {lices.length === 0 ? (
             <p className="text-gray-400 text-sm">No Lices configured for this event.</p>
           ) : (
-            <div>
-              <div className="flex mb-1 ml-24">
-                {Array.from({ length: TOTAL_SLOTS }, (_, i) => {
-                  if (i % 12 !== 0) return null;
-                  return (
+            <div
+              className="relative grid"
+              style={{
+                gridTemplateColumns: `${TIME_LABEL_COL_PX}px repeat(${lices.length}, ${LICE_COL_WIDTH_PX}px)`,
+                gridAutoRows: `${SLOT_HEIGHT_PX}px`,
+              }}
+            >
+              {/* Row 1: header — corner cell + lice name cells */}
+              <div className="sticky top-0 z-20 bg-white border-b border-gray-300" />
+              {lices.map((lice) => (
+                <div
+                  key={lice.id}
+                  className="sticky top-0 z-20 bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center"
+                  style={{ height: SLOT_HEIGHT_PX * 2 }}
+                >
+                  <span className="text-xs font-bold text-gray-700 truncate">{lice.name}</span>
+                </div>
+              ))}
+
+              {/* Rows 2..TOTAL_SLOTS+1: time-label cell + one drop-target cell per lice */}
+              {Array.from({ length: TOTAL_SLOTS }, (_, slot) => (
+                <Fragment key={slot}>
+                  {/* Time label — sticky left */}
+                  <div
+                    className="sticky left-0 z-10 bg-white text-xs text-gray-400 pr-1 flex items-center justify-end select-none"
+                    style={{
+                      borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
+                    }}
+                  >
+                    {slot % 12 === 0 ? formatSlotTime(slot) : ''}
+                  </div>
+
+                  {/* Drop-target cells — one per lice */}
+                  {lices.map((lice) => (
                     <div
-                      key={i}
-                      className="text-xs text-gray-400 flex-shrink-0"
-                      style={{ width: SLOT_WIDTH_PX * 12, minWidth: SLOT_WIDTH_PX * 12 }}
-                    >
-                      {formatSlotTime(i)}
-                    </div>
-                  );
-                })}
-              </div>
-              {lices.map((lice) => {
-                const liceMatches = scheduled.filter((m) => m.liceId === lice.id);
-                return (
-                  <div key={lice.id} className="flex items-stretch mb-1">
-                    <div className="w-24 flex-shrink-0 flex items-center pr-2">
-                      <span className="text-xs font-bold text-gray-700 truncate">{lice.name}</span>
-                    </div>
-                    <div
-                      className="relative bg-gray-50 border border-gray-200 rounded-lg"
+                      key={lice.id}
+                      className="bg-gray-50 border-l border-l-gray-200"
                       style={{
-                        width: TOTAL_SLOTS * SLOT_WIDTH_PX,
-                        minWidth: TOTAL_SLOTS * SLOT_WIDTH_PX,
-                        height: 48,
+                        borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                       }}
                       onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x = e.clientX - rect.left;
-                        const slot = Math.floor(x / SLOT_WIDTH_PX);
-                        handleDrop(lice.id, Math.max(0, Math.min(TOTAL_SLOTS - 1, slot)));
-                      }}
-                    >
-                      {Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => (
-                        <div
-                          key={i}
-                          className="absolute top-0 bottom-0 border-l border-gray-200"
-                          style={{ left: i * 12 * SLOT_WIDTH_PX }}
-                        />
-                      ))}
-                      {liceMatches.map((m) => {
-                        const slot = isoToSlot(m.scheduledAt!, baseDate || m.scheduledAt!);
-                        const width = Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES));
-                        const hasConflict = conflicts.some(
-                          (c) => c.matchA === m.matchNumberLabel || c.matchB === m.matchNumberLabel,
-                        );
-                        return (
-                          <div
-                            key={m.id}
-                            draggable
-                            onDragStart={() => {
-                              dragMatch.current = m;
-                            }}
-                            className={[
-                              'absolute top-1 bottom-1 rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden',
-                              hasConflict
-                                ? 'bg-red-200 border border-red-400 text-red-800'
-                                : 'bg-blue-100 border border-blue-300 text-blue-800',
-                              saving === m.id ? 'opacity-50' : '',
-                            ].join(' ')}
-                            style={{
-                              left: slot * SLOT_WIDTH_PX,
-                              width: width * SLOT_WIDTH_PX - 2,
-                            }}
-                            title={`${m.matchNumberLabel}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
-                          >
-                            <span className="truncate">{m.matchNumberLabel}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                      onDrop={() => handleDrop(lice.id, slot)}
+                    />
+                  ))}
+                </Fragment>
+              ))}
+
+              {/* Scheduled match cards — positioned by gridColumn + gridRow with row-span */}
+              {scheduled.map((m) => {
+                const liceIndex = lices.findIndex((l) => l.id === m.liceId);
+                if (liceIndex === -1 || !baseDate) return null;
+                const slot = isoToSlot(m.scheduledAt!, baseDate);
+                const span = Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES));
+                const hasConflict = conflicts.some(
+                  (c) => c.matchA === m.matchNumberLabel || c.matchB === m.matchNumberLabel,
+                );
+                return (
+                  <div
+                    key={m.id}
+                    draggable
+                    onDragStart={() => {
+                      dragMatch.current = m;
+                    }}
+                    className={[
+                      'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10',
+                      hasConflict
+                        ? 'bg-red-200 border border-red-400 text-red-800'
+                        : 'bg-blue-100 border border-blue-300 text-blue-800',
+                      saving === m.id ? 'opacity-50' : '',
+                    ].join(' ')}
+                    style={{
+                      gridColumn: liceIndex + 2, // +1 for time-label col, +1 for 1-based
+                      gridRow: `${slot + 2} / span ${span}`, // +1 for header row, +1 for 1-based
+                      margin: '1px',
+                    }}
+                    title={`${m.matchNumberLabel}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
+                  >
+                    <span className="truncate">{m.matchNumberLabel}</span>
                   </div>
                 );
               })}
