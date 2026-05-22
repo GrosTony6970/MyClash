@@ -189,7 +189,7 @@ export class SubmitEventClubRequestDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  @MaxLength(2)
+  @MaxLength(100)
   countryCode?: string;
 
   @ApiProperty({ required: false })

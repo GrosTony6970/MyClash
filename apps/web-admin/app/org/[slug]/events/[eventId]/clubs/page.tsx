@@ -91,7 +91,11 @@ function EventClubsSection({
         credentials: 'include',
         signal,
       });
-      if (!response.ok) throw new Error(t('organizer.eventHub.clubs.loadError'));
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        const detail = body?.message ? `: ${body.message}` : '';
+        throw new Error(`${t('organizer.eventHub.clubs.loadError')} (${response.status})${detail}`);
+      }
       setClubs((await response.json()) as EventClub[]);
       setError(null);
       setLoading(false);
