@@ -2499,6 +2499,21 @@ export const en = {
       double: 'Double',
       noExchange: 'No exchange',
     },
+    pool: {
+      match: {
+        openScoreboard: 'Open scoreboard',
+        openAudit: 'Open audit history',
+      },
+    },
+    scoreboard: {
+      pageTitle: 'Match scoreboard',
+      backToPool: '← Back to pool {poolNumber}',
+      auditLink: 'Audit history →',
+      matchHeaderFormat: '{matchLabel} · Pool {poolNumber} · {weapon}',
+      vs: 'vs',
+      loading: 'Loading scoreboard…',
+      notFound: 'Match not found.',
+    },
   },
   test: {
     greeting: 'Hello, {name}',
@@ -5027,6 +5042,21 @@ export const fr = {
       blue: 'Bleu',
       double: 'Double',
       noExchange: 'Aucun echange',
+    },
+    pool: {
+      match: {
+        openScoreboard: 'Ouvrir le tableau de score',
+        openAudit: "Ouvrir l'historique d'audit",
+      },
+    },
+    scoreboard: {
+      pageTitle: 'Tableau de score du match',
+      backToPool: '← Retour a la poule {poolNumber}',
+      auditLink: 'Historique d audit →',
+      matchHeaderFormat: '{matchLabel} · Poule {poolNumber} · {weapon}',
+      vs: 'vs',
+      loading: 'Chargement du tableau de score...',
+      notFound: 'Match introuvable.',
     },
   },
   test: {
