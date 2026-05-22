@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -117,6 +118,9 @@ export class AdminUsersService {
     if (!ORG_ROLES.includes(role)) {
       throw new BadRequestException(`Invalid role: ${role}`);
     }
+    // Super-admins are platform-scoped; they must not belong to any org.
+    // Mirror check in OrganizationsService.addMember.
+    await this.assertNotSuperAdmin(userId);
     const { data: existing } = await this.supabase.service
       .from('organization_members')
       .select('id')
@@ -552,6 +556,21 @@ export class AdminUsersService {
   private async fetchSuperAdminIds(): Promise<Set<string>> {
     const admins = await this.listSuperAdmins();
     return new Set(admins.map((admin) => admin.userId));
+  }
+
+  /** Throws if `userId` holds the platform-level super-admin role. */
+  private async assertNotSuperAdmin(userId: string): Promise<void> {
+    const { data } = await this.supabase.service
+      .from('platform_roles')
+      .select('user_id')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin')
+      .maybeSingle();
+    if (data) {
+      throw new ForbiddenException(
+        'Cannot add a super-admin to an organization. Revoke super-admin status first.',
+      );
+    }
   }
 
   private userMatchesSearch(user: ListedPlatformUser, normalizedSearch: string): boolean {

@@ -42,6 +42,7 @@ interface PlatformAccount {
   id: string;
   email?: string;
   display_name?: string | null;
+  is_super_admin?: boolean;
 }
 
 interface PlatformAccountListResponse {
@@ -779,27 +780,41 @@ export default function AdminOrgDetailPage({ params }: Props) {
                   : pickerMode === 'addMember'
                     ? platformAccounts
                         .filter((acc) => !org.members.some((m) => m.user_id === acc.id))
-                        .map((account) => (
-                          <button
-                            key={account.id}
-                            type="button"
-                            disabled={actionLoading}
-                            onClick={() => {
-                              void handleAddMember(account);
-                            }}
-                            className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <span className="block font-semibold text-slate-950">
-                              {accountLabel(account)}
-                            </span>
-                            <span className="mt-1 block text-sm text-slate-600">
-                              {account.email || t('admin.users.noEmail')}
-                            </span>
-                            <span className="mt-1 block font-mono text-xs text-slate-500">
-                              {account.id}
-                            </span>
-                          </button>
-                        ))
+                        .map((account) => {
+                          const isSuperAdmin = account.is_super_admin === true;
+                          return (
+                            <button
+                              key={account.id}
+                              type="button"
+                              disabled={actionLoading || isSuperAdmin}
+                              onClick={() => {
+                                if (isSuperAdmin) return;
+                                void handleAddMember(account);
+                              }}
+                              title={
+                                isSuperAdmin
+                                  ? 'Super-admin — cannot belong to an organization.'
+                                  : undefined
+                              }
+                              className="w-full rounded-md border border-slate-200 px-4 py-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <span className="block font-semibold text-slate-950">
+                                {accountLabel(account)}
+                                {isSuperAdmin && (
+                                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                    super-admin
+                                  </span>
+                                )}
+                              </span>
+                              <span className="mt-1 block text-sm text-slate-600">
+                                {account.email || t('admin.users.noEmail')}
+                              </span>
+                              <span className="mt-1 block font-mono text-xs text-slate-500">
+                                {account.id}
+                              </span>
+                            </button>
+                          );
+                        })
                     : null}
               </div>
             </div>

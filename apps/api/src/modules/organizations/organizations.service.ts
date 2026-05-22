@@ -188,6 +188,9 @@ export class OrganizationsService {
 
   async addMember(orgId: string, dto: AddMemberDto, requestingUserId: string) {
     await this.assertOrgRole(orgId, requestingUserId, 'owner');
+    // Super-admins are platform-scoped; they must not appear in any org's
+    // member list. Mirror check in AdminUsersService.addOrgMembership.
+    await this.assertNotSuperAdmin(dto.userId);
 
     const { data, error } = await this.supabase.service
       .from('organization_members')
@@ -201,6 +204,21 @@ export class OrganizationsService {
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  /** Throws if `userId` holds the platform-level super-admin role. */
+  private async assertNotSuperAdmin(userId: string) {
+    const { data } = await this.supabase.service
+      .from('platform_roles')
+      .select('user_id')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin')
+      .maybeSingle();
+    if (data) {
+      throw new ForbiddenException(
+        'Cannot add a super-admin to an organization. Revoke super-admin status first.',
+      );
+    }
   }
 
   // ── Helper: assert org role ──────────────────────────────────────────────────
