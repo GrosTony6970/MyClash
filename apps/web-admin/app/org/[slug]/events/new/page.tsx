@@ -4,6 +4,7 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@myclash/ui';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
+import { ColorSwatchPicker } from '../../../../../src/components/ColorSwatchPicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface WizardState {
@@ -292,21 +293,14 @@ function Step3({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <label
-          htmlFor="wizard-primary-color"
-          className="mb-1 block text-sm font-medium text-gray-700"
-        >
+        <span className="mb-1 block text-sm font-medium text-gray-700">
           {t('organizer.newEvent.primaryColor')}
-        </label>
-        <div className="flex items-center gap-3">
-          <input
-            id="wizard-primary-color"
-            type="color"
+        </span>
+        <div className="flex items-start gap-3">
+          <ColorSwatchPicker
             value={state.primaryColor}
-            onChange={(event) =>
-              dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: event.target.value })
-            }
-            className="h-10 w-10 cursor-pointer rounded border border-gray-300"
+            onChange={(hex) => dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: hex })}
+            ariaLabel={t('organizer.newEvent.primaryColor')}
           />
           <input
             type="text"

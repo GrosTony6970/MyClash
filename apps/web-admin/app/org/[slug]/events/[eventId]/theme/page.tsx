@@ -15,6 +15,7 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@myclash/ui';
+import { ColorSwatchPicker } from '../../../../../../src/components/ColorSwatchPicker';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -260,13 +261,12 @@ export default function ThemeEditorPage() {
                   { field: 'accentColor', label: 'Accent' },
                 ] as const
               ).map(({ field, label }) => (
-                <div key={field} className="flex items-center gap-3">
-                  <label className="text-sm text-gray-700 w-24">{label}</label>
-                  <input
-                    type="color"
+                <div key={field} className="flex items-start gap-3">
+                  <label className="text-sm text-gray-700 w-24 pt-1">{label}</label>
+                  <ColorSwatchPicker
                     value={theme[field]}
-                    onChange={(e) => dispatch({ type: 'SET', field, value: e.target.value })}
-                    className="w-9 h-9 rounded border border-gray-300 cursor-pointer"
+                    onChange={(hex) => dispatch({ type: 'SET', field, value: hex })}
+                    ariaLabel={label}
                   />
                   <input
                     type="text"
