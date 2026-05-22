@@ -38,13 +38,15 @@ interface SuggestConfig {
   refereeMeetingDurationMinutes: number;
 }
 
+// `parallelLiceCount: 0` is a sentinel — replaced at load time with the
+// actual number of lices configured for the event (run all in parallel).
 const DEFAULT_CONFIG: SuggestConfig = {
   dayStartTime: '08:00',
   dayEndTime: '19:00',
-  parallelLiceCount: 3,
+  parallelLiceCount: 0,
   matchDurationMinutes: 5,
-  matchGapSeconds: 15,
-  breakBetweenSessionsMinutes: 20,
+  matchGapSeconds: 10,
+  breakBetweenSessionsMinutes: 10,
   middayBreakStart: '12:00',
   middayBreakEnd: '13:00',
   registrationDurationMinutes: 60,
@@ -82,7 +84,7 @@ export function ProgrammePlanner({
   const numDays = Math.max(1, ...blocks.map((b) => b.dayIndex + 1));
   const dayBlocks = blocks.filter((b) => b.dayIndex === activeDay);
 
-  // ── Load saved blocks ──────────────────────────────────────────────────────
+  // ── Load saved blocks + default parallel-lice count ───────────────────────
 
   useEffect(() => {
     fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' })
@@ -91,6 +93,19 @@ export function ProgrammePlanner({
       })
       .catch(() => undefined)
       .finally(() => setLoading(false));
+
+    // Default parallelLiceCount = number of lices configured for the event.
+    // Only set if user hasn't already overridden the sentinel (0).
+    fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, { credentials: 'include' })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const lices = (await res.json()) as Array<{ id: string }>;
+        const count = Math.max(1, lices.length);
+        setConfig((prev) =>
+          prev.parallelLiceCount === 0 ? { ...prev, parallelLiceCount: count } : prev,
+        );
+      })
+      .catch(() => undefined);
   }, [eventId, apiUrl]);
 
   // ── Auto-suggest ───────────────────────────────────────────────────────────
@@ -99,11 +114,16 @@ export function ProgrammePlanner({
     setSuggesting(true);
     setError(null);
     try {
+      const payload: SuggestConfig = {
+        ...config,
+        // DTO requires >= 1; if the sentinel is still in place, fall back to 1.
+        parallelLiceCount: Math.max(1, config.parallelLiceCount),
+      };
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/suggest`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
@@ -133,11 +153,28 @@ export function ProgrammePlanner({
   }
 
   async function persistProgramme(): Promise<ProgrammeBlock[]> {
+    // Backend DTO whitelists fields with forbidNonWhitelisted; drop
+    // server-only fields (eventId, generatedAt) before sending.
+    const payloadBlocks = blocks.map((b) => ({
+      id: b.id,
+      dayIndex: b.dayIndex,
+      sortOrder: b.sortOrder,
+      blockType: b.blockType,
+      label: b.label,
+      competitionId: b.competitionId,
+      competitionPhase: b.competitionPhase,
+      workshopId: b.workshopId,
+      liceCount: b.liceCount,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      matchGapSeconds: b.matchGapSeconds,
+      matchDurationMinutes: b.matchDurationMinutes,
+    }));
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blocks }),
+      body: JSON.stringify({ blocks: payloadBlocks }),
     });
     if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save'));
     return (await res.json()) as ProgrammeBlock[];
