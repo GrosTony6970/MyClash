@@ -17,7 +17,6 @@ import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
 
 export const TFv1ConfigSchema = z.object({
   winBonus: z.number().int().positive().default(3),
-  afterblowWindowMs: z.number().int().positive().default(1000),
   targetValues: z
     .object({
       deepTarget: z.number().int().positive().default(2),

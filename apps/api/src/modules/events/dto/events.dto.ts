@@ -242,12 +242,6 @@ class TournamentRulesetConfigDto {
   winBonus?: number;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(10_000)
-  afterblowWindowMs?: number;
-
-  @IsOptional()
   @ValidateNested()
   @Type(() => TargetValuesDto)
   targetValues?: TargetValuesDto;

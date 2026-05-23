@@ -132,8 +132,6 @@ export interface RankingRule {
 export interface RulesetMetadata {
   /** Whether this ruleset uses the afterblow concept. */
   hasAfterblow?: boolean;
-  /** Afterblow window in ms (when hasAfterblow is true). */
-  afterblowWindowMs?: number | null;
   /** Win bonus (points awarded for a pool win), or null if not used. */
   winBonus?: number | null;
   /** Human-readable double-hit penalty formula, or null if no doubles concept. */

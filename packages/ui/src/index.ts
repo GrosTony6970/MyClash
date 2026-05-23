@@ -42,6 +42,8 @@ export type {
   BracketConfig,
   PodiumData,
 } from './components/BracketView';
+export { MedalPodium } from './components/bracket/MedalPodium';
+export type { MedalPodiumProps } from './components/bracket/MedalPodium';
 
 export { TournamentColorDot } from './components/TournamentColorDot';
 export type { TournamentColorDotProps } from './components/TournamentColorDot';

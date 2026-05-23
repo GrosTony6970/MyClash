@@ -68,7 +68,6 @@ export const TF_v1: Ruleset = {
 
   metadata: {
     hasAfterblow: true,
-    afterblowWindowMs: TFv1DefaultConfig.afterblowWindowMs,
     winBonus: TFv1DefaultConfig.winBonus,
     doublePenaltyFormula: TFv1DefaultConfig.doublePenaltyFormula,
     deepTargetDefault: TFv1DefaultConfig.targetValues.deepTarget,

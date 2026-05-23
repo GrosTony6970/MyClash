@@ -444,7 +444,8 @@ export default function AdminRulesetsPage() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-2">{t('admin.rulesets.colName')}</th>
-                  <th className="px-4 py-2">{t('admin.rulesets.colCodeVersion')}</th>
+                  <th className="px-4 py-2">{t('admin.rulesets.colCode')}</th>
+                  <th className="px-4 py-2">{t('admin.rulesets.colVersion')}</th>
                   <th className="px-4 py-2">{t('admin.rulesets.colSource')}</th>
                   <th className="px-4 py-2">{t('admin.rulesets.colStatus')}</th>
                   <th className="px-4 py-2">{t('admin.rulesets.colDefault')}</th>
@@ -460,8 +461,11 @@ export default function AdminRulesetsPage() {
                         <p className="mt-0.5 max-w-md text-xs text-slate-500">{row.description}</p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-500">
-                      {row.code}@{row.version}
+                    <td className="px-4 py-2 font-mono text-xs text-slate-500">{row.code}</td>
+                    <td className="px-4 py-2">
+                      <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                        v{row.version}
+                      </span>
                     </td>
                     <td className="px-4 py-2 text-xs">
                       <span

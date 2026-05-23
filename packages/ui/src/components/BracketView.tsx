@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { MatchCard } from './bracket/MatchCard';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
-import { MedalPodium } from './bracket/MedalPodium';
 import type { BracketConfig, BracketSlotData, ColorToken, PodiumData } from './bracket/types';
 
 export type { BracketSlotData, BracketConfig, PodiumData };
@@ -22,16 +21,6 @@ export interface BracketViewProps {
   blueColor?: ColorToken;
   /** Optional bronze match slot — rendered below the Final column on single-elim. */
   bronzeMatch?: BracketSlotData | null;
-  /** Optional podium data — rendered below the bracket on single-elim. */
-  podium?: PodiumData;
-  /** Optional podium labels (i18n). */
-  podiumLabels?: {
-    gold: string;
-    silver: string;
-    bronze: string;
-    fourth: string;
-    tbd: string;
-  };
   /** Round-label overrides — by default, last-round = Final, etc. */
   roundLabels?: Record<number, string>;
 }
@@ -49,8 +38,6 @@ export function BracketView({
   redColor = 'red',
   blueColor = 'blue',
   bronzeMatch,
-  podium,
-  podiumLabels,
   roundLabels,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
@@ -79,8 +66,6 @@ export function BracketView({
       redColor={redColor}
       blueColor={blueColor}
       bronzeMatch={bronzeMatch ?? null}
-      podium={podium ?? null}
-      podiumLabels={podiumLabels}
       roundLabels={roundLabels}
     />
   );
@@ -97,8 +82,6 @@ interface SingleElimLayoutProps {
   redColor: ColorToken;
   blueColor: ColorToken;
   bronzeMatch: BracketSlotData | null;
-  podium: PodiumData | null;
-  podiumLabels?: BracketViewProps['podiumLabels'];
   roundLabels?: Record<number, string>;
 }
 
@@ -111,8 +94,6 @@ function SingleElimLayout({
   redColor,
   blueColor,
   bronzeMatch,
-  podium,
-  podiumLabels,
   roundLabels,
 }: SingleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -238,9 +219,6 @@ function SingleElimLayout({
           })}
         </div>
       </div>
-      {podium && (
-        <MedalPodium podium={podium} showBronze={bronzeMatch !== null} labels={podiumLabels} />
-      )}
       <p className="text-xs text-slate-500">
         {rounds}-round bracket · {slots.length} match slot{slots.length === 1 ? '' : 's'}
         {bronzeMatch ? ' · bronze match' : ''}

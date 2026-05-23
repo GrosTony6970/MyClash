@@ -8,14 +8,16 @@ import { BasicsTab } from './_components/BasicsTab';
 import { MatchFormatTab } from './_components/MatchFormatTab';
 import { DisplayTab } from './_components/DisplayTab';
 import { AdvancedTab } from './_components/AdvancedTab';
+import { LocksTab } from './_components/LocksTab';
 
-type TabKey = 'basics' | 'match-format' | 'display' | 'advanced';
+type TabKey = 'basics' | 'match-format' | 'display' | 'advanced' | 'locks';
 
 const TABS: Array<{ key: TabKey; labelKey: string }> = [
   { key: 'basics', labelKey: 'organizer.tournaments.settings.basics' },
   { key: 'match-format', labelKey: 'organizer.tournaments.settings.matchFormat' },
   { key: 'display', labelKey: 'organizer.tournaments.settings.display' },
   { key: 'advanced', labelKey: 'organizer.tournaments.settings.advanced' },
+  { key: 'locks', labelKey: 'organizer.tournaments.settings.locks' },
 ];
 
 function readHashTab(): TabKey {
@@ -71,6 +73,7 @@ export default function TournamentSettingsPage() {
           {active === 'match-format' && <MatchFormatTab tournamentId={params.tournamentId} />}
           {active === 'display' && <DisplayTab tournamentId={params.tournamentId} />}
           {active === 'advanced' && <AdvancedTab tournamentId={params.tournamentId} />}
+          {active === 'locks' && <LocksTab tournamentId={params.tournamentId} />}
         </section>
       </div>
     </main>

@@ -163,6 +163,7 @@ export function RulesetForm({
             ),
           )}
         </div>
+        <ScorePreviewChip constants={constants} />
       </div>
 
       <div>
@@ -271,10 +272,6 @@ function SystemRulesetPanel({
           value={formatYesNo(metadata.hasAfterblow)}
         />
         <MetadataField
-          label={t('admin.rulesets.systemPanelAfterblowWindow')}
-          value={formatNumber(metadata.afterblowWindowMs)}
-        />
-        <MetadataField
           label={t('admin.rulesets.systemPanelWinBonus')}
           value={formatNumber(metadata.winBonus)}
         />
@@ -322,6 +319,34 @@ function MetadataField({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
       <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
       <dd className="mt-1 font-mono text-sm text-slate-800">{value}</dd>
+    </div>
+  );
+}
+
+// ── Score preview chip ───────────────────────────────────────────────────────
+// Quick "what would a hypothetical fighter score" reference using the standard
+// points-per-result + doublePenalty constants. Doesn't try to evaluate the
+// full custom AST (that would require carrying the formula evaluator into the
+// admin bundle); the chip stays useful by showing the most common shape:
+//   3 wins, 1 tie, 1 loss, 1 double-hit
+// score = 3 * pPV + 1 * pPT + 1 * pPL - 1 * doublePenalty
+function ScorePreviewChip({ constants }: { constants: FormulaConstants }) {
+  const wins = 3;
+  const ties = 1;
+  const losses = 1;
+  const doubles = 1;
+  const score =
+    wins * constants.pointsPerVictory +
+    ties * constants.pointsPerTie +
+    losses * constants.pointsPerLoss -
+    doubles * constants.doublePenalty;
+  return (
+    <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <span className="font-semibold uppercase tracking-wide text-slate-500">Preview</span>
+      <span>
+        {wins}W + {ties}T + {losses}L − {doubles} double ={' '}
+        <span className="font-mono font-semibold text-slate-900">{score.toFixed(2)}</span> pts
+      </span>
     </div>
   );
 }

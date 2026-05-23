@@ -230,7 +230,6 @@ export const Generic_PointsCap: Ruleset = {
 
   metadata: {
     hasAfterblow: false,
-    afterblowWindowMs: null,
     winBonus: null,
     doublePenaltyFormula: null,
     deepTargetDefault: null,

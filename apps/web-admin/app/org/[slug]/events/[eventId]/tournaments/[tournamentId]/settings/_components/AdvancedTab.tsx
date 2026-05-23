@@ -8,7 +8,6 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 interface RulesetConfigTF {
   winBonus: number;
-  afterblowWindowMs: number;
   targetValues: { deepTarget: number; shallowTarget: number };
   forfeitPolicy: {
     forfeitDrawsCount: boolean;
@@ -16,16 +15,9 @@ interface RulesetConfigTF {
     disqualifyAfter: number;
   };
 }
-interface LockConfig {
-  autoLockEnabled: boolean;
-  autoLockDelayMinutes: number;
-  autoLockCompletedPools: boolean;
-  autoLockCompletedBrackets: boolean;
-}
 
 const TF_DEFAULTS: RulesetConfigTF = {
   winBonus: 3,
-  afterblowWindowMs: 1000,
   targetValues: { deepTarget: 2, shallowTarget: 1 },
   forfeitPolicy: {
     forfeitDrawsCount: false,
@@ -33,18 +25,11 @@ const TF_DEFAULTS: RulesetConfigTF = {
     disqualifyAfter: 2,
   },
 };
-const LOCK_DEFAULTS: LockConfig = {
-  autoLockEnabled: false,
-  autoLockDelayMinutes: 30,
-  autoLockCompletedPools: false,
-  autoLockCompletedBrackets: false,
-};
 
 export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
   const toast = useToast();
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
   const [tf, setTf] = useState<RulesetConfigTF>(TF_DEFAULTS);
-  const [lock, setLock] = useState<LockConfig>(LOCK_DEFAULTS);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -56,17 +41,8 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
         const rc = (row.ruleset_config ?? {}) as Partial<RulesetConfigTF>;
         setTf({
           winBonus: rc.winBonus ?? TF_DEFAULTS.winBonus,
-          afterblowWindowMs: rc.afterblowWindowMs ?? TF_DEFAULTS.afterblowWindowMs,
           targetValues: { ...TF_DEFAULTS.targetValues, ...(rc.targetValues ?? {}) },
           forfeitPolicy: { ...TF_DEFAULTS.forfeitPolicy, ...(rc.forfeitPolicy ?? {}) },
-        });
-        const lc = (row.lock_config ?? {}) as Partial<LockConfig>;
-        setLock({
-          autoLockEnabled: lc.autoLockEnabled ?? LOCK_DEFAULTS.autoLockEnabled,
-          autoLockDelayMinutes: lc.autoLockDelayMinutes ?? LOCK_DEFAULTS.autoLockDelayMinutes,
-          autoLockCompletedPools: lc.autoLockCompletedPools ?? LOCK_DEFAULTS.autoLockCompletedPools,
-          autoLockCompletedBrackets:
-            lc.autoLockCompletedBrackets ?? LOCK_DEFAULTS.autoLockCompletedBrackets,
         });
       });
   }, [tournamentId]);
@@ -74,7 +50,7 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
   async function save() {
     setSaving(true);
     try {
-      const body: Record<string, unknown> = { lockConfig: lock };
+      const body: Record<string, unknown> = {};
       if (rulesetCode === 'TF_v1') body['rulesetConfig'] = tf;
       const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
@@ -100,34 +76,53 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
       {rulesetCode === 'TF_v1' && (
         <fieldset className="space-y-3 rounded-md border border-slate-200 p-4">
           <legend className="px-2 text-xs font-medium text-slate-600">
-            TF_v1 ruleset internals
+            Ruleset (TF v1) — per-tournament overrides
           </legend>
+          <p className="px-2 pb-2 text-xs text-slate-500">
+            Defaults come from the ruleset. Any value you change here is stored as a per-tournament
+            override; use &quot;Reset&quot; to restore the ruleset default.
+          </p>
           <NumField
             label="Win bonus"
             value={tf.winBonus}
+            defaultValue={TF_DEFAULTS.winBonus}
             onChange={(v) => setTf({ ...tf, winBonus: v })}
+            onReset={() => setTf({ ...tf, winBonus: TF_DEFAULTS.winBonus })}
             min={0}
             max={20}
           />
           <NumField
-            label="Afterblow window (ms)"
-            value={tf.afterblowWindowMs}
-            onChange={(v) => setTf({ ...tf, afterblowWindowMs: v })}
-            min={0}
-            max={10000}
-          />
-          <NumField
             label="Deep target points"
             value={tf.targetValues.deepTarget}
+            defaultValue={TF_DEFAULTS.targetValues.deepTarget}
             onChange={(v) => setTf({ ...tf, targetValues: { ...tf.targetValues, deepTarget: v } })}
+            onReset={() =>
+              setTf({
+                ...tf,
+                targetValues: {
+                  ...tf.targetValues,
+                  deepTarget: TF_DEFAULTS.targetValues.deepTarget,
+                },
+              })
+            }
             min={0}
             max={20}
           />
           <NumField
             label="Shallow target points"
             value={tf.targetValues.shallowTarget}
+            defaultValue={TF_DEFAULTS.targetValues.shallowTarget}
             onChange={(v) =>
               setTf({ ...tf, targetValues: { ...tf.targetValues, shallowTarget: v } })
+            }
+            onReset={() =>
+              setTf({
+                ...tf,
+                targetValues: {
+                  ...tf.targetValues,
+                  shallowTarget: TF_DEFAULTS.targetValues.shallowTarget,
+                },
+              })
             }
             min={0}
             max={20}
@@ -135,57 +130,62 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
           <BoolField
             label="Forfeit counts as draw"
             value={tf.forfeitPolicy.forfeitDrawsCount}
+            defaultValue={TF_DEFAULTS.forfeitPolicy.forfeitDrawsCount}
             onChange={(v) =>
               setTf({ ...tf, forfeitPolicy: { ...tf.forfeitPolicy, forfeitDrawsCount: v } })
+            }
+            onReset={() =>
+              setTf({
+                ...tf,
+                forfeitPolicy: {
+                  ...tf.forfeitPolicy,
+                  forfeitDrawsCount: TF_DEFAULTS.forfeitPolicy.forfeitDrawsCount,
+                },
+              })
             }
           />
           <BoolField
             label="Forfeit before 1st match → auto-DQ"
             value={tf.forfeitPolicy.forfeitFighterBefore1stMatch}
+            defaultValue={TF_DEFAULTS.forfeitPolicy.forfeitFighterBefore1stMatch}
             onChange={(v) =>
               setTf({
                 ...tf,
                 forfeitPolicy: { ...tf.forfeitPolicy, forfeitFighterBefore1stMatch: v },
               })
             }
+            onReset={() =>
+              setTf({
+                ...tf,
+                forfeitPolicy: {
+                  ...tf.forfeitPolicy,
+                  forfeitFighterBefore1stMatch:
+                    TF_DEFAULTS.forfeitPolicy.forfeitFighterBefore1stMatch,
+                },
+              })
+            }
           />
           <NumField
             label="Disqualify after N forfeits"
             value={tf.forfeitPolicy.disqualifyAfter}
+            defaultValue={TF_DEFAULTS.forfeitPolicy.disqualifyAfter}
             onChange={(v) =>
               setTf({ ...tf, forfeitPolicy: { ...tf.forfeitPolicy, disqualifyAfter: v } })
+            }
+            onReset={() =>
+              setTf({
+                ...tf,
+                forfeitPolicy: {
+                  ...tf.forfeitPolicy,
+                  disqualifyAfter: TF_DEFAULTS.forfeitPolicy.disqualifyAfter,
+                },
+              })
             }
             min={1}
             max={10}
           />
         </fieldset>
       )}
-
-      <fieldset className="space-y-3 rounded-md border border-slate-200 p-4">
-        <legend className="px-2 text-xs font-medium text-slate-600">Auto-lock</legend>
-        <BoolField
-          label="Auto-lock enabled"
-          value={lock.autoLockEnabled}
-          onChange={(v) => setLock({ ...lock, autoLockEnabled: v })}
-        />
-        <NumField
-          label="Auto-lock delay (minutes)"
-          value={lock.autoLockDelayMinutes}
-          onChange={(v) => setLock({ ...lock, autoLockDelayMinutes: v })}
-          min={0}
-          max={1440}
-        />
-        <BoolField
-          label="Auto-lock completed pools"
-          value={lock.autoLockCompletedPools}
-          onChange={(v) => setLock({ ...lock, autoLockCompletedPools: v })}
-        />
-        <BoolField
-          label="Auto-lock completed brackets"
-          value={lock.autoLockCompletedBrackets}
-          onChange={(v) => setLock({ ...lock, autoLockCompletedBrackets: v })}
-        />
-      </fieldset>
 
       <button
         type="button"
@@ -202,27 +202,54 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
 function NumField({
   label,
   value,
+  defaultValue,
   onChange,
+  onReset,
   min,
   max,
 }: {
   label: string;
   value: number;
+  defaultValue?: number;
   onChange: (v: number) => void;
+  onReset?: () => void;
   min: number;
   max: number;
 }) {
+  const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="text-sm text-slate-700">{label}</span>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-      />
+      <span className="flex items-center gap-2 text-sm text-slate-700">
+        {label}
+        {modified && (
+          <span
+            title={`Default: ${defaultValue}`}
+            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+          >
+            modified
+          </span>
+        )}
+      </span>
+      <span className="flex items-center gap-2">
+        {modified && onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-slate-500 underline hover:text-slate-800"
+            title={`Reset to ${defaultValue}`}
+          >
+            Reset
+          </button>
+        )}
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        />
+      </span>
     </label>
   );
 }
@@ -230,16 +257,43 @@ function NumField({
 function BoolField({
   label,
   value,
+  defaultValue,
   onChange,
+  onReset,
 }: {
   label: string;
   value: boolean;
+  defaultValue?: boolean;
   onChange: (v: boolean) => void;
+  onReset?: () => void;
 }) {
+  const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="flex items-center justify-between gap-3">
-      <span className="text-sm text-slate-700">{label}</span>
-      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+      <span className="flex items-center gap-2 text-sm text-slate-700">
+        {label}
+        {modified && (
+          <span
+            title={`Default: ${String(defaultValue)}`}
+            className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+          >
+            modified
+          </span>
+        )}
+      </span>
+      <span className="flex items-center gap-2">
+        {modified && onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs text-slate-500 underline hover:text-slate-800"
+            title={`Reset to ${String(defaultValue)}`}
+          >
+            Reset
+          </button>
+        )}
+        <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+      </span>
     </label>
   );
 }

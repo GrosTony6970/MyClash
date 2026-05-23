@@ -12,6 +12,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   BracketView,
+  MedalPodium,
   TournamentColorDot,
   type BracketSlotData,
   type BracketConfig,
@@ -899,6 +900,21 @@ export default function BracketPage() {
               </>
             )}
           </div>
+          {podium && bracket.phaseType === 'single_elim' && (
+            <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+              <MedalPodium
+                podium={podium}
+                showBronze={!!bronzeMatch}
+                labels={{
+                  gold: t('organizer.phaseVisibility.podiumGold'),
+                  silver: t('organizer.phaseVisibility.podiumSilver'),
+                  bronze: t('organizer.phaseVisibility.podiumBronze'),
+                  fourth: t('organizer.phaseVisibility.podiumFourth'),
+                  tbd: t('organizer.phaseVisibility.podiumTbd'),
+                }}
+              />
+            </div>
+          )}
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <BracketView
               slots={bracket.slots.filter((s) => s.id !== bronzeMatch?.id)}
@@ -907,14 +923,6 @@ export default function BracketPage() {
               redColor={redColor}
               blueColor={blueColor}
               bronzeMatch={bronzeMatch}
-              podium={podium}
-              podiumLabels={{
-                gold: t('organizer.phaseVisibility.podiumGold'),
-                silver: t('organizer.phaseVisibility.podiumSilver'),
-                bronze: t('organizer.phaseVisibility.podiumBronze'),
-                fourth: t('organizer.phaseVisibility.podiumFourth'),
-                tbd: t('organizer.phaseVisibility.podiumTbd'),
-              }}
               onMatchClick={(matchId) => {
                 if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
               }}

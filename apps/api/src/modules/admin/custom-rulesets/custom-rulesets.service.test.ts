@@ -141,7 +141,6 @@ describe('CustomRulesetsService', () => {
     // And the audit-friendly metadata block.
     expect(result.systemMetadata).toMatchObject({
       hasAfterblow: true,
-      afterblowWindowMs: 1000,
       winBonus: 3,
       doublePenaltyFormula: 'n*(n-1)/3',
       deepTargetDefault: 2,
