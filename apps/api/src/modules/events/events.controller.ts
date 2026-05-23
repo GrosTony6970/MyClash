@@ -361,7 +361,7 @@ export class EventsController {
       .maybeSingle();
 
     const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
-    const { normalizeTournamentScoringConfig } = await import('./tournament-config');
+    const { normalizeTournamentScoringConfig } = await import('./tournament-config.js');
     const config = (data as { scoring_config_json?: unknown } | null)?.scoring_config_json;
     return normalizeTournamentScoringConfig(config ?? DEFAULT_SCORING_CONFIG);
   }
@@ -382,7 +382,7 @@ export class EventsController {
       normalizeTournamentLockConfig,
       normalizeTournamentScoringConfig,
       validateTournamentRulesetConfig,
-    } = await import('./tournament-config');
+    } = await import('./tournament-config.js');
     const row = data as {
       ruleset_code?: string;
       ruleset_config?: unknown;

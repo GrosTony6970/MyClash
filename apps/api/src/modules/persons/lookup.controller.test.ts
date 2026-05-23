@@ -204,19 +204,56 @@ describe('LookupController', () => {
     });
   });
 
-  describe('lookup — validation', () => {
-    it('throws BadRequestException for empty query', async () => {
-      const mockSupabase = { service: { rpc: vi.fn() } };
+  describe('lookup — empty-query "show all participants" path', () => {
+    // Earlier behaviour: an empty/whitespace query rejected with 400. That
+    // changed when the referee assignment UI started using empty-on-focus
+    // typeahead to show all available participants — see
+    // listAllParticipants(). The controller now routes empty `q` to that
+    // path instead of throwing.
+
+    function makeChain(rows: Array<Record<string, unknown>>) {
+      const chain: Record<string, unknown> = {};
+      ['select', 'eq', 'order', 'limit'].forEach((m) => {
+        chain[m] = vi.fn().mockReturnValue(chain);
+      });
+      // Final `await` on the chain resolves to the supabase shape.
+      (chain as { then?: (resolve: (v: unknown) => unknown) => unknown }).then = (resolve) =>
+        resolve({ data: rows, error: null });
+      return chain;
+    }
+
+    it('routes empty `q` to listAllParticipants instead of throwing', async () => {
+      const personsChain = makeChain([
+        {
+          id: 'p1',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          email: 'jean.dupont@gmail.com',
+          claimed_by_user_id: null,
+          clubs: { name: 'Lyon AMHE' },
+        },
+      ]);
+      const fromMock = vi.fn().mockReturnValue(personsChain);
+      const mockSupabase = { service: { from: fromMock, rpc: vi.fn() } };
       const controller = new LookupController(mockSupabase as never, csvService);
 
-      await expect(controller.lookup('event-1', { q: '' })).rejects.toThrow(BadRequestException);
+      const result = await controller.lookup('event-1', { q: '' });
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ id: 'p1', given_name: 'Jean' });
+      // listAllParticipants reads from `persons`, never calls the lookup RPC.
+      expect(fromMock).toHaveBeenCalledWith('persons');
+      expect(mockSupabase.service.rpc).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException for whitespace-only query', async () => {
-      const mockSupabase = { service: { rpc: vi.fn() } };
+    it('treats whitespace-only `q` the same as empty (lists all)', async () => {
+      const personsChain = makeChain([]);
+      const fromMock = vi.fn().mockReturnValue(personsChain);
+      const mockSupabase = { service: { from: fromMock, rpc: vi.fn() } };
       const controller = new LookupController(mockSupabase as never, csvService);
 
-      await expect(controller.lookup('event-1', { q: '   ' })).rejects.toThrow(BadRequestException);
+      const result = await controller.lookup('event-1', { q: '   ' });
+      expect(result).toEqual([]);
+      expect(mockSupabase.service.rpc).not.toHaveBeenCalled();
     });
   });
 

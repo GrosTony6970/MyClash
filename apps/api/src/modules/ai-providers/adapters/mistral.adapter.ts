@@ -1,4 +1,3 @@
-import { Mistral } from '@mistralai/mistralai';
 import { Injectable } from '@nestjs/common';
 import type {
   GenerationRequest,
@@ -6,6 +5,11 @@ import type {
   ProviderAdapter,
   ToolDefinition,
 } from './provider-adapter.interface';
+
+// @mistralai/mistralai is an ESM-only package; under moduleResolution: "node16"
+// a CommonJS file can't statically `import` from it. Load it lazily via a
+// dynamic import inside `generate()` so the CJS host code keeps working while
+// Node resolves the ESM module at call time.
 
 const PRICING: Record<string, { input: number; output: number }> = {
   'mistral-large-latest': { input: (2 / 1_000_000) * 0.92, output: (6 / 1_000_000) * 0.92 },
@@ -28,6 +32,7 @@ function mapTools(tools: ToolDefinition[]) {
 @Injectable()
 export class MistralAdapter implements ProviderAdapter {
   async generate(apiKey: string, request: GenerationRequest): Promise<GenerationResult> {
+    const { Mistral } = await import('@mistralai/mistralai');
     const client = new Mistral({ apiKey });
     const response = await client.chat.complete({
       model: request.model,

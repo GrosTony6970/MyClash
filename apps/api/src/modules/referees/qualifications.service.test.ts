@@ -104,7 +104,10 @@ describe('QualificationsService — skills catalog', () => {
   let service: QualificationsService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks (not clearAllMocks) — clears the mockReturnValueOnce queue
+    // so previously-pushed values from earlier tests don't bleed into this one
+    // when a test's flow consumes fewer chains than were queued.
+    vi.resetAllMocks();
     mockOrganizations.assertOrgRole.mockResolvedValue(undefined);
     service = new QualificationsService(mockSupabase as never, mockOrganizations as never);
   });
@@ -509,7 +512,10 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
   let service: QualificationsService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks (not clearAllMocks) — clears the mockReturnValueOnce queue
+    // so previously-pushed values from earlier tests don't bleed into this one
+    // when a test's flow consumes fewer chains than were queued.
+    vi.resetAllMocks();
     mockOrganizations.assertOrgRole.mockResolvedValue(undefined);
     service = new QualificationsService(mockSupabase as never, mockOrganizations as never);
   });
@@ -797,9 +803,12 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
-      // claimed global_person check — found
-      const claimedChain = makeChain({ data: { id: 'gp-1' }, error: null });
-      claimedChain.maybeSingle.mockResolvedValue({ data: { id: 'gp-1' }, error: null });
+      // claimed global_person check — found. is_referee MUST be `null` (not
+      // undefined) for the gp update branch to fire — production gates on
+      // `claimed.is_referee === null` so pre-existing referee tags survive.
+      const claimedData = { id: 'gp-1', is_referee: null };
+      const claimedChain = makeChain({ data: claimedData, error: null });
+      claimedChain.maybeSingle.mockResolvedValue({ data: claimedData, error: null });
 
       // event_referees upsert
       const upsertChain = makeResolvedChain({ data: null, error: null });
