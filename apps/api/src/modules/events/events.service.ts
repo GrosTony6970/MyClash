@@ -25,7 +25,11 @@ import {
   validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
-import { normalizeRulesetVersion, resolveRulesetConfigDefaults } from './ruleset-defaults';
+import {
+  freezeRulesetVersion,
+  normalizeRulesetVersion,
+  resolveRulesetConfigDefaults,
+} from './ruleset-defaults';
 
 @Injectable()
 export class EventsService {
@@ -763,6 +767,11 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    // Pin the ruleset version: subsequent edits to (code, version) must
+    // bump a new version instead of mutating in place.
+    await freezeRulesetVersion(this.supabase, code, dto.rulesetVersion ?? '1');
+
     return data;
   }
 

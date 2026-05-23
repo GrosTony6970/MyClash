@@ -207,7 +207,6 @@ export class OrganizerAIAssistantService {
           name: String(action['name']),
           slug: String(action['slug']),
           weapon: typeof action['weapon'] === 'string' ? action['weapon'] : undefined,
-          category: typeof action['category'] === 'string' ? action['category'] : undefined,
           rulesetCode: typeof action['rulesetCode'] === 'string' ? action['rulesetCode'] : 'TF_v1',
         },
         actorUserId,

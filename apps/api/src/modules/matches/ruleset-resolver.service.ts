@@ -46,7 +46,24 @@ export class RulesetResolver {
       return ruleset;
     }
 
-    // 2. DB: only published, non-system rows are resolvable here.
+    // 2. DB version snapshot. Once versioning is enabled, the snapshot table
+    //    holds the immutable payload for every (code, version) pair that has
+    //    ever been published. Tournaments pin a (code, version) at creation
+    //    time, so we must read from the snapshot here instead of the parent
+    //    row (which only reflects the latest version).
+    try {
+      const snapshot = await this.resolveFromVersionSnapshot(code, version);
+      if (snapshot) {
+        this.cache.set(cacheKey, { ruleset: snapshot, expiresAt: now + CACHE_TTL_MS });
+        return snapshot;
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to resolve version snapshot ${code}@${version}: ${String(err)}`);
+    }
+
+    // 3. Fall back to the parent custom_rulesets row. This handles rows
+    //    created before the versions table existed and the "current draft"
+    //    case where nothing has been published yet.
     try {
       const { data } = await this.supabase.service
         .from('custom_rulesets')
@@ -84,6 +101,43 @@ export class RulesetResolver {
       this.logger.warn(`Failed to resolve custom ruleset ${code}@${version}: ${String(err)}`);
       return null;
     }
+  }
+
+  /**
+   * Look up a (code, version) snapshot in custom_ruleset_versions. We resolve
+   * the parent ruleset by code first (one extra round-trip) to bridge the
+   * snapshot table's UUID FK with the (code, version) lookup the rest of the
+   * stack uses. Returns null when no snapshot exists for that version.
+   */
+  private async resolveFromVersionSnapshot(code: string, version: string): Promise<Ruleset | null> {
+    const { data: parent } = await this.supabase.service
+      .from('custom_rulesets')
+      .select('id, name, is_system')
+      .eq('code', code)
+      .maybeSingle();
+    if (!parent) return null;
+    const parentRow = parent as { id: string; name: string; is_system: boolean };
+    if (parentRow.is_system) return null;
+
+    const { data } = await this.supabase.service
+      .from('custom_ruleset_versions')
+      .select('version, score_formula, constants, tiebreakers')
+      .eq('custom_ruleset_id', parentRow.id)
+      .eq('version', version)
+      .maybeSingle();
+    if (!data) return null;
+    const snap = data as {
+      version: string;
+      score_formula: unknown;
+      constants: unknown;
+      tiebreakers: unknown;
+    };
+    const config: FormulaConfig = {
+      scoreFormula: snap.score_formula as FormulaConfig['scoreFormula'],
+      constants: snap.constants as FormulaConfig['constants'],
+      tiebreakers: snap.tiebreakers as FormulaConfig['tiebreakers'],
+    };
+    return createFormulaRuleset(code, snap.version, parentRow.name, config);
   }
 
   /** Invalidate the cache for a single ruleset (call after upsert/publish/etc). */

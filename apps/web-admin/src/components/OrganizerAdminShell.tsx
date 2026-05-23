@@ -10,6 +10,11 @@ import { useI18n } from '../i18n/I18nProvider';
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
   { href: 'events', labelKey: 'organizer.shell.nav.events', badge: 'EV' },
+  {
+    href: 'penalty-rulesets',
+    labelKey: 'organizer.shell.nav.penaltyRulesets',
+    badge: 'PR',
+  },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
   {
     href: 'settings/compensation',

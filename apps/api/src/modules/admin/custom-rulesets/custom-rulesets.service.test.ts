@@ -72,14 +72,20 @@ describe('CustomRulesetsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('refuses to edit a system ruleset', async () => {
+  it('allows super-admin to edit a system ruleset (controller-level guard enforces the role)', async () => {
+    // Round 7: the in-service is_system guard for update() is lifted because
+    // the controller already requires SuperAdminGuard. The service must
+    // accept the patch and write the updates without throwing Forbidden.
     fromMock.mockReturnValue(
-      makeChain({ data: { id: 'r1', is_system: true, is_default: true }, error: null }),
+      makeChain({
+        data: { id: 'r1', is_system: true, is_default: true, code: 'TF_v1', version: '1.0.0' },
+        error: null,
+      }),
     );
 
-    await expect(service.update('r1', { name: 'New name' }, 'actor-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(service.update('r1', { name: 'New name' }, 'actor-1')).resolves.toMatchObject({
+      id: 'r1',
+    });
   });
 
   it('refuses to delete a system ruleset', async () => {

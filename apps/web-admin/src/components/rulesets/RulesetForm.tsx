@@ -31,6 +31,24 @@ export const DEFAULT_MATCH_FORMAT_DEFAULTS: MatchFormatDefaults = {
   scoringDirection: 'normal',
 };
 
+/**
+ * TF v1 internals — the TFv1ConfigSchema-shaped values a super-admin can
+ * tune on the system ruleset (Round 7). Stored in the parent row's
+ * `tf_config` JSONB column; merged by resolveRulesetConfigDefaults over
+ * TFv1DefaultConfig so a new tournament inherits these values.
+ */
+export interface TfV1Internals {
+  winBonus: number;
+  deepTarget: number;
+  shallowTarget: number;
+}
+
+export const DEFAULT_TF_V1_INTERNALS: TfV1Internals = {
+  winBonus: 3,
+  deepTarget: 2,
+  shallowTarget: 1,
+};
+
 export interface RulesetFormValue {
   name: string;
   description: string;
@@ -40,6 +58,8 @@ export interface RulesetFormValue {
   tiebreakers: Tiebreaker[];
   matchFormatDefaults: MatchFormatDefaults;
   doublePenaltyFormula: string;
+  /** Populated for TF_v1 rows (Round 7). Ignored for custom rulesets. */
+  tfV1Internals?: TfV1Internals;
 }
 
 interface Props {
@@ -47,6 +67,9 @@ interface Props {
   disabled?: boolean;
   busy?: boolean;
   submitLabel: string;
+  /** Ruleset code — when 'TF_v1', the form renders the TF v1 internals
+   * section and the onSubmit payload carries `tfV1Internals`. */
+  code?: string;
   /** Optional read-only metadata for is_system rulesets — sourced from the
    *  coded ruleset registry via the API. When provided, a System ruleset
    *  details panel renders above the form and the TiebreakersEditor's
@@ -57,6 +80,7 @@ interface Props {
     config: { name: string; description: string; version: string } & FormulaConfig & {
         matchFormatDefaults: MatchFormatDefaults;
         doublePenaltyFormula: string;
+        tfV1Internals?: TfV1Internals;
       },
   ) => void;
   onCancel?: () => void;
@@ -67,12 +91,14 @@ export function RulesetForm({
   disabled,
   busy,
   submitLabel,
+  code,
   systemMetadata,
   systemRankingChain,
   onSubmit,
   onCancel,
 }: Props) {
   const { t } = useI18n();
+  const isTfV1 = code === 'TF_v1';
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [version, setVersion] = useState(initial.version);
@@ -85,6 +111,9 @@ export function RulesetForm({
   );
   const [doublePenaltyFormula, setDoublePenaltyFormula] = useState<string>(
     initial.doublePenaltyFormula,
+  );
+  const [tfV1Internals, setTfV1Internals] = useState<TfV1Internals>(
+    initial.tfV1Internals ?? DEFAULT_TF_V1_INTERNALS,
   );
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -101,7 +130,9 @@ export function RulesetForm({
       setValidationError(t('admin.rulesets.nameRequired'));
       return;
     }
-    if (!scoreFormula) {
+    // TF v1 has no editable score-formula AST (the scoring algorithm is in
+    // code, not data). Skip the formula validity check for that path.
+    if (!isTfV1 && !scoreFormula) {
       setValidationError(formulaError ?? t('admin.rulesets.formulaInvalid'));
       return;
     }
@@ -110,11 +141,15 @@ export function RulesetForm({
       name: name.trim(),
       description: description.trim(),
       version: version.trim() || '1.0.0',
-      scoreFormula,
+      // For TF v1 the score formula is a code-level constant; the parent row
+      // stores an empty placeholder. Pass it through unchanged so the API
+      // doesn't choke on the validation pipeline.
+      scoreFormula: (scoreFormula ?? ({} as FormulaNode)) as FormulaNode,
       constants,
       tiebreakers,
       matchFormatDefaults,
       doublePenaltyFormula: doublePenaltyFormula.trim(),
+      ...(isTfV1 ? { tfV1Internals } : {}),
     });
   }
 
@@ -173,29 +208,66 @@ export function RulesetForm({
         </label>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          {t('admin.rulesets.constantsTitle')}
-        </h3>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          {(['pointsPerVictory', 'pointsPerTie', 'pointsPerLoss', 'doublePenalty'] as const).map(
-            (key) => (
-              <label key={key} className="block text-xs font-semibold text-slate-700">
-                {t(`admin.rulesets.variables.${key}`)}
-                <input
-                  type="number"
-                  step="0.01"
-                  value={constants[key]}
-                  onChange={(e) => setConstant(key, e.target.value)}
-                  disabled={disabled}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
-                />
-              </label>
-            ),
-          )}
+      {isTfV1 && (
+        <div className="rounded-md border border-purple-200 bg-purple-50/40 p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-purple-700">
+            {t('admin.rulesets.tfV1InternalsTitle')}
+          </h3>
+          <p className="mb-3 text-xs text-slate-600">{t('admin.rulesets.tfV1InternalsHelp')}</p>
+          <div className="grid gap-3 md:grid-cols-3">
+            <NumberInput
+              label={t('admin.rulesets.tfV1WinBonus')}
+              value={tfV1Internals.winBonus}
+              disabled={disabled}
+              min={0}
+              max={20}
+              onChange={(n) => setTfV1Internals({ ...tfV1Internals, winBonus: n })}
+            />
+            <NumberInput
+              label={t('admin.rulesets.tfV1DeepTarget')}
+              value={tfV1Internals.deepTarget}
+              disabled={disabled}
+              min={1}
+              max={20}
+              onChange={(n) => setTfV1Internals({ ...tfV1Internals, deepTarget: n })}
+            />
+            <NumberInput
+              label={t('admin.rulesets.tfV1ShallowTarget')}
+              value={tfV1Internals.shallowTarget}
+              disabled={disabled}
+              min={1}
+              max={20}
+              onChange={(n) => setTfV1Internals({ ...tfV1Internals, shallowTarget: n })}
+            />
+          </div>
         </div>
-        <ScorePreviewChip constants={constants} />
-      </div>
+      )}
+
+      {!isTfV1 && (
+        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+            {t('admin.rulesets.constantsTitle')}
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {(['pointsPerVictory', 'pointsPerTie', 'pointsPerLoss', 'doublePenalty'] as const).map(
+              (key) => (
+                <label key={key} className="block text-xs font-semibold text-slate-700">
+                  {t(`admin.rulesets.variables.${key}`)}
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={constants[key]}
+                    onChange={(e) => setConstant(key, e.target.value)}
+                    disabled={disabled}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+                  />
+                </label>
+              ),
+            )}
+          </div>
+          <ScorePreviewChip constants={constants} />
+        </div>
+      )}
 
       <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -326,33 +398,37 @@ export function RulesetForm({
         </div>
       </div>
 
-      <div>
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          {t('admin.rulesets.formulaTitle')}
-        </h3>
-        <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.formulaHelp')}</p>
-        <FormulaEditor
-          value={scoreFormula}
-          onChange={(ast, err) => {
-            setScoreFormula(ast);
-            setFormulaError(err);
-          }}
-          disabled={disabled}
-        />
-      </div>
+      {!isTfV1 && (
+        <div>
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+            {t('admin.rulesets.formulaTitle')}
+          </h3>
+          <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.formulaHelp')}</p>
+          <FormulaEditor
+            value={scoreFormula}
+            onChange={(ast, err) => {
+              setScoreFormula(ast);
+              setFormulaError(err);
+            }}
+            disabled={disabled}
+          />
+        </div>
+      )}
 
-      <div>
-        <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          {t('admin.rulesets.tiebreakersTitle')}
-        </h3>
-        <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.tiebreakersHelp')}</p>
-        <TiebreakersEditor
-          value={tiebreakers}
-          onChange={setTiebreakers}
-          disabled={disabled}
-          systemFallback={systemRankingChain}
-        />
-      </div>
+      {!isTfV1 && (
+        <div>
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+            {t('admin.rulesets.tiebreakersTitle')}
+          </h3>
+          <p className="mb-2 text-xs text-slate-500">{t('admin.rulesets.tiebreakersHelp')}</p>
+          <TiebreakersEditor
+            value={tiebreakers}
+            onChange={setTiebreakers}
+            disabled={disabled}
+            systemFallback={systemRankingChain}
+          />
+        </div>
+      )}
 
       <div className="flex gap-2">
         <button

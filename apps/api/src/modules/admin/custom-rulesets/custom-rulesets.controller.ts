@@ -16,7 +16,11 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../guards/super-admin.guard';
 import { CustomRulesetsService } from './custom-rulesets.service';
-import { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
+import {
+  CreateCustomRulesetDto,
+  PublishRulesetDto,
+  UpdateCustomRulesetDto,
+} from './dto/custom-rulesets.dto';
 
 function getActorId(req: FastifyRequest): string {
   return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
@@ -71,9 +75,33 @@ export class CustomRulesetsAdminController {
   }
 
   @Post(':id/publish')
-  @ApiOperation({ summary: 'Publish custom ruleset (super admin)' })
-  async publish(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    return this.service.publish(id, getActorId(req));
+  @ApiOperation({
+    summary: 'Publish custom ruleset, snapshot the current version, and auto-bump (super admin)',
+  })
+  async publish(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PublishRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.publish(id, getActorId(req), dto?.nextVersion);
+  }
+
+  @Get(':id/versions')
+  @ApiOperation({ summary: 'List published version snapshots (super admin)' })
+  async listVersions(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.listVersions(id);
+  }
+
+  @Post(':id/versions/:versionId/rollback')
+  @ApiOperation({
+    summary: 'Restore a previous version as the current draft (super admin)',
+  })
+  async rollback(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.rollback(id, versionId, getActorId(req));
   }
 
   @Post(':id/unpublish')

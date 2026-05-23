@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 
@@ -26,6 +27,8 @@ interface TournamentBasics {
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export function BasicsTab({ tournamentId }: { tournamentId: string }) {
+  const params = useParams<{ slug: string }>();
+  const orgSlug = params.slug;
   const toast = useToast();
   const [data, setData] = useState<TournamentBasics | null>(null);
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
@@ -33,31 +36,44 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void Promise.all([
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' }).then((r) =>
-        r.ok ? r.json() : null,
-      ),
-      fetch(`${apiUrl}/api/v1/rulesets`, { credentials: 'include' }).then((r) =>
-        r.ok ? r.json() : [],
-      ),
-      fetch(`${apiUrl}/api/v1/penalty-rulesets`, { credentials: 'include' }).then((r) =>
-        r.ok ? r.json() : [],
-      ),
-    ]).then(([row, r, p]) => {
-      if (row) {
-        setData({
-          name: row.name,
-          slug: row.slug,
-          weapon: row.weapon,
-          rulesetCode: row.ruleset_code,
-          rulesetVersion: row.ruleset_version,
-          penaltyRulesetId: row.penalty_ruleset_id,
+    if (!orgSlug) return;
+    // Resolve org id from slug so we can hit the org-scoped penalty-rulesets
+    // endpoint (which filters out other orgs' public rulesets).
+    void fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`, {
+      credentials: 'include',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((org: { id: string } | null) => {
+        const penaltyEndpoint = org
+          ? `/api/v1/organizations/${org.id}/penalty-rulesets`
+          : '/api/v1/penalty-rulesets';
+
+        return Promise.all([
+          fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' }).then(
+            (r) => (r.ok ? r.json() : null),
+          ),
+          fetch(`${apiUrl}/api/v1/rulesets`, { credentials: 'include' }).then((r) =>
+            r.ok ? r.json() : [],
+          ),
+          fetch(`${apiUrl}${penaltyEndpoint}`, { credentials: 'include' }).then((r) =>
+            r.ok ? r.json() : [],
+          ),
+        ]).then(([row, r, p]) => {
+          if (row) {
+            setData({
+              name: row.name,
+              slug: row.slug,
+              weapon: row.weapon,
+              rulesetCode: row.ruleset_code,
+              rulesetVersion: row.ruleset_version,
+              penaltyRulesetId: row.penalty_ruleset_id,
+            });
+          }
+          setRulesets(r as Ruleset[]);
+          setPenaltyRulesets(p as PenaltyRuleset[]);
         });
-      }
-      setRulesets(r as Ruleset[]);
-      setPenaltyRulesets(p as PenaltyRuleset[]);
-    });
-  }, [tournamentId]);
+      });
+  }, [tournamentId, orgSlug]);
 
   async function save() {
     if (!data) return;

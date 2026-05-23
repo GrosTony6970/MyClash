@@ -132,6 +132,45 @@ export class ImportPenaltyRulesetCsvDto {
   csv!: string;
 }
 
+export class UpdatePenaltyRulesetDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ required: false, enum: ['match', 'phase', 'tournament'] })
+  @IsOptional()
+  @IsIn(['match', 'phase', 'tournament'])
+  accumulationScope?: 'match' | 'phase' | 'tournament';
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  publicVisibility?: boolean;
+
+  /**
+   * Full replacement set of entries. When provided, the service deletes any
+   * existing entries for this ruleset and inserts these. Omit to leave
+   * entries untouched.
+   */
+  @ApiProperty({ required: false, type: Array })
+  @IsOptional()
+  @IsArray()
+  entries?: Array<{
+    groupNumber: number;
+    refNumber: number;
+    shortName: string;
+    description: string;
+    sanctions: Array<'yellow' | 'red' | 'black'>;
+  }>;
+}
+
 export class AssignPenaltyRulesetDto {
   @ApiProperty({ required: false })
   @IsOptional()

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -20,6 +21,7 @@ import {
   CreatePenaltyRulesetDto,
   ImportPenaltyRulesetCsvDto,
   ReviewPenaltyDto,
+  UpdatePenaltyRulesetDto,
   VoidPenaltyDto,
 } from './dto/penalties.dto';
 import { PenaltiesService } from './penalties.service';
@@ -77,6 +79,44 @@ export class PenaltiesController {
   async importRuleset(@Body() dto: ImportPenaltyRulesetCsvDto, @Req() req: FastifyRequest) {
     const userId = await getOptionalUserId(req, this.supabase);
     return this.penalties.importRulesetCsv(dto, userId);
+  }
+
+  @Patch('penalty-rulesets/:id')
+  @ApiOperation({
+    summary:
+      'Update a penalty ruleset. Built-in is super-admin-only; custom rulesets are org-admin gated.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async updateRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePenaltyRulesetDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.updateRuleset(id, dto, userId);
+  }
+
+  @Delete('penalty-rulesets/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a custom penalty ruleset (built-in cannot be deleted).' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    await this.penalties.deleteRuleset(id, userId);
+  }
+
+  @Get('organizations/:orgId/penalty-rulesets')
+  @ApiOperation({
+    summary:
+      'List penalty rulesets relevant to an organization: built-in + rulesets owned by orgId.',
+  })
+  @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
+  async listRulesetsForOrg(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.listRulesetsForOrg(orgId, userId);
   }
 
   @Patch('events/:id/penalty-ruleset')

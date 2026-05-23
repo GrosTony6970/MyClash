@@ -42,7 +42,8 @@ const navSections: readonly NavSection[] = [
       { href: '/admin/fighters', labelKey: 'admin.shell.nav.globalProfiles', badge: 'GP' },
       { href: '/admin/clubs', labelKey: 'admin.shell.nav.clubs', badge: 'C' },
       { href: '/admin/leagues', labelKey: 'admin.shell.nav.leagues', badge: 'L' },
-      { href: '/admin/rulesets', labelKey: 'admin.shell.nav.rulesets', badge: 'R' },
+      { href: '/admin/rulesets/scoring', labelKey: 'admin.shell.nav.scoringRulesets', badge: 'R' },
+      { href: '/admin/rulesets/penalty', labelKey: 'admin.shell.nav.penaltyRulesets', badge: 'PR' },
     ],
   },
   {

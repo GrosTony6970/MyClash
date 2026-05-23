@@ -18,6 +18,7 @@
  */
 import { TFv1DefaultConfig, GenericPointsCapDefaultConfig } from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { deepMergeJson } from '../../common/deep-merge';
 
 type DefaultsMap = Record<string, Record<string, unknown>>;
 
@@ -72,7 +73,17 @@ export async function resolveRulesetConfigDefaults(
   version: string,
 ): Promise<Record<string, unknown>> {
   const staticDefaults = defaultRulesetConfigFor(code, version);
-  if (Object.keys(staticDefaults).length > 0) return staticDefaults;
+
+  // For TF v1 (and any future system ruleset with a `tf_config` override
+  // column), let the super-admin's DB-stored overrides take precedence over
+  // the static defaults. The merge is deep so a partial override (e.g. just
+  // winBonus) only replaces that field and leaves the rest of the schema-
+  // shaped defaults intact.
+  if (Object.keys(staticDefaults).length > 0) {
+    const overrides = await loadSystemRulesetOverrides(supabase, code);
+    if (overrides) return deepMergeJson(staticDefaults, overrides) as Record<string, unknown>;
+    return staticDefaults;
+  }
 
   // Unknown to the static map — look it up in custom_rulesets.
   const { data } = await supabase.service
@@ -90,4 +101,58 @@ export async function resolveRulesetConfigDefaults(
   if (row.match_format_defaults) out['matchFormat'] = row.match_format_defaults;
   if (row.double_penalty_formula) out['doublePenaltyFormula'] = row.double_penalty_formula;
   return out;
+}
+
+/**
+ * Read `tf_config` (Round 7) for a system ruleset from the custom_rulesets
+ * mirror row. The DB row is shaped like a TFv1ConfigSchema patch (any subset
+ * of winBonus / targetValues / matchFormat / doublePenaltyFormula /
+ * forfeitPolicy). Returns null when the row or column is missing — the
+ * resolver then keeps the static defaults unchanged.
+ */
+async function loadSystemRulesetOverrides(
+  supabase: SupabaseService,
+  code: string,
+): Promise<Record<string, unknown> | null> {
+  const { data } = await supabase.service
+    .from('custom_rulesets')
+    .select('tf_config, is_system')
+    .eq('code', code)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as { tf_config: Record<string, unknown> | null; is_system: boolean };
+  if (!row.is_system) return null;
+  return row.tf_config ?? null;
+}
+
+/**
+ * Mark every matching `custom_ruleset_versions` row as frozen. Called after a
+ * tournament is created/updated to pin a (code, version) so future edits to
+ * that version are rejected (and the operator is prompted to publish a new
+ * version instead).
+ *
+ * No-op for system rulesets (the parent row is is_system=true) and for
+ * versions that have never been snapshotted (drafts pinned to a tournament
+ * before publish will materialise on the next publish, and the snapshot
+ * insert is the moment the freeze normally needs to apply).
+ */
+export async function freezeRulesetVersion(
+  supabase: SupabaseService,
+  code: string,
+  version: string,
+): Promise<void> {
+  const { data: parent } = await supabase.service
+    .from('custom_rulesets')
+    .select('id, is_system')
+    .eq('code', code)
+    .maybeSingle();
+  if (!parent) return;
+  const parentRow = parent as { id: string; is_system: boolean };
+  if (parentRow.is_system) return;
+
+  await supabase.service
+    .from('custom_ruleset_versions')
+    .update({ is_frozen: true })
+    .eq('custom_ruleset_id', parentRow.id)
+    .eq('version', version);
 }

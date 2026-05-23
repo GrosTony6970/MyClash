@@ -108,6 +108,17 @@ export class UpdateCustomRulesetDto {
   @IsString()
   @MaxLength(200)
   doublePenaltyFormula?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      "Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults " +
+      '(winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy). ' +
+      'Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.',
+  })
+  @IsOptional()
+  @IsObject()
+  tfConfig?: Record<string, unknown>;
 }
 
 export class CustomRulesetStatusDto {
@@ -120,4 +131,17 @@ export class SetDefaultDto {
   @ApiProperty()
   @IsBoolean()
   isDefault!: boolean;
+}
+
+export class PublishRulesetDto {
+  @ApiProperty({
+    required: false,
+    description:
+      'Optional explicit version string for the new draft after publish. ' +
+      'When omitted the server auto-bumps the patch component (1.0.0 -> 1.0.1).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  nextVersion?: string;
 }

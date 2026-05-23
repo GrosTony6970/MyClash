@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -28,6 +29,7 @@ import type {
   CreatePenaltyRulesetDto,
   ImportPenaltyRulesetCsvDto,
   ReviewPenaltyDto,
+  UpdatePenaltyRulesetDto,
   VoidPenaltyDto,
 } from './dto/penalties.dto';
 
@@ -142,6 +144,112 @@ export class PenaltiesService {
       },
       userId,
     );
+  }
+
+  /**
+   * Patch a penalty ruleset's metadata and optionally its full entries list.
+   *
+   * Auth model:
+   *   - built_in rows are editable only by super-admin (mirrors the TF v1
+   *     scoring-ruleset pattern). The RLS update policy blocks built_in
+   *     edits at the row level, but we write via service-role so the gate
+   *     is the in-service `isSuperAdmin` check below.
+   *   - Custom rows: org-admin of the owning org (or super-admin).
+   *
+   * Entries are replaced wholesale when `dto.entries` is provided: delete
+   * existing rows, then bulk-insert the new set. Skip when omitted.
+   */
+  async updateRuleset(id: string, dto: UpdatePenaltyRulesetDto, userId?: string) {
+    const { data: existing, error: readErr } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select('id, owner_organization_id, built_in')
+      .eq('id', id)
+      .maybeSingle();
+    if (readErr) throw new BadRequestException(readErr.message);
+    if (!existing) throw new NotFoundException(`Penalty ruleset ${id} not found`);
+
+    const row = existing as Row;
+    if (row['built_in']) {
+      if (!userId) throw new UnauthorizedException('Authentication required');
+      const superAdmin = await this.isSuperAdmin(userId);
+      if (!superAdmin) {
+        throw new ForbiddenException('Only super-admin can edit the built-in penalty ruleset');
+      }
+    } else {
+      await this.assertUserCanManageOrg(row['owner_organization_id'] as string, userId);
+    }
+
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (dto.name !== undefined) updates['name'] = dto.name.trim();
+    if (dto.description !== undefined) updates['description'] = dto.description ?? null;
+    if (dto.accumulationScope !== undefined) updates['accumulation_scope'] = dto.accumulationScope;
+    if (dto.publicVisibility !== undefined) updates['public_visibility'] = dto.publicVisibility;
+
+    const { error: updateErr } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update(updates)
+      .eq('id', id);
+    if (updateErr) throw new BadRequestException(updateErr.message);
+
+    if (dto.entries !== undefined) {
+      const { error: delErr } = await this.supabase.service
+        .from('penalty_ruleset_entries')
+        .delete()
+        .eq('ruleset_id', id);
+      if (delErr) throw new BadRequestException(delErr.message);
+      if (dto.entries.length > 0) {
+        await this.replaceEntries(id, dto.entries);
+      }
+    }
+
+    return this.getRuleset(id);
+  }
+
+  /**
+   * Delete a custom (non-built-in) penalty ruleset. The built-in row is
+   * never deletable — it's the implicit fallback for tournaments with
+   * `penalty_ruleset_id = NULL`. Custom rows are removable by their
+   * owning org's admins (or super-admin). `match_penalties.ruleset_id`
+   * is ON DELETE SET NULL, so historic penalty records survive.
+   */
+  async deleteRuleset(id: string, userId?: string): Promise<void> {
+    const { data: existing, error: readErr } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select('id, owner_organization_id, built_in')
+      .eq('id', id)
+      .maybeSingle();
+    if (readErr) throw new BadRequestException(readErr.message);
+    if (!existing) throw new NotFoundException(`Penalty ruleset ${id} not found`);
+
+    const row = existing as Row;
+    if (row['built_in']) {
+      throw new ForbiddenException('The built-in penalty ruleset cannot be deleted');
+    }
+    await this.assertUserCanManageOrg(row['owner_organization_id'] as string, userId);
+
+    const { error: delErr } = await this.supabase.service
+      .from('penalty_rulesets')
+      .delete()
+      .eq('id', id);
+    if (delErr) throw new BadRequestException(delErr.message);
+  }
+
+  /**
+   * List penalty rulesets relevant to an organization: the built-in (always
+   * visible) + any rulesets owned by `orgId`. Used by the organizer-facing
+   * /org/[slug]/penalty-rulesets page and the tournament settings dropdown
+   * to avoid showing other orgs' public rulesets.
+   */
+  async listRulesetsForOrg(orgId: string, userId?: string) {
+    await this.assertUserCanManageOrg(orgId, userId);
+    await this.ensureBuiltInRuleset();
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select('*')
+      .or(`built_in.eq.true,owner_organization_id.eq.${orgId}`)
+      .order('built_in', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
   }
 
   async assignEventRuleset(eventId: string, dto: AssignPenaltyRulesetDto, userId?: string) {
@@ -525,7 +633,23 @@ export class PenaltiesService {
 
   private async assertUserCanManageOrg(orgId: string, userId?: string): Promise<void> {
     if (!userId) throw new UnauthorizedException('Authentication required');
+    if (await this.isSuperAdmin(userId)) return;
     if (this.orgs) await this.orgs.assertOrgRole(orgId, userId, 'admin');
+  }
+
+  /**
+   * Resolve whether `userId` carries the platform `super_admin` role. Matches
+   * the lookup pattern used by leagues.service.ts:isSuperAdmin().
+   */
+  private async isSuperAdmin(userId: string): Promise<boolean> {
+    if (!userId || userId === 'anonymous') return false;
+    const { data } = await this.supabase.service
+      .from('platform_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'super_admin')
+      .maybeSingle();
+    return Boolean(data);
   }
 
   private async assertUserCanScoreOrg(orgId: string, userId?: string): Promise<void> {

@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
   DEFAULT_MATCH_FORMAT_DEFAULTS,
-} from '../../../../src/components/rulesets/RulesetForm';
+} from '../../../../../src/components/rulesets/RulesetForm';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -21,7 +21,7 @@ export default function NewRulesetPage() {
   return (
     <main className="max-w-4xl p-8">
       <div className="mb-2 text-sm">
-        <Link href="/admin/rulesets" className="text-slate-500 hover:underline">
+        <Link href="/admin/rulesets/scoring" className="text-slate-500 hover:underline">
           {t('admin.rulesets.backToList')}
         </Link>
       </div>
@@ -62,13 +62,13 @@ export default function NewRulesetPage() {
               throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
             }
             const created = (await res.json()) as { id: string };
-            router.push(`/admin/rulesets/${created.id}/edit`);
+            router.push(`/admin/rulesets/scoring/${created.id}/edit`);
           } catch (err) {
             setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
             setBusy(false);
           }
         }}
-        onCancel={() => router.push('/admin/rulesets')}
+        onCancel={() => router.push('/admin/rulesets/scoring')}
       />
     </main>
   );

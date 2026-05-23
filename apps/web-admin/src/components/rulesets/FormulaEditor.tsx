@@ -82,32 +82,36 @@ export function FormulaEditor({ value, onChange, disabled }: Props) {
 
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4">
-      <div className="mb-3 min-h-[42px] rounded-md border border-slate-200 bg-slate-50 p-2">
+      <div className="mb-3 flex min-h-[42px] flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+        {/* Round 8: "Score =" prefix frames the token row as an explicit
+            equation so operators don't miss that they're building the
+            score formula. */}
+        <span className="select-none font-mono text-sm font-semibold text-slate-700">
+          {t('admin.rulesets.scoreEquals')}
+        </span>
         {tokens.length === 0 ? (
           <p className="text-sm italic text-slate-400">{t('admin.rulesets.formulaEmpty')}</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {tokens.map((token, idx) => (
-              <button
-                key={`${idx}-${tokenLabel(t, token)}`}
-                type="button"
-                onClick={() => removeAt(idx)}
-                disabled={disabled}
-                className={`rounded-md px-2 py-1 text-sm font-mono ${
-                  token.kind === 'op'
-                    ? 'bg-red-100 text-red-700'
-                    : token.kind === 'literal'
-                      ? 'bg-amber-100 text-amber-800'
-                      : token.kind === 'var'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-slate-200 text-slate-700'
-                } hover:opacity-70 disabled:opacity-50`}
-                title={t('admin.rulesets.removeToken')}
-              >
-                {tokenLabel(t, token)}
-              </button>
-            ))}
-          </div>
+          tokens.map((token, idx) => (
+            <button
+              key={`${idx}-${tokenLabel(t, token)}`}
+              type="button"
+              onClick={() => removeAt(idx)}
+              disabled={disabled}
+              className={`rounded-md px-2 py-1 text-sm font-mono ${
+                token.kind === 'op'
+                  ? 'bg-red-100 text-red-700'
+                  : token.kind === 'literal'
+                    ? 'bg-amber-100 text-amber-800'
+                    : token.kind === 'var'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-slate-200 text-slate-700'
+              } hover:opacity-70 disabled:opacity-50`}
+              title={t('admin.rulesets.removeToken')}
+            >
+              {tokenLabel(t, token)}
+            </button>
+          ))
         )}
       </div>
 
