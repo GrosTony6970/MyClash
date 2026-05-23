@@ -17,6 +17,7 @@
  *   We normalise both to the same defaults entry.
  */
 import { TFv1DefaultConfig, GenericPointsCapDefaultConfig } from '@myclash/rulesets';
+import type { SupabaseService } from '../supabase/supabase.service';
 
 type DefaultsMap = Record<string, Record<string, unknown>>;
 
@@ -53,4 +54,40 @@ export function defaultRulesetConfigFor(code: string, version: string): Record<s
   const key = `${code}:${version}`;
   const defaults = RULESET_DEFAULTS[key];
   return defaults ? structuredClone(defaults) : {};
+}
+
+/**
+ * Like `defaultRulesetConfigFor` but also consults the `custom_rulesets`
+ * table for non-system ruleset codes — so a tournament created with a
+ * custom ruleset inherits the operator-defined `match_format_defaults` and
+ * `double_penalty_formula` rather than starting from an empty object.
+ *
+ * The custom values land in the canonical TF_v1-shaped config under
+ * `matchFormat` and `doublePenaltyFormula`, which is the shape every
+ * tournament stores (see validateTournamentRulesetConfig).
+ */
+export async function resolveRulesetConfigDefaults(
+  supabase: SupabaseService,
+  code: string,
+  version: string,
+): Promise<Record<string, unknown>> {
+  const staticDefaults = defaultRulesetConfigFor(code, version);
+  if (Object.keys(staticDefaults).length > 0) return staticDefaults;
+
+  // Unknown to the static map — look it up in custom_rulesets.
+  const { data } = await supabase.service
+    .from('custom_rulesets')
+    .select('match_format_defaults, double_penalty_formula')
+    .eq('code', code)
+    .maybeSingle();
+  if (!data) return {};
+
+  const row = data as {
+    match_format_defaults: Record<string, unknown> | null;
+    double_penalty_formula: string | null;
+  };
+  const out: Record<string, unknown> = {};
+  if (row.match_format_defaults) out['matchFormat'] = row.match_format_defaults;
+  if (row.double_penalty_formula) out['doublePenaltyFormula'] = row.double_penalty_formula;
+  return out;
 }

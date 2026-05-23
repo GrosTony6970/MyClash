@@ -25,7 +25,7 @@ import {
   validateTournamentRulesetConfig,
 } from './tournament-config';
 import { deepMergeJson } from '../../common/deep-merge';
-import { defaultRulesetConfigFor, normalizeRulesetVersion } from './ruleset-defaults';
+import { normalizeRulesetVersion, resolveRulesetConfigDefaults } from './ruleset-defaults';
 
 @Injectable()
 export class EventsService {
@@ -738,6 +738,13 @@ export class EventsService {
     if (existing)
       throw new ConflictException(`Tournament slug "${dto.slug}" already exists in this event`);
 
+    // Seed ruleset_config from the ruleset's defaults so a freshly created
+    // tournament inherits per-ruleset match-format defaults (and any
+    // doublePenaltyFormula on custom rulesets) out of the box.
+    const code = dto.rulesetCode ?? 'TF_v1';
+    const version = normalizeRulesetVersion(dto.rulesetVersion ?? '1');
+    const rulesetConfig = await resolveRulesetConfigDefaults(this.supabase, code, version);
+
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .insert({
@@ -745,11 +752,12 @@ export class EventsService {
         slug: dto.slug,
         name: dto.name.trim(),
         weapon: dto.weapon ?? null,
-        ruleset_code: dto.rulesetCode ?? 'TF_v1',
+        ruleset_code: code,
         ruleset_version: dto.rulesetVersion ?? '1',
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
         color: dto.color ?? null,
         status: 'draft',
+        ruleset_config: rulesetConfig,
       })
       .select('*')
       .single();
@@ -809,7 +817,8 @@ export class EventsService {
       // Switching ruleset wipes the existing config and seeds defaults from the
       // new ruleset. Caller-provided rulesetConfig in the same PATCH (rare) is
       // merged on top of the new defaults.
-      const newDefaults = defaultRulesetConfigFor(
+      const newDefaults = await resolveRulesetConfigDefaults(
+        this.supabase,
         dto.rulesetCode ?? currentCode ?? 'TF_v1',
         dtoVersion ?? currentVersion ?? '1.0.0',
       );
