@@ -234,6 +234,7 @@ export class AdminOrganizationsService {
 
       if (query.status) q = q.eq('status', query.status) as typeof q;
       if (query.q) q = q.ilike('name', `%${query.q}%`) as typeof q;
+      if (query.excludePlatform) q = q.eq('is_platform', false) as typeof q;
 
       const { data, error } = await q;
       if (error) throw error;

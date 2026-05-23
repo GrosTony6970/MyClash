@@ -55,6 +55,23 @@ export class LeaguesService {
     return data ?? [];
   }
 
+  /**
+   * Leagues an organizer can request to attach a tournament to.
+   * Unlike listPublic (which gates on visibility + published status),
+   * this surface returns every non-archived league so organizers can
+   * also see drafts they may have permission to attach to. The
+   * attach POST still enforces league + org permissions on its side.
+   */
+  async listAttachable() {
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .select('*')
+      .in('status', ['draft', 'published'])
+      .order('season_year', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
   async getPublicBySlug(slug: string) {
     const { data, error } = await this.supabase.service
       .from('leagues')

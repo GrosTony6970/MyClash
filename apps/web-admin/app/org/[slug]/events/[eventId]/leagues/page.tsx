@@ -26,7 +26,9 @@ export default function EventLeagueAttachmentPage() {
 
   const load = useCallback(() => {
     void Promise.all([
-      fetch(`${apiUrl}/api/v1/leagues`).then((res) => res.json() as Promise<League[]>),
+      fetch(`${apiUrl}/api/v1/leagues/attachable`, { credentials: 'include' }).then(
+        (res) => res.json() as Promise<League[]>,
+      ),
       fetch(`${apiUrl}/api/v1/events/${params.eventId}/tournaments`).then(
         (res) => res.json() as Promise<Tournament[]>,
       ),

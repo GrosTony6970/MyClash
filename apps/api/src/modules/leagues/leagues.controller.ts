@@ -53,6 +53,14 @@ export class LeaguesController {
     return this.leagues.listPublic(seasonYear ? Number(seasonYear) : undefined);
   }
 
+  @Get('leagues/attachable')
+  @ApiOperation({
+    summary: 'List leagues a tournament organizer can request to attach to (drafts + published).',
+  })
+  async listAttachable() {
+    return this.leagues.listAttachable();
+  }
+
   @Get('leagues/:slug')
   @ApiOperation({ summary: 'Get public league by slug' })
   async getPublic(@Param('slug') slug: string) {

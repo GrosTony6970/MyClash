@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
@@ -34,6 +36,15 @@ export class ListOrgsQueryDto {
   @IsOptional()
   @IsIn(['asc', 'desc'])
   order?: 'asc' | 'desc';
+
+  @ApiProperty({
+    required: false,
+    description: 'Exclude organizations flagged as platform-owned (is_platform=true).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  excludePlatform?: boolean;
 }
 
 export class CreateOrganizationDto {

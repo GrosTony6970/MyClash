@@ -74,6 +74,8 @@ interface TournamentOption {
   id: string;
   name: string | null;
   weapon: string | null;
+  category: string | null;
+  status: string | null;
 }
 
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -164,7 +166,9 @@ export default function EditLeaguePage() {
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((data: { users: AdminUserOption[] }) => setAllUsers(data.users ?? []))
       .catch(() => undefined);
-    void fetch(`${apiUrl}/api/v1/admin/organizations`, { credentials: 'include' })
+    void fetch(`${apiUrl}/api/v1/admin/organizations?excludePlatform=true`, {
+      credentials: 'include',
+    })
       .then(async (r) => {
         if (!r.ok) throw new Error('Could not load organizations');
         return (await r.json()) as OrgOption[] | { organizations: OrgOption[] };
@@ -823,9 +827,28 @@ export default function EditLeaguePage() {
                                 key={t.id}
                                 className="flex items-center justify-between gap-2 text-xs"
                               >
-                                <span>
-                                  {t.name ?? '(unnamed)'}{' '}
+                                <span className="flex items-center gap-1.5">
+                                  <span>{t.name ?? '(unnamed)'}</span>
                                   {t.weapon && <span className="text-slate-400">· {t.weapon}</span>}
+                                  {t.category && (
+                                    <span className="text-slate-400">· {t.category}</span>
+                                  )}
+                                  {t.status && (
+                                    <span
+                                      className={[
+                                        'rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase',
+                                        t.status === 'published'
+                                          ? 'bg-green-100 text-green-700'
+                                          : t.status === 'draft'
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : t.status === 'completed'
+                                              ? 'bg-slate-100 text-slate-600'
+                                              : 'bg-slate-100 text-slate-500',
+                                      ].join(' ')}
+                                    >
+                                      {t.status}
+                                    </span>
+                                  )}
                                 </span>
                                 <button
                                   type="button"
