@@ -14,6 +14,11 @@ interface Tournament {
   name: string;
 }
 
+interface LeagueGroup {
+  id: string;
+  name: string;
+}
+
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export default function EventLeagueAttachmentPage() {
@@ -22,6 +27,8 @@ export default function EventLeagueAttachmentPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [leagueId, setLeagueId] = useState('');
   const [tournamentId, setTournamentId] = useState('');
+  const [groups, setGroups] = useState<LeagueGroup[]>([]);
+  const [groupId, setGroupId] = useState<string>('');
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -46,11 +53,36 @@ export default function EventLeagueAttachmentPage() {
     load();
   }, [load]);
 
+  // Load the selected league's groups so the operator can pick which
+  // bucket the tournament should land in. Empty groups list = league
+  // doesn't define any; submit without a groupId.
+  useEffect(() => {
+    if (!leagueId) {
+      setGroups([]);
+      setGroupId('');
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/leagues/${leagueId}/groups`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<LeagueGroup[]>) : []))
+      .then((rows) => {
+        setGroups(rows);
+        setGroupId(rows[0]?.id ?? '');
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [leagueId]);
+
   const submit = () => {
     setMessage(null);
     fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/request`, {
       method: 'POST',
       credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: groupId || null }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(t('admin.leagues.requestError'));
@@ -98,6 +130,26 @@ export default function EventLeagueAttachmentPage() {
             </option>
           ))}
         </select>
+
+        {groups.length > 0 && (
+          <>
+            <label className="block text-sm font-medium mb-2" htmlFor="group">
+              Group
+            </label>
+            <select
+              id="group"
+              className="border rounded px-3 py-2 text-sm w-full mb-4"
+              value={groupId}
+              onChange={(event) => setGroupId(event.target.value)}
+            >
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
         <button className="bg-gray-950 text-white rounded px-4 py-2 text-sm" onClick={submit}>
           {t('admin.leagues.submitRequest')}

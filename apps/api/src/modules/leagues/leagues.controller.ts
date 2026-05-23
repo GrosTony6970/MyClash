@@ -21,9 +21,12 @@ import {
   AddLeagueOrganizationRoleDto,
   AddLeagueUserRoleDto,
   CreateLeagueDto,
+  LeagueGroupDto,
   LeagueStandingsQueryDto,
+  LinkTournamentDto,
   ReviewLeagueTournamentLinkDto,
   UpdateLeagueDto,
+  UpdateLeagueGroupDto,
 } from './dto/leagues.dto';
 import { LeaguesService } from './leagues.service';
 
@@ -152,10 +155,11 @@ export class LeaguesController {
   async addTournamentLink(
     @Param('leagueId', ParseUUIDPipe) leagueId: string,
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Body() dto: LinkTournamentDto,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
-    return this.leagues.addTournamentLink(leagueId, tournamentId, userId);
+    return this.leagues.addTournamentLink(leagueId, tournamentId, userId, dto?.groupId ?? null);
   }
 
   @Post('admin/leagues/:leagueId/events/:eventId/link')
@@ -283,10 +287,11 @@ export class LeaguesController {
   async requestTournamentLink(
     @Param('leagueId', ParseUUIDPipe) leagueId: string,
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Body() dto: LinkTournamentDto,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
-    return this.leagues.requestTournamentLink(leagueId, tournamentId, userId);
+    return this.leagues.requestTournamentLink(leagueId, tournamentId, userId, dto?.groupId ?? null);
   }
 
   @Get('admin/leagues/:leagueId/tournament-links')
@@ -302,14 +307,74 @@ export class LeaguesController {
 
   @Patch('admin/league-tournament-links/:linkId')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve, reject, or remove a league tournament link' })
+  @ApiOperation({
+    summary: 'Approve, reject, remove, or reassign-to-group a league tournament link',
+  })
   async reviewTournamentLink(
     @Param('linkId', ParseUUIDPipe) linkId: string,
     @Body() dto: ReviewLeagueTournamentLinkDto,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
-    return this.leagues.reviewTournamentLink(linkId, dto.status, userId);
+    return this.leagues.reviewTournamentLink(
+      linkId,
+      { status: dto.status, groupId: dto.groupId },
+      userId,
+    );
+  }
+
+  // ── Groups ────────────────────────────────────────────────────────────
+
+  @Get('leagues/:leagueId/groups')
+  @ApiOperation({
+    summary:
+      'List groups defined for a league (public — used by organizers picking a group when requesting attachment).',
+  })
+  async listLeagueGroupsPublic(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
+    return this.leagues.listGroups(leagueId);
+  }
+
+  @Get('admin/leagues/:leagueId/groups')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List groups defined for a league (admin view).' })
+  async listLeagueGroups(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
+    return this.leagues.listGroups(leagueId);
+  }
+
+  @Post('admin/leagues/:leagueId/groups')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a league group.' })
+  async createLeagueGroup(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Body() dto: LeagueGroupDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.createGroup(leagueId, dto, userId);
+  }
+
+  @Patch('admin/league-groups/:groupId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a league group.' })
+  async updateLeagueGroup(
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: UpdateLeagueGroupDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.updateGroup(groupId, dto, userId);
+  }
+
+  @Delete('admin/league-groups/:groupId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a league group.' })
+  async deleteLeagueGroup(
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.leagues.deleteGroup(groupId, userId);
   }
 
   @Post('admin/leagues/:leagueId/recompute')

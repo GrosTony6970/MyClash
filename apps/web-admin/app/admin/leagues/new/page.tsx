@@ -74,12 +74,50 @@ export default function NewLeaguePage() {
     {},
   );
   const [selectedTournaments, setSelectedTournaments] = useState<
-    Array<{ tournamentId: string; tournamentName: string; eventName: string }>
+    Array<{
+      tournamentId: string;
+      tournamentName: string;
+      eventName: string;
+      groupTmpId: string | null;
+    }>
+  >([]);
+
+  // Groups (created together with the league after submit). Each entry
+  // carries a local tmpId used to attach selected tournaments to a group
+  // before the league exists; the tmpId is swapped for the real UUID
+  // once the POST /groups returns.
+  const [leagueGroups, setLeagueGroups] = useState<
+    Array<{ tmpId: string; name: string; sortOrder: number }>
   >([]);
 
   // Submit state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function addGroup() {
+    setLeagueGroups((prev) => [
+      ...prev,
+      {
+        tmpId: `g-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: '',
+        sortOrder: prev.length,
+      },
+    ]);
+  }
+  function updateGroupName(tmpId: string, name: string) {
+    setLeagueGroups((prev) => prev.map((g) => (g.tmpId === tmpId ? { ...g, name } : g)));
+  }
+  function removeGroup(tmpId: string) {
+    setLeagueGroups((prev) => prev.filter((g) => g.tmpId !== tmpId));
+    setSelectedTournaments((prev) =>
+      prev.map((t) => (t.groupTmpId === tmpId ? { ...t, groupTmpId: null } : t)),
+    );
+  }
+  function setTournamentGroup(tournamentId: string, groupTmpId: string | null) {
+    setSelectedTournaments((prev) =>
+      prev.map((t) => (t.tournamentId === tournamentId ? { ...t, groupTmpId } : t)),
+    );
+  }
 
   useEffect(() => {
     if (!slugDetached) setSlug(toSlug(name));
@@ -149,9 +187,15 @@ export default function NewLeaguePage() {
 
   function pickTournament(t: TournamentOption, eventName: string) {
     if (selectedTournaments.some((x) => x.tournamentId === t.id)) return;
+    const defaultGroup = leagueGroups[0]?.tmpId ?? null;
     setSelectedTournaments((prev) => [
       ...prev,
-      { tournamentId: t.id, tournamentName: t.name ?? '(unnamed)', eventName },
+      {
+        tournamentId: t.id,
+        tournamentName: t.name ?? '(unnamed)',
+        eventName,
+        groupTmpId: defaultGroup,
+      },
     ]);
   }
 
@@ -223,13 +267,35 @@ export default function NewLeaguePage() {
         });
       }
 
+      // Groups (must be created before tournament links so the link
+      // POSTs can reference the new group ids). Local entries carry a
+      // temporary `tmpId` used by the tournament picker to choose a
+      // group; we map that to the real UUID once the group is created.
+      const groupIdByTmp = new Map<string, string>();
+      for (const g of leagueGroups) {
+        if (!g.name.trim()) continue;
+        const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/groups`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: g.name.trim(), sortOrder: g.sortOrder }),
+        });
+        if (res.ok) {
+          const created = (await res.json()) as { id: string };
+          groupIdByTmp.set(g.tmpId, created.id);
+        }
+      }
+
       // Tournaments
       for (const t of selectedTournaments) {
+        const resolvedGroupId = t.groupTmpId ? (groupIdByTmp.get(t.groupTmpId) ?? null) : null;
         await fetch(
           `${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${t.tournamentId}/link`,
           {
             method: 'POST',
             credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupId: resolvedGroupId }),
           },
         );
       }
@@ -471,6 +537,43 @@ export default function NewLeaguePage() {
       </section>
 
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          Groups
+        </h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Operator-defined buckets (e.g. &quot;Sabre Mixed&quot;, &quot;Longsword Open&quot;).
+          Tournaments attached to this league are assigned to one of these groups.
+        </p>
+        <div className="space-y-2">
+          {leagueGroups.map((g) => (
+            <div key={g.tmpId} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={g.name}
+                onChange={(e) => updateGroupName(g.tmpId, e.target.value)}
+                placeholder="Group name"
+                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+              <button
+                type="button"
+                onClick={() => removeGroup(g.tmpId)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={addGroup}
+          className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          + Add group
+        </button>
+      </section>
+
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
           Linked tournaments
         </h2>
@@ -567,11 +670,25 @@ export default function NewLeaguePage() {
               {selectedTournaments.map((t) => (
                 <li
                   key={t.tournamentId}
-                  className="flex items-center justify-between rounded bg-slate-50 px-2 py-1 text-xs"
+                  className="flex items-center justify-between gap-2 rounded bg-slate-50 px-2 py-1 text-xs"
                 >
-                  <span>
+                  <span className="flex-1 truncate">
                     {t.tournamentName} <span className="text-slate-400">· {t.eventName}</span>
                   </span>
+                  {leagueGroups.length > 0 && (
+                    <select
+                      value={t.groupTmpId ?? ''}
+                      onChange={(e) => setTournamentGroup(t.tournamentId, e.target.value || null)}
+                      className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs"
+                    >
+                      <option value="">— no group —</option>
+                      {leagueGroups.map((g) => (
+                        <option key={g.tmpId} value={g.tmpId}>
+                          {g.name.trim() || '(unnamed)'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     type="button"
                     onClick={() =>

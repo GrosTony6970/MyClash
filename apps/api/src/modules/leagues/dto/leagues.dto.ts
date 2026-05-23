@@ -127,9 +127,51 @@ export class AddLeagueUserRoleDto {
 }
 
 export class ReviewLeagueTournamentLinkDto {
-  @ApiProperty({ enum: ['approved', 'rejected', 'removed'] })
+  @ApiProperty({ enum: ['approved', 'rejected', 'removed'], required: false })
+  @IsOptional()
   @IsIn(['approved', 'rejected', 'removed'])
-  status!: 'approved' | 'rejected' | 'removed';
+  status?: 'approved' | 'rejected' | 'removed';
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Assign this link to a league group, or null to clear.',
+  })
+  @IsOptional()
+  @IsUUID()
+  groupId?: string | null;
+}
+
+export class LeagueGroupDto {
+  @ApiProperty({ example: 'Sabre Mixed' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name!: string;
+
+  @ApiProperty({ required: false, default: 0 })
+  @IsOptional()
+  sortOrder?: number;
+}
+
+export class UpdateLeagueGroupDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  sortOrder?: number;
+}
+
+export class LinkTournamentDto {
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  groupId?: string | null;
 }
 
 export class LeagueStandingsQueryDto {

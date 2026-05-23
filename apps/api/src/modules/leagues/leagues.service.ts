@@ -432,9 +432,15 @@ export class LeaguesService {
     return { leagueId, organizationId };
   }
 
-  async requestTournamentLink(leagueId: string, tournamentId: string, userId: string) {
+  async requestTournamentLink(
+    leagueId: string,
+    tournamentId: string,
+    userId: string,
+    groupId?: string | null,
+  ) {
     const tournament = await this.getTournamentWithEvent(tournamentId);
     await this.orgs.assertOrgRole(String(tournament['organization_id']), userId, 'admin');
+    if (groupId) await this.assertGroupBelongsToLeague(groupId, leagueId);
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
       .upsert(
@@ -443,6 +449,7 @@ export class LeaguesService {
           tournament_id: tournamentId,
           status: 'requested',
           requested_by_user_id: userId,
+          group_id: groupId ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'league_id,tournament_id' },
@@ -457,16 +464,101 @@ export class LeaguesService {
     await this.assertCanManageLeague(leagueId, userId);
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
-      .select('*, tournaments(id, name, weapon, category, events(id, name, start_date))')
+      .select(
+        '*, tournaments(id, name, weapon, category, status, events(id, name, start_date)), league_groups(id, name)',
+      )
       .eq('league_id', leagueId)
       .order('created_at', { ascending: false });
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
   }
 
+  // ── Groups ────────────────────────────────────────────────────────────────
+
+  async listGroups(leagueId: string) {
+    const { data, error } = await this.supabase.service
+      .from('league_groups')
+      .select('*')
+      .eq('league_id', leagueId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  async createGroup(leagueId: string, dto: { name: string; sortOrder?: number }, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('Group name is required');
+    const { data, error } = await this.supabase.service
+      .from('league_groups')
+      .insert({
+        league_id: leagueId,
+        name,
+        sort_order: dto.sortOrder ?? 0,
+      })
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async updateGroup(groupId: string, dto: { name?: string; sortOrder?: number }, userId: string) {
+    const { data: existing } = await this.supabase.service
+      .from('league_groups')
+      .select('league_id')
+      .eq('id', groupId)
+      .maybeSingle();
+    if (!existing) throw new NotFoundException(`League group ${groupId} not found`);
+    await this.assertCanManageLeague(String((existing as Row)['league_id']), userId);
+
+    const updates: Record<string, unknown> = {};
+    if (dto.name !== undefined) {
+      const trimmed = dto.name.trim();
+      if (!trimmed) throw new BadRequestException('Group name cannot be empty');
+      updates['name'] = trimmed;
+    }
+    if (dto.sortOrder !== undefined) updates['sort_order'] = dto.sortOrder;
+    if (Object.keys(updates).length === 0) return existing;
+
+    const { data, error } = await this.supabase.service
+      .from('league_groups')
+      .update(updates)
+      .eq('id', groupId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async deleteGroup(groupId: string, userId: string) {
+    const { data: existing } = await this.supabase.service
+      .from('league_groups')
+      .select('league_id')
+      .eq('id', groupId)
+      .maybeSingle();
+    if (!existing) throw new NotFoundException(`League group ${groupId} not found`);
+    await this.assertCanManageLeague(String((existing as Row)['league_id']), userId);
+    const { error } = await this.supabase.service.from('league_groups').delete().eq('id', groupId);
+    if (error) throw new BadRequestException(error.message);
+    // Links referencing this group automatically have group_id set to NULL
+    // by the ON DELETE SET NULL FK.
+  }
+
+  private async assertGroupBelongsToLeague(groupId: string, leagueId: string) {
+    const { data } = await this.supabase.service
+      .from('league_groups')
+      .select('league_id')
+      .eq('id', groupId)
+      .maybeSingle();
+    if (!data || String((data as Row)['league_id']) !== leagueId) {
+      throw new BadRequestException(`Group ${groupId} does not belong to league ${leagueId}`);
+    }
+  }
+
   async reviewTournamentLink(
     linkId: string,
-    status: 'approved' | 'rejected' | 'removed',
+    update: { status?: 'approved' | 'rejected' | 'removed'; groupId?: string | null },
     userId: string,
   ) {
     const { data: link } = await this.supabase.service
@@ -475,16 +567,27 @@ export class LeaguesService {
       .eq('id', linkId)
       .maybeSingle();
     if (!link) throw new NotFoundException(`League tournament link ${linkId} not found`);
-    await this.assertCanManageLeague(String((link as Row)['league_id']), userId);
+    const leagueId = String((link as Row)['league_id']);
+    await this.assertCanManageLeague(leagueId, userId);
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (update.status !== undefined) {
+      updates['status'] = update.status;
+      updates['reviewed_by_user_id'] = userId;
+      updates['reviewed_at'] = new Date().toISOString();
+    }
+    if (update.groupId !== undefined) {
+      if (update.groupId !== null) {
+        await this.assertGroupBelongsToLeague(update.groupId, leagueId);
+      }
+      updates['group_id'] = update.groupId;
+    }
 
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
-      .update({
-        status,
-        reviewed_by_user_id: userId,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq('id', linkId)
       .select('*')
       .single();
@@ -505,12 +608,18 @@ export class LeaguesService {
       .eq('tournaments.event_id', eventId)
       .neq('status', 'removed');
     for (const link of (links ?? []) as Row[]) {
-      await this.reviewTournamentLink(String(link['id']), 'removed', userId);
+      await this.reviewTournamentLink(String(link['id']), { status: 'removed' }, userId);
     }
   }
 
-  async addTournamentLink(leagueId: string, tournamentId: string, userId: string) {
+  async addTournamentLink(
+    leagueId: string,
+    tournamentId: string,
+    userId: string,
+    groupId?: string | null,
+  ) {
     await this.assertCanManageLeague(leagueId, userId);
+    if (groupId) await this.assertGroupBelongsToLeague(groupId, leagueId);
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
       .upsert(
@@ -520,6 +629,7 @@ export class LeaguesService {
           status: 'approved',
           reviewed_by_user_id: userId,
           reviewed_at: new Date().toISOString(),
+          group_id: groupId ?? null,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'league_id,tournament_id' },
