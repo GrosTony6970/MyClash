@@ -297,11 +297,6 @@ export class CreateTournamentDto {
   @IsString()
   weapon?: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  category?: string;
-
   @ApiProperty({ required: false, default: 'TF_v1' })
   @IsOptional()
   @IsString()
@@ -357,11 +352,6 @@ export class UpdateTournamentDto {
   @IsOptional()
   @IsString()
   weapon?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  category?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

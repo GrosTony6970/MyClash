@@ -71,7 +71,6 @@ describe('EventsController auth', () => {
         name: 'Longsword Open',
         slug: 'longsword-open',
         weapon: 'Longsword',
-        category: 'Open',
         rulesetCode: 'TF_v1',
         rulesetVersion: '1',
       },

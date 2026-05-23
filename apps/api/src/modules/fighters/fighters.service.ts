@@ -710,7 +710,7 @@ export class FightersService {
         `
         id, tournament_id, status,
         tournaments (
-          id, name, slug, status, weapon, category,
+          id, name, slug, status, weapon,
           events ( id, name, slug, status, start_date, end_date )
         )
       `,
@@ -732,7 +732,6 @@ export class FightersService {
           tournamentSlug: String(tournament?.['slug'] ?? ''),
           tournamentStatus: String(tournament?.['status'] ?? ''),
           weapon: (tournament?.['weapon'] as string | null) ?? null,
-          category: (tournament?.['category'] as string | null) ?? null,
           eventId: String(event?.['id'] ?? ''),
           eventName: String(event?.['name'] ?? ''),
           eventSlug: String(event?.['slug'] ?? ''),

@@ -18,7 +18,6 @@ interface TournamentBasics {
   name: string;
   slug: string;
   weapon: string | null;
-  category: string | null;
   rulesetCode: string;
   rulesetVersion: string;
   penaltyRulesetId: string | null;
@@ -50,7 +49,6 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           name: row.name,
           slug: row.slug,
           weapon: row.weapon,
-          category: row.category,
           rulesetCode: row.ruleset_code,
           rulesetVersion: row.ruleset_version,
           penaltyRulesetId: row.penalty_ruleset_id,
@@ -72,7 +70,6 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
         body: JSON.stringify({
           name: data.name,
           weapon: data.weapon ?? undefined,
-          category: data.category ?? undefined,
           rulesetCode: data.rulesetCode,
           rulesetVersion: data.rulesetVersion,
           penaltyRulesetId: data.penaltyRulesetId,
@@ -118,14 +115,6 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
         <input
           value={data.weapon ?? ''}
           onChange={(e) => setData({ ...data, weapon: e.target.value || null })}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-      </Field>
-
-      <Field label={t('organizer.tournaments.settings.category')}>
-        <input
-          value={data.category ?? ''}
-          onChange={(e) => setData({ ...data, category: e.target.value || null })}
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
       </Field>

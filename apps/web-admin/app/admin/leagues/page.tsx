@@ -44,7 +44,7 @@ function formatScoringSystem(value: string): string {
 
 function formatCategory(value: string | undefined): string {
   if (value === 'weapon') return 'Weapon';
-  if (value === 'weapon_category') return 'Weapon + Category';
+  if (value === 'weapon_category') return 'Weapon + Group';
   return '—';
 }
 
@@ -181,7 +181,7 @@ export default function AdminLeaguesPage() {
               </th>
               <th className="px-4 py-3">
                 <SortableHeader
-                  label="Category"
+                  label="Grouping"
                   columnKey="category"
                   currentKey={sortKey}
                   direction={direction}

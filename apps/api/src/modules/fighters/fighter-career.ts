@@ -5,7 +5,6 @@ export interface CareerRegistrationInput {
   tournamentSlug: string;
   tournamentStatus: string;
   weapon: string | null;
-  category: string | null;
   eventId: string;
   eventName: string;
   eventSlug: string;
@@ -97,10 +96,7 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
   );
   const matchById = new Map(input.matches.map((match) => [match.id, match]));
   const overall = emptyStats();
-  const byWeapon = new Map<
-    string,
-    FighterCareerStats & { weapon: string; category: string | null }
-  >();
+  const byWeapon = new Map<string, FighterCareerStats & { weapon: string }>();
   const byYear = new Map<string, FighterCareerStats & { year: string }>();
 
   for (const match of input.matches) {
@@ -122,8 +118,7 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
       ({
         ...emptyStats(),
         weapon,
-        category: registration.category,
-      } satisfies FighterCareerStats & { weapon: string; category: string | null });
+      } satisfies FighterCareerStats & { weapon: string });
     const yearStats =
       byYear.get(year) ??
       ({
@@ -196,7 +191,6 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
         tournamentName: registration.tournamentName,
         eventName: registration.eventName,
         weapon: registration.weapon,
-        category: registration.category,
         rank: null as number | null,
       })),
     leagueRankings: input.leagueRankings,

@@ -31,7 +31,6 @@ interface TournamentOption {
   id: string;
   name: string | null;
   weapon: string | null;
-  category: string | null;
   status: string | null;
 }
 
@@ -617,9 +616,6 @@ export default function NewLeaguePage() {
                               <span className="flex items-center gap-1.5">
                                 <span>{t.name ?? '(unnamed)'}</span>
                                 {t.weapon && <span className="text-slate-400">· {t.weapon}</span>}
-                                {t.category && (
-                                  <span className="text-slate-400">· {t.category}</span>
-                                )}
                                 {t.status && (
                                   <span
                                     className={[

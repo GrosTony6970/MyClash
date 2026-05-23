@@ -20,7 +20,9 @@ export class LeagueScoringService {
   groupKey(config: LeagueScoringConfig, contribution: TournamentContributionInput): string {
     const weapon = normalizeDimension(contribution.weapon);
     if (config.rankingDimensions === 'weapon') return weapon;
-    return `${weapon}::${normalizeDimension(contribution.category)}`;
+    // 'weapon_category' historically meant weapon + category; it now
+    // means weapon + league group (replacing tournament.category).
+    return `${weapon}::${normalizeDimension(contribution.groupName)}`;
   }
 
   validateContributionIdentities(contributions: TournamentContributionInput[]): void {
@@ -55,7 +57,7 @@ export class LeagueScoringService {
         clubCity: input.clubCity,
         rankingGroupKey: this.groupKey(config, input),
         weapon: input.weapon,
-        category: input.category,
+        groupName: input.groupName,
         finalRank,
         leaguePoints: this.pointsForRank(config, finalRank),
         medal: medalForRank(finalRank),

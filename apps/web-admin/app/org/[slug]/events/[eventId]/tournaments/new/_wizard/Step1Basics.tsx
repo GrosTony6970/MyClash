@@ -39,7 +39,6 @@ export function Step1Basics({
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [weapon, setWeapon] = useState('');
-  const [category, setCategory] = useState('');
   const [rulesetCode, setRulesetCode] = useState('TF_v1');
   const [rulesetVersion, setRulesetVersion] = useState('1');
   const [penaltyRulesetId, setPenaltyRulesetId] = useState<string>('');
@@ -68,7 +67,6 @@ export function Step1Basics({
           setName(row.name);
           setSlug(row.slug);
           setWeapon(row.weapon ?? '');
-          setCategory(row.category ?? '');
           setRulesetCode(row.ruleset_code);
           setRulesetVersion(row.ruleset_version);
           setPenaltyRulesetId(row.penalty_ruleset_id ?? '');
@@ -92,7 +90,6 @@ export function Step1Basics({
           body: JSON.stringify({
             name: name.trim(),
             weapon: weapon || null,
-            category: category || null,
             rulesetCode,
             rulesetVersion,
             penaltyRulesetId: penaltyRulesetId || null,
@@ -109,7 +106,6 @@ export function Step1Basics({
             name: name.trim(),
             slug: slug || slugify(name),
             weapon: weapon || undefined,
-            category: category || undefined,
             rulesetCode,
             rulesetVersion,
             penaltyRulesetId: penaltyRulesetId || undefined,
@@ -167,17 +163,6 @@ export function Step1Basics({
         <input
           value={weapon}
           onChange={(e) => setWeapon(e.target.value)}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-        />
-      </label>
-
-      <label className="block">
-        <span className="block text-xs font-medium text-slate-600 mb-1">
-          {t('organizer.tournaments.wizard.category')}
-        </span>
-        <input
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
       </label>

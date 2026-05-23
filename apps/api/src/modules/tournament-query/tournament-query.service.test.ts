@@ -29,7 +29,6 @@ function makeSupabase() {
               event_id: eventId,
               name: 'Longsword Open',
               weapon: 'Longsword',
-              category: 'open',
               events: { organization_id: orgId },
             },
             error: null,

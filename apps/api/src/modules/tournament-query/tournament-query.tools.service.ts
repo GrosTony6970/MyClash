@@ -89,10 +89,7 @@ export class TournamentQueryToolsService {
 
   async getToolContext(tournament: TournamentContext): Promise<TournamentToolContext> {
     const [tournaments, pools, lices] = await Promise.all([
-      this.supabase.service
-        .from('tournaments')
-        .select('weapon, category')
-        .eq('event_id', tournament.eventId),
+      this.supabase.service.from('tournaments').select('weapon').eq('event_id', tournament.eventId),
       this.supabase.service
         .from('vw_tournament_query_pools')
         .select('pool_id')
@@ -103,11 +100,6 @@ export class TournamentQueryToolsService {
     const weapons = unique(
       ((tournaments.data ?? []) as Array<{ weapon?: string | null }>)
         .map((row) => row.weapon)
-        .filter(nonEmpty),
-    );
-    const divisions = unique(
-      ((tournaments.data ?? []) as Array<{ category?: string | null }>)
-        .map((row) => row.category)
         .filter(nonEmpty),
     );
     const poolIds = unique(
@@ -125,8 +117,7 @@ export class TournamentQueryToolsService {
       weapons: weapons.length > 0 ? weapons : tournament.weapon ? [tournament.weapon] : [],
       poolIds,
       liceNumbers,
-      divisions:
-        divisions.length > 0 ? divisions : tournament.category ? [tournament.category] : [],
+      divisions: [],
     };
   }
 

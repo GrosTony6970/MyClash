@@ -22,7 +22,7 @@ function contribution(
     clubName: overrides.clubName ?? null,
     clubCity: overrides.clubCity ?? null,
     weapon: overrides.weapon ?? 'Longsword',
-    category: overrides.category ?? 'Open',
+    groupName: overrides.groupName ?? 'Open',
     finalRank: rank,
     doubleHits: overrides.doubleHits ?? 0,
   };
@@ -49,7 +49,7 @@ describe('LeagueScoringService', () => {
     expect(service.pointsForRank(config, 3)).toBe(0);
   });
 
-  it('groups rankings by weapon or by weapon and category', () => {
+  it('groups rankings by weapon or by weapon and league group', () => {
     expect(service.groupKey(baseConfig, contribution('f1', 1))).toBe('longsword');
     expect(
       service.groupKey(

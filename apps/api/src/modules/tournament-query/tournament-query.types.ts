@@ -21,7 +21,6 @@ export interface TournamentContext extends TournamentToolContext {
   organizationId: string;
   name: string;
   weapon: string | null;
-  category: string | null;
 }
 
 export interface ToolCall {

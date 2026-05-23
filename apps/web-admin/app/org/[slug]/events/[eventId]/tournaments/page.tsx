@@ -14,7 +14,6 @@ interface Tournament {
   slug: string;
   name: string;
   weapon: string | null;
-  category: string | null;
   status: string;
   color: string | null;
   ruleset_code: string | null;
@@ -43,7 +42,6 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     slug: String(row['slug'] ?? ''),
     name: String(row['name'] ?? ''),
     weapon: typeof row['weapon'] === 'string' ? row['weapon'] : null,
-    category: typeof row['category'] === 'string' ? row['category'] : null,
     status: String(row['status'] ?? 'draft'),
     color: typeof row['color'] === 'string' ? row['color'] : null,
     ruleset_code: typeof row['ruleset_code'] === 'string' ? row['ruleset_code'] : null,
@@ -350,7 +348,6 @@ export default function EventTournamentsPage() {
                 <tr>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.tournament')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.weapon')}</th>
-                  <th className="px-4 py-3">{t('organizer.tournaments.table.category')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.status')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.actions')}</th>
                 </tr>
@@ -366,7 +363,6 @@ export default function EventTournamentsPage() {
                       <p className="mt-1 font-mono text-xs text-slate-400">/{tournament.slug}</p>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>
-                    <td className="px-4 py-4 text-slate-600">{tournament.category ?? '-'}</td>
                     <td className="px-4 py-4">
                       <span
                         className={[

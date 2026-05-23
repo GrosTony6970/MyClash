@@ -22,7 +22,8 @@ export interface TournamentContributionInput {
   clubName: string | null;
   clubCity: string | null;
   weapon: string | null;
-  category: string | null;
+  /** League-defined group name (from league_groups). Replaces tournament.category. */
+  groupName: string | null;
   finalRank: number;
   doubleHits: number;
 }
@@ -37,7 +38,7 @@ export interface LeagueTournamentContribution {
   clubCity: string | null;
   rankingGroupKey: string;
   weapon: string | null;
-  category: string | null;
+  groupName: string | null;
   finalRank: number;
   leaguePoints: number;
   medal: 'gold' | 'silver' | 'bronze' | null;

@@ -465,7 +465,7 @@ export class LeaguesService {
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
       .select(
-        '*, tournaments(id, name, weapon, category, status, events(id, name, start_date)), league_groups(id, name)',
+        '*, tournaments(id, name, weapon, status, events(id, name, start_date)), league_groups(id, name)',
       )
       .eq('league_id', leagueId)
       .order('created_at', { ascending: false });
@@ -718,7 +718,7 @@ export class LeaguesService {
       clubCity: null,
       rankingGroupKey: String(row['ranking_group_key']),
       weapon: null,
-      category: null,
+      groupName: null,
       finalRank: Number(row['final_rank']),
       leaguePoints: Number(row['league_points']),
       medal: (row['medal'] as LeagueTournamentContribution['medal']) ?? null,
@@ -797,9 +797,10 @@ export class LeaguesService {
     config: LeagueScoringConfig,
   ): Promise<LeagueTournamentContribution[]> {
     const tournament = await this.getTournamentWithEvent(tournamentId);
-    const [registrations, matches] = await Promise.all([
+    const [registrations, matches, groupName] = await Promise.all([
       this.listRows('registrations', 'tournament_id', tournamentId),
       this.listMatchesForTournament(tournamentId),
+      this.lookupLinkGroupName(leagueId, tournamentId),
     ]);
     const matchIds = matches.map((match) => String(match['id']));
     const exchanges =
@@ -808,6 +809,7 @@ export class LeaguesService {
     const rankedInputs = this.rankTournament(
       leagueId,
       tournament,
+      groupName,
       registrations,
       matches,
       doubleHits,
@@ -815,9 +817,24 @@ export class LeaguesService {
     return this.scoring.toTournamentContributions(config, rankedInputs);
   }
 
+  private async lookupLinkGroupName(
+    leagueId: string,
+    tournamentId: string,
+  ): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('league_groups(name)')
+      .eq('league_id', leagueId)
+      .eq('tournament_id', tournamentId)
+      .maybeSingle();
+    const link = data as { league_groups?: { name?: string } | null } | null;
+    return link?.league_groups?.name ?? null;
+  }
+
   private rankTournament(
     leagueId: string,
     tournament: Row,
+    groupName: string | null,
     registrations: Row[],
     matches: Row[],
     doubleHits: Map<string, number>,
@@ -876,7 +893,7 @@ export class LeaguesService {
           clubName: null,
           clubCity: null,
           weapon: (tournament['weapon'] as string | null) ?? null,
-          category: (tournament['category'] as string | null) ?? null,
+          groupName,
           finalRank: index + 1,
           doubleHits: doubleHits.get(String(registration['id'])) ?? 0,
         };

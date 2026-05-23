@@ -33,7 +33,6 @@ type TournamentRow = {
   event_id: string;
   name: string;
   weapon?: string | null;
-  category?: string | null;
   events?: { organization_id?: string | null } | null;
 };
 
@@ -93,7 +92,6 @@ export class TournamentQueryService {
             id: tournament.tournamentId,
             name: tournament.name,
             weapon: tournament.weapon,
-            category: tournament.category,
           },
           language,
           question: normalizeQuestionAliases(question),
@@ -225,7 +223,7 @@ export class TournamentQueryService {
   private async getTournamentContext(tournamentId: string): Promise<TournamentContext> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, event_id, name, weapon, category, events(organization_id)')
+      .select('id, event_id, name, weapon, events(organization_id)')
       .eq('id', tournamentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -240,11 +238,10 @@ export class TournamentQueryService {
       organizationId,
       name: row.name,
       weapon: row.weapon ?? null,
-      category: row.category ?? null,
       weapons: row.weapon ? [row.weapon] : [],
       poolIds: [],
       liceNumbers: [],
-      divisions: row.category ? [row.category] : [],
+      divisions: [],
     };
   }
 

@@ -745,7 +745,6 @@ export class EventsService {
         slug: dto.slug,
         name: dto.name.trim(),
         weapon: dto.weapon ?? null,
-        category: dto.category ?? null,
         ruleset_code: dto.rulesetCode ?? 'TF_v1',
         ruleset_version: dto.rulesetVersion ?? '1',
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
@@ -783,7 +782,6 @@ export class EventsService {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.weapon !== undefined) updates['weapon'] = dto.weapon;
-    if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.rulesetCode !== undefined) updates['ruleset_code'] = dto.rulesetCode;
     if (dto.rulesetVersion !== undefined) updates['ruleset_version'] = dto.rulesetVersion;
