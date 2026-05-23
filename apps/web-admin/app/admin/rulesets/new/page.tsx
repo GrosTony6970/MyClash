@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
-import { RulesetForm } from '../../../../src/components/rulesets/RulesetForm';
+import {
+  RulesetForm,
+  DEFAULT_MATCH_FORMAT_DEFAULTS,
+} from '../../../../src/components/rulesets/RulesetForm';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -39,6 +42,8 @@ export default function NewRulesetPage() {
           scoreFormula: null,
           constants: { ...DEFAULT_FORMULA_CONSTANTS, pointsPerVictory: 3 },
           tiebreakers: [{ variable: 'victories', direction: 'desc' }],
+          matchFormatDefaults: DEFAULT_MATCH_FORMAT_DEFAULTS,
+          doublePenaltyFormula: '',
         }}
         busy={busy}
         submitLabel={t('admin.rulesets.createButton')}

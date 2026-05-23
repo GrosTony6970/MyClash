@@ -13,6 +13,24 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { FormulaEditor } from './FormulaEditor';
 import { TiebreakersEditor } from './TiebreakersEditor';
 
+export interface MatchFormatDefaults {
+  pointCap: number;
+  timerMode: 'countdown' | 'countup';
+  timeLimitsSeconds: { pool: number | null; bracket: number | null; finals: number | null };
+  softClockLimitSeconds: number;
+  maxDoubleHits: number | null;
+  scoringDirection: 'normal' | 'reverse_zero_loses';
+}
+
+export const DEFAULT_MATCH_FORMAT_DEFAULTS: MatchFormatDefaults = {
+  pointCap: 5,
+  timerMode: 'countdown',
+  timeLimitsSeconds: { pool: 180, bracket: 180, finals: 180 },
+  softClockLimitSeconds: 0,
+  maxDoubleHits: null,
+  scoringDirection: 'normal',
+};
+
 export interface RulesetFormValue {
   name: string;
   description: string;
@@ -20,6 +38,8 @@ export interface RulesetFormValue {
   scoreFormula: FormulaNode | null;
   constants: FormulaConstants;
   tiebreakers: Tiebreaker[];
+  matchFormatDefaults: MatchFormatDefaults;
+  doublePenaltyFormula: string;
 }
 
 interface Props {
@@ -34,7 +54,10 @@ interface Props {
   systemMetadata?: RulesetMetadata;
   systemRankingChain?: RankingRule[];
   onSubmit: (
-    config: { name: string; description: string; version: string } & FormulaConfig,
+    config: { name: string; description: string; version: string } & FormulaConfig & {
+        matchFormatDefaults: MatchFormatDefaults;
+        doublePenaltyFormula: string;
+      },
   ) => void;
   onCancel?: () => void;
 }
@@ -57,6 +80,12 @@ export function RulesetForm({
   const [formulaError, setFormulaError] = useState<string | null>(null);
   const [constants, setConstants] = useState<FormulaConstants>(initial.constants);
   const [tiebreakers, setTiebreakers] = useState<Tiebreaker[]>(initial.tiebreakers);
+  const [matchFormatDefaults, setMatchFormatDefaults] = useState<MatchFormatDefaults>(
+    initial.matchFormatDefaults,
+  );
+  const [doublePenaltyFormula, setDoublePenaltyFormula] = useState<string>(
+    initial.doublePenaltyFormula,
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
 
   function setConstant(key: keyof FormulaConstants, value: string) {
@@ -84,6 +113,8 @@ export function RulesetForm({
       scoreFormula,
       constants,
       tiebreakers,
+      matchFormatDefaults,
+      doublePenaltyFormula: doublePenaltyFormula.trim(),
     });
   }
 
@@ -164,6 +195,135 @@ export function RulesetForm({
           )}
         </div>
         <ScorePreviewChip constants={constants} />
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          Double-hit penalty formula
+        </h3>
+        <p className="mb-2 text-xs text-slate-500">
+          Expression evaluated against <code className="font-mono">n</code> (the number of
+          double-hits). Only digits, the variable <code className="font-mono">n</code>, operators{' '}
+          <code className="font-mono">+ - * /</code>, parentheses and decimal points are allowed.
+          Example: <code className="font-mono">n*(n-1)/3</code>.
+        </p>
+        <input
+          type="text"
+          value={doublePenaltyFormula}
+          onChange={(e) => setDoublePenaltyFormula(e.target.value)}
+          disabled={disabled}
+          placeholder="n*(n-1)/3"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+        />
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          Match-format defaults
+        </h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Defaults that a new tournament inherits when this ruleset is selected. Operators can still
+          override any of these per tournament from the Match-format settings tab.
+        </p>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <NumberInput
+            label="Point cap"
+            value={matchFormatDefaults.pointCap}
+            disabled={disabled}
+            min={1}
+            max={50}
+            onChange={(n) => setMatchFormatDefaults({ ...matchFormatDefaults, pointCap: n })}
+          />
+          <SelectInput
+            label="Timer mode"
+            value={matchFormatDefaults.timerMode}
+            disabled={disabled}
+            options={[
+              { value: 'countdown', label: 'Countdown' },
+              { value: 'countup', label: 'Count-up' },
+            ]}
+            onChange={(v) =>
+              setMatchFormatDefaults({
+                ...matchFormatDefaults,
+                timerMode: v as 'countdown' | 'countup',
+              })
+            }
+          />
+          <SelectInput
+            label="Scoring direction"
+            value={matchFormatDefaults.scoringDirection}
+            disabled={disabled}
+            options={[
+              { value: 'normal', label: 'Normal' },
+              { value: 'reverse_zero_loses', label: 'Reverse (zero loses)' },
+            ]}
+            onChange={(v) =>
+              setMatchFormatDefaults({
+                ...matchFormatDefaults,
+                scoringDirection: v as 'normal' | 'reverse_zero_loses',
+              })
+            }
+          />
+          <NumberInput
+            label="Time limit · pool (s)"
+            value={matchFormatDefaults.timeLimitsSeconds.pool ?? 0}
+            disabled={disabled}
+            min={0}
+            max={3600}
+            onChange={(n) =>
+              setMatchFormatDefaults({
+                ...matchFormatDefaults,
+                timeLimitsSeconds: { ...matchFormatDefaults.timeLimitsSeconds, pool: n || null },
+              })
+            }
+          />
+          <NumberInput
+            label="Time limit · bracket (s)"
+            value={matchFormatDefaults.timeLimitsSeconds.bracket ?? 0}
+            disabled={disabled}
+            min={0}
+            max={3600}
+            onChange={(n) =>
+              setMatchFormatDefaults({
+                ...matchFormatDefaults,
+                timeLimitsSeconds: { ...matchFormatDefaults.timeLimitsSeconds, bracket: n || null },
+              })
+            }
+          />
+          <NumberInput
+            label="Time limit · finals (s)"
+            value={matchFormatDefaults.timeLimitsSeconds.finals ?? 0}
+            disabled={disabled}
+            min={0}
+            max={3600}
+            onChange={(n) =>
+              setMatchFormatDefaults({
+                ...matchFormatDefaults,
+                timeLimitsSeconds: { ...matchFormatDefaults.timeLimitsSeconds, finals: n || null },
+              })
+            }
+          />
+          <NumberInput
+            label="Soft clock (s)"
+            value={matchFormatDefaults.softClockLimitSeconds}
+            disabled={disabled}
+            min={0}
+            max={600}
+            onChange={(n) =>
+              setMatchFormatDefaults({ ...matchFormatDefaults, softClockLimitSeconds: n })
+            }
+          />
+          <NumberInput
+            label="Max double hits"
+            value={matchFormatDefaults.maxDoubleHits ?? 0}
+            disabled={disabled}
+            min={0}
+            max={20}
+            onChange={(n) =>
+              setMatchFormatDefaults({ ...matchFormatDefaults, maxDoubleHits: n || null })
+            }
+          />
+        </div>
       </div>
 
       <div>
@@ -320,6 +480,69 @@ function MetadataField({ label, value }: { label: string; value: string }) {
       <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
       <dd className="mt-1 font-mono text-sm text-slate-800">{value}</dd>
     </div>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  onChange,
+  disabled,
+  min,
+  max,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <label className="block text-xs font-semibold text-slate-700">
+      {label}
+      <input
+        type="number"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-sm disabled:bg-slate-100"
+      />
+    </label>
+  );
+}
+
+function SelectInput({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block text-xs font-semibold text-slate-700">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

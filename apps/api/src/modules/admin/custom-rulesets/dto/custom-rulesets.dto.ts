@@ -43,6 +43,24 @@ export class CreateCustomRulesetDto {
   @ApiProperty({ description: 'Ordered list of tiebreakers ({ variable, direction }).' })
   @IsArray()
   tiebreakers!: Array<{ variable: string; direction: 'asc' | 'desc' }>;
+
+  @ApiProperty({
+    required: false,
+    description: 'MatchFormatConfig used as the default for tournaments created with this ruleset.',
+  })
+  @IsOptional()
+  @IsObject()
+  matchFormatDefaults?: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Free-string expression in terms of `n` (double-hit count). Validated server-side.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  doublePenaltyFormula?: string;
 }
 
 export class UpdateCustomRulesetDto {
@@ -79,6 +97,17 @@ export class UpdateCustomRulesetDto {
   @IsOptional()
   @IsArray()
   tiebreakers?: Array<{ variable: string; direction: 'asc' | 'desc' }>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  matchFormatDefaults?: Record<string, unknown>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  doublePenaltyFormula?: string;
 }
 
 export class CustomRulesetStatusDto {

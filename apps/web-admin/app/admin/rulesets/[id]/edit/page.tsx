@@ -14,6 +14,8 @@ import type {
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
+  DEFAULT_MATCH_FORMAT_DEFAULTS,
+  type MatchFormatDefaults,
   type RulesetFormValue,
 } from '../../../../../src/components/rulesets/RulesetForm';
 
@@ -29,6 +31,8 @@ interface CustomRulesetDetail {
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[];
+  match_format_defaults: Partial<MatchFormatDefaults> | null;
+  double_penalty_formula: string | null;
   is_default: boolean;
   is_system: boolean;
   // Hydrated for is_system rows by the API: surfaced from the registered
@@ -76,6 +80,15 @@ export default function EditRulesetPage() {
           scoreFormula: formula,
           constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(data.constants ?? {}) },
           tiebreakers: data.tiebreakers ?? [],
+          matchFormatDefaults: {
+            ...DEFAULT_MATCH_FORMAT_DEFAULTS,
+            ...(data.match_format_defaults ?? {}),
+            timeLimitsSeconds: {
+              ...DEFAULT_MATCH_FORMAT_DEFAULTS.timeLimitsSeconds,
+              ...(data.match_format_defaults?.timeLimitsSeconds ?? {}),
+            },
+          },
+          doublePenaltyFormula: data.double_penalty_formula ?? '',
           isSystem: data.is_system,
           systemRankingChain: data.systemRankingChain,
           systemMetadata: data.systemMetadata,

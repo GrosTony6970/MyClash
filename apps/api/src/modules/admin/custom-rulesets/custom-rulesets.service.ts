@@ -32,11 +32,56 @@ export interface CustomRulesetRow {
   score_formula: Record<string, unknown>;
   constants: Record<string, number>;
   tiebreakers: Array<{ variable: string; direction: 'asc' | 'desc' }>;
+  match_format_defaults: Record<string, unknown> | null;
+  double_penalty_formula: string | null;
   is_default: boolean;
   is_system: boolean;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Whitelist-validate a free-string double-penalty formula like 'n*(n-1)/3'.
+ * Only digits, the variable `n`, the operators + - * /, parentheses, decimal
+ * points, and whitespace are allowed. We also evaluate it with a few sample
+ * n values to confirm the expression produces finite numbers — rejecting
+ * anything that throws or returns NaN.
+ */
+export function validateDoublePenaltyFormula(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw new BadRequestException('Double-penalty formula cannot be empty');
+  }
+  if (!/^[0-9n+\-*/().\s]+$/i.test(trimmed)) {
+    throw new BadRequestException(
+      'Double-penalty formula may only contain digits, the variable n, ' +
+        'operators + - * /, parentheses, decimal points, and whitespace.',
+    );
+  }
+  // Sanity-evaluate with sample inputs. We allow Function here because the
+  // input has already been character-whitelisted.
+  let fn: (n: number) => number;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    fn = new Function('n', `return (${trimmed});`) as (n: number) => number;
+  } catch {
+    throw new BadRequestException('Double-penalty formula is not a valid expression');
+  }
+  for (const n of [0, 1, 2, 5, 10]) {
+    let value: number;
+    try {
+      value = fn(n);
+    } catch {
+      throw new BadRequestException(`Double-penalty formula errored when n=${n}`);
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new BadRequestException(
+        `Double-penalty formula did not return a finite number for n=${n}`,
+      );
+    }
+  }
+  return trimmed;
 }
 
 /**
@@ -125,6 +170,10 @@ export class CustomRulesetsService {
       throw new BadRequestException('Name must contain at least one alphanumeric character');
     const code = `custom_${baseSlug}-${Date.now().toString(36)}`;
 
+    const doublePenaltyFormula = dto.doublePenaltyFormula
+      ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
+      : null;
+
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .insert({
@@ -136,6 +185,8 @@ export class CustomRulesetsService {
         score_formula: config.scoreFormula,
         constants: config.constants,
         tiebreakers: config.tiebreakers,
+        match_format_defaults: dto.matchFormatDefaults ?? null,
+        double_penalty_formula: doublePenaltyFormula,
         is_default: false,
         is_system: false,
         created_by_user_id: actorUserId,
@@ -185,6 +236,15 @@ export class CustomRulesetsService {
       if (dto.tiebreakers !== undefined) updates['tiebreakers'] = config.tiebreakers;
     }
 
+    if (dto.matchFormatDefaults !== undefined) {
+      updates['match_format_defaults'] = dto.matchFormatDefaults;
+    }
+    if (dto.doublePenaltyFormula !== undefined) {
+      updates['double_penalty_formula'] = dto.doublePenaltyFormula
+        ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
+        : null;
+    }
+
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
       .update(updates)
@@ -214,6 +274,8 @@ export class CustomRulesetsService {
         score_formula: src.score_formula,
         constants: src.constants,
         tiebreakers: src.tiebreakers,
+        match_format_defaults: src.match_format_defaults,
+        double_penalty_formula: src.double_penalty_formula,
         is_default: false,
         is_system: false,
         created_by_user_id: actorUserId,
