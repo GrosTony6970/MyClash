@@ -86,6 +86,8 @@ export default function EventDetailPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [tournamentBusy, setTournamentBusy] = useState<string | null>(null);
+  const [tournamentError, setTournamentError] = useState<string | null>(null);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
   const [spendCap, setSpendCap] = useState<string>('');
@@ -93,16 +95,15 @@ export default function EventDetailPage() {
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [now] = useState(() => Date.now());
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const reloadStats = (signal?: AbortSignal) =>
     Promise.all([
       fetch(`${apiUrl}/api/v1/events/${eventId}/dashboard-stats`, {
         credentials: 'include',
-        signal: controller.signal,
+        ...(signal ? { signal } : {}),
       }),
       fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
         credentials: 'include',
-        signal: controller.signal,
+        ...(signal ? { signal } : {}),
       }),
     ])
       .then(async ([statsRes, tourRes]) => {
@@ -112,12 +113,64 @@ export default function EventDetailPage() {
         setStatsError(null);
       })
       .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setStatsError(err instanceof Error ? err.message : t('common.error'));
-        }
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setStatsError(err instanceof Error ? err.message : t('common.error'));
       });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void reloadStats(controller.signal);
     return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, apiUrl, t]);
+
+  async function changeTournamentStatus(tournamentId: string, status: string) {
+    setTournamentBusy(tournamentId);
+    setTournamentError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.eventHub.dashboard.statusUpdateError'));
+      }
+      await reloadStats();
+    } catch (err) {
+      setTournamentError(
+        err instanceof Error ? err.message : t('organizer.eventHub.dashboard.statusUpdateError'),
+      );
+    } finally {
+      setTournamentBusy(null);
+    }
+  }
+
+  async function toggleTournamentVisibility(tournament: Tournament) {
+    // Cycle draft ↔ published. Other statuses leave the toggle disabled.
+    const mode = tournament.status === 'draft' ? 'publish' : 'unpublish';
+    setTournamentBusy(tournament.id);
+    setTournamentError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournament.id}/${mode}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.eventHub.dashboard.visibilityError'));
+      }
+      await reloadStats();
+    } catch (err) {
+      setTournamentError(
+        err instanceof Error ? err.message : t('organizer.eventHub.dashboard.visibilityError'),
+      );
+    } finally {
+      setTournamentBusy(null);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -287,6 +340,11 @@ export default function EventDetailPage() {
           />
         </div>
 
+        {tournamentError && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {tournamentError}
+          </div>
+        )}
         <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500">
@@ -299,41 +357,140 @@ export default function EventDetailPage() {
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colElim')}</th>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.colRuleset')}</th>
                 <th className="px-4 py-3">{t('organizer.eventHub.dashboard.status')}</th>
+                <th className="px-4 py-3">{t('organizer.eventHub.dashboard.visibilityColumn')}</th>
               </tr>
             </thead>
             <tbody>
               {(stats?.tournaments ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate-400">
                     {t('organizer.eventHub.dashboard.noTournaments')}
                   </td>
                 </tr>
               )}
-              {(stats?.tournaments ?? []).map((tournament) => (
-                <tr key={tournament.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-semibold text-[#0f172a]">
-                    <span className="inline-flex items-center gap-1.5">
-                      <TournamentColorDot color={tournament.color} />
-                      {tournament.name}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-700">{tournament.fighterCount}</td>
-                  <td className="px-4 py-3 text-slate-700">{tournament.assignedRefereeCount}</td>
-                  <td className="px-4 py-3 text-slate-700">{tournament.poolCount ?? 0}</td>
-                  <td className="px-4 py-3 text-slate-700">{tournament.bracketSize ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-500">
-                    {tournament.eliminationType === 'single_elim'
-                      ? t('organizer.eventHub.dashboard.elimSingle')
-                      : tournament.eliminationType === 'double_elim'
-                        ? t('organizer.eventHub.dashboard.elimDouble')
-                        : '—'}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">
-                    {tournament.rulesetCode ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{tournament.status}</td>
-                </tr>
-              ))}
+              {(stats?.tournaments ?? []).map((tournament) => {
+                const settingsHref = `/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings`;
+                const cellLinkClass =
+                  'block w-full text-slate-700 hover:text-[#1d4ed8] hover:underline';
+                const canToggleVisibility =
+                  tournament.status === 'draft' || tournament.status === 'published';
+                return (
+                  <tr key={tournament.id} className="border-t border-slate-100">
+                    <td className="px-4 py-3 font-semibold text-[#0f172a]">
+                      <Link
+                        href={settingsHref}
+                        className="inline-flex items-center gap-1.5 hover:text-[#1d4ed8] hover:underline"
+                      >
+                        <TournamentColorDot color={tournament.color} />
+                        {tournament.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/org/${slug}/events/${eventId}/persons`}
+                        className={cellLinkClass}
+                      >
+                        {tournament.fighterCount}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/org/${slug}/events/${eventId}/referees`}
+                        className={cellLinkClass}
+                      >
+                        {tournament.assignedRefereeCount}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/org/${slug}/events/${eventId}/pools`} className={cellLinkClass}>
+                        {tournament.poolCount ?? 0}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/org/${slug}/events/${eventId}/bracket`}
+                        className={cellLinkClass}
+                      >
+                        {tournament.bracketSize ?? '—'}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {tournament.eliminationType === 'single_elim'
+                        ? t('organizer.eventHub.dashboard.elimSingle')
+                        : tournament.eliminationType === 'double_elim'
+                          ? t('organizer.eventHub.dashboard.elimDouble')
+                          : '—'}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                      <Link href={settingsHref} className="hover:text-[#1d4ed8] hover:underline">
+                        {tournament.rulesetCode ?? '—'}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        aria-label={t('organizer.eventHub.dashboard.status')}
+                        value={tournament.status}
+                        disabled={tournamentBusy === tournament.id || isReadOnly}
+                        onChange={(ev) =>
+                          void changeTournamentStatus(tournament.id, ev.target.value)
+                        }
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {(['draft', 'published', 'running', 'completed', 'archived'] as const).map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {t(`organizer.events.statuses.${status}`) || status}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        aria-label={
+                          tournament.status === 'draft'
+                            ? t('organizer.eventHub.dashboard.setPublic')
+                            : t('organizer.eventHub.dashboard.setDraft')
+                        }
+                        title={
+                          tournament.status === 'draft'
+                            ? t('organizer.eventHub.dashboard.setPublic')
+                            : tournament.status === 'published'
+                              ? t('organizer.eventHub.dashboard.setDraft')
+                              : (t(`organizer.events.statuses.${tournament.status}`) ??
+                                tournament.status)
+                        }
+                        disabled={
+                          !canToggleVisibility || tournamentBusy === tournament.id || isReadOnly
+                        }
+                        onClick={() => void toggleTournamentVisibility(tournament)}
+                        className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {tournament.status === 'draft' ? (
+                          <span aria-hidden="true" className="text-slate-400">
+                            ◌
+                          </span>
+                        ) : tournament.status === 'published' ? (
+                          <span aria-hidden="true" className="text-emerald-500">
+                            ●
+                          </span>
+                        ) : (
+                          <span aria-hidden="true" className="text-slate-300">
+                            —
+                          </span>
+                        )}
+                        {tournament.status === 'draft'
+                          ? t('organizer.eventHub.dashboard.visibilityDraft')
+                          : tournament.status === 'published'
+                            ? t('organizer.eventHub.dashboard.visibilityPublic')
+                            : (t(`organizer.events.statuses.${tournament.status}`) ??
+                              tournament.status)}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
