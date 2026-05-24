@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AdminPageHeader,
   ConfirmDialog,
+  PromptDialog,
   RowActionButton,
   rowActionClasses,
   useToast,
@@ -22,6 +23,9 @@ interface PenaltyRulesetRow {
   built_in: boolean;
   public_visibility: boolean;
   accumulation_scope: 'match' | 'phase' | 'tournament';
+  /** R3: sharing-request lifecycle for org-submitted promotion requests. */
+  public_visibility_request_status: 'pending' | 'approved' | 'rejected' | null;
+  public_visibility_request_reason: string | null;
   updated_at: string;
 }
 
@@ -36,6 +40,7 @@ export default function AdminPenaltyRulesetsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [rejectShareTarget, setRejectShareTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -79,6 +84,51 @@ export default function AdminPenaltyRulesetsPage() {
       if (res.ok || res.status === 204) {
         toast.success(t('admin.rulesets.deleteAction'));
         setDeleteTarget(null);
+        refresh();
+      } else {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approveSharing(id: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/${id}/approve-sharing`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        toast.success(t('admin.rulesets.approveForSharingSuccess'));
+        refresh();
+      } else {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmRejectSharing(reason: string) {
+    if (!rejectShareTarget) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/penalty-rulesets/${rejectShareTarget}/reject-sharing`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason.trim() }),
+        },
+      );
+      if (res.ok) {
+        toast.success(t('admin.rulesets.rejectSubmissionSuccess'));
+        setRejectShareTarget(null);
         refresh();
       } else {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
@@ -164,13 +214,38 @@ export default function AdminPenaltyRulesetsPage() {
                     {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {row.public_visibility_request_status === 'pending' && (
+                        <span
+                          className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800"
+                          title={row.public_visibility_request_reason ?? undefined}
+                        >
+                          {t('admin.rulesets.submissionPending')}
+                        </span>
+                      )}
                       <Link
                         href={`/admin/rulesets/penalty/${row.id}/edit`}
                         className={rowActionClasses('edit')}
                       >
                         {t('admin.rulesets.editAction')}
                       </Link>
+                      {/* R3: org-submitted sharing requests show Approve / Reject actions. */}
+                      {row.public_visibility_request_status === 'pending' && (
+                        <>
+                          <RowActionButton
+                            variant="success"
+                            onClick={() => void approveSharing(row.id)}
+                          >
+                            {t('admin.rulesets.approveForSharingAction')}
+                          </RowActionButton>
+                          <RowActionButton
+                            variant="danger"
+                            onClick={() => setRejectShareTarget(row.id)}
+                          >
+                            {t('admin.rulesets.rejectAction')}
+                          </RowActionButton>
+                        </>
+                      )}
                       {!row.built_in && (
                         <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
                           {t('admin.rulesets.deleteAction')}
@@ -195,6 +270,19 @@ export default function AdminPenaltyRulesetsPage() {
         busy={busy}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <PromptDialog
+        open={rejectShareTarget !== null}
+        title={t('admin.rulesets.rejectAction')}
+        description={t('admin.rulesets.rejectReasonPrompt')}
+        placeholder={t('admin.rulesets.rejectReasonPrompt')}
+        confirmLabel={t('admin.rulesets.rejectAction')}
+        danger
+        multiline
+        busy={busy}
+        onCancel={() => setRejectShareTarget(null)}
+        onConfirm={(reason) => void confirmRejectSharing(reason)}
       />
     </main>
   );

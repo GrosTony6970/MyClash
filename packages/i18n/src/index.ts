@@ -1023,6 +1023,9 @@ export const en = {
       submitForReviewConfirm:
         'Submit this ruleset for super-admin review? You won’t be able to edit it while it’s under review.',
       submitForReviewSuccess: 'Submitted for review.',
+      approveForSharingAction: 'Approve for sharing',
+      approveForSharingSuccess: 'Approved for platform-wide sharing.',
+      rejectSubmissionSuccess: 'Submission rejected.',
       submissionPendingBanner:
         'This ruleset is pending super-admin review and cannot be edited until reviewed.',
       submissionApprovedBanner:
@@ -3684,6 +3687,9 @@ export const fr = {
       submitForReviewConfirm:
         'Soumettre ce ruleset pour revue super-admin ? Vous ne pourrez pas le modifier pendant la revue.',
       submitForReviewSuccess: 'Soumis pour revue.',
+      approveForSharingAction: 'Approuver pour partage',
+      approveForSharingSuccess: 'Approuve pour partage sur la plateforme.',
+      rejectSubmissionSuccess: 'Soumission rejetee.',
       submissionPendingBanner:
         'Ce ruleset est en attente de revue super-admin et ne peut pas etre modifie pour le moment.',
       submissionApprovedBanner:

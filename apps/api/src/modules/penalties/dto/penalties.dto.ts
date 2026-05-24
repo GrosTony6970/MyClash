@@ -233,6 +233,18 @@ export class UpdatePenaltyRulesetDto {
   secondBlackCardForfeit?: BlackCardForfeitScopeDto;
 }
 
+/**
+ * R3: payload for super-admin rejection of a penalty-ruleset sharing
+ * request. The reason is shown to the organizer so they can fix the
+ * issue and resubmit.
+ */
+export class RejectPenaltyRulesetSharingDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(1000)
+  reason!: string;
+}
+
 export class AssignPenaltyRulesetDto {
   @ApiProperty({ required: false })
   @IsOptional()

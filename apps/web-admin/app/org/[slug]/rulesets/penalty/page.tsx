@@ -17,6 +17,9 @@ interface PenaltyRulesetRow {
   built_in: boolean;
   public_visibility: boolean;
   accumulation_scope: 'match' | 'phase' | 'tournament';
+  /** R3: sharing-request lifecycle for promoting an org row to public. */
+  public_visibility_request_status: 'pending' | 'approved' | 'rejected' | null;
+  public_visibility_request_reason: string | null;
   updated_at: string;
 }
 
@@ -33,6 +36,7 @@ export default function OrgPenaltyRulesetsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [submitShareTarget, setSubmitShareTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -113,6 +117,47 @@ export default function OrgPenaltyRulesetsPage() {
     }
   }
 
+  async function confirmSubmitShare() {
+    if (!submitShareTarget) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/penalty-rulesets/${submitShareTarget}/submit-for-sharing`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (res.ok) {
+        toast.success(t('admin.rulesets.submitForReviewSuccess'));
+        setSubmitShareTarget(null);
+        refresh();
+      } else {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function sharingBadge(row: PenaltyRulesetRow): { label: string; className: string } | null {
+    if (!row.owner_organization_id || row.owner_organization_id !== orgId) return null;
+    if (row.public_visibility)
+      return {
+        label: t('admin.rulesets.submissionApproved'),
+        className: 'bg-emerald-100 text-emerald-800',
+      };
+    if (row.public_visibility_request_status === 'pending')
+      return {
+        label: t('admin.rulesets.submissionPending'),
+        className: 'bg-amber-100 text-amber-800',
+      };
+    if (row.public_visibility_request_status === 'rejected')
+      return {
+        label: t('admin.rulesets.submissionRejected'),
+        className: 'bg-red-100 text-red-800',
+      };
+    return null;
+  }
+
   return (
     <main id="main-content" className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="mb-6">
@@ -187,7 +232,18 @@ export default function OrgPenaltyRulesetsPage() {
                     {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(() => {
+                        const badge = sharingBadge(row);
+                        return badge ? (
+                          <span
+                            className={`rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${badge.className}`}
+                            title={row.public_visibility_request_reason ?? undefined}
+                          >
+                            {badge.label}
+                          </span>
+                        ) : null;
+                      })()}
                       <Link
                         href={`/org/${params.slug}/rulesets/penalty/${row.id}/edit`}
                         className={rowActionClasses('edit')}
@@ -196,6 +252,19 @@ export default function OrgPenaltyRulesetsPage() {
                           ? t('admin.rulesets.viewAction')
                           : t('admin.rulesets.editAction')}
                       </Link>
+                      {/* R3: Submit for sharing — only on org-owned rows
+                          that aren't already public and aren't pending review. */}
+                      {!row.built_in &&
+                        row.owner_organization_id === orgId &&
+                        !row.public_visibility &&
+                        row.public_visibility_request_status !== 'pending' && (
+                          <RowActionButton
+                            variant="success"
+                            onClick={() => setSubmitShareTarget(row.id)}
+                          >
+                            {t('admin.rulesets.submitForReviewAction')}
+                          </RowActionButton>
+                        )}
                       {!row.built_in && (
                         <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
                           {t('admin.rulesets.deleteAction')}
@@ -220,6 +289,17 @@ export default function OrgPenaltyRulesetsPage() {
         busy={busy}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={submitShareTarget !== null}
+        title={t('admin.rulesets.submitForReviewAction')}
+        description={t('admin.rulesets.submitForReviewConfirm')}
+        confirmLabel={t('admin.rulesets.submitForReviewAction')}
+        cancelLabel={t('admin.rulesets.cancel')}
+        busy={busy}
+        onConfirm={confirmSubmitShare}
+        onCancel={() => setSubmitShareTarget(null)}
       />
     </main>
   );

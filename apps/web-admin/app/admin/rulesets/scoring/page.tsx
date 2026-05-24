@@ -40,6 +40,10 @@ interface CustomRuleset {
   status: 'draft' | 'published' | 'archived';
   is_default: boolean;
   is_system: boolean;
+  owner_organization_id: string | null;
+  public_visibility: boolean;
+  submitted_for_review_at: string | null;
+  rejected_reason: string | null;
   updated_at: string;
 }
 
@@ -63,6 +67,13 @@ export default function AdminRulesetsPage() {
 
   const toast = useToast();
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  /**
+   * R3: separate target for the per-row "Reject submission" action on the
+   * curated custom_rulesets table. Reuses the same PromptDialog UX as the
+   * legacy submissions-queue reject, but POSTs to the new
+   * /admin/custom-rulesets/:id/reject-submission endpoint.
+   */
+  const [rejectSubmissionTarget, setRejectSubmissionTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -178,18 +189,57 @@ export default function AdminRulesetsPage() {
 
   async function performCuratedAction(
     id: string,
-    action: 'publish' | 'unpublish' | 'clone' | 'set-default',
+    action: 'publish' | 'unpublish' | 'clone' | 'set-default' | 'approve-public',
   ) {
     const url = `${apiUrl}/api/v1/admin/custom-rulesets/${id}/${action}`;
     const res = await fetch(url, { method: 'POST', credentials: 'include' });
     if (res.ok || res.status === 204) {
       toast.success(
-        t(`admin.rulesets.${action === 'set-default' ? 'setDefaultAction' : `${action}Action`}`),
+        t(
+          `admin.rulesets.${
+            action === 'set-default'
+              ? 'setDefaultAction'
+              : action === 'approve-public'
+                ? 'approveForSharingSuccess'
+                : `${action}Action`
+          }`,
+        ),
       );
       refreshCurated();
     } else {
       const body = (await res.json().catch(() => null)) as { message?: string } | null;
       toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+    }
+  }
+
+  /**
+   * R3: super-admin reject-submission on a curated row. Hits the new
+   * /admin/custom-rulesets/:id/reject-submission endpoint with a reason
+   * captured via PromptDialog.
+   */
+  async function confirmRejectSubmission(reason: string) {
+    if (!rejectSubmissionTarget) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/admin/custom-rulesets/${rejectSubmissionTarget}/reject-submission`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason.trim() }),
+        },
+      );
+      if (res.ok) {
+        toast.success(t('admin.rulesets.rejectSubmissionSuccess'));
+        setRejectSubmissionTarget(null);
+        refreshCurated();
+      } else {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -504,7 +554,12 @@ export default function AdminRulesetsPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {row.submitted_for_review_at && (
+                          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                            {t('admin.rulesets.submissionPending')}
+                          </span>
+                        )}
                         <Link
                           href={`/admin/rulesets/scoring/${row.id}/edit`}
                           className={rowActionClasses('edit')}
@@ -513,6 +568,23 @@ export default function AdminRulesetsPage() {
                             ? t('admin.rulesets.viewAction')
                             : t('admin.rulesets.editAction')}
                         </Link>
+                        {/* R3: org-submitted rows show Approve/Reject actions. */}
+                        {row.submitted_for_review_at && (
+                          <>
+                            <RowActionButton
+                              variant="success"
+                              onClick={() => void performCuratedAction(row.id, 'approve-public')}
+                            >
+                              {t('admin.rulesets.approveForSharingAction')}
+                            </RowActionButton>
+                            <RowActionButton
+                              variant="danger"
+                              onClick={() => setRejectSubmissionTarget(row.id)}
+                            >
+                              {t('admin.rulesets.rejectAction')}
+                            </RowActionButton>
+                          </>
+                        )}
                         <RowActionButton
                           variant="neutral"
                           onClick={() => void performCuratedAction(row.id, 'clone')}
@@ -569,6 +641,20 @@ export default function AdminRulesetsPage() {
         busy={actionBusy}
         onCancel={() => setRejectTarget(null)}
         onConfirm={(reason) => void confirmReject(reason)}
+      />
+
+      {/* R3: per-row reject for org-submitted curated rulesets. */}
+      <PromptDialog
+        open={rejectSubmissionTarget !== null}
+        title={t('admin.rulesets.rejectAction')}
+        description={t('admin.rulesets.rejectReasonPrompt')}
+        placeholder={t('admin.rulesets.rejectReasonPrompt')}
+        confirmLabel={t('admin.rulesets.rejectAction')}
+        danger
+        multiline
+        busy={actionBusy}
+        onCancel={() => setRejectSubmissionTarget(null)}
+        onConfirm={(reason) => void confirmRejectSubmission(reason)}
       />
 
       <ConfirmDialog

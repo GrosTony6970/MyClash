@@ -17,6 +17,7 @@ import { StaffService } from '../staff/staff.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   AssignPenaltyRulesetDto,
+  RejectPenaltyRulesetSharingDto,
   CreatePenaltyDto,
   CreatePenaltyRulesetDto,
   ImportPenaltyRulesetCsvDto,
@@ -103,6 +104,41 @@ export class PenaltiesController {
   async deleteRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const userId = await getOptionalUserId(req, this.supabase);
     await this.penalties.deleteRuleset(id, userId);
+  }
+
+  @Post('penalty-rulesets/:id/submit-for-sharing')
+  @ApiOperation({
+    summary:
+      'Submit an org-owned penalty ruleset for super-admin review so it can be shared platform-wide.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async submitForSharing(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.submitRulesetForSharing(id, userId);
+  }
+
+  @Post('penalty-rulesets/:id/approve-sharing')
+  @ApiOperation({
+    summary: 'Approve a pending sharing request (super-admin); flips public_visibility=true.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async approveSharing(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.approveRulesetSharing(id, userId);
+  }
+
+  @Post('penalty-rulesets/:id/reject-sharing')
+  @ApiOperation({
+    summary: 'Reject a pending sharing request (super-admin) with a reason shown to the organizer.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async rejectSharing(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectPenaltyRulesetSharingDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getOptionalUserId(req, this.supabase);
+    return this.penalties.rejectRulesetSharing(id, dto.reason, userId);
   }
 
   @Get('organizations/:orgId/penalty-rulesets')

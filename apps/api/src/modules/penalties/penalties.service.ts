@@ -252,6 +252,133 @@ export class PenaltiesService {
     if (delErr) throw new BadRequestException(delErr.message);
   }
 
+  // ── R3: "Submit for sharing" promotion workflow ──────────────────────────
+
+  /**
+   * Org-admin action — flip the ruleset's request status to 'pending' so
+   * a super-admin can review it and approve for platform-wide sharing.
+   * Built-in and already-public rows can't be submitted (they're already
+   * visible to everyone). Validates ownership via assertUserCanManageOrg
+   * on the row's owner.
+   */
+  async submitRulesetForSharing(id: string, userId?: string) {
+    const existing = await this.loadRulesetForSharing(id);
+    if (existing.built_in) {
+      throw new BadRequestException('Built-in rulesets do not need to be submitted for sharing');
+    }
+    if (existing.public_visibility) {
+      throw new BadRequestException('This ruleset is already shared platform-wide');
+    }
+    await this.assertUserCanManageOrg(existing.owner_organization_id ?? '', userId);
+
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update({
+        public_visibility_request_status: 'pending',
+        public_visibility_request_reason: null,
+        public_visibility_requested_at: new Date().toISOString(),
+        public_visibility_reviewed_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Submit failed');
+    return data;
+  }
+
+  /**
+   * Super-admin action — approve a pending sharing request. Flips
+   * public_visibility=true so the row appears in every org's
+   * listRulesetsForOrg result + every tournament's penalty-ruleset
+   * dropdown.
+   */
+  async approveRulesetSharing(id: string, userId?: string) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    if (!(await this.isSuperAdmin(userId))) {
+      throw new ForbiddenException('Only super-admin can approve sharing');
+    }
+    const existing = await this.loadRulesetForSharing(id);
+    if (existing.public_visibility_request_status !== 'pending') {
+      throw new BadRequestException('No pending sharing request to approve');
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update({
+        public_visibility: true,
+        public_visibility_request_status: 'approved',
+        public_visibility_request_reason: null,
+        public_visibility_reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Approve failed');
+    return data;
+  }
+
+  /**
+   * Super-admin action — reject the sharing request with a reason. The
+   * row remains org-private; the org can fix the issue and resubmit.
+   */
+  async rejectRulesetSharing(id: string, reason: string, userId?: string) {
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    if (!(await this.isSuperAdmin(userId))) {
+      throw new ForbiddenException('Only super-admin can reject sharing');
+    }
+    const trimmed = reason.trim();
+    if (!trimmed) throw new BadRequestException('A rejection reason is required');
+    const existing = await this.loadRulesetForSharing(id);
+    if (existing.public_visibility_request_status !== 'pending') {
+      throw new BadRequestException('No pending sharing request to reject');
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .update({
+        public_visibility_request_status: 'rejected',
+        public_visibility_request_reason: trimmed,
+        public_visibility_reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Reject failed');
+    return data;
+  }
+
+  /**
+   * Tight read for sharing-flow validation. Returns just the columns each
+   * approve/reject/submit path needs to inspect.
+   */
+  private async loadRulesetForSharing(id: string): Promise<{
+    id: string;
+    built_in: boolean;
+    owner_organization_id: string | null;
+    public_visibility: boolean;
+    public_visibility_request_status: 'pending' | 'approved' | 'rejected' | null;
+  }> {
+    const { data, error } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select(
+        'id, built_in, owner_organization_id, public_visibility, public_visibility_request_status',
+      )
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Penalty ruleset ${id} not found`);
+    return data as {
+      id: string;
+      built_in: boolean;
+      owner_organization_id: string | null;
+      public_visibility: boolean;
+      public_visibility_request_status: 'pending' | 'approved' | 'rejected' | null;
+    };
+  }
+
   /**
    * List penalty rulesets relevant to an organization: the built-in (always
    * visible) + any rulesets owned by `orgId`. Used by the organizer-facing
