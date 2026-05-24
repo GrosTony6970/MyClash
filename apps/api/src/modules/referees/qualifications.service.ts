@@ -330,10 +330,32 @@ export class QualificationsService {
 
     if (countError) throw new BadRequestException(countError.message);
 
+    // R4 of the staffing overhaul (migration 0060): a skill referenced by
+    // a tournament_slot_allowed_skills or event_slot_config_default_skills
+    // row would otherwise be blocked by ON DELETE RESTRICT at the FK level.
+    // We count up front so the 409 message enumerates every blocker.
+    const [{ count: slotTournamentCount, error: sErr1 }, { count: slotEventCount, error: sErr2 }] =
+      await Promise.all([
+        this.supabase.service
+          .from('tournament_slot_allowed_skills')
+          .select('skill_id', { count: 'exact', head: true })
+          .eq('skill_id', skillId),
+        this.supabase.service
+          .from('event_slot_config_default_skills')
+          .select('skill_id', { count: 'exact', head: true })
+          .eq('skill_id', skillId),
+      ]);
+    if (sErr1) throw new BadRequestException(sErr1.message);
+    if (sErr2) throw new BadRequestException(sErr2.message);
+
     const activeCount = count ?? 0;
-    if (activeCount > 0) {
+    const slotCount = (slotTournamentCount ?? 0) + (slotEventCount ?? 0);
+    if (activeCount > 0 || slotCount > 0) {
+      const reasons: string[] = [];
+      if (activeCount > 0) reasons.push(`${activeCount} active qualification(s)`);
+      if (slotCount > 0) reasons.push(`${slotCount} staffing slot(s)`);
       throw new ConflictException(
-        `Cannot delete skill: ${activeCount} active qualification(s) still reference it`,
+        `Cannot delete skill: ${reasons.join(' and ')} still reference it`,
       );
     }
 

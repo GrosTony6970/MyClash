@@ -8,6 +8,8 @@ import { QualificationsController } from './qualifications.controller';
 import { QualificationsService } from './qualifications.service';
 import { SettingsController } from './settings.controller';
 import { SettingsService } from './settings.service';
+import { StaffingController } from './staffing.controller';
+import { StaffingService } from './staffing.service';
 
 @Module({
   imports: [OrganizationsModule, WorkersModule],
@@ -16,8 +18,9 @@ import { SettingsService } from './settings.service';
     SettingsController,
     AutoAssignController,
     AssignmentBoardController,
+    StaffingController,
   ],
-  providers: [QualificationsService, SettingsService, AssignmentBoardService],
-  exports: [QualificationsService, SettingsService],
+  providers: [QualificationsService, SettingsService, AssignmentBoardService, StaffingService],
+  exports: [QualificationsService, SettingsService, StaffingService],
 })
 export class RefereesModule {}

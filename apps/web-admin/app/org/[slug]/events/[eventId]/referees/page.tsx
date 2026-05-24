@@ -13,6 +13,8 @@ import Link from 'next/link';
 import { SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { SkillCatalog } from './_components/SkillCatalog';
+import { StaffingTab } from './_components/StaffingTab';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,7 +40,7 @@ interface EventRefereeRow {
 }
 
 // qual id lookup: key = `${personId}:${skillId}` → qualId
-type RefereeWorkspaceTab = 'referees' | 'qualifications' | 'assignments';
+type RefereeWorkspaceTab = 'referees' | 'qualifications' | 'staffing' | 'assignments';
 type AssignmentRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
 
 interface AssignmentBoardCandidate {
@@ -772,7 +774,12 @@ export default function RefereesPage() {
   useEffect(() => {
     function syncHash() {
       const hash = window.location.hash.replace('#', '');
-      if (hash === 'assignments' || hash === 'qualifications' || hash === 'referees') {
+      if (
+        hash === 'assignments' ||
+        hash === 'qualifications' ||
+        hash === 'referees' ||
+        hash === 'staffing'
+      ) {
         setActiveTab(hash);
       }
     }
@@ -1010,6 +1017,37 @@ export default function RefereesPage() {
     }
   }
 
+  /**
+   * Delete a custom skill. The backend rejects system skills, and returns
+   * 409 with a reason list when the skill is still referenced (by active
+   * qualifications and/or staffing slot configs — extended in migration
+   * 0060). We surface the reason verbatim so the operator knows what to
+   * un-reference before retrying.
+   */
+  async function deleteSkill(skillId: string) {
+    if (!confirm(t('organizer.refereesPage.catalogDeleteConfirm'))) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/referee-skills/${skillId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        toast.error(body.message ?? t('organizer.refereesPage.catalogDeleteBlocked'));
+        return;
+      }
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.catalogDeleteFailed'));
+        return;
+      }
+      toast.success(t('organizer.refereesPage.catalogDeleteSuccess'));
+      setSkillsKey((k) => k + 1);
+      setRefereesKey((k) => k + 1);
+    } catch {
+      toast.error(t('organizer.refereesPage.catalogDeleteFailed'));
+    }
+  }
+
   async function updateAvailability(
     userId: string,
     patch: { availableAllTournaments?: boolean; availableAllEventDuration?: boolean },
@@ -1142,26 +1180,48 @@ export default function RefereesPage() {
 
       <div className="mb-6 border-b border-gray-200">
         <nav className="-mb-px flex gap-6">
-          {(['referees', 'qualifications', 'assignments'] as RefereeWorkspaceTab[]).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => selectTab(tab)}
-              className={[
-                'border-b-2 px-1 py-3 text-sm font-medium transition-colors',
-                activeTab === tab
-                  ? 'border-red-700 text-red-700'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
-              ].join(' ')}
-            >
-              {t(`organizer.refereesPage.tabs.${tab}`)}
-            </button>
-          ))}
+          {(['referees', 'qualifications', 'staffing', 'assignments'] as RefereeWorkspaceTab[]).map(
+            (tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => selectTab(tab)}
+                className={[
+                  'border-b-2 px-1 py-3 text-sm font-medium transition-colors',
+                  activeTab === tab
+                    ? 'border-red-700 text-red-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                ].join(' ')}
+              >
+                {t(`organizer.refereesPage.tabs.${tab}`)}
+              </button>
+            ),
+          )}
         </nav>
       </div>
 
       {activeTab === 'assignments' ? (
         <AssignmentsTab eventId={eventId} apiUrl={apiUrl} isReadOnly={isReadOnly} />
+      ) : activeTab === 'qualifications' ? (
+        <SkillCatalog
+          skills={skills}
+          referees={referees}
+          isReadOnly={isReadOnly}
+          onEditSkill={(skill) =>
+            setSkillModal({
+              mode: 'edit',
+              skillId: skill.id,
+              initial: { name: skill.name, color: skill.color },
+            })
+          }
+          onDeleteSkill={(skill) => void deleteSkill(skill.id)}
+          onUpsertQualification={(personId, skillId, rating) =>
+            void upsertQualification(personId, skillId, rating)
+          }
+          onRemoveQualification={(personId, skillId) => void removeQualification(personId, skillId)}
+        />
+      ) : activeTab === 'staffing' ? (
+        <StaffingTab eventId={eventId} apiUrl={apiUrl} skills={skills} isReadOnly={isReadOnly} />
       ) : (
         <>
           {/* Add referee search */}
@@ -1234,7 +1294,7 @@ export default function RefereesPage() {
               an empty-state row instead of hiding the whole table. */}
           {loading ? (
             <p className="text-gray-400 text-sm">{t('organizer.refereesPage.loading')}</p>
-          ) : referees.length === 0 && activeTab !== 'qualifications' ? (
+          ) : referees.length === 0 ? (
             <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
               <p className="text-gray-400 text-sm">{t('organizer.refereesPage.noReferees')}</p>
             </div>
@@ -1248,8 +1308,10 @@ export default function RefereesPage() {
                       {t('organizer.refereesPage.personColumn')}
                     </th>
 
-                    {/* Skill columns */}
-                    {activeTab === 'qualifications' &&
+                    {/* Skill columns — the matrix moved from the Qualifications
+                        tab onto the Referees tab as part of the R1 staffing
+                        overhaul. Qualifications is now a skill catalog. */}
+                    {activeTab === 'referees' &&
                       skills.map((skill) => (
                         <th
                           key={skill.id}
@@ -1312,16 +1374,10 @@ export default function RefereesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {referees.length === 0 && activeTab === 'qualifications' && (
-                    <tr>
-                      <td
-                        colSpan={1 + skills.length}
-                        className="py-10 text-center text-sm text-gray-400"
-                      >
-                        {t('organizer.refereesPage.noReferees')}
-                      </td>
-                    </tr>
-                  )}
+                  {/* The Qualifications-tab empty-state row used to live here.
+                      With the catalog rewrite the qualifications branch
+                      short-circuits above and never reaches this table,
+                      so the row is no longer reachable. */}
                   {referees.map((ref) => (
                     <tr key={ref.userId} className="border-b border-gray-100 hover:bg-gray-50">
                       {/* Name cell */}
@@ -1396,8 +1452,8 @@ export default function RefereesPage() {
                         )}
                       </td>
 
-                      {/* Skill cells */}
-                      {activeTab === 'qualifications' &&
+                      {/* Skill cells — relocated from Qualifications to Referees in R1. */}
+                      {activeTab === 'referees' &&
                         skills.map((skill) => {
                           const qual = ref.qualifications.find((q) => q.skillId === skill.id);
                           const isSaving = savingQual === `${ref.personId}-${skill.id}`;

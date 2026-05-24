@@ -345,11 +345,19 @@ describe('QualificationsService — skills catalog', () => {
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
       const countChain = makeCountChain(3); // 3 active qualifications reference it
+      // R4 of the staffing overhaul (migration 0060): deleteCustomSkill now
+      // also counts tournament_slot_allowed_skills + event_slot_config_default_skills
+      // rows. The active-qualification count alone is enough to trigger the
+      // 409, so the slot-reference counts return 0 here.
+      const slotTournamentCountChain = makeCountChain(0);
+      const slotEventCountChain = makeCountChain(0);
 
       fromMock
         .mockReturnValueOnce(fetchChain) // fetch skill
         .mockReturnValueOnce(eventChain) // getEvent
-        .mockReturnValueOnce(countChain); // count active qualifications
+        .mockReturnValueOnce(countChain) // count active qualifications
+        .mockReturnValueOnce(slotTournamentCountChain) // count tournament slot refs
+        .mockReturnValueOnce(slotEventCountChain); // count event-default slot refs
 
       await expect(
         service.deleteCustomSkill('custom-aabbccdd-zz1234', 'user-id-1'),
@@ -397,6 +405,9 @@ describe('QualificationsService — skills catalog', () => {
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
       const countChain = makeCountChain(0); // no active qualifications
+      // R4 of the staffing overhaul: slot-reference counts also queried.
+      const slotTournamentCountChain = makeCountChain(0);
+      const slotEventCountChain = makeCountChain(0);
 
       const deleteChain = makeChain({ data: null, error: null });
       deleteChain.eq.mockResolvedValue({ data: null, error: null });
@@ -405,6 +416,8 @@ describe('QualificationsService — skills catalog', () => {
         .mockReturnValueOnce(fetchChain) // fetch skill
         .mockReturnValueOnce(eventChain) // getEvent
         .mockReturnValueOnce(countChain) // count active qualifications
+        .mockReturnValueOnce(slotTournamentCountChain) // count tournament slot refs
+        .mockReturnValueOnce(slotEventCountChain) // count event-default slot refs
         .mockReturnValueOnce(deleteChain); // delete
 
       await expect(
