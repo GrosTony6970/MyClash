@@ -29,6 +29,7 @@ interface EventInfo {
   startDate: string | null;
   endDate: string | null;
   location: string | null;
+  logoUrl: string | null;
 }
 
 interface DashboardStats {
@@ -245,19 +246,23 @@ export default function EventDetailPage() {
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <LogoCard
+            label={t('organizer.eventHub.dashboard.logo')}
+            logoUrl={event?.logoUrl ?? null}
+            name={event?.name ?? ''}
+            emptyLabel={t('organizer.events.logoEmpty')}
+          />
           <MetricCard
-            label={t('organizer.eventHub.dashboard.dates')}
-            value={`${formatDate(event?.startDate ?? null)} - ${formatDate(event?.endDate ?? null)}`}
+            label={t('organizer.eventHub.dashboard.startDate')}
+            value={formatDate(event?.startDate ?? null)}
             detail={t('organizer.eventHub.dashboard.duration', {
               count: durationDays(event?.startDate ?? null, event?.endDate ?? null),
             })}
           />
           <MetricCard
-            label={t('organizer.eventHub.dashboard.countdown')}
-            value={liveState}
-            detail={t('organizer.eventHub.dashboard.visibility', {
-              status: event?.status ?? '-',
-            })}
+            label={t('organizer.eventHub.dashboard.endDate')}
+            value={formatDate(event?.endDate ?? null)}
+            detail={liveState}
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.tournaments')}
@@ -271,6 +276,13 @@ export default function EventDetailPage() {
             value={String(stats?.totals.clubsRepresented ?? 0)}
             detail={t('organizer.eventHub.dashboard.referees', {
               count: stats?.totals.qualifiedReferees ?? 0,
+            })}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.countdown')}
+            value={liveState}
+            detail={t('organizer.eventHub.dashboard.visibility', {
+              status: event?.status ?? '-',
             })}
           />
         </div>
@@ -453,6 +465,37 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-2xl font-bold text-[#0f172a]">{value}</p>
       <p className="mt-1 text-sm text-slate-500">{detail}</p>
+    </div>
+  );
+}
+
+function LogoCard({
+  label,
+  logoUrl,
+  name,
+  emptyLabel,
+}: {
+  label: string;
+  logoUrl: string | null;
+  name: string;
+  emptyLabel: string;
+}) {
+  return (
+    <div className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+        {logoUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+            {name.slice(0, 2)}
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <p className="mt-1 text-sm text-slate-500">{logoUrl ? name : emptyLabel}</p>
+      </div>
     </div>
   );
 }

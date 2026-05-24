@@ -269,6 +269,7 @@ export class EventsService {
       start_date?: string;
       end_date?: string;
       location?: string | null;
+      logo_url?: string | null;
     };
     await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
 
@@ -339,6 +340,7 @@ export class EventsService {
         startDate: event.start_date ?? null,
         endDate: event.end_date ?? null,
         location: event.location ?? null,
+        logoUrl: event.logo_url ?? null,
       },
       totals: {
         tournaments: tournaments.length,

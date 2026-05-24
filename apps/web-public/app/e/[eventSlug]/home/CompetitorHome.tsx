@@ -36,8 +36,33 @@ async function fetchMyMatches(eventSlug: string, apiUrl: string): Promise<Match[
   }
 }
 
+async function fetchEventBranding(
+  eventSlug: string,
+  apiUrl: string,
+): Promise<{ name: string; logoUrl: string | null } | null> {
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const raw = (await res.json()) as Record<string, unknown>;
+    return {
+      name: String(raw['name'] ?? ''),
+      logoUrl:
+        typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
+          ? String(raw['logo_url'] ?? raw['logoUrl'])
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
-  const matches = await fetchMyMatches(eventSlug, apiUrl);
+  const [matches, branding] = await Promise.all([
+    fetchMyMatches(eventSlug, apiUrl),
+    fetchEventBranding(eventSlug, apiUrl),
+  ]);
 
   const upcoming = matches.filter((m) => ['scheduled', 'running'].includes(m.status));
   const past = matches.filter((m) => m.status === 'completed').slice(0, 5);
@@ -45,6 +70,27 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
 
   return (
     <main className="flex flex-col gap-8 px-4 py-6 max-w-lg mx-auto">
+      {branding && (branding.logoUrl || branding.name) && (
+        <section className="flex items-center gap-3">
+          {branding.logoUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={branding.logoUrl}
+              alt=""
+              className="h-14 w-14 rounded-lg object-cover border border-gray-800"
+            />
+          )}
+          {branding.name && (
+            <p
+              className="text-lg font-bold"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
+            >
+              {branding.name}
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Next match */}
       <section>
         <h2

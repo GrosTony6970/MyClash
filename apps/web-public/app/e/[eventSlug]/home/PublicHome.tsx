@@ -14,6 +14,7 @@ interface EventInfo {
   endDate: string;
   publicLandingMd: string | null;
   status: string;
+  logoUrl: string | null;
 }
 
 interface HighlightMatch {
@@ -40,7 +41,24 @@ async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventI
       cache: 'no-store',
     });
     if (!res.ok) return null;
-    return (await res.json()) as EventInfo;
+    const raw = (await res.json()) as Record<string, unknown>;
+    // Backend returns snake_case (logo_url) from the events table. Coerce
+    // to the camelCase shape this component reads.
+    return {
+      name: String(raw['name'] ?? ''),
+      location: typeof raw['location'] === 'string' ? raw['location'] : null,
+      startDate: String(raw['start_date'] ?? raw['startDate'] ?? ''),
+      endDate: String(raw['end_date'] ?? raw['endDate'] ?? ''),
+      publicLandingMd:
+        typeof (raw['public_landing_md'] ?? raw['publicLandingMd']) === 'string'
+          ? String(raw['public_landing_md'] ?? raw['publicLandingMd'])
+          : null,
+      status: String(raw['status'] ?? ''),
+      logoUrl:
+        typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
+          ? String(raw['logo_url'] ?? raw['logoUrl'])
+          : null,
+    };
   } catch {
     return null;
   }
@@ -85,6 +103,14 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
       {/* Event intro */}
       {event && (
         <section>
+          {event.logoUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={event.logoUrl}
+              alt=""
+              className="mb-3 h-20 w-20 rounded-xl object-cover border-2 border-gray-800"
+            />
+          )}
           <h1
             className="text-3xl font-bold mb-1"
             style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
