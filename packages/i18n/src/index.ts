@@ -1647,9 +1647,12 @@ export const en = {
         noEvents: 'No events yet',
         manageAll: 'Manage all events…',
       },
+      scoringRulesetsAuthoringSoon:
+        'Scoring ruleset authoring is coming soon — until then your tournaments use the platform catalog.',
       nav: {
         overview: 'Overview',
         events: 'Events',
+        rulesets: 'Rulesets',
         penaltyRulesets: 'Penalty rulesets',
         aiSettings: 'AI settings',
         compensationSettings: 'Compensation settings',
@@ -4290,6 +4293,8 @@ export const fr = {
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: "Se deconnecter de l'administration organisateur",
       skipToContent: 'Aller au contenu principal',
+      scoringRulesetsAuthoringSoon:
+        'La creation de rulesets de score arrive bientot — en attendant vos tournois utilisent le catalogue de la plateforme.',
       eventSwitcher: {
         label: 'Changer d evenement',
         openLabel: 'Changer d evenement',
@@ -4299,6 +4304,7 @@ export const fr = {
       nav: {
         overview: 'Vue generale',
         events: 'Evenements',
+        rulesets: 'Rulesets',
         penaltyRulesets: 'Rulesets de penalites',
         aiSettings: 'Parametres IA',
         compensationSettings: 'Parametres de compensation',

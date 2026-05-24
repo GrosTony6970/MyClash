@@ -11,11 +11,11 @@ import { useOrganizerSelectedEvent } from './organizer-event-context';
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
   { href: 'events', labelKey: 'organizer.shell.nav.events', badge: 'EV' },
-  {
-    href: 'penalty-rulesets',
-    labelKey: 'organizer.shell.nav.penaltyRulesets',
-    badge: 'PR',
-  },
+  // Single "Rulesets" entry — the page redirects to /scoring and the
+  // RulesetsTopNav pill at the top of each tab handles Scoring | Penalty
+  // switching. pickActiveHref() uses startsWith() so the link stays
+  // highlighted whether the operator is on /scoring or /penalty.
+  { href: 'rulesets', labelKey: 'organizer.shell.nav.rulesets', badge: 'R' },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
   {
     href: 'settings/compensation',
