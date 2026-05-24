@@ -40,7 +40,7 @@ export class AutoAssignController {
   async autoAssign(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query('dryRun') dryRunParam?: string,
-  ) {
+  ): Promise<{ dryRun: boolean } & Record<string, unknown>> {
     const dryRun = dryRunParam !== 'false';
     if (dryRun) return { dryRun: true, ...(await this.assignmentBoard.preview(eventId)) };
     return { dryRun: false, ...(await this.assignmentBoard.applyPreview(eventId)) };

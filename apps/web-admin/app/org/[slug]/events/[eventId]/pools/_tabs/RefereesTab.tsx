@@ -29,6 +29,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
+import {
+  SwapSuggestionsPanel,
+  type SwapSuggestion,
+} from '../../referees/_components/SwapSuggestionsPanel';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -77,6 +81,8 @@ interface AssignmentBoard {
   unscheduledPools: AssignmentBoardPool[];
   candidates: AssignmentBoardCandidate[];
   locked: boolean;
+  /** R4: engine-computed back-to-back swap proposals. */
+  swapSuggestions?: SwapSuggestion[];
 }
 
 interface Props {
@@ -226,6 +232,39 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     }
   }
 
+  /**
+   * R4: apply a back-to-back swap suggestion. Unassign-then-assign,
+   * mirroring the event-level Assignments tab's applySwap. The
+   * board's slot list resolves the old assignment id by
+   * (poolId, slotIndex).
+   */
+  async function applySwap(s: SwapSuggestion) {
+    if (!board) return;
+    const pool = allBoardPools.find((p) => p.id === s.fromPoolId);
+    const slot = pool?.roleSlots.find((rs) => rs.slotIndex === s.fromSlotIndex);
+    const oldId = slot?.assignment?.id;
+    if (!slot) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (oldId) {
+        const delRes = await fetch(`${apiUrl}/api/v1/referee-assignments/${oldId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!delRes.ok) {
+          const body = (await delRes.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? t('organizer.poolsPage.refereesAssignFailed'));
+        }
+      }
+      await manualAssign(s.fromPoolId, slot.role, s.toPersonId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.poolsPage.refereesAssignFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !board) {
     return <p className="text-sm text-gray-400">{t('organizer.poolsPage.refereesLoading')}</p>;
   }
@@ -264,6 +303,18 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           />
         ))}
       </section>
+
+      {/* R4: back-to-back swap suggestions for the assignments shown
+          here. Filters server-output to this tournament's pools — keeps
+          the panel relevant to the operator's current context. */}
+      <SwapSuggestionsPanel
+        suggestions={(board.swapSuggestions ?? []).filter((s) =>
+          tournamentPools.some((p) => p.id === s.fromPoolId),
+        )}
+        isReadOnly={isReadOnly || board.locked}
+        busy={busy}
+        onApply={(s) => void applySwap(s)}
+      />
 
       {picker && (
         <CandidatePicker

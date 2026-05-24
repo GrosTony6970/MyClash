@@ -46,6 +46,19 @@ export interface AssignmentBoardPool {
   liceId: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
+  /**
+   * R4: phase-type kind. 'pool' for real pools (the pre-R4 default);
+   * 'bracket' / 'finals' for individual bracket matches modelled as
+   * single-match pools. The frontend groups by this field to split
+   * assignment tables into Pool / Bracket / Finals sub-sections.
+   */
+  kind?: 'pool' | 'bracket' | 'finals';
+  /**
+   * R4: when kind is 'bracket' or 'finals', this is the match_id the
+   * synthetic pool wraps. Used by manual assignments to record
+   * scope_type='match' instead of scope_type='pool'.
+   */
+  matchId?: string;
   members: Array<{
     registrationId: string;
     personId: string;
@@ -96,7 +109,17 @@ export interface AssignmentBoard {
   missingSlots: Array<{ poolId: string; poolName: string; role: string; reasons: string[] }>;
   warnings: Array<{ poolId: string; poolName: string; role: string; detail: string }>;
   locked: boolean;
-  swapSuggestions: [];
+  /** R4: back-to-back swap suggestions surfaced to the operator. */
+  swapSuggestions: Array<{
+    fromPoolId: string;
+    fromSlotIndex: number;
+    fromPersonId: string;
+    fromPersonName: string;
+    toPersonId: string;
+    toPersonName: string;
+    reason: 'breaks_back_to_back';
+    detail: string;
+  }>;
 }
 
 export interface ManualAssignmentDto {
@@ -193,6 +216,8 @@ interface RefereeAssignmentRow {
   id: string;
   user_id: string;
   pool_id: string | null;
+  /** R4: bracket-scoped assignments use match_id instead of pool_id. */
+  match_id: string | null;
   role: string | null;
   status: string;
   auto_assigned: boolean;
@@ -230,40 +255,59 @@ export class AssignmentBoardService {
     const pool = context.pools.find((p) => p.id === dto.poolId);
     if (!pool) throw new NotFoundException(`Pool ${dto.poolId} not found for event ${eventId}`);
 
-    // R2: the role must be one of the resolved slot config's allowed
-    // skills for this pool's tournament. The hard-coded floor (Décl /
-    // Asses / Table) still passes when no Staffing rows exist, so legacy
-    // requests keep working unchanged.
+    // R2 + R4: the role must be in the resolved slot config's allowed
+    // skills for this pool's tournament, picking the right slice
+    // (pool / bracket / finals) based on the pool's R4 `kind`. The
+    // hard-coded floor (Décl / Asses / Table) still passes when no
+    // Staffing rows exist, so legacy requests keep working unchanged.
     const config = context.slotConfigByTournament.get(pool.tournamentId);
+    const kind = pool.kind ?? 'pool';
+    const sourceSlots =
+      kind === 'finals'
+        ? (config?.finals ?? [])
+        : kind === 'bracket'
+          ? (config?.bracket ?? [])
+          : (config?.pool ?? []);
     const allowed = new Set<string>();
-    for (const slot of config?.pool ?? []) {
+    for (const slot of sourceSlots) {
       for (const sid of slot.allowedSkillIds) allowed.add(sid);
     }
     if (!allowed.has(dto.role)) {
       throw new BadRequestException(
-        `Role ${dto.role} is not allowed for this pool under the current Staffing config`,
+        `Role ${dto.role} is not allowed for this ${kind} under the current Staffing config`,
       );
     }
 
     const candidate = context.candidates.find((c) => c.userId === dto.userId);
     if (!candidate) throw new BadRequestException('Selected user is not an event referee');
 
-    const poolMembers = new Set(pool.members.map((m) => m.personId));
-    if (candidate.personId && poolMembers.has(candidate.personId)) {
-      throw new BadRequestException('A fighter cannot referee their own pool');
+    // Pool-membership check handles real pools (members list) and
+    // bracket matches (red/blue registration IDs on the single match)
+    // uniformly. Both end up in the same Set the engine uses.
+    const poolMembers = new Set<string>(pool.members.map((m) => m.personId));
+    if (candidate.personId) {
+      const fighterRegIds = context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [];
+      for (const match of pool.matches) {
+        if (
+          (match.redRegistrationId && fighterRegIds.includes(match.redRegistrationId)) ||
+          (match.blueRegistrationId && fighterRegIds.includes(match.blueRegistrationId))
+        ) {
+          throw new BadRequestException('A fighter cannot referee their own match');
+        }
+      }
+      if (poolMembers.has(candidate.personId)) {
+        throw new BadRequestException('A fighter cannot referee their own pool');
+      }
     }
 
     if (!candidate.qualifications.some((q) => q.role === dto.role)) {
       throw new BadRequestException('Selected referee is not qualified for this role');
     }
 
-    // R3: the engine's RefereeAssignment now carries slotIndex. We pick
-    // the first slot whose allowed list contains dto.role — slot configs
-    // typically use distinct primary skills per slot, so this maps
-    // unambiguously. Falls back to index 1 if nothing matches (shouldn't
-    // happen — the allowed-set check above guarantees a match).
-    const slotIndex =
-      (config?.pool ?? []).find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
+    // R3: the engine's RefereeAssignment now carries slotIndex. Use the
+    // first slot whose allowed list contains dto.role — picked from the
+    // R4-correct slot source (pool/bracket/finals).
+    const slotIndex = sourceSlots.find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
 
     await this.persistAssignments(
       eventId,
@@ -332,17 +376,162 @@ export class AssignmentBoardService {
       slotConfigByTournament.set(tournament.id, config);
     }
 
+    // R4: bracket matches (single_elim / double_elim phases). Each
+    // bracket match becomes a synthetic single-match "pool" in the
+    // engine pipeline so it gets the same slot-config + conflict
+    // detection as real pools.
+    const bracketPools = await this.loadBracketAsPools(tournamentIds, tournamentById);
+    const allPools = [...pools, ...bracketPools];
+
     return {
       eventId,
       tournaments,
       phases,
-      pools,
+      pools: allPools,
       candidates,
       assignments,
       fighterRegistrationIdsByPerson,
       slotConfigByTournament,
       locked: assignments.some((a) => a.status === 'confirmed'),
     };
+  }
+
+  /**
+   * R4: load bracket matches as synthetic "pool of one match" entries.
+   * `kind` and `matchId` on each entry let the rest of the pipeline
+   * (engine slot config, board grouping, persistence) treat them
+   * correctly without scattering bracket-specific code paths.
+   *
+   * `classifyBracketMatch` decides between 'bracket' and 'finals' based
+   * on the match's round vs. the phase's max round (last round = final
+   * + 3rd-place; round-before-last = semis). All three slot configs
+   * (pool/bracket/finals) are resolved per tournament, so the synthetic
+   * pool's downstream slot lookup falls through cleanly.
+   */
+  private async loadBracketAsPools(
+    tournamentIds: string[],
+    tournamentById: Map<string, TournamentRow>,
+  ): Promise<AssignmentBoardPool[]> {
+    if (tournamentIds.length === 0) return [];
+    const { data: bracketPhases, error: phErr } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id, type')
+      .in('tournament_id', tournamentIds)
+      .in('type', ['single_elim', 'double_elim']);
+    if (phErr) throw new BadRequestException(phErr.message);
+    const phases = (bracketPhases ?? []) as Array<{
+      id: string;
+      tournament_id: string;
+      type: string;
+    }>;
+    if (phases.length === 0) return [];
+    const phaseById = new Map(phases.map((p) => [p.id, p]));
+
+    const { data: matches, error: mErr } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, phase_id, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id',
+      )
+      .in(
+        'phase_id',
+        phases.map((p) => p.id),
+      );
+    if (mErr) throw new BadRequestException(mErr.message);
+
+    const matchRows = (matches ?? []) as Array<{
+      id: string;
+      phase_id: string;
+      scheduled_at: string | null;
+      lice_id: string | null;
+      red_registration_id: string | null;
+      blue_registration_id: string | null;
+      bracket_slot_id: string | null;
+    }>;
+    if (matchRows.length === 0) return [];
+
+    // Pull bracket_slots so we know each match's round/position. Match
+    // round is what drives finals classification.
+    const slotIds = Array.from(
+      new Set(matchRows.map((m) => m.bracket_slot_id).filter((id): id is string => !!id)),
+    );
+    const slotInfo = new Map<string, { round: number; position: number; phaseId: string }>();
+    if (slotIds.length > 0) {
+      const { data: slots, error: slErr } = await this.supabase.service
+        .from('bracket_slots')
+        .select('id, phase_id, round, position')
+        .in('id', slotIds);
+      if (slErr) throw new BadRequestException(slErr.message);
+      for (const r of (slots ?? []) as Array<{
+        id: string;
+        phase_id: string;
+        round: number;
+        position: number;
+      }>) {
+        slotInfo.set(r.id, { round: r.round, position: r.position, phaseId: r.phase_id });
+      }
+    }
+
+    // Per-phase max round (needed to identify finals/semis).
+    const maxRoundByPhase = new Map<string, number>();
+    for (const m of matchRows) {
+      const info = m.bracket_slot_id ? slotInfo.get(m.bracket_slot_id) : null;
+      if (!info) continue;
+      const current = maxRoundByPhase.get(info.phaseId) ?? 0;
+      if (info.round > current) maxRoundByPhase.set(info.phaseId, info.round);
+    }
+
+    return matchRows.map((m) => {
+      const phase = phaseById.get(m.phase_id);
+      const tournament = phase ? tournamentById.get(phase.tournament_id) : undefined;
+      const info = m.bracket_slot_id ? (slotInfo.get(m.bracket_slot_id) ?? null) : null;
+      const maxRound = maxRoundByPhase.get(m.phase_id) ?? 0;
+      const kind = AssignmentBoardService.classifyBracketMatchKind(info, maxRound);
+      const scheduledEnd = m.scheduled_at
+        ? new Date(new Date(m.scheduled_at).getTime() + 5 * 60_000).toISOString()
+        : null;
+
+      return {
+        id: `match-${m.id}`,
+        name: info ? `R${info.round}P${info.position}` : `Match ${m.id.slice(0, 6)}`,
+        tournamentId: tournament?.id ?? '',
+        tournamentName: tournament?.name ?? '',
+        liceId: m.lice_id,
+        scheduledStart: m.scheduled_at,
+        scheduledEnd,
+        kind,
+        matchId: m.id,
+        members: [],
+        matches: [
+          {
+            id: m.id,
+            scheduledAt: m.scheduled_at,
+            liceId: m.lice_id,
+            redRegistrationId: m.red_registration_id,
+            blueRegistrationId: m.blue_registration_id,
+          },
+        ],
+        roleSlots: [],
+      };
+    });
+  }
+
+  /**
+   * R4: medal-set detection.
+   *   - Final match: round = maxRound, position = 1
+   *   - 3rd-place (bronze) match: round = maxRound, position = 2 (if bronze is on)
+   *   - Semifinals: round = maxRound - 1
+   * Everything else in the bracket is 'bracket'. When we can't read the
+   * slot info, default to 'bracket' so unknowns don't silently get the
+   * heavier finals config.
+   */
+  static classifyBracketMatchKind(
+    info: { round: number; position: number; phaseId: string } | null,
+    maxRound: number,
+  ): 'bracket' | 'finals' {
+    if (!info || maxRound === 0) return 'bracket';
+    if (info.round === maxRound) return 'finals'; // final + bronze share this round
+    if (info.round === maxRound - 1) return 'finals'; // semis
+    return 'bracket';
   }
 
   private async listTournaments(eventId: string): Promise<TournamentRow[]> {
@@ -492,11 +681,14 @@ export class AssignmentBoardService {
   }
 
   private async listAssignments(eventId: string): Promise<RefereeAssignmentRow[]> {
+    // R4: include match-scoped (bracket) assignments alongside pool-scoped
+    // ones. The board's roleSlot matcher looks them up by pool_id OR by
+    // the synthetic match-id (via the pool's matchId field).
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, user_id, pool_id, role, status, auto_assigned')
+      .select('id, user_id, pool_id, match_id, role, status, auto_assigned')
       .eq('event_id', eventId)
-      .eq('scope_type', 'pool');
+      .in('scope_type', ['pool', 'match']);
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as RefereeAssignmentRow[];
   }
@@ -504,14 +696,18 @@ export class AssignmentBoardService {
   private async previewFromContext(
     context: Awaited<ReturnType<AssignmentBoardService['loadContext']>>,
   ) {
-    // R3: feed the engine each pool's resolved slot list so auto-assign
-    // works for custom skills and multi-skill slots. Pools whose
+    // R3 + R4: feed the engine each pool's resolved slot list. The
+    // `kind` field (added in R4) selects which slice of the resolved
+    // config applies: 'pool' uses config.pool, 'bracket' uses
+    // config.bracket, 'finals' uses config.finals. Pools whose
     // tournament has no Staffing config get `slotDefinitions: undefined`,
-    // which makes the engine fall back to LEGACY_DEFAULT_SLOTS — exactly
-    // the pre-R3 behaviour.
+    // which makes the engine fall back to LEGACY_DEFAULT_SLOTS.
     const poolSlots: RefereePoolSlot[] = context.pools.map((pool) => {
       const config = context.slotConfigByTournament.get(pool.tournamentId);
-      const slotDefinitions = config?.pool.map((s) => ({
+      const kind = pool.kind ?? 'pool';
+      const sourceSlots =
+        kind === 'finals' ? config?.finals : kind === 'bracket' ? config?.bracket : config?.pool;
+      const slotDefinitions = sourceSlots?.map((s) => ({
         index: s.index,
         displayName: s.displayName,
         allowedSkillIds: s.allowedSkillIds,
@@ -529,6 +725,7 @@ export class AssignmentBoardService {
           blueRegistrationId: match.blueRegistrationId ?? '',
         })),
         ...(slotDefinitions ? { slotDefinitions } : {}),
+        ...(kind === 'finals' ? { isFinals: true } : {}),
       };
     });
 
@@ -569,10 +766,19 @@ export class AssignmentBoardService {
     const candidateByUserId = new Map(
       context.candidates.map((candidate) => [candidate.userId, candidate]),
     );
+    // R4: assignments can be either pool-scoped or match-scoped. We key
+    // the lookup with a uniform string so the per-pool roleSlot matcher
+    // doesn't care which scope produced it.
+    //   - pool-scoped: `${pool_id}:${role}`
+    //   - match-scoped: `match-${match_id}:${role}`
     const assignmentByPoolRole = new Map<string, RefereeAssignmentRow>();
     for (const assignment of context.assignments) {
-      if (!assignment.pool_id || !assignment.role) continue;
-      assignmentByPoolRole.set(`${assignment.pool_id}:${assignment.role}`, assignment);
+      if (!assignment.role) continue;
+      if (assignment.pool_id) {
+        assignmentByPoolRole.set(`${assignment.pool_id}:${assignment.role}`, assignment);
+      } else if (assignment.match_id) {
+        assignmentByPoolRole.set(`match-${assignment.match_id}:${assignment.role}`, assignment);
+      }
     }
     // R3: the engine's RefereeAssignment now carries `slotIndex`, so key
     // preview lookups by `${poolId}:${slotIndex}` instead of `:role`. A
@@ -587,13 +793,20 @@ export class AssignmentBoardService {
       missingByPoolSlot.set(`${missing.poolId}:${missing.slotIndex}`, missing.rejectionReasons);
     }
 
-    // R2: roleSlots now come from the resolved Staffing config per
-    // tournament. The legacy 3-role default still kicks in when no
-    // Staffing rows exist (HARD_CODED_DEFAULT_SLOTS in staffing.service).
+    // R2 + R4: roleSlots come from the resolved Staffing config per
+    // tournament, selecting `pool`/`bracket`/`finals` based on the
+    // pool's R4 `kind`. The legacy 3-role default still kicks in when
+    // no Staffing rows exist (HARD_CODED_DEFAULT_SLOTS in staffing.service).
     const pools = context.pools.map((pool) => {
       const poolMembers = new Set(pool.members.map((member) => member.personId));
       const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
-      const slots = slotConfig?.pool ?? [];
+      const kind = pool.kind ?? 'pool';
+      const slots =
+        kind === 'finals'
+          ? (slotConfig?.finals ?? [])
+          : kind === 'bracket'
+            ? (slotConfig?.bracket ?? [])
+            : (slotConfig?.pool ?? []);
 
       return {
         ...pool,
@@ -694,7 +907,8 @@ export class AssignmentBoardService {
         detail: warning.detail,
       })),
       locked: context.locked,
-      swapSuggestions: [],
+      // R4: engine now populates this; was [] under R3.
+      swapSuggestions: preview.swapSuggestions ?? [],
     };
   }
 
@@ -715,16 +929,21 @@ export class AssignmentBoardService {
     const candidateByEngineId = new Map(
       context.candidates.map((candidate) => [candidate.personId ?? candidate.userId, candidate]),
     );
+    // R4: assignments may target a real pool or a synthetic bracket
+    // "pool" (poolId prefixed with `match-`). The persisted row's
+    // scope_type + pool_id/match_id mirror that distinction.
     const rows = assignments
       .map((assignment) => {
         const candidate = candidateByEngineId.get(assignment.personId);
         const pool = context.pools.find((p) => p.id === assignment.poolId);
         if (!candidate || !pool) return null;
+        const isMatchScoped = (pool.kind ?? 'pool') !== 'pool';
         return {
           event_id: eventId,
           user_id: candidate.userId,
-          scope_type: 'pool',
-          pool_id: assignment.poolId,
+          scope_type: isMatchScoped ? 'match' : 'pool',
+          pool_id: isMatchScoped ? null : assignment.poolId,
+          match_id: isMatchScoped ? (pool.matchId ?? null) : null,
           lice_id: pool.liceId,
           role: assignment.role,
           starts_at: pool.scheduledStart,
@@ -740,13 +959,25 @@ export class AssignmentBoardService {
 
     if (!replaceAutoAssigned && rows.length === 1) {
       const row = rows[0]!;
-      await this.supabase.service
-        .from('referee_assignments')
-        .delete()
-        .eq('event_id', eventId)
-        .eq('scope_type', 'pool')
-        .eq('pool_id', row.pool_id)
-        .eq('role', row.role);
+      // Single manual write: clear any existing assignment for the same
+      // (scope, target, role) tuple before inserting the new one.
+      if (row.scope_type === 'pool' && row.pool_id) {
+        await this.supabase.service
+          .from('referee_assignments')
+          .delete()
+          .eq('event_id', eventId)
+          .eq('scope_type', 'pool')
+          .eq('pool_id', row.pool_id)
+          .eq('role', row.role);
+      } else if (row.scope_type === 'match' && row.match_id) {
+        await this.supabase.service
+          .from('referee_assignments')
+          .delete()
+          .eq('event_id', eventId)
+          .eq('scope_type', 'match')
+          .eq('match_id', row.match_id)
+          .eq('role', row.role);
+      }
     }
 
     const { error } = await this.supabase.service.from('referee_assignments').insert(rows);

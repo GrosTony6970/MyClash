@@ -139,7 +139,11 @@ function queueBoardReads(assignments: unknown[] = []) {
         error: null,
       }),
     )
-    .mockReturnValueOnce(makeChain({ data: assignments, error: null }));
+    .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
+    // R4: bracket phases query (returns empty so these tests stay
+    // pool-only — the bracket loader short-circuits and asks nothing
+    // further). Other R4-specific tests cover the bracket path.
+    .mockReturnValueOnce(makeChain({ data: [], error: null }));
 }
 
 describe('AssignmentBoardService', () => {
@@ -196,6 +200,25 @@ describe('AssignmentBoardService', () => {
         userId: 'user-a',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // R4: bracket-match classification.
+  describe('classifyBracketMatchKind (static)', () => {
+    it('flags the final and bronze rounds as finals (round === maxRound)', () => {
+      const info = { round: 4, position: 1, phaseId: 'phase-1' };
+      expect(AssignmentBoardService.classifyBracketMatchKind(info, 4)).toBe('finals');
+    });
+    it('flags the semifinals as finals (round === maxRound - 1)', () => {
+      const info = { round: 3, position: 1, phaseId: 'phase-1' };
+      expect(AssignmentBoardService.classifyBracketMatchKind(info, 4)).toBe('finals');
+    });
+    it('flags earlier rounds as bracket', () => {
+      const info = { round: 2, position: 1, phaseId: 'phase-1' };
+      expect(AssignmentBoardService.classifyBracketMatchKind(info, 4)).toBe('bracket');
+    });
+    it('defaults to bracket when slot info is missing', () => {
+      expect(AssignmentBoardService.classifyBracketMatchKind(null, 4)).toBe('bracket');
+    });
   });
 
   it('persists auto-assign preview using the referee assignment schema columns', async () => {

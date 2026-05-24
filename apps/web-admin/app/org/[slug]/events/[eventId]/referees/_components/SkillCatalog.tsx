@@ -30,6 +30,8 @@ export interface RefereeSkill {
   color: string;
   isSystem: boolean;
   sortOrder: number;
+  /** R4: optional free-text tooltip / subtitle. Empty when unset. */
+  description?: string;
 }
 
 export interface RefereeRowForCatalog {
@@ -121,13 +123,25 @@ export function SkillCatalog({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <SkillBadge color={skill.color} label={skill.name} />
+                    {/* R4: description doubles as a tooltip on hover via
+                        the wrapping span. */}
+                    <span title={skill.description || undefined}>
+                      <SkillBadge color={skill.color} label={skill.name} />
+                    </span>
                     {skill.isSystem && (
                       <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                         {t('organizer.refereesPage.catalogSystemPill')}
                       </span>
                     )}
                   </div>
+                  {skill.description && (
+                    <p
+                      className="mt-0.5 truncate text-xs italic text-gray-500"
+                      title={skill.description}
+                    >
+                      {skill.description}
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-center font-semibold text-gray-700 tabular-nums">
                   {countsBySkill.get(skill.id) ?? 0}

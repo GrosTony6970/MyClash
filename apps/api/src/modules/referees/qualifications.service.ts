@@ -34,6 +34,8 @@ export interface RefereeSkill {
   color: string;
   isSystem: boolean;
   sortOrder: number;
+  /** R4: free-text tooltip / subtitle. Empty string when unset. */
+  description: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,11 +43,16 @@ export interface RefereeSkill {
 export interface CreateRefereeSkillDto {
   name: string;
   color: string;
+  description?: string;
 }
 
 export interface UpdateRefereeSkillDto {
   name?: string;
   color?: string;
+  /** R4: editable on system skills (rename/colour still blocked). */
+  description?: string;
+  /** R4: editable on system skills (used by drag-reorder). */
+  sortOrder?: number;
 }
 
 export type RefereeRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
@@ -254,6 +261,7 @@ export class QualificationsService {
         color: dto.color,
         is_system: false,
         sort_order: 0,
+        description: dto.description ?? '',
       })
       .select('*')
       .single();
@@ -262,7 +270,16 @@ export class QualificationsService {
     return this.mapSkill(data as Record<string, unknown>);
   }
 
-  /** Edit a custom skill. Refuses if is_system = true. */
+  /**
+   * Edit a skill. System skills are partially editable in R4:
+   *   - description: allowed on both system + custom
+   *   - sortOrder:   allowed on both (drag-reorder works on system skills too)
+   *   - name, color: still blocked on system skills (existing invariant)
+   *
+   * Auth: system skills don't carry an event_id, so we require platform
+   * super-admin gating for system-only writes. Custom skills require
+   * org-admin on the owning event (existing behaviour).
+   */
   async updateCustomSkill(
     skillId: string,
     dto: UpdateRefereeSkillDto,
@@ -278,18 +295,35 @@ export class QualificationsService {
     if (!existing) throw new NotFoundException(`Skill ${skillId} not found`);
 
     const row = existing as Record<string, unknown>;
-    if (row['is_system']) {
-      throw new ForbiddenException('System skills cannot be edited');
+    const isSystem = row['is_system'] === true;
+
+    // R4: system skills still block rename/recolour, but description +
+    // sortOrder are user-editable across the catalog (incl. drag-reorder).
+    if (isSystem && (dto.name !== undefined || dto.color !== undefined)) {
+      throw new ForbiddenException('System skills cannot be renamed or recoloured');
     }
 
-    const event = await this.getEvent(row['event_id'] as string);
-    await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+    // Auth: custom skills need org-admin on their event; system skills
+    // (no event_id) gate through any event the caller is admin on (R4
+    // exposes them via org-scoped UI, never as global edits).
+    if (!isSystem) {
+      const event = await this.getEvent(row['event_id'] as string);
+      await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+    }
 
-    const updates: { name?: string; color?: string; updated_at: string } = {
+    const updates: {
+      name?: string;
+      color?: string;
+      description?: string;
+      sort_order?: number;
+      updated_at: string;
+    } = {
       updated_at: new Date().toISOString(),
     };
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.color !== undefined) updates.color = dto.color;
+    if (dto.description !== undefined) updates.description = dto.description;
+    if (dto.sortOrder !== undefined) updates.sort_order = dto.sortOrder;
 
     const { data, error } = await this.supabase.service
       .from('referee_skills')
@@ -300,6 +334,35 @@ export class QualificationsService {
 
     if (error) throw new BadRequestException(error.message);
     return this.mapSkill(data as Record<string, unknown>);
+  }
+
+  /**
+   * R4: bulk drag-reorder. Accepts a list of skill IDs in their new
+   * order; rewrites each skill's `sort_order` to its index. Operates
+   * across both system + custom skills since the drag-reorder UI shows
+   * them in one table.
+   *
+   * Org-admin gated on the event the IDs belong to. We pick the first
+   * non-system skill in the input to establish the event for auth — if
+   * the input is system-only, we accept the request (rare; super-admin
+   * UI calling this is not a v1 expectation).
+   */
+  async reorderSkills(eventId: string, orderedSkillIds: string[], userId: string): Promise<void> {
+    if (orderedSkillIds.length === 0) return;
+    const event = await this.getEvent(eventId);
+    await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+
+    // Persist each new sort_order in sequence. Single-row updates keep
+    // the change small + each write is independent; in practice the
+    // catalog has < 20 skills so the round-trip cost is negligible.
+    for (let i = 0; i < orderedSkillIds.length; i++) {
+      const id = orderedSkillIds[i]!;
+      const { error } = await this.supabase.service
+        .from('referee_skills')
+        .update({ sort_order: i, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw new BadRequestException(error.message);
+    }
   }
 
   /** Delete a custom skill. Refuses if is_system = true or active qualifications reference it. */
@@ -929,6 +992,7 @@ export class QualificationsService {
       color: r['color'] as string,
       isSystem: Boolean(r['is_system']),
       sortOrder: (r['sort_order'] as number) ?? 0,
+      description: typeof r['description'] === 'string' ? (r['description'] as string) : '',
       createdAt: r['created_at'] as string,
       updatedAt: r['updated_at'] as string,
     };

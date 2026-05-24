@@ -58,6 +58,11 @@ class CreateRefereeSkillDto {
   @IsString()
   @MaxLength(32)
   color!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
 }
 
 class UpdateRefereeSkillDto {
@@ -71,6 +76,23 @@ class UpdateRefereeSkillDto {
   @IsString()
   @MaxLength(32)
   color?: string;
+
+  /** R4: editable on system skills. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  /** R4: editable on system skills (drag-reorder support). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
+}
+
+class ReorderRefereeSkillsDto {
+  @IsString({ each: true })
+  orderedSkillIds!: string[];
 }
 
 export class UpdateRefereeAvailabilityDto {
@@ -165,7 +187,9 @@ export class QualificationsController {
 
   @Patch('referee-skills/:skillId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update a custom skill (organizer+)' })
+  @ApiOperation({
+    summary: 'Update a skill (organizer+; system skills allow description/sortOrder only)',
+  })
   @ApiParam({ name: 'skillId', type: 'string' })
   async updateSkill(
     @Param('skillId') skillId: string,
@@ -174,6 +198,22 @@ export class QualificationsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.qualifications.updateCustomSkill(skillId, dto, userId);
+  }
+
+  /** R4: bulk drag-reorder. Re-writes every skill's sort_order. */
+  @Patch('events/:eventId/referee-skills/reorder')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Reorder referee skills (organizer+; affects display order in catalog)',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async reorderSkills(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: ReorderRefereeSkillsDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.qualifications.reorderSkills(eventId, dto.orderedSkillIds, userId);
   }
 
   @Delete('referee-skills/:skillId')

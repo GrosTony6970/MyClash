@@ -336,6 +336,166 @@ describe('Time overlap: referee cannot referee two simultaneous pools', () => {
   });
 });
 
+// ── R4: swap suggestions + isFinals routing + bracket-as-pool-of-one ─────────
+
+describe('R4: swap suggestions for back-to-back violations', () => {
+  it('returns an empty suggestion list when no back-to-back warnings exist', () => {
+    // 2 pools, 2 candidates per role — no candidate covers both pools, so
+    // no back-to-back chain. swapSuggestions should be empty.
+    const pools = [makePool('p1', 'Pool A'), makePool('p2', 'Pool B')];
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('d0', 'Decl0', ['arbitre_declarant']),
+      makeCandidate('d1', 'Decl1', ['arbitre_declarant']),
+      makeCandidate('a0', 'Asses0', ['arbitre_assesseur']),
+      makeCandidate('a1', 'Asses1', ['arbitre_assesseur']),
+      makeCandidate('t0', 'Table0', ['arbitre_table']),
+      makeCandidate('t1', 'Table1', ['arbitre_table']),
+    ];
+
+    const result = assignRefereesWithPools(pools, candidates, DEFAULT_SETTINGS);
+
+    expect(result.warnings.filter((w) => w.type === 'back_to_back')).toHaveLength(0);
+    expect(result.swapSuggestions).toEqual([]);
+  });
+
+  it('proposes a swap when an alternative candidate can break a back-to-back chain', () => {
+    // 4 pools, 2 declarants. Workload balance is OFF so the higher-rated d0
+    // takes every pool (back-to-back across p2/p3/p4). The lower-rated d1
+    // ends up unassigned and becomes the natural swap target.
+    const pools = [
+      makePool('p1', 'Pool A'),
+      makePool('p2', 'Pool B'),
+      makePool('p3', 'Pool C'),
+      makePool('p4', 'Pool D'),
+    ];
+    const candidates: RefereeCandidate[] = [
+      // Higher-rated declarant — wins every slot when workload balance is off.
+      {
+        personId: 'd0',
+        personName: 'Top Decl',
+        qualifications: [{ role: 'arbitre_declarant', rating: 5 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+      // Lower-rated declarant — never wins on score but is the only swap option.
+      {
+        personId: 'd1',
+        personName: 'Backup Decl',
+        qualifications: [{ role: 'arbitre_declarant', rating: 3 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+      // Other roles get covered without affecting the declarant scoring.
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeCandidate(`a${i}`, `Asses${i}`, ['arbitre_assesseur']),
+      ),
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeCandidate(`t${i}`, `Table${i}`, ['arbitre_table']),
+      ),
+    ];
+
+    const result = assignRefereesWithPools(pools, candidates, {
+      ...DEFAULT_SETTINGS,
+      workloadBalance: false, // keep d0 winning every declarant slot
+    });
+
+    // Sanity: a back-to-back warning fired on d0.
+    const b2b = result.warnings.filter((w) => w.type === 'back_to_back' && w.personId === 'd0');
+    expect(b2b.length).toBeGreaterThan(0);
+    // The swap suggestion should propose d1 as the replacement for d0.
+    expect(result.swapSuggestions.length).toBeGreaterThan(0);
+    expect(
+      result.swapSuggestions.some(
+        (s) =>
+          s.fromPersonId === 'd0' && s.toPersonId === 'd1' && s.reason === 'breaks_back_to_back',
+      ),
+    ).toBe(true);
+  });
+
+  it('does NOT propose a swap when the only alternative would also be back-to-back', () => {
+    // Edge: same scenario but no alternative is actually free (e.g. d1
+    // is already assigned everywhere else). With only one qualified
+    // candidate per role and back-to-back chains everywhere, no swap can
+    // resolve anything.
+    const pools = [makePool('p1', 'Pool A'), makePool('p2', 'Pool B'), makePool('p3', 'Pool C')];
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('d0', 'OnlyDecl', ['arbitre_declarant']),
+      makeCandidate('a0', 'OnlyAsses', ['arbitre_assesseur']),
+      makeCandidate('t0', 'OnlyTable', ['arbitre_table']),
+    ];
+
+    const result = assignRefereesWithPools(pools, candidates, DEFAULT_SETTINGS);
+
+    expect(result.warnings.filter((w) => w.type === 'back_to_back').length).toBeGreaterThan(0);
+    expect(result.swapSuggestions).toEqual([]);
+  });
+});
+
+describe('R4: bracket modelled as a pool-of-one match', () => {
+  it('assigns refs to a synthetic single-match pool without leaking pool semantics', () => {
+    // A bracket match modelled as a one-match pool with bracket slot
+    // definitions. No "pool members" — the synthetic pool has matches[0]
+    // with the two fighter registration IDs.
+    const bracketMatch: PoolSlot = {
+      poolId: 'match-bracket-1',
+      poolName: 'Quarter 1',
+      matches: [
+        {
+          id: 'match-bracket-1',
+          scheduledAt: null,
+          durationMinutes: 5,
+          redRegistrationId: 'reg-red',
+          blueRegistrationId: 'reg-blue',
+        },
+      ],
+      earliestStart: null,
+      latestEnd: null,
+      slotDefinitions: [
+        { index: 1, displayName: 'Lead', allowedSkillIds: ['arbitre_declarant'] },
+        { index: 2, displayName: 'Side', allowedSkillIds: ['arbitre_assesseur'] },
+      ],
+    };
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('d0', 'Decl', ['arbitre_declarant']),
+      makeCandidate('a0', 'Asses', ['arbitre_assesseur']),
+    ];
+
+    const result = assignRefereesWithPools([bracketMatch], candidates, DEFAULT_SETTINGS);
+
+    expect(result.assignments).toHaveLength(2);
+    expect(result.assignments.map((a) => a.slotIndex).sort()).toEqual([1, 2]);
+    expect(result.missing).toHaveLength(0);
+    // No `isFinals` set on these assignments — the pool didn't flag it.
+    expect(result.assignments.every((a) => a.isFinals === undefined)).toBe(true);
+  });
+
+  it('stamps `isFinals: true` on assignments when the pool flags it', () => {
+    const finalsMatch: PoolSlot = {
+      poolId: 'match-final',
+      poolName: 'Gold Final',
+      matches: [
+        {
+          id: 'match-final',
+          scheduledAt: null,
+          durationMinutes: 5,
+          redRegistrationId: 'reg-r',
+          blueRegistrationId: 'reg-b',
+        },
+      ],
+      earliestStart: null,
+      latestEnd: null,
+      slotDefinitions: [{ index: 1, displayName: 'Head', allowedSkillIds: ['arbitre_declarant'] }],
+      isFinals: true,
+    };
+    const candidates: RefereeCandidate[] = [makeCandidate('d0', 'Head Ref', ['arbitre_declarant'])];
+
+    const result = assignRefereesWithPools([finalsMatch], candidates, DEFAULT_SETTINGS);
+
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0]!.isFinals).toBe(true);
+  });
+});
+
 // ── R3: Auto-assign for custom slot configs ──────────────────────────────────
 
 describe('R3: custom slot configs', () => {

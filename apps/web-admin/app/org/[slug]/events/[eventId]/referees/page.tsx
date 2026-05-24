@@ -15,6 +15,7 @@ import { t } from '@myclash/i18n';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
+import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,8 @@ interface RefereeSkill {
   color: string;
   isSystem: boolean;
   sortOrder: number;
+  /** R4: optional tooltip / subtitle. */
+  description?: string;
 }
 
 interface EventRefereeRow {
@@ -90,6 +93,10 @@ interface AssignmentBoardPool {
   liceId: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
+  /** R4: 'pool' (default) | 'bracket' | 'finals'. */
+  kind?: 'pool' | 'bracket' | 'finals';
+  /** R4: present when kind !== 'pool'; the underlying match id. */
+  matchId?: string;
   members: Array<{
     registrationId: string;
     personId: string;
@@ -97,6 +104,18 @@ interface AssignmentBoardPool {
     clubLabel: string | null;
   }>;
   roleSlots: AssignmentBoardRoleSlot[];
+}
+
+/** R4: surfaced from the engine's swap-suggestion computation. */
+interface SwapSuggestion {
+  fromPoolId: string;
+  fromSlotIndex: number;
+  fromPersonId: string;
+  fromPersonName: string;
+  toPersonId: string;
+  toPersonName: string;
+  reason: 'breaks_back_to_back';
+  detail: string;
 }
 
 interface AssignmentBoard {
@@ -112,7 +131,7 @@ interface AssignmentBoard {
   }>;
   warnings: Array<{ poolId: string; poolName: string; role: AssignmentRole; detail: string }>;
   locked: boolean;
-  swapSuggestions: [];
+  swapSuggestions: SwapSuggestion[];
 }
 
 type QualIdMap = Map<string, string>;
@@ -199,8 +218,11 @@ const COLOR_OPTIONS: string[] = [
 
 interface SkillModalProps {
   mode: 'add' | 'edit';
-  initial?: { name: string; color: string };
+  /** R4: optional description carried through edit. */
+  initial?: { name: string; color: string; description?: string };
   skillId?: string;
+  /** R4: when editing a system skill, name/colour are read-only. */
+  isSystem?: boolean;
   eventId: string;
   apiUrl: string;
   onClose: () => void;
@@ -212,6 +234,7 @@ function SkillModal({
   mode,
   initial,
   skillId,
+  isSystem,
   eventId,
   apiUrl,
   onClose,
@@ -220,6 +243,7 @@ function SkillModal({
 }: SkillModalProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [color, setColor] = useState(initial?.color ?? 'blue');
+  const [description, setDescription] = useState(initial?.description ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -244,14 +268,21 @@ function SkillModal({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ name: name.trim(), color }),
+          body: JSON.stringify({ name: name.trim(), color, description: description.trim() }),
         });
       } else {
+        // R4: on system skills only send description (name/colour are
+        // read-only at the backend); on custom skills send everything.
+        const payload: Record<string, string> = { description: description.trim() };
+        if (!isSystem) {
+          payload['name'] = name.trim();
+          payload['color'] = color;
+        }
         res = await fetch(`${apiUrl}/api/v1/referee-skills/${skillId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ name: name.trim(), color }),
+          body: JSON.stringify(payload),
         });
       }
 
@@ -341,9 +372,10 @@ function SkillModal({
               ref={nameInputRef}
               type="text"
               value={name}
+              disabled={isSystem}
               onChange={(e) => setName(e.target.value)}
               maxLength={60}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:bg-gray-50 disabled:text-gray-500"
               placeholder={t('organizer.refereesPage.skillNamePlaceholder')}
             />
           </div>
@@ -354,8 +386,9 @@ function SkillModal({
             </label>
             <select
               value={color}
+              disabled={isSystem}
               onChange={(e) => setColor(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 disabled:bg-gray-50 disabled:text-gray-500"
             >
               {COLOR_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -370,6 +403,23 @@ function SkillModal({
                 size="sm"
               />
             </div>
+          </div>
+
+          {/* R4: optional free-text description. Editable on both system
+              and custom skills — surfaces as a tooltip + subtitle in
+              the catalog. */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('organizer.refereesPage.skillDescription')}
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={500}
+              rows={3}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              placeholder={t('organizer.refereesPage.skillDescriptionPlaceholder')}
+            />
           </div>
         </div>
 
@@ -563,6 +613,45 @@ function AssignmentsTab({
     }
   }
 
+  /**
+   * R4: apply a swap suggestion. Implemented as unassign-then-assign:
+   * delete the old assignment for the (poolId, slot) tuple, then POST
+   * the new one. Both calls reuse the existing /referee-assignments
+   * endpoints — no new backend surface. If the assign step fails after
+   * the unassign succeeded, the slot is left empty and the operator
+   * sees the failure toast; they can retry manually.
+   */
+  async function applySwap(suggestion: SwapSuggestion) {
+    if (!board) return;
+    // Find the existing assignment for that slot so we know which id to delete.
+    const pool = [...board.pools, ...board.unscheduledPools].find(
+      (p) => p.id === suggestion.fromPoolId,
+    );
+    const slot = pool?.roleSlots.find((s) => s.slotIndex === suggestion.fromSlotIndex);
+    const oldAssignmentId = slot?.assignment?.id;
+    setRunning(true);
+    setError(null);
+    try {
+      if (oldAssignmentId) {
+        const delRes = await fetch(`${apiUrl}/api/v1/referee-assignments/${oldAssignmentId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        if (!delRes.ok) {
+          const body = (await delRes.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? t('organizer.refereesPage.swapApplyFailed'));
+        }
+      }
+      // Assign the new ref. The board response from POST is the
+      // refreshed board, so we use it directly.
+      await manualAssign(suggestion.fromPoolId, slot?.role ?? '', suggestion.toPersonId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.refereesPage.swapApplyFailed'));
+    } finally {
+      setRunning(false);
+    }
+  }
+
   async function lockAssignments() {
     setLocking(true);
     setError(null);
@@ -597,6 +686,9 @@ function AssignmentsTab({
    */
   function renderPoolRows(pools: AssignmentBoardPool[], unscheduled = false) {
     if (pools.length === 0) return null;
+    // R2: group by tournament. R4: within each tournament, split into
+    // Pool / Bracket / Finals sub-sections so each sub-section's table
+    // can carry its own (potentially different) slot column set.
     const groups = new Map<string, { tournamentName: string; pools: AssignmentBoardPool[] }>();
     for (const pool of pools) {
       const key = pool.tournamentId || pool.tournamentName || 'unknown';
@@ -604,86 +696,96 @@ function AssignmentsTab({
       bucket.pools.push(pool);
       groups.set(key, bucket);
     }
+    const KINDS: Array<'pool' | 'bracket' | 'finals'> = ['pool', 'bracket', 'finals'];
 
     return (
       <div className="space-y-6">
-        {Array.from(groups.entries()).map(([key, group]) => {
-          const headerSlots = group.pools[0]?.roleSlots ?? [];
-          return (
-            <div key={key} className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-800">{group.tournamentName}</h3>
-              <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
-                      <th className="px-3 py-2 font-medium">
-                        {t('organizer.refereesPage.poolColumn')}
-                      </th>
-                      <th className="px-3 py-2 font-medium">
-                        {t('organizer.refereesPage.scheduleColumn')}
-                      </th>
-                      {headerSlots.map((slot) => (
-                        <th
-                          key={`${slot.slotIndex}:${slot.role}`}
-                          className="px-3 py-2 font-medium"
-                        >
-                          {slot.displayName ?? roleLabel(slot.role)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.pools.map((pool) => (
-                      <tr key={pool.id} className="border-b border-gray-100 last:border-0">
-                        <td className="px-3 py-3 align-top">
-                          <p className="font-medium text-gray-900">{pool.name}</p>
-                          <p className="mt-1 text-xs text-gray-400">
-                            {pool.members.map((member) => member.personName).join(', ')}
-                          </p>
-                        </td>
-                        <td className="px-3 py-3 align-top text-xs text-gray-600">
-                          {unscheduled
-                            ? t('organizer.refereesPage.unscheduled')
-                            : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
-                        </td>
-                        {pool.roleSlots.map((slot) => (
-                          <td
-                            key={`${slot.slotIndex}:${slot.role}`}
-                            className="px-3 py-3 align-top"
-                          >
-                            <button
-                              type="button"
-                              disabled={isReadOnly || board?.locked}
-                              onClick={() => setPicker({ pool, slot })}
-                              className={[
-                                'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                                slot.assignment
-                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                                  : slot.missingReasons.length
-                                    ? 'border-red-200 bg-red-50 text-red-900'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
-                              ].join(' ')}
+        {Array.from(groups.entries()).map(([key, group]) => (
+          <div key={key} className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-800">{group.tournamentName}</h3>
+            {KINDS.map((kind) => {
+              const kindPools = group.pools.filter((p) => (p.kind ?? 'pool') === kind);
+              if (kindPools.length === 0) return null;
+              const headerSlots = kindPools[0]?.roleSlots ?? [];
+              return (
+                <div key={kind} className="space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                    {t(`organizer.refereesPage.assignmentsSubsection.${kind}`)}
+                  </p>
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+                          <th className="px-3 py-2 font-medium">
+                            {t('organizer.refereesPage.poolColumn')}
+                          </th>
+                          <th className="px-3 py-2 font-medium">
+                            {t('organizer.refereesPage.scheduleColumn')}
+                          </th>
+                          {headerSlots.map((slot) => (
+                            <th
+                              key={`${slot.slotIndex}:${slot.role}`}
+                              className="px-3 py-2 font-medium"
                             >
-                              <span className="block font-medium">
-                                {slot.assignment?.displayName ??
-                                  t('organizer.refereesPage.unassigned')}
-                              </span>
-                              {slot.missingReasons.length > 0 && (
-                                <span className="block text-xs opacity-80">
-                                  {slot.missingReasons.join(', ')}
-                                </span>
-                              )}
-                            </button>
-                          </td>
+                              {slot.displayName ?? roleLabel(slot.role)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kindPools.map((pool) => (
+                          <tr key={pool.id} className="border-b border-gray-100 last:border-0">
+                            <td className="px-3 py-3 align-top">
+                              <p className="font-medium text-gray-900">{pool.name}</p>
+                              <p className="mt-1 text-xs text-gray-400">
+                                {pool.members.map((member) => member.personName).join(', ')}
+                              </p>
+                            </td>
+                            <td className="px-3 py-3 align-top text-xs text-gray-600">
+                              {unscheduled
+                                ? t('organizer.refereesPage.unscheduled')
+                                : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
+                            </td>
+                            {pool.roleSlots.map((slot) => (
+                              <td
+                                key={`${slot.slotIndex}:${slot.role}`}
+                                className="px-3 py-3 align-top"
+                              >
+                                <button
+                                  type="button"
+                                  disabled={isReadOnly || board?.locked}
+                                  onClick={() => setPicker({ pool, slot })}
+                                  className={[
+                                    'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                                    slot.assignment
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                      : slot.missingReasons.length
+                                        ? 'border-red-200 bg-red-50 text-red-900'
+                                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                                  ].join(' ')}
+                                >
+                                  <span className="block font-medium">
+                                    {slot.assignment?.displayName ??
+                                      t('organizer.refereesPage.unassigned')}
+                                  </span>
+                                  {slot.missingReasons.length > 0 && (
+                                    <span className="block text-xs opacity-80">
+                                      {slot.missingReasons.join(', ')}
+                                    </span>
+                                  )}
+                                </button>
+                              </td>
+                            ))}
+                          </tr>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     );
   }
@@ -755,6 +857,14 @@ function AssignmentsTab({
               </ul>
             </div>
           )}
+          {/* R4: back-to-back swap suggestions (engine-computed). Panel
+              hides itself when the list is empty. */}
+          <SwapSuggestionsPanel
+            suggestions={board.swapSuggestions ?? []}
+            isReadOnly={isReadOnly}
+            busy={running}
+            onApply={(s) => void applySwap(s)}
+          />
         </>
       )}
 
@@ -876,10 +986,14 @@ export default function RefereesPage() {
   const [globalResults, setGlobalResults] = useState<GlobalPersonResult[]>([]);
 
   // ── Skill modal state ───────────────────────────────────────────────────────
+  // R4: `initial.description` + `isSystem` flow through so the modal
+  // can show the description field on both kinds while keeping
+  // name/colour read-only on system skills.
   const [skillModal, setSkillModal] = useState<{
     mode: 'add' | 'edit';
     skillId?: string;
-    initial?: { name: string; color: string };
+    isSystem?: boolean;
+    initial?: { name: string; color: string; description?: string };
   } | null>(null);
 
   // ── Toast ───────────────────────────────────────────────────────────────────
@@ -1267,7 +1381,12 @@ export default function RefereesPage() {
             setSkillModal({
               mode: 'edit',
               skillId: skill.id,
-              initial: { name: skill.name, color: skill.color },
+              isSystem: skill.isSystem,
+              initial: {
+                name: skill.name,
+                color: skill.color,
+                description: skill.description ?? '',
+              },
             })
           }
           onDeleteSkill={(skill) => void deleteSkill(skill.id)}
@@ -1384,7 +1503,12 @@ export default function RefereesPage() {
                                   setSkillModal({
                                     mode: 'edit',
                                     skillId: skill.id,
-                                    initial: { name: skill.name, color: skill.color },
+                                    isSystem: skill.isSystem,
+                                    initial: {
+                                      name: skill.name,
+                                      color: skill.color,
+                                      description: skill.description ?? '',
+                                    },
                                   })
                                 }
                                 disabled={isReadOnly}
@@ -1660,6 +1784,7 @@ export default function RefereesPage() {
         <SkillModal
           mode={skillModal.mode}
           skillId={skillModal.skillId}
+          isSystem={skillModal.isSystem}
           initial={skillModal.initial}
           eventId={eventId}
           apiUrl={apiUrl}

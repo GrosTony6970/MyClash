@@ -113,6 +113,15 @@ export interface PoolSlot {
    * pre-R3 callers and tests keep behaving identically.
    */
   slotDefinitions?: SlotDefinition[];
+  /**
+   * R4 metadata flag — marks bracket "pools" (synthesised as one-match
+   * pools per bracket match) that represent medal-set matches. The
+   * engine doesn't dispatch on this; it surfaces back through
+   * `RefereeAssignment.isFinals` so consumers can group results by
+   * phase-type. Caller-supplied via
+   * `AssignmentBoardService.classifyBracketMatch`.
+   */
+  isFinals?: boolean;
 }
 
 export interface AssignmentSettings {
@@ -134,6 +143,8 @@ export interface RefereeAssignment {
   personId: string;
   personName: string;
   autoAssigned: true;
+  /** R4: mirrors PoolSlot.isFinals so callers can group output by phase. */
+  isFinals?: boolean;
 }
 
 export interface MissingAssignment {
@@ -143,6 +154,26 @@ export interface MissingAssignment {
   /** Primary skill_id for display (= slot.allowedSkillIds[0]). */
   role: RefereeRole;
   rejectionReasons: string[];
+  /** R4: mirrors PoolSlot.isFinals (same rationale as RefereeAssignment). */
+  isFinals?: boolean;
+}
+
+/**
+ * R4: proposed swap to relieve a back-to-back warning. The engine
+ * scans completed assignments for `back_to_back` warnings and looks
+ * for an alternative candidate that would resolve the chain without
+ * introducing a new violation.
+ */
+export interface SwapSuggestion {
+  fromPoolId: string;
+  fromSlotIndex: number;
+  fromPersonId: string;
+  fromPersonName: string;
+  toPersonId: string;
+  toPersonName: string;
+  /** Only reason supported in R4. */
+  reason: 'breaks_back_to_back';
+  detail: string;
 }
 
 export interface AssignmentWarning {
@@ -160,6 +191,8 @@ export interface AssignmentResult {
   assignments: RefereeAssignment[];
   missing: MissingAssignment[];
   warnings: AssignmentWarning[];
+  /** R4: back-to-back swap suggestions. May be empty. */
+  swapSuggestions: SwapSuggestion[];
 }
 
 // ── Implementation ────────────────────────────────────────────────────────────
@@ -194,14 +227,17 @@ export function assignReferees(
       );
 
       if (result.assigned) {
-        assignments.push(result.assigned);
+        const stamped: RefereeAssignment = pool.isFinals
+          ? { ...result.assigned, isFinals: true }
+          : result.assigned;
+        assignments.push(stamped);
         personAssignmentCount.set(
-          result.assigned.personId,
-          (personAssignmentCount.get(result.assigned.personId) ?? 0) + 1,
+          stamped.personId,
+          (personAssignmentCount.get(stamped.personId) ?? 0) + 1,
         );
-        const pools2 = personAssignedPools.get(result.assigned.personId) ?? [];
+        const pools2 = personAssignedPools.get(stamped.personId) ?? [];
         pools2.push(pool.poolId);
-        personAssignedPools.set(result.assigned.personId, pools2);
+        personAssignedPools.set(stamped.personId, pools2);
         warnings.push(...result.warnings);
       } else {
         missing.push({
@@ -210,12 +246,141 @@ export function assignReferees(
           slotIndex: slot.index,
           role: slot.allowedSkillIds[0]!,
           rejectionReasons: result.rejectionReasons,
+          ...(pool.isFinals ? { isFinals: true } : {}),
         });
       }
     }
   }
 
-  return { assignments, missing, warnings };
+  const swapSuggestions = computeSwapSuggestions(pools, assignments, candidates, warnings);
+
+  return { assignments, missing, warnings, swapSuggestions };
+}
+
+// ── R4: swap suggestions for back-to-back violations ─────────────────────────
+
+/**
+ * Scan the result for `back_to_back` warnings and look for a swap that
+ * would resolve each. Output is at most one suggestion per warning.
+ *
+ * Algorithm (intentionally simple — first-fit, no scoring):
+ *   1. For each back-to-back warning, identify the slot it's attached to
+ *      and the assigned person.
+ *   2. Find an alternative candidate: must be qualified for the slot,
+ *      must not be a fighter in the pool, must not already be assigned
+ *      to the pool, must not have a time-overlap with another assignment,
+ *      and the swap itself must not put THEM back-to-back with one of
+ *      their existing duties.
+ *   3. First match wins. If none exists, no suggestion is emitted for
+ *      that warning.
+ */
+function computeSwapSuggestions(
+  pools: PoolSlot[],
+  assignments: RefereeAssignment[],
+  candidates: RefereeCandidate[],
+  warnings: AssignmentWarning[],
+): SwapSuggestion[] {
+  const backToBack = warnings.filter((w) => w.type === 'back_to_back');
+  if (backToBack.length === 0) return [];
+
+  const poolById = new Map(pools.map((p) => [p.poolId, p]));
+  const assignmentsByPerson = new Map<string, RefereeAssignment[]>();
+  for (const a of assignments) {
+    const arr = assignmentsByPerson.get(a.personId) ?? [];
+    arr.push(a);
+    assignmentsByPerson.set(a.personId, arr);
+  }
+  const candidateByPerson = new Map(candidates.map((c) => [c.personId, c]));
+
+  const out: SwapSuggestion[] = [];
+  const seenSlots = new Set<string>();
+
+  for (const warning of backToBack) {
+    const slotKey = `${warning.poolId}:${warning.role}`;
+    if (seenSlots.has(slotKey)) continue; // one suggestion per offending slot
+    seenSlots.add(slotKey);
+
+    const pool = poolById.get(warning.poolId);
+    if (!pool) continue;
+    // Reconstruct the slot definition the warning came from.
+    const slots = pool.slotDefinitions ?? LEGACY_DEFAULT_SLOTS;
+    const slot = slots.find((s) => s.allowedSkillIds.includes(warning.role));
+    if (!slot) continue;
+
+    const fromPerson = candidateByPerson.get(warning.personId);
+    if (!fromPerson) continue;
+
+    const poolMembers = new Set(
+      pool.matches.flatMap((m) => [m.redRegistrationId, m.blueRegistrationId]),
+    );
+
+    for (const candidate of candidates) {
+      if (candidate.personId === warning.personId) continue;
+      if (!candidate.qualifications.some((q) => slot.allowedSkillIds.includes(q.role))) continue;
+      // Not a fighter in this pool.
+      if (candidate.fighterRegistrationIds.some((id) => poolMembers.has(id))) continue;
+      // Not already assigned to this pool.
+      if (assignments.some((a) => a.personId === candidate.personId && a.poolId === pool.poolId)) {
+        continue;
+      }
+      // No time overlap with their existing assignments.
+      const existingForCandidate = assignmentsByPerson.get(candidate.personId) ?? [];
+      if (hasTimeOverlap(pool, existingForCandidate, poolById)) continue;
+      // The swap must NOT introduce a new back-to-back chain for the candidate.
+      if (wouldBeBackToBack(pool, existingForCandidate, poolById, pools)) continue;
+
+      out.push({
+        fromPoolId: warning.poolId,
+        fromSlotIndex: slot.index,
+        fromPersonId: fromPerson.personId,
+        fromPersonName: fromPerson.personName,
+        toPersonId: candidate.personId,
+        toPersonName: candidate.personName,
+        reason: 'breaks_back_to_back',
+        detail: `Swap ${fromPerson.personName} → ${candidate.personName} to relieve back-to-back on ${pool.poolName}`,
+      });
+      break;
+    }
+  }
+
+  return out;
+}
+
+function hasTimeOverlap(
+  pool: PoolSlot,
+  existing: RefereeAssignment[],
+  poolById: Map<string, PoolSlot>,
+): boolean {
+  if (!pool.earliestStart || !pool.latestEnd) return false;
+  const poolStart = new Date(pool.earliestStart).getTime();
+  const poolEnd = new Date(pool.latestEnd).getTime();
+  for (const a of existing) {
+    const other = poolById.get(a.poolId);
+    if (!other?.earliestStart || !other?.latestEnd) continue;
+    const os = new Date(other.earliestStart).getTime();
+    const oe = new Date(other.latestEnd).getTime();
+    if (poolStart < oe && os < poolEnd) return true;
+  }
+  return false;
+}
+
+function wouldBeBackToBack(
+  pool: PoolSlot,
+  existing: RefereeAssignment[],
+  poolById: Map<string, PoolSlot>,
+  allPools: PoolSlot[],
+): boolean {
+  if (existing.length === 0) return false;
+  const poolIndex = allPools.indexOf(pool);
+  if (poolIndex < 0) return false;
+  for (const a of existing) {
+    const otherIdx = allPools.findIndex((p) => p.poolId === a.poolId);
+    if (otherIdx < 0) continue;
+    if (Math.abs(otherIdx - poolIndex) <= 1) return true;
+  }
+  // Silence unused-var lint — poolById may become useful in v2 (time-based adjacency).
+  void poolById;
+  return false;
 }
 
 // ── Private: assign one slot in one pool ─────────────────────────────────────
