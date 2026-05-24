@@ -362,9 +362,13 @@ export class EventsService {
       }>
     >();
     if (clubIds.length > 0) {
+      // 1. Globals per club. `global_persons` has no `email` column (was
+      //    renamed from `fighters` in migration 0023, never gained one) —
+      //    we pick up `claimed_by_user_id` instead so we can resolve email
+      //    from `persons` below.
       const { data: globals, error: globalsErr } = await this.supabase.service
         .from('global_persons')
-        .select('id, club_id, given_name, family_name, email')
+        .select('id, club_id, given_name, family_name, claimed_by_user_id')
         .in('club_id', clubIds);
       if (globalsErr) throw new BadRequestException(globalsErr.message);
       const rows = (globals ?? []) as Array<{
@@ -372,8 +376,34 @@ export class EventsService {
         club_id: string | null;
         given_name: string;
         family_name: string;
-        email: string | null;
+        claimed_by_user_id: string | null;
       }>;
+
+      // 2. Resolve emails for claimed globals. Mirrors the resolveUsers
+      //    pattern in review-queue.service.ts: persons.email + persons.
+      //    claimed_by_user_id is the only SQL-accessible canonical email
+      //    source (auth.users is GoTrue-only). First-found email wins per
+      //    user (matches resolveUsers semantics — same cross-event trade-off).
+      const claimedUserIds = Array.from(
+        new Set(rows.map((g) => g.claimed_by_user_id).filter((id): id is string => !!id)),
+      );
+      const emailByUser = new Map<string, string>();
+      if (claimedUserIds.length > 0) {
+        const { data: emailRows, error: emailErr } = await this.supabase.service
+          .from('persons')
+          .select('claimed_by_user_id, email')
+          .in('claimed_by_user_id', claimedUserIds);
+        if (emailErr) throw new BadRequestException(emailErr.message);
+        for (const row of (emailRows ?? []) as Array<{
+          claimed_by_user_id: string | null;
+          email: string | null;
+        }>) {
+          const uid = row.claimed_by_user_id;
+          if (uid && row.email && !emailByUser.has(uid)) emailByUser.set(uid, row.email);
+        }
+      }
+
+      // 3. Build per-club globals with email resolved per user.
       for (const g of rows) {
         if (!g.club_id) continue;
         const arr = globalsByClub.get(g.club_id) ?? [];
@@ -381,7 +411,7 @@ export class EventsService {
           id: g.id,
           given_name: g.given_name,
           family_name: g.family_name,
-          email: g.email,
+          email: g.claimed_by_user_id ? (emailByUser.get(g.claimed_by_user_id) ?? null) : null,
         });
         globalsByClub.set(g.club_id, arr);
       }
