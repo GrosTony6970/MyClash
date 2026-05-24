@@ -19,6 +19,7 @@ import { CustomRulesetsService } from './custom-rulesets.service';
 import {
   CreateCustomRulesetDto,
   PublishRulesetDto,
+  RejectSubmissionDto,
   UpdateCustomRulesetDto,
 } from './dto/custom-rulesets.dto';
 
@@ -114,5 +115,25 @@ export class CustomRulesetsAdminController {
   @ApiOperation({ summary: 'Mark this ruleset as the default (super admin)' })
   async setDefault(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     return this.service.setDefault(id, getActorId(req));
+  }
+
+  @Post(':id/approve-public')
+  @ApiOperation({
+    summary: 'Approve an org-submitted scoring ruleset for platform-wide sharing (super admin)',
+  })
+  async approvePublic(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.approveForPublic(id, getActorId(req));
+  }
+
+  @Post(':id/reject-submission')
+  @ApiOperation({
+    summary: 'Reject an org-submitted scoring ruleset (super admin). Reason is shown to the org.',
+  })
+  async rejectSubmission(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RejectSubmissionDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.rejectSubmission(id, dto.reason, getActorId(req));
   }
 }

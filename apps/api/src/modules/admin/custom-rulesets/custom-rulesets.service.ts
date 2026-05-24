@@ -44,6 +44,14 @@ export interface CustomRulesetRow {
   tf_config: Record<string, unknown> | null;
   is_default: boolean;
   is_system: boolean;
+  /** Set when an organizer authored the ruleset; null for platform/system rows. */
+  owner_organization_id: string | null;
+  /** True once a super-admin approves the submission for platform-wide sharing. */
+  public_visibility: boolean;
+  /** Non-null while a review is pending. Cleared on approve/reject. */
+  submitted_for_review_at: string | null;
+  /** Set by super-admin on rejection so the organizer knows why. */
+  rejected_reason: string | null;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -591,6 +599,201 @@ export class CustomRulesetsService {
 
     await this.writeAuditLog(actorUserId, 'custom_ruleset.set_default', id, { code: target.code });
     return data as CustomRulesetRow;
+  }
+
+  // ── Organizer-side authoring (Round 2) ───────────────────────────────────
+
+  /**
+   * List scoring rulesets visible to a given organisation:
+   *   - system rulesets (TF_v1, etc.) — always visible.
+   *   - rulesets owned by this org — drafts, pending, approved.
+   *   - other orgs' rulesets that a super-admin approved for public sharing.
+   *
+   * Authorisation is org-scoped: caller must hold an admin role in the org.
+   * No-op for super-admins (they should use `list()` for the unscoped view).
+   */
+  async listForOrg(orgId: string, _actorUserId: string): Promise<CustomRulesetRow[]> {
+    void _actorUserId; // role check happens at the controller via SuperAdminGuard or org-role assertion
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .select('*')
+      .or(`is_system.eq.true,public_visibility.eq.true,owner_organization_id.eq.${orgId}`)
+      .order('is_system', { ascending: false })
+      .order('owner_organization_id', { ascending: true })
+      .order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as CustomRulesetRow[];
+  }
+
+  /**
+   * Create a scoring ruleset on an organization's behalf. The row is stamped
+   * with `owner_organization_id` and is **immediately usable** on that org's
+   * tournaments — no review required. The "submit for review" action is a
+   * separate step (`submitForReview` below).
+   */
+  async createForOrg(
+    orgId: string,
+    dto: CreateCustomRulesetDto,
+    actorUserId: string,
+  ): Promise<CustomRulesetRow> {
+    const config = this.validateConfig({
+      scoreFormula: dto.scoreFormula,
+      constants: dto.constants,
+      tiebreakers: dto.tiebreakers,
+    });
+
+    const baseSlug = slugify(dto.name);
+    if (!baseSlug)
+      throw new BadRequestException('Name must contain at least one alphanumeric character');
+    const code = `custom_${baseSlug}-${Date.now().toString(36)}`;
+
+    const doublePenaltyFormula = dto.doublePenaltyFormula
+      ? validateDoublePenaltyFormula(dto.doublePenaltyFormula)
+      : null;
+
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .insert({
+        code,
+        version: dto.version?.trim() || '1.0.0',
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        status: 'published', // org-scoped rulesets are usable immediately
+        score_formula: config.scoreFormula,
+        constants: config.constants,
+        tiebreakers: config.tiebreakers,
+        match_format_defaults: dto.matchFormatDefaults ?? null,
+        double_penalty_formula: doublePenaltyFormula,
+        is_default: false,
+        is_system: false,
+        owner_organization_id: orgId,
+        public_visibility: false,
+        created_by_user_id: actorUserId,
+      })
+      .select('*')
+      .single();
+    if (error || !data) {
+      if (error?.message?.includes('unique')) {
+        throw new ConflictException(`Ruleset code "${code}" already exists`);
+      }
+      throw new BadRequestException(error?.message ?? 'Insert failed');
+    }
+
+    await this.writeAuditLog(
+      actorUserId,
+      'custom_ruleset.create_for_org',
+      (data as CustomRulesetRow).id,
+      {
+        code,
+        orgId,
+      },
+    );
+    return data as CustomRulesetRow;
+  }
+
+  /**
+   * Assert the row exists AND is owned by `orgId`. Used by the org-scoped
+   * controller before edit/delete/submit actions.
+   */
+  async assertOrgOwns(id: string, orgId: string): Promise<CustomRulesetRow> {
+    const existing = await this.getById(id);
+    if (existing.owner_organization_id !== orgId) {
+      throw new ForbiddenException(`Ruleset ${id} does not belong to organisation ${orgId}`);
+    }
+    return existing;
+  }
+
+  /**
+   * Mark a row as submitted for super-admin review. Org-admin only;
+   * controller checks org ownership before calling this.
+   */
+  async submitForReview(id: string, actorUserId: string): Promise<CustomRulesetRow> {
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .update({
+        submitted_for_review_at: new Date().toISOString(),
+        rejected_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Submit failed');
+
+    await this.writeAuditLog(actorUserId, 'custom_ruleset.submit_for_review', id, {});
+    return data as CustomRulesetRow;
+  }
+
+  /**
+   * Super-admin approves a submission for platform-wide sharing.
+   * Flips `public_visibility=true`, clears the review state.
+   */
+  async approveForPublic(id: string, actorUserId: string): Promise<CustomRulesetRow> {
+    const existing = await this.getById(id);
+    if (!existing.submitted_for_review_at) {
+      throw new BadRequestException('No pending submission to approve');
+    }
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .update({
+        public_visibility: true,
+        submitted_for_review_at: null,
+        rejected_reason: null,
+        status: 'published',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Approve failed');
+
+    await this.writeAuditLog(actorUserId, 'custom_ruleset.approve_public', id, {});
+    return data as CustomRulesetRow;
+  }
+
+  /**
+   * Super-admin rejects a submission. Captures the reason so the org can
+   * see it and fix the issue. The row remains org-private; the org can
+   * resubmit after editing.
+   */
+  async rejectSubmission(
+    id: string,
+    reason: string,
+    actorUserId: string,
+  ): Promise<CustomRulesetRow> {
+    const existing = await this.getById(id);
+    if (!existing.submitted_for_review_at) {
+      throw new BadRequestException('No pending submission to reject');
+    }
+    const trimmed = reason.trim();
+    if (!trimmed) throw new BadRequestException('A rejection reason is required');
+    const { data, error } = await this.supabase.service
+      .from('custom_rulesets')
+      .update({
+        submitted_for_review_at: null,
+        rejected_reason: trimmed,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw new BadRequestException(error?.message ?? 'Reject failed');
+
+    await this.writeAuditLog(actorUserId, 'custom_ruleset.reject_submission', id, {
+      reason: trimmed,
+    });
+    return data as CustomRulesetRow;
+  }
+
+  /**
+   * Delete an org-owned ruleset. The caller (controller) verified ownership
+   * via assertOrgOwns first. System rows are protected by their own guard
+   * in `remove()`; org-owned rows are freely deletable by their org admin.
+   */
+  async deleteForOrg(id: string, actorUserId: string): Promise<void> {
+    const { error } = await this.supabase.service.from('custom_rulesets').delete().eq('id', id);
+    if (error) throw new BadRequestException(error.message);
+    await this.writeAuditLog(actorUserId, 'custom_ruleset.delete_for_org', id, {});
   }
 
   private async updateStatus(

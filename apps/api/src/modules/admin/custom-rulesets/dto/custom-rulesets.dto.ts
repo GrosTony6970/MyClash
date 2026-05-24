@@ -145,3 +145,13 @@ export class PublishRulesetDto {
   @MaxLength(50)
   nextVersion?: string;
 }
+
+export class RejectSubmissionDto {
+  @ApiProperty({
+    description: 'Reason shown to the organizer so they know what to fix before resubmitting.',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(1000)
+  reason!: string;
+}

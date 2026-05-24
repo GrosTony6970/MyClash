@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MatchesModule } from '../matches/matches.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AIDataQualityController } from './ai-data-quality.controller';
 import { AIDataQualityService } from './ai-data-quality.service';
@@ -14,6 +15,7 @@ import { AdminUsersService } from './admin-users.service';
 import { AuditLogAdminController } from './audit-log.controller';
 import { CustomRulesetsAdminController } from './custom-rulesets/custom-rulesets.controller';
 import { CustomRulesetsService } from './custom-rulesets/custom-rulesets.service';
+import { OrgCustomRulesetsController } from './custom-rulesets/org-custom-rulesets.controller';
 import { AdminDashboardStatsController } from './dashboard-stats.controller';
 import { ExchangeEditRequestsAdminController } from './exchange-edit-requests.controller';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
@@ -29,12 +31,13 @@ import { SystemVersionsAdminController } from './system-versions.controller';
 import { UsersAdminController } from './users.controller';
 
 @Module({
-  imports: [MatchesModule],
+  imports: [MatchesModule, OrganizationsModule],
   controllers: [
     OrganizationsAdminController,
     UsersAdminController,
     RulesetsAdminController,
     CustomRulesetsAdminController,
+    OrgCustomRulesetsController,
     FeatureFlagsAdminController,
     AuditLogAdminController,
     ExchangeEditRequestsAdminController,

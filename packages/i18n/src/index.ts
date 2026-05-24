@@ -1012,6 +1012,23 @@ export const en = {
       tfV1ShallowTarget: 'Shallow-target value',
       tabScoring: 'Scoring rulesets',
       tabPenalty: 'Penalty rulesets',
+      sourceMine: 'My org',
+      sourceShared: 'Shared',
+      colSubmission: 'Submission',
+      submissionNotSubmitted: 'Not submitted',
+      submissionPending: 'Pending review',
+      submissionApproved: 'Approved & shared',
+      submissionRejected: 'Rejected',
+      submitForReviewAction: 'Submit for review',
+      submitForReviewConfirm:
+        'Submit this ruleset for super-admin review? You won’t be able to edit it while it’s under review.',
+      submitForReviewSuccess: 'Submitted for review.',
+      submissionPendingBanner:
+        'This ruleset is pending super-admin review and cannot be edited until reviewed.',
+      submissionApprovedBanner:
+        'This ruleset is approved and shared platform-wide — it is now read-only.',
+      submissionRejectedBanner: 'Last review rejected this ruleset',
+      rejectedReasonLabel: 'Reason',
     },
     penaltyRulesets: {
       title: 'Penalty rulesets',
@@ -3656,6 +3673,23 @@ export const fr = {
       tfV1ShallowTarget: 'Valeur cible peu profonde',
       tabScoring: 'Rulesets de score',
       tabPenalty: 'Rulesets de penalites',
+      sourceMine: 'Mon org',
+      sourceShared: 'Partage',
+      colSubmission: 'Soumission',
+      submissionNotSubmitted: 'Non soumis',
+      submissionPending: 'En revue',
+      submissionApproved: 'Approuve & partage',
+      submissionRejected: 'Rejete',
+      submitForReviewAction: 'Soumettre pour revue',
+      submitForReviewConfirm:
+        'Soumettre ce ruleset pour revue super-admin ? Vous ne pourrez pas le modifier pendant la revue.',
+      submitForReviewSuccess: 'Soumis pour revue.',
+      submissionPendingBanner:
+        'Ce ruleset est en attente de revue super-admin et ne peut pas etre modifie pour le moment.',
+      submissionApprovedBanner:
+        'Ce ruleset est approuve et partage sur la plateforme — il est desormais en lecture seule.',
+      submissionRejectedBanner: 'La derniere revue a rejete ce ruleset',
+      rejectedReasonLabel: 'Motif',
     },
     penaltyRulesets: {
       title: 'Rulesets de penalites',
