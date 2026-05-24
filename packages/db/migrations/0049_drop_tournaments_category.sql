@@ -41,5 +41,37 @@ UPDATE organizations
 SET is_platform = TRUE
 WHERE slug = 'myclash-hq';
 
--- 4. Drop the column.
+-- 4. Drop the column. The view vw_tournament_query_fighters (created in 0033)
+--    still selects t.category, so Postgres refuses the DROP COLUMN with
+--    "cannot drop column ... because other objects depend on it". Drop the
+--    view first, then drop the column, then recreate the view without the
+--    category field. The view consumer (apps/api/.../tournament-query/
+--    tournament-query.tools.service.ts) casts to FighterRow which does not
+--    include category, so dropping it from the projection is consumer-safe.
+DROP VIEW IF EXISTS vw_tournament_query_fighters;
+
 ALTER TABLE tournaments DROP COLUMN IF EXISTS category;
+
+CREATE OR REPLACE VIEW vw_tournament_query_fighters AS
+SELECT
+  r.tournament_id,
+  t.event_id,
+  r.id AS registration_id,
+  p.id AS person_id,
+  r.fighter_id,
+  trim(p.given_name || ' ' || p.family_name) AS display_name,
+  p.given_name,
+  p.family_name,
+  c.name AS club_name,
+  p.hema_ratings_id,
+  COALESCE(f.country_code, c.country_code) AS country_code,
+  t.weapon,
+  r.status,
+  r.seed,
+  r.bib_number,
+  p.claimed_by_user_id
+FROM registrations r
+JOIN tournaments t ON t.id = r.tournament_id
+JOIN persons p ON p.id = r.person_id
+LEFT JOIN global_persons f ON f.id = r.fighter_id
+LEFT JOIN clubs c ON c.id = p.club_id;
