@@ -302,6 +302,23 @@ export class EventsController {
     return this.events.createTournament(eventId, dto, userId);
   }
 
+  /**
+   * GET /api/v1/tournaments/:id
+   *
+   * Returns the full tournament row. The tournament-creation wizard fetches
+   * this on step 2 to hydrate the match-format form against the row just
+   * created — without it the wizard 404s and shows the "Draft — step 2 of 4"
+   * resume banner instead of letting the operator continue.
+   */
+  @Get('tournaments/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get tournament (org scorekeeper+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getTournament(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.events.getTournamentById(id, userId);
+  }
+
   /** PATCH /api/v1/tournaments/:id */
   @Patch('tournaments/:id')
   @ApiBearerAuth()

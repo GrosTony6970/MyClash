@@ -775,6 +775,32 @@ export class EventsService {
     return data;
   }
 
+  /**
+   * Return the full tournament row to a scorekeeper+ of the owning org.
+   *
+   * Used by the tournament-creation wizard's step 2 to hydrate the
+   * match-format form against the row just created. Mirrors the read +
+   * org-role assertion that updateTournament does at the top, but with a
+   * lower role threshold (scorekeeper, not admin) — read access should be
+   * available to anyone running the tournament, not just admins.
+   */
+  async getTournamentById(tournamentId: string, userId: string) {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('*')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const event = await this.getEventById((data as { event_id: string }).event_id);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'scorekeeper',
+    );
+    return data;
+  }
+
   async updateTournament(tournamentId: string, dto: UpdateTournamentDto, userId: string) {
     // Read the full current row so we can deep-merge any nested JSONB fields the
     // caller included in the patch. Without this, a wizard step saving only one
@@ -837,9 +863,20 @@ export class EventsService {
         deepMergeJson(newDefaults, callerPatch),
       );
     } else if (dto.rulesetConfig !== undefined) {
-      // Same ruleset — merge caller patch onto the existing stored config
-      // (unchanged from Task 4's behavior).
-      const merged = deepMergeJson(currentJson['ruleset_config'] ?? {}, dto.rulesetConfig);
+      // Same ruleset — merge caller patch onto the existing stored config.
+      // We backfill from resolveRulesetConfigDefaults first so the strict
+      // TFv1ConfigSchema.parse() in validateTournamentRulesetConfig doesn't
+      // reject the merged result when the stored row is incomplete (legacy
+      // data, or custom-ruleset tournaments whose seed produced only
+      // matchFormat + doublePenaltyFormula). Precedence:
+      //   defaults < stored < callerPatch
+      const defaults = await resolveRulesetConfigDefaults(
+        this.supabase,
+        currentCode ?? 'TF_v1',
+        currentVersion ?? '1.0.0',
+      );
+      const completedStored = deepMergeJson(defaults, currentJson['ruleset_config'] ?? {});
+      const merged = deepMergeJson(completedStored, dto.rulesetConfig);
       updates['ruleset_config'] = validateTournamentRulesetConfig(currentCode ?? 'TF_v1', merged);
     }
 
