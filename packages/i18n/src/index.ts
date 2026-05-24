@@ -1643,6 +1643,8 @@ export const en = {
       skipToContent: 'Skip to main content',
       eventSwitcher: {
         label: 'Switch event',
+        openLabel: 'Switch event',
+        noEvents: 'No events yet',
         manageAll: 'Manage all events…',
       },
       nav: {
@@ -4290,6 +4292,8 @@ export const fr = {
       skipToContent: 'Aller au contenu principal',
       eventSwitcher: {
         label: 'Changer d evenement',
+        openLabel: 'Changer d evenement',
+        noEvents: 'Aucun evenement',
         manageAll: 'Gerer tous les evenements...',
       },
       nav: {

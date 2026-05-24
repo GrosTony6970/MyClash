@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import { useOrganizerSelectedEvent } from './organizer-event-context';
 
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
@@ -72,16 +73,18 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const params = useParams<{ slug?: string; eventId?: string }>();
   const slug = asString(params.slug);
-  const eventId = asString(params.eventId);
+  const urlEventId = asString(params.eventId);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+  // Event context — provides selectedEventId (URL > localStorage > auto-pick),
+  // the full event list for the switcher, and orgName for the brand block.
+  const { orgName, events, selectedEventId, currentEvent, selectEvent } =
+    useOrganizerSelectedEvent();
+
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [orgName, setOrgName] = useState(slug);
-  const [orgId, setOrgId] = useState<string | null>(null);
-  const [eventName, setEventName] = useState('');
-  const [orgEvents, setOrgEvents] = useState<Array<{ id: string; name: string; status: string }>>(
-    [],
-  );
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
 
   const drawerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, drawerRef);
@@ -96,9 +99,32 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open]);
 
+  // Escape closes the event switcher popover.
+  useEffect(() => {
+    if (!switcherOpen) return;
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSwitcherOpen(false);
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [switcherOpen]);
+
+  // Outside-click closes the event switcher popover.
+  useEffect(() => {
+    if (!switcherOpen) return;
+    function handleClick(event: MouseEvent) {
+      if (switcherRef.current && !switcherRef.current.contains(event.target as Node)) {
+        setSwitcherOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [switcherOpen]);
+
+  // Auth gate — verifies the current session has access to this org. Mirrors
+  // the prior shell behaviour; org + events fetching lives in the context now.
   useEffect(() => {
     const controller = new AbortController();
-
     fetch(`${apiUrl}/api/v1/me`, {
       credentials: 'include',
       signal: controller.signal,
@@ -108,18 +134,13 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           window.location.replace('/login');
           return;
         }
-
         const data = (await res.json()) as {
           type?: string;
-          admin?: {
-            isSuperAdmin?: boolean;
-            organizations?: Array<{ slug: string }>;
-          };
+          admin?: { isSuperAdmin?: boolean; organizations?: Array<{ slug: string }> };
         };
         const hasOrganizationAccess = Boolean(
           data.admin?.organizations?.some((organization) => organization.slug === slug),
         );
-
         if (data.type !== 'claimed' || (!data.admin?.isSuperAdmin && !hasOrganizationAccess)) {
           window.location.replace('/login');
         }
@@ -129,85 +150,27 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           window.location.replace('/login');
         }
       });
-
     return () => controller.abort();
   }, [apiUrl, slug]);
-
-  useEffect(() => {
-    if (!slug) return;
-    const controller = new AbortController();
-
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const org = (await res.json()) as { id?: string; name?: string };
-        if (org.name) setOrgName(org.name);
-        if (org.id) setOrgId(org.id);
-      })
-      .catch(() => undefined);
-
-    return () => controller.abort();
-  }, [apiUrl, slug]);
-
-  useEffect(() => {
-    if (!eventId) {
-      return;
-    }
-    const controller = new AbortController();
-
-    fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const event = (await res.json()) as { name?: string };
-        setEventName(event.name ?? '');
-      })
-      .catch(() => undefined);
-
-    return () => controller.abort();
-  }, [apiUrl, eventId]);
-
-  // Fetch the org's events for the switcher dropdown. Only runs once the
-  // org id has been resolved AND we're inside an event-scoped page.
-  useEffect(() => {
-    if (!eventId || !orgId) return;
-    const controller = new AbortController();
-
-    fetch(`${apiUrl}/api/v1/organizations/${orgId}/events`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as Array<{ id: string; name: string; status: string }>;
-        setOrgEvents(data);
-      })
-      .catch(() => undefined);
-
-    return () => controller.abort();
-  }, [apiUrl, orgId, eventId]);
 
   const orgBase = `/org/${slug}`;
-  const eventBase = eventId ? `/org/${slug}/events/${eventId}` : '';
+  // Event base resolved from the context's selectedEventId — survives nav
+  // to org-scoped routes that have no eventId in the URL.
+  const eventBase = selectedEventId ? `/org/${slug}/events/${selectedEventId}` : '';
   const navSections = useMemo(
     () => [
       {
-        key: 'org',
+        key: 'org' as const,
         title: t('organizer.shell.organizationSection'),
         items: orgNavItems.map((item) => ({
           ...item,
           href: joinPath(orgBase, item.href),
         })),
       },
-      ...(eventId
+      ...(selectedEventId
         ? [
             {
-              key: 'event',
+              key: 'event' as const,
               title: t('organizer.shell.eventSection'),
               items: eventNavItems.map((item) => ({
                 ...item,
@@ -217,13 +180,12 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           ]
         : []),
     ],
-    [eventBase, eventId, orgBase, t],
+    [eventBase, selectedEventId, orgBase, t],
   );
 
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
-
     try {
       await fetch(`${apiUrl}/api/v1/auth/logout`, {
         method: 'POST',
@@ -234,6 +196,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     }
   }
 
+  // Picking a new event from the switcher: update context AND navigate to
+  // that event's overview. Navigating ensures users on event-scoped routes
+  // don't stay pinned to the previous event's tab (e.g. /events/{old}/clubs).
+  function handlePickEvent(id: string) {
+    selectEvent(id);
+    setSwitcherOpen(false);
+    router.push(`/org/${slug}/events/${id}`);
+  }
+
   const sidebar = (
     <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-6">
       {navSections.map((section, idx) => {
@@ -241,11 +212,83 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           pathname,
           section.items.map((i) => i.href),
         );
+        const isEventSection = section.key === 'event';
         return (
           <div key={section.key} className={idx === 0 ? '' : 'border-t border-slate-800 pt-5'}>
-            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {section.title}
-            </p>
+            {isEventSection ? (
+              <div className="relative mb-3 px-3" ref={switcherRef}>
+                <button
+                  type="button"
+                  onClick={() => setSwitcherOpen((v) => !v)}
+                  className="flex w-full items-center justify-between gap-2 text-left text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 transition-colors hover:text-slate-200"
+                  aria-haspopup="menu"
+                  aria-expanded={switcherOpen}
+                  aria-label={t('organizer.shell.eventSwitcher.openLabel')}
+                >
+                  <span className="min-w-0 truncate">
+                    {section.title}
+                    {currentEvent && (
+                      <span className="ml-1 normal-case tracking-normal text-slate-200">
+                        · {currentEvent.name}
+                        {currentEvent.status === 'running' && (
+                          <span className="ml-1 text-[9px] font-bold text-red-400">LIVE</span>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-slate-400">
+                    {switcherOpen ? '▴' : '▾'}
+                  </span>
+                </button>
+                {switcherOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-800 py-1 text-sm shadow-xl"
+                  >
+                    {events.length === 0 ? (
+                      <p className="px-3 py-2 text-xs italic text-slate-400">
+                        {t('organizer.shell.eventSwitcher.noEvents')}
+                      </p>
+                    ) : (
+                      events.map((ev) => (
+                        <button
+                          key={ev.id}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => handlePickEvent(ev.id)}
+                          className={[
+                            'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition-colors',
+                            ev.id === selectedEventId
+                              ? 'bg-red-800/70 text-white'
+                              : 'text-slate-200 hover:bg-white/10',
+                          ].join(' ')}
+                        >
+                          <span className="truncate">{ev.name}</span>
+                          {ev.status === 'running' && (
+                            <span className="shrink-0 text-[9px] font-bold text-amber-400">
+                              LIVE
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                    <div className="my-1 border-t border-slate-700" />
+                    <Link
+                      role="menuitem"
+                      href={`/org/${slug}/events`}
+                      onClick={() => setSwitcherOpen(false)}
+                      className="block px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10 hover:text-white"
+                    >
+                      {t('organizer.shell.eventSwitcher.manageAll')}
+                    </Link>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                {section.title}
+              </p>
+            )}
             <div className="flex flex-col gap-1">
               {section.items.map((item) => {
                 const active = item.href === activeHref;
@@ -352,39 +395,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             </button>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
-                {eventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
+                {urlEventId ? t('organizer.shell.eventEyebrow') : t('organizer.shell.eyebrow')}
               </p>
-              <div className="flex items-center gap-3">
-                <p className="truncate font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
-                  {eventId
-                    ? t('organizer.shell.eventTitle', { event: eventName || eventId })
-                    : t('organizer.shell.title', { organization: orgName || slug })}
-                </p>
-                {eventId && orgEvents.length > 0 && (
-                  <select
-                    aria-label={t('organizer.shell.eventSwitcher.label')}
-                    value={eventId}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '__manage') {
-                        router.push(`/org/${slug}/events/manage`);
-                      } else if (value !== eventId) {
-                        router.push(`/org/${slug}/events/${value}`);
-                      }
-                    }}
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-800/30"
-                  >
-                    {orgEvents.map((ev) => (
-                      <option key={ev.id} value={ev.id}>
-                        {ev.name}
-                        {ev.status === 'running' ? ' • LIVE' : ''}
-                      </option>
-                    ))}
-                    <option disabled>──────────</option>
-                    <option value="__manage">{t('organizer.shell.eventSwitcher.manageAll')}</option>
-                  </select>
-                )}
-              </div>
+              <p className="truncate font-display text-base font-medium tracking-tight text-slate-900 sm:text-lg">
+                {urlEventId
+                  ? t('organizer.shell.eventTitle', {
+                      event: currentEvent?.name || urlEventId,
+                    })
+                  : t('organizer.shell.title', { organization: orgName || slug })}
+              </p>
             </div>
           </div>
           <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">

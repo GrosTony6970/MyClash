@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
+import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
 
 type LoadingAction = 'password' | 'magic_link' | 'google' | null;
 type LoginResponse = { next?: string };
@@ -56,7 +57,10 @@ export default function LoginPage() {
       }
 
       const body = (await res.json()) as LoginResponse;
-      window.location.href = body.next ?? '/dashboard';
+      // If the server picked a specific `next`, honour it; otherwise auto-route
+      // organizers straight into their primary org's auto-selected event.
+      const destination = body.next ?? (await resolvePostAuthDestination('/dashboard'));
+      window.location.href = destination;
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.login.errors.passwordLoginFailed'));
     } finally {

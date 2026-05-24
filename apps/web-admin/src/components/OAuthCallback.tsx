@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '../i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../lib/oauth-supabase';
+import { resolvePostAuthDestination } from '../lib/post-auth-destination';
 
 type OAuthMode = 'admin_login' | 'organizer_signup';
 type OAuthResponse = { next?: string };
@@ -87,7 +88,10 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
       }
 
       const result = (await response.json()) as OAuthResponse;
-      router.replace(result.next ?? '/dashboard');
+      // Mirror the password-login path: server-picked `next` wins, otherwise
+      // auto-route organizers into their primary org's auto-selected event.
+      const destination = result.next ?? (await resolvePostAuthDestination('/dashboard'));
+      router.replace(destination);
     }
 
     void completeOAuth();
