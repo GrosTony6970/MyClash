@@ -31,6 +31,16 @@ import {
   resolveRulesetConfigDefaults,
 } from './ruleset-defaults';
 
+const EVENT_LOGO_BUCKET = 'event-assets';
+const EVENT_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_EVENT_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+export interface EventLogoUpload {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -65,9 +75,68 @@ export class EventsService {
       .from('events')
       .select('*, organizations(name, slug)')
       .eq('organization_id', orgId)
-      .order('start_date', { ascending: false });
+      .order('created_at', { ascending: false });
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    if (rows.length === 0) return rows;
+
+    // Enrich with creator display names + tournament counts.
+    const creatorIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row['created_by_user_id'] as string | null)
+          .filter((id): id is string => !!id),
+      ),
+    );
+    const nameByUser = await this.resolveUserNames(creatorIds);
+
+    const eventIds = rows.map((row) => row['id'] as string);
+    const tournamentCountByEvent = new Map<string, number>();
+    if (eventIds.length > 0) {
+      const { data: tournRows, error: tournErr } = await this.supabase.service
+        .from('tournaments')
+        .select('event_id')
+        .in('event_id', eventIds);
+      if (tournErr) throw new BadRequestException(tournErr.message);
+      for (const t of (tournRows ?? []) as Array<{ event_id: string }>) {
+        tournamentCountByEvent.set(t.event_id, (tournamentCountByEvent.get(t.event_id) ?? 0) + 1);
+      }
+    }
+
+    return rows.map((row) => {
+      const creatorId = row['created_by_user_id'] as string | null;
+      return {
+        ...row,
+        created_by_user_name: creatorId ? (nameByUser.get(creatorId) ?? null) : null,
+        tournament_count: tournamentCountByEvent.get(row['id'] as string) ?? 0,
+      };
+    });
+  }
+
+  /**
+   * Batch-resolve user_ids to display names. Mirrors the resolveUsers
+   * pattern in review-queue.service.ts: pulls given_name + family_name
+   * from global_persons keyed by claimed_by_user_id. First match wins.
+   */
+  private async resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (userIds.length === 0) return map;
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('claimed_by_user_id, given_name, family_name')
+      .in('claimed_by_user_id', userIds);
+    if (error) throw new BadRequestException(error.message);
+    for (const row of (data ?? []) as Array<{
+      claimed_by_user_id: string | null;
+      given_name: string;
+      family_name: string;
+    }>) {
+      const uid = row.claimed_by_user_id;
+      if (!uid || map.has(uid)) continue;
+      const name = `${row.given_name ?? ''} ${row.family_name ?? ''}`.trim();
+      if (name) map.set(uid, name);
+    }
+    return map;
   }
 
   async getEventBySlug(slug: string) {
@@ -111,6 +180,7 @@ export class EventsService {
         location: dto.location ?? null,
         public_landing_md: dto.publicLandingMd ?? null,
         status: 'draft',
+        created_by_user_id: userId,
       })
       .select('*')
       .single();
@@ -134,6 +204,7 @@ export class EventsService {
     if (dto.endDate !== undefined) updates['end_date'] = dto.endDate;
     if (dto.publicLandingMd !== undefined) updates['public_landing_md'] = dto.publicLandingMd;
     if (dto.status !== undefined) updates['status'] = dto.status;
+    if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
 
     const { data, error } = await this.supabase.service
@@ -1005,12 +1076,76 @@ export class EventsService {
     return data;
   }
 
+  async uploadLogo(
+    eventId: string,
+    userId: string,
+    file: EventLogoUpload,
+  ): Promise<{ url: string }> {
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+
+    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
+    if (file.buffer.length > EVENT_LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
+    }
+    if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureLogoBucket();
+    const extension =
+      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `events/${eventId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(EVENT_LOGO_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
+    const url = data.publicUrl;
+
+    const { error: updateError } = await this.supabase.service
+      .from('events')
+      .update({ logo_url: url, updated_at: new Date().toISOString() })
+      .eq('id', eventId);
+    if (updateError) throw new BadRequestException(updateError.message);
+
+    return { url };
+  }
+
+  private async ensureLogoBucket(): Promise<void> {
+    const storage = this.supabase.service.storage;
+    const { data, error } = await storage.getBucket(EVENT_LOGO_BUCKET);
+    if (data && !error) return;
+    const created = await storage.createBucket(EVENT_LOGO_BUCKET, {
+      public: true,
+      fileSizeLimit: EVENT_LOGO_MAX_BYTES,
+      allowedMimeTypes: Array.from(ALLOWED_EVENT_LOGO_MIME_TYPES),
+    });
+    if (created.error && !/already exists/iu.test(created.error.message)) {
+      throw new BadRequestException(created.error.message);
+    }
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────────
 
   private async getEventById(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, organization_id, status, name, slug, start_date, end_date, location')
+      .select(
+        'id, organization_id, status, name, slug, start_date, end_date, location, logo_url, created_by_user_id',
+      )
       .eq('id', eventId)
       .maybeSingle();
 

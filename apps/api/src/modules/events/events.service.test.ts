@@ -422,4 +422,154 @@ describe('EventsService', () => {
     expect(clubs.createUnverified).toHaveBeenCalledWith({ name: 'New Club' });
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
   });
+
+  // ── R1: events-list overhaul ─────────────────────────────────────────────
+
+  it('createEvent stamps created_by_user_id with the actor on insert', async () => {
+    // 1) slug-uniqueness probe — no existing event with that slug
+    const slugProbe = makeChain({ data: null, error: null });
+    // 2) insert — capture payload via assertion in the .single() mock
+    const insertChain = makeChain({
+      data: { id: 'event-1', slug: 'fal-2026', created_by_user_id: 'user-7' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(slugProbe).mockReturnValueOnce(insertChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await service.createEvent(
+      'org-1',
+      {
+        name: 'FAL 2026',
+        slug: 'fal-2026',
+        startDate: '2026-03-14',
+        endDate: '2026-03-15',
+      },
+      'user-7',
+    );
+
+    expect(insertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization_id: 'org-1',
+        slug: 'fal-2026',
+        created_by_user_id: 'user-7',
+      }),
+    );
+  });
+
+  it('listOrgEvents enriches rows with creator name + tournament_count', async () => {
+    // 1) events query — two events, one with a creator, one without.
+    const eventsChain = makeAwaitableChain({
+      data: [
+        {
+          id: 'event-1',
+          name: 'FAL 2026',
+          created_by_user_id: 'user-7',
+        },
+        {
+          id: 'event-2',
+          name: 'Legacy event (pre-creator)',
+          created_by_user_id: null,
+        },
+      ],
+      error: null,
+    });
+    // 2) global_persons query — resolves user-7 to "Tony Stark".
+    const globalPersonsChain = makeAwaitableChain({
+      data: [{ claimed_by_user_id: 'user-7', given_name: 'Tony', family_name: 'Stark' }],
+      error: null,
+    });
+    // 3) tournaments query — event-1 has 2 tournaments, event-2 has 0.
+    const tournamentsChain = makeAwaitableChain({
+      data: [{ event_id: 'event-1' }, { event_id: 'event-1' }],
+      error: null,
+    });
+    fromMock
+      .mockReturnValueOnce(eventsChain)
+      .mockReturnValueOnce(globalPersonsChain)
+      .mockReturnValueOnce(tournamentsChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = (await service.listOrgEvents('org-1', 'user-1')) as Array<{
+      id: string;
+      created_by_user_name: string | null;
+      tournament_count: number;
+    }>;
+
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'scorekeeper');
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'event-1',
+        created_by_user_name: 'Tony Stark',
+        tournament_count: 2,
+      }),
+      expect.objectContaining({
+        id: 'event-2',
+        created_by_user_name: null,
+        tournament_count: 0,
+      }),
+    ]);
+  });
+
+  it('uploadLogo writes logo_url and returns the public URL', async () => {
+    // 1) getEventById
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    // 2) update events.logo_url — .update(...).eq(...) returns an awaitable
+    //    result. Mock both update + eq returning a thenable.
+    const updateResult = Promise.resolve({ data: null, error: null });
+    const updateChain = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnValue(updateResult),
+    };
+    fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(updateChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const storage = {
+      getBucket: vi.fn().mockResolvedValue({ data: { name: 'event-assets' }, error: null }),
+      createBucket: vi.fn(),
+      from: vi.fn().mockReturnValue({
+        upload: vi.fn().mockResolvedValue({ error: null }),
+        getPublicUrl: vi
+          .fn()
+          .mockReturnValue({ data: { publicUrl: 'https://cdn.test/events/event-1/logo.png' } }),
+      }),
+    };
+    service = new EventsService(
+      { service: { from: fromMock, storage } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+    );
+
+    const result = await service.uploadLogo('event-1', 'user-1', {
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      filename: 'logo.png',
+      mimetype: 'image/png',
+    });
+
+    expect(result).toEqual({ url: 'https://cdn.test/events/event-1/logo.png' });
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    expect(storage.from).toHaveBeenCalledWith('event-assets');
+    expect(updateChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ logo_url: 'https://cdn.test/events/event-1/logo.png' }),
+    );
+  });
+
+  it('uploadLogo rejects non-image mimetypes', async () => {
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(eventChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(
+      service.uploadLogo('event-1', 'user-1', {
+        buffer: Buffer.from('hello'),
+        filename: 'logo.svg',
+        mimetype: 'image/svg+xml',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
 });

@@ -90,6 +90,15 @@ export class UpdateEventDto {
 
   @ApiProperty({
     required: false,
+    description: 'Public URL of the event logo (set by the upload endpoint).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  logoUrl?: string | null;
+
+  @ApiProperty({
+    required: false,
     description: 'AI spend cap in EUR for this event (null = no cap)',
   })
   @IsOptional()

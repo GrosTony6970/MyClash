@@ -277,6 +277,38 @@ export class EventsController {
     );
   }
 
+  /** POST /api/v1/events/:id/logo — events-list logo (separate from theme logo). */
+  @Post('events/:id/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload event logo (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uploadEventLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          | {
+              filename: string;
+              mimetype: string;
+              toBuffer: () => Promise<Buffer>;
+            }
+          | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.events.uploadLogo(id, userId, {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    });
+  }
+
   // ── Tournaments ───────────────────────────────────────────────────────────────
 
   /** GET /api/v1/events/:eventId/tournaments */
