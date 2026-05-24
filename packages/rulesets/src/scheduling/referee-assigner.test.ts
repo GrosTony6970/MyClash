@@ -335,3 +335,168 @@ describe('Time overlap: referee cannot referee two simultaneous pools', () => {
     expect(result.missing).toHaveLength(0);
   });
 });
+
+// ── R3: Auto-assign for custom slot configs ──────────────────────────────────
+
+describe('R3: custom slot configs', () => {
+  it('auto-assigns a candidate qualified for a custom skill_id', () => {
+    // Pool with a single slot allowing the custom skill `senior_ref`.
+    const pool: PoolSlot = {
+      poolId: 'p1',
+      poolName: 'Pool A',
+      matches: [],
+      earliestStart: null,
+      latestEnd: null,
+      slotDefinitions: [{ index: 1, displayName: 'Senior', allowedSkillIds: ['senior_ref'] }],
+    };
+    const candidates: RefereeCandidate[] = [
+      {
+        personId: 'cand-1',
+        personName: 'Senior Ref Alice',
+        qualifications: [{ role: 'senior_ref', rating: 4 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+      // A second candidate qualified only for the legacy roles — must not be
+      // picked because the slot doesn't allow them.
+      {
+        personId: 'cand-2',
+        personName: 'Declarant Bob',
+        qualifications: [{ role: 'arbitre_declarant', rating: 5 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+    ];
+
+    const result = assignRefereesWithPools([pool], candidates, DEFAULT_SETTINGS);
+
+    expect(result.assignments).toEqual([
+      expect.objectContaining({
+        poolId: 'p1',
+        slotIndex: 1,
+        role: 'senior_ref',
+        personId: 'cand-1',
+      }),
+    ]);
+    expect(result.missing).toHaveLength(0);
+  });
+
+  it('multi-skill slot picks the candidate with the best matching qual', () => {
+    // Slot allows EITHER arbitre_declarant OR senior_ref. Candidate X is
+    // declarant rating 2; candidate Y is senior_ref rating 5. Y wins.
+    const pool: PoolSlot = {
+      poolId: 'p1',
+      poolName: 'Pool A',
+      matches: [],
+      earliestStart: null,
+      latestEnd: null,
+      slotDefinitions: [
+        { index: 1, displayName: null, allowedSkillIds: ['arbitre_declarant', 'senior_ref'] },
+      ],
+    };
+    const candidates: RefereeCandidate[] = [
+      {
+        personId: 'low-decl',
+        personName: 'Low Declarant',
+        qualifications: [{ role: 'arbitre_declarant', rating: 2 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+      {
+        personId: 'high-senior',
+        personName: 'High Senior',
+        qualifications: [{ role: 'senior_ref', rating: 5 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+    ];
+
+    const result = assignRefereesWithPools([pool], candidates, DEFAULT_SETTINGS);
+
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0]).toEqual(
+      expect.objectContaining({
+        personId: 'high-senior',
+        role: 'senior_ref', // engine records the specific qual that won
+        slotIndex: 1,
+      }),
+    );
+  });
+
+  it('mixes legacy and custom pools without leaking the legacy floor', () => {
+    // Pool A: 3 legacy slots (Décl/Asses/Table). Pool B: 5 custom-skill slots.
+    // Each pool must fill only its own slot set.
+    const legacyPool: PoolSlot = {
+      poolId: 'pA',
+      poolName: 'Legacy Pool',
+      matches: [],
+      earliestStart: null,
+      latestEnd: null,
+      // slotDefinitions omitted → falls back to LEGACY_DEFAULT_SLOTS (3 slots).
+    };
+    const customPool: PoolSlot = {
+      poolId: 'pB',
+      poolName: 'Custom Pool',
+      matches: [],
+      earliestStart: null,
+      latestEnd: null,
+      slotDefinitions: [
+        { index: 1, displayName: 'Lead', allowedSkillIds: ['custom-lead'] },
+        { index: 2, displayName: null, allowedSkillIds: ['custom-side'] },
+        { index: 3, displayName: null, allowedSkillIds: ['custom-side'] },
+        { index: 4, displayName: null, allowedSkillIds: ['custom-side'] },
+        { index: 5, displayName: 'Score', allowedSkillIds: ['custom-score'] },
+      ],
+    };
+
+    const candidates: RefereeCandidate[] = [
+      // Enough refs for the legacy pool.
+      makeCandidate('d1', 'Decl', ['arbitre_declarant']),
+      makeCandidate('a1', 'Asses', ['arbitre_assesseur']),
+      makeCandidate('t1', 'Table', ['arbitre_table']),
+      // Enough refs for the custom pool.
+      {
+        personId: 'lead-1',
+        personName: 'Lead Ref',
+        qualifications: [{ role: 'custom-lead', rating: 4 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+      // 3 candidates for the 3 side slots.
+      ...Array.from({ length: 3 }, (_, i) => ({
+        personId: `side-${i}`,
+        personName: `Side ${i}`,
+        qualifications: [{ role: 'custom-side', rating: 3 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      })),
+      {
+        personId: 'score-1',
+        personName: 'Score Ref',
+        qualifications: [{ role: 'custom-score', rating: 5 }],
+        fighterRegistrationIds: [],
+        workshopWindows: [],
+      },
+    ];
+
+    const result = assignRefereesWithPools([legacyPool, customPool], candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    const legacyAssignments = result.assignments.filter((a) => a.poolId === 'pA');
+    const customAssignments = result.assignments.filter((a) => a.poolId === 'pB');
+    expect(legacyAssignments).toHaveLength(3);
+    expect(customAssignments).toHaveLength(5);
+
+    // Legacy pool's roles must all be from the 3 legacy IDs.
+    for (const a of legacyAssignments) {
+      expect(['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table']).toContain(a.role);
+    }
+    // Custom pool's roles must all be custom IDs (no legacy leakage).
+    for (const a of customAssignments) {
+      expect(a.role.startsWith('custom-')).toBe(true);
+    }
+    expect(result.missing).toHaveLength(0);
+  });
+});

@@ -26,6 +26,8 @@ import {
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
+import { RefereesTab } from './_tabs/RefereesTab';
+import { useEventStatus } from '../_hooks/useEventStatus';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,12 +75,13 @@ interface ConflictResult {
 
 // ── Tab shell ─────────────────────────────────────────────────────────────────
 
-type TabKey = 'configure' | 'matches' | 'standings';
+type TabKey = 'configure' | 'matches' | 'standings' | 'referees';
 
 const TABS: Array<{ key: TabKey; labelKey: string }> = [
   { key: 'configure', labelKey: 'organizer.pools.tabs.configure' },
   { key: 'matches', labelKey: 'organizer.pools.tabs.matches' },
   { key: 'standings', labelKey: 'organizer.pools.tabs.standings' },
+  { key: 'referees', labelKey: 'organizer.pools.tabs.referees' },
 ];
 
 function readHashTab(): TabKey {
@@ -94,6 +97,7 @@ export default function PoolsPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const { isReadOnly } = useEventStatus(eventId);
 
   const [tournaments, setTournaments] = useState<
     Array<{ id: string; name: string; color?: string | null }>
@@ -511,7 +515,9 @@ export default function PoolsPage() {
       <nav aria-label="Pools sections" className="mb-6 flex gap-1 border-b border-slate-200">
         {TABS.map((tab) => {
           const disabled =
-            (tab.key === 'matches' && !poolPhaseId) || (tab.key === 'standings' && !poolPhaseId);
+            (tab.key === 'matches' && !poolPhaseId) ||
+            (tab.key === 'standings' && !poolPhaseId) ||
+            (tab.key === 'referees' && !selectedTournament);
           return (
             <button
               key={tab.key}
@@ -1081,6 +1087,10 @@ export default function PoolsPage() {
 
       {activeTab === 'standings' && poolPhaseId && (
         <StandingsTab tournamentId={selectedTournament} poolPhaseId={poolPhaseId} />
+      )}
+
+      {activeTab === 'referees' && selectedTournament && (
+        <RefereesTab eventId={eventId} tournamentId={selectedTournament} isReadOnly={isReadOnly} />
       )}
 
       <ConfirmDialog

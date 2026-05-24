@@ -1,0 +1,166 @@
+'use client';
+
+/**
+ * PoolTimelineGrid — read-only timeline showing every event pool grouped
+ * by start time.
+ *
+ * Built in R3 of the Staffing overhaul. Renders a row per time block:
+ * pools whose `scheduledStart` falls within 5 minutes of each other go
+ * into the same block. Within each block, pool cards render in a flex
+ * row — one per concurrent pool. The cards for pools belonging to the
+ * "current tournament" (passed in via `highlightTournamentId`) get a
+ * thick ring so the operator can spot their context at a glance.
+ *
+ * Why this exists: when the organizer is staffing referees on the pool
+ * page, they need to see "4 pools at 09:00, break, 4 pools at 10:30" so
+ * they can reason about which refs are already busy concurrently.
+ * Engine-level time-overlap enforcement is automatic — this is the
+ * visual mirror.
+ */
+
+import { useMemo } from 'react';
+import { t } from '@myclash/i18n';
+
+export interface TimelinePool {
+  id: string;
+  name: string;
+  tournamentId: string;
+  tournamentName: string;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+  liceId: string | null;
+  /** Filled slot count for the badge (`X/Y`). 0 when board not loaded yet. */
+  filledSlotCount: number;
+  totalSlotCount: number;
+}
+
+interface Props {
+  pools: TimelinePool[];
+  /** Pools of this tournament render with a highlight ring. */
+  highlightTournamentId: string | null;
+}
+
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+interface Block {
+  /** Start time of the block (= the earliest scheduledStart of its pools). */
+  startTime: string;
+  pools: TimelinePool[];
+}
+
+export function PoolTimelineGrid({ pools, highlightTournamentId }: Props) {
+  const blocks = useMemo<Block[]>(() => groupByTimeBlock(pools), [pools]);
+  const unscheduled = useMemo(() => pools.filter((p) => !p.scheduledStart), [pools]);
+
+  if (blocks.length === 0 && unscheduled.length === 0) {
+    return (
+      <p className="text-sm text-gray-400">{t('organizer.poolsPage.refereesTimelineEmpty')}</p>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
+        {t('organizer.poolsPage.refereesTimelineTitle')}
+      </h3>
+      <div className="space-y-3">
+        {blocks.map((block) => (
+          <div key={block.startTime} className="flex items-start gap-3">
+            <div className="w-16 shrink-0 pt-2 text-right text-xs font-semibold tabular-nums text-gray-600">
+              {formatHHMM(block.startTime)}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {block.pools.map((pool) => (
+                <PoolCard
+                  key={pool.id}
+                  pool={pool}
+                  highlighted={pool.tournamentId === highlightTournamentId}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+        {unscheduled.length > 0 && (
+          <div className="flex items-start gap-3 border-t border-gray-100 pt-3">
+            <div className="w-16 shrink-0 pt-2 text-right text-xs font-semibold uppercase text-gray-400">
+              {t('organizer.poolsPage.refereesTimelineUnscheduled')}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {unscheduled.map((pool) => (
+                <PoolCard
+                  key={pool.id}
+                  pool={pool}
+                  highlighted={pool.tournamentId === highlightTournamentId}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PoolCard({ pool, highlighted }: { pool: TimelinePool; highlighted: boolean }) {
+  return (
+    <div
+      className={[
+        'rounded-md border bg-white px-3 py-2 text-xs shadow-sm transition-colors',
+        highlighted
+          ? 'border-red-500 ring-2 ring-red-200'
+          : 'border-gray-200 hover:border-gray-300',
+      ].join(' ')}
+      title={`${pool.tournamentName} - ${pool.name}`}
+    >
+      <p className="font-semibold text-gray-900">{pool.name}</p>
+      <p className="text-[10px] text-gray-500">{pool.tournamentName}</p>
+      <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
+        {pool.liceId && <span className="text-gray-400">{pool.liceId}</span>}
+        <span
+          className={[
+            'tabular-nums font-semibold',
+            pool.filledSlotCount === pool.totalSlotCount && pool.totalSlotCount > 0
+              ? 'text-emerald-600'
+              : 'text-amber-600',
+          ].join(' ')}
+        >
+          {pool.filledSlotCount}/{pool.totalSlotCount}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Group pools whose `scheduledStart` falls within `GROUP_WINDOW_MS` of
+ * each other into the same block. Pools sharing an identical
+ * `scheduledStart` (the common case for scheduler-generated layouts)
+ * always end up together; the tolerance only matters when the operator
+ * has hand-edited slot times.
+ */
+function groupByTimeBlock(pools: TimelinePool[]): Block[] {
+  const scheduled = pools
+    .filter((p) => p.scheduledStart !== null)
+    .sort((a, b) => (a.scheduledStart! < b.scheduledStart! ? -1 : 1));
+
+  const blocks: Block[] = [];
+  for (const pool of scheduled) {
+    const last = blocks[blocks.length - 1];
+    if (last) {
+      const lastTime = new Date(last.startTime).getTime();
+      const thisTime = new Date(pool.scheduledStart!).getTime();
+      if (thisTime - lastTime <= GROUP_WINDOW_MS) {
+        last.pools.push(pool);
+        continue;
+      }
+    }
+    blocks.push({ startTime: pool.scheduledStart!, pools: [pool] });
+  }
+  return blocks;
+}
+
+function formatHHMM(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}

@@ -12,13 +12,10 @@ import { SettingsService } from './settings.service';
 import { StaffingService, type ResolvedConfig } from './staffing.service';
 
 /**
- * The three skill IDs the auto-assign engine knows about. Custom slots
- * (added via the Staffing tab) still surface in the board but get
- * `assignment: null` until manually assigned — the engine's recommender
- * doesn't yet score against arbitrary skill IDs (deferred).
- *
- * Exported so other modules that still reference the legacy const keep
- * compiling. New code should call `StaffingService.getResolvedConfig`
+ * The three legacy skill IDs. R3 made the engine accept any skill_id, so
+ * this constant is no longer used to filter candidates — but it stays
+ * exported because other modules (and a future migration path) reference
+ * the legacy default. New code should call `StaffingService.getResolvedConfig`
  * for the authoritative slot list.
  */
 export const REFEREE_ASSIGNMENT_ROLES: RefereeRole[] = [
@@ -26,8 +23,6 @@ export const REFEREE_ASSIGNMENT_ROLES: RefereeRole[] = [
   'arbitre_assesseur',
   'arbitre_table',
 ];
-
-const ENGINE_KNOWN_ROLES = new Set<string>(REFEREE_ASSIGNMENT_ROLES);
 
 /**
  * `role` here is a `referee_skills.id` string — used to be the legacy
@@ -262,6 +257,14 @@ export class AssignmentBoardService {
       throw new BadRequestException('Selected referee is not qualified for this role');
     }
 
+    // R3: the engine's RefereeAssignment now carries slotIndex. We pick
+    // the first slot whose allowed list contains dto.role — slot configs
+    // typically use distinct primary skills per slot, so this maps
+    // unambiguously. Falls back to index 1 if nothing matches (shouldn't
+    // happen — the allowed-set check above guarantees a match).
+    const slotIndex =
+      (config?.pool ?? []).find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
+
     await this.persistAssignments(
       eventId,
       context,
@@ -269,6 +272,7 @@ export class AssignmentBoardService {
         {
           poolId: dto.poolId,
           poolName: pool.name,
+          slotIndex,
           role: dto.role as RefereeRole,
           personId: candidate.personId ?? candidate.userId,
           personName: candidate.displayName,
@@ -500,30 +504,44 @@ export class AssignmentBoardService {
   private async previewFromContext(
     context: Awaited<ReturnType<AssignmentBoardService['loadContext']>>,
   ) {
-    const poolSlots: RefereePoolSlot[] = context.pools.map((pool) => ({
-      poolId: pool.id,
-      poolName: pool.name,
-      earliestStart: pool.scheduledStart,
-      latestEnd: pool.scheduledEnd,
-      matches: pool.matches.map((match) => ({
-        id: match.id,
-        scheduledAt: match.scheduledAt,
-        durationMinutes: 5,
-        redRegistrationId: match.redRegistrationId ?? '',
-        blueRegistrationId: match.blueRegistrationId ?? '',
-      })),
-    }));
+    // R3: feed the engine each pool's resolved slot list so auto-assign
+    // works for custom skills and multi-skill slots. Pools whose
+    // tournament has no Staffing config get `slotDefinitions: undefined`,
+    // which makes the engine fall back to LEGACY_DEFAULT_SLOTS — exactly
+    // the pre-R3 behaviour.
+    const poolSlots: RefereePoolSlot[] = context.pools.map((pool) => {
+      const config = context.slotConfigByTournament.get(pool.tournamentId);
+      const slotDefinitions = config?.pool.map((s) => ({
+        index: s.index,
+        displayName: s.displayName,
+        allowedSkillIds: s.allowedSkillIds,
+      }));
+      return {
+        poolId: pool.id,
+        poolName: pool.name,
+        earliestStart: pool.scheduledStart,
+        latestEnd: pool.scheduledEnd,
+        matches: pool.matches.map((match) => ({
+          id: match.id,
+          scheduledAt: match.scheduledAt,
+          durationMinutes: 5,
+          redRegistrationId: match.redRegistrationId ?? '',
+          blueRegistrationId: match.blueRegistrationId ?? '',
+        })),
+        ...(slotDefinitions ? { slotDefinitions } : {}),
+      };
+    });
 
-    // The engine still operates on the legacy 3-role enum. Custom skills
-    // are filtered out before they reach the engine so its types stay
-    // stable; the board layer still surfaces every qualification on the
-    // candidate cards.
+    // R3: pass every qualification through to the engine — custom skill
+    // IDs are first-class now. The pre-R3 ENGINE_KNOWN_ROLES filter is
+    // gone; the engine itself decides which slots a qual matches.
     const engineCandidates: RefereeCandidate[] = context.candidates.map((candidate) => ({
       personId: candidate.personId ?? candidate.userId,
       personName: candidate.displayName,
-      qualifications: candidate.qualifications
-        .filter((q) => ENGINE_KNOWN_ROLES.has(q.role))
-        .map((q) => ({ role: q.role as RefereeRole, rating: q.rating })),
+      qualifications: candidate.qualifications.map((q) => ({
+        role: q.role as RefereeRole,
+        rating: q.rating,
+      })),
       fighterRegistrationIds: candidate.personId
         ? (context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [])
         : [],
@@ -556,13 +574,17 @@ export class AssignmentBoardService {
       if (!assignment.pool_id || !assignment.role) continue;
       assignmentByPoolRole.set(`${assignment.pool_id}:${assignment.role}`, assignment);
     }
-    const previewAssignmentByPoolRole = new Map<string, RefereeAssignment>();
+    // R3: the engine's RefereeAssignment now carries `slotIndex`, so key
+    // preview lookups by `${poolId}:${slotIndex}` instead of `:role`. A
+    // multi-skill slot would otherwise collide with a sibling slot that
+    // shares the same primary role.
+    const previewAssignmentByPoolSlot = new Map<string, RefereeAssignment>();
     for (const assignment of preview.assignments) {
-      previewAssignmentByPoolRole.set(`${assignment.poolId}:${assignment.role}`, assignment);
+      previewAssignmentByPoolSlot.set(`${assignment.poolId}:${assignment.slotIndex}`, assignment);
     }
-    const missingByPoolRole = new Map<string, string[]>();
+    const missingByPoolSlot = new Map<string, string[]>();
     for (const missing of preview.missing) {
-      missingByPoolRole.set(`${missing.poolId}:${missing.role}`, missing.rejectionReasons);
+      missingByPoolSlot.set(`${missing.poolId}:${missing.slotIndex}`, missing.rejectionReasons);
     }
 
     // R2: roleSlots now come from the resolved Staffing config per
@@ -592,7 +614,10 @@ export class AssignmentBoardService {
               break;
             }
           }
-          const previewAssignment = previewAssignmentByPoolRole.get(`${pool.id}:${primaryRole}`);
+          // R3: preview lookup is now slot-indexed (not role-indexed) so
+          // multi-skill slots resolve correctly even when several slots
+          // share a primary role.
+          const previewAssignment = previewAssignmentByPoolSlot.get(`${pool.id}:${slot.index}`);
           const assignedCandidate = persisted
             ? candidateByUserId.get(persisted.user_id)
             : previewAssignment
@@ -634,7 +659,7 @@ export class AssignmentBoardService {
                     autoAssigned: persisted?.auto_assigned ?? true,
                   }
                 : null,
-            missingReasons: missingByPoolRole.get(`${pool.id}:${primaryRole}`) ?? [],
+            missingReasons: missingByPoolSlot.get(`${pool.id}:${slot.index}`) ?? [],
             candidates: { recommended, warning, blocked },
           };
         }),
