@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import {
+  DEFAULT_PENALTY_RULESET_FORM_VALUES,
   PenaltyRulesetForm,
   type PenaltyRulesetFormValue,
 } from '../../../../../src/components/rulesets/PenaltyRulesetForm';
@@ -35,6 +36,7 @@ export default function NewPenaltyRulesetPage() {
     accumulationScope: 'match',
     publicVisibility: false,
     entries: [],
+    ...DEFAULT_PENALTY_RULESET_FORM_VALUES,
   };
 
   return (

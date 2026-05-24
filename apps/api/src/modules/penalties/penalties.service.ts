@@ -15,9 +15,6 @@ import {
   type PenaltyCard,
   type PenaltyRulesetEntry,
 } from '@myclash/rulesets';
-import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ScoringService } from '../matches/scoring.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
@@ -35,9 +32,14 @@ import type {
 
 type Row = Record<string, unknown>;
 
+// Built-in penalty ruleset identifiers. The row itself is seeded by
+// migration 0054 (no longer at runtime), but these constants are still
+// used by getEffectiveRulesetForMatch() to look up the platform default
+// when a tournament/event has no explicit penalty_ruleset_id.
 const BUILTIN_CODE = 'ffamhe_tf_2026';
 const BUILTIN_VERSION = '2026';
-const BUILTIN_NAME = 'Penalty - Tournois fédéraux FFAMHE';
+
+export type BlackCardForfeitScope = 'match' | 'tournament' | 'none';
 
 @Injectable()
 export class PenaltiesService {
@@ -52,7 +54,6 @@ export class PenaltiesService {
   ) {}
 
   async listRulesets() {
-    await this.ensureBuiltInRuleset();
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('*')
@@ -62,7 +63,6 @@ export class PenaltiesService {
   }
 
   async getRuleset(rulesetId: string) {
-    await this.ensureBuiltInRuleset();
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('*, penalty_ruleset_entries(*)')
@@ -77,7 +77,6 @@ export class PenaltiesService {
     const match = await this.getMatchContext(matchId);
     if (match.penaltyRulesetId) return this.getRuleset(match.penaltyRulesetId);
 
-    await this.ensureBuiltInRuleset();
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('*, penalty_ruleset_entries(*)')
@@ -91,19 +90,31 @@ export class PenaltiesService {
 
   async createRuleset(dto: CreatePenaltyRulesetDto, userId?: string) {
     await this.assertUserCanManageOrg(dto.ownerOrganizationId, userId);
+    const insertRow: Record<string, unknown> = {
+      owner_organization_id: dto.ownerOrganizationId,
+      code: dto.code,
+      version: dto.version,
+      name: dto.name.trim(),
+      description: dto.description ?? null,
+      accumulation_scope: dto.accumulationScope,
+      public_visibility: dto.publicVisibility,
+      built_in: false,
+      created_by_user_id: userId ?? null,
+    };
+    // Card costs + forfeit scopes: only forward when the caller provided
+    // them so the column defaults (yellow=0, red=-1, black=0; first=match,
+    // second=tournament) apply for callers that don't care.
+    if (dto.yellowCardPoints !== undefined) insertRow['yellow_card_points'] = dto.yellowCardPoints;
+    if (dto.redCardPoints !== undefined) insertRow['red_card_points'] = dto.redCardPoints;
+    if (dto.blackCardPoints !== undefined) insertRow['black_card_points'] = dto.blackCardPoints;
+    if (dto.firstBlackCardForfeit !== undefined)
+      insertRow['first_black_card_forfeit'] = dto.firstBlackCardForfeit;
+    if (dto.secondBlackCardForfeit !== undefined)
+      insertRow['second_black_card_forfeit'] = dto.secondBlackCardForfeit;
+
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
-      .insert({
-        owner_organization_id: dto.ownerOrganizationId,
-        code: dto.code,
-        version: dto.version,
-        name: dto.name.trim(),
-        description: dto.description ?? null,
-        accumulation_scope: dto.accumulationScope,
-        public_visibility: dto.publicVisibility,
-        built_in: false,
-        created_by_user_id: userId ?? null,
-      })
+      .insert(insertRow)
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
@@ -184,6 +195,13 @@ export class PenaltiesService {
     if (dto.description !== undefined) updates['description'] = dto.description ?? null;
     if (dto.accumulationScope !== undefined) updates['accumulation_scope'] = dto.accumulationScope;
     if (dto.publicVisibility !== undefined) updates['public_visibility'] = dto.publicVisibility;
+    if (dto.yellowCardPoints !== undefined) updates['yellow_card_points'] = dto.yellowCardPoints;
+    if (dto.redCardPoints !== undefined) updates['red_card_points'] = dto.redCardPoints;
+    if (dto.blackCardPoints !== undefined) updates['black_card_points'] = dto.blackCardPoints;
+    if (dto.firstBlackCardForfeit !== undefined)
+      updates['first_black_card_forfeit'] = dto.firstBlackCardForfeit;
+    if (dto.secondBlackCardForfeit !== undefined)
+      updates['second_black_card_forfeit'] = dto.secondBlackCardForfeit;
 
     const { error: updateErr } = await this.supabase.service
       .from('penalty_rulesets')
@@ -242,7 +260,6 @@ export class PenaltiesService {
    */
   async listRulesetsForOrg(orgId: string, userId?: string) {
     await this.assertUserCanManageOrg(orgId, userId);
-    await this.ensureBuiltInRuleset();
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('*')
@@ -330,6 +347,20 @@ export class PenaltiesService {
         ? computeDirectPenaltySanction(dto.directCard)
         : await this.computeRulesetPenalty(match, dto);
 
+    // Load the active penalty ruleset row once so we can read its card-cost
+    // columns and forfeit-scope settings. computePenaltySanction returns a
+    // hardcoded `scoreDelta` based on card colour; the row's per-card
+    // columns override that so operators can tune values per ruleset.
+    const activePenaltyRuleset = match.penaltyRulesetId
+      ? await this.loadPenaltyRulesetRow(match.penaltyRulesetId)
+      : null;
+    const scoreDelta = activePenaltyRuleset
+      ? this.cardScoreDelta(activePenaltyRuleset, sanction.card)
+      : sanction.scoreDelta;
+
+    // For non-black cards `causes_match_forfeit` stays as the sanction said
+    // (false). For black cards we'll override based on the resolved scope
+    // below — but at this point we just record the card.
     const opponentRegistrationId =
       dto.registrationId === match.redRegistrationId
         ? match.blueRegistrationId
@@ -349,7 +380,7 @@ export class PenaltiesService {
       ref_number: null,
       short_name: null,
       reason: dto.reason ?? null,
-      score_delta: sanction.scoreDelta,
+      score_delta: scoreDelta,
       causes_match_forfeit: sanction.causesMatchForfeit,
       by_user_id: context?.userId ?? null,
       staff_account_id: context?.staffAccountId ?? null,
@@ -384,32 +415,109 @@ export class PenaltiesService {
     await this.scoring?.recomputeMatchScore(matchId);
 
     if (sanction.causesMatchForfeit) {
-      if (this.forfeits) {
-        await this.forfeits.createForfeit(
-          matchId,
-          {
-            forfeitingRegistrationId: dto.registrationId,
-            reason: 'black_card_1',
-            canContinue: true,
-            note: dto.reason ?? 'Black card',
-          },
-          context,
-        );
-      } else {
+      // Determine the ordinal: count this registration's non-voided black
+      // cards in the tournament (including the row we just inserted).
+      const blackCount = await this.countBlackCardsForRegistration(
+        match.tournamentId,
+        dto.registrationId,
+      );
+      const scoringConfig = await this.loadTournamentRulesetConfig(match.tournamentId);
+      const scope: BlackCardForfeitScope = activePenaltyRuleset
+        ? this.resolveBlackCardForfeitScope(activePenaltyRuleset, scoringConfig, blackCount)
+        : blackCount >= 2
+          ? 'tournament'
+          : 'match';
+
+      if (scope !== 'none') {
+        if (this.forfeits) {
+          await this.forfeits.createForfeit(
+            matchId,
+            {
+              forfeitingRegistrationId: dto.registrationId,
+              reason: blackCount >= 2 ? 'black_card_2' : 'black_card_1',
+              canContinue: true,
+              note: dto.reason ?? 'Black card',
+            },
+            context,
+          );
+        } else {
+          await this.supabase.service
+            .from('matches')
+            .update({
+              status: 'completed',
+              ended_at: new Date().toISOString(),
+              winner_registration_id: opponentRegistrationId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', matchId);
+        }
+      }
+
+      // Tournament-wide scope short-circuits the manual review path: mark
+      // the registration disqualified immediately. The standard 2nd-black
+      // review still gets created for audit/visibility.
+      if (scope === 'tournament') {
         await this.supabase.service
-          .from('matches')
-          .update({
-            status: 'completed',
-            ended_at: new Date().toISOString(),
-            winner_registration_id: opponentRegistrationId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', matchId);
+          .from('registrations')
+          .update({ status: 'disqualified' })
+          .eq('id', dto.registrationId);
       }
       await this.createSecondBlackCardReviewIfNeeded(match.tournamentId, dto.registrationId);
     }
 
     return data;
+  }
+
+  /**
+   * Per-card point cost from the active penalty ruleset row. The row's
+   * yellow_/red_/black_card_points columns override the hardcoded
+   * penaltyScoreDelta() values that computePenaltySanction returns.
+   */
+  private cardScoreDelta(rulesetRow: Row, card: PenaltyCard): number {
+    const key =
+      card === 'yellow'
+        ? 'yellow_card_points'
+        : card === 'red'
+          ? 'red_card_points'
+          : 'black_card_points';
+    const value = rulesetRow[key];
+    return typeof value === 'number' ? value : 0;
+  }
+
+  private async loadPenaltyRulesetRow(rulesetId: string): Promise<Row | null> {
+    const { data } = await this.supabase.service
+      .from('penalty_rulesets')
+      .select(
+        'id, yellow_card_points, red_card_points, black_card_points, first_black_card_forfeit, second_black_card_forfeit',
+      )
+      .eq('id', rulesetId)
+      .maybeSingle();
+    return (data as Row | null) ?? null;
+  }
+
+  private async loadTournamentRulesetConfig(
+    tournamentId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('ruleset_config')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    return (data as { ruleset_config?: Record<string, unknown> } | null)?.ruleset_config ?? null;
+  }
+
+  private async countBlackCardsForRegistration(
+    tournamentId: string,
+    registrationId: string,
+  ): Promise<number> {
+    const { count } = await this.supabase.service
+      .from('match_penalties')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId)
+      .eq('registration_id', registrationId)
+      .eq('card', 'black')
+      .eq('voided', false);
+    return count ?? 0;
   }
 
   async voidPenalty(
@@ -698,69 +806,41 @@ export class PenaltiesService {
     if (error) throw new BadRequestException(error.message);
   }
 
-  private async ensureBuiltInRuleset(): Promise<void> {
-    const { data: existing } = await this.supabase.service
-      .from('penalty_rulesets')
-      .select('id')
-      .eq('code', BUILTIN_CODE)
-      .eq('version', BUILTIN_VERSION)
-      .is('owner_organization_id', null)
-      .maybeSingle();
-    if (existing) return;
-
-    const csv = this.readBuiltInCsv();
-    if (!csv) {
-      this.logger.warn('FFAMHE penalty CSV not found; built-in penalty ruleset was not seeded');
-      return;
-    }
-    const parsed = parsePenaltyRulesetCsv(csv, {
-      code: BUILTIN_CODE,
-      name: BUILTIN_NAME,
-      version: BUILTIN_VERSION,
-      accumulationScope: 'match',
-      builtIn: true,
-    });
-    const hash = createHash('sha256').update(csv).digest('hex');
-    const { data: ruleset, error } = await this.supabase.service
-      .from('penalty_rulesets')
-      .insert({
-        code: parsed.code,
-        version: parsed.version,
-        name: parsed.name,
-        built_in: true,
-        public_visibility: true,
-        accumulation_scope: parsed.accumulationScope,
-        csv_source_name: 'ffamhe_tf_2026.csv',
-        csv_source_sha256: hash,
-      })
-      .select('*')
-      .single();
-    if (error || !ruleset) {
-      if (error) this.logger.warn(`Could not seed built-in penalty ruleset: ${error.message}`);
-      return;
-    }
-    await this.replaceEntries(
-      (ruleset as Row)['id'] as string,
-      parsed.entries.map((entry) => ({
-        groupNumber: entry.groupNumber,
-        refNumber: entry.refNumber,
-        shortName: entry.shortName,
-        description: entry.description,
-        sanctions: [...entry.sanctions],
-      })),
-    );
-  }
-
-  private readBuiltInCsv(): string | null {
-    const candidates = [
-      join(process.cwd(), '../../packages/rulesets/src/penalties/data/ffamhe_tf_2026.csv'),
-      join(process.cwd(), 'packages/rulesets/src/penalties/data/ffamhe_tf_2026.csv'),
-      join(__dirname, '../../../../../packages/rulesets/src/penalties/data/ffamhe_tf_2026.csv'),
-    ];
-    for (const candidate of candidates) {
-      if (existsSync(candidate)) return readFileSync(candidate, 'utf8');
-    }
-    return null;
+  /**
+   * Resolve where a black-card forfeit should land:
+   * - 'match'      → end this match (current default behaviour).
+   * - 'tournament' → end the match AND mark the registration as disqualified
+   *                  for the rest of the tournament.
+   * - 'none'       → record the card but don't end the match.
+   *
+   * Source-of-truth precedence:
+   *   1. Tournament's scoring ruleset (TF v1 forfeitPolicy.black_card_{1,2}.
+   *      tournamentState) — if it's a concrete value ('match_only',
+   *      'withdrawn', 'disqualified'), it wins.
+   *   2. Else fall back to penalty ruleset's first_/second_black_card_forfeit
+   *      columns (defaults: 'match', 'tournament').
+   *
+   * `ordinal` is 1 for the registration's first non-voided black card in
+   * the tournament, 2 for the second, etc.
+   */
+  private resolveBlackCardForfeitScope(
+    penaltyRuleset: Row,
+    scoringRulesetConfig: Record<string, unknown> | null,
+    ordinal: number,
+  ): BlackCardForfeitScope {
+    const policyKey = ordinal >= 2 ? 'black_card_2' : 'black_card_1';
+    const policy = (
+      (scoringRulesetConfig?.['forfeitPolicy'] as Record<string, unknown> | undefined)?.[
+        'reasons'
+      ] as Record<string, { tournamentState?: string } | undefined> | undefined
+    )?.[policyKey];
+    const overrideState = policy?.tournamentState;
+    if (overrideState === 'match_only') return 'match';
+    if (overrideState === 'withdrawn' || overrideState === 'disqualified') return 'tournament';
+    // 'ask' or undefined → penalty ruleset default wins.
+    const column = ordinal >= 2 ? 'second_black_card_forfeit' : 'first_black_card_forfeit';
+    const value = penaltyRuleset[column] as BlackCardForfeitScope | undefined;
+    return value ?? (ordinal >= 2 ? 'tournament' : 'match');
   }
 }
 

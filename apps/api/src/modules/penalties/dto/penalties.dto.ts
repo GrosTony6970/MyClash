@@ -5,6 +5,7 @@ import {
   IsIn,
   IsISO8601,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -12,6 +13,9 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+
+export type BlackCardForfeitScopeDto = 'match' | 'tournament' | 'none';
+const FORFEIT_SCOPE_VALUES: BlackCardForfeitScopeDto[] = ['match', 'tournament', 'none'];
 
 export class CreatePenaltyDto {
   @ApiProperty()
@@ -98,6 +102,39 @@ export class CreatePenaltyRulesetDto {
     description: string;
     sanctions: Array<'yellow' | 'red' | 'black'>;
   }>;
+
+  @ApiProperty({ required: false, description: 'Score delta applied per yellow card (default 0)' })
+  @IsOptional()
+  @IsNumber()
+  yellowCardPoints?: number;
+
+  @ApiProperty({ required: false, description: 'Score delta applied per red card (default -1)' })
+  @IsOptional()
+  @IsNumber()
+  redCardPoints?: number;
+
+  @ApiProperty({ required: false, description: 'Score delta applied per black card (default 0)' })
+  @IsOptional()
+  @IsNumber()
+  blackCardPoints?: number;
+
+  @ApiProperty({
+    required: false,
+    enum: FORFEIT_SCOPE_VALUES,
+    description: "Scope of the forfeit triggered by the registration's first black card.",
+  })
+  @IsOptional()
+  @IsIn(FORFEIT_SCOPE_VALUES)
+  firstBlackCardForfeit?: BlackCardForfeitScopeDto;
+
+  @ApiProperty({
+    required: false,
+    enum: FORFEIT_SCOPE_VALUES,
+    description: 'Scope of the forfeit triggered by a second (or later) black card.',
+  })
+  @IsOptional()
+  @IsIn(FORFEIT_SCOPE_VALUES)
+  secondBlackCardForfeit?: BlackCardForfeitScopeDto;
 }
 
 export class ImportPenaltyRulesetCsvDto {
@@ -169,6 +206,31 @@ export class UpdatePenaltyRulesetDto {
     description: string;
     sanctions: Array<'yellow' | 'red' | 'black'>;
   }>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  yellowCardPoints?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  redCardPoints?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  blackCardPoints?: number;
+
+  @ApiProperty({ required: false, enum: FORFEIT_SCOPE_VALUES })
+  @IsOptional()
+  @IsIn(FORFEIT_SCOPE_VALUES)
+  firstBlackCardForfeit?: BlackCardForfeitScopeDto;
+
+  @ApiProperty({ required: false, enum: FORFEIT_SCOPE_VALUES })
+  @IsOptional()
+  @IsIn(FORFEIT_SCOPE_VALUES)
+  secondBlackCardForfeit?: BlackCardForfeitScopeDto;
 }
 
 export class AssignPenaltyRulesetDto {

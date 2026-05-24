@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import {
+  DEFAULT_PENALTY_RULESET_FORM_VALUES,
   PenaltyRulesetForm,
   type AccumulationScope,
+  type BlackCardForfeitScope,
   type PenaltyRulesetFormValue,
 } from '../../../../../../src/components/rulesets/PenaltyRulesetForm';
 
@@ -21,6 +23,11 @@ interface PenaltyRulesetDetail {
   built_in: boolean;
   public_visibility: boolean;
   accumulation_scope: AccumulationScope;
+  yellow_card_points?: number | null;
+  red_card_points?: number | null;
+  black_card_points?: number | null;
+  first_black_card_forfeit?: BlackCardForfeitScope | null;
+  second_black_card_forfeit?: BlackCardForfeitScope | null;
   penalty_ruleset_entries: Array<{
     id: string;
     group_number: number;
@@ -71,6 +78,17 @@ export default function OrgEditPenaltyRulesetPage() {
             description: e.description,
             sanctions: e.sanctions,
           })),
+          yellowCardPoints:
+            data.yellow_card_points ?? DEFAULT_PENALTY_RULESET_FORM_VALUES.yellowCardPoints,
+          redCardPoints: data.red_card_points ?? DEFAULT_PENALTY_RULESET_FORM_VALUES.redCardPoints,
+          blackCardPoints:
+            data.black_card_points ?? DEFAULT_PENALTY_RULESET_FORM_VALUES.blackCardPoints,
+          firstBlackCardForfeit:
+            data.first_black_card_forfeit ??
+            DEFAULT_PENALTY_RULESET_FORM_VALUES.firstBlackCardForfeit,
+          secondBlackCardForfeit:
+            data.second_black_card_forfeit ??
+            DEFAULT_PENALTY_RULESET_FORM_VALUES.secondBlackCardForfeit,
           builtIn: data.built_in,
         });
       })
@@ -137,6 +155,11 @@ export default function OrgEditPenaltyRulesetPage() {
                     accumulationScope: data.accumulationScope,
                     publicVisibility: data.publicVisibility,
                     entries: data.entries,
+                    yellowCardPoints: data.yellowCardPoints,
+                    redCardPoints: data.redCardPoints,
+                    blackCardPoints: data.blackCardPoints,
+                    firstBlackCardForfeit: data.firstBlackCardForfeit,
+                    secondBlackCardForfeit: data.secondBlackCardForfeit,
                   }),
                 });
                 if (!res.ok) {

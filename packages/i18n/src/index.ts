@@ -1054,6 +1054,19 @@ export const en = {
       appendSanction: 'Append {card} card to sanction list',
       popSanction: 'Remove last sanction',
       sanctionsEmpty: 'no sanctions',
+      cardCostsTitle: 'Card costs & forfeit scope',
+      cardCostsHelp:
+        'Point deductions applied per card colour, and what each black card triggers. A tournament’s scoring ruleset (forfeit policy) can override these per tournament.',
+      yellowCardPoints: 'Yellow card points',
+      redCardPoints: 'Red card points',
+      blackCardPoints: 'Black card points',
+      firstBlackCardForfeit: 'First black card forfeit',
+      secondBlackCardForfeit: 'Second black card forfeit',
+      forfeitScope: {
+        match: 'End of match',
+        tournament: 'End of tournament',
+        none: 'No forfeit',
+      },
     },
     aiSettings: {
       title: 'AI Settings',
@@ -3681,6 +3694,19 @@ export const fr = {
       appendSanction: 'Ajouter le carton {card} a la liste',
       popSanction: 'Retirer la derniere sanction',
       sanctionsEmpty: 'aucune sanction',
+      cardCostsTitle: 'Couts des cartons & portee du forfait',
+      cardCostsHelp:
+        'Points retires par couleur de carton, et ce que chaque carton noir declenche. Le ruleset de score d un tournoi (politique de forfait) peut surcharger ces valeurs par tournoi.',
+      yellowCardPoints: 'Points carton jaune',
+      redCardPoints: 'Points carton rouge',
+      blackCardPoints: 'Points carton noir',
+      firstBlackCardForfeit: 'Forfait au 1er carton noir',
+      secondBlackCardForfeit: 'Forfait au 2e carton noir',
+      forfeitScope: {
+        match: 'Fin du match',
+        tournament: 'Fin du tournoi',
+        none: 'Aucun forfait',
+      },
     },
     aiSettings: {
       title: 'Parametres IA',
