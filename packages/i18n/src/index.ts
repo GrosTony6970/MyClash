@@ -1685,6 +1685,17 @@ export const en = {
     dashboard: {
       newEvent: 'New event',
       manageEvents: 'Manage events',
+      brand: {
+        title: 'Branding',
+        description:
+          'Rename your organization or upload a logo. The slug stays unchanged so existing URLs keep working.',
+        nameLabel: 'Organization name',
+        slugLabel: 'Slug',
+        slugReadOnly: 'Slug is permanent. Contact a super-admin if you need to change it.',
+        save: 'Save changes',
+        saved: 'Organization updated.',
+        saveError: 'Could not update organization.',
+      },
       failedEvents: 'Failed to load events.',
       failedStats: 'Failed to load dashboard metrics.',
       loadingEvents: 'Loading events...',
@@ -4385,6 +4396,17 @@ export const fr = {
     dashboard: {
       newEvent: 'Nouvel evenement',
       manageEvents: 'Gerer les evenements',
+      brand: {
+        title: 'Identite visuelle',
+        description:
+          'Renommez votre organisation ou televersez un logo. Le slug reste inchange pour que les URL existantes continuent de fonctionner.',
+        nameLabel: 'Nom de l organisation',
+        slugLabel: 'Slug',
+        slugReadOnly: 'Le slug est permanent. Contactez un super-admin pour le modifier.',
+        save: 'Enregistrer',
+        saved: 'Organisation mise a jour.',
+        saveError: "Impossible de mettre a jour l'organisation.",
+      },
       failedEvents: 'Impossible de charger les evenements.',
       failedStats: 'Impossible de charger les indicateurs.',
       loadingEvents: 'Chargement des evenements...',

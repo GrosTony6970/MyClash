@@ -12,6 +12,16 @@ import type {
   UpdateOrganizationDto,
 } from './dto/organizations.dto';
 
+const ORG_LOGO_BUCKET = 'event-assets';
+const ORG_LOGO_MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ORG_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+export interface OrgLogoUpload {
+  buffer: Buffer;
+  filename: string;
+  mimetype: string;
+}
+
 @Injectable()
 export class OrganizationsService {
   constructor(private readonly supabase: SupabaseService) {}
@@ -157,6 +167,7 @@ export class OrganizationsService {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.contactEmail !== undefined) updates['contact_email'] = dto.contactEmail;
+    if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
 
     const { data, error } = await this.supabase.service
       .from('organizations')
@@ -167,6 +178,59 @@ export class OrganizationsService {
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  async uploadLogo(id: string, userId: string, file: OrgLogoUpload): Promise<{ url: string }> {
+    await this.assertOrgRole(id, userId, 'admin');
+
+    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
+    if (file.buffer.length > ORG_LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
+    }
+    if (!ALLOWED_ORG_LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureLogoBucket();
+    const extension =
+      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `organizations/${id}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(ORG_LOGO_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const { data } = this.supabase.service.storage.from(ORG_LOGO_BUCKET).getPublicUrl(path);
+    const url = data.publicUrl;
+
+    const { error: updateError } = await this.supabase.service
+      .from('organizations')
+      .update({ logo_url: url, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (updateError) throw new BadRequestException(updateError.message);
+
+    return { url };
+  }
+
+  private async ensureLogoBucket(): Promise<void> {
+    const storage = this.supabase.service.storage;
+    const { data, error } = await storage.getBucket(ORG_LOGO_BUCKET);
+    if (data && !error) return;
+    const created = await storage.createBucket(ORG_LOGO_BUCKET, {
+      public: true,
+      fileSizeLimit: ORG_LOGO_MAX_BYTES,
+      allowedMimeTypes: Array.from(ALLOWED_ORG_LOGO_MIME_TYPES),
+    });
+    if (created.error && !/already exists/iu.test(created.error.message)) {
+      throw new BadRequestException(created.error.message);
+    }
   }
 
   // ── Approve (super admin) ────────────────────────────────────────────────────

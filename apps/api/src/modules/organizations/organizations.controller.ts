@@ -11,7 +11,14 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -98,6 +105,32 @@ export class OrganizationsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.orgs.update(id, dto, userId);
+  }
+
+  /** POST /api/v1/organizations/:id/logo — org admin+ */
+  @Post(':id/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload organization logo (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uploadLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          { filename: string; mimetype: string; toBuffer: () => Promise<Buffer> } | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.orgs.uploadLogo(id, userId, {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    });
   }
 
   /** POST /api/v1/organizations/:id/approve — super admin only */

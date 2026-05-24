@@ -47,6 +47,7 @@ interface OrganizerEventContextValue {
   orgId: string | null;
   orgSlug: string;
   orgName: string | null;
+  orgLogoUrl: string | null;
   events: OrgEventSummary[];
   selectedEventId: string | null;
   currentEvent: OrgEventSummary | null;
@@ -81,11 +82,13 @@ export function OrganizerEventContextProvider({
 }) {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [events, setEvents] = useState<OrgEventSummary[]>([]);
   const [selectedEventId, setSelectedEventIdState] = useState<string | null>(null);
 
-  // Resolve orgId + orgName from slug. Mirrors the lookup the shell did
-  // previously; centralising it here so every org-scoped page can read it.
+  // Resolve orgId + orgName + orgLogoUrl from slug. Mirrors the lookup the
+  // shell did previously; centralising it here so every org-scoped page can
+  // read org branding from the same source.
   useEffect(() => {
     if (!slug) return;
     const controller = new AbortController();
@@ -95,9 +98,12 @@ export function OrganizerEventContextProvider({
     })
       .then(async (res) => {
         if (!res.ok) return;
-        const org = (await res.json()) as { id?: string; name?: string };
-        if (org.id) setOrgId(org.id);
-        if (org.name) setOrgName(org.name);
+        const raw = (await res.json()) as Record<string, unknown>;
+        if (typeof raw['id'] === 'string') setOrgId(raw['id']);
+        if (typeof raw['name'] === 'string') setOrgName(raw['name']);
+        const logo = raw['logo_url'] ?? raw['logoUrl'];
+        if (typeof logo === 'string') setOrgLogoUrl(logo);
+        else setOrgLogoUrl(null);
       })
       .catch(() => undefined);
     return () => controller.abort();
@@ -180,12 +186,13 @@ export function OrganizerEventContextProvider({
       orgId,
       orgSlug: slug,
       orgName,
+      orgLogoUrl,
       events,
       selectedEventId,
       currentEvent,
       selectEvent,
     }),
-    [orgId, slug, orgName, events, selectedEventId, currentEvent, selectEvent],
+    [orgId, slug, orgName, orgLogoUrl, events, selectedEventId, currentEvent, selectEvent],
   );
 
   return <OrganizerEventContext.Provider value={value}>{children}</OrganizerEventContext.Provider>;

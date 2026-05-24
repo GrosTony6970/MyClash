@@ -42,6 +42,15 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsEmail()
   contactEmail?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Public URL of the organization logo (set by the upload endpoint).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  logoUrl?: string | null;
 }
 
 export class AddMemberDto {

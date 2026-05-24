@@ -78,7 +78,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
   // Event context — provides selectedEventId (URL > localStorage > auto-pick),
   // the full event list for the switcher, and orgName for the brand block.
-  const { orgName, events, selectedEventId, currentEvent, selectEvent } =
+  const { orgName, orgLogoUrl, events, selectedEventId, currentEvent, selectEvent } =
     useOrganizerSelectedEvent();
 
   const [open, setOpen] = useState(false);
@@ -357,20 +357,34 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-900 px-4 py-5 text-white lg:flex">
         <Link href={orgBase} className="mb-7 flex items-center gap-3">
-          <Image
-            src="/brand/Logomini_nobackground.png"
-            alt=""
-            width={44}
-            height={44}
-            className="h-11 w-11"
-            priority
-          />
+          {orgLogoUrl ? (
+            /* Org-uploaded logo (R4). next/image needs every remote host pre-
+               configured, which is heavier for arbitrary Supabase storage
+               URLs — use a plain <img> here. */
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={orgLogoUrl}
+              alt=""
+              width={44}
+              height={44}
+              className="h-11 w-11 rounded-md object-cover"
+            />
+          ) : (
+            <Image
+              src="/brand/Logomini_nobackground.png"
+              alt=""
+              width={44}
+              height={44}
+              className="h-11 w-11"
+              priority
+            />
+          )}
           <div className="min-w-0">
             <p className="truncate font-display text-lg font-medium tracking-wide">
-              {t('organizer.shell.brand')}
+              {orgName || t('organizer.shell.brand')}
             </p>
             <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
-              {orgName || slug}
+              {slug}
             </p>
           </div>
         </Link>

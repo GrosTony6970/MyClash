@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -180,6 +180,65 @@ describe('OrganizationsService', () => {
         fighterParticipations: 3,
         refereeParticipations: 2,
       });
+    });
+  });
+
+  // ── R4: org logo upload ─────────────────────────────────────────────────
+
+  describe('uploadLogo', () => {
+    it('asserts admin role, uploads to event-assets, and writes logo_url', async () => {
+      const membershipChain = makeChain({ data: null, error: null });
+      membershipChain.maybeSingle.mockResolvedValue({ data: { role: 'admin' }, error: null });
+
+      // The update chain only needs .update().eq() to be awaitable.
+      const updateResult = Promise.resolve({ data: null, error: null });
+      const updateChain = {
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnValue(updateResult),
+      };
+
+      fromMock.mockReturnValueOnce(membershipChain).mockReturnValueOnce(updateChain);
+
+      const storage = {
+        getBucket: vi.fn().mockResolvedValue({ data: { name: 'event-assets' }, error: null }),
+        createBucket: vi.fn(),
+        from: vi.fn().mockReturnValue({
+          upload: vi.fn().mockResolvedValue({ error: null }),
+          getPublicUrl: vi.fn().mockReturnValue({
+            data: { publicUrl: 'https://cdn.test/organizations/org-1/logo.png' },
+          }),
+        }),
+      };
+      service = new OrganizationsService({
+        service: { from: fromMock, storage },
+        anon: {},
+      } as never);
+
+      const result = await service.uploadLogo('org-1', 'user-1', {
+        buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+        filename: 'logo.png',
+        mimetype: 'image/png',
+      });
+
+      expect(result).toEqual({ url: 'https://cdn.test/organizations/org-1/logo.png' });
+      expect(storage.from).toHaveBeenCalledWith('event-assets');
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ logo_url: 'https://cdn.test/organizations/org-1/logo.png' }),
+      );
+    });
+
+    it('rejects non-image mimetypes', async () => {
+      const membershipChain = makeChain({ data: null, error: null });
+      membershipChain.maybeSingle.mockResolvedValue({ data: { role: 'admin' }, error: null });
+      fromMock.mockReturnValueOnce(membershipChain);
+
+      await expect(
+        service.uploadLogo('org-1', 'user-1', {
+          buffer: Buffer.from('hello'),
+          filename: 'logo.svg',
+          mimetype: 'image/svg+xml',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
