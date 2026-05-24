@@ -1218,6 +1218,28 @@ export default function RefereesPage() {
     }
   }
 
+  /**
+   * R5: persist a drag-reorder of skills. Re-fetches the catalog so
+   * SkillCatalog re-renders in the new order.
+   */
+  async function reorderSkills(orderedSkillIds: string[]) {
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills/reorder`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedSkillIds }),
+      });
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.catalogReorderFailed'));
+        return;
+      }
+      setSkillsKey((k) => k + 1);
+    } catch {
+      toast.error(t('organizer.refereesPage.catalogReorderFailed'));
+    }
+  }
+
   async function updateAvailability(
     userId: string,
     patch: { availableAllTournaments?: boolean; availableAllEventDuration?: boolean },
@@ -1377,6 +1399,7 @@ export default function RefereesPage() {
           skills={skills}
           referees={referees}
           isReadOnly={isReadOnly}
+          onReorder={(ids) => void reorderSkills(ids)}
           onEditSkill={(skill) =>
             setSkillModal({
               mode: 'edit',

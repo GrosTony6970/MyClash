@@ -335,6 +335,30 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
     onChange(slots.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   }
 
+  /**
+   * R5: drag-reorder. Local-only — persists when the user clicks the
+   * existing Save button (the PUT payload's `index` per slot is set to
+   * the array position + 1, so reorder → save → backend stores the new
+   * sequence). Uses native HTML5 drag-and-drop.
+   */
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  function handleDrop(targetIdx: number) {
+    if (dragIdx === null || dragIdx === targetIdx) {
+      setDragIdx(null);
+      return;
+    }
+    const next = [...slots];
+    const [moved] = next.splice(dragIdx, 1);
+    if (!moved) {
+      setDragIdx(null);
+      return;
+    }
+    next.splice(targetIdx, 0, moved);
+    // Re-index so display + serialised payload stay 1-based dense.
+    onChange(next.map((s, i) => ({ ...s, index: i + 1 })));
+    setDragIdx(null);
+  }
+
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
       <header className="mb-3 flex items-center justify-between">
@@ -359,8 +383,33 @@ function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSection
         {slots.map((slot, idx) => (
           <li
             key={slot.index}
-            className="grid gap-2 rounded-md border border-gray-100 bg-gray-50/60 px-3 py-2 md:grid-cols-[5rem,12rem,1fr]"
+            className={[
+              'grid gap-2 rounded-md border border-gray-100 bg-gray-50/60 px-3 py-2 md:grid-cols-[2rem,5rem,12rem,1fr]',
+              dragIdx === idx ? 'opacity-50' : '',
+            ].join(' ')}
+            onDragOver={(e) => {
+              if (dragIdx !== null && editable) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop(idx);
+            }}
           >
+            {/* R5: drag handle. Hidden when the form is read-only (e.g.
+                tournament view in inherit mode) so the order can't be
+                touched without the user explicitly toggling override. */}
+            <div
+              className={[
+                'self-center text-center text-gray-400 select-none',
+                editable ? 'cursor-grab active:cursor-grabbing' : 'opacity-30',
+              ].join(' ')}
+              draggable={editable}
+              onDragStart={() => setDragIdx(idx)}
+              onDragEnd={() => setDragIdx(null)}
+              title={t('organizer.staffing.dragHandle')}
+            >
+              ⋮⋮
+            </div>
             <div className="text-xs font-bold uppercase tracking-wider text-gray-500 self-center">
               {t('organizer.staffing.slotLabel', { index: slot.index })}
             </div>

@@ -21,6 +21,8 @@ import {
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useEventStatus } from '../_hooks/useEventStatus';
+import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 
 interface Tournament {
   id: string;
@@ -60,12 +62,47 @@ const MAX_BRACKET_SIZE = 128;
 const BRACKET_SIZE_OPTIONS = [4, 8, 16, 32, 64, 128];
 const SEEDING_STRATEGIES: SeedingStrategy[] = ['snake', 'by-rating', 'random', 'by-pool-rank'];
 
+// ── R5: tab shell ─────────────────────────────────────────────────────────────
+// The bracket page was historically a flat layout. R5 adds a `Referees`
+// tab next to the existing bracket UI so operators can staff bracket /
+// finals matches in-context. The bracket grid + all its modals live
+// under the 'bracket' tab; the new RefereesTab consumes the assignment
+// board filtered to this tournament's bracket matches.
+
+type BracketTabKey = 'bracket' | 'referees';
+
+const BRACKET_TABS: Array<{ key: BracketTabKey; labelKey: string }> = [
+  { key: 'bracket', labelKey: 'organizer.bracketPage.tabs.bracket' },
+  { key: 'referees', labelKey: 'organizer.bracketPage.tabs.referees' },
+];
+
+function readBracketHashTab(): BracketTabKey {
+  if (typeof window === 'undefined') return 'bracket';
+  const hash = window.location.hash.replace('#', '');
+  return BRACKET_TABS.find((tab) => tab.key === hash)?.key ?? 'bracket';
+}
+
 export default function BracketPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const router = useRouter();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const { isReadOnly } = useEventStatus(eventId);
+
+  // ── R5: tab state ─────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<BracketTabKey>('bracket');
+  useEffect(() => {
+    setActiveTab(readBracketHashTab());
+    function onHash() {
+      setActiveTab(readBracketHashTab());
+    }
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  function selectTab(key: BracketTabKey) {
+    window.location.hash = `#${key}`;
+  }
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<string>('');
@@ -482,464 +519,515 @@ export default function BracketPage() {
         </div>
       </div>
 
-      {bracketPhaseId && (
-        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
-          <span
-            className={[
-              'rounded-full px-2.5 py-1 text-xs font-semibold',
-              visibility === 'published'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-600',
-            ].join(' ')}
-          >
-            {visibility === 'published'
-              ? t('organizer.phaseVisibility.published')
-              : t('organizer.phaseVisibility.hidden')}
-          </span>
-          <button
-            type="button"
-            disabled={visibilityBusy || visibility === 'published'}
-            onClick={() => void updateVisibility('published')}
-            className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
-          >
-            {t('organizer.phaseVisibility.publishBracket')}
-          </button>
-          <button
-            type="button"
-            disabled={visibilityBusy || visibility === 'hidden'}
-            onClick={() => void updateVisibility('hidden')}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
-          >
-            {t('organizer.phaseVisibility.unpublishBracket')}
-          </button>
-          {notifyHref && (
-            <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
-              {t('organizer.phaseVisibility.notifyParticipants')}
-            </Link>
-          )}
-          <div className="ml-auto flex items-center gap-2">
+      {/* R5: tab nav */}
+      <nav aria-label="Bracket sections" className="mb-6 flex gap-1 border-b border-slate-200">
+        {BRACKET_TABS.map((tab) => {
+          const disabled = tab.key === 'referees' && !selectedTournament;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => !disabled && selectTab(tab.key)}
+              disabled={disabled}
+              title={disabled ? t('organizer.bracketPage.tabs.disabledHint') : undefined}
+              className={[
+                'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+                activeTab === tab.key
+                  ? 'border-red-800 text-red-800'
+                  : disabled
+                    ? 'border-transparent text-slate-300 cursor-not-allowed'
+                    : 'border-transparent text-slate-600 hover:text-slate-900',
+              ].join(' ')}
+            >
+              {t(tab.labelKey)}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* R5: Referees tab — bracket + finals assignment + timeline. */}
+      {activeTab === 'referees' && selectedTournament && (
+        <BracketRefereesTab
+          eventId={eventId}
+          tournamentId={selectedTournament}
+          isReadOnly={isReadOnly}
+        />
+      )}
+
+      {/* Bracket tab — the existing flat content lives below the
+          display-toggle wrapper. Wrapping with style=display:none keeps
+          state + effects alive when switching tabs (so the Referees tab
+          doesn't refetch on every toggle), at the cost of rendering both
+          DOM trees in memory. The bracket tree is sizable but well-
+          tolerated by the browser; the alternative (conditional render
+          + state reset on every switch) was worse UX. */}
+      <div style={{ display: activeTab === 'bracket' ? 'block' : 'none' }}>
+        {bracketPhaseId && (
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
+            <span
+              className={[
+                'rounded-full px-2.5 py-1 text-xs font-semibold',
+                visibility === 'published'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-600',
+              ].join(' ')}
+            >
+              {visibility === 'published'
+                ? t('organizer.phaseVisibility.published')
+                : t('organizer.phaseVisibility.hidden')}
+            </span>
             <button
               type="button"
-              onClick={() => setReseedOpen(true)}
-              disabled={r1HasStartedMatch}
-              title={r1HasStartedMatch ? t('organizer.phaseVisibility.reseedBlocked') : undefined}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:opacity-40"
+              disabled={visibilityBusy || visibility === 'published'}
+              onClick={() => void updateVisibility('published')}
+              className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
             >
-              {t('organizer.phaseVisibility.reseedButton')}
+              {t('organizer.phaseVisibility.publishBracket')}
             </button>
-          </div>
-          {bracket?.autoAdvance === false && (
-            <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700">
-              Manual mode
-            </span>
-          )}
-        </div>
-      )}
-
-      {showUnpublishConfirm && (
-        <div className="mb-6 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
-          <p className="font-semibold">{t('organizer.phaseVisibility.unpublishStartedWarning')}</p>
-          <button
-            type="button"
-            onClick={() => void updateVisibility('hidden', true)}
-            className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
-          >
-            {t('organizer.phaseVisibility.confirmUnpublish')}
-          </button>
-        </div>
-      )}
-
-      {/* Tournament selector */}
-      {tournaments.length > 1 && (
-        <div className="mb-4 flex items-center gap-2">
-          <TournamentColorDot
-            color={tournaments.find((t) => t.id === selectedTournament)?.color}
-            size="md"
-          />
-          <select
-            value={selectedTournament}
-            onChange={(e) => setSelectedTournament(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          >
-            {tournaments.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Generate config */}
-      {!existingBracket && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">Bracket configuration</h2>
-          <div className="flex flex-wrap gap-6 items-end">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
-              <select
-                value={phaseType}
-                onChange={(e) => setPhaseType(e.target.value as 'single_elim' | 'double_elim')}
-                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              >
-                <option value="single_elim">Single elimination</option>
-                <option value="double_elim">Double elimination</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Qualify count (top N from pools)
-              </label>
-              <input
-                type="number"
-                value={qualifyCount}
-                onChange={(e) =>
-                  setQualifyCount(e.target.value === '' ? '' : parseInt(e.target.value))
-                }
-                placeholder="Auto"
-                min="2"
-                className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              />
-              <p className="mt-1 max-w-xs text-xs text-gray-500">
-                {phaseType === 'single_elim'
-                  ? `Auto uses play-ins for non-power-of-two counts. Main bracket size is capped at ${MAX_BRACKET_SIZE}.`
-                  : `Double elimination bracket size is capped at ${MAX_BRACKET_SIZE}.`}
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Bracket size override (power of 2, max {MAX_BRACKET_SIZE})
-              </label>
-              <select
-                value={bracketSize}
-                onChange={(e) =>
-                  setBracketSize(e.target.value === '' ? '' : parseInt(e.target.value))
-                }
-                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              >
-                <option value="">Auto</option>
-                {BRACKET_SIZE_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                {t('organizer.phaseVisibility.seedingStrategyLabel')}
-              </label>
-              <select
-                value={seedingStrategy}
-                onChange={(e) => setSeedingStrategy(e.target.value as SeedingStrategy)}
-                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              >
-                <option value="snake">{t('organizer.phaseVisibility.seedingStrategySnake')}</option>
-                <option value="by-rating" disabled>
-                  {t('organizer.phaseVisibility.seedingStrategyByRating')}
-                </option>
-                <option value="random" disabled>
-                  {t('organizer.phaseVisibility.seedingStrategyRandom')}
-                </option>
-                <option value="by-pool-rank" disabled>
-                  {t('organizer.phaseVisibility.seedingStrategyByPoolRank')}
-                </option>
-              </select>
-            </div>
-            {phaseType === 'double_elim' && (
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={grandFinalReset}
-                  onChange={(e) => setGrandFinalReset(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-gray-700">Grand final reset</span>
-              </label>
-            )}
             <button
-              onClick={() => void generate(false)}
-              disabled={generating || !selectedTournament}
-              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+              type="button"
+              disabled={visibilityBusy || visibility === 'hidden'}
+              onClick={() => void updateVisibility('hidden')}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
             >
-              {generating ? 'Generating…' : 'Generate bracket'}
+              {t('organizer.phaseVisibility.unpublishBracket')}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Configuration card (post-generation edit) */}
-      {existingBracket && bracket && (
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="text-sm font-bold text-gray-700 mb-4">
-            {t('organizer.phaseVisibility.configCardTitle')}
-          </h2>
-          <div className="flex flex-wrap items-end gap-6 text-sm">
-            <div>
-              <p className="text-xs text-gray-500">
-                {t('organizer.phaseVisibility.configBracketSize')}
-              </p>
-              <p className="font-mono text-gray-900">{bracket.bracketSize}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">
-                {t('organizer.phaseVisibility.configFighterCount')}
-              </p>
-              <p className="font-mono text-gray-900">{bracket.fighterCount}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">
-                {t('organizer.phaseVisibility.configPhaseType')}
-              </p>
-              <p className="font-mono text-gray-900">{bracket.phaseType}</p>
-            </div>
-            {bracket.phaseType === 'double_elim' && (
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={editGrandFinalReset}
-                  onChange={(e) => setEditGrandFinalReset(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-gray-700">
-                  {t('organizer.phaseVisibility.configGrandFinalReset')}
-                </span>
-              </label>
+            {notifyHref && (
+              <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
+                {t('organizer.phaseVisibility.notifyParticipants')}
+              </Link>
             )}
-            {bracket.phaseType === 'double_elim' && (
+            <div className="ml-auto flex items-center gap-2">
               <button
-                onClick={() => void saveBracketConfig()}
-                disabled={configSaving}
-                className="rounded-lg bg-red-700 hover:bg-red-800 disabled:opacity-50 px-3 py-2 text-sm font-semibold text-white"
+                type="button"
+                onClick={() => setReseedOpen(true)}
+                disabled={r1HasStartedMatch}
+                title={r1HasStartedMatch ? t('organizer.phaseVisibility.reseedBlocked') : undefined}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:opacity-40"
               >
-                {configSaving
-                  ? t('organizer.phaseVisibility.configSaving')
-                  : t('organizer.phaseVisibility.configSave')}
+                {t('organizer.phaseVisibility.reseedButton')}
               </button>
+            </div>
+            {bracket?.autoAdvance === false && (
+              <span className="rounded-full bg-yellow-100 px-2.5 py-1 text-xs font-semibold text-yellow-700">
+                Manual mode
+              </span>
             )}
+          </div>
+        )}
+
+        {showUnpublishConfirm && (
+          <div className="mb-6 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+            <p className="font-semibold">
+              {t('organizer.phaseVisibility.unpublishStartedWarning')}
+            </p>
             <button
-              onClick={() => setShowForceConfirm(true)}
-              disabled={generating}
-              className="ml-auto rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50"
+              type="button"
+              onClick={() => void updateVisibility('hidden', true)}
+              className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
             >
-              Regenerate bracket
+              {t('organizer.phaseVisibility.confirmUnpublish')}
             </button>
           </div>
-          {bracket.phaseType === 'double_elim' && (
-            <p className="mt-3 text-xs text-gray-500">
-              {t('organizer.phaseVisibility.configGrandFinalResetHint')}
-            </p>
-          )}
-          {configError && <p className="mt-2 text-sm text-red-600">{configError}</p>}
-          {reseedMessage && <p className="mt-2 text-sm text-emerald-600">{reseedMessage}</p>}
-        </div>
-      )}
+        )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Force confirm modal */}
-      {showForceConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
-            <p className="text-4xl mb-3">⚠️</p>
-            <h2 className="text-lg font-bold mb-2">Regenerate bracket?</h2>
-            <p className="text-gray-500 text-sm mb-5">
-              The existing bracket and all its match slots will be deleted.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => setShowForceConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void generate(true)}
-                className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm"
-              >
-                Yes, regenerate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Override modal */}
-      {overrideModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold mb-4">Override slot</h2>
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Registration A (UUID, blank to clear)
-                </label>
-                <input
-                  type="text"
-                  value={overrideModal.regAId}
-                  onChange={(e) => setOverrideModal({ ...overrideModal, regAId: e.target.value })}
-                  placeholder="Leave blank to clear"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Registration B (UUID, blank to clear)
-                </label>
-                <input
-                  type="text"
-                  value={overrideModal.regBId}
-                  onChange={(e) => setOverrideModal({ ...overrideModal, regBId: e.target.value })}
-                  placeholder="Leave blank to clear"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                />
-              </div>
-            </div>
-            {overrideError && <p className="text-red-600 text-sm mb-3">{overrideError}</p>}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setOverrideModal(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void submitOverride()}
-                disabled={overriding}
-                className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold rounded-lg text-sm"
-              >
-                {overriding ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Re-seed modal */}
-      {reseedOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold mb-2">{t('organizer.phaseVisibility.reseedTitle')}</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              {t('organizer.phaseVisibility.reseedHint')}
-            </p>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              {t('organizer.phaseVisibility.reseedStrategyLabel')}
-            </label>
+        {/* Tournament selector */}
+        {tournaments.length > 1 && (
+          <div className="mb-4 flex items-center gap-2">
+            <TournamentColorDot
+              color={tournaments.find((t) => t.id === selectedTournament)?.color}
+              size="md"
+            />
             <select
-              value={reseedStrategy}
-              onChange={(e) => setReseedStrategy(e.target.value as SeedingStrategy)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 mb-4"
+              value={selectedTournament}
+              onChange={(e) => setSelectedTournament(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             >
-              {SEEDING_STRATEGIES.map((s) => (
-                <option key={s} value={s} disabled={s !== 'snake'}>
-                  {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
                 </option>
               ))}
             </select>
-            {reseedError && <p className="text-red-600 text-sm mb-3">{reseedError}</p>}
-            <div className="flex gap-3">
+          </div>
+        )}
+
+        {/* Generate config */}
+        {!existingBracket && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
+            <h2 className="text-sm font-bold text-gray-700 mb-4">Bracket configuration</h2>
+            <div className="flex flex-wrap gap-6 items-end">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
+                <select
+                  value={phaseType}
+                  onChange={(e) => setPhaseType(e.target.value as 'single_elim' | 'double_elim')}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                >
+                  <option value="single_elim">Single elimination</option>
+                  <option value="double_elim">Double elimination</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Qualify count (top N from pools)
+                </label>
+                <input
+                  type="number"
+                  value={qualifyCount}
+                  onChange={(e) =>
+                    setQualifyCount(e.target.value === '' ? '' : parseInt(e.target.value))
+                  }
+                  placeholder="Auto"
+                  min="2"
+                  className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+                <p className="mt-1 max-w-xs text-xs text-gray-500">
+                  {phaseType === 'single_elim'
+                    ? `Auto uses play-ins for non-power-of-two counts. Main bracket size is capped at ${MAX_BRACKET_SIZE}.`
+                    : `Double elimination bracket size is capped at ${MAX_BRACKET_SIZE}.`}
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Bracket size override (power of 2, max {MAX_BRACKET_SIZE})
+                </label>
+                <select
+                  value={bracketSize}
+                  onChange={(e) =>
+                    setBracketSize(e.target.value === '' ? '' : parseInt(e.target.value))
+                  }
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                >
+                  <option value="">Auto</option>
+                  {BRACKET_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {t('organizer.phaseVisibility.seedingStrategyLabel')}
+                </label>
+                <select
+                  value={seedingStrategy}
+                  onChange={(e) => setSeedingStrategy(e.target.value as SeedingStrategy)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                >
+                  <option value="snake">
+                    {t('organizer.phaseVisibility.seedingStrategySnake')}
+                  </option>
+                  <option value="by-rating" disabled>
+                    {t('organizer.phaseVisibility.seedingStrategyByRating')}
+                  </option>
+                  <option value="random" disabled>
+                    {t('organizer.phaseVisibility.seedingStrategyRandom')}
+                  </option>
+                  <option value="by-pool-rank" disabled>
+                    {t('organizer.phaseVisibility.seedingStrategyByPoolRank')}
+                  </option>
+                </select>
+              </div>
+              {phaseType === 'double_elim' && (
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={grandFinalReset}
+                    onChange={(e) => setGrandFinalReset(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-gray-700">Grand final reset</span>
+                </label>
+              )}
               <button
-                onClick={() => {
-                  setReseedOpen(false);
-                  setReseedError(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => void generate(false)}
+                disabled={generating || !selectedTournament}
+                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => void submitReseed()}
-                disabled={reseedRunning || r1HasStartedMatch}
-                className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold rounded-lg text-sm"
-              >
-                {reseedRunning
-                  ? t('organizer.phaseVisibility.reseedApplying')
-                  : t('organizer.phaseVisibility.reseedApply')}
+                {generating ? 'Generating…' : 'Generate bracket'}
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Bracket preview */}
-      {bracket && (
-        <div>
-          <div className="flex flex-wrap items-center gap-4 mb-4 text-sm text-gray-500">
-            <span>{bracket.bracketSize}-slot main bracket</span>
-            <span>·</span>
-            <span>{bracket.rounds} rounds</span>
-            <span>·</span>
-            <span>{bracket.byeCount} byes</span>
-            {bracket.hasPlayInRound && (
-              <>
-                <span>·</span>
-                <span>
-                  {t('organizer.phaseVisibility.bracketSummaryPlayIns', {
-                    count: bracket.playInMatchCount ?? 0,
-                  })}
-                </span>
-              </>
-            )}
-            <span>·</span>
-            <span>{bracket.totalSlots} match slots</span>
+        {/* Configuration card (post-generation edit) */}
+        {existingBracket && bracket && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="text-sm font-bold text-gray-700 mb-4">
+              {t('organizer.phaseVisibility.configCardTitle')}
+            </h2>
+            <div className="flex flex-wrap items-end gap-6 text-sm">
+              <div>
+                <p className="text-xs text-gray-500">
+                  {t('organizer.phaseVisibility.configBracketSize')}
+                </p>
+                <p className="font-mono text-gray-900">{bracket.bracketSize}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">
+                  {t('organizer.phaseVisibility.configFighterCount')}
+                </p>
+                <p className="font-mono text-gray-900">{bracket.fighterCount}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">
+                  {t('organizer.phaseVisibility.configPhaseType')}
+                </p>
+                <p className="font-mono text-gray-900">{bracket.phaseType}</p>
+              </div>
+              {bracket.phaseType === 'double_elim' && (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editGrandFinalReset}
+                    onChange={(e) => setEditGrandFinalReset(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-gray-700">
+                    {t('organizer.phaseVisibility.configGrandFinalReset')}
+                  </span>
+                </label>
+              )}
+              {bracket.phaseType === 'double_elim' && (
+                <button
+                  onClick={() => void saveBracketConfig()}
+                  disabled={configSaving}
+                  className="rounded-lg bg-red-700 hover:bg-red-800 disabled:opacity-50 px-3 py-2 text-sm font-semibold text-white"
+                >
+                  {configSaving
+                    ? t('organizer.phaseVisibility.configSaving')
+                    : t('organizer.phaseVisibility.configSave')}
+                </button>
+              )}
+              <button
+                onClick={() => setShowForceConfirm(true)}
+                disabled={generating}
+                className="ml-auto rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50"
+              >
+                Regenerate bracket
+              </button>
+            </div>
             {bracket.phaseType === 'double_elim' && (
-              <>
-                <span>·</span>
-                <span className="text-blue-500">Double elim</span>
-              </>
+              <p className="mt-3 text-xs text-gray-500">
+                {t('organizer.phaseVisibility.configGrandFinalResetHint')}
+              </p>
             )}
-            {bronzeMatch && (
-              <>
-                <span>·</span>
-                <span className="text-amber-700">Bronze match</span>
-              </>
-            )}
+            {configError && <p className="mt-2 text-sm text-red-600">{configError}</p>}
+            {reseedMessage && <p className="mt-2 text-sm text-emerald-600">{reseedMessage}</p>}
           </div>
-          {podium && bracket.phaseType === 'single_elim' && (
-            <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
-              <MedalPodium
-                podium={podium}
-                showBronze={!!bronzeMatch}
-                labels={{
-                  gold: t('organizer.phaseVisibility.podiumGold'),
-                  silver: t('organizer.phaseVisibility.podiumSilver'),
-                  bronze: t('organizer.phaseVisibility.podiumBronze'),
-                  fourth: t('organizer.phaseVisibility.podiumFourth'),
-                  tbd: t('organizer.phaseVisibility.podiumTbd'),
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Force confirm modal */}
+        {showForceConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
+              <p className="text-4xl mb-3">⚠️</p>
+              <h2 className="text-lg font-bold mb-2">Regenerate bracket?</h2>
+              <p className="text-gray-500 text-sm mb-5">
+                The existing bracket and all its match slots will be deleted.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setShowForceConfirm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void generate(true)}
+                  className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm"
+                >
+                  Yes, regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Override modal */}
+        {overrideModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+              <h2 className="text-lg font-bold mb-4">Override slot</h2>
+              <div className="space-y-3 mb-5">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Registration A (UUID, blank to clear)
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideModal.regAId}
+                    onChange={(e) => setOverrideModal({ ...overrideModal, regAId: e.target.value })}
+                    placeholder="Leave blank to clear"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Registration B (UUID, blank to clear)
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideModal.regBId}
+                    onChange={(e) => setOverrideModal({ ...overrideModal, regBId: e.target.value })}
+                    placeholder="Leave blank to clear"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+              {overrideError && <p className="text-red-600 text-sm mb-3">{overrideError}</p>}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setOverrideModal(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void submitOverride()}
+                  disabled={overriding}
+                  className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold rounded-lg text-sm"
+                >
+                  {overriding ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Re-seed modal */}
+        {reseedOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              <h2 className="text-lg font-bold mb-2">
+                {t('organizer.phaseVisibility.reseedTitle')}
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">
+                {t('organizer.phaseVisibility.reseedHint')}
+              </p>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {t('organizer.phaseVisibility.reseedStrategyLabel')}
+              </label>
+              <select
+                value={reseedStrategy}
+                onChange={(e) => setReseedStrategy(e.target.value as SeedingStrategy)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 mb-4"
+              >
+                {SEEDING_STRATEGIES.map((s) => (
+                  <option key={s} value={s} disabled={s !== 'snake'}>
+                    {t(`organizer.phaseVisibility.seedingStrategy${strategyKey(s)}`)}
+                  </option>
+                ))}
+              </select>
+              {reseedError && <p className="text-red-600 text-sm mb-3">{reseedError}</p>}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setReseedOpen(false);
+                    setReseedError(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void submitReseed()}
+                  disabled={reseedRunning || r1HasStartedMatch}
+                  className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold rounded-lg text-sm"
+                >
+                  {reseedRunning
+                    ? t('organizer.phaseVisibility.reseedApplying')
+                    : t('organizer.phaseVisibility.reseedApply')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bracket preview */}
+        {bracket && (
+          <div>
+            <div className="flex flex-wrap items-center gap-4 mb-4 text-sm text-gray-500">
+              <span>{bracket.bracketSize}-slot main bracket</span>
+              <span>·</span>
+              <span>{bracket.rounds} rounds</span>
+              <span>·</span>
+              <span>{bracket.byeCount} byes</span>
+              {bracket.hasPlayInRound && (
+                <>
+                  <span>·</span>
+                  <span>
+                    {t('organizer.phaseVisibility.bracketSummaryPlayIns', {
+                      count: bracket.playInMatchCount ?? 0,
+                    })}
+                  </span>
+                </>
+              )}
+              <span>·</span>
+              <span>{bracket.totalSlots} match slots</span>
+              {bracket.phaseType === 'double_elim' && (
+                <>
+                  <span>·</span>
+                  <span className="text-blue-500">Double elim</span>
+                </>
+              )}
+              {bronzeMatch && (
+                <>
+                  <span>·</span>
+                  <span className="text-amber-700">Bronze match</span>
+                </>
+              )}
+            </div>
+            {podium && bracket.phaseType === 'single_elim' && (
+              <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+                <MedalPodium
+                  podium={podium}
+                  showBronze={!!bronzeMatch}
+                  labels={{
+                    gold: t('organizer.phaseVisibility.podiumGold'),
+                    silver: t('organizer.phaseVisibility.podiumSilver'),
+                    bronze: t('organizer.phaseVisibility.podiumBronze'),
+                    fourth: t('organizer.phaseVisibility.podiumFourth'),
+                    tbd: t('organizer.phaseVisibility.podiumTbd'),
+                  }}
+                />
+              </div>
+            )}
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <BracketView
+                slots={bracket.slots.filter((s) => s.id !== bronzeMatch?.id)}
+                rounds={bracket.rounds}
+                bracketConfig={bracketConfig}
+                redColor={redColor}
+                blueColor={blueColor}
+                bronzeMatch={bronzeMatch}
+                onMatchClick={(matchId) => {
+                  if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
                 }}
+                onOverrideSlot={(slotId) => setOverrideModal({ slotId, regAId: '', regBId: '' })}
+                playInLabel={t('organizer.phaseVisibility.playIns')}
               />
             </div>
-          )}
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <BracketView
-              slots={bracket.slots.filter((s) => s.id !== bronzeMatch?.id)}
-              rounds={bracket.rounds}
-              bracketConfig={bracketConfig}
-              redColor={redColor}
-              blueColor={blueColor}
-              bronzeMatch={bronzeMatch}
-              onMatchClick={(matchId) => {
-                if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
-              }}
-              onOverrideSlot={(slotId) => setOverrideModal({ slotId, regAId: '', regBId: '' })}
-              playInLabel={t('organizer.phaseVisibility.playIns')}
-            />
           </div>
-        </div>
-      )}
+        )}
 
-      {!bracket && !generating && (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">
-            No bracket generated yet. Configure above and click Generate.
-          </p>
-        </div>
-      )}
+        {!bracket && !generating && (
+          <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+            <p className="text-gray-400 text-sm">
+              No bracket generated yet. Configure above and click Generate.
+            </p>
+          </div>
+        )}
+      </div>
+      {/* R5: end of bracket-tab content wrapper */}
     </main>
   );
 }

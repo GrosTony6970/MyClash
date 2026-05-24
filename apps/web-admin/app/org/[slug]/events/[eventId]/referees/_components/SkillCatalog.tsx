@@ -50,6 +50,12 @@ interface Props {
   onDeleteSkill: (skill: RefereeSkill) => void;
   onUpsertQualification: (personId: string, skillId: string, rating: number | null) => void;
   onRemoveQualification: (personId: string, skillId: string) => void;
+  /**
+   * R5: drag-reorder. Caller persists via
+   * `PATCH /api/v1/events/:eventId/referee-skills/reorder`. Receives
+   * the full ordered list of skill IDs (the order shown after the drop).
+   */
+  onReorder?: (orderedSkillIds: string[]) => void | Promise<void>;
 }
 
 export function SkillCatalog({
@@ -60,9 +66,43 @@ export function SkillCatalog({
   onDeleteSkill,
   onUpsertQualification,
   onRemoveQualification,
+  onReorder,
 }: Props) {
   const [drillSkillId, setDrillSkillId] = useState<string | null>(null);
   const drillSkill = drillSkillId ? (skills.find((s) => s.id === drillSkillId) ?? null) : null;
+
+  /**
+   * R5: drag-reorder via native HTML5 drag-and-drop (no extra deps).
+   * `dragId` tracks the row currently being dragged; on drop we
+   * compute the new order and call onReorder. Local-state preview is
+   * omitted — caller is expected to refresh the skill list after
+   * onReorder resolves, which re-orders rows naturally.
+   */
+  const [dragId, setDragId] = useState<string | null>(null);
+  function handleDragStart(skillId: string) {
+    setDragId(skillId);
+  }
+  function handleDragOver(e: React.DragEvent) {
+    if (dragId !== null) e.preventDefault();
+  }
+  function handleDrop(targetId: string) {
+    if (!dragId || dragId === targetId || !onReorder) {
+      setDragId(null);
+      return;
+    }
+    const ids = skills.map((s) => s.id);
+    const from = ids.indexOf(dragId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) {
+      setDragId(null);
+      return;
+    }
+    const next = [...ids];
+    next.splice(from, 1);
+    next.splice(to, 0, dragId);
+    setDragId(null);
+    void onReorder(next);
+  }
 
   /**
    * Count of referees that hold each skill (any rating, including null).
@@ -95,6 +135,7 @@ export function SkillCatalog({
         <table className="w-full text-sm border-collapse">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
+              {onReorder && <th className="w-8 px-2 py-2"></th>}
               <th className="px-4 py-2">{t('organizer.refereesPage.catalogColColor')}</th>
               <th className="px-4 py-2">{t('organizer.refereesPage.catalogColName')}</th>
               <th className="px-4 py-2 text-center">
@@ -109,9 +150,29 @@ export function SkillCatalog({
             {skills.map((skill) => (
               <tr
                 key={skill.id}
-                className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer"
+                className={[
+                  'border-t border-gray-100 hover:bg-gray-50 cursor-pointer',
+                  dragId === skill.id ? 'opacity-50' : '',
+                ].join(' ')}
                 onClick={() => setDrillSkillId(skill.id)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(skill.id);
+                }}
               >
+                {onReorder && (
+                  <td
+                    className="px-2 py-3 text-center text-gray-400 cursor-grab active:cursor-grabbing select-none"
+                    draggable={!isReadOnly}
+                    onDragStart={() => handleDragStart(skill.id)}
+                    onDragEnd={() => setDragId(null)}
+                    onClick={(e) => e.stopPropagation()}
+                    title={t('organizer.refereesPage.catalogDragHandle')}
+                  >
+                    ⋮⋮
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <span
                     className={[
