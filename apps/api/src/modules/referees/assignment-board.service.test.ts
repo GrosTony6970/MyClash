@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssignmentBoardService } from './assignment-board.service';
+import { HARD_CODED_DEFAULT_SLOTS } from './staffing.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -12,6 +13,19 @@ const mockSettings = {
     workshopConflictWarning: true,
     ratingBasedOrdering: true,
     workloadBalance: true,
+  }),
+};
+// R2: the assignment board now depends on the staffing resolver. In
+// these tests we don't exercise custom slot configs — the
+// hard-coded floor (3 legacy roles) is returned for every tournament
+// so the board's behaviour matches the legacy expectations exactly.
+const mockStaffing = {
+  getResolvedConfigForAssignmentBoard: vi.fn().mockResolvedValue({
+    pool: [...HARD_CODED_DEFAULT_SLOTS],
+    bracket: [...HARD_CODED_DEFAULT_SLOTS],
+    finals: [...HARD_CODED_DEFAULT_SLOTS],
+    inheritsEventDefault: true,
+    isHardCodedFloor: true,
   }),
 };
 
@@ -133,7 +147,18 @@ describe('AssignmentBoardService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AssignmentBoardService(mockSupabase as never, mockSettings as never);
+    mockStaffing.getResolvedConfigForAssignmentBoard.mockResolvedValue({
+      pool: [...HARD_CODED_DEFAULT_SLOTS],
+      bracket: [...HARD_CODED_DEFAULT_SLOTS],
+      finals: [...HARD_CODED_DEFAULT_SLOTS],
+      inheritsEventDefault: true,
+      isHardCodedFloor: true,
+    });
+    service = new AssignmentBoardService(
+      mockSupabase as never,
+      mockSettings as never,
+      mockStaffing as never,
+    );
   });
 
   it('returns a scheduled pool board with candidates, missing slots, and hard-blocked fighter referees', async () => {

@@ -41,7 +41,14 @@ interface EventRefereeRow {
 
 // qual id lookup: key = `${personId}:${skillId}` → qualId
 type RefereeWorkspaceTab = 'referees' | 'qualifications' | 'staffing' | 'assignments';
-type AssignmentRole = 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
+/**
+ * `AssignmentRole` was a hard-coded enum (the 3 legacy roles); R2 of the
+ * staffing overhaul loosens it to any `referee_skills.id` string so the
+ * board can carry custom slots. The legacy `roleLabel` helper still
+ * recognises the 3 well-known IDs and falls back to the raw string for
+ * everything else.
+ */
+type AssignmentRole = string;
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -53,6 +60,11 @@ interface AssignmentBoardCandidate {
 }
 
 interface AssignmentBoardRoleSlot {
+  /** R2: new fields from the resolver. */
+  slotIndex: number;
+  displayName: string | null;
+  allowedSkillIds: string[];
+  /** Primary skill_id (= allowedSkillIds[0]); kept for legacy compatibility. */
   role: AssignmentRole;
   assignment: {
     id: string;
@@ -73,6 +85,7 @@ interface AssignmentBoardRoleSlot {
 interface AssignmentBoardPool {
   id: string;
   name: string;
+  tournamentId: string;
   tournamentName: string;
   liceId: string | null;
   scheduledStart: string | null;
@@ -399,7 +412,14 @@ function SkillModal({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function roleLabel(role: AssignmentRole) {
-  return t(`organizer.eventCompensation.roles.${role}`);
+  // The legacy role IDs (`arbitre_declarant` / `_assesseur` / `_table`)
+  // have hand-written translations under `organizer.eventCompensation.roles`.
+  // For R2 custom slots, the skill_id (e.g. `custom-abcd1234-x9`) won't
+  // resolve there — surface a human-readable fallback so the table isn't
+  // littered with the raw IDs.
+  const known = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
+  if (known.includes(role)) return t(`organizer.eventCompensation.roles.${role}`);
+  return role;
 }
 
 function formatTime(value: string | null) {
@@ -565,69 +585,105 @@ function AssignmentsTab({
     }
   }
 
+  /**
+   * R2: pools are grouped by tournament so each tournament's table can
+   * show its own slot columns (slot config is per-tournament).
+   *
+   * Column derivation: within a tournament we pick the slot config from
+   * the first pool in the group — every pool of a given tournament shares
+   * the same `pool` slot config, so any one is representative. If a pool
+   * has fewer roleSlots than expected (legacy data corner case), we
+   * render its slots as-is and pad with empty cells.
+   */
   function renderPoolRows(pools: AssignmentBoardPool[], unscheduled = false) {
     if (pools.length === 0) return null;
+    const groups = new Map<string, { tournamentName: string; pools: AssignmentBoardPool[] }>();
+    for (const pool of pools) {
+      const key = pool.tournamentId || pool.tournamentName || 'unknown';
+      const bucket = groups.get(key) ?? { tournamentName: pool.tournamentName, pools: [] };
+      bucket.pools.push(pool);
+      groups.set(key, bucket);
+    }
+
     return (
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
-              <th className="px-3 py-2 font-medium">{t('organizer.refereesPage.poolColumn')}</th>
-              <th className="px-3 py-2 font-medium">
-                {t('organizer.refereesPage.scheduleColumn')}
-              </th>
-              {board?.roles.map((role) => (
-                <th key={role} className="px-3 py-2 font-medium">
-                  {roleLabel(role)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pools.map((pool) => (
-              <tr key={pool.id} className="border-b border-gray-100 last:border-0">
-                <td className="px-3 py-3 align-top">
-                  <p className="font-medium text-gray-900">{pool.name}</p>
-                  <p className="text-xs text-gray-500">{pool.tournamentName}</p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    {pool.members.map((member) => member.personName).join(', ')}
-                  </p>
-                </td>
-                <td className="px-3 py-3 align-top text-xs text-gray-600">
-                  {unscheduled
-                    ? t('organizer.refereesPage.unscheduled')
-                    : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
-                </td>
-                {pool.roleSlots.map((slot) => (
-                  <td key={slot.role} className="px-3 py-3 align-top">
-                    <button
-                      type="button"
-                      disabled={isReadOnly || board?.locked}
-                      onClick={() => setPicker({ pool, slot })}
-                      className={[
-                        'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                        slot.assignment
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                          : slot.missingReasons.length
-                            ? 'border-red-200 bg-red-50 text-red-900'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
-                      ].join(' ')}
-                    >
-                      <span className="block font-medium">
-                        {slot.assignment?.displayName ?? t('organizer.refereesPage.unassigned')}
-                      </span>
-                      {slot.missingReasons.length > 0 && (
-                        <span className="block text-xs opacity-80">
-                          {slot.missingReasons.join(', ')}
-                        </span>
-                      )}
-                    </button>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="space-y-6">
+        {Array.from(groups.entries()).map(([key, group]) => {
+          const headerSlots = group.pools[0]?.roleSlots ?? [];
+          return (
+            <div key={key} className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-800">{group.tournamentName}</h3>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+                      <th className="px-3 py-2 font-medium">
+                        {t('organizer.refereesPage.poolColumn')}
+                      </th>
+                      <th className="px-3 py-2 font-medium">
+                        {t('organizer.refereesPage.scheduleColumn')}
+                      </th>
+                      {headerSlots.map((slot) => (
+                        <th
+                          key={`${slot.slotIndex}:${slot.role}`}
+                          className="px-3 py-2 font-medium"
+                        >
+                          {slot.displayName ?? roleLabel(slot.role)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.pools.map((pool) => (
+                      <tr key={pool.id} className="border-b border-gray-100 last:border-0">
+                        <td className="px-3 py-3 align-top">
+                          <p className="font-medium text-gray-900">{pool.name}</p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            {pool.members.map((member) => member.personName).join(', ')}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3 align-top text-xs text-gray-600">
+                          {unscheduled
+                            ? t('organizer.refereesPage.unscheduled')
+                            : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
+                        </td>
+                        {pool.roleSlots.map((slot) => (
+                          <td
+                            key={`${slot.slotIndex}:${slot.role}`}
+                            className="px-3 py-3 align-top"
+                          >
+                            <button
+                              type="button"
+                              disabled={isReadOnly || board?.locked}
+                              onClick={() => setPicker({ pool, slot })}
+                              className={[
+                                'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                                slot.assignment
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                  : slot.missingReasons.length
+                                    ? 'border-red-200 bg-red-50 text-red-900'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                              ].join(' ')}
+                            >
+                              <span className="block font-medium">
+                                {slot.assignment?.displayName ??
+                                  t('organizer.refereesPage.unassigned')}
+                              </span>
+                              {slot.missingReasons.length > 0 && (
+                                <span className="block text-xs opacity-80">
+                                  {slot.missingReasons.join(', ')}
+                                </span>
+                              )}
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -708,7 +764,7 @@ function AssignmentsTab({
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {picker.pool.name} - {roleLabel(picker.slot.role)}
+                  {picker.pool.name} - {picker.slot.displayName ?? roleLabel(picker.slot.role)}
                 </h2>
                 <p className="text-sm text-gray-500">{picker.pool.tournamentName}</p>
               </div>

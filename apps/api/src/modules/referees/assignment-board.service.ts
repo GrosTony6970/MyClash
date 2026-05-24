@@ -9,19 +9,37 @@ import {
 } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
+import { StaffingService, type ResolvedConfig } from './staffing.service';
 
+/**
+ * The three skill IDs the auto-assign engine knows about. Custom slots
+ * (added via the Staffing tab) still surface in the board but get
+ * `assignment: null` until manually assigned — the engine's recommender
+ * doesn't yet score against arbitrary skill IDs (deferred).
+ *
+ * Exported so other modules that still reference the legacy const keep
+ * compiling. New code should call `StaffingService.getResolvedConfig`
+ * for the authoritative slot list.
+ */
 export const REFEREE_ASSIGNMENT_ROLES: RefereeRole[] = [
   'arbitre_declarant',
   'arbitre_assesseur',
   'arbitre_table',
 ];
 
+const ENGINE_KNOWN_ROLES = new Set<string>(REFEREE_ASSIGNMENT_ROLES);
+
+/**
+ * `role` here is a `referee_skills.id` string — used to be the legacy
+ * `RefereeRole` enum, loosened in R2 of the staffing overhaul so the
+ * board can carry custom skills introduced via the Staffing tab.
+ */
 export interface AssignmentBoardCandidate {
   userId: string;
   personId: string | null;
   displayName: string;
   clubLabel: string | null;
-  qualifications: Array<{ role: RefereeRole; rating: number | null }>;
+  qualifications: Array<{ role: string; rating: number | null }>;
   workload: number;
 }
 
@@ -46,8 +64,17 @@ export interface AssignmentBoardPool {
     redRegistrationId: string | null;
     blueRegistrationId: string | null;
   }>;
+  /**
+   * One entry per slot in the tournament's resolved `pool` config.
+   * `role` is the primary skill id (= allowedSkillIds[0]) and is
+   * retained for backwards compatibility with the legacy frontend;
+   * new code should read `allowedSkillIds[]` and `slotIndex`.
+   */
   roleSlots: Array<{
-    role: RefereeRole;
+    slotIndex: number;
+    displayName: string | null;
+    allowedSkillIds: string[];
+    role: string;
     assignment: {
       id: string;
       userId: string;
@@ -66,19 +93,21 @@ export interface AssignmentBoardPool {
 }
 
 export interface AssignmentBoard {
-  roles: RefereeRole[];
+  /** Deduped union of skill_ids used across every pool's slots. */
+  roles: string[];
   pools: AssignmentBoardPool[];
   unscheduledPools: AssignmentBoardPool[];
   candidates: AssignmentBoardCandidate[];
-  missingSlots: Array<{ poolId: string; poolName: string; role: RefereeRole; reasons: string[] }>;
-  warnings: Array<{ poolId: string; poolName: string; role: RefereeRole; detail: string }>;
+  missingSlots: Array<{ poolId: string; poolName: string; role: string; reasons: string[] }>;
+  warnings: Array<{ poolId: string; poolName: string; role: string; detail: string }>;
   locked: boolean;
   swapSuggestions: [];
 }
 
 export interface ManualAssignmentDto {
   poolId: string;
-  role: RefereeRole;
+  /** Must be one of the pool's resolved slot's `allowedSkillIds`. */
+  role: string;
   userId: string;
 }
 
@@ -179,6 +208,7 @@ export class AssignmentBoardService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly settings: SettingsService,
+    private readonly staffing: StaffingService,
   ) {}
 
   async getBoard(eventId: string): Promise<AssignmentBoard> {
@@ -201,13 +231,24 @@ export class AssignmentBoardService {
   }
 
   async applyManual(eventId: string, dto: ManualAssignmentDto) {
-    if (!REFEREE_ASSIGNMENT_ROLES.includes(dto.role)) {
-      throw new BadRequestException(`Invalid referee role: ${dto.role}`);
-    }
-
     const context = await this.loadContext(eventId);
     const pool = context.pools.find((p) => p.id === dto.poolId);
     if (!pool) throw new NotFoundException(`Pool ${dto.poolId} not found for event ${eventId}`);
+
+    // R2: the role must be one of the resolved slot config's allowed
+    // skills for this pool's tournament. The hard-coded floor (Décl /
+    // Asses / Table) still passes when no Staffing rows exist, so legacy
+    // requests keep working unchanged.
+    const config = context.slotConfigByTournament.get(pool.tournamentId);
+    const allowed = new Set<string>();
+    for (const slot of config?.pool ?? []) {
+      for (const sid of slot.allowedSkillIds) allowed.add(sid);
+    }
+    if (!allowed.has(dto.role)) {
+      throw new BadRequestException(
+        `Role ${dto.role} is not allowed for this pool under the current Staffing config`,
+      );
+    }
 
     const candidate = context.candidates.find((c) => c.userId === dto.userId);
     if (!candidate) throw new BadRequestException('Selected user is not an event referee');
@@ -228,7 +269,7 @@ export class AssignmentBoardService {
         {
           poolId: dto.poolId,
           poolName: pool.name,
-          role: dto.role,
+          role: dto.role as RefereeRole,
           personId: candidate.personId ?? candidate.userId,
           personName: candidate.displayName,
           autoAssigned: true,
@@ -251,6 +292,7 @@ export class AssignmentBoardService {
         candidates: [] as AssignmentBoardCandidate[],
         assignments: [] as RefereeAssignmentRow[],
         fighterRegistrationIdsByPerson: new Map<string, string[]>(),
+        slotConfigByTournament: new Map<string, ResolvedConfig>(),
         locked: false,
       };
     }
@@ -274,6 +316,18 @@ export class AssignmentBoardService {
     }
     const assignments = await this.listAssignments(eventId);
 
+    // R2: resolve the slot config once per tournament. We bypass the
+    // staffing service's auth gate here — this code path is already
+    // gated by the assignment-board controller's scorekeeper check, and
+    // we don't have a user id at this depth without threading one in.
+    // Reads only — no writes — and only against the tournament's own
+    // event, so the bypass is bounded.
+    const slotConfigByTournament = new Map<string, ResolvedConfig>();
+    for (const tournament of tournaments) {
+      const config = await this.staffing.getResolvedConfigForAssignmentBoard(tournament.id);
+      slotConfigByTournament.set(tournament.id, config);
+    }
+
     return {
       eventId,
       tournaments,
@@ -282,6 +336,7 @@ export class AssignmentBoardService {
       candidates,
       assignments,
       fighterRegistrationIdsByPerson,
+      slotConfigByTournament,
       locked: assignments.some((a) => a.status === 'confirmed'),
     };
   }
@@ -386,14 +441,14 @@ export class AssignmentBoardService {
       .in('user_id', userIds);
     if (qualError) throw new BadRequestException(qualError.message);
 
-    const qualificationsByUser = new Map<
-      string,
-      Array<{ role: RefereeRole; rating: number | null }>
-    >();
+    // R2: drop the legacy filter that only kept arbitre_declarant /
+    // _assesseur / _table qualifications. Custom skills referenced by
+    // Staffing slots are now first-class — the engine still only sees
+    // the 3 it knows, but the board UI sees the full set.
+    const qualificationsByUser = new Map<string, Array<{ role: string; rating: number | null }>>();
     for (const q of (qualRows ?? []) as QualificationRow[]) {
-      if (!REFEREE_ASSIGNMENT_ROLES.includes(q.role as RefereeRole)) continue;
       const list = qualificationsByUser.get(q.user_id) ?? [];
-      list.push({ role: q.role as RefereeRole, rating: q.rating ?? null });
+      list.push({ role: q.role, rating: q.rating ?? null });
       qualificationsByUser.set(q.user_id, list);
     }
 
@@ -459,10 +514,16 @@ export class AssignmentBoardService {
       })),
     }));
 
+    // The engine still operates on the legacy 3-role enum. Custom skills
+    // are filtered out before they reach the engine so its types stay
+    // stable; the board layer still surfaces every qualification on the
+    // candidate cards.
     const engineCandidates: RefereeCandidate[] = context.candidates.map((candidate) => ({
       personId: candidate.personId ?? candidate.userId,
       personName: candidate.displayName,
-      qualifications: candidate.qualifications,
+      qualifications: candidate.qualifications
+        .filter((q) => ENGINE_KNOWN_ROLES.has(q.role))
+        .map((q) => ({ role: q.role as RefereeRole, rating: q.rating })),
       fighterRegistrationIds: candidate.personId
         ? (context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [])
         : [],
@@ -504,27 +565,49 @@ export class AssignmentBoardService {
       missingByPoolRole.set(`${missing.poolId}:${missing.role}`, missing.rejectionReasons);
     }
 
+    // R2: roleSlots now come from the resolved Staffing config per
+    // tournament. The legacy 3-role default still kicks in when no
+    // Staffing rows exist (HARD_CODED_DEFAULT_SLOTS in staffing.service).
     const pools = context.pools.map((pool) => {
       const poolMembers = new Set(pool.members.map((member) => member.personId));
+      const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
+      const slots = slotConfig?.pool ?? [];
+
       return {
         ...pool,
-        roleSlots: REFEREE_ASSIGNMENT_ROLES.map((role) => {
-          const persisted = assignmentByPoolRole.get(`${pool.id}:${role}`);
-          const previewAssignment = previewAssignmentByPoolRole.get(`${pool.id}:${role}`);
+        roleSlots: slots.map((slot) => {
+          const allowed = slot.allowedSkillIds;
+          const primaryRole = allowed[0]!;
+
+          // Match an existing assignment when its `role` is in the
+          // slot's allowed set. Slots that share the same primary skill
+          // would race for the same persisted row — we de-conflict by
+          // slot_index when needed, but in practice slot configs use
+          // distinct primary skills per slot.
+          let persisted: RefereeAssignmentRow | undefined;
+          for (const sid of allowed) {
+            const found = assignmentByPoolRole.get(`${pool.id}:${sid}`);
+            if (found) {
+              persisted = found;
+              break;
+            }
+          }
+          const previewAssignment = previewAssignmentByPoolRole.get(`${pool.id}:${primaryRole}`);
           const assignedCandidate = persisted
             ? candidateByUserId.get(persisted.user_id)
             : previewAssignment
               ? candidateByEngineId.get(previewAssignment.personId)
               : undefined;
 
+          const allowedSet = new Set(allowed);
           const recommended: AssignmentBoardCandidate[] = [];
           const warning: Array<AssignmentBoardCandidate & { warnings: string[] }> = [];
           const blocked: Array<AssignmentBoardCandidate & { reasons: string[] }> = [];
 
           for (const candidate of context.candidates) {
             const reasons: string[] = [];
-            if (!candidate.qualifications.some((q) => q.role === role))
-              reasons.push('missing_qualification');
+            const hasMatchingQual = candidate.qualifications.some((q) => allowedSet.has(q.role));
+            if (!hasMatchingQual) reasons.push('missing_qualification');
             if (candidate.personId && poolMembers.has(candidate.personId)) {
               reasons.push('fighter_referee_overlap');
             }
@@ -536,11 +619,14 @@ export class AssignmentBoardService {
           }
 
           return {
-            role,
+            slotIndex: slot.index,
+            displayName: slot.displayName,
+            allowedSkillIds: allowed,
+            role: primaryRole,
             assignment:
               assignedCandidate && (persisted || previewAssignment)
                 ? {
-                    id: persisted?.id ?? `${pool.id}:${role}:preview`,
+                    id: persisted?.id ?? `${pool.id}:${primaryRole}:preview`,
                     userId: assignedCandidate.userId,
                     personId: assignedCandidate.personId,
                     displayName: assignedCandidate.displayName,
@@ -548,15 +634,25 @@ export class AssignmentBoardService {
                     autoAssigned: persisted?.auto_assigned ?? true,
                   }
                 : null,
-            missingReasons: missingByPoolRole.get(`${pool.id}:${role}`) ?? [],
+            missingReasons: missingByPoolRole.get(`${pool.id}:${primaryRole}`) ?? [],
             candidates: { recommended, warning, blocked },
           };
         }),
       };
     });
 
+    // Dedup the skill_ids surfaced anywhere in this board so the
+    // (legacy) `board.roles` field stays meaningful for callers that
+    // haven't migrated to reading per-pool slots yet.
+    const allRolesSet = new Set<string>();
+    for (const pool of pools) {
+      for (const slot of pool.roleSlots) {
+        for (const sid of slot.allowedSkillIds) allRolesSet.add(sid);
+      }
+    }
+
     return {
-      roles: REFEREE_ASSIGNMENT_ROLES,
+      roles: Array.from(allRolesSet),
       pools: pools.filter((pool) => pool.scheduledStart !== null),
       unscheduledPools: pools.filter((pool) => pool.scheduledStart === null),
       candidates: context.candidates,

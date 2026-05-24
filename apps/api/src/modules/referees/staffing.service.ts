@@ -115,6 +115,35 @@ export class StaffingService {
     };
   }
 
+  /**
+   * Resolver-only variant for internal callers that already enforce
+   * authorization upstream (e.g. AssignmentBoardService, where the
+   * board controller does the scorekeeper gate). Bypasses the org-role
+   * check so we don't have to thread a user id through every internal
+   * path. Reads only.
+   */
+  async getResolvedConfigForAssignmentBoard(tournamentId: string): Promise<ResolvedConfig> {
+    const { eventId } = await this.getTournamentContext(tournamentId);
+
+    const tournamentRows = await this.loadTournamentRows(tournamentId);
+    if (hasAnyRows(tournamentRows)) {
+      return { ...tournamentRows, inheritsEventDefault: false, isHardCodedFloor: false };
+    }
+
+    const eventRows = await this.loadEventRows(eventId);
+    if (hasAnyRows(eventRows)) {
+      return { ...eventRows, inheritsEventDefault: true, isHardCodedFloor: false };
+    }
+
+    return {
+      pool: [...HARD_CODED_DEFAULT_SLOTS],
+      bracket: [...HARD_CODED_DEFAULT_SLOTS],
+      finals: [...HARD_CODED_DEFAULT_SLOTS],
+      inheritsEventDefault: true,
+      isHardCodedFloor: true,
+    };
+  }
+
   /** Resolved event-default config. Caller's role must be at least `scorekeeper`. */
   async getEventDefault(eventId: string, userId: string): Promise<ResolvedConfig> {
     const organizationId = await this.getEventOrganizationId(eventId);
