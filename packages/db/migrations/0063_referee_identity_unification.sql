@@ -14,6 +14,13 @@
 --
 -- This migration assumes a clean deploy (no orphan rows). NOT NULL on person_id
 -- will fail if any row was left in the user_id-only state.
+--
+-- Ordering note: Postgres refuses to DROP a column that an RLS policy still
+-- references (error 2BP01). The three select policies from migrations 0002 +
+-- 0041 reference referee_*.user_id, and the vw_tournament_query_referees view
+-- from 0033 projects ra.user_id. Both must be dropped BEFORE the column
+-- drops, then recreated against person_id afterwards. All operations carry
+-- IF EXISTS / OR REPLACE guards so re-running after a partial failure is safe.
 
 -- ── global_persons.claimed_by_user_id UNIQUE ─────────────────────────────────
 -- The resolver query `SELECT id FROM global_persons WHERE claimed_by_user_id = $1`
@@ -21,6 +28,19 @@
 CREATE UNIQUE INDEX IF NOT EXISTS global_persons_claimed_by_user_id_uk
   ON global_persons (claimed_by_user_id)
   WHERE claimed_by_user_id IS NOT NULL;
+
+-- ── Drop dependents that reference user_id BEFORE the column drops ───────────
+-- The three select policies (from 0002_rls.sql + 0041_referee_skills...) all
+-- have `user_id = auth.uid()` in their USING clause. They get recreated below
+-- with the new shape (resolve via global_persons.claimed_by_user_id).
+DROP POLICY IF EXISTS "event_referees_select"         ON event_referees;
+DROP POLICY IF EXISTS "referee_qualifications_select" ON referee_qualifications;
+DROP POLICY IF EXISTS "referee_assignments_select"    ON referee_assignments;
+
+-- The tournament-query view from 0033 also projects ra.user_id and joins
+-- persons.claimed_by_user_id = ra.user_id. Recreated below joining through
+-- global_persons.
+DROP VIEW IF EXISTS vw_tournament_query_referees;
 
 -- ── event_referees ───────────────────────────────────────────────────────────
 ALTER TABLE event_referees
@@ -45,9 +65,6 @@ CREATE UNIQUE INDEX referee_quals_person_event_role_idx
   ON referee_qualifications (person_id, event_id, role);
 
 -- ── referee_assignments ──────────────────────────────────────────────────────
--- Drop the view that selects ra.user_id before we can drop the column.
-DROP VIEW IF EXISTS vw_tournament_query_referees;
-
 ALTER TABLE referee_assignments
   DROP CONSTRAINT IF EXISTS referee_assignments_identity_check;
 DROP INDEX IF EXISTS referee_assignments_person_idx;
@@ -57,10 +74,9 @@ ALTER TABLE referee_assignments
 CREATE INDEX referee_assignments_person_idx ON referee_assignments (person_id);
 
 -- ── RLS rewrites ─────────────────────────────────────────────────────────────
--- Three earlier policies (0002_rls.sql, 0041) referenced referee_*.user_id
--- directly to grant referees "self-read" on their own rows. Now resolve via
--- global_persons.claimed_by_user_id → person_id.
-DROP POLICY IF EXISTS "referee_qualifications_select" ON referee_qualifications;
+-- The pre-0063 policies granted self-read via `user_id = auth.uid()` directly.
+-- Post-0063 the row carries person_id only, so self-read resolves through
+-- global_persons.claimed_by_user_id. Org-member + super-admin gates unchanged.
 CREATE POLICY "referee_qualifications_select" ON referee_qualifications FOR SELECT
   USING (
     is_super_admin()
@@ -72,7 +88,6 @@ CREATE POLICY "referee_qualifications_select" ON referee_qualifications FOR SELE
     OR is_org_member(event_org_id(event_id))
   );
 
-DROP POLICY IF EXISTS "referee_assignments_select" ON referee_assignments;
 CREATE POLICY "referee_assignments_select" ON referee_assignments FOR SELECT
   USING (
     is_super_admin()
@@ -89,7 +104,6 @@ CREATE POLICY "referee_assignments_select" ON referee_assignments FOR SELECT
     )
   );
 
-DROP POLICY IF EXISTS "event_referees_select" ON event_referees;
 CREATE POLICY "event_referees_select" ON event_referees FOR SELECT
   USING (
     is_super_admin()
