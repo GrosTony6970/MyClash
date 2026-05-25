@@ -22,8 +22,8 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import {
+  fetchHemaRatingsProfile,
   type HemaRatingsProfile,
-  parseHemaRatingsDetailHtml,
 } from '../modules/hema-ratings/hema-ratings.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -255,7 +255,9 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
     const profiles = new Map<string, HemaRatingsProfile>();
     for (const id of ids) {
       try {
-        profiles.set(id, await this.fetchProfile(id));
+        // Shared HTTP fetch + parse helper; same path the admin "refresh
+        // single fighter" endpoint uses.
+        profiles.set(id, await fetchHemaRatingsProfile(id));
       } catch (error) {
         this.logger.warn(
           `Failed to enrich HEMA Ratings profile ${id}: ${
@@ -265,23 +267,6 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
       }
     }
     return profiles;
-  }
-
-  private async fetchProfile(id: string): Promise<HemaRatingsProfile> {
-    const url = `https://hemaratings.com/fighters/details/${id}/`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'MyClash/1.0 (HEMA event management platform; contact: admin@myclash.fr)',
-        Accept: 'text/html',
-      },
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`hemaratings.com returned HTTP ${response.status} for ${url}`);
-    }
-
-    return parseHemaRatingsDetailHtml(id, await response.text());
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────

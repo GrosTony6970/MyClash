@@ -71,6 +71,7 @@ const navSections: readonly NavSection[] = [
       { href: '/admin/system-versions', labelKey: 'admin.shell.nav.systemVersions', badge: 'S' },
       { href: '/admin/backups', labelKey: 'admin.shell.nav.backups', badge: 'B' },
       { href: '/admin/data-quality', labelKey: 'admin.shell.nav.dataQuality', badge: 'DQ' },
+      { href: '/admin/hema-ratings', labelKey: 'admin.shell.nav.hemaRatings', badge: 'HR' },
     ],
   },
   {

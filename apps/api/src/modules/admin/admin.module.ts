@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { MatchesModule } from '../matches/matches.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { SupabaseService } from '../supabase/supabase.service';
+import { HemaRatingsAdminController } from './hema-ratings-admin.controller';
 import { AIDataQualityController } from './ai-data-quality.controller';
 import { AIDataQualityService } from './ai-data-quality.service';
 import { AdminAuditLogService } from './admin-audit-log.service';
@@ -31,7 +33,7 @@ import { SystemVersionsAdminController } from './system-versions.controller';
 import { UsersAdminController } from './users.controller';
 
 @Module({
-  imports: [MatchesModule, OrganizationsModule],
+  imports: [HemaRatingsModule, MatchesModule, OrganizationsModule],
   controllers: [
     OrganizationsAdminController,
     UsersAdminController,
@@ -46,6 +48,7 @@ import { UsersAdminController } from './users.controller';
     PlatformAISettingsController,
     AIDataQualityController,
     AdminDashboardStatsController,
+    HemaRatingsAdminController,
   ],
   providers: [
     AdminOrganizationsService,

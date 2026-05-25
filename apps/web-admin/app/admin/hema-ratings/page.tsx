@@ -1,0 +1,550 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
+
+interface RatingRow {
+  weapon: string;
+  category: string;
+  rank: number | null;
+  weightedRating: number;
+  lastCompeted: string | null;
+}
+
+interface TrackedFighter {
+  globalPersonId: string;
+  slug: string | null;
+  displayName: string;
+  givenName: string | null;
+  familyName: string | null;
+  clubName: string | null;
+  photoUrl: string | null;
+  hemaRatingsId: string;
+  syncedAt: string | null;
+  ratings: RatingRow[];
+  lastCompeted: string | null;
+  profileMissing: boolean;
+}
+
+interface SyncHistoryEntry {
+  id: string;
+  syncedAt: string;
+  fighterCount: number;
+}
+
+interface HealthResult {
+  ok: boolean;
+  status: number | null;
+  latencyMs: number;
+  error?: string;
+}
+
+const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return '—';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '—';
+  const diffMs = Date.now() - then;
+  const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toISOString().slice(0, 10);
+}
+
+export default function HemaRatingsAdminPage() {
+  const { t } = useI18n();
+  const [fighters, setFighters] = useState<TrackedFighter[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ globalPersonId: string; value: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthResult | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  const [history, setHistory] = useState<SyncHistoryEntry[] | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const loadFighters = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/fighters`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as TrackedFighter[];
+      setFighters(data);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load tracked fighters');
+      setFighters([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFighters();
+  }, [loadFighters]);
+
+  const latestSyncedAt = useMemo(() => fighters?.[0]?.syncedAt ?? null, [fighters]);
+
+  const filtered = useMemo(() => {
+    if (!fighters) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return fighters;
+    return fighters.filter((f) => {
+      const haystack = `${f.displayName} ${f.clubName ?? ''} ${f.hemaRatingsId}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [fighters, search]);
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  async function handleRunSync() {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/sync`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 202) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      const body = (await res.json()) as { jobId: string };
+      setSyncMessage(t('admin.hemaRatings.syncQueuedJob', { jobId: body.jobId }));
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.syncFailed'));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleRefreshOne(globalPersonId: string) {
+    setRefreshing((prev) => new Set(prev).add(globalPersonId));
+    try {
+      const res = await fetch(
+        `${API_URL}/api/v1/admin/hema-ratings/fighters/${globalPersonId}/refresh`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      // Re-load the whole list so the row picks up the new ratings.
+      await loadFighters();
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.refreshFailed'));
+    } finally {
+      setRefreshing((prev) => {
+        const next = new Set(prev);
+        next.delete(globalPersonId);
+        return next;
+      });
+    }
+  }
+
+  async function handleHealthCheck() {
+    if (checkingHealth) return;
+    setCheckingHealth(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/health`, {
+        credentials: 'include',
+      });
+      const body = (await res.json()) as HealthResult;
+      setHealth(body);
+    } catch {
+      setHealth({ ok: false, status: null, latencyMs: 0, error: 'Network error' });
+    } finally {
+      setCheckingHealth(false);
+    }
+  }
+
+  async function handleOpenHistory() {
+    setHistoryOpen(true);
+    if (history) return;
+    try {
+      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/sync-history?limit=10`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = (await res.json()) as SyncHistoryEntry[];
+      setHistory(body);
+    } catch {
+      setHistory([]);
+    }
+  }
+
+  async function handleSaveEdit(globalPersonId: string, newValue: string) {
+    const trimmed = newValue.trim();
+    // Validate — HEMA Ratings IDs are short numeric strings. Empty string =
+    // clear tracking.
+    if (trimmed && !/^\d+$/.test(trimmed)) {
+      setSyncMessage(t('admin.hemaRatings.invalidRatingId'));
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/v1/admin/fighters/${globalPersonId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ hemaRatingsId: trimmed || null }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      setEditing(null);
+      await loadFighters();
+    } catch (err) {
+      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.saveFailed'));
+    }
+  }
+
+  return (
+    <main className="px-4 py-6 sm:px-6 lg:px-8">
+      {/* Header strip */}
+      <header className="mb-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-800">
+          {t('admin.shell.sectionPlatformHealth')}
+        </p>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-medium tracking-tight text-slate-900">
+              {t('admin.hemaRatings.title')}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              {t('admin.hemaRatings.subtitle', {
+                relative: formatRelative(latestSyncedAt),
+              })}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleRunSync()}
+              disabled={syncing}
+              className="rounded-lg bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
+            >
+              {syncing ? t('admin.hemaRatings.runSyncRunning') : t('admin.hemaRatings.runSyncNow')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleHealthCheck()}
+              disabled={checkingHealth}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {checkingHealth ? '…' : t('admin.hemaRatings.healthCheck')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleOpenHistory()}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              {t('admin.hemaRatings.syncHistory')}
+            </button>
+          </div>
+        </div>
+        {syncMessage && (
+          <p className="mt-3 inline-block rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+            {syncMessage}
+          </p>
+        )}
+        {health && (
+          <p className="mt-3 inline-block rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-mono">
+            <span
+              className={health.ok ? 'text-emerald-700' : 'text-red-700'}
+              aria-label={health.ok ? 'ok' : 'failed'}
+            >
+              ●
+            </span>{' '}
+            {health.status ?? 'ERR'} · {health.latencyMs}ms
+            {health.error ? ` · ${health.error}` : ''}
+          </p>
+        )}
+      </header>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('admin.hemaRatings.searchPlaceholder')}
+          className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+        />
+      </div>
+
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
+      {/* Table */}
+      {fighters === null ? (
+        <p className="text-sm text-slate-500">{t('admin.hemaRatings.loading')}</p>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm text-slate-500">
+            {fighters.length === 0
+              ? t('admin.hemaRatings.emptyState')
+              : t('admin.hemaRatings.noMatch')}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <table className="w-full table-fixed text-sm">
+            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="w-8 px-3 py-2"></th>
+                <th className="w-1/4 px-3 py-2">{t('admin.hemaRatings.colName')}</th>
+                <th className="w-1/6 px-3 py-2">{t('admin.hemaRatings.colClub')}</th>
+                <th className="w-1/6 px-3 py-2">{t('admin.hemaRatings.colRatingId')}</th>
+                <th className="px-3 py-2">{t('admin.hemaRatings.colWeapons')}</th>
+                <th className="w-24 px-3 py-2">{t('admin.hemaRatings.colLastCompeted')}</th>
+                <th className="w-20 px-3 py-2 text-right">{t('admin.hemaRatings.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((f) => {
+                const isExpanded = expanded.has(f.globalPersonId);
+                const isRefreshing = refreshing.has(f.globalPersonId);
+                const isEditing = editing?.globalPersonId === f.globalPersonId;
+                return (
+                  <>
+                    <tr key={f.globalPersonId} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 align-top">
+                        <button
+                          type="button"
+                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                          onClick={() => toggleExpanded(f.globalPersonId)}
+                          className="text-slate-400 hover:text-slate-700"
+                        >
+                          {isExpanded ? '▾' : '▸'}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <p className="font-medium text-slate-900">{f.displayName}</p>
+                        {f.profileMissing && (
+                          <p className="mt-0.5 text-[10px] uppercase tracking-wide text-amber-700">
+                            {t('admin.hemaRatings.profileMissing')}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top text-slate-600">{f.clubName ?? '—'}</td>
+                      <td className="px-3 py-2 align-top">
+                        {isEditing ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={editing!.value}
+                              onChange={(e) =>
+                                setEditing({
+                                  globalPersonId: f.globalPersonId,
+                                  value: e.target.value,
+                                })
+                              }
+                              autoFocus
+                              className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-red-600"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleSaveEdit(f.globalPersonId, editing!.value)}
+                              className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+                            >
+                              {t('admin.hemaRatings.save')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditing(null)}
+                              className="text-xs text-slate-500 hover:text-slate-700"
+                            >
+                              {t('admin.hemaRatings.cancel')}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditing({
+                                globalPersonId: f.globalPersonId,
+                                value: f.hemaRatingsId,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700 hover:bg-slate-200"
+                          >
+                            {f.hemaRatingsId}
+                            <span className="text-slate-400">✎</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex flex-wrap gap-1">
+                          {f.ratings.length === 0 ? (
+                            <span className="text-xs italic text-slate-400">
+                              {t('admin.hemaRatings.noRatings')}
+                            </span>
+                          ) : (
+                            f.ratings.map((r) => (
+                              <span
+                                key={`${r.weapon}-${r.category}`}
+                                className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+                                title={`${r.weapon} · ${r.category}`}
+                              >
+                                {r.weapon}
+                                {r.rank !== null && (
+                                  <span className="text-slate-400">#{r.rank}</span>
+                                )}
+                                <span className="font-mono">{r.weightedRating.toFixed(1)}</span>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-top font-mono text-xs text-slate-500">
+                        {formatDate(f.lastCompeted)}
+                      </td>
+                      <td className="px-3 py-2 align-top text-right">
+                        <button
+                          type="button"
+                          onClick={() => void handleRefreshOne(f.globalPersonId)}
+                          disabled={isRefreshing}
+                          aria-label={t('admin.hemaRatings.refreshFighter')}
+                          title={t('admin.hemaRatings.refreshFighter')}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          {isRefreshing ? '…' : '↻'}
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${f.globalPersonId}-detail`} className="bg-slate-50/60">
+                        <td></td>
+                        <td colSpan={6} className="px-3 py-3">
+                          {f.ratings.length === 0 ? (
+                            <p className="text-xs italic text-slate-400">
+                              {t('admin.hemaRatings.detailEmpty')}
+                            </p>
+                          ) : (
+                            <table className="w-full text-xs">
+                              <thead className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                                <tr>
+                                  <th className="py-1">{t('admin.hemaRatings.detailWeapon')}</th>
+                                  <th className="py-1">{t('admin.hemaRatings.detailCategory')}</th>
+                                  <th className="py-1 text-right">
+                                    {t('admin.hemaRatings.detailRank')}
+                                  </th>
+                                  <th className="py-1 text-right">
+                                    {t('admin.hemaRatings.detailWeightedRating')}
+                                  </th>
+                                  <th className="py-1 text-right">
+                                    {t('admin.hemaRatings.detailLastCompeted')}
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {f.ratings.map((r) => (
+                                  <tr key={`${r.weapon}-${r.category}`}>
+                                    <td className="py-1 font-medium text-slate-900">{r.weapon}</td>
+                                    <td className="py-1 text-slate-600">{r.category}</td>
+                                    <td className="py-1 text-right font-mono text-slate-700">
+                                      {r.rank ?? '—'}
+                                    </td>
+                                    <td className="py-1 text-right font-mono text-slate-900">
+                                      {r.weightedRating.toFixed(1)}
+                                    </td>
+                                    <td className="py-1 text-right font-mono text-slate-500">
+                                      {formatDate(r.lastCompeted)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Sync history drawer */}
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('admin.hemaRatings.syncHistoryTitle')}
+        >
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-slate-950/40"
+            onClick={() => setHistoryOpen(false)}
+          />
+          <div className="relative ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+            <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <h2 className="font-display text-lg font-medium">
+                {t('admin.hemaRatings.syncHistoryTitle')}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(false)}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                {t('admin.hemaRatings.close')}
+              </button>
+            </header>
+            <div className="flex-1 overflow-y-auto px-5 py-4 text-sm">
+              {history === null ? (
+                <p className="text-slate-500">{t('admin.hemaRatings.loading')}</p>
+              ) : history.length === 0 ? (
+                <p className="text-slate-500">{t('admin.hemaRatings.syncHistoryEmpty')}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {history.map((row) => (
+                    <li
+                      key={row.id}
+                      className="flex items-baseline justify-between rounded-md border border-slate-200 px-3 py-2"
+                    >
+                      <span className="font-mono text-xs text-slate-700">
+                        {new Date(row.syncedAt).toLocaleString()}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {row.fighterCount.toLocaleString()} {t('admin.hemaRatings.fightersLabel')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

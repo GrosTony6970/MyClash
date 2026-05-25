@@ -294,4 +294,210 @@ describe('HemaRatingsService', () => {
     expect(resolved.get('1')).toBe(1500);
     expect(resolved.has('2')).toBe(false);
   });
+
+  // ── Admin surface ────────────────────────────────────────────────────────
+
+  describe('admin surface', () => {
+    function makeFromMock(tableHandlers: Record<string, () => unknown>) {
+      return vi.fn((table: string) => {
+        const handler = tableHandlers[table];
+        if (!handler) throw new Error(`Unexpected supabase.from('${table}') in test`);
+        return handler();
+      });
+    }
+
+    it('listTrackedFighters joins global_persons with the latest snapshot ratings', async () => {
+      const personsRows = [
+        {
+          id: 'gp-1',
+          slug: 'jean-dupont',
+          display_name: 'Jean Dupont',
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          hema_ratings_id: '6282',
+          photo_url: null,
+          club_id: 'club-1',
+          clubs: { name: 'Lyon AMHE' },
+        },
+      ];
+      const snapshot = {
+        synced_at: '2026-05-25T00:00:00.000Z',
+        fighters: [
+          {
+            id: 6282,
+            name: 'Jean Dupont',
+            club: 'Lyon AMHE',
+            nationality: 'France',
+            ratings: [
+              {
+                weapon: 'Longsword',
+                category: 'Mixed',
+                rank: 523,
+                weightedRating: 1532.6,
+                lastCompeted: '2025-10-01',
+              },
+              {
+                weapon: 'Sabre',
+                category: 'Mixed',
+                rank: 896,
+                weightedRating: 1286.9,
+                lastCompeted: '2024-11-01',
+              },
+            ],
+          },
+        ],
+      };
+
+      const personsChain = {
+        select: vi.fn().mockReturnThis(),
+        not: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: personsRows, error: null }),
+      };
+      const from = makeFromMock({
+        global_persons: () => personsChain,
+        hema_ratings_snapshots: () => makeLatestSnapshotChain({ data: snapshot, error: null }),
+      });
+      const service = new HemaRatingsService({ service: { from } } as never);
+
+      const result = await service.listTrackedFighters();
+      expect(result).toHaveLength(1);
+      expect(result[0]!.globalPersonId).toBe('gp-1');
+      expect(result[0]!.hemaRatingsId).toBe('6282');
+      expect(result[0]!.clubName).toBe('Lyon AMHE');
+      expect(result[0]!.ratings).toHaveLength(2);
+      expect(result[0]!.lastCompeted).toBe('2025-10-01');
+      expect(result[0]!.profileMissing).toBe(false);
+      expect(result[0]!.syncedAt).toBe('2026-05-25T00:00:00.000Z');
+    });
+
+    it('listTrackedFighters flags profileMissing when no snapshot row matches the hema_ratings_id', async () => {
+      const personsChain = {
+        select: vi.fn().mockReturnThis(),
+        not: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({
+          data: [
+            {
+              id: 'gp-2',
+              slug: null,
+              display_name: 'Marie Curie',
+              given_name: 'Marie',
+              family_name: 'Curie',
+              hema_ratings_id: '99999',
+              photo_url: null,
+              club_id: null,
+              clubs: null,
+            },
+          ],
+          error: null,
+        }),
+      };
+      const from = makeFromMock({
+        global_persons: () => personsChain,
+        hema_ratings_snapshots: () =>
+          makeLatestSnapshotChain({
+            data: { synced_at: '2026-05-25T00:00:00.000Z', fighters: [] },
+            error: null,
+          }),
+      });
+      const service = new HemaRatingsService({ service: { from } } as never);
+
+      const result = await service.listTrackedFighters();
+      expect(result[0]!.profileMissing).toBe(true);
+      expect(result[0]!.ratings).toEqual([]);
+      expect(result[0]!.lastCompeted).toBeNull();
+    });
+
+    it('listTrackedFighters returns an empty array when no global_persons are tracked', async () => {
+      const personsChain = {
+        select: vi.fn().mockReturnThis(),
+        not: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      };
+      const from = makeFromMock({ global_persons: () => personsChain });
+      const service = new HemaRatingsService({ service: { from } } as never);
+
+      await expect(service.listTrackedFighters()).resolves.toEqual([]);
+    });
+
+    it('getSyncHistory returns rows ordered newest first', async () => {
+      const rows = [
+        { id: 'snap-2', synced_at: '2026-05-25T03:30:00.000Z', fighter_count: 31_204 },
+        { id: 'snap-1', synced_at: '2026-05-24T03:30:00.000Z', fighter_count: 31_198 },
+      ];
+      const historyChain = {
+        select: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: rows, error: null }),
+      };
+      const from = makeFromMock({ hema_ratings_snapshots: () => historyChain });
+      const service = new HemaRatingsService({ service: { from } } as never);
+
+      const result = await service.getSyncHistory(5);
+      expect(historyChain.limit).toHaveBeenCalledWith(5);
+      expect(result).toEqual([
+        { id: 'snap-2', syncedAt: '2026-05-25T03:30:00.000Z', fighterCount: 31_204 },
+        { id: 'snap-1', syncedAt: '2026-05-24T03:30:00.000Z', fighterCount: 31_198 },
+      ]);
+    });
+
+    it('enqueueSync adds a job onto the BullMQ queue', async () => {
+      const queue = { add: vi.fn().mockResolvedValue({ id: 'job-1' }) };
+      const service = new HemaRatingsService(
+        { service: { from: vi.fn() } } as never,
+        queue as never,
+      );
+
+      const result = await service.enqueueSync('actor-1');
+      expect(queue.add).toHaveBeenCalledWith(
+        'sync',
+        expect.objectContaining({ triggeredBy: 'actor-1' }),
+        expect.objectContaining({ removeOnComplete: 10 }),
+      );
+      expect(result).toEqual({ jobId: 'job-1' });
+    });
+
+    it('enqueueSync throws when no queue is injected', async () => {
+      const service = new HemaRatingsService({ service: { from: vi.fn() } } as never);
+      await expect(service.enqueueSync('actor-1')).rejects.toThrow(/queue is not available/);
+    });
+
+    it('refreshSingleFighter rejects when the global person has no hema_ratings_id', async () => {
+      const personChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { id: 'gp-3', hema_ratings_id: null },
+          error: null,
+        }),
+      };
+      const from = makeFromMock({ global_persons: () => personChain });
+      const service = new HemaRatingsService({ service: { from } } as never);
+
+      await expect(service.refreshSingleFighter('gp-3')).rejects.toThrow(/no hema_ratings_id/);
+    });
+
+    it('checkHealth returns latency + status from a successful probe', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue({ ok: true, status: 200 } as unknown as Response);
+
+      const service = new HemaRatingsService({ service: { from: vi.fn() } } as never);
+      const result = await service.checkHealth();
+      expect(result.ok).toBe(true);
+      expect(result.status).toBe(200);
+      expect(typeof result.latencyMs).toBe('number');
+      fetchSpy.mockRestore();
+    });
+
+    it('checkHealth returns ok=false + error when the upstream throws', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('socket hang up'));
+
+      const service = new HemaRatingsService({ service: { from: vi.fn() } } as never);
+      const result = await service.checkHealth();
+      expect(result.ok).toBe(false);
+      expect(result.status).toBeNull();
+      expect(result.error).toContain('socket hang up');
+      fetchSpy.mockRestore();
+    });
+  });
 });

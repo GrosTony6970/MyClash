@@ -1,5 +1,32 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { SupabaseService } from '../supabase/supabase.service';
+
+/** Queue name re-exported here so callers don't reach into workers/. */
+export const HEMA_RATINGS_QUEUE_NAME = 'hema-ratings-sync';
+export const HEMA_RATINGS_SYNC_JOB = 'sync';
+
+const HEMA_RATINGS_USER_AGENT =
+  'MyClash/1.0 (HEMA event management platform; contact: admin@myclash.fr)';
+const HEMA_RATINGS_INDEX_URL = 'https://hemaratings.com/fighters/';
+
+/**
+ * Fetch + parse a single fighter's HEMA Ratings profile from the upstream
+ * detail page. Exposed at module scope so both the daily-sync worker and
+ * the admin "refresh this fighter" endpoint share the same fetch path.
+ */
+export async function fetchHemaRatingsProfile(id: string): Promise<HemaRatingsProfile> {
+  const url = `https://hemaratings.com/fighters/details/${id}/`;
+  const response = await fetch(url, {
+    headers: { 'User-Agent': HEMA_RATINGS_USER_AGENT, Accept: 'text/html' },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(`hemaratings.com returned HTTP ${response.status} for ${url}`);
+  }
+  return parseHemaRatingsDetailHtml(id, await response.text());
+}
 
 export interface HemaRatingsSearchResult {
   id: string;
@@ -27,6 +54,44 @@ export interface HemaRatingsProfile {
 
 export interface HemaRatingsProfileResponse extends HemaRatingsProfile {
   syncedAt: string;
+}
+
+// ── Admin surface types ─────────────────────────────────────────────────────
+
+export interface TrackedFighterRow {
+  /** global_persons.id */
+  globalPersonId: string;
+  /** global_persons.slug — used for cross-links to the fighter profile. */
+  slug: string | null;
+  /** Display name, prefers global_persons.display_name. */
+  displayName: string;
+  givenName: string | null;
+  familyName: string | null;
+  clubName: string | null;
+  photoUrl: string | null;
+  /** The HEMA Ratings numeric ID stored on global_persons.hema_ratings_id. */
+  hemaRatingsId: string;
+  /** Latest snapshot synced_at timestamp (null when no snapshot exists yet). */
+  syncedAt: string | null;
+  /** Profile ratings for this fighter from the latest snapshot. */
+  ratings: HemaRatingsRow[];
+  /** Most-recent lastCompeted across all weapons (display convenience). */
+  lastCompeted: string | null;
+  /** True when the latest snapshot has no profile for this fighter. */
+  profileMissing: boolean;
+}
+
+export interface SyncHistoryEntry {
+  id: string;
+  syncedAt: string;
+  fighterCount: number;
+}
+
+export interface HemaRatingsHealthResult {
+  ok: boolean;
+  status: number | null;
+  latencyMs: number;
+  error?: string;
 }
 
 interface SnapshotFighter {
@@ -264,7 +329,17 @@ export function parseHemaRatingsDetailHtml(id: string, html: string): HemaRating
 
 @Injectable()
 export class HemaRatingsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    /**
+     * Optional so callers wiring the service without a BullMQ queue (tests,
+     * read-only contexts) don't have to register the queue too. When absent,
+     * `enqueueSync` throws a clear error.
+     */
+    @Optional()
+    @InjectQueue(HEMA_RATINGS_QUEUE_NAME)
+    private readonly syncQueue?: Queue,
+  ) {}
 
   async search(query: string, limit = 5): Promise<HemaRatingsSearchResult[]> {
     const q = query.trim();
@@ -354,6 +429,204 @@ export class HemaRatingsService {
     }
 
     return result;
+  }
+
+  // ── Admin surface ────────────────────────────────────────────────────────
+
+  /**
+   * Returns every global_person currently tracked in HEMA Ratings (has a
+   * non-null `hema_ratings_id`), joined with their latest profile from the
+   * most-recent snapshot. Used by the super-admin "HEMA Ratings" page.
+   */
+  async listTrackedFighters(): Promise<TrackedFighterRow[]> {
+    const { data: persons, error: personsErr } = await this.supabase.service
+      .from('global_persons')
+      .select(
+        'id, slug, display_name, given_name, family_name, hema_ratings_id, photo_url, club_id, clubs(name)',
+      )
+      .not('hema_ratings_id', 'is', null)
+      .order('family_name', { ascending: true });
+    if (personsErr) throw new BadRequestException(personsErr.message);
+
+    type Row = {
+      id: string;
+      slug: string | null;
+      display_name: string | null;
+      given_name: string | null;
+      family_name: string | null;
+      hema_ratings_id: string;
+      photo_url: string | null;
+      club_id: string | null;
+      clubs?: { name: string | null } | Array<{ name: string | null }> | null;
+    };
+    const rows = (persons ?? []) as Row[];
+    if (rows.length === 0) return [];
+
+    // Latest snapshot is best-effort — if it's missing we still surface the
+    // tracked-fighter list so the operator can see who's tracked even before
+    // the first sync has landed.
+    let snapshot: { fighters: SnapshotFighter[]; syncedAt: string } | null = null;
+    try {
+      snapshot = await this.latestSnapshot();
+    } catch {
+      snapshot = null;
+    }
+    const profileById = new Map<string, SnapshotFighter>();
+    for (const fighter of snapshot?.fighters ?? []) {
+      if (fighter.id !== null && fighter.id !== undefined) {
+        profileById.set(String(fighter.id), fighter);
+      }
+    }
+
+    return rows.map((row): TrackedFighterRow => {
+      const profile = profileById.get(row.hema_ratings_id);
+      const ratings = profile?.ratings ?? [];
+      const lastCompeted =
+        ratings
+          .map((r) => r.lastCompeted)
+          .filter((d): d is string => Boolean(d))
+          .sort((a, b) => (a < b ? 1 : -1))[0] ?? null;
+      const club = Array.isArray(row.clubs) ? row.clubs[0] : row.clubs;
+      const displayName =
+        row.display_name?.trim() ||
+        `${row.given_name ?? ''} ${row.family_name ?? ''}`.trim() ||
+        row.hema_ratings_id;
+
+      return {
+        globalPersonId: row.id,
+        slug: row.slug,
+        displayName,
+        givenName: row.given_name,
+        familyName: row.family_name,
+        clubName: club?.name ?? null,
+        photoUrl: row.photo_url,
+        hemaRatingsId: row.hema_ratings_id,
+        syncedAt: snapshot?.syncedAt ?? null,
+        ratings,
+        lastCompeted,
+        profileMissing: !profile || ratings.length === 0,
+      };
+    });
+  }
+
+  /** Last N sync runs, newest first. */
+  async getSyncHistory(limit = 10): Promise<SyncHistoryEntry[]> {
+    const capped = Math.min(Math.max(limit, 1), 50);
+    const { data, error } = await this.supabase.service
+      .from('hema_ratings_snapshots')
+      .select('id, synced_at, fighter_count')
+      .order('synced_at', { ascending: false })
+      .limit(capped);
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Array<{ id: string; synced_at: string; fighter_count: number }>).map(
+      (row) => ({ id: row.id, syncedAt: row.synced_at, fighterCount: row.fighter_count }),
+    );
+  }
+
+  /**
+   * Enqueue an immediate sync run. The same BullMQ queue + job name as the
+   * daily 03:30 UTC cron — the worker processor picks this up alongside the
+   * scheduled jobs.
+   */
+  async enqueueSync(actorUserId: string): Promise<{ jobId: string }> {
+    if (!this.syncQueue) {
+      throw new BadRequestException('HEMA Ratings sync queue is not available');
+    }
+    const job = await this.syncQueue.add(
+      HEMA_RATINGS_SYNC_JOB,
+      { triggeredBy: actorUserId, triggeredAt: new Date().toISOString() },
+      { removeOnComplete: 10, removeOnFail: 10 },
+    );
+    return { jobId: String(job.id ?? '') };
+  }
+
+  /**
+   * Re-fetch a single fighter's profile from hemaratings.com and patch the
+   * latest snapshot in place. Lets operators see fresh data for one fighter
+   * without waiting for (or kicking off) a full ~30k-row sync.
+   *
+   * Mutating the latest snapshot is the simplest carrier — the next full sync
+   * will overwrite the row anyway, and the JSONB patch is small.
+   */
+  async refreshSingleFighter(globalPersonId: string): Promise<{
+    hemaRatingsId: string;
+    ratings: HemaRatingsRow[];
+  }> {
+    const { data: person, error: personErr } = await this.supabase.service
+      .from('global_persons')
+      .select('id, hema_ratings_id')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (personErr) throw new BadRequestException(personErr.message);
+    if (!person) throw new NotFoundException(`Global person ${globalPersonId} not found`);
+    const hemaRatingsId = (person as { hema_ratings_id: string | null }).hema_ratings_id;
+    if (!hemaRatingsId) {
+      throw new BadRequestException(
+        `Global person ${globalPersonId} has no hema_ratings_id — nothing to refresh`,
+      );
+    }
+
+    const profile = await fetchHemaRatingsProfile(hemaRatingsId);
+
+    // Patch the latest snapshot. If no snapshot exists yet we silently skip
+    // the persistence step — the operator still gets the fresh profile back
+    // for the UI, and the next full sync will write it properly.
+    const { data: latest } = await this.supabase.service
+      .from('hema_ratings_snapshots')
+      .select('id, fighters')
+      .order('synced_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest) {
+      const row = latest as { id: string; fighters?: unknown };
+      const fighters = ((row.fighters ?? []) as SnapshotFighter[]) ?? [];
+      const idx = fighters.findIndex((f) => String(f.id) === hemaRatingsId);
+      const enriched: SnapshotFighter = {
+        id: parseInt(hemaRatingsId, 10),
+        name: profile.name,
+        club: profile.club,
+        nationality: profile.nationality,
+        detailsUrl: profile.detailsUrl,
+        ratings: profile.ratings,
+      };
+      const nextFighters =
+        idx >= 0
+          ? [...fighters.slice(0, idx), enriched, ...fighters.slice(idx + 1)]
+          : [...fighters, enriched];
+      await this.supabase.service
+        .from('hema_ratings_snapshots')
+        .update({ fighters: nextFighters as unknown as Record<string, unknown>[] })
+        .eq('id', row.id);
+    }
+
+    return { hemaRatingsId, ratings: profile.ratings };
+  }
+
+  /**
+   * Synchronously probe hemaratings.com so the admin page can flag upstream
+   * outages. Single GET with a short timeout — body discarded.
+   */
+  async checkHealth(): Promise<HemaRatingsHealthResult> {
+    const startedAt = Date.now();
+    try {
+      const response = await fetch(HEMA_RATINGS_INDEX_URL, {
+        method: 'HEAD',
+        headers: { 'User-Agent': HEMA_RATINGS_USER_AGENT },
+        signal: AbortSignal.timeout(5_000),
+      });
+      return {
+        ok: response.ok,
+        status: response.status,
+        latencyMs: Date.now() - startedAt,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        status: null,
+        latencyMs: Date.now() - startedAt,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 
   private async latestSnapshot(): Promise<{ fighters: SnapshotFighter[]; syncedAt: string }> {
