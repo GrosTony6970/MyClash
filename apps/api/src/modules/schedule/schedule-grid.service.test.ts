@@ -9,14 +9,41 @@ function makeChain(result: unknown) {
   const chain = Object.assign(promise, {
     select: vi.fn(),
     eq: vi.fn(),
+    in: vi.fn(),
     order: vi.fn(),
   });
-
-  for (const key of ['select', 'eq', 'order']) {
+  for (const key of ['select', 'eq', 'in', 'order']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
-
   return chain;
+}
+
+/**
+ * Sets up the supabase `from()` mock for the 4 sequential table fetches the
+ * service performs: tournaments → phases → matches → registrations → persons.
+ * Pass `registrations: null` to skip the registrations/persons round-trip
+ * (used when all matches have null registration IDs).
+ */
+function queueTables(opts: {
+  tournaments: unknown;
+  phases?: unknown;
+  matches?: unknown;
+  registrations?: unknown;
+  persons?: unknown;
+}) {
+  fromMock.mockReturnValueOnce(makeChain({ data: opts.tournaments, error: null }));
+  if (opts.phases !== undefined) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.phases, error: null }));
+  }
+  if (opts.matches !== undefined) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.matches, error: null }));
+  }
+  if (opts.registrations !== undefined) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.registrations, error: null }));
+  }
+  if (opts.persons !== undefined) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.persons, error: null }));
+  }
 }
 
 describe('ScheduleGridService', () => {
@@ -27,47 +54,97 @@ describe('ScheduleGridService', () => {
     service = new ScheduleGridService(mockSupabase as never);
   });
 
-  it('returns matches for the admin schedule grid', async () => {
-    fromMock.mockReturnValueOnce(
-      makeChain({
-        data: [
-          {
-            id: 'match-1',
-            match_number_label: 'P1-M1',
-            status: 'scheduled',
-            lice_id: 'lice-1',
-            scheduled_at: '2026-05-21T10:00:00.000Z',
-            red_registration_id: 'red-reg',
-            blue_registration_id: 'blue-reg',
-            red: { persons: { display_name: 'Red Fighter' } },
-            blue: { persons: { display_name: 'Blue Fighter' } },
-            phases: { tournaments: { name: 'Longsword Open' } },
-          },
-        ],
-        error: null,
-      }),
-    );
+  it('returns matches across pool + bracket phases for the event', async () => {
+    queueTables({
+      tournaments: [
+        { id: 't1', name: 'Longsword Open' },
+        { id: 't2', name: 'Saber Cup' },
+      ],
+      phases: [
+        { id: 'ph-pool', type: 'pool', tournament_id: 't1' },
+        { id: 'ph-bracket', type: 'single_elim', tournament_id: 't1' },
+        { id: 'ph-pool-2', type: 'pool', tournament_id: 't2' },
+      ],
+      matches: [
+        {
+          id: 'match-pool',
+          match_number_label: 'P1-M1',
+          status: 'scheduled',
+          lice_id: 'lice-1',
+          scheduled_at: '2026-05-30T10:00:00.000Z',
+          phase_id: 'ph-pool',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+        },
+        {
+          id: 'match-bracket',
+          match_number_label: 'QF-1',
+          status: 'scheduled',
+          lice_id: 'lice-2',
+          scheduled_at: '2026-05-30T14:00:00.000Z',
+          phase_id: 'ph-bracket',
+          red_registration_id: null,
+          blue_registration_id: null,
+        },
+      ],
+      registrations: [
+        { id: 'reg-red', person_id: 'p-red' },
+        { id: 'reg-blue', person_id: 'p-blue' },
+      ],
+      persons: [
+        { id: 'p-red', display_name: 'Red Fighter', given_name: 'Red', family_name: 'Fighter' },
+        { id: 'p-blue', display_name: 'Blue Fighter', given_name: 'Blue', family_name: 'Fighter' },
+      ],
+    });
 
-    await expect(service.listEventSchedule('event-1')).resolves.toEqual([
-      {
-        id: 'match-1',
-        matchNumberLabel: 'P1-M1',
-        status: 'scheduled',
-        liceId: 'lice-1',
-        scheduledAt: '2026-05-21T10:00:00.000Z',
-        redFighterName: 'Red Fighter',
-        blueFighterName: 'Blue Fighter',
-        redRegistrationId: 'red-reg',
-        blueRegistrationId: 'blue-reg',
-        tournamentName: 'Longsword Open',
-        durationMinutes: 5,
-      },
-    ]);
+    const result = await service.listEventSchedule('event-1');
+    expect(result).toHaveLength(2);
+    const pool = result.find((m) => m.id === 'match-pool')!;
+    const bracket = result.find((m) => m.id === 'match-bracket')!;
+    expect(pool.tournamentName).toBe('Longsword Open');
+    expect(pool.phaseType).toBe('pool');
+    expect(pool.redFighterName).toBe('Red Fighter');
+    expect(bracket.phaseType).toBe('single_elim');
+    expect(bracket.tournamentName).toBe('Longsword Open');
+    // Bracket round 2+ matches have null registrations until the bracket advances.
+    expect(bracket.redFighterName).toBeNull();
   });
 
-  it('returns an empty list for events without generated matches', async () => {
-    fromMock.mockReturnValueOnce(makeChain({ data: [], error: null }));
+  it('returns matches with null scheduled_at so the unscheduled sidebar can render them', async () => {
+    queueTables({
+      tournaments: [{ id: 't1', name: 'Cup' }],
+      phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1' }],
+      matches: [
+        {
+          id: 'match-1',
+          match_number_label: 'P1-M1',
+          status: 'scheduled',
+          lice_id: null,
+          scheduled_at: null,
+          phase_id: 'ph-pool',
+          red_registration_id: null,
+          blue_registration_id: null,
+        },
+      ],
+    });
 
+    const result = await service.listEventSchedule('event-1');
+    expect(result).toHaveLength(1);
+    expect(result[0]!.scheduledAt).toBeNull();
+    expect(result[0]!.liceId).toBeNull();
+  });
+
+  it('returns an empty list when the event has no tournaments', async () => {
+    queueTables({ tournaments: [] });
+    await expect(service.listEventSchedule('event-1')).resolves.toEqual([]);
+  });
+
+  it('returns an empty list when phases exist but no matches do', async () => {
+    queueTables({
+      tournaments: [{ id: 't1', name: 'Cup' }],
+      phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1' }],
+      matches: [],
+    });
     await expect(service.listEventSchedule('event-1')).resolves.toEqual([]);
   });
 });

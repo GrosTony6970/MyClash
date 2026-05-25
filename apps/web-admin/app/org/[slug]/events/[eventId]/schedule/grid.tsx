@@ -2,7 +2,7 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Lice {
   id: string;
@@ -22,6 +22,7 @@ interface ScheduleMatch {
   blueRegistrationId: string;
   tournamentName: string | null;
   durationMinutes: number;
+  phaseType: string | null;
 }
 
 interface Conflict {
@@ -36,8 +37,8 @@ const GRID_START_HOUR = 8;
 const GRID_END_HOUR = 20;
 const TOTAL_SLOTS = ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
 const SLOT_HEIGHT_PX = 16;
-const LICE_COL_WIDTH_PX = 120;
 const TIME_LABEL_COL_PX = 64;
+const MIN_LICE_COL_PX = 140;
 
 function minutesToSlot(minutes: number): number {
   return Math.floor(minutes / SLOT_MINUTES);
@@ -64,6 +65,39 @@ function formatSlotTime(slot: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/**
+ * Return every ISO date (YYYY-MM-DD) between start and end inclusive.
+ * Falls back to [start] when end is missing or earlier than start.
+ */
+function eachDay(start: string, end: string | null | undefined): string[] {
+  if (!start) return [];
+  if (!end || end < start) return [start];
+  const days: string[] = [];
+  const startDate = new Date(`${start}T00:00:00Z`);
+  const endDate = new Date(`${end}T00:00:00Z`);
+  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days.length > 0 ? days : [start];
+}
+
+/** Day-of-week + DD MMM, French locale (the rest of the admin app is FR-leaning). */
+function formatDayLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+/** True when `scheduledAtIso` falls on the same calendar day (UTC) as `dayIso`. */
+function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boolean {
+  if (!scheduledAtIso) return false;
+  return scheduledAtIso.slice(0, 10) === dayIso;
+}
+
 function detectConflicts(matches: ScheduleMatch[]): Conflict[] {
   const conflicts: Conflict[] = [];
   const scheduled = matches.filter((m) => m.scheduledAt && m.liceId);
@@ -72,8 +106,8 @@ function detectConflicts(matches: ScheduleMatch[]): Conflict[] {
     for (let j = i + 1; j < scheduled.length; j++) {
       const a = scheduled[i]!;
       const b = scheduled[j]!;
-      const aFighters = [a.redRegistrationId, a.blueRegistrationId];
-      const bFighters = [b.redRegistrationId, b.blueRegistrationId];
+      const aFighters = [a.redRegistrationId, a.blueRegistrationId].filter(Boolean);
+      const bFighters = [b.redRegistrationId, b.blueRegistrationId].filter(Boolean);
       const shared = aFighters.filter((f) => bFighters.includes(f));
       if (shared.length === 0) continue;
       const aStart = new Date(a.scheduledAt!).getTime();
@@ -104,7 +138,8 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
 
   const [lices, setLices] = useState<Lice[]>([]);
   const [matches, setMatches] = useState<ScheduleMatch[]>([]);
-  const [baseDate, setBaseDate] = useState<string>('');
+  const [days, setDays] = useState<string[]>([]);
+  const [activeDay, setActiveDay] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
@@ -139,8 +174,13 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
           setConflicts(detectConflicts(m));
         }
         if (eventRes.ok) {
-          const ev = (await eventRes.json()) as { startDate: string };
-          setBaseDate(ev.startDate);
+          const ev = (await eventRes.json()) as {
+            startDate: string;
+            endDate?: string | null;
+          };
+          const eventDays = eachDay(ev.startDate, ev.endDate ?? null);
+          setDays(eventDays);
+          if (eventDays[0]) setActiveDay(eventDays[0]);
         }
       })
       .catch((err: unknown) => {
@@ -166,8 +206,8 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
 
   function handleDrop(liceId: string, slot: number) {
     const match = dragMatch.current;
-    if (!match || !baseDate) return;
-    const newScheduledAt = slotToTime(slot, baseDate);
+    if (!match || !activeDay) return;
+    const newScheduledAt = slotToTime(slot, activeDay);
     const updated = matches.map((m) =>
       m.id === match.id ? { ...m, liceId, scheduledAt: newScheduledAt } : m,
     );
@@ -177,8 +217,14 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     dragMatch.current = null;
   }
 
-  const unscheduled = matches.filter((m) => !m.scheduledAt || !m.liceId);
-  const scheduled = matches.filter((m) => m.scheduledAt && m.liceId);
+  const unscheduled = useMemo(() => matches.filter((m) => !m.scheduledAt || !m.liceId), [matches]);
+  const scheduledOnActiveDay = useMemo(
+    () =>
+      matches.filter(
+        (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay),
+      ),
+    [matches, activeDay],
+  );
 
   if (loading) {
     return (
@@ -189,15 +235,28 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   }
 
   return (
-    <div>
-      {baseDate && (
-        <div className="flex justify-end mb-4">
-          <input
-            type="date"
-            value={baseDate}
-            onChange={(e) => setBaseDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          />
+    <div className="w-full">
+      {/* Day tabs — one per event day. Tabs hide when the event spans a single day. */}
+      {days.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {days.map((day, idx) => {
+            const active = day === activeDay;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => setActiveDay(day)}
+                className={[
+                  'rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors',
+                  active
+                    ? 'border-red-700 bg-red-700 text-white'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400',
+                ].join(' ')}
+              >
+                Jour {idx + 1} · {formatDayLabel(day)}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -217,14 +276,14 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
         </div>
       )}
 
-      <div className="flex gap-6">
-        {/* Unscheduled sidebar */}
-        <div className="w-48 flex-shrink-0">
+      <div className="flex flex-col gap-6 lg:flex-row">
+        {/* Unscheduled sidebar — global across all days. */}
+        <div className="w-full lg:w-56 lg:flex-shrink-0">
           <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
             Unscheduled ({unscheduled.length})
           </h2>
           <div
-            className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2"
+            className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2 max-h-[60vh] overflow-y-auto"
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
               const match = dragMatch.current;
@@ -238,28 +297,36 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
               dragMatch.current = null;
             }}
           >
-            {unscheduled.map((m) => (
-              <MatchChip
-                key={m.id}
-                match={m}
-                saving={saving === m.id}
-                onDragStart={() => {
-                  dragMatch.current = m;
-                }}
-              />
-            ))}
+            {unscheduled.length === 0 ? (
+              <p className="px-1 py-2 text-xs italic text-gray-400">
+                All matches placed on the grid.
+              </p>
+            ) : (
+              unscheduled.map((m) => (
+                <MatchChip
+                  key={m.id}
+                  match={m}
+                  saving={saving === m.id}
+                  onDragStart={() => {
+                    dragMatch.current = m;
+                  }}
+                />
+              ))
+            )}
           </div>
         </div>
 
-        {/* Day grid — lice as columns, time as rows */}
-        <div className="flex-1 overflow-auto">
+        {/* Day grid — lice as columns, time as rows. Columns flex to fill the canvas. */}
+        <div className="flex-1 min-w-0 overflow-x-auto">
           {lices.length === 0 ? (
             <p className="text-gray-400 text-sm">No Lices configured for this event.</p>
+          ) : !activeDay ? (
+            <p className="text-gray-400 text-sm">No event date available.</p>
           ) : (
             <div
-              className="relative grid"
+              className="relative grid w-full"
               style={{
-                gridTemplateColumns: `${TIME_LABEL_COL_PX}px repeat(${lices.length}, ${LICE_COL_WIDTH_PX}px)`,
+                gridTemplateColumns: `${TIME_LABEL_COL_PX}px repeat(${lices.length}, minmax(${MIN_LICE_COL_PX}px, 1fr))`,
                 gridAutoRows: `${SLOT_HEIGHT_PX}px`,
               }}
             >
@@ -303,15 +370,16 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                 </Fragment>
               ))}
 
-              {/* Scheduled match cards — positioned by gridColumn + gridRow with row-span */}
-              {scheduled.map((m) => {
+              {/* Scheduled match cards on the active day — positioned by grid cell. */}
+              {scheduledOnActiveDay.map((m) => {
                 const liceIndex = lices.findIndex((l) => l.id === m.liceId);
-                if (liceIndex === -1 || !baseDate) return null;
-                const slot = isoToSlot(m.scheduledAt!, baseDate);
+                if (liceIndex === -1) return null;
+                const slot = isoToSlot(m.scheduledAt!, activeDay);
                 const span = Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES));
                 const hasConflict = conflicts.some(
                   (c) => c.matchA === m.matchNumberLabel || c.matchB === m.matchNumberLabel,
                 );
+                const isBracket = m.phaseType !== null && m.phaseType !== 'pool';
                 return (
                   <div
                     key={m.id}
@@ -323,7 +391,9 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                       'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10',
                       hasConflict
                         ? 'bg-red-200 border border-red-400 text-red-800'
-                        : 'bg-blue-100 border border-blue-300 text-blue-800',
+                        : isBracket
+                          ? 'bg-amber-100 border border-amber-300 text-amber-800'
+                          : 'bg-blue-100 border border-blue-300 text-blue-800',
                       saving === m.id ? 'opacity-50' : '',
                     ].join(' ')}
                     style={{
@@ -331,7 +401,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                       gridRow: `${slot + 2} / span ${span}`, // +1 for header row, +1 for 1-based
                       margin: '1px',
                     }}
-                    title={`${m.matchNumberLabel}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
+                    title={`${m.matchNumberLabel}${m.tournamentName ? ` · ${m.tournamentName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
                   >
                     <span className="truncate">{m.matchNumberLabel}</span>
                   </div>
@@ -354,16 +424,25 @@ function MatchChip({
   saving: boolean;
   onDragStart: () => void;
 }) {
+  const isBracket = match.phaseType !== null && match.phaseType !== 'pool';
   return (
     <div
       draggable
       onDragStart={onDragStart}
       className={[
-        'border border-gray-300 rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-white hover:border-gray-400 transition-colors',
+        'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-white hover:border-gray-400 transition-colors',
+        isBracket ? 'border-amber-300' : 'border-gray-300',
         saving ? 'opacity-50' : '',
       ].join(' ')}
     >
-      <p className="font-medium text-gray-900 truncate">{match.matchNumberLabel}</p>
+      <div className="flex items-center gap-1">
+        <p className="flex-1 font-medium text-gray-900 truncate">{match.matchNumberLabel}</p>
+        {isBracket && (
+          <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] text-amber-800">
+            Bracket
+          </span>
+        )}
+      </div>
       <p className="text-gray-400 truncate">
         {match.redFighterName ?? '?'} vs {match.blueFighterName ?? '?'}
       </p>
