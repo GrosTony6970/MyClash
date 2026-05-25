@@ -273,15 +273,18 @@ export class FightersService {
 
   async getMyDashboard(userId: string) {
     const profile = await this.getMyProfile(userId);
+    const personId = String((profile as Row)['id']);
     return {
       profile,
-      career: await this.getCareerForFighter(String((profile as Row)['id'])),
-      refereeStats: await this.getRefereeStatsForUser(userId, true),
+      career: await this.getCareerForFighter(personId),
+      refereeStats: await this.getRefereeStatsForPerson(personId, true),
     };
   }
 
   async getMyRefereeStats(userId: string) {
-    return this.getRefereeStatsForUser(userId, true);
+    const profile = await this.getMyProfile(userId);
+    const personId = String((profile as Row)['id']);
+    return this.getRefereeStatsForPerson(personId, true);
   }
 
   async listMatchesPaginated(
@@ -451,9 +454,9 @@ export class FightersService {
   }
 
   async getRefereeStatsBySlug(slug: string) {
-    const userId = await this.resolveRefereeUserIdForFighterSlug(slug);
-    return userId
-      ? this.getRefereeStatsForUser(userId, false)
+    const personId = await this.resolveRefereePersonIdForFighterSlug(slug);
+    return personId
+      ? this.getRefereeStatsForPerson(personId, false)
       : buildRefereeStats({
           userId: '',
           assignments: [],
@@ -807,39 +810,29 @@ export class FightersService {
     });
   }
 
-  private async resolveRefereeUserIdForFighterSlug(slug: string): Promise<string | null> {
+  private async resolveRefereePersonIdForFighterSlug(slug: string): Promise<string | null> {
     const { data, error } = await this.supabase.service
       .from('global_persons')
-      .select('id, claimed_by_user_id')
+      .select('id')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Fighter "${slug}" not found`);
-    const row = data as Row;
-    if (row['claimed_by_user_id']) return String(row['claimed_by_user_id']);
-
-    const { data: person } = await this.supabase.service
-      .from('persons')
-      .select('claimed_by_user_id')
-      .eq('global_person_id', String(row['id']))
-      .not('claimed_by_user_id', 'is', null)
-      .limit(1)
-      .maybeSingle();
-    return person ? String((person as Row)['claimed_by_user_id']) : null;
+    return String((data as Row)['id']);
   }
 
-  private async getRefereeStatsForUser(userId: string, includePrivateDetails: boolean) {
-    const assignments = await this.fetchRefereeAssignments(userId);
+  private async getRefereeStatsForPerson(personId: string, includePrivateDetails: boolean) {
+    const assignments = await this.fetchRefereeAssignmentsByPerson(personId);
     const matchIds = [...new Set(assignments.map((assignment) => assignment.matchId))];
     if (matchIds.length === 0) {
-      return buildRefereeStats({ userId, assignments: [], durations: [], penalties: [] });
+      return buildRefereeStats({ userId: personId, assignments: [], durations: [], penalties: [] });
     }
 
     const allAssignments = await this.fetchAssignmentsForMatches(matchIds);
     const durations = await this.fetchRefereeMatchDurations(matchIds);
     const penalties = await this.fetchRefereePenalties(matchIds);
     const buddyIds = [...new Set(allAssignments.map((assignment) => assignment.userId))].filter(
-      (id) => id !== userId,
+      (id) => id !== personId,
     );
     const buddiesByUserId = await this.fetchRefereeBuddyNames(buddyIds);
     const skillsByRole = includePrivateDetails
@@ -847,7 +840,7 @@ export class FightersService {
       : undefined;
 
     return buildRefereeStats({
-      userId,
+      userId: personId,
       assignments: allAssignments,
       durations,
       penalties,
@@ -880,13 +873,15 @@ export class FightersService {
     return map;
   }
 
-  private async fetchRefereeAssignments(userId: string): Promise<RefereeAssignmentInput[]> {
+  private async fetchRefereeAssignmentsByPerson(
+    personId: string,
+  ): Promise<RefereeAssignmentInput[]> {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, user_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
       )
-      .eq('user_id', userId)
+      .eq('person_id', personId)
       .eq('scope_type', 'match')
       .not('match_id', 'is', null);
     if (error) throw new BadRequestException(error.message);
@@ -897,7 +892,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, user_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, phases(tournaments(name, weapon, events(name))))',
       )
       .in('match_id', matchIds)
       .eq('scope_type', 'match');
@@ -905,6 +900,12 @@ export class FightersService {
     return this.mapRefereeAssignments(data ?? []);
   }
 
+  /**
+   * Maps a referee_assignments row to a stats-engine input. The engine's
+   * `userId` field is now populated with person_id (= global_persons.id)
+   * for dedup/aggregation purposes — referee identity is no longer keyed
+   * on Supabase auth.
+   */
   private mapRefereeAssignments(rows: unknown[]): RefereeAssignmentInput[] {
     return (rows as Row[])
       .map((row) => {
@@ -915,7 +916,7 @@ export class FightersService {
         const event = tournament?.['events'] as Row | null;
         const assignment: RefereeAssignmentInput = {
           matchId: String(row['match_id']),
-          userId: String(row['user_id']),
+          userId: String(row['person_id']),
           role: (row['role'] as string | null) ?? null,
           eventName: (event?.['name'] as string | null) ?? null,
           tournamentName: (tournament?.['name'] as string | null) ?? null,
@@ -966,20 +967,22 @@ export class FightersService {
   }
 
   private async fetchRefereeBuddyNames(
-    userIds: string[],
+    personIds: string[],
   ): Promise<Record<string, { userId: string; displayName: string | null }>> {
-    if (userIds.length === 0) return {};
+    if (personIds.length === 0) return {};
+    // Post-0063: referee identity is global_persons.id. Resolve display
+    // names directly from the global table — works for both claimed and
+    // unclaimed referees uniformly.
     const { data } = await this.supabase.service
-      .from('persons')
-      .select('claimed_by_user_id, given_name, family_name')
-      .in('claimed_by_user_id', userIds);
+      .from('global_persons')
+      .select('id, given_name, family_name')
+      .in('id', personIds);
     const result: Record<string, { userId: string; displayName: string | null }> = {};
-    for (const userId of userIds) result[userId] = { userId, displayName: null };
+    for (const personId of personIds) result[personId] = { userId: personId, displayName: null };
     for (const row of (data ?? []) as Row[]) {
-      const userId = String(row['claimed_by_user_id']);
-      if (result[userId]?.displayName) continue;
-      result[userId] = {
-        userId,
+      const id = String(row['id']);
+      result[id] = {
+        userId: id,
         displayName:
           `${String(row['given_name'] ?? '')} ${String(row['family_name'] ?? '')}`.trim(),
       };

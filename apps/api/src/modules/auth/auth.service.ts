@@ -475,12 +475,22 @@ export class AuthService {
 
   private async fetchRefereeAssignments(userId: string): Promise<Record<string, unknown>[]> {
     try {
+      // Post-0063: referee_assignments keys on person_id. Resolve the
+      // caller's JWT user_id → global_persons.id once, then query.
+      const { data: gp } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .eq('claimed_by_user_id', userId)
+        .maybeSingle();
+      const personId = (gp as { id: string } | null)?.id;
+      if (!personId) return [];
+
       const { data, error } = await this.supabase.service
         .from('referee_assignments')
         .select(
           'id, event_id, role, created_at, events(id, slug, name), matches(id, phase_id, status, scheduled_at, ended_at)',
         )
-        .eq('user_id', userId)
+        .eq('person_id', personId)
         .order('created_at', { ascending: false });
 
       if (error) return [];
@@ -548,56 +558,25 @@ export class AuthService {
   }
 
   private async completeClaim(userId: string, personId: string): Promise<void> {
-    let globalPersonId: string | null = null;
     try {
-      const { data: row } = await this.supabase.service
+      await this.supabase.service
         .from('persons')
         .update({
           claim_status: 'claimed',
           claimed_by_user_id: userId,
         })
-        .eq('id', personId)
-        .select('global_person_id')
-        .maybeSingle();
-      globalPersonId =
-        (row as { global_person_id: string | null } | null)?.global_person_id ?? null;
+        .eq('id', personId);
     } catch {
-      // Table not yet created — skip
       this.logger.warn(
         `Could not update claim_status for person ${personId} — persons table not yet created`,
       );
-      return;
     }
 
-    // R6: back-fill any person_id-keyed referee rows (event_referees,
-    // referee_qualifications, referee_assignments) onto the now-claimed
-    // user_id so the unclaimed → claimed transition is seamless. Mirrors
-    // QualificationsService.backfillRefereeIdentity — kept inline to avoid
-    // pulling RefereesModule into AuthModule.
-    if (globalPersonId) {
-      try {
-        const now = new Date().toISOString();
-        await Promise.all([
-          this.supabase.service
-            .from('event_referees')
-            .update({ user_id: userId, person_id: null, updated_at: now })
-            .eq('person_id', globalPersonId),
-          this.supabase.service
-            .from('referee_qualifications')
-            .update({ user_id: userId, person_id: null, updated_at: now })
-            .eq('person_id', globalPersonId),
-          this.supabase.service
-            .from('referee_assignments')
-            .update({ user_id: userId, person_id: null })
-            .eq('person_id', globalPersonId),
-        ]);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.warn(
-          `Referee identity back-fill failed for global_person ${globalPersonId}: ${message}`,
-        );
-      }
-    }
+    // Post-0063: no referee-identity back-fill is needed. Referee tables
+    // key on person_id (= global_persons.id), which is stable across the
+    // unclaimed → claimed transition. Notification dispatch + "my schedule"
+    // resolve the JWT user_id → person_id at request time via
+    // global_persons.claimed_by_user_id.
   }
 
   private async hasAdminAccess(userId: string): Promise<boolean> {

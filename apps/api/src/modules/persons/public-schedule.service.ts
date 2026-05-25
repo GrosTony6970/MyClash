@@ -139,6 +139,18 @@ export class PublicScheduleService {
   }
 
   private async fetchRefereeSlots(eventId: string, personId: string): Promise<RefereeSlot[]> {
+    // Post-0063: referee_assignments keys on global_persons.id, but this
+    // controller takes the event-scoped persons.id. Resolve via
+    // persons.global_person_id; absent link → no referee slots.
+    const { data: personLink } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    const globalPersonId =
+      (personLink as { global_person_id: string | null } | null)?.global_person_id ?? null;
+    if (!globalPersonId) return [];
+
     const { data } = await this.supabase.service
       .from('referee_assignments')
       .select(
@@ -151,7 +163,7 @@ export class PublicScheduleService {
         )
       `,
       )
-      .eq('person_id', personId)
+      .eq('person_id', globalPersonId)
       .eq('event_id', eventId);
 
     if (!data) return [];

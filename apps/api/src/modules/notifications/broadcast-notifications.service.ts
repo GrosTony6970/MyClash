@@ -281,6 +281,10 @@ export class BroadcastNotificationsService {
     eventId: string,
     tournamentId?: string,
   ): Promise<PersonRecipient[]> {
+    // Post-0063: referee_* tables key on person_id (= global_persons.id).
+    // Recipients are still event-scoped persons rows (carry the email +
+    // userId), so we resolve global_persons.id → persons row via
+    // persons.global_person_id.
     if (tournamentId) {
       await this.getTournamentIds(eventId, tournamentId);
       const { data: phases, error: phasesError } = await this.supabase.service
@@ -303,14 +307,14 @@ export class BroadcastNotificationsService {
 
       const { data: assignments, error } = await this.supabase.service
         .from('referee_assignments')
-        .select('user_id, pool_id, match_id')
+        .select('person_id, pool_id, match_id')
         .eq('event_id', eventId);
       if (error) throw new BadRequestException(error.message);
-      const userIds = Array.from(
+      const personIds = Array.from(
         new Set(
           (
             (assignments ?? []) as Array<{
-              user_id: string | null;
+              person_id: string | null;
               pool_id: string | null;
               match_id: string | null;
             }>
@@ -320,51 +324,97 @@ export class BroadcastNotificationsService {
                 (row.pool_id && poolIds.has(row.pool_id)) ||
                 (row.match_id && matchIds.has(row.match_id)),
             )
-            .map((row) => row.user_id)
+            .map((row) => row.person_id)
             .filter((id): id is string => Boolean(id)),
         ),
       );
-      if (userIds.length === 0) return [];
-      const { data: persons, error: personsError } = await this.supabase.service
-        .from('persons')
-        .select('id, claimed_by_user_id, email')
-        .eq('event_id', eventId)
-        .in('claimed_by_user_id', userIds);
-      if (personsError) throw new BadRequestException(personsError.message);
-      return this.mapPersons(persons ?? []);
+      if (personIds.length === 0) return [];
+      return this.resolveRefereeRecipients(eventId, personIds);
     }
 
     const [{ data: qualifications, error: qualificationError }, { data: assignments, error }] =
       await Promise.all([
         this.supabase.service
           .from('referee_qualifications')
-          .select('user_id')
+          .select('person_id')
           .eq('event_id', eventId)
           .eq('active', true),
-        this.supabase.service.from('referee_assignments').select('user_id').eq('event_id', eventId),
+        this.supabase.service
+          .from('referee_assignments')
+          .select('person_id')
+          .eq('event_id', eventId),
       ]);
     if (qualificationError) throw new BadRequestException(qualificationError.message);
     if (error) throw new BadRequestException(error.message);
 
-    const userIds = Array.from(
+    const personIds = Array.from(
       new Set(
         [
-          ...((qualifications ?? []) as Array<{ user_id: string | null }>),
-          ...((assignments ?? []) as Array<{ user_id: string | null }>),
+          ...((qualifications ?? []) as Array<{ person_id: string | null }>),
+          ...((assignments ?? []) as Array<{ person_id: string | null }>),
         ]
-          .map((row) => row.user_id)
+          .map((row) => row.person_id)
           .filter((id): id is string => Boolean(id)),
       ),
     );
-    if (userIds.length === 0) return [];
+    if (personIds.length === 0) return [];
+    return this.resolveRefereeRecipients(eventId, personIds);
+  }
+
+  /**
+   * Resolve a list of global_persons.id (post-0063 referee identity) to
+   * `PersonRecipient`s with email addresses. Picks the event-scoped
+   * `persons` row when one exists (it carries the per-event email +
+   * claimed_by_user_id); falls back to global_persons for unclaimed
+   * referees who don't have an event-scoped row yet.
+   */
+  private async resolveRefereeRecipients(
+    eventId: string,
+    personIds: string[],
+  ): Promise<PersonRecipient[]> {
+    if (personIds.length === 0) return [];
 
     const { data: persons, error: personsError } = await this.supabase.service
       .from('persons')
-      .select('id, claimed_by_user_id, email')
+      .select('id, global_person_id, claimed_by_user_id, email')
       .eq('event_id', eventId)
-      .in('claimed_by_user_id', userIds);
+      .in('global_person_id', personIds);
     if (personsError) throw new BadRequestException(personsError.message);
-    return this.mapPersons(persons ?? []);
+
+    const personsByGlobal = new Map<string, PersonRecipient>();
+    for (const row of (persons ?? []) as Array<{
+      id: string;
+      global_person_id: string | null;
+      claimed_by_user_id: string | null;
+      email: string | null;
+    }>) {
+      if (!row.global_person_id) continue;
+      personsByGlobal.set(row.global_person_id, {
+        personId: row.id,
+        userId: row.claimed_by_user_id ?? null,
+        email: row.email ?? null,
+      });
+    }
+
+    const missing = personIds.filter((id) => !personsByGlobal.has(id));
+    if (missing.length > 0) {
+      const { data: gpRows } = await this.supabase.service
+        .from('global_persons')
+        .select('id, claimed_by_user_id')
+        .in('id', missing);
+      for (const gp of (gpRows ?? []) as Array<{
+        id: string;
+        claimed_by_user_id: string | null;
+      }>) {
+        personsByGlobal.set(gp.id, {
+          personId: gp.id,
+          userId: gp.claimed_by_user_id ?? null,
+          email: null,
+        });
+      }
+    }
+
+    return Array.from(personsByGlobal.values());
   }
 
   private mapPersons(rows: unknown[]): PersonRecipient[] {

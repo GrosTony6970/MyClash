@@ -58,6 +58,26 @@ export class PersonsService {
     return this.mapPerson(data as Record<string, unknown>);
   }
 
+  // ── Identity resolver ───────────────────────────────────────────────────────
+
+  /**
+   * Resolve a Supabase auth user_id to the matching global_persons.id, or null
+   * if the user has not claimed any global person yet. Used by handlers that
+   * start from a JWT (e.g. /my-schedule, fetchRefereeAssignments, notification
+   * dispatch) to look up the canonical referee identity once per request.
+   *
+   * Backed by the partial UNIQUE index on global_persons.claimed_by_user_id
+   * (migration 0063), so the lookup is deterministic.
+   */
+  async resolvePersonIdFromUserId(userId: string): Promise<string | null> {
+    const { data } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', userId)
+      .maybeSingle();
+    return (data as { id: string } | null)?.id ?? null;
+  }
+
   // ── Create ──────────────────────────────────────────────────────────────────
 
   async createPerson(

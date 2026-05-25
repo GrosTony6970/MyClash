@@ -129,9 +129,8 @@ export default function ParticipantsPage() {
   const [editOriginalTournaments, setEditOriginalTournaments] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
-  const [refereeUserIds, setRefereeUserIds] = useState<Set<string>>(new Set());
-  // R6: unclaimed persons can be tagged as referees too — their event_referees
-  // row is keyed by person_id (global_persons.id) instead of user_id.
+  // Post-0063: event_referees keys exclusively on person_id (= global_persons.id).
+  // Claimed-vs-unclaimed is purely a display distinction now.
   const [refereePersonIds, setRefereePersonIds] = useState<Set<string>>(new Set());
   type SortKey = 'name' | 'club' | 'claim' | 'tournaments' | 'referee';
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -176,9 +175,8 @@ export default function ParticipantsPage() {
     return () => controller.abort();
   }, [eventId, apiUrl, refreshKey]);
 
-  // Fetch the event's referee list once per refresh to populate the Referee column.
-  // R6: rows may be keyed by user_id (claimed) OR person_id (unclaimed). Track
-  // both in parallel sets so the Referee column lights up either way.
+  // Fetch the event's referee list once per refresh.
+  // Post-0063: every row carries a personId; userId is a derived display field.
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
@@ -188,16 +186,11 @@ export default function ParticipantsPage() {
       .then(async (res) => {
         if (!res.ok) return;
         const rows = (await res.json()) as Array<{
+          personId: string;
           userId: string | null;
-          personId: string | null;
         }>;
-        const users = new Set<string>();
         const persons = new Set<string>();
-        for (const r of rows) {
-          if (r.userId) users.add(r.userId);
-          if (r.personId) persons.add(r.personId);
-        }
-        setRefereeUserIds(users);
+        for (const r of rows) persons.add(r.personId);
         setRefereePersonIds(persons);
       })
       .catch((err: unknown) => {
@@ -297,12 +290,8 @@ export default function ParticipantsPage() {
           return (ac - bc) * dir;
         }
         case 'referee': {
-          const ar =
-            !!(a.claimedByUserId && refereeUserIds.has(a.claimedByUserId)) ||
-            refereePersonIds.has(a.id);
-          const br =
-            !!(b.claimedByUserId && refereeUserIds.has(b.claimedByUserId)) ||
-            refereePersonIds.has(b.id);
+          const ar = refereePersonIds.has(a.id);
+          const br = refereePersonIds.has(b.id);
           return (Number(br) - Number(ar)) * dir; // true first when asc
         }
         default:
@@ -318,7 +307,6 @@ export default function ParticipantsPage() {
     sortKey,
     sortDir,
     registrationsByPersonId,
-    refereeUserIds,
     refereePersonIds,
   ]);
 
@@ -364,14 +352,11 @@ export default function ParticipantsPage() {
       }
       const person = (await personRes.json()) as { id: string; claimedByUserId?: string | null };
 
-      // R6: register as referee, branching on identity.
-      // - Claimed person (has Supabase auth UUID) → POST /referees/:userId
-      // - Unclaimed person (no auth account yet) → POST /referees/by-person/:personId
-      // The unclaimed row will auto-flip to user-keyed when they later claim.
+      // Post-0063: referee registration keys on the person's global_persons.id.
+      // Claimed-vs-unclaimed is irrelevant to the API call; we only surface
+      // the "unclaimed" hint in the success toast for operator clarity.
       if (addForm.isReferee) {
-        const url = person.claimedByUserId
-          ? `${apiUrl}/api/v1/events/${eventId}/referees/${person.claimedByUserId}`
-          : `${apiUrl}/api/v1/events/${eventId}/referees/by-person/${person.id}`;
+        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${person.id}`;
         fetch(url, { method: 'POST', credentials: 'include' })
           .then(async (res) => {
             if (!res.ok) {
@@ -425,9 +410,7 @@ export default function ParticipantsPage() {
 
   function openEdit(p: Person) {
     setEditPerson(p);
-    // R6: referee state may come from either identity (claimed or unclaimed).
-    const currentlyReferee =
-      !!(p.claimedByUserId && refereeUserIds.has(p.claimedByUserId)) || refereePersonIds.has(p.id);
+    const currentlyReferee = refereePersonIds.has(p.id);
     setEditForm({
       givenName: p.givenName,
       familyName: p.familyName,
@@ -517,16 +500,10 @@ export default function ParticipantsPage() {
         toast.success('Profile and tournament assignments updated.');
       }
 
-      // R6: diff referee status, branching on identity. Either path uses the
-      // same POST/DELETE shape; only the URL differs.
-      const claimedUserId = editPerson.claimedByUserId;
-      const wasReferee =
-        !!(claimedUserId && refereeUserIds.has(claimedUserId)) ||
-        refereePersonIds.has(editPerson.id);
+      // Post-0063: referee endpoints key on person_id only.
+      const wasReferee = refereePersonIds.has(editPerson.id);
       if (editForm.isReferee !== wasReferee) {
-        const url = claimedUserId
-          ? `${apiUrl}/api/v1/events/${eventId}/referees/${claimedUserId}`
-          : `${apiUrl}/api/v1/events/${eventId}/referees/by-person/${editPerson.id}`;
+        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${editPerson.id}`;
         const method = editForm.isReferee ? 'POST' : 'DELETE';
         const r = await fetch(url, { method, credentials: 'include' });
         if (!r.ok) {
@@ -983,8 +960,7 @@ export default function ParticipantsPage() {
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      {(p.claimedByUserId && refereeUserIds.has(p.claimedByUserId)) ||
-                      refereePersonIds.has(p.id) ? (
+                      {refereePersonIds.has(p.id) ? (
                         <SkillBadge
                           color="violet"
                           label={

@@ -93,20 +93,25 @@ function queueBoardReads(assignments: unknown[] = []) {
         error: null,
       }),
     )
+    // event_referees — post-0063 keyed on person_id only
     .mockReturnValueOnce(
-      makeChain({ data: [{ user_id: 'user-a' }, { user_id: 'user-b' }], error: null }),
+      makeChain({
+        data: [{ person_id: 'person-ref-a' }, { person_id: 'person-ref-b' }],
+        error: null,
+      }),
     )
     .mockReturnValueOnce(
       makeChain({
         data: [
-          { user_id: 'user-a', role: 'arbitre_declarant', rating: 5 },
-          { user_id: 'user-b', role: 'arbitre_declarant', rating: 4 },
-          { user_id: 'user-b', role: 'arbitre_assesseur', rating: 4 },
-          { user_id: 'user-b', role: 'arbitre_table', rating: 4 },
+          { person_id: 'person-ref-a', role: 'arbitre_declarant', rating: 5 },
+          { person_id: 'person-ref-b', role: 'arbitre_declarant', rating: 4 },
+          { person_id: 'person-ref-b', role: 'arbitre_assesseur', rating: 4 },
+          { person_id: 'person-ref-b', role: 'arbitre_table', rating: 4 },
         ],
         error: null,
       }),
     )
+    // global_persons by id (post-0063: listCandidates does a single id-in lookup)
     .mockReturnValueOnce(
       makeChain({
         data: [
@@ -115,16 +120,14 @@ function queueBoardReads(assignments: unknown[] = []) {
             claimed_by_user_id: 'user-a',
             given_name: 'Fighter',
             family_name: 'Referee',
-            display_name: null,
-            clubs: { name: 'Salle A' },
+            club_id: null,
           },
           {
             id: 'person-ref-b',
             claimed_by_user_id: 'user-b',
             given_name: 'Pure',
             family_name: 'Referee',
-            display_name: null,
-            clubs: { name: 'Salle B' },
+            club_id: null,
           },
         ],
         error: null,
@@ -197,7 +200,7 @@ describe('AssignmentBoardService', () => {
       service.applyManual('event-1', {
         poolId: 'pool-1',
         role: 'arbitre_declarant',
-        userId: 'user-a',
+        personId: 'person-a',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -235,7 +238,7 @@ describe('AssignmentBoardService', () => {
       expect.arrayContaining([
         expect.objectContaining({
           event_id: 'event-1',
-          user_id: 'user-b',
+          person_id: 'person-ref-b',
           scope_type: 'pool',
           pool_id: 'pool-1',
           auto_assigned: true,

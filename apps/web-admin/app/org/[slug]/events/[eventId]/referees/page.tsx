@@ -31,8 +31,12 @@ interface RefereeSkill {
 }
 
 interface EventRefereeRow {
-  userId: string;
-  personId: string | null;
+  /** Post-0063: canonical identity (= global_persons.id). */
+  personId: string;
+  /** Derived from global_persons.claimed_by_user_id — nullable for unclaimed. */
+  userId: string | null;
+  /** True when the person hasn't claimed an account (userId === null). */
+  unclaimed: boolean;
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ skillId: string; rating: number | null }>;
@@ -54,8 +58,10 @@ type RefereeWorkspaceTab = 'referees' | 'qualifications' | 'staffing' | 'assignm
 type AssignmentRole = string;
 
 interface AssignmentBoardCandidate {
-  userId: string;
-  personId: string | null;
+  /** Post-0063: canonical identity (= global_persons.id). */
+  personId: string;
+  /** Derived from global_persons.claimed_by_user_id (display only). */
+  userId: string | null;
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ role: AssignmentRole; rating: number | null }>;
@@ -71,8 +77,9 @@ interface AssignmentBoardRoleSlot {
   role: AssignmentRole;
   assignment: {
     id: string;
-    userId: string;
-    personId: string | null;
+    /** Derived display field; null for unclaimed referees. */
+    userId: string | null;
+    personId: string;
     displayName: string;
     status: string;
     autoAssigned: boolean;
@@ -498,7 +505,7 @@ function CandidateGroup({
         {candidates.map((candidate) => (
           <button
             type="button"
-            key={candidate.userId}
+            key={candidate.personId}
             disabled={disabled}
             onClick={() => onSelect?.(candidate)}
             className="w-full rounded border border-gray-200 px-3 py-2 text-left text-sm hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
@@ -588,7 +595,7 @@ function AssignmentsTab({
     }
   }
 
-  async function manualAssign(poolId: string, role: AssignmentRole, userId: string) {
+  async function manualAssign(poolId: string, role: AssignmentRole, personId: string) {
     setRunning(true);
     setError(null);
     try {
@@ -596,7 +603,7 @@ function AssignmentsTab({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ poolId, role, userId }),
+        body: JSON.stringify({ poolId, role, personId }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -892,14 +899,14 @@ function AssignmentsTab({
                 title={t('organizer.refereesPage.recommendedCandidates')}
                 candidates={picker.slot.candidates.recommended}
                 onSelect={(candidate) =>
-                  void manualAssign(picker.pool.id, picker.slot.role, candidate.userId)
+                  void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
                 }
               />
               <CandidateGroup
                 title={t('organizer.refereesPage.warningCandidates')}
                 candidates={picker.slot.candidates.warning}
                 onSelect={(candidate) =>
-                  void manualAssign(picker.pool.id, picker.slot.role, candidate.userId)
+                  void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
                 }
               />
               <CandidateGroup
@@ -1125,9 +1132,9 @@ export default function RefereesPage() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  async function addReferee(userId: string) {
+  async function addReferee(personId: string) {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${userId}`, {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${personId}`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -1241,13 +1248,13 @@ export default function RefereesPage() {
   }
 
   async function updateAvailability(
-    userId: string,
+    personId: string,
     patch: { availableAllTournaments?: boolean; availableAllEventDuration?: boolean },
   ) {
     // Optimistic update
     setReferees((prev) =>
       prev.map((r) =>
-        r.userId === userId
+        r.personId === personId
           ? {
               ...r,
               availableAllTournaments: patch.availableAllTournaments ?? r.availableAllTournaments,
@@ -1258,12 +1265,15 @@ export default function RefereesPage() {
       ),
     );
 
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${userId}/availability`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(patch),
-    });
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/${eventId}/referees/${personId}/availability`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(patch),
+      },
+    );
 
     if (!res.ok) {
       // Revert
@@ -1582,7 +1592,7 @@ export default function RefereesPage() {
                       short-circuits above and never reaches this table,
                       so the row is no longer reachable. */}
                   {referees.map((ref) => (
-                    <tr key={ref.userId} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={ref.personId} className="border-b border-gray-100 hover:bg-gray-50">
                       {/* Name cell */}
                       <td className="py-3 pr-4 align-top">
                         <p className="font-medium text-gray-900">{ref.displayName}</p>
@@ -1593,7 +1603,7 @@ export default function RefereesPage() {
                           </span>
                         ) : (
                           <div className="mt-1">
-                            {linkingPersonId === ref.userId ? (
+                            {linkingPersonId === ref.personId ? (
                               <div className="flex flex-col gap-1">
                                 <input
                                   type="search"
@@ -1645,7 +1655,7 @@ export default function RefereesPage() {
                               </div>
                             ) : (
                               <button
-                                onClick={() => setLinkingPersonId(ref.userId)}
+                                onClick={() => setLinkingPersonId(ref.personId)}
                                 className="text-xs text-amber-600 hover:text-amber-800"
                               >
                                 {t('organizer.refereesPage.linkGlobalProfile')}
@@ -1722,7 +1732,9 @@ export default function RefereesPage() {
                               checked={ref.availableAllTournaments}
                               disabled={isReadOnly}
                               onChange={(v) =>
-                                void updateAvailability(ref.userId, { availableAllTournaments: v })
+                                void updateAvailability(ref.personId, {
+                                  availableAllTournaments: v,
+                                })
                               }
                             />
                           </div>
@@ -1737,7 +1749,7 @@ export default function RefereesPage() {
                               checked={ref.availableAllEventDuration}
                               disabled={isReadOnly}
                               onChange={(v) =>
-                                void updateAvailability(ref.userId, {
+                                void updateAvailability(ref.personId, {
                                   availableAllEventDuration: v,
                                 })
                               }

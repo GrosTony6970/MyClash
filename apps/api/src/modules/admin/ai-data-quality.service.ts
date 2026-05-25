@@ -162,9 +162,15 @@ export class AIDataQualityService {
   }
 
   private async loadRefereeQualifications(): Promise<RefereeQualificationRow[]> {
+    // Post-0063: referee_qualifications.person_id → global_persons. The legacy
+    // `global_person_id` column (added in 0023) is now redundant — kept for
+    // backwards compatibility with the findUnlinkedReferees heuristic, but
+    // unused in greenfield data.
     const { data } = await this.supabase.service
       .from('referee_qualifications')
-      .select('id, person_id, global_person_id, persons(given_name, family_name, display_name)');
+      .select(
+        'id, person_id, global_person_id, global_persons(given_name, family_name, display_name)',
+      );
     return (data ?? []) as RefereeQualificationRow[];
   }
 
@@ -270,7 +276,7 @@ export class AIDataQualityService {
     const refereePersons = persons.filter((person) => person.is_referee);
     for (const qualification of qualifications) {
       if (qualification.global_person_id) continue;
-      const name = normalizeName(personName(qualification.persons ?? {}));
+      const name = normalizeName(personName(qualification.global_persons ?? {}));
       if (!name) continue;
       const matches = refereePersons.filter((person) => normalizeName(personName(person)) === name);
       if (matches.length === 0) continue;
@@ -284,7 +290,7 @@ export class AIDataQualityService {
             qualification: {
               id: qualification.id,
               personId: qualification.person_id,
-              displayName: personName(qualification.persons ?? {}),
+              displayName: personName(qualification.global_persons ?? {}),
             },
             globalPerson: this.safeGlobalPersonEvidence(match),
           },
@@ -487,7 +493,8 @@ type RefereeQualificationRow = {
   id: string;
   person_id?: string | null;
   global_person_id?: string | null;
-  persons?: {
+  /** Post-0063: name resolved via global_persons (person_id → global_persons.id). */
+  global_persons?: {
     given_name?: string | null;
     family_name?: string | null;
     display_name?: string | null;

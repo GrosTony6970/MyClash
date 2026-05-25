@@ -24,7 +24,7 @@ class ManualAssignmentRequestDto {
   role!: ManualAssignmentDto['role'];
 
   @IsUUID()
-  userId!: string;
+  personId!: string;
 }
 
 class LegacyManualAssignmentRequestDto extends ManualAssignmentRequestDto {

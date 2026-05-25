@@ -48,12 +48,13 @@ export class ConflictCheckController {
     });
 
     // 2. Fetch referee assignments for this tournament
+    // Post-0063: referee_assignments.person_id → global_persons.
     const { data: refRows } = await this.supabase.service
       .from('referee_assignments')
       .select(
         `
         match_id, role,
-        persons ( id, given_name, family_name ),
+        global_persons ( id, given_name, family_name ),
         matches ( match_number_label, scheduled_at )
       `,
       )
@@ -61,7 +62,7 @@ export class ConflictCheckController {
 
     const refereeAssignments: ConflictRefereeAssignment[] = (refRows ?? []).map((r) => {
       const row = r as Record<string, unknown>;
-      const person = row['persons'] as {
+      const person = row['global_persons'] as {
         id: string;
         given_name: string;
         family_name: string;

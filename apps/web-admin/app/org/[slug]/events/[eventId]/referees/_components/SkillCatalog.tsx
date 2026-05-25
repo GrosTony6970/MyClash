@@ -35,8 +35,10 @@ export interface RefereeSkill {
 }
 
 export interface RefereeRowForCatalog {
-  userId: string;
-  personId: string | null;
+  /** Post-0063: canonical identity (= global_persons.id). */
+  personId: string;
+  /** Derived display field (= global_persons.claimed_by_user_id), nullable. */
+  userId: string | null;
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ skillId: string; rating: number | null }>;

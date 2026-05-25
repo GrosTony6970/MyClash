@@ -269,30 +269,41 @@ export class NotificationSchedulerService {
   }
 
   async scheduleRefereeAssignmentStarting(assignmentId: string, now = new Date()): Promise<void> {
+    // Post-0063: referee_assignments keys on person_id. Resolve to the
+    // claimed user_id (notifications need a Supabase auth identity to
+    // target). Unclaimed referees can't receive push/email — skip.
     const { data: assignment } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, user_id, starts_at, role, matches ( match_number_label )')
+      .select('id, person_id, starts_at, role, matches ( match_number_label )')
       .eq('id', assignmentId)
       .maybeSingle();
     if (!assignment) return;
 
     const row = assignment as {
       id: string;
-      user_id: string | null;
+      person_id: string | null;
       starts_at: string | null;
       role: string | null;
       matches?: { match_number_label?: string | null } | null;
     };
-    if (!row.user_id) return;
+    if (!row.person_id) return;
 
-    const preferences = await this.getPreferencesByUser([row.user_id]);
-    const preference = preferences.get(row.user_id);
+    const { data: gp } = await this.supabase.service
+      .from('global_persons')
+      .select('claimed_by_user_id')
+      .eq('id', row.person_id)
+      .maybeSingle();
+    const userId = (gp as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
+    if (!userId) return;
+
+    const preferences = await this.getPreferencesByUser([userId]);
+    const preference = preferences.get(userId);
     if (preference?.enabled === false) return;
 
     await this.scheduleReminder({
       kind: 'referee_starting',
       entityId: row.id,
-      userId: row.user_id,
+      userId,
       startsAt: row.starts_at,
       leadMinutes: readLeadMinutes(preference, 'referee_starting_minutes_before', 10),
       title: 'Referee slot starting soon',

@@ -240,11 +240,17 @@ describe('notification scheduler jobs', () => {
       referee_assignments: {
         data: {
           id: 'assignment-1',
-          user_id: 'user-1',
+          person_id: 'person-1',
           starts_at: '2026-05-02T12:00:00.000Z',
           role: 'arbitre_table',
           matches: { match_number_label: 'L1-P1-M1' },
         },
+        error: null,
+      },
+      // Post-0063: scheduler resolves person_id → user_id via global_persons
+      // before targeting the notification.
+      global_persons: {
+        data: { claimed_by_user_id: 'user-1' },
         error: null,
       },
       notification_preferences: {

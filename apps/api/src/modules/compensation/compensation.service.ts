@@ -228,10 +228,10 @@ export class CompensationService {
     // Tiers sorted ascending
     const tiers = [...plan.tiers].sort((a, b) => Number(a.minTokens) - Number(b.minTokens));
 
-    // Load assignments with related data
+    // Load assignments with related data — post-0063 keyed on person_id.
     const { data: assignments, error: assignErr } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, user_id, scope_type, role, pool_id, lice_id, match_id')
+      .select('id, person_id, scope_type, role, pool_id, lice_id, match_id')
       .eq('event_id', eventId);
 
     if (assignErr) throw new BadRequestException(assignErr.message);
@@ -239,12 +239,17 @@ export class CompensationService {
       return { planId: plan.id, planName: plan.name, maxCap: cap, referees: [], grandTotal: 0 };
     }
 
-    // Accumulator: user_id → role → phase → { matchCount, tokensPerMatch }
+    // Accumulator: person_id → role → phase → { matchCount, tokensPerMatch }
     const acc = new Map<string, Map<string, Map<CompensationPhase, number>>>();
 
-    const addMatches = (userId: string, role: string, phase: CompensationPhase, count: number) => {
-      if (!acc.has(userId)) acc.set(userId, new Map());
-      const byRole = acc.get(userId)!;
+    const addMatches = (
+      personId: string,
+      role: string,
+      phase: CompensationPhase,
+      count: number,
+    ) => {
+      if (!acc.has(personId)) acc.set(personId, new Map());
+      const byRole = acc.get(personId)!;
       if (!byRole.has(role)) byRole.set(role, new Map());
       const byPhase = byRole.get(role)!;
       byPhase.set(phase, (byPhase.get(phase) ?? 0) + count);
@@ -329,17 +334,17 @@ export class CompensationService {
 
     // Process each assignment
     for (const a of assignments as Array<Record<string, unknown>>) {
-      const userId = a['user_id'] as string;
+      const personId = a['person_id'] as string;
       const role = (a['role'] as string) ?? 'arbitre_table';
 
       if (a['scope_type'] === 'pool' && a['pool_id']) {
         const count = poolMatchCounts.get(a['pool_id'] as string) ?? 0;
-        if (count > 0) addMatches(userId, role, 'pool', count);
+        if (count > 0) addMatches(personId, role, 'pool', count);
       } else if (a['scope_type'] === 'lice' && a['lice_id']) {
         const counts = liceMatchesByPhase.get(a['lice_id'] as string);
         if (counts) {
-          if (counts.bracket > 0) addMatches(userId, role, 'bracket', counts.bracket);
-          if (counts.finals > 0) addMatches(userId, role, 'finals', counts.finals);
+          if (counts.bracket > 0) addMatches(personId, role, 'bracket', counts.bracket);
+          if (counts.finals > 0) addMatches(personId, role, 'finals', counts.finals);
         }
       } else if (a['scope_type'] === 'match' && a['match_id']) {
         const match = matchRows.get(a['match_id'] as string);
@@ -352,43 +357,56 @@ export class CompensationService {
               : match.lice_id
                 ? 'bracket'
                 : 'pool';
-          addMatches(userId, role, phase, 1);
+          addMatches(personId, role, phase, 1);
         }
       }
     }
 
-    // Fetch display names from persons.claimed_by_user_id
-    const userIds = [...acc.keys()];
+    // Resolve display name + (for payment lookup) user_id from global_persons
+    // for each person we accumulated. Unclaimed refs have user_id = null and
+    // therefore no payment row.
+    const personIds = [...acc.keys()];
     const displayNames = new Map<string, string>();
-    if (userIds.length > 0) {
-      const { data: persons } = await this.supabase.service
-        .from('persons')
-        .select('claimed_by_user_id, given_name, family_name')
-        .eq('event_id', eventId)
-        .in('claimed_by_user_id', userIds);
-      for (const p of (persons ?? []) as Array<Record<string, string>>) {
-        const uid = p['claimed_by_user_id'];
-        if (uid) displayNames.set(uid, `${p['given_name']} ${p['family_name']}`);
+    const personToUser = new Map<string, string>();
+    if (personIds.length > 0) {
+      const { data: gpRows } = await this.supabase.service
+        .from('global_persons')
+        .select('id, claimed_by_user_id, given_name, family_name')
+        .in('id', personIds);
+      for (const gp of (gpRows ?? []) as Array<{
+        id: string;
+        claimed_by_user_id: string | null;
+        given_name: string | null;
+        family_name: string | null;
+      }>) {
+        displayNames.set(gp.id, `${gp.given_name ?? ''} ${gp.family_name ?? ''}`.trim());
+        if (gp.claimed_by_user_id) personToUser.set(gp.id, gp.claimed_by_user_id);
       }
     }
 
-    // Load existing payment records
+    // referee_compensation_payments still keys on user_id (claimed referees
+    // only — unclaimed refs have nothing to pay against). Map payment rows
+    // back via personToUser so the report attaches them to the right person.
     const paymentMap = new Map<string, { paid: boolean; paidAt: string | null }>();
-    const { data: payments } = await this.supabase.service
-      .from('referee_compensation_payments')
-      .select('user_id, paid, paid_at')
-      .eq('event_id', eventId);
-    for (const p of (payments ?? []) as Array<Record<string, unknown>>) {
-      paymentMap.set(p['user_id'] as string, {
-        paid: Boolean(p['paid']),
-        paidAt: (p['paid_at'] as string | null) ?? null,
-      });
+    const claimedUserIds = [...personToUser.values()];
+    if (claimedUserIds.length > 0) {
+      const { data: payments } = await this.supabase.service
+        .from('referee_compensation_payments')
+        .select('user_id, paid, paid_at')
+        .eq('event_id', eventId)
+        .in('user_id', claimedUserIds);
+      for (const p of (payments ?? []) as Array<Record<string, unknown>>) {
+        paymentMap.set(p['user_id'] as string, {
+          paid: Boolean(p['paid']),
+          paidAt: (p['paid_at'] as string | null) ?? null,
+        });
+      }
     }
 
-    // Build report
+    // Build report. Keyed on person_id; userId surfaces when claimed.
     const referees: ReturnType<typeof this.buildRefereeReport>[] = [];
 
-    for (const [userId, byRole] of acc) {
+    for (const [personId, byRole] of acc) {
       const breakdown: CompensationBreakdownLine[] = [];
       let totalTokens = 0;
 
@@ -400,12 +418,8 @@ export class CompensationService {
           breakdown.push({
             phase,
             // `role` may be a custom skill ID (e.g. "custom-abc123") introduced by Task 6's
-            // DTO loosening. The rate lookup above already handles this safely: unknown roles
-            // produce tokensPerMatch = 0 via the `?? 0` fallback, so custom skills contribute
-            // nothing to totalTokens. The cast below is kept for type compatibility but the
-            // value may not be one of the three system roles.
-            // TODO: if compensation plans should support custom skill rates in the future,
-            // extend referee_compensation_role_rates to accept arbitrary skill IDs.
+            // DTO loosening. The rate lookup handles this safely: unknown roles get
+            // tokensPerMatch = 0 via the `?? 0` fallback. Cast preserved for type compat.
             role: role as RefereeRole,
             matchCount,
             tokensPerMatch,
@@ -417,10 +431,11 @@ export class CompensationService {
       let amountOwed = this.resolveTier(totalTokens, tiers);
       if (cap !== null && amountOwed > cap) amountOwed = cap;
 
-      const payment = paymentMap.get(userId);
+      const claimedUserId = personToUser.get(personId) ?? null;
+      const payment = claimedUserId ? paymentMap.get(claimedUserId) : undefined;
       referees.push({
-        userId,
-        displayName: displayNames.get(userId) ?? userId,
+        userId: claimedUserId ?? personId,
+        displayName: displayNames.get(personId) ?? personId,
         totalTokens,
         amountOwed,
         paid: payment?.paid ?? false,

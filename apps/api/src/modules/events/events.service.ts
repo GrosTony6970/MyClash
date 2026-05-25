@@ -740,13 +740,13 @@ export class EventsService {
 
     const { data: assignments, error: assignmentsError } = await this.supabase.service
       .from('referee_assignments')
-      .select('user_id, pool_id, match_id')
+      .select('person_id, pool_id, match_id')
       .eq('event_id', eventId);
     if (assignmentsError) throw new BadRequestException(assignmentsError.message);
 
-    const usersByTournament = new Map<string, Set<string>>();
+    const personsByTournament = new Map<string, Set<string>>();
     for (const assignment of (assignments ?? []) as Array<{
-      user_id: string;
+      person_id: string;
       pool_id: string | null;
       match_id: string | null;
     }>) {
@@ -754,12 +754,14 @@ export class EventsService {
         (assignment.pool_id ? poolToTournament.get(assignment.pool_id) : undefined) ??
         (assignment.match_id ? matchToTournament.get(assignment.match_id) : undefined);
       if (!tournamentId) continue;
-      const users = usersByTournament.get(tournamentId) ?? new Set<string>();
-      users.add(assignment.user_id);
-      usersByTournament.set(tournamentId, users);
+      const persons = personsByTournament.get(tournamentId) ?? new Set<string>();
+      persons.add(assignment.person_id);
+      personsByTournament.set(tournamentId, persons);
     }
 
-    for (const [tournamentId, users] of usersByTournament) counts.set(tournamentId, users.size);
+    for (const [tournamentId, persons] of personsByTournament) {
+      counts.set(tournamentId, persons.size);
+    }
     return counts;
   }
 

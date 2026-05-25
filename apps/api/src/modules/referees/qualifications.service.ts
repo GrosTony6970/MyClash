@@ -82,13 +82,13 @@ export interface UpdateRefereeAvailabilityDto {
 
 export interface EventRefereeRow {
   /**
-   * R6: nullable for unclaimed referees. Claimed people have a non-null
-   * userId; unclaimed ones expose only personId. Frontend uses personId
-   * as the stable identity key for routing assignments.
+   * Post-0063: personId is the canonical key. userId is a derived display
+   * field — resolved from global_persons.claimed_by_user_id — nullable when
+   * the person hasn't claimed an account.
    */
+  personId: string;
   userId: string | null;
-  personId: string | null;
-  /** R6: true when the row is keyed by person_id (= no claimed account). */
+  /** True when the person has not claimed an account yet (= userId is null). */
   unclaimed: boolean;
   displayName: string;
   clubLabel: string | null;
@@ -161,27 +161,18 @@ export class QualificationsService {
       throw new BadRequestException('Rating must be 1..5 or null');
     }
 
-    // R6: figure out which identity column the person uses in this
-    // event. Claimed referees have an event_referees row keyed by
-    // user_id; unclaimed ones (post-R6) are keyed by person_id. We
-    // mirror that decision on the referee_qualifications write.
-    const identity = await this.resolveRefereeIdentity(eventId, personId);
-
-    // Check for existing active qualification for this role.
-    const existingQuery = this.supabase.service
+    // Post-0063: referee_qualifications is keyed exclusively on person_id.
+    // Look for an existing active qualification for this role.
+    const { data: existing } = await this.supabase.service
       .from('referee_qualifications')
       .select('id')
       .eq('event_id', eventId)
       .eq('role', role)
-      .eq('active', true);
-    const { data: existing } = await (
-      identity.column === 'user_id'
-        ? existingQuery.eq('user_id', identity.value)
-        : existingQuery.eq('person_id', identity.value)
-    ).maybeSingle();
+      .eq('active', true)
+      .eq('person_id', personId)
+      .maybeSingle();
 
     if (existing) {
-      // Update existing
       const { data, error } = await this.supabase.service
         .from('referee_qualifications')
         .update({ rating, updated_at: new Date().toISOString() })
@@ -193,15 +184,13 @@ export class QualificationsService {
       return this.map(data as Record<string, unknown>);
     }
 
-    // Check max 3 active qualifications (one per role).
-    const countQuery = this.supabase.service
+    // Max 3 active qualifications per person per event (one per role).
+    const { count } = await this.supabase.service
       .from('referee_qualifications')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
-      .eq('active', true);
-    const { count } = await (identity.column === 'user_id'
-      ? countQuery.eq('user_id', identity.value)
-      : countQuery.eq('person_id', identity.value));
+      .eq('active', true)
+      .eq('person_id', personId);
 
     if ((count ?? 0) >= 3) {
       throw new ConflictException(
@@ -209,55 +198,14 @@ export class QualificationsService {
       );
     }
 
-    const insertRow: Record<string, unknown> = {
-      event_id: eventId,
-      role,
-      rating,
-      active: true,
-    };
-    insertRow[identity.column] = identity.value;
     const { data, error } = await this.supabase.service
       .from('referee_qualifications')
-      .insert(insertRow)
+      .insert({ event_id: eventId, person_id: personId, role, rating, active: true })
       .select('*')
       .single();
 
     if (error) throw new BadRequestException(error.message);
     return this.map(data as Record<string, unknown>);
-  }
-
-  /**
-   * R6: resolve the referee identity column for an event_referees row.
-   * Given a `personId` (= global_persons.id), look up the matching
-   * event_referees row. Returns either `{ column: 'user_id', value: userId }`
-   * (claimed) or `{ column: 'person_id', value: personId }` (unclaimed).
-   *
-   * Falls back to `person_id` keying for legacy callers passing a
-   * person_id without an event_referees row yet — qualifying without
-   * first being on the referee roster is unusual but possible.
-   */
-  private async resolveRefereeIdentity(
-    eventId: string,
-    personId: string,
-  ): Promise<{ column: 'user_id' | 'person_id'; value: string }> {
-    // 1. Try claimed path: persons.id → claimed_by_user_id → event_referees.user_id.
-    const { data: gp } = await this.supabase.service
-      .from('global_persons')
-      .select('claimed_by_user_id')
-      .eq('id', personId)
-      .maybeSingle();
-    const claimedUserId = (gp as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
-    if (claimedUserId) {
-      const { data: er } = await this.supabase.service
-        .from('event_referees')
-        .select('user_id')
-        .eq('event_id', eventId)
-        .eq('user_id', claimedUserId)
-        .maybeSingle();
-      if (er) return { column: 'user_id', value: claimedUserId };
-    }
-    // 2. Unclaimed path: event_referees.person_id = personId.
-    return { column: 'person_id', value: personId };
   }
 
   // ── Soft delete ───────────────────────────────────────────────────────────────
@@ -483,150 +431,26 @@ export class QualificationsService {
   // ── Task 3: Event referees ────────────────────────────────────────────────────
 
   /**
-   * Idempotently register a user as a referee for an event.
+   * Idempotently register a person as a referee for an event.
+   *
+   * Post-0063: event_referees keys exclusively on person_id (= global_persons.id).
+   * Whether the person is claimed (auth-linked) or unclaimed makes no difference
+   * here — the schema treats both identically. Claimed-vs-unclaimed only matters
+   * at notification-dispatch time, where we need an email address.
+   *
    * - Upserts event_referees row (ON CONFLICT DO NOTHING).
-   * - Best-effort sets global_persons.is_referee = 'true' for the linked profile.
-   * - Never clears is_referee.
+   * - Promotes global is_referee = 'true' iff it was NULL, with provenance flag
+   *   (is_referee_event_managed = true) so removeEventReferee can safely clear
+   *   it later. Pre-existing manual referee tags are preserved.
    */
-  async ensureEventReferee(
-    eventId: string,
-    targetUserId: string,
-    actorUserId: string,
-  ): Promise<void> {
+  async ensureEventReferee(eventId: string, personId: string, actorUserId: string): Promise<void> {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
-    // Defense in depth: verify targetUserId is linked to a claimed global_person.
-    // The UI gates on claimed_by_user_id being non-null, but a malicious caller
-    // could still POST an arbitrary UUID and silently corrupt event_referees.
-    const { data: claimed, error: claimedErr } = await this.supabase.service
-      .from('global_persons')
-      .select('id, is_referee')
-      .eq('claimed_by_user_id', targetUserId)
-      .limit(1)
-      .maybeSingle();
-
-    if (claimedErr) throw new BadRequestException(claimedErr.message);
-    if (!claimed) {
-      throw new BadRequestException(
-        `User ${targetUserId} is not linked to a claimed global profile.`,
-      );
-    }
-
-    // Upsert event_referees row — idempotent via ON CONFLICT DO NOTHING
-    const { error: upsertError } = await this.supabase.service.from('event_referees').upsert(
-      {
-        event_id: eventId,
-        user_id: targetUserId,
-        available_all_tournaments: true,
-        available_all_event_duration: true,
-      },
-      { onConflict: 'event_id,user_id', ignoreDuplicates: true },
-    );
-
-    if (upsertError) throw new BadRequestException(upsertError.message);
-
-    // Promote the global is_referee flag iff it is currently NULL.
-    // Provenance: record is_referee_event_managed = true so removeEventReferee
-    // can safely clear the flag when the last event_referees row goes away.
-    // Pre-existing referee tags (any non-NULL value) are preserved untouched.
-    if ((claimed as { is_referee: string | null }).is_referee === null) {
-      await this.supabase.service
-        .from('global_persons')
-        .update({
-          is_referee: 'true',
-          is_referee_event_managed: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('claimed_by_user_id', targetUserId)
-        .is('is_referee', null);
-      // Ignore error — best-effort only.
-    }
-  }
-
-  /**
-   * Remove a user as referee for an event.
-   * - Deletes referee_assignments for (event, user) defensively.
-   * - Deletes the event_referees row.
-   * - If the global is_referee flag was set by an event promotion
-   *   (is_referee_event_managed = true) AND no other event_referees row
-   *   exists for this user, clear is_referee back to NULL.
-   * - Idempotent: deleting a non-existent row is a no-op.
-   */
-  async removeEventReferee(
-    eventId: string,
-    targetUserId: string,
-    actorUserId: string,
-  ): Promise<void> {
-    const event = await this.getEvent(eventId);
-    await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
-
-    // Defensive cleanup: any referee_assignments scoped to this event for the
-    // user should not outlive the event_referees row.
-    await this.supabase.service
-      .from('referee_assignments')
-      .delete()
-      .eq('event_id', eventId)
-      .eq('user_id', targetUserId);
-
-    const { error: delErr } = await this.supabase.service
-      .from('event_referees')
-      .delete()
-      .eq('event_id', eventId)
-      .eq('user_id', targetUserId);
-
-    if (delErr) throw new BadRequestException(delErr.message);
-
-    // Is this user still a referee at any other event?
-    const { data: remaining, error: remErr } = await this.supabase.service
-      .from('event_referees')
-      .select('event_id')
-      .eq('user_id', targetUserId)
-      .limit(1);
-
-    if (remErr) throw new BadRequestException(remErr.message);
-    if (remaining && remaining.length > 0) return;
-
-    // No remaining event_referees rows — clear the global flag IFF we set it.
-    // The is_referee_event_managed guard preserves manually-set referee tags.
-    await this.supabase.service
-      .from('global_persons')
-      .update({
-        is_referee: null,
-        is_referee_event_managed: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('claimed_by_user_id', targetUserId)
-      .eq('is_referee_event_managed', true);
-  }
-
-  /**
-   * R6: register an UNCLAIMED person as referee for an event.
-   *
-   * Keys the event_referees row by `person_id` (= global_persons.id)
-   * instead of `user_id`. Refuses if the person already has a
-   * claimed_by_user_id — the caller must use the user_id variant in
-   * that case (steers double-write attempts to the canonical row).
-   *
-   * - Upserts event_referees row keyed on (event_id, person_id).
-   * - Promotes the global is_referee flag (works the same way for
-   *   claimed + unclaimed people — the column lives on global_persons,
-   *   not on the user).
-   * - On a later claim, `backfillRefereeIdentity` flips this row's
-   *   `person_id` → NULL and sets `user_id`, joining the claimed path.
-   */
-  async ensureEventRefereeByPerson(
-    eventId: string,
-    personId: string,
-    actorUserId: string,
-  ): Promise<void> {
-    const event = await this.getEvent(eventId);
-    await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
-
-    // Verify the global_person exists and is genuinely unclaimed.
+    // Verify the global_person exists.
     const { data: person, error: personErr } = await this.supabase.service
       .from('global_persons')
-      .select('id, claimed_by_user_id, is_referee')
+      .select('id, is_referee')
       .eq('id', personId)
       .maybeSingle();
 
@@ -634,25 +458,11 @@ export class QualificationsService {
     if (!person) {
       throw new BadRequestException(`Global person ${personId} not found.`);
     }
-    const personRow = person as {
-      id: string;
-      claimed_by_user_id: string | null;
-      is_referee: string | null;
-    };
-    if (personRow.claimed_by_user_id) {
-      throw new BadRequestException(
-        `Person ${personId} already has a claimed account — use the user_id endpoint.`,
-      );
-    }
 
-    // Upsert event_referees row keyed on (event_id, person_id). The
-    // partial UNIQUE index on (event_id, person_id) WHERE person_id IS
-    // NOT NULL provides the on-conflict target.
     const { error: upsertError } = await this.supabase.service.from('event_referees').upsert(
       {
         event_id: eventId,
         person_id: personId,
-        user_id: null,
         available_all_tournaments: true,
         available_all_event_duration: true,
       },
@@ -661,8 +471,7 @@ export class QualificationsService {
 
     if (upsertError) throw new BadRequestException(upsertError.message);
 
-    // Same is_referee promotion rule as the claimed path.
-    if (personRow.is_referee === null) {
+    if ((person as { is_referee: string | null }).is_referee === null) {
       await this.supabase.service
         .from('global_persons')
         .update({
@@ -676,21 +485,16 @@ export class QualificationsService {
   }
 
   /**
-   * R6: remove an UNCLAIMED person from an event's referee roster.
-   * Mirrors `removeEventReferee` but keys on `person_id`. Cleans up
-   * any person-scoped referee_assignments + qualifications + the
-   * event_referees row. Clears the global is_referee flag IFF we set
-   * it AND no other event still has them as a referee.
+   * Remove a person as referee for an event.
+   * - Cascades referee_assignments cleanup defensively.
+   * - Deletes the event_referees row.
+   * - Clears the global is_referee flag IFF we set it AND no other event still
+   *   has them as a referee.
    */
-  async removeEventRefereeByPerson(
-    eventId: string,
-    personId: string,
-    actorUserId: string,
-  ): Promise<void> {
+  async removeEventReferee(eventId: string, personId: string, actorUserId: string): Promise<void> {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
-    // Defensive cleanup, person-keyed.
     await this.supabase.service
       .from('referee_assignments')
       .delete()
@@ -705,7 +509,6 @@ export class QualificationsService {
 
     if (delErr) throw new BadRequestException(delErr.message);
 
-    // Still a referee at any other event?
     const { data: remaining, error: remErr } = await this.supabase.service
       .from('event_referees')
       .select('event_id')
@@ -727,62 +530,26 @@ export class QualificationsService {
   }
 
   /**
-   * R6: claim back-fill. When a global_person transitions from
-   * unclaimed → claimed (their `claimed_by_user_id` becomes non-null),
-   * flip any pre-existing person-keyed referee rows to user-keyed so
-   * the rest of the system sees them as a normal claimed referee.
-   *
-   * Idempotent — re-running on already-claimed rows is a no-op since
-   * the WHERE clause matches only rows where `person_id` is still set.
-   * Best-effort: one of the three tables failing doesn't roll back the
-   * others. The caller (onboarding service) should log + alert rather
-   * than refuse the claim.
-   */
-  async backfillRefereeIdentity(personId: string, newUserId: string): Promise<void> {
-    const now = new Date().toISOString();
-
-    // event_referees
-    await this.supabase.service
-      .from('event_referees')
-      .update({ user_id: newUserId, person_id: null, updated_at: now })
-      .eq('person_id', personId);
-
-    // referee_qualifications
-    await this.supabase.service
-      .from('referee_qualifications')
-      .update({ user_id: newUserId, person_id: null, updated_at: now })
-      .eq('person_id', personId);
-
-    // referee_assignments — no updated_at column on this table.
-    await this.supabase.service
-      .from('referee_assignments')
-      .update({ user_id: newUserId, person_id: null })
-      .eq('person_id', personId);
-  }
-
-  /**
    * Update availability flags for a referee at an event.
    * Upserts the event_referees row if missing (defaults: true/true).
    */
   async updateAvailability(
     eventId: string,
-    targetUserId: string,
+    personId: string,
     dto: UpdateRefereeAvailabilityDto,
     actorUserId: string,
   ): Promise<void> {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
-    // Check if row exists
     const { data: existing } = await this.supabase.service
       .from('event_referees')
       .select('event_id')
       .eq('event_id', eventId)
-      .eq('user_id', targetUserId)
+      .eq('person_id', personId)
       .maybeSingle();
 
     if (existing) {
-      // Explicit allowlist — never spread dto directly
       const updates: {
         available_all_tournaments?: boolean;
         available_all_event_duration?: boolean;
@@ -797,14 +564,13 @@ export class QualificationsService {
         .from('event_referees')
         .update(updates)
         .eq('event_id', eventId)
-        .eq('user_id', targetUserId);
+        .eq('person_id', personId);
 
       if (error) throw new BadRequestException(error.message);
     } else {
-      // Row missing — insert with defaults + dto values applied
       const { error } = await this.supabase.service.from('event_referees').insert({
         event_id: eventId,
-        user_id: targetUserId,
+        person_id: personId,
         available_all_tournaments: dto.availableAllTournaments ?? true,
         available_all_event_duration: dto.availableAllEventDuration ?? true,
       });
@@ -819,158 +585,75 @@ export class QualificationsService {
    */
   async listEventReferees(eventId: string, actorUserId: string): Promise<EventRefereeRow[]> {
     const event = await this.getEvent(eventId);
-    // Read access: any org member (lowest role = read_only)
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'read_only');
 
-    // 1. Load event_referees rows — R6: rows may carry user_id OR person_id.
+    // 1. Load event_referees rows — post-0063, person_id is the only identity.
     const { data: refRows, error: refError } = await this.supabase.service
       .from('event_referees')
-      .select('user_id, person_id, available_all_tournaments, available_all_event_duration')
+      .select('person_id, available_all_tournaments, available_all_event_duration')
       .eq('event_id', eventId);
 
     if (refError) throw new BadRequestException(refError.message);
     const rows = (refRows ?? []) as Array<{
-      user_id: string | null;
-      person_id: string | null;
+      person_id: string;
       available_all_tournaments: boolean;
       available_all_event_duration: boolean;
     }>;
 
     if (rows.length === 0) return [];
 
-    const userIds = rows.map((r) => r.user_id).filter((id): id is string => !!id);
-    const personIdsFromUnclaimed = rows.map((r) => r.person_id).filter((id): id is string => !!id);
+    const personIds = rows.map((r) => r.person_id);
 
-    // 2. Load active qualifications for this event. R6: qualifications can
-    //    be either user-keyed or person-keyed — fetch both buckets so the
-    //    list page shows the same rows for unclaimed referees.
-    const qualsByUser = new Map<string, Array<{ skillId: string; rating: number | null }>>();
+    // 2. Active qualifications for this event, keyed on person_id.
     const qualsByPerson = new Map<string, Array<{ skillId: string; rating: number | null }>>();
-    if (userIds.length > 0) {
-      const { data: qualRows, error: qualError } = await this.supabase.service
-        .from('referee_qualifications')
-        .select('user_id, role, rating')
-        .eq('event_id', eventId)
-        .eq('active', true)
-        .in('user_id', userIds);
-      if (qualError) throw new BadRequestException(qualError.message);
-      for (const q of (qualRows ?? []) as Array<{
-        user_id: string;
-        role: string;
-        rating: number | null;
-      }>) {
-        const list = qualsByUser.get(q.user_id) ?? [];
-        list.push({ skillId: q.role, rating: q.rating ?? null });
-        qualsByUser.set(q.user_id, list);
-      }
-    }
-    if (personIdsFromUnclaimed.length > 0) {
-      const { data: qualRows, error: qualError } = await this.supabase.service
-        .from('referee_qualifications')
-        .select('person_id, role, rating')
-        .eq('event_id', eventId)
-        .eq('active', true)
-        .in('person_id', personIdsFromUnclaimed);
-      if (qualError) throw new BadRequestException(qualError.message);
-      for (const q of (qualRows ?? []) as Array<{
-        person_id: string;
-        role: string;
-        rating: number | null;
-      }>) {
-        const list = qualsByPerson.get(q.person_id) ?? [];
-        list.push({ skillId: q.role, rating: q.rating ?? null });
-        qualsByPerson.set(q.person_id, list);
-      }
+    const { data: qualRows, error: qualError } = await this.supabase.service
+      .from('referee_qualifications')
+      .select('person_id, role, rating')
+      .eq('event_id', eventId)
+      .eq('active', true)
+      .in('person_id', personIds);
+    if (qualError) throw new BadRequestException(qualError.message);
+    for (const q of (qualRows ?? []) as Array<{
+      person_id: string;
+      role: string;
+      rating: number | null;
+    }>) {
+      const list = qualsByPerson.get(q.person_id) ?? [];
+      list.push({ skillId: q.role, rating: q.rating ?? null });
+      qualsByPerson.set(q.person_id, list);
     }
 
-    // 3. Load global_persons for display name + club.
-    //    Claimed referees: lookup by claimed_by_user_id IN userIds.
-    //    Unclaimed referees (R6): lookup by id IN personIdsFromUnclaimed.
-    const gpByUser = new Map<
-      string,
-      {
-        id: string;
-        given_name: string;
-        family_name: string;
-        display_name: string;
-        club_id: string | null;
-      }
-    >();
+    // 3. Display info from global_persons.
     const gpById = new Map<
       string,
       {
         id: string;
+        claimed_by_user_id: string | null;
         given_name: string;
         family_name: string;
         display_name: string;
         club_id: string | null;
       }
     >();
-    if (userIds.length > 0) {
-      const { data: gpRows } = await this.supabase.service
-        .from('global_persons')
-        .select('id, claimed_by_user_id, given_name, family_name, display_name, club_id')
-        .in('claimed_by_user_id', userIds);
-      for (const gp of (gpRows ?? []) as Array<{
-        id: string;
-        claimed_by_user_id: string;
-        given_name: string;
-        family_name: string;
-        display_name: string;
-        club_id: string | null;
-      }>) {
-        gpByUser.set(gp.claimed_by_user_id, gp);
-      }
-    }
-    if (personIdsFromUnclaimed.length > 0) {
-      const { data: gpRows } = await this.supabase.service
-        .from('global_persons')
-        .select('id, given_name, family_name, display_name, club_id')
-        .in('id', personIdsFromUnclaimed);
-      for (const gp of (gpRows ?? []) as Array<{
-        id: string;
-        given_name: string;
-        family_name: string;
-        display_name: string;
-        club_id: string | null;
-      }>) {
-        gpById.set(gp.id, gp);
-      }
+    const { data: gpRows } = await this.supabase.service
+      .from('global_persons')
+      .select('id, claimed_by_user_id, given_name, family_name, display_name, club_id')
+      .in('id', personIds);
+    for (const gp of (gpRows ?? []) as Array<{
+      id: string;
+      claimed_by_user_id: string | null;
+      given_name: string;
+      family_name: string;
+      display_name: string;
+      club_id: string | null;
+    }>) {
+      gpById.set(gp.id, gp);
     }
 
-    // 3b. For any user_id that has no global_persons row, fall back to the
-    // event-scoped persons table so the referee still shows a real name in
-    // the list (instead of a raw UUID).
-    const missingUserIds = userIds.filter((u) => !gpByUser.has(u));
-    const personByUser = new Map<
-      string,
-      { id: string; given_name: string; family_name: string; club_id: string | null }
-    >();
-    if (missingUserIds.length > 0) {
-      const { data: pRows } = await this.supabase.service
-        .from('persons')
-        .select('id, claimed_by_user_id, given_name, family_name, club_id')
-        .eq('event_id', eventId)
-        .in('claimed_by_user_id', missingUserIds);
-      for (const p of (pRows ?? []) as Array<{
-        id: string;
-        claimed_by_user_id: string;
-        given_name: string;
-        family_name: string;
-        club_id: string | null;
-      }>) {
-        personByUser.set(p.claimed_by_user_id, p);
-      }
-    }
-
-    // 4. Resolve club labels — best-effort: collect unique club_ids and batch-fetch names
+    // 4. Club labels.
     const clubIds = Array.from(
       new Set(
-        [
-          ...Array.from(gpByUser.values()),
-          ...Array.from(gpById.values()),
-          ...Array.from(personByUser.values()),
-        ]
+        Array.from(gpById.values())
           .map((p) => p.club_id)
           .filter((id): id is string => Boolean(id)),
       ),
@@ -989,37 +672,16 @@ export class QualificationsService {
       );
     }
 
-    // 5. Build assignment counts per user per tournament
+    // 5. Assignment counts per person per tournament.
     const assignmentMap = await this.countAssignmentsByReferee(eventId);
 
-    // 6. Merge into EventRefereeRow[] — handles both user-keyed (claimed)
-    //    and person-keyed (R6 unclaimed) rows. The fallback key is
-    //    always personId so the frontend has a stable identity even
-    //    while user_id is null.
     return rows.map((r) => {
-      const unclaimed = !r.user_id;
-      const gp = r.user_id
-        ? (gpByUser.get(r.user_id) ?? null)
-        : r.person_id
-          ? (gpById.get(r.person_id) ?? null)
-          : null;
-      const fallbackPerson =
-        !unclaimed && r.user_id && !gp ? (personByUser.get(r.user_id) ?? null) : null;
-      const personId = gp?.id ?? fallbackPerson?.id ?? r.person_id ?? null;
-      const fallbackLabel = r.user_id ?? r.person_id ?? '';
+      const gp = gpById.get(r.person_id) ?? null;
       const displayName = gp
-        ? `${gp.given_name} ${gp.family_name}`.trim() || gp.display_name || fallbackLabel
-        : fallbackPerson
-          ? `${fallbackPerson.given_name} ${fallbackPerson.family_name}`.trim() || fallbackLabel
-          : fallbackLabel;
-
-      const qualifications = r.user_id
-        ? (qualsByUser.get(r.user_id) ?? [])
-        : r.person_id
-          ? (qualsByPerson.get(r.person_id) ?? [])
-          : [];
-
-      const userAssignments = r.user_id ? assignmentMap.get(r.user_id) : undefined;
+        ? `${gp.given_name} ${gp.family_name}`.trim() || gp.display_name || r.person_id
+        : r.person_id;
+      const qualifications = qualsByPerson.get(r.person_id) ?? [];
+      const personAssignments = assignmentMap.get(r.person_id);
 
       const assignments: Array<{
         tournamentId: string;
@@ -1028,8 +690,8 @@ export class QualificationsService {
       }> = [];
       let totalMatchCount = 0;
 
-      if (userAssignments) {
-        for (const [tournamentId, info] of userAssignments.byTournament) {
+      if (personAssignments) {
+        for (const [tournamentId, info] of personAssignments.byTournament) {
           assignments.push({
             tournamentId,
             tournamentName: info.tournamentName,
@@ -1039,11 +701,12 @@ export class QualificationsService {
         }
       }
 
-      const clubId = gp?.club_id ?? fallbackPerson?.club_id ?? null;
+      const clubId = gp?.club_id ?? null;
+      const claimedUserId = gp?.claimed_by_user_id ?? null;
       return {
-        userId: r.user_id,
-        personId,
-        unclaimed,
+        personId: r.person_id,
+        userId: claimedUserId,
+        unclaimed: claimedUserId === null,
         displayName,
         clubLabel: clubId ? (clubsById.get(clubId) ?? null) : null,
         qualifications,
@@ -1153,47 +816,48 @@ export class QualificationsService {
       if (tid) matchToTournament.set(m.id, tid);
     }
 
-    // ── Step 4: load persons with claimed_by_user_id for referee_id resolution ─
-    // Only needed if any match has referee_id set
+    // ── Step 4: resolve matches.referee_id (event-scoped persons.id) → global_persons.id ─
+    // Source B keys assignments via the legacy matches.referee_id column. Post-0063
+    // we count everything on person_id (= global_persons.id), so resolve through
+    // persons.global_person_id.
     const matchesWithRefereeId = matches.filter((m) => m.referee_id !== null);
-    const personToUser = new Map<string, string>(); // person_id → user_id
+    const personToGlobal = new Map<string, string>(); // persons.id → global_persons.id
 
     if (matchesWithRefereeId.length > 0) {
-      const personIds = [...new Set(matchesWithRefereeId.map((m) => m.referee_id as string))];
+      const referePersonIds = [...new Set(matchesWithRefereeId.map((m) => m.referee_id as string))];
       const { data: personRows } = await this.supabase.service
         .from('persons')
-        .select('id, claimed_by_user_id')
-        .in('id', personIds)
-        .not('claimed_by_user_id', 'is', null);
+        .select('id, global_person_id')
+        .in('id', referePersonIds)
+        .not('global_person_id', 'is', null);
 
       for (const p of (personRows ?? []) as Array<{
         id: string;
-        claimed_by_user_id: string | null;
+        global_person_id: string | null;
       }>) {
-        if (p.claimed_by_user_id) personToUser.set(p.id, p.claimed_by_user_id);
+        if (p.global_person_id) personToGlobal.set(p.id, p.global_person_id);
       }
     }
 
     // ── Step 5: load referee_assignments for this event ───────────────────────
     const { data: assignmentRows, error: aErr } = await this.supabase.service
       .from('referee_assignments')
-      .select('user_id, scope_type, pool_id, match_id')
+      .select('person_id, scope_type, pool_id, match_id')
       .eq('event_id', eventId)
       // 'lice' scope assignments are intentionally excluded: they cover a full session/day,
       // not a determinate match list, so they don't contribute to per-tournament match counts.
-      // Per-lice referee work is surfaced separately (out of scope for v1 Referees list).
       .in('scope_type', ['pool', 'match']);
 
     if (aErr) throw new BadRequestException(aErr.message);
     const assignments = (assignmentRows ?? []) as Array<{
-      user_id: string;
+      person_id: string;
       scope_type: string;
       pool_id: string | null;
       match_id: string | null;
     }>;
 
-    // ── Step 6: count matches per pool (for pool-scoped assignments) ──────────
-    const matchesPerPool = new Map<string, string[]>(); // pool_id → match_ids
+    // ── Step 6: matches per pool (for pool-scoped assignments) ────────────────
+    const matchesPerPool = new Map<string, string[]>();
     for (const m of matches) {
       if (m.pool_id) {
         const list = matchesPerPool.get(m.pool_id) ?? [];
@@ -1203,52 +867,51 @@ export class QualificationsService {
     }
 
     // ── Step 7: accumulate counts with deduplication ──────────────────────────
-    // Key: `${matchId}:${userId}`
+    // Key: `${matchId}:${personId}` — counts each match at most once per referee.
     const seen = new Set<string>();
 
-    const addCount = (userId: string, matchId: string, tournamentId: string) => {
-      const key = `${matchId}:${userId}`;
+    const addCount = (personId: string, matchId: string, tournamentId: string) => {
+      const key = `${matchId}:${personId}`;
       if (seen.has(key)) return;
       seen.add(key);
 
-      let userEntry = result.get(userId);
-      if (!userEntry) {
-        userEntry = { byTournament: new Map(), totalMatches: 0 };
-        result.set(userId, userEntry);
+      let entry = result.get(personId);
+      if (!entry) {
+        entry = { byTournament: new Map(), totalMatches: 0 };
+        result.set(personId, entry);
       }
       const tName = tournamentNameById.get(tournamentId) ?? tournamentId;
-      const tEntry = userEntry.byTournament.get(tournamentId) ?? {
+      const tEntry = entry.byTournament.get(tournamentId) ?? {
         tournamentName: tName,
         count: 0,
       };
       tEntry.count += 1;
-      userEntry.byTournament.set(tournamentId, tEntry);
-      userEntry.totalMatches += 1;
+      entry.byTournament.set(tournamentId, tEntry);
+      entry.totalMatches += 1;
     };
 
-    // Source A: referee_assignments
+    // Source A: referee_assignments (person_id-keyed post-0063).
     for (const a of assignments) {
-      const userId = a.user_id;
       if (a.scope_type === 'match' && a.match_id) {
         const tid = matchToTournament.get(a.match_id);
-        if (tid) addCount(userId, a.match_id, tid);
+        if (tid) addCount(a.person_id, a.match_id, tid);
       } else if (a.scope_type === 'pool' && a.pool_id) {
         const tid = poolToTournament.get(a.pool_id);
         if (!tid) continue;
         const poolMatchIds = matchesPerPool.get(a.pool_id) ?? [];
         for (const matchId of poolMatchIds) {
-          addCount(userId, matchId, tid);
+          addCount(a.person_id, matchId, tid);
         }
       }
     }
 
-    // Source B: matches.referee_id (resolved to user_id via persons)
+    // Source B: matches.referee_id (resolved to global person_id via persons).
     for (const m of matchesWithRefereeId) {
-      const userId = personToUser.get(m.referee_id as string);
-      if (!userId) continue;
+      const personId = personToGlobal.get(m.referee_id as string);
+      if (!personId) continue;
       const tid = matchToTournament.get(m.id);
       if (!tid) continue;
-      addCount(userId, m.id, tid);
+      addCount(personId, m.id, tid);
     }
 
     return result;

@@ -269,11 +269,14 @@ export class OrganizerAIAssistantService {
       if (typeof action['matchId'] === 'string') {
         await this.assertMatchBelongsToEvent(eventId, action['matchId']);
       }
+      // Post-0063: referee_assignments keys on person_id (= global_persons.id).
+      // The AI draft DSL still labels the field "userId" for historical reasons
+      // but the value is now the canonical person_id.
       const { data, error } = await this.supabase.service
         .from('referee_assignments')
         .insert({
           event_id: eventId,
-          user_id: String(action['userId']),
+          person_id: String(action['userId']),
           pool_id: typeof action['poolId'] === 'string' ? action['poolId'] : null,
           match_id: typeof action['matchId'] === 'string' ? action['matchId'] : null,
           role: String(action['role']),

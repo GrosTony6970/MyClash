@@ -29,14 +29,14 @@ export const REFEREE_ASSIGNMENT_ROLES: RefereeRole[] = [
  * `RefereeRole` enum, loosened in R2 of the staffing overhaul so the
  * board can carry custom skills introduced via the Staffing tab.
  *
- * R6: `userId` is nullable for unclaimed referees (event_referees rows
- * keyed by person_id with no auth user yet). `personId` should always
- * be set; the engine + assignment persistence pick the column based on
- * whichever identity is present.
+ * Post-0063: `personId` is the canonical identity (= global_persons.id).
+ * `userId` is a derived display value (the auth UUID from
+ * global_persons.claimed_by_user_id, or null if unclaimed) so frontends can
+ * still show "this referee's auth email" — but it is never used for keying.
  */
 export interface AssignmentBoardCandidate {
+  personId: string;
   userId: string | null;
-  personId: string | null;
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ role: string; rating: number | null }>;
@@ -132,13 +132,8 @@ export interface ManualAssignmentDto {
   poolId: string;
   /** Must be one of the pool's resolved slot's `allowedSkillIds`. */
   role: string;
-  /**
-   * Exactly one of (userId, personId) must be set. `userId` targets a
-   * claimed referee; `personId` (R6) targets an unclaimed referee
-   * keyed on the event_referees row by person_id.
-   */
-  userId?: string;
-  personId?: string;
+  /** Post-0063: the canonical referee identity (= global_persons.id). */
+  personId: string;
 }
 
 interface TournamentRow {
@@ -199,11 +194,11 @@ interface PoolRow {
 }
 
 interface EventRefereeRow {
-  user_id: string;
+  person_id: string;
 }
 
 interface QualificationRow {
-  user_id: string;
+  person_id: string;
   role: string;
   rating: number | null;
 }
@@ -226,9 +221,8 @@ interface RegistrationRow {
 
 interface RefereeAssignmentRow {
   id: string;
-  /** R6: exactly one of user_id / person_id is set per row (CHECK constraint). */
-  user_id: string | null;
-  person_id: string | null;
+  /** Post-0063: person_id is the only identity column. */
+  person_id: string;
   pool_id: string | null;
   /** R4: bracket-scoped assignments use match_id instead of pool_id. */
   match_id: string | null;
@@ -292,54 +286,34 @@ export class AssignmentBoardService {
       );
     }
 
-    // R6: candidate lookup supports either user_id (claimed) or
-    // person_id (unclaimed). Exactly one of dto.userId / dto.personId
-    // must be set; the candidate is found by whichever matches.
-    if (!dto.userId && !dto.personId) {
-      throw new BadRequestException('Either userId or personId is required');
+    if (!dto.personId) {
+      throw new BadRequestException('personId is required');
     }
-    if (dto.userId && dto.personId) {
-      throw new BadRequestException('Provide either userId or personId, not both');
-    }
-    const candidate = dto.userId
-      ? context.candidates.find((c) => c.userId === dto.userId)
-      : context.candidates.find((c) => c.personId === dto.personId);
+    const candidate = context.candidates.find((c) => c.personId === dto.personId);
     if (!candidate) throw new BadRequestException('Selected referee is not on this event roster');
 
-    // Pool-membership check handles real pools (members list) and
-    // bracket matches (red/blue registration IDs on the single match)
-    // uniformly. Both end up in the same Set the engine uses.
+    // Pool-membership check handles real pools (members list) and bracket
+    // matches (red/blue registration IDs on the single match) uniformly.
     const poolMembers = new Set<string>(pool.members.map((m) => m.personId));
-    if (candidate.personId) {
-      const fighterRegIds = context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [];
-      for (const match of pool.matches) {
-        if (
-          (match.redRegistrationId && fighterRegIds.includes(match.redRegistrationId)) ||
-          (match.blueRegistrationId && fighterRegIds.includes(match.blueRegistrationId))
-        ) {
-          throw new BadRequestException('A fighter cannot referee their own match');
-        }
+    const fighterRegIds = context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [];
+    for (const match of pool.matches) {
+      if (
+        (match.redRegistrationId && fighterRegIds.includes(match.redRegistrationId)) ||
+        (match.blueRegistrationId && fighterRegIds.includes(match.blueRegistrationId))
+      ) {
+        throw new BadRequestException('A fighter cannot referee their own match');
       }
-      if (poolMembers.has(candidate.personId)) {
-        throw new BadRequestException('A fighter cannot referee their own pool');
-      }
+    }
+    if (poolMembers.has(candidate.personId)) {
+      throw new BadRequestException('A fighter cannot referee their own pool');
     }
 
     if (!candidate.qualifications.some((q) => q.role === dto.role)) {
       throw new BadRequestException('Selected referee is not qualified for this role');
     }
 
-    // R3: the engine's RefereeAssignment now carries slotIndex. Use the
-    // first slot whose allowed list contains dto.role — picked from the
-    // R4-correct slot source (pool/bracket/finals).
     const slotIndex = sourceSlots.find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
 
-    // The engine's RefereeAssignment.personId is required; we key it on
-    // candidate.personId for unclaimed, else userId for legacy claimed.
-    // `persistAssignments` decodes the candidate back to read the right
-    // identity column on insert.
-    const engineId = candidate.personId ?? candidate.userId;
-    if (!engineId) throw new BadRequestException('Candidate has no identity');
     await this.persistAssignments(
       eventId,
       context,
@@ -349,7 +323,7 @@ export class AssignmentBoardService {
           poolName: pool.name,
           slotIndex,
           role: dto.role as RefereeRole,
-          personId: engineId,
+          personId: candidate.personId,
           personName: candidate.displayName,
           autoAssigned: true,
         },
@@ -648,148 +622,94 @@ export class AssignmentBoardService {
   }
 
   private async listCandidates(eventId: string): Promise<AssignmentBoardCandidate[]> {
-    // R6: event_referees rows may carry user_id (claimed) OR person_id
-    // (unclaimed). Two parallel paths build candidates from each bucket;
-    // the engine receives them as a uniform list keyed on personId.
+    // Post-0063: event_referees keys on person_id only. userId on the
+    // returned candidate is a derived display field, resolved here once via
+    // global_persons.claimed_by_user_id.
     const { data: refRows, error: refError } = await this.supabase.service
       .from('event_referees')
-      .select('user_id, person_id')
+      .select('person_id')
       .eq('event_id', eventId);
     if (refError) throw new BadRequestException(refError.message);
-    const eventReferees = (refRows ?? []) as Array<{
-      user_id: string | null;
-      person_id: string | null;
-    }>;
+    const eventReferees = (refRows ?? []) as EventRefereeRow[];
     if (eventReferees.length === 0) return [];
 
-    const userIds = eventReferees.map((r) => r.user_id).filter((id): id is string => !!id);
-    const personIds = eventReferees.map((r) => r.person_id).filter((id): id is string => !!id);
+    const personIds = eventReferees.map((r) => r.person_id);
 
-    // Qualifications — fetch both buckets.
-    const qualificationsByUser = new Map<string, Array<{ role: string; rating: number | null }>>();
     const qualificationsByPerson = new Map<
       string,
       Array<{ role: string; rating: number | null }>
     >();
-    if (userIds.length > 0) {
-      const { data: qualRows, error: qualError } = await this.supabase.service
-        .from('referee_qualifications')
-        .select('user_id, role, rating')
-        .eq('event_id', eventId)
-        .eq('active', true)
-        .in('user_id', userIds);
-      if (qualError) throw new BadRequestException(qualError.message);
-      for (const q of (qualRows ?? []) as QualificationRow[]) {
-        const list = qualificationsByUser.get(q.user_id) ?? [];
-        list.push({ role: q.role, rating: q.rating ?? null });
-        qualificationsByUser.set(q.user_id, list);
-      }
-    }
-    if (personIds.length > 0) {
-      const { data: qualRows, error: qualError } = await this.supabase.service
-        .from('referee_qualifications')
-        .select('person_id, role, rating')
-        .eq('event_id', eventId)
-        .eq('active', true)
-        .in('person_id', personIds);
-      if (qualError) throw new BadRequestException(qualError.message);
-      for (const q of (qualRows ?? []) as Array<{
-        person_id: string;
-        role: string;
-        rating: number | null;
-      }>) {
-        const list = qualificationsByPerson.get(q.person_id) ?? [];
-        list.push({ role: q.role, rating: q.rating ?? null });
-        qualificationsByPerson.set(q.person_id, list);
-      }
-    }
-
-    // Person rows for display name + club. For claimed referees we go
-    // through `persons` (event-scoped) joined via claimed_by_user_id;
-    // for unclaimed referees we go through `global_persons` by id.
-    const personByUser = new Map<string, PersonRow>();
-    if (userIds.length > 0) {
-      const { data: personRows, error: personError } = await this.supabase.service
-        .from('persons')
-        .select('id, claimed_by_user_id, given_name, family_name, club_id, clubs(name)')
-        .eq('event_id', eventId)
-        .in('claimed_by_user_id', userIds);
-      if (personError) throw new BadRequestException(personError.message);
-      for (const person of (personRows ?? []) as unknown as PersonRow[]) {
-        if (person.claimed_by_user_id) personByUser.set(person.claimed_by_user_id, person);
-      }
+    const { data: qualRows, error: qualError } = await this.supabase.service
+      .from('referee_qualifications')
+      .select('person_id, role, rating')
+      .eq('event_id', eventId)
+      .eq('active', true)
+      .in('person_id', personIds);
+    if (qualError) throw new BadRequestException(qualError.message);
+    for (const q of (qualRows ?? []) as QualificationRow[]) {
+      const list = qualificationsByPerson.get(q.person_id) ?? [];
+      list.push({ role: q.role, rating: q.rating ?? null });
+      qualificationsByPerson.set(q.person_id, list);
     }
 
     const gpById = new Map<
       string,
-      { id: string; given_name: string; family_name: string; club_id: string | null }
-    >();
-    if (personIds.length > 0) {
-      const { data: gpRows } = await this.supabase.service
-        .from('global_persons')
-        .select('id, given_name, family_name, club_id')
-        .in('id', personIds);
-      for (const gp of (gpRows ?? []) as Array<{
+      {
         id: string;
+        claimed_by_user_id: string | null;
         given_name: string;
         family_name: string;
         club_id: string | null;
-      }>) {
-        gpById.set(gp.id, gp);
       }
+    >();
+    const { data: gpRows } = await this.supabase.service
+      .from('global_persons')
+      .select('id, claimed_by_user_id, given_name, family_name, club_id')
+      .in('id', personIds);
+    for (const gp of (gpRows ?? []) as Array<{
+      id: string;
+      claimed_by_user_id: string | null;
+      given_name: string;
+      family_name: string;
+      club_id: string | null;
+    }>) {
+      gpById.set(gp.id, gp);
     }
 
-    // Resolve unclaimed candidates' club labels via a small batch.
-    const unclaimedClubIds = Array.from(
+    const clubIds = Array.from(
       new Set(
         Array.from(gpById.values())
           .map((gp) => gp.club_id)
           .filter((id): id is string => !!id),
       ),
     );
-    let unclaimedClubsById = new Map<string, string>();
-    if (unclaimedClubIds.length > 0) {
+    let clubsById = new Map<string, string>();
+    if (clubIds.length > 0) {
       const { data: clubsData } = await this.supabase.service
         .from('clubs')
         .select('id, name')
-        .in('id', unclaimedClubIds);
-      unclaimedClubsById = new Map(
+        .in('id', clubIds);
+      clubsById = new Map(
         ((clubsData ?? []) as Array<{ id: string; name: string | null }>)
           .filter((c) => c.name !== null)
           .map((c) => [c.id, c.name as string]),
       );
     }
 
-    return eventReferees
-      .map((referee): AssignmentBoardCandidate | null => {
-        if (referee.user_id) {
-          const person = personByUser.get(referee.user_id);
-          return {
-            userId: referee.user_id,
-            personId: person?.id ?? null,
-            displayName: this.formatName(person) || referee.user_id,
-            clubLabel: this.firstRelation(person?.clubs)?.name ?? null,
-            qualifications: qualificationsByUser.get(referee.user_id) ?? [],
-            workload: 0,
-          };
-        }
-        if (referee.person_id) {
-          const gp = gpById.get(referee.person_id);
-          const name = gp
-            ? `${gp.given_name} ${gp.family_name}`.trim() || referee.person_id
-            : referee.person_id;
-          return {
-            userId: null,
-            personId: referee.person_id,
-            displayName: name,
-            clubLabel: gp?.club_id ? (unclaimedClubsById.get(gp.club_id) ?? null) : null,
-            qualifications: qualificationsByPerson.get(referee.person_id) ?? [],
-            workload: 0,
-          };
-        }
-        return null;
-      })
-      .filter((c): c is AssignmentBoardCandidate => c !== null);
+    return eventReferees.map((referee): AssignmentBoardCandidate => {
+      const gp = gpById.get(referee.person_id) ?? null;
+      const name = gp
+        ? `${gp.given_name} ${gp.family_name}`.trim() || referee.person_id
+        : referee.person_id;
+      return {
+        personId: referee.person_id,
+        userId: gp?.claimed_by_user_id ?? null,
+        displayName: name,
+        clubLabel: gp?.club_id ? (clubsById.get(gp.club_id) ?? null) : null,
+        qualifications: qualificationsByPerson.get(referee.person_id) ?? [],
+        workload: 0,
+      };
+    });
   }
 
   private async listRegistrations(tournamentIds: string[]): Promise<RegistrationRow[]> {
@@ -809,7 +729,7 @@ export class AssignmentBoardService {
     // the synthetic match-id (via the pool's matchId field).
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, user_id, person_id, pool_id, match_id, role, status, auto_assigned')
+      .select('id, person_id, pool_id, match_id, role, status, auto_assigned')
       .eq('event_id', eventId)
       .in('scope_type', ['pool', 'match']);
     if (error) throw new BadRequestException(error.message);
@@ -852,32 +772,20 @@ export class AssignmentBoardService {
       };
     });
 
-    // R3: pass every qualification through to the engine — custom skill
-    // IDs are first-class now. The pre-R3 ENGINE_KNOWN_ROLES filter is
-    // gone; the engine itself decides which slots a qual matches.
-    //
-    // R6: candidate.userId may be null (unclaimed referee). The engine
-    // keys on personId, so we synthesise one from whichever identity
-    // the candidate has. Candidates lacking BOTH ids are dropped.
-    const engineCandidates: RefereeCandidate[] = context.candidates.flatMap(
-      (candidate): RefereeCandidate[] => {
-        const id = candidate.personId ?? candidate.userId;
-        if (!id) return [];
-        return [
-          {
-            personId: id,
-            personName: candidate.displayName,
-            qualifications: candidate.qualifications.map((q) => ({
-              role: q.role as RefereeRole,
-              rating: q.rating,
-            })),
-            fighterRegistrationIds: candidate.personId
-              ? (context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [])
-              : [],
-            workshopWindows: [] as Array<{ start: string; end: string }>,
-          },
-        ];
-      },
+    // R3: every qualification flows through to the engine — custom skill
+    // IDs are first-class. The engine itself decides which slots a qual matches.
+    const engineCandidates: RefereeCandidate[] = context.candidates.map(
+      (candidate): RefereeCandidate => ({
+        personId: candidate.personId,
+        personName: candidate.displayName,
+        qualifications: candidate.qualifications.map((q) => ({
+          role: q.role as RefereeRole,
+          rating: q.rating,
+        })),
+        fighterRegistrationIds:
+          context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [],
+        workshopWindows: [] as Array<{ start: string; end: string }>,
+      }),
     );
 
     const poolSettings = await this.settings.getSettings(context.eventId);
@@ -897,16 +805,10 @@ export class AssignmentBoardService {
   ): AssignmentBoard {
     // R6: candidates may have a null userId (unclaimed). The engine
     // keys on whichever id is set, so do the same here.
-    const candidateByEngineId = new Map<string, AssignmentBoardCandidate>();
-    for (const candidate of context.candidates) {
-      const id = candidate.personId ?? candidate.userId;
-      if (id) candidateByEngineId.set(id, candidate);
-    }
-    const candidateByUserId = new Map<string, AssignmentBoardCandidate>();
+    // Post-0063: candidates + persisted rows + engine output all key on personId.
     const candidateByPersonId = new Map<string, AssignmentBoardCandidate>();
     for (const candidate of context.candidates) {
-      if (candidate.userId) candidateByUserId.set(candidate.userId, candidate);
-      if (candidate.personId) candidateByPersonId.set(candidate.personId, candidate);
+      candidateByPersonId.set(candidate.personId, candidate);
     }
     // R4: assignments can be either pool-scoped or match-scoped. We key
     // the lookup with a uniform string so the per-pool roleSlot matcher
@@ -973,16 +875,10 @@ export class AssignmentBoardService {
           // multi-skill slots resolve correctly even when several slots
           // share a primary role.
           const previewAssignment = previewAssignmentByPoolSlot.get(`${pool.id}:${slot.index}`);
-          // R6: persisted assignments may carry user_id OR person_id;
-          // look up the candidate via whichever key the row has.
           const assignedCandidate = persisted
-            ? persisted.user_id
-              ? candidateByUserId.get(persisted.user_id)
-              : persisted.person_id
-                ? candidateByPersonId.get(persisted.person_id)
-                : undefined
+            ? candidateByPersonId.get(persisted.person_id)
             : previewAssignment
-              ? candidateByEngineId.get(previewAssignment.personId)
+              ? candidateByPersonId.get(previewAssignment.personId)
               : undefined;
 
           const allowedSet = new Set(allowed);
@@ -1074,33 +970,25 @@ export class AssignmentBoardService {
         .eq('auto_assigned', true);
     }
 
-    // R6: candidates may have only personId (unclaimed) or only userId
-    // (legacy claimed). Build the lookup keyed on whichever id the
-    // engine produced (which equals candidate.personId ?? candidate.userId).
-    const candidateByEngineId = new Map<string, AssignmentBoardCandidate>();
+    // Post-0063: assignments + candidates key on personId. The engine
+    // populates RefereeAssignment.personId directly; we just look up the
+    // candidate (for membership validation) and write person_id on the row.
+    const candidateByPersonId = new Map<string, AssignmentBoardCandidate>();
     for (const candidate of context.candidates) {
-      const id = candidate.personId ?? candidate.userId;
-      if (id) candidateByEngineId.set(id, candidate);
+      candidateByPersonId.set(candidate.personId, candidate);
     }
-    // R4: assignments may target a real pool or a synthetic bracket
-    // "pool" (poolId prefixed with `match-`). The persisted row's
-    // scope_type + pool_id/match_id mirror that distinction.
-    //
-    // R6: persisted row's user_id / person_id mirrors the candidate's
-    // identity — claimed → user_id; unclaimed → person_id. The CHECK
-    // constraint added in migration 0062 enforces exactly-one-of.
+    // R4: assignments may target a real pool or a synthetic bracket "pool"
+    // (poolId prefixed with `match-`). scope_type + pool_id/match_id mirror
+    // that distinction.
     const rows = assignments
       .map((assignment) => {
-        const candidate = candidateByEngineId.get(assignment.personId);
+        const candidate = candidateByPersonId.get(assignment.personId);
         const pool = context.pools.find((p) => p.id === assignment.poolId);
         if (!candidate || !pool) return null;
         const isMatchScoped = (pool.kind ?? 'pool') !== 'pool';
-        const identityCols = candidate.userId
-          ? { user_id: candidate.userId, person_id: null }
-          : { user_id: null, person_id: candidate.personId };
         return {
           event_id: eventId,
-          ...identityCols,
+          person_id: candidate.personId,
           scope_type: isMatchScoped ? 'match' : 'pool',
           pool_id: isMatchScoped ? null : assignment.poolId,
           match_id: isMatchScoped ? (pool.matchId ?? null) : null,

@@ -570,11 +570,7 @@ describe('QualificationsService — skills catalog', () => {
       const skillChain = makeChain({ data: customSkillRow, error: null });
       skillChain.maybeSingle.mockResolvedValue({ data: customSkillRow, error: null });
 
-      // R6: resolveRefereeIdentity → global_persons lookup (unclaimed = no claimed_by_user_id)
-      const gpChain = makeChain({ data: { claimed_by_user_id: null }, error: null });
-      gpChain.maybeSingle.mockResolvedValue({ data: { claimed_by_user_id: null }, error: null });
-
-      // Check existing active qualification → not found
+      // Check existing active qualification → not found (post-0063: keyed on person_id directly)
       const existingChain = makeChain({ data: null, error: null });
       existingChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
@@ -587,7 +583,6 @@ describe('QualificationsService — skills catalog', () => {
 
       fromMock
         .mockReturnValueOnce(skillChain) // referee_skills lookup
-        .mockReturnValueOnce(gpChain) // R6: global_persons identity lookup
         .mockReturnValueOnce(existingChain) // check existing qualification
         .mockReturnValueOnce(countChain) // count active qualifications
         .mockReturnValueOnce(insertChain); // insert new qualification
@@ -682,7 +677,7 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
 
       await service.updateAvailability(
         'event-1',
-        'user-target',
+        'person-target',
         { availableAllTournaments: false },
         'user-actor',
       );
@@ -692,7 +687,7 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       expect(insertCall).toHaveBeenCalledWith(
         expect.objectContaining({
           event_id: 'event-1',
-          user_id: 'user-target',
+          person_id: 'person-target',
           available_all_tournaments: false,
           available_all_event_duration: true, // default preserved
         }),
@@ -758,17 +753,17 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
     it('returns merged EventRefereeRow with qualifications + availability (no assignments)', async () => {
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
-      // event_referees rows
+      // event_referees rows (post-0063: person_id only)
       const refRows = [
         {
-          user_id: 'user-a',
+          person_id: 'gp-a',
           available_all_tournaments: true,
           available_all_event_duration: false,
         },
       ];
 
       // referee_qualifications rows
-      const qualRows = [{ user_id: 'user-a', role: 'arbitre_declarant', rating: 4 }];
+      const qualRows = [{ person_id: 'gp-a', role: 'arbitre_declarant', rating: 4 }];
 
       // global_persons row
       const gpRows = [
@@ -835,7 +830,7 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
 
       const refRows = [
         {
-          user_id: 'user-b',
+          person_id: 'gp-b',
           available_all_tournaments: true,
           available_all_event_duration: true,
         },
@@ -889,7 +884,7 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
 
       const refRows = [
         {
-          user_id: 'user-c',
+          person_id: 'gp-c',
           available_all_tournaments: true,
           available_all_event_duration: true,
         },
@@ -974,26 +969,29 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
-      // claimed global_person check — found
-      const claimedChain = makeChain({ data: { id: 'gp-1' }, error: null });
-      claimedChain.maybeSingle.mockResolvedValue({ data: { id: 'gp-1' }, error: null });
+      // global_person existence check — found
+      const personChain = makeChain({ data: { id: 'gp-1', is_referee: null }, error: null });
+      personChain.maybeSingle.mockResolvedValue({
+        data: { id: 'gp-1', is_referee: null },
+        error: null,
+      });
 
       const upsertChain = makeResolvedChain({ data: null, error: null });
       const gpUpdateChain = makeResolvedChain({ data: null, error: null });
 
       fromMock
         .mockReturnValueOnce(eventChain) // getEvent
-        .mockReturnValueOnce(claimedChain) // claimed global_person check
+        .mockReturnValueOnce(personChain) // global_persons existence check
         .mockReturnValueOnce(upsertChain) // event_referees upsert
         .mockReturnValueOnce(gpUpdateChain); // global_persons update
 
-      await service.ensureEventReferee('event-1', 'user-new', 'actor-admin');
+      await service.ensureEventReferee('event-1', 'gp-1', 'actor-admin');
 
       const upsertCall = (upsertChain as unknown as { upsert: ReturnType<typeof vi.fn> }).upsert;
       expect(upsertCall).toHaveBeenCalledWith(
         expect.objectContaining({
           event_id: 'event-1',
-          user_id: 'user-new',
+          person_id: 'gp-1',
           available_all_tournaments: true,
           available_all_event_duration: true,
         }),
@@ -1001,46 +999,48 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       );
     });
 
-    it('rejects when targetUserId is not linked to any global_person', async () => {
+    it('rejects when personId does not match a global_person', async () => {
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
-      // claimed global_person check — not found
-      const claimedChain = makeChain({ data: null, error: null });
-      claimedChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      // global_person check — not found
+      const personChain = makeChain({ data: null, error: null });
+      personChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       fromMock
         .mockReturnValueOnce(eventChain) // getEvent
-        .mockReturnValueOnce(claimedChain); // claimed global_person check → null
+        .mockReturnValueOnce(personChain); // global_persons existence check → null
 
       await expect(
-        service.ensureEventReferee('event-1', 'unclaimed-user-id', 'actor-admin'),
+        service.ensureEventReferee('event-1', 'nonexistent-person-id', 'actor-admin'),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('succeeds and calls upsert when targetUserId is linked to a global_person', async () => {
+    it('succeeds when personId matches a global_person', async () => {
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
-      // claimed global_person check — found
-      const claimedChain = makeChain({ data: { id: 'gp-claimed' }, error: null });
-      claimedChain.maybeSingle.mockResolvedValue({ data: { id: 'gp-claimed' }, error: null });
+      const personChain = makeChain({ data: { id: 'gp-claimed', is_referee: null }, error: null });
+      personChain.maybeSingle.mockResolvedValue({
+        data: { id: 'gp-claimed', is_referee: null },
+        error: null,
+      });
 
       const upsertChain = makeResolvedChain({ data: null, error: null });
       const gpUpdateChain = makeResolvedChain({ data: null, error: null });
 
       fromMock
         .mockReturnValueOnce(eventChain) // getEvent
-        .mockReturnValueOnce(claimedChain) // claimed global_person check
+        .mockReturnValueOnce(personChain) // global_persons existence check
         .mockReturnValueOnce(upsertChain) // event_referees upsert
         .mockReturnValueOnce(gpUpdateChain); // global_persons update
 
       await expect(
-        service.ensureEventReferee('event-1', 'claimed-user-id', 'actor-admin'),
+        service.ensureEventReferee('event-1', 'gp-claimed', 'actor-admin'),
       ).resolves.toBeUndefined();
 
       const upsertCall = (upsertChain as unknown as { upsert: ReturnType<typeof vi.fn> }).upsert;
@@ -1051,29 +1051,29 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
   // ── countAssignmentsByReferee — dedup invariant ───────────────────────────────
 
   describe('countAssignmentsByReferee (via listEventReferees)', () => {
-    it('dedups (matchId, userId) across referee_assignments match-scope and matches.referee_id', async () => {
+    it('dedups (matchId, personId) across referee_assignments match-scope and matches.referee_id', async () => {
       // Scenario:
       //   - 1 tournament "T1", 1 phase "ph1", 1 pool "pool1"
       //   - 1 match "m1" in pool1
-      //   - 1 user "u1", 1 person "p1" (claimed by u1)
-      //   - referee_assignments: scope_type='match', scope_id=m1, user_id=u1
-      //   - matches.referee_id = p1 on the same m1
+      //   - 1 global_person "gp-1"
+      //   - referee_assignments: scope_type='match', match_id=m1, person_id=gp-1
+      //   - matches.referee_id points to persons row "p1" whose global_person_id=gp-1
       //   Expected: m1 counted ONCE → totalMatchCount = 1
 
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
-      // event_referees: one row for u1
+      // event_referees: one row keyed on gp-1
       const refRows = [
-        { user_id: 'u1', available_all_tournaments: true, available_all_event_duration: true },
+        { person_id: 'gp-1', available_all_tournaments: true, available_all_event_duration: true },
       ];
 
       // referee_qualifications: none
       const qualRows: unknown[] = [];
 
-      // global_persons: p1 claimed by u1
+      // global_persons: gp-1 claimed by u1 (claim irrelevant to dedup)
       const gpRows = [
         {
-          id: 'p1',
+          id: 'gp-1',
           claimed_by_user_id: 'u1',
           given_name: 'User',
           family_name: 'One',
@@ -1083,19 +1083,16 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       ];
 
       // countAssignmentsByReferee internals:
-      // tournaments
       const tournamentsRows = [{ id: 't1', name: 'T1' }];
-      // phases
       const phaseRows = [{ id: 'ph1', tournament_id: 't1' }];
-      // pools
       const poolRows = [{ id: 'pool1', phase_id: 'ph1' }];
-      // matches — m1 belongs to ph1/pool1, referee_id = p1
+      // matches — m1 belongs to ph1/pool1, referee_id = p1 (event-scoped persons.id)
       const matchRows = [{ id: 'm1', phase_id: 'ph1', pool_id: 'pool1', referee_id: 'p1' }];
-      // persons — p1 claimed by u1
-      const personRows = [{ id: 'p1', claimed_by_user_id: 'u1' }];
-      // referee_assignments — match-scope for m1/u1
+      // persons — event-scoped p1 → global_person_id gp-1
+      const personRows = [{ id: 'p1', global_person_id: 'gp-1' }];
+      // referee_assignments — match-scope for m1/gp-1
       const assignmentRows = [
-        { user_id: 'u1', scope_type: 'match', pool_id: null, match_id: 'm1' },
+        { person_id: 'gp-1', scope_type: 'match', pool_id: null, match_id: 'm1' },
       ];
 
       const eventChain = makeChain({ data: eventRow, error: null });
