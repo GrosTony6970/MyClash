@@ -22,6 +22,21 @@ describe('CsvImportService', () => {
     it('handles invalid email gracefully', () => {
       expect(service.maskEmail('notanemail')).toBe('***@***.***');
     });
+
+    // Regression net for Sentry "Cannot read properties of null (reading 'split')"
+    // on /events/:eventId/persons/lookup. persons.email is nullable; the masker
+    // was crashing on the null path before.
+    it('returns empty string when email is null', () => {
+      expect(service.maskEmail(null)).toBe('');
+    });
+
+    it('returns empty string when email is undefined', () => {
+      expect(service.maskEmail(undefined)).toBe('');
+    });
+
+    it('returns empty string when email is the empty string', () => {
+      expect(service.maskEmail('')).toBe('');
+    });
   });
 
   // ── parse ──────────────────────────────────────────────────────────────────

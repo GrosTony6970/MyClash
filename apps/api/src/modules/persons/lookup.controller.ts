@@ -126,7 +126,7 @@ export class LookupController {
         id: string;
         given_name: string;
         family_name: string;
-        email: string;
+        email: string | null;
         claimed_by_user_id: string | null;
         clubs: { name: string } | null;
       };
@@ -181,7 +181,7 @@ export class LookupController {
         id: string;
         given_name: string;
         family_name: string;
-        email: string;
+        email: string | null;
         claimed_by_user_id: string | null;
         clubs: { name: string } | null;
       };

@@ -262,7 +262,8 @@ export class PersonEmailChangeService {
     }
   }
 
-  private maskEmail(email: string): string {
+  private maskEmail(email: string | null | undefined): string {
+    if (!email) return '';
     const [local = '', domain = ''] = email.split('@');
     const domainHead = domain.split('.')[0] ?? '';
     return `${local.slice(0, 1)}***@${domainHead.slice(0, 1)}***`;

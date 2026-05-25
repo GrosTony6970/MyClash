@@ -153,8 +153,16 @@ export class CsvImportService {
     return { rows, invalid };
   }
 
-  /** Mask email for display: jean.dupont@gmail.com → j***@g***.com */
-  maskEmail(email: string): string {
+  /**
+   * Mask email for display: jean.dupont@gmail.com → j***@g***.com
+   *
+   * `persons.email` is nullable in the schema, so callers (e.g. the public
+   * lookup endpoint) can legitimately pass null/undefined/'' here. Return
+   * an empty string in those cases — the UI renders blank where it would
+   * have shown the masked address.
+   */
+  maskEmail(email: string | null | undefined): string {
+    if (!email) return '';
     const [local, domain] = email.split('@');
     if (!local || !domain) return '***@***.***';
     const domainParts = domain.split('.');
