@@ -258,4 +258,20 @@ export class PhasesController {
     const userId = await getUserId(req, this.supabase);
     return this.phases.reseedBracketRoundOne(phaseId, userId, dto);
   }
+
+  @Delete('phases/:phaseId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a bracket phase (admin+) — cascades slots, matches, and assignments',
+  })
+  @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 204, description: 'Phase deleted' })
+  @ApiResponse({ status: 400, description: 'Pool phases are deleted via DELETE /pools/:poolId' })
+  async deleteBracket(
+    @Param('phaseId', ParseUUIDPipe) phaseId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.phases.deleteBracketPhase(phaseId, userId);
+  }
 }

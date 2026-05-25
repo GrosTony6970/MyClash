@@ -920,6 +920,65 @@ export class PhasesService {
     return this.hemaRatings.resolveWeightedRatings(hemaIds, weapon);
   }
 
+  /**
+   * DELETE /api/v1/phases/:phaseId
+   *
+   * Delete a bracket phase end-to-end. Cascades via existing FKs:
+   *   - bracket_slots.phase_id ON DELETE CASCADE (migration 0001)
+   *   - matches.phase_id       ON DELETE CASCADE (migration 0057)
+   *   - match_events.match_id  ON DELETE CASCADE (migration 0001)
+   * referee_assignments.match_id is ON DELETE SET NULL, which would leave
+   * orphan rows with scope_type='match' + match_id=NULL — clean those up
+   * explicitly before deleting the phase so the assignment board stays tidy.
+   *
+   * Refuses pool-type phases — those go through DELETE /pools/:poolId.
+   */
+  async deleteBracketPhase(phaseId: string, actorUserId: string): Promise<void> {
+    const phase = await this.getPhaseForVisibility(phaseId);
+    const phaseType = phase['type'] as string;
+    if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
+      throw new BadRequestException(
+        `Phase ${phaseId} is type "${phaseType}" — pool phases are deleted via DELETE /pools/:poolId`,
+      );
+    }
+
+    const tournament = phase['tournaments'] as Record<string, unknown> | null;
+    const event = tournament?.['events'] as Record<string, unknown> | null;
+    const orgId = event?.['organization_id'];
+    if (!this.orgs || typeof orgId !== 'string') {
+      throw new BadRequestException('Phase organization could not be resolved');
+    }
+    await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+
+    // Clear referee_assignments scoped to this phase's matches before the
+    // matches cascade away. referee_assignments.match_id is ON DELETE SET NULL,
+    // so without this step we'd leave dangling rows.
+    const { data: matchRows } = await this.supabase.service
+      .from('matches')
+      .select('id')
+      .eq('phase_id', phaseId);
+    const matchIds = ((matchRows ?? []) as Array<{ id: string }>).map((m) => m.id);
+    if (matchIds.length > 0) {
+      const { error: refErr } = await this.supabase.service
+        .from('referee_assignments')
+        .delete()
+        .in('match_id', matchIds);
+      if (refErr) throw new BadRequestException(refErr.message);
+    }
+
+    // Drop the phase — bracket_slots, matches, and match_events cascade.
+    const { error: delErr } = await this.supabase.service.from('phases').delete().eq('id', phaseId);
+    if (delErr) throw new BadRequestException(delErr.message);
+
+    await this.supabase.service.from('audit_log').insert({
+      actor_user_id: actorUserId,
+      action: 'phase.bracket_deleted',
+      entity_type: 'phase',
+      entity_id: phaseId,
+      payload_json: { phaseType, matchCount: matchIds.length },
+    });
+  }
+
   async getTournamentBracket(tournamentId: string) {
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')

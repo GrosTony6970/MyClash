@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { accentClassFor } from '../../utils/color-token';
+import { accentClassFor, tintBgClassFor, tintTextClassFor } from '../../utils/color-token';
 import type { BracketSlotData, ColorToken } from './types';
 
 export interface MatchCardProps {
@@ -10,6 +10,16 @@ export interface MatchCardProps {
   onOverride?: (slotId: string) => void;
   /** Registers the card's outer element for connector geometry. */
   registerRef?: (slotId: string, el: HTMLDivElement | null) => void;
+  /**
+   * Render this card with the championship-final accent (gold border + glow).
+   * Driven from `BracketView` — the last main-round non-bronze slot.
+   */
+  isChampionshipMatch?: boolean;
+  /**
+   * Render with the bronze-match style (dashed border, bronze accent).
+   * Set by the bronze block in `BracketView`.
+   */
+  isBronzeMatch?: boolean;
 }
 
 function statusPill(status: string): { label: string; cls: string } {
@@ -36,6 +46,8 @@ export function MatchCard({
   onClick,
   onOverride,
   registerRef,
+  isChampionshipMatch = false,
+  isBronzeMatch = false,
 }: MatchCardProps) {
   const isTbd =
     (slot.redFighterName === null || slot.blueFighterName === null) && slot.status !== 'completed';
@@ -43,17 +55,33 @@ export function MatchCard({
   const isReadyOrLive = slot.status === 'ready' || slot.status === 'running';
   const isCompleted = slot.status === 'completed';
   const pill = statusPill(slot.status);
+  const redWins = isCompleted && winsThisRow('red', slot);
+  const blueWins = isCompleted && winsThisRow('blue', slot);
 
   const handleClick = onClick ? () => onClick(slot.matchId, slot.id) : undefined;
 
+  // Border + background priority: championship > bronze > TBD > ready/live > default.
+  const borderClass = isChampionshipMatch
+    ? 'border border-amber-400 ring-1 ring-amber-200 shadow-amber-100/40'
+    : isBronzeMatch
+      ? 'border border-dashed border-amber-700/60'
+      : isTbd
+        ? 'border border-dashed border-slate-300'
+        : isReadyOrLive
+          ? 'border border-amber-200'
+          : 'border border-slate-200';
+  const bgClass = isChampionshipMatch
+    ? 'bg-white'
+    : isReadyOrLive
+      ? 'bg-amber-50'
+      : isTbd
+        ? 'bg-slate-50'
+        : 'bg-white';
+
   const cardClasses = [
     'group relative flex h-[52px] w-full min-w-[180px] max-w-[320px] items-stretch rounded-md shadow-sm transition-shadow',
-    isReadyOrLive ? 'bg-amber-50' : isTbd ? 'bg-slate-50' : 'bg-white',
-    isTbd
-      ? 'border border-dashed border-slate-300'
-      : isReadyOrLive
-        ? 'border border-amber-200'
-        : 'border border-slate-200',
+    bgClass,
+    borderClass,
     handleClick ? 'cursor-pointer hover:shadow-md' : '',
   ]
     .filter(Boolean)
@@ -90,15 +118,17 @@ export function MatchCard({
             name={slot.redFighterName}
             club={slot.redClubAbbrev}
             score={slot.redScore}
-            highlight={isCompleted && winsThisRow('red', slot)}
+            highlight={redWins}
             isCompleted={isCompleted}
+            sideColor={redColor}
           />
           <FighterRow
             name={slot.blueFighterName}
             club={slot.blueClubAbbrev}
             score={slot.blueScore}
-            highlight={isCompleted && winsThisRow('blue', slot)}
+            highlight={blueWins}
             isCompleted={isCompleted}
+            sideColor={blueColor}
           />
         </div>
 
@@ -137,14 +167,27 @@ function FighterRow({
   score,
   highlight,
   isCompleted,
+  sideColor,
 }: {
   name: string | null;
   club: string | null | undefined;
   score: number | null;
   highlight: boolean;
   isCompleted: boolean;
+  sideColor: ColorToken;
 }) {
   const isTbd = name === null;
+  // The winner row's score chip tints to the winner's configured side colour
+  // (red / blue by default, or whatever the tournament has set in
+  // scoring_config.display.sideColors). All other states stay neutral slate.
+  const scoreChipClasses = isTbd
+    ? 'bg-slate-50 text-slate-300'
+    : highlight
+      ? `${tintBgClassFor(sideColor)} ${tintTextClassFor(sideColor)} font-bold`
+      : isCompleted
+        ? 'bg-slate-50 text-slate-500'
+        : 'bg-slate-50 text-slate-600';
+
   return (
     <div className="flex h-[26px] flex-1 items-center justify-between gap-1 pl-2 pr-1">
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -155,7 +198,9 @@ function FighterRow({
               ? 'italic text-slate-400'
               : highlight
                 ? 'font-semibold text-slate-900'
-                : 'text-slate-700',
+                : isCompleted
+                  ? 'text-slate-500'
+                  : 'text-slate-700',
           ].join(' ')}
         >
           {isTbd ? 'TBD' : name}
@@ -168,8 +213,8 @@ function FighterRow({
       </span>
       <span
         className={[
-          'w-[32px] shrink-0 rounded bg-slate-50 px-1 text-right font-mono text-xs tabular-nums',
-          isTbd ? 'text-slate-300' : isCompleted ? 'font-bold text-slate-900' : 'text-slate-600',
+          'w-[32px] shrink-0 rounded px-1 text-right font-mono text-xs tabular-nums',
+          scoreChipClasses,
         ].join(' ')}
       >
         {score === null ? '—' : score}

@@ -868,4 +868,93 @@ describe('PhasesService', () => {
       });
     });
   });
+
+  // ── deleteBracketPhase ───────────────────────────────────────────────────
+
+  describe('deleteBracketPhase', () => {
+    const bracketPhaseRow = {
+      id: 'phase-1',
+      tournament_id: 't1',
+      type: 'single_elim',
+      visibility_status: 'hidden',
+      tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
+    };
+
+    it('deletes the phase row and clears scoped referee assignments', async () => {
+      const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
+      phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
+
+      const matchesLookup = makeAwaitableChain({
+        data: [{ id: 'match-a' }, { id: 'match-b' }],
+        error: null,
+      });
+      const refDelete = makeAwaitableChain({ data: null, error: null });
+      const phaseDelete = makeAwaitableChain({ data: null, error: null });
+      const auditInsert = makeAwaitableChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseLookup) // getPhaseForVisibility
+        .mockReturnValueOnce(matchesLookup) // matches.select where phase_id
+        .mockReturnValueOnce(refDelete) // referee_assignments.delete .in match_id
+        .mockReturnValueOnce(phaseDelete) // phases.delete .eq id
+        .mockReturnValueOnce(auditInsert); // audit_log.insert
+
+      await service.deleteBracketPhase('phase-1', 'actor-1');
+
+      expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'actor-1', 'admin');
+      expect(refDelete.delete).toHaveBeenCalled();
+      expect(refDelete.in).toHaveBeenCalledWith('match_id', ['match-a', 'match-b']);
+      expect(phaseDelete.delete).toHaveBeenCalled();
+      expect(phaseDelete.eq).toHaveBeenCalledWith('id', 'phase-1');
+    });
+
+    it('skips the referee_assignments delete when the phase has no matches', async () => {
+      const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
+      phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
+
+      const matchesLookup = makeAwaitableChain({ data: [], error: null });
+      const phaseDelete = makeAwaitableChain({ data: null, error: null });
+      const auditInsert = makeAwaitableChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseLookup)
+        .mockReturnValueOnce(matchesLookup)
+        .mockReturnValueOnce(phaseDelete) // straight to phases.delete — no referee_assignments call
+        .mockReturnValueOnce(auditInsert);
+
+      await service.deleteBracketPhase('phase-1', 'actor-1');
+
+      expect(phaseDelete.delete).toHaveBeenCalled();
+    });
+
+    it('rejects pool-type phases with a steering message', async () => {
+      const poolPhaseRow = {
+        id: 'phase-pool',
+        tournament_id: 't1',
+        type: 'pool',
+        visibility_status: 'hidden',
+        tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
+      };
+      const phaseLookup = makeChain({ data: poolPhaseRow, error: null });
+      phaseLookup.maybeSingle.mockResolvedValue({ data: poolPhaseRow, error: null });
+      fromMock.mockReturnValueOnce(phaseLookup);
+
+      await expect(service.deleteBracketPhase('phase-pool', 'actor-1')).rejects.toMatchObject({
+        constructor: BadRequestException,
+        message: expect.stringContaining('pool phases'),
+      });
+    });
+
+    it('propagates ForbiddenException when actor lacks admin role', async () => {
+      const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
+      phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
+      fromMock.mockReturnValueOnce(phaseLookup);
+
+      mockOrgs.assertOrgRole.mockRejectedValueOnce(new Error('Requires admin role or higher'));
+
+      await expect(service.deleteBracketPhase('phase-1', 'actor-low-priv')).rejects.toThrow(
+        /admin role/,
+      );
+    });
+  });
 });

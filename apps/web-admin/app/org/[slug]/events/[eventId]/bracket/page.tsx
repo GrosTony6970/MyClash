@@ -142,6 +142,8 @@ export default function BracketPage() {
   const [error, setError] = useState<string | null>(null);
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
   const [notifyHref, setNotifyHref] = useState<string | null>(null);
   const [bracketRefreshKey, setBracketRefreshKey] = useState(0);
@@ -305,6 +307,33 @@ export default function BracketPage() {
       setError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function deleteBracket() {
+    if (!bracketPhaseId || deleting) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/phases/${bracketPhaseId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 204) {
+        const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(errBody?.message ?? 'Delete failed');
+      }
+      // Drop client state and fall back to the empty state.
+      setBracket(null);
+      setBracketPhaseId(null);
+      setVisibility('hidden');
+      setNotifyHref(null);
+      setExistingBracket(false);
+      setShowDeleteConfirm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -803,10 +832,17 @@ export default function BracketPage() {
               )}
               <button
                 onClick={() => setShowForceConfirm(true)}
-                disabled={generating}
+                disabled={generating || deleting}
                 className="ml-auto rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50"
               >
                 Regenerate bracket
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={generating || deleting}
+                className="rounded-lg border border-red-200 bg-white hover:bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+              >
+                Delete bracket
               </button>
             </div>
             {bracket.phaseType === 'double_elim' && (
@@ -846,6 +882,52 @@ export default function BracketPage() {
                   className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm"
                 >
                   Yes, regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete confirm modal — distinct from regenerate: leaves no bracket behind. */}
+        {showDeleteConfirm && bracket && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+              <p className="text-4xl mb-3 text-center">🗑️</p>
+              <h2 className="text-lg font-bold mb-2 text-center">Delete this bracket?</h2>
+              <p className="text-gray-600 text-sm mb-4 text-center">
+                This will permanently remove:
+              </p>
+              <ul className="text-sm text-gray-700 mb-5 space-y-1 mx-auto max-w-[240px]">
+                <li className="flex justify-between">
+                  <span>Bracket slots</span>
+                  <span className="font-mono text-gray-900">{bracket.slots?.length ?? 0}</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>Match records</span>
+                  <span className="font-mono text-gray-900">{bracket.slots?.length ?? 0}</span>
+                </li>
+                <li className="flex justify-between text-gray-500">
+                  <span>Referee assignments</span>
+                  <span className="font-mono">cascaded</span>
+                </li>
+              </ul>
+              <p className="text-xs text-gray-500 mb-5 text-center">
+                You can re-create the bracket later from the registered fighters.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void deleteBracket()}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-semibold rounded-lg text-sm disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting…' : 'Delete bracket'}
                 </button>
               </div>
             </div>
@@ -1020,10 +1102,22 @@ export default function BracketPage() {
         )}
 
         {!bracket && !generating && (
-          <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-            <p className="text-gray-400 text-sm">
-              No bracket generated yet. Configure above and click Generate.
+          <div className="text-center py-14 px-8 bg-white border border-slate-200 rounded-xl shadow-sm">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-2xl">
+              🏆
+            </div>
+            <h3 className="text-base font-semibold text-slate-900 mb-1">No bracket created yet</h3>
+            <p className="text-slate-500 text-sm mb-5 max-w-md mx-auto">
+              Configure the bracket above (phase type, size, and seeding), then click Generate to
+              lock in the matchups for the registered fighters.
             </p>
+            <button
+              onClick={() => void generate(false)}
+              disabled={generating || !selectedTournament}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-700 hover:bg-red-800 disabled:opacity-50 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Generate bracket
+            </button>
           </div>
         )}
       </div>

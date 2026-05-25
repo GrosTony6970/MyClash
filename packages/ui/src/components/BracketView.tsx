@@ -196,12 +196,13 @@ function SingleElimLayout({
                       onClick={onMatchClick}
                       onOverride={onOverrideSlot}
                       registerRef={registerRef}
+                      isChampionshipMatch={isFinalRound}
                     />
                   ))}
                   {isFinalRound && bronzeMatch && (
                     <div className="mt-8">
                       <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-                        Bronze
+                        Bronze Match
                       </p>
                       <MatchCard
                         slot={bronzeMatch}
@@ -210,6 +211,7 @@ function SingleElimLayout({
                         onClick={onMatchClick}
                         onOverride={onOverrideSlot}
                         registerRef={registerRef}
+                        isBronzeMatch={true}
                       />
                     </div>
                   )}

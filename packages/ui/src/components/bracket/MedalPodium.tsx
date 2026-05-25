@@ -16,105 +16,136 @@ export interface MedalPodiumProps {
 }
 
 const DEFAULT_LABELS = {
-  gold: 'Champion',
-  silver: 'Runner-up',
-  bronze: 'Bronze',
-  fourth: '4th place',
+  gold: 'Gold Medal',
+  silver: 'Silver Medal',
+  bronze: 'Bronze Medal',
+  fourth: '4th Place',
   tbd: 'TBD',
 };
 
+/**
+ * Ribbon-style podium — a vertical stack of medal bands placed directly under
+ * the Final card. Gold and Silver sit immediately under the Final; the Bronze
+ * Match (rendered separately by `BracketView` between Silver and Bronze) feeds
+ * Bronze + 4th below it. The ribbons match the mockup's anatomy:
+ *
+ *   🥇 Gold Medal · Petit
+ *   🥈 Silver Medal · Müller
+ *   ─── Bronze Match (rendered by BracketView) ───
+ *   🥉 Bronze Medal · Dubois
+ *   4th Place · Novák
+ */
 export function MedalPodium({
   podium,
   showBronze = true,
   labels = DEFAULT_LABELS,
 }: MedalPodiumProps) {
   return (
-    <div className="flex items-end justify-center gap-4 pt-8">
-      <PodiumTile
-        title={labels.silver}
-        fighter={podium.silver ?? null}
-        tbdLabel={labels.tbd}
-        bg="bg-slate-100"
-        stripe="bg-slate-300"
-        text="text-slate-700"
-        heightClass="h-[120px]"
-        widthClass="w-[140px]"
-      />
-      <PodiumTile
+    <div className="flex w-full max-w-[260px] flex-col gap-1">
+      <Ribbon
+        icon="🥇"
         title={labels.gold}
         fighter={podium.gold ?? null}
         tbdLabel={labels.tbd}
-        bg="bg-amber-100"
-        stripe="bg-amber-400"
-        text="text-amber-900"
-        heightClass="h-[150px]"
-        widthClass="w-[160px]"
+        variant="gold"
+      />
+      <Ribbon
+        icon="🥈"
+        title={labels.silver}
+        fighter={podium.silver ?? null}
+        tbdLabel={labels.tbd}
+        variant="silver"
       />
       {showBronze && (
-        <PodiumTile
-          title={labels.bronze}
-          fighter={podium.bronze ?? null}
-          tbdLabel={labels.tbd}
-          bg="bg-amber-50"
-          stripe="bg-amber-700"
-          text="text-amber-800"
-          heightClass="h-[110px]"
-          widthClass="w-[140px]"
-        />
-      )}
-      {showBronze && (
-        <PodiumTile
-          title={labels.fourth}
-          fighter={podium.fourth ?? null}
-          tbdLabel={labels.tbd}
-          bg="bg-slate-50"
-          stripe="bg-slate-400"
-          text="text-slate-600"
-          heightClass="h-[100px]"
-          widthClass="w-[130px]"
-        />
+        <>
+          <Ribbon
+            icon="🥉"
+            title={labels.bronze}
+            fighter={podium.bronze ?? null}
+            tbdLabel={labels.tbd}
+            variant="bronze"
+          />
+          <Ribbon
+            icon=""
+            title={labels.fourth}
+            fighter={podium.fourth ?? null}
+            tbdLabel={labels.tbd}
+            variant="fourth"
+          />
+        </>
       )}
     </div>
   );
 }
 
-function PodiumTile({
+type RibbonVariant = 'gold' | 'silver' | 'bronze' | 'fourth';
+
+const VARIANT_CLASSES: Record<RibbonVariant, { bg: string; text: string; border: string }> = {
+  gold: {
+    bg: 'bg-amber-50',
+    text: 'text-amber-900',
+    border: 'border border-amber-300',
+  },
+  silver: {
+    bg: 'bg-slate-100',
+    text: 'text-slate-700',
+    border: 'border border-slate-300',
+  },
+  bronze: {
+    bg: 'bg-amber-50/70',
+    text: 'text-amber-800',
+    border: 'border border-amber-600/40',
+  },
+  fourth: {
+    bg: 'bg-white',
+    text: 'text-slate-500',
+    border: 'border border-dashed border-slate-300',
+  },
+};
+
+function Ribbon({
+  icon,
   title,
   fighter,
   tbdLabel,
-  bg,
-  stripe,
-  text,
-  heightClass,
-  widthClass,
+  variant,
 }: {
+  icon: string;
   title: string;
   fighter: PodiumFighter | null;
   tbdLabel: string;
-  bg: string;
-  stripe: string;
-  text: string;
-  heightClass: string;
-  widthClass: string;
+  variant: RibbonVariant;
 }) {
+  const { bg, text, border } = VARIANT_CLASSES[variant];
+  const fighterName = fighter?.fighterName ?? tbdLabel;
+  const isTbd = fighter === null;
+
   return (
-    <div className={`flex flex-col items-stretch ${widthClass}`}>
-      <div className={`mb-1 h-1 rounded-full ${stripe}`} />
-      <div
-        className={`flex flex-col items-center justify-center rounded-md px-2 py-3 text-center shadow-sm ${bg} ${heightClass}`}
+    <div className={`flex h-[22px] items-center gap-2 rounded px-3 ${bg} ${border}`} role="status">
+      {icon && (
+        <span className="text-xs leading-none" aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      <span className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${text}`}>
+        {title}
+      </span>
+      <span className="text-slate-400" aria-hidden="true">
+        ·
+      </span>
+      <span
+        className={[
+          'flex-1 truncate text-xs font-medium',
+          isTbd ? 'italic text-slate-400' : 'text-slate-900',
+        ].join(' ')}
       >
-        <p className={`text-[11px] font-semibold uppercase tracking-wide ${text}`}>{title}</p>
-        {fighter ? (
-          <>
-            <p className="mt-2 text-sm font-semibold text-slate-900">{fighter.fighterName}</p>
-            {fighter.clubAbbrev && (
-              <p className="mt-0.5 text-[11px] text-slate-500">{fighter.clubAbbrev}</p>
-            )}
-          </>
-        ) : (
-          <p className="mt-2 text-sm italic text-slate-400">{tbdLabel}</p>
-        )}
-      </div>
+        {fighterName}
+      </span>
+      {fighter?.clubAbbrev && (
+        <span className="shrink-0 rounded bg-white/80 px-1 py-px text-[10px] text-slate-500">
+          {fighter.clubAbbrev}
+        </span>
+      )}
     </div>
   );
 }
