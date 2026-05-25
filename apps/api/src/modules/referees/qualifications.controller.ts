@@ -277,4 +277,38 @@ export class QualificationsController {
     const actorUserId = await getUserId(req, this.supabase);
     await this.qualifications.removeEventReferee(eventId, userId, actorUserId);
   }
+
+  /**
+   * R6: register an UNCLAIMED person (no auth user yet) as referee for
+   * this event. Keys the event_referees row by person_id; flips to
+   * user_id automatically when the person later claims their account
+   * via `backfillRefereeIdentity`.
+   */
+  @Post('events/:eventId/referees/by-person/:personId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Register an unclaimed person as referee for this event (admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async ensureRefereeByPerson(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const actorUserId = await getUserId(req, this.supabase);
+    await this.qualifications.ensureEventRefereeByPerson(eventId, personId, actorUserId);
+  }
+
+  @Delete('events/:eventId/referees/by-person/:personId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unregister an unclaimed person as referee for this event (admin+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async removeRefereeByPerson(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const actorUserId = await getUserId(req, this.supabase);
+    await this.qualifications.removeEventRefereeByPerson(eventId, personId, actorUserId);
+  }
 }

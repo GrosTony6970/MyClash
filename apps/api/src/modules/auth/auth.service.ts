@@ -548,19 +548,55 @@ export class AuthService {
   }
 
   private async completeClaim(userId: string, personId: string): Promise<void> {
+    let globalPersonId: string | null = null;
     try {
-      await this.supabase.service
+      const { data: row } = await this.supabase.service
         .from('persons')
         .update({
           claim_status: 'claimed',
           claimed_by_user_id: userId,
         })
-        .eq('id', personId);
+        .eq('id', personId)
+        .select('global_person_id')
+        .maybeSingle();
+      globalPersonId =
+        (row as { global_person_id: string | null } | null)?.global_person_id ?? null;
     } catch {
       // Table not yet created — skip
       this.logger.warn(
         `Could not update claim_status for person ${personId} — persons table not yet created`,
       );
+      return;
+    }
+
+    // R6: back-fill any person_id-keyed referee rows (event_referees,
+    // referee_qualifications, referee_assignments) onto the now-claimed
+    // user_id so the unclaimed → claimed transition is seamless. Mirrors
+    // QualificationsService.backfillRefereeIdentity — kept inline to avoid
+    // pulling RefereesModule into AuthModule.
+    if (globalPersonId) {
+      try {
+        const now = new Date().toISOString();
+        await Promise.all([
+          this.supabase.service
+            .from('event_referees')
+            .update({ user_id: userId, person_id: null, updated_at: now })
+            .eq('person_id', globalPersonId),
+          this.supabase.service
+            .from('referee_qualifications')
+            .update({ user_id: userId, person_id: null, updated_at: now })
+            .eq('person_id', globalPersonId),
+          this.supabase.service
+            .from('referee_assignments')
+            .update({ user_id: userId, person_id: null })
+            .eq('person_id', globalPersonId),
+        ]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(
+          `Referee identity back-fill failed for global_person ${globalPersonId}: ${message}`,
+        );
+      }
     }
   }
 

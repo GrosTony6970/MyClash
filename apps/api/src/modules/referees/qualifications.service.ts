@@ -81,8 +81,15 @@ export interface UpdateRefereeAvailabilityDto {
 }
 
 export interface EventRefereeRow {
-  userId: string;
+  /**
+   * R6: nullable for unclaimed referees. Claimed people have a non-null
+   * userId; unclaimed ones expose only personId. Frontend uses personId
+   * as the stable identity key for routing assignments.
+   */
+  userId: string | null;
   personId: string | null;
+  /** R6: true when the row is keyed by person_id (= no claimed account). */
+  unclaimed: boolean;
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ skillId: string; rating: number | null }>;
@@ -154,15 +161,24 @@ export class QualificationsService {
       throw new BadRequestException('Rating must be 1..5 or null');
     }
 
-    // Check for existing active qualification for this role
-    const { data: existing } = await this.supabase.service
+    // R6: figure out which identity column the person uses in this
+    // event. Claimed referees have an event_referees row keyed by
+    // user_id; unclaimed ones (post-R6) are keyed by person_id. We
+    // mirror that decision on the referee_qualifications write.
+    const identity = await this.resolveRefereeIdentity(eventId, personId);
+
+    // Check for existing active qualification for this role.
+    const existingQuery = this.supabase.service
       .from('referee_qualifications')
       .select('id')
       .eq('event_id', eventId)
-      .eq('person_id', personId)
       .eq('role', role)
-      .eq('active', true)
-      .maybeSingle();
+      .eq('active', true);
+    const { data: existing } = await (
+      identity.column === 'user_id'
+        ? existingQuery.eq('user_id', identity.value)
+        : existingQuery.eq('person_id', identity.value)
+    ).maybeSingle();
 
     if (existing) {
       // Update existing
@@ -177,13 +193,15 @@ export class QualificationsService {
       return this.map(data as Record<string, unknown>);
     }
 
-    // Check max 3 active qualifications (one per role)
-    const { count } = await this.supabase.service
+    // Check max 3 active qualifications (one per role).
+    const countQuery = this.supabase.service
       .from('referee_qualifications')
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
-      .eq('person_id', personId)
       .eq('active', true);
+    const { count } = await (identity.column === 'user_id'
+      ? countQuery.eq('user_id', identity.value)
+      : countQuery.eq('person_id', identity.value));
 
     if ((count ?? 0) >= 3) {
       throw new ConflictException(
@@ -191,20 +209,55 @@ export class QualificationsService {
       );
     }
 
+    const insertRow: Record<string, unknown> = {
+      event_id: eventId,
+      role,
+      rating,
+      active: true,
+    };
+    insertRow[identity.column] = identity.value;
     const { data, error } = await this.supabase.service
       .from('referee_qualifications')
-      .insert({
-        event_id: eventId,
-        person_id: personId,
-        role,
-        rating,
-        active: true,
-      })
+      .insert(insertRow)
       .select('*')
       .single();
 
     if (error) throw new BadRequestException(error.message);
     return this.map(data as Record<string, unknown>);
+  }
+
+  /**
+   * R6: resolve the referee identity column for an event_referees row.
+   * Given a `personId` (= global_persons.id), look up the matching
+   * event_referees row. Returns either `{ column: 'user_id', value: userId }`
+   * (claimed) or `{ column: 'person_id', value: personId }` (unclaimed).
+   *
+   * Falls back to `person_id` keying for legacy callers passing a
+   * person_id without an event_referees row yet — qualifying without
+   * first being on the referee roster is unusual but possible.
+   */
+  private async resolveRefereeIdentity(
+    eventId: string,
+    personId: string,
+  ): Promise<{ column: 'user_id' | 'person_id'; value: string }> {
+    // 1. Try claimed path: persons.id → claimed_by_user_id → event_referees.user_id.
+    const { data: gp } = await this.supabase.service
+      .from('global_persons')
+      .select('claimed_by_user_id')
+      .eq('id', personId)
+      .maybeSingle();
+    const claimedUserId = (gp as { claimed_by_user_id: string | null } | null)?.claimed_by_user_id;
+    if (claimedUserId) {
+      const { data: er } = await this.supabase.service
+        .from('event_referees')
+        .select('user_id')
+        .eq('event_id', eventId)
+        .eq('user_id', claimedUserId)
+        .maybeSingle();
+      if (er) return { column: 'user_id', value: claimedUserId };
+    }
+    // 2. Unclaimed path: event_referees.person_id = personId.
+    return { column: 'person_id', value: personId };
   }
 
   // ── Soft delete ───────────────────────────────────────────────────────────────
@@ -548,6 +601,166 @@ export class QualificationsService {
   }
 
   /**
+   * R6: register an UNCLAIMED person as referee for an event.
+   *
+   * Keys the event_referees row by `person_id` (= global_persons.id)
+   * instead of `user_id`. Refuses if the person already has a
+   * claimed_by_user_id — the caller must use the user_id variant in
+   * that case (steers double-write attempts to the canonical row).
+   *
+   * - Upserts event_referees row keyed on (event_id, person_id).
+   * - Promotes the global is_referee flag (works the same way for
+   *   claimed + unclaimed people — the column lives on global_persons,
+   *   not on the user).
+   * - On a later claim, `backfillRefereeIdentity` flips this row's
+   *   `person_id` → NULL and sets `user_id`, joining the claimed path.
+   */
+  async ensureEventRefereeByPerson(
+    eventId: string,
+    personId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const event = await this.getEvent(eventId);
+    await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
+
+    // Verify the global_person exists and is genuinely unclaimed.
+    const { data: person, error: personErr } = await this.supabase.service
+      .from('global_persons')
+      .select('id, claimed_by_user_id, is_referee')
+      .eq('id', personId)
+      .maybeSingle();
+
+    if (personErr) throw new BadRequestException(personErr.message);
+    if (!person) {
+      throw new BadRequestException(`Global person ${personId} not found.`);
+    }
+    const personRow = person as {
+      id: string;
+      claimed_by_user_id: string | null;
+      is_referee: string | null;
+    };
+    if (personRow.claimed_by_user_id) {
+      throw new BadRequestException(
+        `Person ${personId} already has a claimed account — use the user_id endpoint.`,
+      );
+    }
+
+    // Upsert event_referees row keyed on (event_id, person_id). The
+    // partial UNIQUE index on (event_id, person_id) WHERE person_id IS
+    // NOT NULL provides the on-conflict target.
+    const { error: upsertError } = await this.supabase.service.from('event_referees').upsert(
+      {
+        event_id: eventId,
+        person_id: personId,
+        user_id: null,
+        available_all_tournaments: true,
+        available_all_event_duration: true,
+      },
+      { onConflict: 'event_id,person_id', ignoreDuplicates: true },
+    );
+
+    if (upsertError) throw new BadRequestException(upsertError.message);
+
+    // Same is_referee promotion rule as the claimed path.
+    if (personRow.is_referee === null) {
+      await this.supabase.service
+        .from('global_persons')
+        .update({
+          is_referee: 'true',
+          is_referee_event_managed: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', personId)
+        .is('is_referee', null);
+    }
+  }
+
+  /**
+   * R6: remove an UNCLAIMED person from an event's referee roster.
+   * Mirrors `removeEventReferee` but keys on `person_id`. Cleans up
+   * any person-scoped referee_assignments + qualifications + the
+   * event_referees row. Clears the global is_referee flag IFF we set
+   * it AND no other event still has them as a referee.
+   */
+  async removeEventRefereeByPerson(
+    eventId: string,
+    personId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    const event = await this.getEvent(eventId);
+    await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
+
+    // Defensive cleanup, person-keyed.
+    await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('person_id', personId);
+
+    const { error: delErr } = await this.supabase.service
+      .from('event_referees')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('person_id', personId);
+
+    if (delErr) throw new BadRequestException(delErr.message);
+
+    // Still a referee at any other event?
+    const { data: remaining, error: remErr } = await this.supabase.service
+      .from('event_referees')
+      .select('event_id')
+      .eq('person_id', personId)
+      .limit(1);
+
+    if (remErr) throw new BadRequestException(remErr.message);
+    if (remaining && remaining.length > 0) return;
+
+    await this.supabase.service
+      .from('global_persons')
+      .update({
+        is_referee: null,
+        is_referee_event_managed: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', personId)
+      .eq('is_referee_event_managed', true);
+  }
+
+  /**
+   * R6: claim back-fill. When a global_person transitions from
+   * unclaimed → claimed (their `claimed_by_user_id` becomes non-null),
+   * flip any pre-existing person-keyed referee rows to user-keyed so
+   * the rest of the system sees them as a normal claimed referee.
+   *
+   * Idempotent — re-running on already-claimed rows is a no-op since
+   * the WHERE clause matches only rows where `person_id` is still set.
+   * Best-effort: one of the three tables failing doesn't roll back the
+   * others. The caller (onboarding service) should log + alert rather
+   * than refuse the claim.
+   */
+  async backfillRefereeIdentity(personId: string, newUserId: string): Promise<void> {
+    const now = new Date().toISOString();
+
+    // event_referees
+    await this.supabase.service
+      .from('event_referees')
+      .update({ user_id: newUserId, person_id: null, updated_at: now })
+      .eq('person_id', personId);
+
+    // referee_qualifications
+    await this.supabase.service
+      .from('referee_qualifications')
+      .update({ user_id: newUserId, person_id: null, updated_at: now })
+      .eq('person_id', personId);
+
+    // referee_assignments — no updated_at column on this table.
+    await this.supabase.service
+      .from('referee_assignments')
+      .update({ user_id: newUserId, person_id: null })
+      .eq('person_id', personId);
+  }
+
+  /**
    * Update availability flags for a referee at an event.
    * Upserts the event_referees row if missing (defaults: true/true).
    */
@@ -609,49 +822,70 @@ export class QualificationsService {
     // Read access: any org member (lowest role = read_only)
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'read_only');
 
-    // 1. Load event_referees rows
+    // 1. Load event_referees rows — R6: rows may carry user_id OR person_id.
     const { data: refRows, error: refError } = await this.supabase.service
       .from('event_referees')
-      .select('user_id, available_all_tournaments, available_all_event_duration')
+      .select('user_id, person_id, available_all_tournaments, available_all_event_duration')
       .eq('event_id', eventId);
 
     if (refError) throw new BadRequestException(refError.message);
     const rows = (refRows ?? []) as Array<{
-      user_id: string;
+      user_id: string | null;
+      person_id: string | null;
       available_all_tournaments: boolean;
       available_all_event_duration: boolean;
     }>;
 
     if (rows.length === 0) return [];
 
-    const userIds = rows.map((r) => r.user_id);
+    const userIds = rows.map((r) => r.user_id).filter((id): id is string => !!id);
+    const personIdsFromUnclaimed = rows.map((r) => r.person_id).filter((id): id is string => !!id);
 
-    // 2. Load active qualifications for this event (all users at once)
-    const { data: qualRows, error: qualError } = await this.supabase.service
-      .from('referee_qualifications')
-      .select('user_id, role, rating')
-      .eq('event_id', eventId)
-      .eq('active', true)
-      .in('user_id', userIds);
-
-    if (qualError) throw new BadRequestException(qualError.message);
+    // 2. Load active qualifications for this event. R6: qualifications can
+    //    be either user-keyed or person-keyed — fetch both buckets so the
+    //    list page shows the same rows for unclaimed referees.
     const qualsByUser = new Map<string, Array<{ skillId: string; rating: number | null }>>();
-    for (const q of (qualRows ?? []) as Array<{
-      user_id: string;
-      role: string;
-      rating: number | null;
-    }>) {
-      const list = qualsByUser.get(q.user_id) ?? [];
-      list.push({ skillId: q.role, rating: q.rating ?? null });
-      qualsByUser.set(q.user_id, list);
+    const qualsByPerson = new Map<string, Array<{ skillId: string; rating: number | null }>>();
+    if (userIds.length > 0) {
+      const { data: qualRows, error: qualError } = await this.supabase.service
+        .from('referee_qualifications')
+        .select('user_id, role, rating')
+        .eq('event_id', eventId)
+        .eq('active', true)
+        .in('user_id', userIds);
+      if (qualError) throw new BadRequestException(qualError.message);
+      for (const q of (qualRows ?? []) as Array<{
+        user_id: string;
+        role: string;
+        rating: number | null;
+      }>) {
+        const list = qualsByUser.get(q.user_id) ?? [];
+        list.push({ skillId: q.role, rating: q.rating ?? null });
+        qualsByUser.set(q.user_id, list);
+      }
+    }
+    if (personIdsFromUnclaimed.length > 0) {
+      const { data: qualRows, error: qualError } = await this.supabase.service
+        .from('referee_qualifications')
+        .select('person_id, role, rating')
+        .eq('event_id', eventId)
+        .eq('active', true)
+        .in('person_id', personIdsFromUnclaimed);
+      if (qualError) throw new BadRequestException(qualError.message);
+      for (const q of (qualRows ?? []) as Array<{
+        person_id: string;
+        role: string;
+        rating: number | null;
+      }>) {
+        const list = qualsByPerson.get(q.person_id) ?? [];
+        list.push({ skillId: q.role, rating: q.rating ?? null });
+        qualsByPerson.set(q.person_id, list);
+      }
     }
 
-    // 3. Load global_persons for display name + club (best-effort via claimed_by_user_id)
-    const { data: gpRows } = await this.supabase.service
-      .from('global_persons')
-      .select('id, claimed_by_user_id, given_name, family_name, display_name, club_id')
-      .in('claimed_by_user_id', userIds);
-
+    // 3. Load global_persons for display name + club.
+    //    Claimed referees: lookup by claimed_by_user_id IN userIds.
+    //    Unclaimed referees (R6): lookup by id IN personIdsFromUnclaimed.
     const gpByUser = new Map<
       string,
       {
@@ -662,15 +896,46 @@ export class QualificationsService {
         club_id: string | null;
       }
     >();
-    for (const gp of (gpRows ?? []) as Array<{
-      id: string;
-      claimed_by_user_id: string;
-      given_name: string;
-      family_name: string;
-      display_name: string;
-      club_id: string | null;
-    }>) {
-      gpByUser.set(gp.claimed_by_user_id, gp);
+    const gpById = new Map<
+      string,
+      {
+        id: string;
+        given_name: string;
+        family_name: string;
+        display_name: string;
+        club_id: string | null;
+      }
+    >();
+    if (userIds.length > 0) {
+      const { data: gpRows } = await this.supabase.service
+        .from('global_persons')
+        .select('id, claimed_by_user_id, given_name, family_name, display_name, club_id')
+        .in('claimed_by_user_id', userIds);
+      for (const gp of (gpRows ?? []) as Array<{
+        id: string;
+        claimed_by_user_id: string;
+        given_name: string;
+        family_name: string;
+        display_name: string;
+        club_id: string | null;
+      }>) {
+        gpByUser.set(gp.claimed_by_user_id, gp);
+      }
+    }
+    if (personIdsFromUnclaimed.length > 0) {
+      const { data: gpRows } = await this.supabase.service
+        .from('global_persons')
+        .select('id, given_name, family_name, display_name, club_id')
+        .in('id', personIdsFromUnclaimed);
+      for (const gp of (gpRows ?? []) as Array<{
+        id: string;
+        given_name: string;
+        family_name: string;
+        display_name: string;
+        club_id: string | null;
+      }>) {
+        gpById.set(gp.id, gp);
+      }
     }
 
     // 3b. For any user_id that has no global_persons row, fall back to the
@@ -702,7 +967,8 @@ export class QualificationsService {
     const clubIds = Array.from(
       new Set(
         [
-          ...((gpRows ?? []) as Array<{ club_id: string | null }>),
+          ...Array.from(gpByUser.values()),
+          ...Array.from(gpById.values()),
           ...Array.from(personByUser.values()),
         ]
           .map((p) => p.club_id)
@@ -726,19 +992,34 @@ export class QualificationsService {
     // 5. Build assignment counts per user per tournament
     const assignmentMap = await this.countAssignmentsByReferee(eventId);
 
-    // 6. Merge into EventRefereeRow[]
+    // 6. Merge into EventRefereeRow[] — handles both user-keyed (claimed)
+    //    and person-keyed (R6 unclaimed) rows. The fallback key is
+    //    always personId so the frontend has a stable identity even
+    //    while user_id is null.
     return rows.map((r) => {
-      const gp = gpByUser.get(r.user_id);
-      const fallbackPerson = gp ? null : (personByUser.get(r.user_id) ?? null);
-      const personId = gp?.id ?? fallbackPerson?.id ?? null;
+      const unclaimed = !r.user_id;
+      const gp = r.user_id
+        ? (gpByUser.get(r.user_id) ?? null)
+        : r.person_id
+          ? (gpById.get(r.person_id) ?? null)
+          : null;
+      const fallbackPerson =
+        !unclaimed && r.user_id && !gp ? (personByUser.get(r.user_id) ?? null) : null;
+      const personId = gp?.id ?? fallbackPerson?.id ?? r.person_id ?? null;
+      const fallbackLabel = r.user_id ?? r.person_id ?? '';
       const displayName = gp
-        ? `${gp.given_name} ${gp.family_name}`.trim() || gp.display_name || r.user_id
+        ? `${gp.given_name} ${gp.family_name}`.trim() || gp.display_name || fallbackLabel
         : fallbackPerson
-          ? `${fallbackPerson.given_name} ${fallbackPerson.family_name}`.trim() || r.user_id
-          : r.user_id;
+          ? `${fallbackPerson.given_name} ${fallbackPerson.family_name}`.trim() || fallbackLabel
+          : fallbackLabel;
 
-      const qualifications = qualsByUser.get(r.user_id) ?? [];
-      const userAssignments = assignmentMap.get(r.user_id);
+      const qualifications = r.user_id
+        ? (qualsByUser.get(r.user_id) ?? [])
+        : r.person_id
+          ? (qualsByPerson.get(r.person_id) ?? [])
+          : [];
+
+      const userAssignments = r.user_id ? assignmentMap.get(r.user_id) : undefined;
 
       const assignments: Array<{
         tournamentId: string;
@@ -762,6 +1043,7 @@ export class QualificationsService {
       return {
         userId: r.user_id,
         personId,
+        unclaimed,
         displayName,
         clubLabel: clubId ? (clubsById.get(clubId) ?? null) : null,
         qualifications,

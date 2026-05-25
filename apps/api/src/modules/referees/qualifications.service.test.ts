@@ -570,6 +570,10 @@ describe('QualificationsService — skills catalog', () => {
       const skillChain = makeChain({ data: customSkillRow, error: null });
       skillChain.maybeSingle.mockResolvedValue({ data: customSkillRow, error: null });
 
+      // R6: resolveRefereeIdentity → global_persons lookup (unclaimed = no claimed_by_user_id)
+      const gpChain = makeChain({ data: { claimed_by_user_id: null }, error: null });
+      gpChain.maybeSingle.mockResolvedValue({ data: { claimed_by_user_id: null }, error: null });
+
       // Check existing active qualification → not found
       const existingChain = makeChain({ data: null, error: null });
       existingChain.maybeSingle.mockResolvedValue({ data: null, error: null });
@@ -583,6 +587,7 @@ describe('QualificationsService — skills catalog', () => {
 
       fromMock
         .mockReturnValueOnce(skillChain) // referee_skills lookup
+        .mockReturnValueOnce(gpChain) // R6: global_persons identity lookup
         .mockReturnValueOnce(existingChain) // check existing qualification
         .mockReturnValueOnce(countChain) // count active qualifications
         .mockReturnValueOnce(insertChain); // insert new qualification

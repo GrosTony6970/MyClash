@@ -2547,6 +2547,9 @@ export const en = {
       refereeNeedsClaimedAccount:
         'Participant added, but they need to claim their account before they can be a referee.',
       refereeRequiresClaim: 'Person must claim their account before they can be a referee.',
+      refereeUnclaimedHint:
+        "Tagged as referee. They'll see their assignments after claiming their account.",
+      refereeUnclaimedBadge: 'unclaimed',
       refereeUpdateFailed: 'Could not update referee status. Other changes were saved.',
     },
     deletionRequest: {
@@ -5377,6 +5380,9 @@ export const fr = {
         'Participant ajoute, mais il doit revendiquer son compte avant de pouvoir etre arbitre.',
       refereeRequiresClaim:
         'La personne doit revendiquer son compte avant de pouvoir etre arbitre.',
+      refereeUnclaimedHint:
+        'Inscrit comme arbitre. Il verra ses affectations apres avoir revendique son compte.',
+      refereeUnclaimedBadge: 'non revendique',
       refereeUpdateFailed:
         "Impossible de mettre a jour le statut d'arbitre. Les autres modifications ont ete enregistrees.",
     },

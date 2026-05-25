@@ -130,6 +130,9 @@ export default function ParticipantsPage() {
   const [pendingDelete, setPendingDelete] = useState<Person | null>(null);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [refereeUserIds, setRefereeUserIds] = useState<Set<string>>(new Set());
+  // R6: unclaimed persons can be tagged as referees too — their event_referees
+  // row is keyed by person_id (global_persons.id) instead of user_id.
+  const [refereePersonIds, setRefereePersonIds] = useState<Set<string>>(new Set());
   type SortKey = 'name' | 'club' | 'claim' | 'tournaments' | 'referee';
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -174,7 +177,8 @@ export default function ParticipantsPage() {
   }, [eventId, apiUrl, refreshKey]);
 
   // Fetch the event's referee list once per refresh to populate the Referee column.
-  // event_referees rows are keyed by user_id (Supabase auth UUID).
+  // R6: rows may be keyed by user_id (claimed) OR person_id (unclaimed). Track
+  // both in parallel sets so the Referee column lights up either way.
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
@@ -183,8 +187,18 @@ export default function ParticipantsPage() {
     })
       .then(async (res) => {
         if (!res.ok) return;
-        const rows = (await res.json()) as Array<{ userId: string }>;
-        setRefereeUserIds(new Set(rows.map((r) => r.userId)));
+        const rows = (await res.json()) as Array<{
+          userId: string | null;
+          personId: string | null;
+        }>;
+        const users = new Set<string>();
+        const persons = new Set<string>();
+        for (const r of rows) {
+          if (r.userId) users.add(r.userId);
+          if (r.personId) persons.add(r.personId);
+        }
+        setRefereeUserIds(users);
+        setRefereePersonIds(persons);
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
@@ -283,8 +297,12 @@ export default function ParticipantsPage() {
           return (ac - bc) * dir;
         }
         case 'referee': {
-          const ar = !!(a.claimedByUserId && refereeUserIds.has(a.claimedByUserId));
-          const br = !!(b.claimedByUserId && refereeUserIds.has(b.claimedByUserId));
+          const ar =
+            !!(a.claimedByUserId && refereeUserIds.has(a.claimedByUserId)) ||
+            refereePersonIds.has(a.id);
+          const br =
+            !!(b.claimedByUserId && refereeUserIds.has(b.claimedByUserId)) ||
+            refereePersonIds.has(b.id);
           return (Number(br) - Number(ar)) * dir; // true first when asc
         }
         default:
@@ -301,6 +319,7 @@ export default function ParticipantsPage() {
     sortDir,
     registrationsByPersonId,
     refereeUserIds,
+    refereePersonIds,
   ]);
 
   function closeAddModal() {
@@ -345,29 +364,26 @@ export default function ParticipantsPage() {
       }
       const person = (await personRes.json()) as { id: string; claimedByUserId?: string | null };
 
-      // If "also a referee" was checked, fire-and-forget the referee registration.
-      // Uses claimedByUserId (Supabase auth UUID) — only possible when the person
-      // already has a claimed account. The endpoint is idempotent.
+      // R6: register as referee, branching on identity.
+      // - Claimed person (has Supabase auth UUID) → POST /referees/:userId
+      // - Unclaimed person (no auth account yet) → POST /referees/by-person/:personId
+      // The unclaimed row will auto-flip to user-keyed when they later claim.
       if (addForm.isReferee) {
-        if (person.claimedByUserId) {
-          fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${person.claimedByUserId}`, {
-            method: 'POST',
-            credentials: 'include',
-          })
-            .then(async (res) => {
-              if (!res.ok) {
-                const body = (await res.json().catch(() => null)) as { message?: string } | null;
-                console.error('Referee registration failed', res.status, body);
-                toast.warning(t('organizer.persons.refereeRegistrationFailed'));
-              }
-            })
-            .catch((err: unknown) => {
-              console.error('Referee registration network error', err);
+        const url = person.claimedByUserId
+          ? `${apiUrl}/api/v1/events/${eventId}/referees/${person.claimedByUserId}`
+          : `${apiUrl}/api/v1/events/${eventId}/referees/by-person/${person.id}`;
+        fetch(url, { method: 'POST', credentials: 'include' })
+          .then(async (res) => {
+            if (!res.ok) {
+              const body = (await res.json().catch(() => null)) as { message?: string } | null;
+              console.error('Referee registration failed', res.status, body);
               toast.warning(t('organizer.persons.refereeRegistrationFailed'));
-            });
-        } else {
-          toast.warning(t('organizer.persons.refereeNeedsClaimedAccount'));
-        }
+            }
+          })
+          .catch((err: unknown) => {
+            console.error('Referee registration network error', err);
+            toast.warning(t('organizer.persons.refereeRegistrationFailed'));
+          });
       }
 
       // Per-tournament registrations — capture failures so a network blip
@@ -409,7 +425,9 @@ export default function ParticipantsPage() {
 
   function openEdit(p: Person) {
     setEditPerson(p);
-    const currentlyReferee = !!(p.claimedByUserId && refereeUserIds.has(p.claimedByUserId));
+    // R6: referee state may come from either identity (claimed or unclaimed).
+    const currentlyReferee =
+      !!(p.claimedByUserId && refereeUserIds.has(p.claimedByUserId)) || refereePersonIds.has(p.id);
     setEditForm({
       givenName: p.givenName,
       familyName: p.familyName,
@@ -499,15 +517,18 @@ export default function ParticipantsPage() {
         toast.success('Profile and tournament assignments updated.');
       }
 
-      // Diff referee status — only when the person has a claimed account.
+      // R6: diff referee status, branching on identity. Either path uses the
+      // same POST/DELETE shape; only the URL differs.
       const claimedUserId = editPerson.claimedByUserId;
-      const wasReferee = !!(claimedUserId && refereeUserIds.has(claimedUserId));
-      if (claimedUserId && editForm.isReferee !== wasReferee) {
+      const wasReferee =
+        !!(claimedUserId && refereeUserIds.has(claimedUserId)) ||
+        refereePersonIds.has(editPerson.id);
+      if (editForm.isReferee !== wasReferee) {
+        const url = claimedUserId
+          ? `${apiUrl}/api/v1/events/${eventId}/referees/${claimedUserId}`
+          : `${apiUrl}/api/v1/events/${eventId}/referees/by-person/${editPerson.id}`;
         const method = editForm.isReferee ? 'POST' : 'DELETE';
-        const r = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${claimedUserId}`, {
-          method,
-          credentials: 'include',
-        });
+        const r = await fetch(url, { method, credentials: 'include' });
         if (!r.ok) {
           toast.warning(t('organizer.persons.refereeUpdateFailed'));
         }
@@ -962,8 +983,16 @@ export default function ParticipantsPage() {
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      {p.claimedByUserId && refereeUserIds.has(p.claimedByUserId) ? (
-                        <SkillBadge color="violet" label={t('organizer.persons.refereeTag')} />
+                      {(p.claimedByUserId && refereeUserIds.has(p.claimedByUserId)) ||
+                      refereePersonIds.has(p.id) ? (
+                        <SkillBadge
+                          color="violet"
+                          label={
+                            !p.claimedByUserId
+                              ? `${t('organizer.persons.refereeTag')} · ${t('organizer.persons.refereeUnclaimedBadge')}`
+                              : t('organizer.persons.refereeTag')
+                          }
+                        />
                       ) : null}
                     </td>
                     <td className="py-2">
@@ -1436,32 +1465,25 @@ export default function ParticipantsPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
               </div>
-              {(() => {
-                const canBeReferee = !!editPerson.claimedByUserId;
-                return (
-                  <div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={editForm.isReferee}
-                        disabled={!canBeReferee}
-                        onChange={(e) =>
-                          setEditForm((f) => ({ ...f, isReferee: e.target.checked }))
-                        }
-                        className="rounded disabled:opacity-50"
-                      />
-                      <span className={canBeReferee ? 'text-gray-700' : 'text-gray-400'}>
-                        {t('organizer.persons.addAsReferee')}
-                      </span>
-                    </label>
-                    {!canBeReferee && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        {t('organizer.persons.refereeRequiresClaim')}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* R6: referee checkbox is always enabled. Unclaimed persons
+                  get a person_id-keyed event_referees row; once they claim,
+                  the row auto-flips to user_id-keyed. */}
+              <div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editForm.isReferee}
+                    onChange={(e) => setEditForm((f) => ({ ...f, isReferee: e.target.checked }))}
+                    className="rounded"
+                  />
+                  <span className="text-gray-700">{t('organizer.persons.addAsReferee')}</span>
+                </label>
+                {!editPerson.claimedByUserId && editForm.isReferee && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {t('organizer.persons.refereeUnclaimedHint')}
+                  </p>
+                )}
+              </div>
               {tournaments.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-2">
