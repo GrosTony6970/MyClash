@@ -247,6 +247,31 @@ describe('QualificationsService — skills catalog', () => {
       const insertCall = skillChain.insert.mock.calls[0]![0] as { id: string };
       expect(insertCall.id).toMatch(/^custom-/);
     });
+
+    it('preserves the underlying Supabase error message on insert failure', async () => {
+      // Regression net for the "Could not save skill" diagnostic surface — the
+      // frontend reads `message` off the response body, so the service must
+      // forward Supabase's error message verbatim rather than swallowing it.
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      const dbError = {
+        message: 'column "description" of relation "referee_skills" does not exist',
+      };
+      const skillChain = makeChain({ data: null, error: dbError });
+      skillChain.single.mockResolvedValue({ data: null, error: dbError });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(skillChain); // insert skill — errors
+
+      await expect(
+        service.createCustomSkill('event-1', { name: 'Senior Ref', color: 'red' }, 'admin-user'),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining('column "description"'),
+      });
+    });
   });
 
   // ── updateCustomSkill ─────────────────────────────────────────────────────────

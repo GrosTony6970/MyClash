@@ -294,12 +294,20 @@ function SkillModal({
       }
 
       if (!res.ok) {
-        setError(t('organizer.refereesPage.skillSaveFailed'));
+        // Surface the backend message rather than swallowing it behind a
+        // generic toast — the cause (auth role, DB column, validation) is
+        // otherwise impossible to diagnose from the UI alone.
+        const body = (await res.json().catch(() => null)) as {
+          message?: string | string[];
+        } | null;
+        const raw = Array.isArray(body?.message) ? body!.message.join(' · ') : body?.message;
+        setError(raw || t('organizer.refereesPage.skillSaveFailed'));
         return;
       }
 
       onSaved();
     } catch {
+      // catch fires on network errors (no response body) — keep the generic toast.
       setError(t('organizer.refereesPage.skillSaveFailed'));
     } finally {
       setSaving(false);
