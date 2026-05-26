@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HemaRatingsService, parseHemaRatingsDetailHtml } from './hema-ratings.service';
 
 function makeLatestSnapshotChain(result: unknown) {
@@ -13,6 +13,40 @@ function makeLatestSnapshotChain(result: unknown) {
   chain.limit.mockReturnValue(chain);
   return chain;
 }
+
+/**
+ * Chain that supports BOTH read (`.select().order().limit().maybeSingle()`)
+ * and write (`.update(...).eq(...)`) paths against the same table mock,
+ * needed by tests that exercise patchSnapshotEntry via the search /
+ * sync surfaces.
+ */
+function makeReadWriteSnapshotChain(readResult: unknown) {
+  const chain = {
+    select: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(readResult),
+    update: vi.fn(),
+    eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+  };
+  chain.select.mockReturnValue(chain);
+  chain.order.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  chain.update.mockReturnValue(chain);
+  return chain;
+}
+
+beforeEach(() => {
+  // Tests opt into mocking fetch when they exercise the upstream HEMA
+  // path. Default to rejecting so an unmocked test doesn't accidentally
+  // hit hemaratings.com over the network — slow, flaky, and a violation
+  // of unit-test isolation.
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('fetch disabled in unit tests')));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('HemaRatingsService', () => {
   it('parses current HEMA detail table layout with club, nationality, and all weighted ratings', () => {
@@ -191,9 +225,82 @@ describe('HemaRatingsService', () => {
       id: '101',
       name: 'Jean Dupont',
       club: 'Lyon AMHE',
+      // Snapshot entries here have no nationality and fetch is stubbed to
+      // fail in tests — degrades silently to null per design.
+      nationality: null,
       detailsUrl: 'https://hemaratings.com/fighters/details/101/',
     });
     expect(results.map((r) => r.id)).not.toContain('107');
+  });
+
+  it('returns cached nationality from the snapshot without calling fetch', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const fighters = [
+      { id: 10458, name: 'Steven Gallagher', club: 'Smart HEMA Clubs', nationality: 'Ireland' },
+    ];
+    const from = vi
+      .fn()
+      .mockReturnValue(makeLatestSnapshotChain({ data: { fighters }, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    const results = await service.search('Gallagher', 5);
+
+    expect(results).toEqual([
+      {
+        id: '10458',
+        name: 'Steven Gallagher',
+        club: 'Smart HEMA Clubs',
+        nationality: 'Ireland',
+        detailsUrl: 'https://hemaratings.com/fighters/details/10458/',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('syncByHemaRatingsId fetches the profile and patches the snapshot', async () => {
+    const html = `
+      <h1>Anthony Garnier</h1>
+      <table>
+        <tbody>
+          <tr><td>Club</td><td>Lyon AMHE</td></tr>
+          <tr><td>Nationality</td><td>France</td></tr>
+        </tbody>
+      </table>
+      <h3>Ratings</h3>
+      <table>
+        <tbody>
+          <tr><td><strong>Longsword</strong></td></tr>
+          <tr><td>- Mixed Steel Longsword</td><td>October 2025</td><td>500</td><td>1500</td><td>400</td><td>1550</td></tr>
+        </tbody>
+      </table>
+    `;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(html) }),
+    );
+    const chain = makeReadWriteSnapshotChain({
+      data: { id: 'snap-1', fighters: [{ id: 6282, name: 'Old' }] },
+      error: null,
+    });
+    const from = vi.fn().mockReturnValue(chain);
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    await service.syncByHemaRatingsId('6282');
+
+    expect(chain.update).toHaveBeenCalledTimes(1);
+    const [updatePayload] = chain.update.mock.calls[0] as [{ fighters: unknown[] }];
+    expect(updatePayload.fighters).toEqual([
+      expect.objectContaining({ id: 6282, name: 'Anthony Garnier', nationality: 'France' }),
+    ]);
+  });
+
+  it('syncByHemaRatingsId swallows upstream failures (fire-and-forget contract)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
+    const from = vi.fn().mockReturnValue(makeLatestSnapshotChain({ data: null, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    await expect(service.syncByHemaRatingsId('6282')).resolves.toBeUndefined();
   });
 
   it('returns empty list when no snapshot exists', async () => {

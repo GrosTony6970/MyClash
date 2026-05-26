@@ -2602,6 +2602,12 @@ export const en = {
         "Tagged as referee. They'll see their assignments after claiming their account.",
       refereeUnclaimedBadge: 'unclaimed',
       refereeUpdateFailed: 'Could not update referee status. Other changes were saved.',
+      hemaFinder: {
+        colName: 'Name',
+        colClub: 'Club',
+        colCountry: 'Country',
+        colId: 'ID',
+      },
     },
     deletionRequest: {
       requestDeletion: 'Request deletion',
@@ -5487,6 +5493,12 @@ export const fr = {
       refereeUnclaimedBadge: 'non revendique',
       refereeUpdateFailed:
         "Impossible de mettre a jour le statut d'arbitre. Les autres modifications ont ete enregistrees.",
+      hemaFinder: {
+        colName: 'Nom',
+        colClub: 'Club',
+        colCountry: 'Pays',
+        colId: 'ID',
+      },
     },
     deletionRequest: {
       requestDeletion: 'Demander la suppression',

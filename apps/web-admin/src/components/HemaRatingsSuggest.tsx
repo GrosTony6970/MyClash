@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { t } from '@myclash/i18n';
 
 export interface HemaRatingsSuggestion {
   id: string;
   name: string;
   club: string;
+  nationality: string | null;
   detailsUrl: string;
 }
 
@@ -65,6 +67,22 @@ export function HemaRatingsSuggest({
 
   const selected = suggestions.find((s) => s.id === selectedId) ?? null;
 
+  /**
+   * Fire-and-forget background sync of the picked fighter. Keepalive
+   * keeps the POST alive if the user closes the participant modal
+   * immediately after selecting. Errors are silenced — the snapshot
+   * refresh is a nice-to-have, not a precondition for saving the
+   * participant.
+   */
+  function handleSelect(suggestion: HemaRatingsSuggestion) {
+    fetch(`${apiUrl}/api/v1/hema-ratings/fighters/${suggestion.id}/sync`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    }).catch(() => {});
+    onSelect(suggestion);
+  }
+
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -93,47 +111,40 @@ export function HemaRatingsSuggest({
       ) : null}
 
       {suggestions.length > 0 ? (
-        <div className="space-y-1">
-          {suggestions.map((suggestion) => {
-            const active = suggestion.id === selectedId;
-            return (
-              <button
-                key={suggestion.id}
-                type="button"
-                onClick={() => onSelect(suggestion)}
-                className={[
-                  'w-full rounded-md border px-3 py-2 text-left text-sm transition-colors',
-                  active
-                    ? 'border-red-700 bg-white text-gray-950 shadow-sm'
-                    : 'border-transparent bg-white/70 text-gray-700 hover:border-gray-200 hover:bg-white',
-                ].join(' ')}
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span>
-                    <span className="block font-medium">{suggestion.name}</span>
-                    <span className="block text-xs text-gray-500">
-                      {suggestion.club || 'No club listed'}
-                    </span>
-                  </span>
-                  <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                    #{suggestion.id}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
+        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colName')}</th>
+                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colClub')}</th>
+                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colCountry')}</th>
+                <th className="px-2 py-1.5">{t('organizer.persons.hemaFinder.colId')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {suggestions.map((suggestion) => {
+                const active = suggestion.id === selectedId;
+                return (
+                  <tr
+                    key={suggestion.id}
+                    onClick={() => handleSelect(suggestion)}
+                    className={[
+                      'cursor-pointer border-b border-gray-100 transition-colors last:border-b-0',
+                      active ? 'bg-red-50 text-gray-950' : 'hover:bg-gray-50 text-gray-700',
+                    ].join(' ')}
+                  >
+                    <td className="px-2 py-1.5 font-medium">{suggestion.name}</td>
+                    <td className="px-2 py-1.5 text-xs text-gray-500">{suggestion.club || '—'}</td>
+                    <td className="px-2 py-1.5 text-xs text-gray-500">
+                      {suggestion.nationality || '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-gray-500">#{suggestion.id}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      ) : null}
-
-      {selected ? (
-        <a
-          href={selected.detailsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-block text-xs font-medium text-red-700 hover:text-red-800"
-        >
-          Open HEMA Ratings profile
-        </a>
       ) : null}
     </div>
   );

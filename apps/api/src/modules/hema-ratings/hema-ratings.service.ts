@@ -32,6 +32,13 @@ export interface HemaRatingsSearchResult {
   id: string;
   name: string;
   club: string;
+  /**
+   * Fighter's country. Null when the snapshot entry hasn't been enriched
+   * yet — the search endpoint pre-enriches results when missing, and the
+   * /sync endpoint writes nationality into the snapshot on selection, so
+   * repeat searches of the same fighter are warm.
+   */
+  nationality: string | null;
   detailsUrl: string;
 }
 
@@ -357,20 +364,100 @@ export class HemaRatingsService {
 
     const fighters = ((data as { fighters?: unknown }).fighters ?? []) as SnapshotFighter[];
 
-    return fighters
+    const matches = fighters
       .map((fighter) => ({ fighter, score: scoreFighter(fighter, q) }))
       .filter(({ fighter, score }) => score > 0 && fighter.id !== null && fighter.id !== undefined)
       .sort((a, b) => b.score - a.score || a.fighter.name.localeCompare(b.fighter.name))
-      .slice(0, cappedLimit)
-      .map(({ fighter }) => {
+      .slice(0, cappedLimit);
+
+    // Pre-enrich each match with nationality. The snapshot acts as the
+    // cache: entries with a non-null nationality come straight back; the
+    // rest fan out to fetchHemaRatingsProfile in parallel and write the
+    // result back into the snapshot via patchSnapshotEntry. Failures
+    // degrade silently to `nationality: null` so a flaky upstream never
+    // blocks the picker.
+    const enriched = await Promise.all(
+      matches.map(async ({ fighter }) => {
         const id = String(fighter.id);
-        return {
+        const base: HemaRatingsSearchResult = {
           id,
           name: fighter.name,
           club: fighter.club ?? '',
+          nationality: fighter.nationality ?? null,
           detailsUrl: `https://hemaratings.com/fighters/details/${id}/`,
         };
-      });
+        if (base.nationality) return base;
+        try {
+          const profile = await fetchHemaRatingsProfile(id);
+          await this.patchSnapshotEntry(profile).catch(() => {
+            /* persistence failures don't block the response */
+          });
+          return { ...base, nationality: profile.nationality ?? null };
+        } catch {
+          return base;
+        }
+      }),
+    );
+
+    return enriched;
+  }
+
+  /**
+   * Re-fetch a single fighter's profile by raw HEMA Ratings ID (NOT a
+   * global_persons UUID) and patch the latest snapshot in place. Used by
+   * the participant-add finder so the picked fighter's snapshot is fresh
+   * the next time anyone (search, registration, rating resolution)
+   * touches it.
+   *
+   * Fire-and-forget at the caller: this is intentionally swallowed-error
+   * — a transient hemaratings.com hiccup must never bubble up into the
+   * participant form.
+   */
+  async syncByHemaRatingsId(hemaRatingsId: string): Promise<void> {
+    try {
+      const profile = await fetchHemaRatingsProfile(hemaRatingsId);
+      await this.patchSnapshotEntry(profile);
+    } catch {
+      /* swallow — caller treats this as fire-and-forget */
+    }
+  }
+
+  /**
+   * Update the matching fighter entry in the latest snapshot row with a
+   * freshly-fetched profile. Shared by refreshSingleFighter (super-admin
+   * surface), syncByHemaRatingsId (org-staff surface), and the search
+   * enrichment path. If no snapshot exists yet we silently skip — the
+   * next full sync will write a fresh row.
+   */
+  private async patchSnapshotEntry(profile: HemaRatingsProfile): Promise<void> {
+    const { data: latest } = await this.supabase.service
+      .from('hema_ratings_snapshots')
+      .select('id, fighters')
+      .order('synced_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!latest) return;
+
+    const row = latest as { id: string; fighters?: unknown };
+    const fighters = ((row.fighters ?? []) as SnapshotFighter[]) ?? [];
+    const idx = fighters.findIndex((f) => String(f.id) === profile.id);
+    const numericId = Number.parseInt(profile.id, 10);
+    const enriched: SnapshotFighter = {
+      id: Number.isFinite(numericId) ? numericId : profile.id,
+      name: profile.name,
+      club: profile.club,
+      nationality: profile.nationality,
+      detailsUrl: profile.detailsUrl,
+      ratings: profile.ratings,
+    };
+    const nextFighters =
+      idx >= 0
+        ? [...fighters.slice(0, idx), enriched, ...fighters.slice(idx + 1)]
+        : [...fighters, enriched];
+    await this.supabase.service
+      .from('hema_ratings_snapshots')
+      .update({ fighters: nextFighters as unknown as Record<string, unknown>[] })
+      .eq('id', row.id);
   }
 
   async getProfile(id: string): Promise<HemaRatingsProfileResponse> {
@@ -567,38 +654,7 @@ export class HemaRatingsService {
     }
 
     const profile = await fetchHemaRatingsProfile(hemaRatingsId);
-
-    // Patch the latest snapshot. If no snapshot exists yet we silently skip
-    // the persistence step — the operator still gets the fresh profile back
-    // for the UI, and the next full sync will write it properly.
-    const { data: latest } = await this.supabase.service
-      .from('hema_ratings_snapshots')
-      .select('id, fighters')
-      .order('synced_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latest) {
-      const row = latest as { id: string; fighters?: unknown };
-      const fighters = ((row.fighters ?? []) as SnapshotFighter[]) ?? [];
-      const idx = fighters.findIndex((f) => String(f.id) === hemaRatingsId);
-      const enriched: SnapshotFighter = {
-        id: parseInt(hemaRatingsId, 10),
-        name: profile.name,
-        club: profile.club,
-        nationality: profile.nationality,
-        detailsUrl: profile.detailsUrl,
-        ratings: profile.ratings,
-      };
-      const nextFighters =
-        idx >= 0
-          ? [...fighters.slice(0, idx), enriched, ...fighters.slice(idx + 1)]
-          : [...fighters, enriched];
-      await this.supabase.service
-        .from('hema_ratings_snapshots')
-        .update({ fighters: nextFighters as unknown as Record<string, unknown>[] })
-        .eq('id', row.id);
-    }
-
+    await this.patchSnapshotEntry(profile);
     return { hemaRatingsId, ratings: profile.ratings };
   }
 
