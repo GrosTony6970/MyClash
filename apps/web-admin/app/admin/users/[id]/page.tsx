@@ -58,6 +58,19 @@ export default function AdminUserEditPage() {
   const [addRole, setAddRole] = useState<OrgRole>('admin');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  // Temp password vault — see admin-users.service.revealTempPassword.
+  // Status values mirror what the backend returns:
+  //   'active'           → plaintext present in `tempPassword`
+  //   'password_changed' → user has reset their own password; locked
+  //   'expired'          → row is gone (no temp, 7-day TTL, or admin lock)
+  //   null               → not loaded yet
+  const [tempPasswordStatus, setTempPasswordStatus] = useState<
+    'active' | 'password_changed' | 'expired' | null
+  >(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordRevealed, setTempPasswordRevealed] = useState(false);
+  const [tempPasswordCopied, setTempPasswordCopied] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     fetch(`${apiUrl}/api/v1/auth/me`, { credentials: 'include' })
@@ -83,6 +96,54 @@ export default function AdminUserEditPage() {
     setAccountForm({ email: data.user.email ?? '', displayName: data.user.display_name ?? '' });
   }, [apiUrl, userId, t]);
 
+  /**
+   * Hits the reveal endpoint. The endpoint itself flips status to
+   * `password_changed` / `expired` lazily — every call refreshes our
+   * local view of "is the temp still valid".
+   */
+  const fetchTempPassword = useCallback(async () => {
+    const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/temp-password`, {
+      credentials: 'include',
+    });
+    if (!res.ok) return;
+    const body = (await res.json()) as
+      | { status: 'active'; password: string }
+      | { status: 'password_changed' | 'expired' };
+    setTempPasswordStatus(body.status);
+    setTempPassword(body.status === 'active' ? body.password : null);
+    setTempPasswordRevealed(false);
+    setTempPasswordCopied(false);
+  }, [apiUrl, userId]);
+
+  async function lockTempPassword() {
+    if (!window.confirm(t('admin.users.edit.tempPasswordLockConfirm'))) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/temp-password`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(t('admin.users.edit.saveError'));
+      await fetchTempPassword();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('admin.users.edit.saveError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyTempPassword() {
+    if (!tempPassword) return;
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setTempPasswordCopied(true);
+      setTimeout(() => setTempPasswordCopied(false), 1500);
+    } catch {
+      // Clipboard write can fail under tighter browser sandboxes — fall
+      // back silently; the password is still visible on screen.
+    }
+  }
+
   const fetchOrgs = useCallback(async () => {
     const res = await fetch(`${apiUrl}/api/v1/admin/organizations`, {
       credentials: 'include',
@@ -102,7 +163,10 @@ export default function AdminUserEditPage() {
     void fetchOrgs().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : t('admin.users.edit.saveError'));
     });
-  }, [fetchUser, fetchOrgs, t]);
+    void fetchTempPassword().catch(() => {
+      // Non-fatal — the section just won't render the password row.
+    });
+  }, [fetchUser, fetchOrgs, fetchTempPassword, t]);
 
   const availableOrgs = useMemo(() => {
     if (!user) return orgs;
@@ -294,6 +358,61 @@ export default function AdminUserEditPage() {
           {t('admin.users.edit.save')}
         </button>
       </section>
+
+      {tempPasswordStatus && (
+        <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+            {t('admin.users.edit.tempPasswordSection')}
+          </h2>
+          {tempPasswordStatus === 'active' && tempPassword ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type={tempPasswordRevealed ? 'text' : 'password'}
+                  value={tempPassword}
+                  readOnly
+                  className="flex-1 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setTempPasswordRevealed((v) => !v)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {tempPasswordRevealed
+                    ? t('admin.users.edit.tempPasswordHide')
+                    : t('admin.users.edit.tempPasswordReveal')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyTempPassword()}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {tempPasswordCopied
+                    ? t('admin.users.edit.tempPasswordCopied')
+                    : t('admin.users.edit.tempPasswordCopy')}
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                <span>{t('admin.users.edit.tempPasswordHint')}</span>
+                <button
+                  type="button"
+                  onClick={() => void lockTempPassword()}
+                  disabled={busy}
+                  className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {t('admin.users.edit.tempPasswordLockNow')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 italic">
+              {tempPasswordStatus === 'password_changed'
+                ? t('admin.users.edit.tempPasswordLocked')
+                : t('admin.users.edit.tempPasswordExpired')}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">

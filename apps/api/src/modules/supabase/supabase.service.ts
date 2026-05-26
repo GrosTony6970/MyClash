@@ -14,6 +14,12 @@ export interface SupabaseAuthUser {
 
 export interface SupabaseAdminUser extends SupabaseAuthUser {
   email_confirmed_at?: string | null;
+  /**
+   * auth.users.updated_at — moves forward when the password (and a few
+   * other fields) change. Used by admin-users.service to detect "the
+   * user has reset their own password" without a webhook.
+   */
+  updated_at?: string | null;
 }
 
 export interface GoTrueAdminResponse<T> {
@@ -41,6 +47,7 @@ function parseAdminUser(value: unknown): SupabaseAdminUser | null {
     last_sign_in_at: record.last_sign_in_at,
     banned_until: record.banned_until,
     email_confirmed_at: record.email_confirmed_at,
+    updated_at: record.updated_at,
   };
 }
 

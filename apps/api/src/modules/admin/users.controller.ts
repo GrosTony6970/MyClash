@@ -120,6 +120,23 @@ export class UsersAdminController {
     await this.service.enableUser(id, getActorId(req));
   }
 
+  @Get(':id/temp-password')
+  @ApiOperation({
+    summary: 'Reveal the temp password set at user-create (super admin)',
+    description:
+      'Returns the temp password if it is still in effect. Locks (and wipes) automatically once the user has changed it, after the 7-day TTL elapses, or when the lock endpoint is invoked. Every reveal is audit-logged.',
+  })
+  async revealTempPassword(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.revealTempPassword(id, getActorId(req));
+  }
+
+  @Delete(':id/temp-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lock the temp password — super admin manual lock' })
+  async lockTempPassword(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.lockTempPassword(id, getActorId(req));
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete user (super admin)' })

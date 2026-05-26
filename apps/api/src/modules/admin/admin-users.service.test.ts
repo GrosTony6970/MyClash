@@ -269,6 +269,123 @@ describe('AdminUsersService', () => {
     expect(deleteAuthAdminUser).toHaveBeenCalledWith('user-linked');
   });
 
+  // ── Temp-password vault ────────────────────────────────────────────────────
+
+  it('vaults the temp password on create so super-admin can reveal it later', async () => {
+    const tempVault = chain({ data: null, error: null });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+    createAuthAdminUser.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', email: 'new@example.com', updated_at: '2026-05-26T12:00:00Z' },
+      detail: {},
+    });
+
+    const result = await service.createPlatformUser({ email: 'new@example.com' }, 'actor-user');
+
+    expect(tempVault.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-new',
+        password: result.temporaryPassword,
+        supabase_updated_at: '2026-05-26T12:00:00Z',
+      }),
+      { onConflict: 'user_id' },
+    );
+  });
+
+  it('reveals the temp password when Supabase updated_at has not moved', async () => {
+    const tempVault = chain({
+      data: {
+        password: 'stored-temp',
+        supabase_updated_at: '2026-05-26T12:00:00Z',
+        expires_at: '2099-01-01T00:00:00Z',
+      },
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+    getAuthAdminUser.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', updated_at: '2026-05-26T12:00:00Z' },
+      detail: {},
+    });
+
+    const result = await service.revealTempPassword('user-new', 'actor-user');
+
+    expect(result).toEqual({ status: 'active', password: 'stored-temp' });
+  });
+
+  it('wipes the vault and returns password_changed when Supabase updated_at has moved', async () => {
+    const tempVault = chain({
+      data: {
+        password: 'stored-temp',
+        supabase_updated_at: '2026-05-26T12:00:00Z',
+        expires_at: '2099-01-01T00:00:00Z',
+      },
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+    getAuthAdminUser.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', updated_at: '2026-05-27T00:00:00Z' },
+      detail: {},
+    });
+
+    const result = await service.revealTempPassword('user-new', 'actor-user');
+
+    expect(result).toEqual({ status: 'password_changed' });
+    expect(tempVault.delete).toHaveBeenCalled();
+  });
+
+  it('returns expired when the vault row is past its expiry', async () => {
+    const tempVault = chain({
+      data: {
+        password: 'stored-temp',
+        supabase_updated_at: '2026-05-26T12:00:00Z',
+        expires_at: '2020-01-01T00:00:00Z',
+      },
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+
+    const result = await service.revealTempPassword('user-new', 'actor-user');
+
+    expect(result).toEqual({ status: 'expired' });
+    expect(tempVault.delete).toHaveBeenCalled();
+  });
+
+  it('returns expired when no vault row exists', async () => {
+    const tempVault = chain({ data: null, error: null });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+
+    await expect(service.revealTempPassword('user-new', 'actor-user')).resolves.toEqual({
+      status: 'expired',
+    });
+  });
+
+  it('manual lock deletes the vault row and returns locked', async () => {
+    const tempVault = chain({ data: null, error: null });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+
+    await expect(service.lockTempPassword('user-new', 'actor-user')).resolves.toEqual({
+      status: 'locked',
+    });
+    expect(tempVault.delete).toHaveBeenCalled();
+  });
+
   it('blocks deleting the current actor and the last super admin', async () => {
     await expect(service.deletePlatformUser('actor-user', 'actor-user', 'safe')).rejects.toThrow(
       BadRequestException,

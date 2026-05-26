@@ -244,6 +244,20 @@ export class AdminUsersService {
       await this.grantSuperAdmin(response.data.id);
     }
 
+    // Vault the temp password so a super-admin can re-reveal it on the
+    // user-detail page until the user changes it themselves. The
+    // `supabase_updated_at` baseline is what lets the reveal endpoint
+    // detect "the user has set their own password" without a webhook.
+    const supabaseUpdatedAt = response.data.updated_at ?? new Date().toISOString();
+    await this.supabase.service.from('admin_user_temp_passwords').upsert(
+      {
+        user_id: response.data.id,
+        password: temporaryPassword,
+        supabase_updated_at: supabaseUpdatedAt,
+      },
+      { onConflict: 'user_id' },
+    );
+
     await this.writeAuditLog(actorUserId, 'user.create', 'user', response.data.id, {
       target_email: email,
       super_admin_granted: input.makeSuperAdmin === true,
@@ -258,6 +272,71 @@ export class AdminUsersService {
       temporaryPassword,
       superAdminGranted: input.makeSuperAdmin === true,
     };
+  }
+
+  /**
+   * Reveal the temp password for a freshly-created user. Resolves to
+   * one of three statuses:
+   *   - 'active'           — password still valid, returned to caller.
+   *   - 'password_changed' — Supabase Auth updated_at has moved past
+   *                          the baseline we recorded; row wiped.
+   *   - 'expired'          — past 7-day TTL or row missing; wiped.
+   *
+   * Every successful reveal writes `user.temp_password.reveal` to the
+   * audit log. The plaintext is never logged.
+   */
+  async revealTempPassword(
+    userId: string,
+    actorUserId: string,
+  ): Promise<{ status: 'active'; password: string } | { status: 'password_changed' | 'expired' }> {
+    const { data: row } = await this.supabase.service
+      .from('admin_user_temp_passwords')
+      .select('password, supabase_updated_at, expires_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!row) return { status: 'expired' };
+    const stored = row as {
+      password: string;
+      supabase_updated_at: string;
+      expires_at: string;
+    };
+
+    if (new Date(stored.expires_at).getTime() < Date.now()) {
+      await this.wipeTempPasswordRow(userId);
+      return { status: 'expired' };
+    }
+
+    // Pull current Supabase state to detect a password change since we
+    // vaulted. The fetch is on the GoTrue admin API; same surface used
+    // by listUsers.
+    const fresh = await this.supabase.getAuthAdminUser(userId);
+    const currentUpdatedAt = fresh.data?.updated_at;
+    if (
+      currentUpdatedAt &&
+      new Date(currentUpdatedAt).getTime() > new Date(stored.supabase_updated_at).getTime()
+    ) {
+      await this.wipeTempPasswordRow(userId);
+      return { status: 'password_changed' };
+    }
+
+    await this.writeAuditLog(actorUserId, 'user.temp_password.reveal', 'user', userId, {});
+    return { status: 'active', password: stored.password };
+  }
+
+  /**
+   * Super-admin lock: wipe the temp password row even if the user
+   * hasn't changed their password yet. Used when the admin decides the
+   * temp credential has been over-shared.
+   */
+  async lockTempPassword(userId: string, actorUserId: string): Promise<{ status: 'locked' }> {
+    await this.wipeTempPasswordRow(userId);
+    await this.writeAuditLog(actorUserId, 'user.temp_password.lock', 'user', userId, {});
+    return { status: 'locked' };
+  }
+
+  private async wipeTempPasswordRow(userId: string): Promise<void> {
+    await this.supabase.service.from('admin_user_temp_passwords').delete().eq('user_id', userId);
   }
 
   async disableUser(userId: string, actorUserId: string): Promise<void> {
