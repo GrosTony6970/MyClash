@@ -97,6 +97,31 @@ describe('OrganizationsService', () => {
     });
   });
 
+  describe('getBySlug', () => {
+    it('projects logo_url so the org Overview page can render the uploaded logo after refetch', async () => {
+      // Regression guard: before this fix, getBySlug selected only
+      // `id, name, slug, status` and dropped logo_url, so the FE refetch
+      // after a successful logo upload silently overwrote logoUrl → null.
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'org-1',
+          name: 'Test Org',
+          slug: 'test-org',
+          status: 'active',
+          logo_url: 'https://cdn.test/organizations/org-1/logo.png',
+        },
+        error: null,
+      });
+      fromMock.mockReturnValue(chain);
+
+      const result = (await service.getBySlug('test-org')) as Record<string, unknown>;
+
+      expect(chain.select).toHaveBeenCalledWith(expect.stringContaining('logo_url'));
+      expect(result['logo_url']).toBe('https://cdn.test/organizations/org-1/logo.png');
+    });
+  });
+
   describe('approve', () => {
     it('sets status to active', async () => {
       const chain = makeChain({ data: null, error: null });

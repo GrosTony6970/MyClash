@@ -55,7 +55,7 @@ export class OrganizationsService {
   async getBySlug(slug: string) {
     const { data, error } = await this.supabase.service
       .from('organizations')
-      .select('id, name, slug, status')
+      .select('id, name, slug, status, logo_url')
       .eq('slug', slug)
       .maybeSingle();
 
