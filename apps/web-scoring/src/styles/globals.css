@@ -1,1 +1,7 @@
 @import 'tailwindcss';
+/*
+ * Pull shared UI components into Tailwind's content scan so colour-token
+ * classes referenced only from packages/ui (SkillBadge, MatchCard,
+ * TournamentColorDot, etc.) make it into the generated CSS.
+ */
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";

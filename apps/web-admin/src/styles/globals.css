@@ -1,4 +1,13 @@
 @import 'tailwindcss';
+/*
+ * Pull shared UI components into Tailwind's content scan. Without this,
+ * dynamic class strings inside packages/ui (e.g. the colour-token maps
+ * in SkillBadge / TournamentColorDot / MatchCard) never compile into
+ * the generated CSS — badges render with the class attribute but no
+ * matching rule, which surfaces as "blank colour" when the operator
+ * picks violet / teal / gold / silver / bronze.
+ */
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
 
 /*
  * Tournament Manual aesthetic — font tokens wired to next/font CSS variables
