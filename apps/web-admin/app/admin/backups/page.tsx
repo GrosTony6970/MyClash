@@ -1,11 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
+type BackupFrequency = 'hourly' | 'every6h' | 'every12h' | 'daily' | 'weekly' | 'monthly';
+
+const FREQUENCIES: BackupFrequency[] = [
+  'hourly',
+  'every6h',
+  'every12h',
+  'daily',
+  'weekly',
+  'monthly',
+];
+
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+const DELETE_ALL_TOKEN = 'DELETE ALL MYCLASH BACKUPS';
 
 interface BackupArtifact {
   kind: 'db' | 'storage';
@@ -50,11 +64,27 @@ interface BackupStatus {
 
 interface BackupSchedule {
   enabled: boolean;
+  frequency: BackupFrequency;
   hourUtc: number;
   minuteUtc: number;
+  dayOfWeek: number;
+  dayOfMonth: number;
+  retentionCountLocal: number;
+  retentionCountCloud: number;
   timezoneLabel: string;
   updatedAt: string | null;
   nextRunAt: string | null;
+}
+
+interface ScheduleForm {
+  enabled: boolean;
+  frequency: BackupFrequency;
+  hourUtc: number;
+  minuteUtc: number;
+  dayOfWeek: number;
+  dayOfMonth: number;
+  retentionCountLocal: number;
+  retentionCountCloud: number;
 }
 
 interface BackupListResponse {
@@ -68,11 +98,18 @@ export default function AdminBackupsPage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [schedule, setSchedule] = useState<BackupSchedule | null>(null);
-  const [scheduleForm, setScheduleForm] = useState({
+  const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     enabled: true,
+    frequency: 'daily',
     hourUtc: 3,
     minuteUtc: 0,
+    dayOfWeek: 1,
+    dayOfMonth: 1,
+    retentionCountLocal: 14,
+    retentionCountCloud: 60,
   });
+  const [pendingDeleteAll, setPendingDeleteAll] = useState(false);
+  const [deleteAllToken, setDeleteAllToken] = useState('');
   const [backups, setBackups] = useState<BackupSet[]>([]);
   const [operation, setOperation] = useState<BackupOperation | null>(null);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
@@ -117,11 +154,7 @@ export default function AdminBackupsPage() {
         const nextBackups = (await backupsRes.json()) as BackupListResponse;
         setStatus(nextStatus);
         setSchedule(nextSchedule);
-        setScheduleForm({
-          enabled: nextSchedule.enabled,
-          hourUtc: nextSchedule.hourUtc,
-          minuteUtc: nextSchedule.minuteUtc,
-        });
+        setScheduleForm(scheduleToForm(nextSchedule));
         setBackups(nextBackups.backups);
         setOperation(nextStatus.runningOperation);
         setError(null);
@@ -274,15 +307,43 @@ export default function AdminBackupsPage() {
         if (!res.ok) throw new Error(t('admin.backups.scheduleSaveError'));
         const nextSchedule = (await res.json()) as BackupSchedule;
         setSchedule(nextSchedule);
-        setScheduleForm({
-          enabled: nextSchedule.enabled,
-          hourUtc: nextSchedule.hourUtc,
-          minuteUtc: nextSchedule.minuteUtc,
-        });
+        setScheduleForm(scheduleToForm(nextSchedule));
         setNotice(t('admin.backups.scheduleSaved'));
       })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : t('admin.backups.scheduleSaveError')),
+      )
+      .finally(() => setBusy(false));
+  };
+
+  const deleteAllBackups = () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    fetch(`${apiUrl}/api/v1/admin/backups`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ confirmation: DELETE_ALL_TOKEN }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(t('admin.backups.deleteAllError'));
+        const result = (await res.json()) as {
+          deletedLocalSets: number;
+          deletedCloudSets: number;
+        };
+        setNotice(
+          t('admin.backups.deleteAllSuccess', {
+            local: result.deletedLocalSets,
+            cloud: result.deletedCloudSets,
+          }),
+        );
+        setPendingDeleteAll(false);
+        setDeleteAllToken('');
+        load();
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : t('admin.backups.deleteAllError')),
       )
       .finally(() => setBusy(false));
   };
@@ -327,31 +388,54 @@ export default function AdminBackupsPage() {
       </section>
 
       <form onSubmit={saveSchedule} className="mb-6 rounded-lg border border-slate-200 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-gray-950">
-              {t('admin.backups.scheduleTitle')}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {schedule?.nextRunAt
-                ? t('admin.backups.scheduleNextRun', {
-                    nextRun: formatTimestamp(schedule.nextRunAt),
-                  })
-                : t('admin.backups.scheduleDisabled')}
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-[auto_7rem_7rem_auto] sm:items-end">
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input
-                type="checkbox"
-                checked={scheduleForm.enabled}
-                onChange={(event) =>
-                  setScheduleForm((current) => ({ ...current, enabled: event.target.checked }))
-                }
-                className="h-4 w-4 rounded border-slate-300"
-              />
-              {t('admin.backups.scheduleEnabled')}
-            </label>
+        <div className="flex flex-col gap-1">
+          <h2 className="text-base font-semibold text-gray-950">
+            {t('admin.backups.scheduleTitle')}
+          </h2>
+          <p className="text-sm text-slate-500">
+            {schedule?.nextRunAt
+              ? t('admin.backups.scheduleNextRun', {
+                  nextRun: formatTimestamp(schedule.nextRunAt),
+                })
+              : t('admin.backups.scheduleDisabled')}
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={scheduleForm.enabled}
+              onChange={(event) =>
+                setScheduleForm((current) => ({ ...current, enabled: event.target.checked }))
+              }
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            {t('admin.backups.scheduleEnabled')}
+          </label>
+
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            {t('admin.backups.frequencyLabel')}
+            <select
+              value={scheduleForm.frequency}
+              onChange={(event) =>
+                setScheduleForm((current) => ({
+                  ...current,
+                  frequency: event.target.value as BackupFrequency,
+                }))
+              }
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              {FREQUENCIES.map((freq) => (
+                <option key={freq} value={freq}>
+                  {t(`admin.backups.frequencies.${freq}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {/* Hour input hidden for hourly — every hourly slot uses :minuteUtc only. */}
+          {scheduleForm.frequency !== 'hourly' && (
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
               {t('admin.backups.scheduleHourUtc')}
               <input
@@ -362,38 +446,146 @@ export default function AdminBackupsPage() {
                 onChange={(event) =>
                   setScheduleForm((current) => ({
                     ...current,
-                    hourUtc: Number(event.target.value),
+                    hourUtc: clamp(Number(event.target.value), 0, 23),
                   }))
                 }
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </label>
+          )}
+
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            {t('admin.backups.scheduleMinuteUtc')}
+            <input
+              type="number"
+              min={0}
+              max={59}
+              value={scheduleForm.minuteUtc}
+              onChange={(event) =>
+                setScheduleForm((current) => ({
+                  ...current,
+                  minuteUtc: clamp(Number(event.target.value), 0, 59),
+                }))
+              }
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </label>
+
+          {scheduleForm.frequency === 'weekly' && (
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              {t('admin.backups.scheduleMinuteUtc')}
-              <input
-                type="number"
-                min={0}
-                max={59}
-                value={scheduleForm.minuteUtc}
+              {t('admin.backups.dayOfWeek')}
+              <select
+                value={scheduleForm.dayOfWeek}
                 onChange={(event) =>
                   setScheduleForm((current) => ({
                     ...current,
-                    minuteUtc: Number(event.target.value),
+                    dayOfWeek: Number(event.target.value),
+                  }))
+                }
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                {WEEKDAY_KEYS.map((day, index) => (
+                  <option key={day} value={index}>
+                    {t(`admin.backups.weekdays.${day}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {scheduleForm.frequency === 'monthly' && (
+            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              {t('admin.backups.dayOfMonth')}
+              <input
+                type="number"
+                min={1}
+                max={28}
+                value={scheduleForm.dayOfMonth}
+                onChange={(event) =>
+                  setScheduleForm((current) => ({
+                    ...current,
+                    dayOfMonth: clamp(Number(event.target.value), 1, 28),
                   }))
                 }
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
+              <span className="text-xs font-normal text-slate-500">
+                {t('admin.backups.dayOfMonthHint')}
+              </span>
             </label>
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {t('admin.backups.scheduleSave')}
-            </button>
-          </div>
+          )}
+
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            {t('admin.backups.retentionLocal')}
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={scheduleForm.retentionCountLocal}
+              onChange={(event) =>
+                setScheduleForm((current) => ({
+                  ...current,
+                  retentionCountLocal: clamp(Number(event.target.value), 1, 365),
+                }))
+              }
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+            <span className="text-xs font-normal text-slate-500">
+              {t('admin.backups.retentionLocalHint')}
+            </span>
+          </label>
+
+          {status?.cloudConfigured && (
+            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              {t('admin.backups.retentionCloud')}
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                value={scheduleForm.retentionCountCloud}
+                onChange={(event) =>
+                  setScheduleForm((current) => ({
+                    ...current,
+                    retentionCountCloud: clamp(Number(event.target.value), 1, 3650),
+                  }))
+                }
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <span className="text-xs font-normal text-slate-500">
+                {t('admin.backups.retentionCloudHint')}
+              </span>
+            </label>
+          )}
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {t('admin.backups.scheduleSave')}
+          </button>
         </div>
       </form>
+
+      <section className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
+        <h2 className="text-base font-semibold text-red-900">
+          {t('admin.backups.dangerZoneTitle')}
+        </h2>
+        <p className="mt-1 text-sm text-red-800">{t('admin.backups.dangerZoneDescription')}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setDeleteAllToken('');
+            setPendingDeleteAll(true);
+          }}
+          disabled={busy}
+          className="mt-3 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+        >
+          {t('admin.backups.deleteAllButton')}
+        </button>
+      </section>
 
       {operation && (
         <section className="mb-6 rounded-lg border border-slate-200 p-4">
@@ -549,7 +741,101 @@ export default function AdminBackupsPage() {
           onConfirm={() => deleteBackup(pendingDelete.backup, pendingDelete.location)}
         />
       )}
+
+      {pendingDeleteAll && (
+        <DeleteAllDialog
+          token={deleteAllToken}
+          onTokenChange={setDeleteAllToken}
+          busy={busy}
+          onCancel={() => {
+            setPendingDeleteAll(false);
+            setDeleteAllToken('');
+          }}
+          onConfirm={deleteAllBackups}
+        />
+      )}
     </main>
+  );
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(Math.round(value), min), max);
+}
+
+function scheduleToForm(schedule: BackupSchedule): ScheduleForm {
+  return {
+    enabled: schedule.enabled,
+    frequency: schedule.frequency,
+    hourUtc: schedule.hourUtc,
+    minuteUtc: schedule.minuteUtc,
+    dayOfWeek: schedule.dayOfWeek,
+    dayOfMonth: schedule.dayOfMonth,
+    retentionCountLocal: schedule.retentionCountLocal,
+    retentionCountCloud: schedule.retentionCountCloud,
+  };
+}
+
+function DeleteAllDialog({
+  token,
+  onTokenChange,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  token: string;
+  onTokenChange: (value: string) => void;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { t } = useI18n();
+  const tokenMatches = token === DELETE_ALL_TOKEN;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-all-title"
+        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
+      >
+        <h2 id="delete-all-title" className="text-lg font-semibold text-red-900">
+          {t('admin.backups.deleteAllConfirmTitle')}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          {t('admin.backups.deleteAllConfirmBody')}
+        </p>
+        <label className="mt-4 grid gap-1 text-sm font-semibold text-slate-700">
+          {t('admin.backups.deleteAllConfirmTokenLabel')}
+          <input
+            type="text"
+            value={token}
+            onChange={(event) => onTokenChange(event.target.value)}
+            placeholder={t('admin.backups.deleteAllConfirmTokenPlaceholder')}
+            autoFocus
+            className="rounded-md border border-slate-300 px-3 py-2 font-mono text-sm"
+          />
+        </label>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {t('actions.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy || !tokenMatches}
+            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-40"
+          >
+            {t('admin.backups.deleteAllButton')}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -693,12 +979,24 @@ function scheduleLabel(
 ): string {
   if (!schedule) return t('common.none');
   if (!schedule.enabled) return t('admin.backups.scheduleDisabled');
-  return t('admin.backups.scheduleAtUtc', {
-    time: `${String(schedule.hourUtc).padStart(2, '0')}:${String(schedule.minuteUtc).padStart(
-      2,
-      '0',
-    )}`,
-  });
+  const time = `${String(schedule.hourUtc).padStart(2, '0')}:${String(schedule.minuteUtc).padStart(2, '0')}`;
+  const minute = String(schedule.minuteUtc).padStart(2, '0');
+  const weekday = t(`admin.backups.weekdaysShort.${WEEKDAY_KEYS[schedule.dayOfWeek] ?? 'mon'}`);
+  switch (schedule.frequency) {
+    case 'hourly':
+      return t('admin.backups.scheduleSummary.hourly', { minute });
+    case 'every6h':
+      return t('admin.backups.scheduleSummary.every6h', { time });
+    case 'every12h':
+      return t('admin.backups.scheduleSummary.every12h', { time });
+    case 'weekly':
+      return t('admin.backups.scheduleSummary.weekly', { weekday, time });
+    case 'monthly':
+      return t('admin.backups.scheduleSummary.monthly', { day: schedule.dayOfMonth, time });
+    case 'daily':
+    default:
+      return t('admin.backups.scheduleSummary.daily', { time });
+  }
 }
 
 /**

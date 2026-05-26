@@ -8,9 +8,8 @@
 #   2. Archive the Supabase Storage volume to a tar.gz
 #   3. Optionally encrypt both with GPG
 #   4. Upload both files to Scaleway S3 (aws-cli, S3-compatible)
-#   5. Prune local backups older than 60 days
-#   6. Prune remote backups older than 60 days (S3 delete-objects)
-#   7. Write a structured summary line to the log
+#   5. (Retention is enforced by the ops runner, not here — see below.)
+#   6. Write a structured summary line to the log
 #
 # Cron (installed by vps-bootstrap.sh):
 #   0 3 * * *  deploy  bash /srv/myclash/infra/scripts/backup.sh \
@@ -160,58 +159,12 @@ else
   log_warn "Skipping S3 upload (not configured)"
 fi
 
-# ── 5. Local retention (60 days) ────────────────────────────────
-hdr "Local retention (${BACKUP_RETENTION_DAYS} days)"
-
-find "$BACKUP_DIR" \
-  \( -name "db-*.sql.gz*" -o -name "storage-*.tar.gz*" \) \
-  -mtime "+${BACKUP_RETENTION_DAYS}" -delete 2>/dev/null || true
-
-find "$ROOT_DIR/backups/pre-deploy" \
-  -name "*.sql.gz*" \
-  -mtime "+${BACKUP_RETENTION_DAYS}" -delete 2>/dev/null || true
-
-log_ok "Pruned local backups older than ${BACKUP_RETENTION_DAYS} days"
-
-# ── 6. Remote retention (60 days) ───────────────────────────────
-if [[ "$S3_CONFIGURED" -eq 1 ]] && command -v aws &>/dev/null; then
-  hdr "Remote retention (${BACKUP_RETENTION_DAYS} days)"
-
-  export AWS_ACCESS_KEY_ID="$BACKUP_SCW_ACCESS_KEY"
-  export AWS_SECRET_ACCESS_KEY="$BACKUP_SCW_SECRET_KEY"
-  export AWS_DEFAULT_REGION="${BACKUP_SCW_REGION:-fr-par}"
-
-  CUTOFF=$(date -u -d "${BACKUP_RETENTION_DAYS} days ago" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
-           || date -u -v-"${BACKUP_RETENTION_DAYS}"d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
-           || echo "")
-
-  if [[ -n "$CUTOFF" ]]; then
-    # List objects older than cutoff and delete them
-    OBJECTS_TO_DELETE=$(aws s3api list-objects-v2 \
-      --bucket "$BACKUP_SCW_BUCKET" \
-      --prefix "myclash/" \
-      --endpoint-url "$BACKUP_SCW_ENDPOINT" \
-      --query "Contents[?LastModified<='${CUTOFF}'].Key" \
-      --output text 2>/dev/null || echo "")
-
-    if [[ -n "$OBJECTS_TO_DELETE" && "$OBJECTS_TO_DELETE" != "None" ]]; then
-      DELETED_COUNT=0
-      while IFS= read -r key; do
-        [[ -z "$key" || "$key" == "None" ]] && continue
-        if aws s3 rm "s3://${BACKUP_SCW_BUCKET}/${key}" \
-             --endpoint-url "$BACKUP_SCW_ENDPOINT" \
-             --no-progress 2>/dev/null; then
-          DELETED_COUNT=$((DELETED_COUNT + 1))
-        fi
-      done <<< "$OBJECTS_TO_DELETE"
-      log_ok "Deleted $DELETED_COUNT remote objects older than ${BACKUP_RETENTION_DAYS} days"
-    else
-      log_ok "No remote objects to prune"
-    fi
-  else
-    log_warn "Could not compute cutoff date — skipping remote retention"
-  fi
-fi
+# ── 5/6. Retention ──────────────────────────────────────────────
+# Retention is enforced by the ops runner after each backup completes
+# (count-based, configurable from /admin/backups). BACKUP_RETENTION_DAYS
+# stays in .env for backwards compatibility but is no longer used here.
+# See `enforceLocalRetention` / `enforceCloudRetention` in
+# infra/ops-runner/server.mjs.
 
 # ── 7. Summary ───────────────────────────────────────────────────
 echo

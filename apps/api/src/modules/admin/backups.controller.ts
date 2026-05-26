@@ -34,8 +34,13 @@ import type {
   BackupScheduleDto,
   BackupStatusDto,
   BackupUploadResponseDto,
+  DeleteAllBackupsResponseDto,
 } from './dto/admin-backups.dto';
-import { RestoreBackupDto, UpdateBackupScheduleDto } from './dto/admin-backups.dto';
+import {
+  DeleteAllBackupsDto,
+  RestoreBackupDto,
+  UpdateBackupScheduleDto,
+} from './dto/admin-backups.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
 @ApiTags('admin')
@@ -81,6 +86,15 @@ export class BackupsAdminController {
   @ApiOperation({ summary: 'Restore from a local, cloud, or uploaded backup' })
   restoreBackup(@Body() dto: RestoreBackupDto): Promise<BackupActionResponseDto> {
     return this.backups.restoreBackup(dto);
+  }
+
+  @Delete()
+  @ApiOperation({
+    summary:
+      'Wipe every local + S3 backup. Requires the literal confirmation token "DELETE ALL MYCLASH BACKUPS".',
+  })
+  deleteAllBackups(@Body() dto: DeleteAllBackupsDto): Promise<DeleteAllBackupsResponseDto> {
+    return this.backups.deleteAllBackups(dto);
   }
 
   @Delete(':backupId')

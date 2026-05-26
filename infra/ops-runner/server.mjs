@@ -9,6 +9,7 @@ import {
   BACKUP_TIMESTAMP_PATTERN,
   backupSetsFromArtifacts,
   buildBackupSet,
+  enforceLocalRetention,
   expectedBackupArtifactFilenames,
   listLocalBackupArtifacts,
   nextBackupRun,
@@ -80,6 +81,10 @@ const server = createServer(async (req, res) => {
     if (req.method === 'PUT' && url.pathname === '/schedule') {
       backupSchedule = await writeBackupSchedule(ROOT_DIR, await readJsonBody(req));
       sendJson(res, 200, scheduleResponse());
+      return;
+    }
+    if (req.method === 'DELETE' && url.pathname === '/backups') {
+      sendJson(res, 200, await deleteAllBackups(await readJsonBody(req)));
       return;
     }
     if (req.method === 'DELETE' && url.pathname.startsWith('/backups/')) {
@@ -243,6 +248,12 @@ async function runLocked(operation, createCommand) {
     }
     await appendProcess(operation, await createCommand());
     operation.status = 'success';
+    // Retention enforcement runs after a successful backup, never on
+    // restore — restore creates a safety-net backup but that's the
+    // single artifact we'd be pruning otherwise.
+    if (operation.kind === 'backup') {
+      await runRetentionAfterBackup(operation);
+    }
   } catch (error) {
     operation.status = 'failed';
     operation.error = sanitizeError(error);
@@ -251,6 +262,122 @@ async function runLocked(operation, createCommand) {
     await lock.close().catch(() => undefined);
     await rm(lockPath, { force: true }).catch(() => undefined);
   }
+}
+
+async function runRetentionAfterBackup(operation) {
+  try {
+    const localSummary = await enforceLocalRetention(
+      ROOT_DIR,
+      backupSchedule.retentionCountLocal,
+    );
+    if (localSummary.deletedSets > 0) {
+      addLog(
+        operation,
+        `[retention] local: pruned ${localSummary.deletedSets} set(s), ${localSummary.deletedFiles.length} file(s)\n`,
+      );
+    }
+    if (s3Configured()) {
+      const cloudSummary = await enforceCloudRetention(backupSchedule.retentionCountCloud);
+      if (cloudSummary.deletedSets > 0) {
+        addLog(
+          operation,
+          `[retention] cloud: pruned ${cloudSummary.deletedSets} set(s), ${cloudSummary.deletedFiles.length} file(s)\n`,
+        );
+      }
+    }
+  } catch (error) {
+    // Retention is best-effort: log it and move on. A retention failure
+    // must not flip a successful backup to "failed" — the data is safe.
+    addLog(operation, `[retention] WARN ${sanitizeError(error)}\n`);
+  }
+}
+
+/**
+ * Cloud-side count-based retention. Mirrors `enforceLocalRetention` but
+ * groups S3 artifacts (already parsed by `listCloudArtifacts`) by
+ * timestamp and shells out to `aws s3 rm` for each over-quota artifact.
+ * Only meaningful when `s3Configured()` is true — caller must check.
+ */
+async function enforceCloudRetention(retentionCount) {
+  if (!Number.isInteger(retentionCount) || retentionCount < 1) {
+    return { deletedSets: 0, deletedFiles: [] };
+  }
+  const artifacts = await listCloudArtifacts();
+  if (artifacts.length === 0) return { deletedSets: 0, deletedFiles: [] };
+
+  const byTimestamp = new Map();
+  for (const artifact of artifacts) {
+    const bucket = byTimestamp.get(artifact.timestamp) ?? [];
+    bucket.push(artifact);
+    byTimestamp.set(artifact.timestamp, bucket);
+  }
+
+  const sortedTimestamps = [...byTimestamp.keys()].sort((a, b) => b.localeCompare(a));
+  const toDelete = sortedTimestamps.slice(retentionCount);
+  const deletedFiles = [];
+  for (const timestamp of toDelete) {
+    const setArtifacts = byTimestamp.get(timestamp) ?? [];
+    for (const artifact of setArtifacts) {
+      const result = await spawnCapture('aws', [
+        's3',
+        'rm',
+        `s3://${process.env.BACKUP_SCW_BUCKET}/myclash/${artifact.filename}`,
+        '--endpoint-url',
+        process.env.BACKUP_SCW_ENDPOINT,
+      ]);
+      if (result.code === 0) deletedFiles.push(artifact.filename);
+    }
+  }
+  return { deletedSets: toDelete.length, deletedFiles };
+}
+
+/**
+ * Wipe every local + S3 backup artifact in one shot. Requires a
+ * literal confirmation token to guard against an accidental click;
+ * the same token shape used for `restore`'s confirmation pattern.
+ */
+async function deleteAllBackups(body) {
+  if (!body || body.confirmation !== 'DELETE ALL MYCLASH BACKUPS') {
+    throw new Error('Invalid confirmation.');
+  }
+
+  const localArtifacts = await listLocalBackupArtifacts(ROOT_DIR);
+  const deletedFiles = [];
+  const localTimestamps = new Set();
+  for (const artifact of localArtifacts) {
+    try {
+      await rm(path.join(ROOT_DIR, 'backups', 'nightly', artifact.filename), { force: true });
+      deletedFiles.push(artifact.filename);
+      localTimestamps.add(artifact.timestamp);
+    } catch {
+      // Best-effort, continue with the remaining files.
+    }
+  }
+
+  const cloudTimestamps = new Set();
+  if (s3Configured()) {
+    const cloudArtifacts = await listCloudArtifacts();
+    for (const artifact of cloudArtifacts) {
+      const result = await spawnCapture('aws', [
+        's3',
+        'rm',
+        `s3://${process.env.BACKUP_SCW_BUCKET}/myclash/${artifact.filename}`,
+        '--endpoint-url',
+        process.env.BACKUP_SCW_ENDPOINT,
+      ]);
+      if (result.code === 0) {
+        deletedFiles.push(artifact.filename);
+        cloudTimestamps.add(artifact.timestamp);
+      }
+    }
+  }
+
+  return {
+    deleted: true,
+    deletedLocalSets: localTimestamps.size,
+    deletedCloudSets: cloudTimestamps.size,
+    deletedFiles,
+  };
 }
 
 async function restoreCommand(body) {

@@ -114,8 +114,13 @@ describe('AdminBackupsService', () => {
   it('gets and updates backup schedule through the ops runner', async () => {
     const schedule = {
       enabled: true,
+      frequency: 'daily' as const,
       hourUtc: 3,
       minuteUtc: 0,
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      retentionCountLocal: 14,
+      retentionCountCloud: 60,
       timezoneLabel: 'UTC',
       updatedAt: null,
       nextRunAt: '2026-05-18T03:00:00.000Z',
@@ -142,7 +147,16 @@ describe('AdminBackupsService', () => {
 
     await expect(service.getSchedule()).resolves.toEqual(schedule);
     await expect(
-      service.updateSchedule({ enabled: false, hourUtc: 22, minuteUtc: 0 }),
+      service.updateSchedule({
+        enabled: false,
+        frequency: 'weekly',
+        hourUtc: 22,
+        minuteUtc: 0,
+        dayOfWeek: 1,
+        dayOfMonth: 1,
+        retentionCountLocal: 7,
+        retentionCountCloud: 30,
+      }),
     ).resolves.toEqual({ ...schedule, enabled: false, hourUtc: 22 });
 
     expect(fetchImpl).toHaveBeenNthCalledWith(
@@ -157,12 +171,62 @@ describe('AdminBackupsService', () => {
         method: 'PUT',
         body: JSON.stringify({
           enabled: false,
+          frequency: 'weekly',
           hourUtc: 22,
           minuteUtc: 0,
+          dayOfWeek: 1,
+          dayOfMonth: 1,
+          retentionCountLocal: 7,
+          retentionCountCloud: 30,
           timezoneLabel: 'UTC',
         }),
       }),
     );
+  });
+
+  it('proxies the delete-all-backups request after validating the confirmation token', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          deleted: true,
+          deletedLocalSets: 3,
+          deletedCloudSets: 2,
+          deletedFiles: ['db-1.sql.gz', 'storage-1.tar.gz'],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(
+      service.deleteAllBackups({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
+    ).resolves.toMatchObject({ deleted: true, deletedLocalSets: 3, deletedCloudSets: 2 });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://ops-runner:4075/backups',
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ confirmation: 'DELETE ALL MYCLASH BACKUPS' }),
+      }),
+    );
+  });
+
+  it('rejects delete-all when the confirmation token is wrong', async () => {
+    const fetchImpl = vi.fn();
+    const service = new AdminBackupsService({
+      opsRunnerUrl: 'http://ops-runner:4075',
+      opsRunnerSecret: 'secret',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(service.deleteAllBackups({ confirmation: 'nope' as never })).rejects.toThrow(
+      /confirmation/i,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('delegates per-location backup deletion to the ops runner', async () => {

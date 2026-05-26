@@ -14,8 +14,13 @@ import type {
   BackupSetDto,
   BackupStatusDto,
   BackupUploadResponseDto,
+  DeleteAllBackupsResponseDto,
 } from './dto/admin-backups.dto';
-import type { RestoreBackupDto, UpdateBackupScheduleDto } from './dto/admin-backups.dto';
+import type {
+  DeleteAllBackupsDto,
+  RestoreBackupDto,
+  UpdateBackupScheduleDto,
+} from './dto/admin-backups.dto';
 
 const TIMESTAMP_PATTERN = /^\d{8}T\d{6}Z$/;
 const BACKUP_FILENAME_PATTERN =
@@ -98,9 +103,25 @@ export class AdminBackupsService {
   async updateSchedule(dto: UpdateBackupScheduleDto): Promise<BackupScheduleDto> {
     return this.opsPut<BackupScheduleDto>('/schedule', {
       enabled: dto.enabled,
+      frequency: dto.frequency,
       hourUtc: dto.hourUtc,
       minuteUtc: dto.minuteUtc,
+      dayOfWeek: dto.dayOfWeek,
+      dayOfMonth: dto.dayOfMonth,
+      retentionCountLocal: dto.retentionCountLocal,
+      retentionCountCloud: dto.retentionCountCloud,
       timezoneLabel: 'UTC',
+    });
+  }
+
+  async deleteAllBackups(dto: DeleteAllBackupsDto): Promise<DeleteAllBackupsResponseDto> {
+    if (dto.confirmation !== 'DELETE ALL MYCLASH BACKUPS') {
+      throw new BadRequestException('Delete-all confirmation is required.');
+    }
+    return this.opsRequest<DeleteAllBackupsResponseDto>('/backups', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ confirmation: dto.confirmation }),
     });
   }
 
