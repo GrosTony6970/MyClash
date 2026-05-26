@@ -216,37 +216,39 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         return (
           <div key={section.key} className={idx === 0 ? '' : 'border-t border-slate-800 pt-5'}>
             {isEventSection ? (
-              <div className="relative mb-3 px-3" ref={switcherRef}>
+              <div className="relative mb-3 px-2" ref={switcherRef}>
                 <button
                   type="button"
                   onClick={() => setSwitcherOpen((v) => !v)}
-                  className="flex w-full items-center justify-between gap-2 text-left text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 transition-colors hover:text-slate-200"
+                  className="flex w-full flex-col gap-0.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-white/5"
                   aria-haspopup="menu"
                   aria-expanded={switcherOpen}
                   aria-label={t('organizer.shell.eventSwitcher.openLabel')}
                 >
-                  <span className="min-w-0 truncate">
-                    {section.title}
-                    {currentEvent && (
-                      <span className="ml-1 normal-case tracking-normal text-slate-200">
-                        · {currentEvent.name}
-                        {currentEvent.status === 'running' && (
-                          <span className="ml-1 text-[9px] font-bold text-red-400">LIVE</span>
-                        )}
-                      </span>
-                    )}
+                  <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <span>{section.title}</span>
+                    <span aria-hidden="true" className="shrink-0 text-slate-400">
+                      {switcherOpen ? '▴' : '▾'}
+                    </span>
                   </span>
-                  <span aria-hidden="true" className="shrink-0 text-slate-400">
-                    {switcherOpen ? '▴' : '▾'}
-                  </span>
+                  {currentEvent ? (
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                      <span className="min-w-0 truncate">{currentEvent.name}</span>
+                      {currentEvent.status === 'running' && (
+                        <span className="shrink-0 rounded bg-red-700/30 px-1 py-px text-[10px] font-bold text-red-300">
+                          LIVE
+                        </span>
+                      )}
+                    </span>
+                  ) : null}
                 </button>
                 {switcherOpen && (
                   <div
                     role="menu"
-                    className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-800 py-1 text-sm shadow-xl"
+                    className="absolute left-2 right-2 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-800 py-1 shadow-xl"
                   >
                     {events.length === 0 ? (
-                      <p className="px-3 py-2 text-xs italic text-slate-400">
+                      <p className="px-3 py-2 text-sm italic text-slate-400">
                         {t('organizer.shell.eventSwitcher.noEvents')}
                       </p>
                     ) : (
@@ -257,7 +259,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                           role="menuitem"
                           onClick={() => handlePickEvent(ev.id)}
                           className={[
-                            'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition-colors',
+                            'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors',
                             ev.id === selectedEventId
                               ? 'bg-red-800/70 text-white'
                               : 'text-slate-200 hover:bg-white/10',
@@ -265,7 +267,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                         >
                           <span className="truncate">{ev.name}</span>
                           {ev.status === 'running' && (
-                            <span className="shrink-0 text-[9px] font-bold text-amber-400">
+                            <span className="shrink-0 rounded bg-red-700/30 px-1 py-px text-[10px] font-bold text-amber-300">
                               LIVE
                             </span>
                           )}
@@ -277,7 +279,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                       role="menuitem"
                       href={`/org/${slug}/events`}
                       onClick={() => setSwitcherOpen(false)}
-                      className="block px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10 hover:text-white"
+                      className="block px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
                     >
                       {t('organizer.shell.eventSwitcher.manageAll')}
                     </Link>
