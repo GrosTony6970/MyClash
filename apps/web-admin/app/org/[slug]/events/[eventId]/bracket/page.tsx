@@ -52,8 +52,27 @@ interface BracketResult {
 
 interface OverrideModalState {
   slotId: string;
-  regAId: string;
-  regBId: string;
+  /**
+   * Tri-state values:
+   *   - undefined: untouched in this modal session, omitted from the PATCH.
+   *   - null: explicit clear (sends `registrationAId: null`).
+   *   - string: registration UUID to assign.
+   */
+  regAId: string | null | undefined;
+  regBId: string | null | undefined;
+}
+
+/**
+ * Subset of the /tournaments/:id/registrations payload the bracket
+ * override modal needs. The endpoint also returns `persons` and
+ * `global_persons` embeds; we project just the bits the picker
+ * renders so the JSON stays small.
+ */
+interface PickerRegistration {
+  id: string;
+  displayName: string;
+  bibNumber: number | null;
+  seed: number | null;
 }
 
 type SeedingStrategy = 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
@@ -124,6 +143,13 @@ export default function BracketPage() {
   const [overrideModal, setOverrideModal] = useState<OverrideModalState | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [overrideError, setOverrideError] = useState<string | null>(null);
+  /**
+   * Registrations for the picker inside the override modal. Loaded once
+   * per selected tournament so opening the modal is instant and we
+   * don't double-fetch when a row is reassigned.
+   */
+  const [pickerRegistrations, setPickerRegistrations] = useState<PickerRegistration[]>([]);
+  const [pickerFilter, setPickerFilter] = useState('');
 
   // Configuration card (post-generation edit)
   const [editGrandFinalReset, setEditGrandFinalReset] = useState(false);
@@ -216,6 +242,55 @@ export default function BracketPage() {
       .catch(() => undefined);
     return () => controller.abort();
   }, [selectedTournament, apiUrl, bracketRefreshKey]);
+
+  // ── Load registrations for the override picker ─────────────────────────────
+  // Refetched whenever the bracket itself refreshes (manual save, reseed,
+  // realtime update) so a freshly-registered fighter appears in the picker
+  // without a page reload.
+  useEffect(() => {
+    if (!selectedTournament) {
+      setPickerRegistrations([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/registrations`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const raw = (await res.json()) as Array<{
+          id: string;
+          bib_number: number | null;
+          seed: number | null;
+          persons?: { given_name?: string | null; family_name?: string | null } | null;
+          global_persons?: { display_name?: string | null } | null;
+        }>;
+        const mapped: PickerRegistration[] = raw.map((row) => {
+          const composed = `${row.persons?.given_name ?? ''} ${
+            row.persons?.family_name ?? ''
+          }`.trim();
+          const displayName =
+            row.global_persons?.display_name?.trim() || composed || `Reg ${row.id.slice(0, 8)}`;
+          return {
+            id: row.id,
+            displayName,
+            bibNumber: row.bib_number,
+            seed: row.seed,
+          };
+        });
+        mapped.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        setPickerRegistrations(mapped);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [selectedTournament, apiUrl, bracketRefreshKey]);
+
+  const filteredRegistrations = useMemo(() => {
+    const q = pickerFilter.trim().toLowerCase();
+    if (!q) return pickerRegistrations;
+    return pickerRegistrations.filter((r) => r.displayName.toLowerCase().includes(q));
+  }, [pickerRegistrations, pickerFilter]);
 
   // ── Realtime: update individual match cards in place ───────────────────────
 
@@ -383,8 +458,8 @@ export default function BracketPage() {
     setOverrideError(null);
     try {
       const body: Record<string, string | null> = {};
-      if (overrideModal.regAId !== '') body['registrationAId'] = overrideModal.regAId || null;
-      if (overrideModal.regBId !== '') body['registrationBId'] = overrideModal.regBId || null;
+      if (overrideModal.regAId !== undefined) body['registrationAId'] = overrideModal.regAId;
+      if (overrideModal.regBId !== undefined) body['registrationBId'] = overrideModal.regBId;
 
       const res = await fetch(`${apiUrl}/api/v1/bracket-slots/${overrideModal.slotId}`, {
         method: 'PATCH',
@@ -397,6 +472,7 @@ export default function BracketPage() {
         throw new Error(errBody.message ?? 'Override failed');
       }
       setOverrideModal(null);
+      setPickerFilter('');
       refreshBracket();
     } catch (err) {
       setOverrideError(err instanceof Error ? err.message : 'Override failed');
@@ -934,41 +1010,96 @@ export default function BracketPage() {
           </div>
         )}
 
-        {/* Override modal */}
+        {/* Override modal — searchable registration picker. Two panes,
+            one per side (A = red, B = blue). Each pane shows the same
+            filtered list; clicking a row sets that side to the
+            registration id; "Clear" sends an explicit null so the
+            backend wipes the assignment. */}
         {overrideModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
-              <h2 className="text-lg font-bold mb-4">Override slot</h2>
-              <div className="space-y-3 mb-5">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Registration A (UUID, blank to clear)
-                  </label>
-                  <input
-                    type="text"
-                    value={overrideModal.regAId}
-                    onChange={(e) => setOverrideModal({ ...overrideModal, regAId: e.target.value })}
-                    placeholder="Leave blank to clear"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Registration B (UUID, blank to clear)
-                  </label>
-                  <input
-                    type="text"
-                    value={overrideModal.regBId}
-                    onChange={(e) => setOverrideModal({ ...overrideModal, regBId: e.target.value })}
-                    placeholder="Leave blank to clear"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                  />
-                </div>
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+              <h2 className="text-lg font-bold mb-3">
+                {t('organizer.bracket.overrideModal.title')}
+              </h2>
+              <input
+                type="text"
+                value={pickerFilter}
+                onChange={(e) => setPickerFilter(e.target.value)}
+                placeholder={t('organizer.bracket.overrideModal.filterPlaceholder')}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {(['A', 'B'] as const).map((side) => {
+                  const currentId = side === 'A' ? overrideModal.regAId : overrideModal.regBId;
+                  const sideLabel =
+                    side === 'A'
+                      ? t('organizer.bracket.overrideModal.sideA')
+                      : t('organizer.bracket.overrideModal.sideB');
+                  const setSide = (value: string | null) =>
+                    setOverrideModal({
+                      ...overrideModal,
+                      ...(side === 'A' ? { regAId: value } : { regBId: value }),
+                    });
+                  return (
+                    <div
+                      key={side}
+                      className="flex flex-col rounded-lg border border-gray-200 bg-gray-50"
+                    >
+                      <div className="border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        {sideLabel}
+                      </div>
+                      <div className="max-h-64 overflow-y-auto">
+                        {filteredRegistrations.length === 0 ? (
+                          <p className="px-3 py-3 text-xs italic text-gray-500">
+                            {t('organizer.bracket.overrideModal.empty')}
+                          </p>
+                        ) : (
+                          filteredRegistrations.map((reg) => {
+                            const active = currentId === reg.id;
+                            return (
+                              <button
+                                key={reg.id}
+                                type="button"
+                                onClick={() => setSide(reg.id)}
+                                className={[
+                                  'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition-colors border-b border-gray-100 last:border-b-0',
+                                  active
+                                    ? 'bg-red-50 text-red-900 font-semibold'
+                                    : 'text-gray-700 hover:bg-white',
+                                ].join(' ')}
+                              >
+                                <span className="truncate">{reg.displayName}</span>
+                                {reg.bibNumber !== null && (
+                                  <span className="shrink-0 rounded bg-gray-100 px-1 py-px text-[10px] text-gray-500">
+                                    #{reg.bibNumber}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSide(null)}
+                        className={[
+                          'border-t border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-white',
+                          currentId === null ? 'bg-red-50 text-red-700' : '',
+                        ].join(' ')}
+                      >
+                        {t('organizer.bracket.overrideModal.clear')}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               {overrideError && <p className="text-red-600 text-sm mb-3">{overrideError}</p>}
               <div className="flex gap-3">
                 <button
-                  onClick={() => setOverrideModal(null)}
+                  onClick={() => {
+                    setOverrideModal(null);
+                    setPickerFilter('');
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
@@ -1094,7 +1225,9 @@ export default function BracketPage() {
                 onMatchClick={(matchId) => {
                   if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
                 }}
-                onOverrideSlot={(slotId) => setOverrideModal({ slotId, regAId: '', regBId: '' })}
+                onOverrideSlot={(slotId) =>
+                  setOverrideModal({ slotId, regAId: undefined, regBId: undefined })
+                }
                 playInLabel={t('organizer.phaseVisibility.playIns')}
               />
             </div>

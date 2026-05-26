@@ -2345,6 +2345,16 @@ export const en = {
       emptyHistory: 'No broadcasts sent yet.',
       recipients: '{count} recipient(s)',
     },
+    bracket: {
+      overrideModal: {
+        title: 'Override slot',
+        filterPlaceholder: 'Filter fighters by name…',
+        sideA: 'Side A (red)',
+        sideB: 'Side B (blue)',
+        clear: 'Clear this side',
+        empty: 'No registered fighters.',
+      },
+    },
     phaseVisibility: {
       breadcrumbEvent: 'Event',
       breadcrumbPools: 'Pools',
@@ -5247,6 +5257,16 @@ export const fr = {
       history: 'Diffusions recentes',
       emptyHistory: 'Aucune diffusion envoyee.',
       recipients: '{count} destinataire(s)',
+    },
+    bracket: {
+      overrideModal: {
+        title: 'Modifier le slot',
+        filterPlaceholder: 'Filtrer les tireurs par nom…',
+        sideA: 'Cote A (rouge)',
+        sideB: 'Cote B (bleu)',
+        clear: 'Vider ce cote',
+        empty: 'Aucun tireur inscrit.',
+      },
     },
     phaseVisibility: {
       breadcrumbEvent: 'Evenement',
