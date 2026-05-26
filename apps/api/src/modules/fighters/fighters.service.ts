@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
@@ -94,9 +95,15 @@ export class FightersService {
       .order('given_name', { ascending: true });
 
     if (query.q) {
-      q = q.or(
-        `given_name.ilike.%${query.q}%,family_name.ilike.%${query.q}%,display_name.ilike.%${query.q}%`,
-      ) as typeof q;
+      // Strip PostgREST meta-characters before interpolating into `.or(...)`.
+      // Without this, a `,` / `(` / `)` in `q` can inject sibling filter
+      // clauses that broaden the WHERE beyond the intended search.
+      const safe = sanitizePostgrestFilterValue(query.q);
+      if (safe) {
+        q = q.or(
+          `given_name.ilike.%${safe}%,family_name.ilike.%${safe}%,display_name.ilike.%${safe}%`,
+        ) as typeof q;
+      }
     }
     if (query.club) {
       q = q.eq('clubs.slug', query.club) as typeof q;
@@ -1000,9 +1007,15 @@ export class FightersService {
       .order('given_name', { ascending: true });
 
     if (query.q) {
-      q = q.or(
-        `given_name.ilike.%${query.q}%,family_name.ilike.%${query.q}%,display_name.ilike.%${query.q}%`,
-      ) as typeof q;
+      // Strip PostgREST meta-characters before interpolating into `.or(...)`.
+      // Without this, a `,` / `(` / `)` in `q` can inject sibling filter
+      // clauses that broaden the WHERE beyond the intended search.
+      const safe = sanitizePostgrestFilterValue(query.q);
+      if (safe) {
+        q = q.or(
+          `given_name.ilike.%${safe}%,family_name.ilike.%${safe}%,display_name.ilike.%${safe}%`,
+        ) as typeof q;
+      }
     }
     if (query.roles) {
       for (const role of query.roles) {

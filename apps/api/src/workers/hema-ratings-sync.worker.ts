@@ -82,41 +82,51 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
   async process(job: Job): Promise<void> {
     this.logger.log(`Starting HEMA Ratings sync (job ${job.id})`);
 
-    const fighters = await this.fetchFighters();
-    this.logger.log(`Fetched ${fighters.length} fighters from hemaratings.com`);
+    try {
+      const fighters = await this.fetchFighters();
+      this.logger.log(`Fetched ${fighters.length} fighters from hemaratings.com`);
 
-    const linkedProfiles = await this.fetchLinkedProfiles();
-    this.logger.log(`Enriched ${linkedProfiles.size} linked HEMA Ratings profiles`);
+      const linkedProfiles = await this.fetchLinkedProfiles();
+      this.logger.log(`Enriched ${linkedProfiles.size} linked HEMA Ratings profiles`);
 
-    const enriched = fighters.map((fighter) => {
-      const profile = fighter.id !== null ? linkedProfiles.get(String(fighter.id)) : undefined;
-      return profile
-        ? {
-            ...fighter,
+      const enriched = fighters.map((fighter) => {
+        const profile = fighter.id !== null ? linkedProfiles.get(String(fighter.id)) : undefined;
+        return profile
+          ? {
+              ...fighter,
+              name: profile.name,
+              club: profile.club,
+              nationality: profile.nationality,
+              detailsUrl: profile.detailsUrl,
+              ratings: profile.ratings,
+            }
+          : fighter;
+      });
+
+      for (const [id, profile] of linkedProfiles) {
+        if (!enriched.some((fighter) => String(fighter.id) === id)) {
+          enriched.push({
+            id: parseInt(id, 10),
             name: profile.name,
             club: profile.club,
             nationality: profile.nationality,
             detailsUrl: profile.detailsUrl,
             ratings: profile.ratings,
-          }
-        : fighter;
-    });
-
-    for (const [id, profile] of linkedProfiles) {
-      if (!enriched.some((fighter) => String(fighter.id) === id)) {
-        enriched.push({
-          id: parseInt(id, 10),
-          name: profile.name,
-          club: profile.club,
-          nationality: profile.nationality,
-          detailsUrl: profile.detailsUrl,
-          ratings: profile.ratings,
-        });
+          });
+        }
       }
-    }
 
-    await this.storeSnapshot(enriched);
-    this.logger.log(`Snapshot stored (${enriched.length} fighters)`);
+      await this.storeSnapshot(enriched);
+      this.logger.log(`Snapshot stored (${enriched.length} fighters)`);
+    } catch (error) {
+      // Log + rethrow so BullMQ surfaces the failure to the retry pipeline
+      // (attempts + exponential back-off configured on the queue). Without
+      // an explicit log here, failures vanish into the failed-jobs list
+      // with no breadcrumb in the application logs.
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`HEMA Ratings sync failed (job ${job.id}): ${message}`);
+      throw error;
+    }
   }
 
   // ── Fetch ──────────────────────────────────────────────────────────────────

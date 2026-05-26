@@ -2,6 +2,7 @@ import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CsvImportService } from './csv-import.service';
 
@@ -114,11 +115,15 @@ export class LookupController {
 
   /** Fallback when pg_trgm function not yet available (pre-migration). */
   private async fallbackSearch(eventId: string, q: string, limit: number): Promise<LookupResult[]> {
+    // Strip PostgREST `.or()` meta-characters before interpolation — same
+    // injection risk as the global fighter search.
+    const safe = sanitizePostgrestFilterValue(q);
+    if (!safe) return [];
     const { data } = await this.supabase.service
       .from('persons')
       .select('id, given_name, family_name, email, claimed_by_user_id, clubs(name)')
       .eq('event_id', eventId)
-      .or(`given_name.ilike.%${q}%,family_name.ilike.%${q}%`)
+      .or(`given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`)
       .limit(limit);
 
     return (data ?? []).map((p) => {

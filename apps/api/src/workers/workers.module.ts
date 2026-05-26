@@ -46,6 +46,13 @@ import {
     }),
     BullModule.registerQueue({
       name: HEMA_RATINGS_QUEUE,
+      // Daily sync may fail transiently (hemaratings.com DNS / timeout /
+      // 5xx). Retry up to 3× with exponential back-off before surfacing
+      // the failure to the BullMQ failed-jobs list.
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 60_000 },
+      },
     }),
     BullModule.registerQueue({
       name: NOTIFICATION_QUEUE,
