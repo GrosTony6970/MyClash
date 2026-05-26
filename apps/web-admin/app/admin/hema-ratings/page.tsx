@@ -1,7 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+
+/**
+ * Sync poll cadence after clicking "Sync now". The BullMQ worker writes a
+ * fresh row to `hema_ratings_snapshots` only at the very end of a
+ * successful run, so we poll the fighters endpoint until the latest
+ * `syncedAt` advances past the value we captured before enqueueing.
+ *
+ * 5 s × 72 ticks = 6 minutes — well past the worker's worst-case runtime
+ * (one fetch to hemaratings.com + one per linked fighter), so a timeout
+ * here means the job actually failed or was retried out, in which case
+ * we tell the user the table will pick up the next snapshot on a fresh
+ * page load.
+ */
+const SYNC_POLL_INTERVAL_MS = 5_000;
+const SYNC_POLL_TIMEOUT_MS = 6 * 60 * 1_000;
 
 interface RatingRow {
   weapon: string;
@@ -76,6 +91,19 @@ export default function HemaRatingsAdminPage() {
   const [checkingHealth, setCheckingHealth] = useState(false);
   const [history, setHistory] = useState<SyncHistoryEntry[] | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopSyncPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }, []);
 
   const loadFighters = useCallback(async () => {
     setLoadError(null);
@@ -86,15 +114,19 @@ export default function HemaRatingsAdminPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as TrackedFighter[];
       setFighters(data);
+      return data;
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load tracked fighters');
       setFighters([]);
+      return [];
     }
   }, []);
 
   useEffect(() => {
     void loadFighters();
   }, [loadFighters]);
+
+  useEffect(() => stopSyncPolling, [stopSyncPolling]);
 
   const latestSyncedAt = useMemo(() => fighters?.[0]?.syncedAt ?? null, [fighters]);
 
@@ -119,6 +151,10 @@ export default function HemaRatingsAdminPage() {
 
   async function handleRunSync() {
     if (syncing) return;
+    // Snapshot the pre-sync timestamp so the polling loop can detect
+    // when the worker has written a new row to hema_ratings_snapshots.
+    const preSyncedAt = fighters?.[0]?.syncedAt ?? null;
+    stopSyncPolling();
     setSyncing(true);
     setSyncMessage(null);
     try {
@@ -130,12 +166,33 @@ export default function HemaRatingsAdminPage() {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         throw new Error(body?.message ?? `HTTP ${res.status}`);
       }
-      const body = (await res.json()) as { jobId: string };
-      setSyncMessage(t('admin.hemaRatings.syncQueuedJob', { jobId: body.jobId }));
+      // 202 — job enqueued. Switch to "waiting" message and start polling
+      // the fighters endpoint until syncedAt advances past preSyncedAt or
+      // the safety timeout fires.
+      await res.json().catch(() => null);
+      setSyncMessage(t('admin.hemaRatings.syncWaiting'));
+
+      pollIntervalRef.current = setInterval(() => {
+        void (async () => {
+          const next = await loadFighters();
+          const nextSyncedAt = next?.[0]?.syncedAt ?? null;
+          if (nextSyncedAt && nextSyncedAt !== preSyncedAt) {
+            stopSyncPolling();
+            setSyncing(false);
+            setSyncMessage(t('admin.hemaRatings.syncCompleted'));
+          }
+        })();
+      }, SYNC_POLL_INTERVAL_MS);
+
+      pollTimeoutRef.current = setTimeout(() => {
+        stopSyncPolling();
+        setSyncing(false);
+        setSyncMessage(t('admin.hemaRatings.syncTimeout'));
+      }, SYNC_POLL_TIMEOUT_MS);
     } catch (err) {
-      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.syncFailed'));
-    } finally {
+      stopSyncPolling();
       setSyncing(false);
+      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.syncFailed'));
     }
   }
 
