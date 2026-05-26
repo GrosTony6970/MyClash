@@ -943,6 +943,12 @@ interface PersonResult {
   family_name: string;
   club_label: string | null;
   claimed_by_user_id: string | null;
+  /**
+   * Every participant gets a global_person_id at create time via the
+   * persons.service matcher. Nullable here only as a legacy-data
+   * safety net; in fresh-deploy practice it's always set.
+   */
+  global_person_id: string | null;
 }
 
 export default function RefereesPage() {
@@ -1476,10 +1482,10 @@ export default function RefereesPage() {
                           </p>
                           {p.club_label && <p className="text-xs text-gray-400">{p.club_label}</p>}
                         </div>
-                        {p.claimed_by_user_id ? (
+                        {p.global_person_id ? (
                           <button
                             onClick={() => {
-                              void addReferee(p.claimed_by_user_id!);
+                              void addReferee(p.global_person_id!);
                               setSearch('');
                               setSearchResults([]);
                             }}

@@ -20,6 +20,21 @@ import { CsvImportService } from './csv-import.service';
 import type { CsvRow } from './csv-import.service';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
+/**
+ * Slug seed for newly-created global_persons rows. Mirrors the helper
+ * in fighters.service.ts — kept inline here rather than shared because
+ * it's eight cheap lines and the two callers don't otherwise overlap.
+ */
+function slugifyName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 50);
+}
+
 @Injectable()
 export class PersonsService {
   private readonly logger = new Logger(PersonsService.name);
@@ -121,6 +136,24 @@ export class PersonsService {
       }
     }
 
+    // Resolve a global_persons row for every participant. Either the
+    // caller supplied one (UI explicit link), or we match against
+    // existing global identities by HEMA Ratings ID, then by
+    // name+club+DOB. No confident match → create a fresh global row.
+    // This is the canonical entry point: every persons row gets a
+    // global_person_id, no exceptions, so downstream features (referees,
+    // ratings, cross-event aggregation) never have to handle a null.
+    const globalPersonId =
+      dto.globalPersonId ??
+      (await this.resolveOrCreateGlobalPerson({
+        givenName: dto.givenName,
+        familyName: dto.familyName,
+        clubId: dto.clubId ?? null,
+        hemaRatingsId: dto.hemaRatingsId ?? null,
+        dateOfBirth: dto.dateOfBirth ?? null,
+        genderCategory: dto.genderCategory ?? null,
+      }));
+
     const { data, error } = await this.supabase.service
       .from('persons')
       .insert({
@@ -133,7 +166,7 @@ export class PersonsService {
         date_of_birth: dto.dateOfBirth ?? null,
         gender_category: dto.genderCategory ?? null,
         notes: dto.notes ?? null,
-        global_person_id: dto.globalPersonId ?? null,
+        global_person_id: globalPersonId,
         claim_status: 'unclaimed',
         created_by_user_id: createdByUserId,
       })
@@ -142,6 +175,82 @@ export class PersonsService {
 
     if (error) throw new BadRequestException(error.message);
     return this.mapPerson(data as Record<string, unknown>);
+  }
+
+  /**
+   * Resolve a participant to an existing global_persons row, or create
+   * a new one. Two confidence tiers — anything below them produces a
+   * fresh row rather than risking a false merge:
+   *
+   *   Tier 1: exact match on `hema_ratings_id` (when provided).
+   *   Tier 2: exact match on name + club_id + date_of_birth (when all
+   *           three provided).
+   *
+   * Either tier returning multiple hits falls through (treated as
+   * "no confident match"). The conservatism is intentional: a wrong
+   * auto-merge fragments cross-event identity in subtle ways that take
+   * an admin merge tool to undo, while a missed merge is a one-click
+   * fix from the global-profiles admin.
+   */
+  private async resolveOrCreateGlobalPerson(input: {
+    givenName: string;
+    familyName: string;
+    clubId: string | null;
+    hemaRatingsId: string | null;
+    dateOfBirth: string | null;
+    genderCategory: string | null;
+  }): Promise<string> {
+    const givenName = input.givenName.trim();
+    const familyName = input.familyName.trim();
+    const hemaRatingsId = input.hemaRatingsId?.trim() || null;
+    const dateOfBirth = input.dateOfBirth?.trim() || null;
+
+    // Tier 1 — HEMA Ratings ID.
+    if (hemaRatingsId) {
+      const { data: hits } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .eq('hema_ratings_id', hemaRatingsId)
+        .limit(2);
+      const rows = (hits ?? []) as Array<{ id: string }>;
+      if (rows.length === 1) return rows[0]!.id;
+    }
+
+    // Tier 2 — name + club + DOB. Each part must be present; partial
+    // criteria are the easiest way to generate false-merges.
+    if (input.clubId && dateOfBirth) {
+      const { data: hits } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .ilike('given_name', givenName)
+        .ilike('family_name', familyName)
+        .eq('club_id', input.clubId)
+        .eq('date_of_birth', dateOfBirth)
+        .limit(2);
+      const rows = (hits ?? []) as Array<{ id: string }>;
+      if (rows.length === 1) return rows[0]!.id;
+    }
+
+    // No confident match — mint a fresh global identity.
+    const displayName = `${givenName} ${familyName}`.trim();
+    const slug = `${slugifyName(`${givenName}-${familyName}`)}-${Date.now().toString(36)}`;
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .insert({
+        slug,
+        display_name: displayName,
+        given_name: givenName,
+        family_name: familyName,
+        club_id: input.clubId,
+        hema_ratings_id: hemaRatingsId,
+        date_of_birth: dateOfBirth,
+        gender_category: input.genderCategory ?? null,
+        is_fighter: true,
+      })
+      .select('id')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return (data as { id: string }).id;
   }
 
   // ── Update ──────────────────────────────────────────────────────────────────

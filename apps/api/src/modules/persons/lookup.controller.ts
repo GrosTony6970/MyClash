@@ -24,6 +24,14 @@ export interface LookupResult {
   club_label: string | null;
   masked_email: string;
   claimed_by_user_id: string | null;
+  /**
+   * The participant's global identity. Post-the participant-create
+   * matcher, every persons row has one; nullable here only for legacy
+   * rows that pre-date the change (drained on fresh deploys). Callers
+   * that need cross-event identity (referees, ratings) key off this,
+   * not on `claimed_by_user_id` (an auth user link, not a global id).
+   */
+  global_person_id: string | null;
 }
 
 @ApiTags('persons')
@@ -98,19 +106,23 @@ export class LookupController {
       masked_email: string;
     }>;
 
-    // The lookup_persons RPC does not project claimed_by_user_id.
-    // Fetch it in a single supplemental query so the UI can gate on claimed status.
+    // The lookup_persons RPC does not project claimed_by_user_id or
+    // global_person_id. Fetch both in a single supplemental query.
     const ids = rpcRows.map((r) => r.id);
-    const claimedMap = await this.fetchClaimedByUserIds(ids);
+    const metaMap = await this.fetchPersonsMeta(ids);
 
-    return rpcRows.map((row) => ({
-      id: row.id,
-      given_name: row.given_name,
-      family_name: row.family_name,
-      club_label: row.club_label ?? null,
-      masked_email: row.masked_email,
-      claimed_by_user_id: claimedMap.get(row.id) ?? null,
-    }));
+    return rpcRows.map((row) => {
+      const meta = metaMap.get(row.id);
+      return {
+        id: row.id,
+        given_name: row.given_name,
+        family_name: row.family_name,
+        club_label: row.club_label ?? null,
+        masked_email: row.masked_email,
+        claimed_by_user_id: meta?.claimed_by_user_id ?? null,
+        global_person_id: meta?.global_person_id ?? null,
+      };
+    });
   }
 
   /** Fallback when pg_trgm function not yet available (pre-migration). */
@@ -121,7 +133,9 @@ export class LookupController {
     if (!safe) return [];
     const { data } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, email, claimed_by_user_id, clubs(name)')
+      .select(
+        'id, given_name, family_name, email, claimed_by_user_id, global_person_id, clubs(name)',
+      )
       .eq('event_id', eventId)
       .or(`given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`)
       .limit(limit);
@@ -133,6 +147,7 @@ export class LookupController {
         family_name: string;
         email: string | null;
         claimed_by_user_id: string | null;
+        global_person_id: string | null;
         clubs: { name: string } | null;
       };
       return {
@@ -142,27 +157,40 @@ export class LookupController {
         club_label: row.clubs?.name ?? null,
         masked_email: this.csv.maskEmail(row.email),
         claimed_by_user_id: row.claimed_by_user_id ?? null,
+        global_person_id: row.global_person_id ?? null,
       };
     });
   }
 
   /**
-   * Fetches claimed_by_user_id for a list of persons.id values.
-   * Returns a Map<personId, claimed_by_user_id | null>.
+   * Fetches claimed_by_user_id + global_person_id for a list of
+   * persons.id values. Returns a Map keyed by person id.
    * Gracefully returns an empty map on error (non-fatal for the lookup).
    */
-  private async fetchClaimedByUserIds(ids: string[]): Promise<Map<string, string | null>> {
+  private async fetchPersonsMeta(
+    ids: string[],
+  ): Promise<Map<string, { claimed_by_user_id: string | null; global_person_id: string | null }>> {
     if (ids.length === 0) return new Map();
 
     const { data } = await this.supabase.service
       .from('persons')
-      .select('id, claimed_by_user_id')
+      .select('id, claimed_by_user_id, global_person_id')
       .in('id', ids);
 
-    const map = new Map<string, string | null>();
+    const map = new Map<
+      string,
+      { claimed_by_user_id: string | null; global_person_id: string | null }
+    >();
     for (const row of data ?? []) {
-      const r = row as { id: string; claimed_by_user_id: string | null };
-      map.set(r.id, r.claimed_by_user_id ?? null);
+      const r = row as {
+        id: string;
+        claimed_by_user_id: string | null;
+        global_person_id: string | null;
+      };
+      map.set(r.id, {
+        claimed_by_user_id: r.claimed_by_user_id ?? null,
+        global_person_id: r.global_person_id ?? null,
+      });
     }
     return map;
   }
@@ -175,7 +203,9 @@ export class LookupController {
   private async listAllParticipants(eventId: string, limit: number): Promise<LookupResult[]> {
     const { data } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, email, claimed_by_user_id, clubs(name)')
+      .select(
+        'id, given_name, family_name, email, claimed_by_user_id, global_person_id, clubs(name)',
+      )
       .eq('event_id', eventId)
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true })
@@ -188,6 +218,7 @@ export class LookupController {
         family_name: string;
         email: string | null;
         claimed_by_user_id: string | null;
+        global_person_id: string | null;
         clubs: { name: string } | null;
       };
       return {
@@ -197,6 +228,7 @@ export class LookupController {
         club_label: row.clubs?.name ?? null,
         masked_email: this.csv.maskEmail(row.email),
         claimed_by_user_id: row.claimed_by_user_id ?? null,
+        global_person_id: row.global_person_id ?? null,
       };
     });
   }
