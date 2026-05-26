@@ -333,7 +333,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,scoring_config_json,ruleset_config_json)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,scoring_config_json,ruleset_config_json)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -360,7 +360,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config_json))',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config_json))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -540,9 +540,27 @@ export class StaffService {
     return key.length === storedKey.length && timingSafeEqual(key, storedKey);
   }
 
+  /**
+   * `persons` table has `given_name` + `family_name` but no
+   * `display_name` (that lives on `global_persons`). Mappers below
+   * compose names locally — embed strings above must request
+   * given+family, not display_name.
+   */
+  private formatPersonName(
+    p: { given_name?: string | null; family_name?: string | null } | null | undefined,
+  ): string | null {
+    if (!p) return null;
+    const composed = `${p.given_name ?? ''} ${p.family_name ?? ''}`.trim();
+    return composed || null;
+  }
+
   private mapCurrentMatch(match: Record<string, unknown>) {
-    const red = match['red'] as { persons?: { display_name?: string } } | null;
-    const blue = match['blue'] as { persons?: { display_name?: string } } | null;
+    const red = match['red'] as {
+      persons?: { given_name?: string | null; family_name?: string | null };
+    } | null;
+    const blue = match['blue'] as {
+      persons?: { given_name?: string | null; family_name?: string | null };
+    } | null;
     const phase = match['phases'] as {
       type?: string;
       tournaments?: {
@@ -568,8 +586,8 @@ export class StaffService {
       lockedAt: match['locked_at'] ?? null,
       rulesetCode: match['ruleset_code'],
       rulesetVersion: match['ruleset_version'],
-      redFighterName: red?.persons?.display_name ?? null,
-      blueFighterName: blue?.persons?.display_name ?? null,
+      redFighterName: this.formatPersonName(red?.persons),
+      blueFighterName: this.formatPersonName(blue?.persons),
       tournamentId: tournament?.id ?? null,
       tournamentName: tournament?.name ?? null,
       weapon: tournament?.weapon ?? null,
@@ -579,8 +597,12 @@ export class StaffService {
   }
 
   private mapDisplayMatch(match: Record<string, unknown>) {
-    const red = match['red'] as { persons?: { display_name?: string } } | null;
-    const blue = match['blue'] as { persons?: { display_name?: string } } | null;
+    const red = match['red'] as {
+      persons?: { given_name?: string | null; family_name?: string | null };
+    } | null;
+    const blue = match['blue'] as {
+      persons?: { given_name?: string | null; family_name?: string | null };
+    } | null;
     const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
     const phases = match['phases'] as {
       tournaments?: {
@@ -606,8 +628,8 @@ export class StaffService {
       lockedAt: match['locked_at'] ?? null,
       rulesetCode: match['ruleset_code'],
       rulesetVersion: match['ruleset_version'],
-      redFighterName: red?.persons?.display_name ?? null,
-      blueFighterName: blue?.persons?.display_name ?? null,
+      redFighterName: this.formatPersonName(red?.persons),
+      blueFighterName: this.formatPersonName(blue?.persons),
       lice: lices,
       event: lices?.events ?? null,
       tournament: phases?.tournaments ?? null,

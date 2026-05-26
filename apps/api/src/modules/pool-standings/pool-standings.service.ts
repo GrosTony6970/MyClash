@@ -79,7 +79,10 @@ export class PoolStandingsService {
     const { data: pools } = await this.supabase.service
       .from('pools')
       .select(
-        'id, name, pool_members(registration_id, registrations(id, persons(id, given_name, family_name, display_name, clubs(id, name, abbreviation))))',
+        // `persons` has no `display_name` column — that lives on
+        // `global_persons`. Compose the visible name from given+family
+        // in computeRows below.
+        'id, name, pool_members(registration_id, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
@@ -94,7 +97,6 @@ export class PoolStandingsService {
             id: string;
             given_name: string;
             family_name: string;
-            display_name: string | null;
             clubs: { id: string; name: string; abbreviation: string | null } | null;
           };
         };
@@ -153,7 +155,6 @@ export class PoolStandingsService {
             id: string;
             given_name: string;
             family_name: string;
-            display_name: string | null;
             clubs: { id: string; name: string; abbreviation: string | null } | null;
           };
         };
@@ -227,7 +228,7 @@ export class PoolStandingsService {
 
     const rows: StandingsRow[] = pool.pool_members.map((member) => {
       const person = member.registrations.persons;
-      const displayName = person.display_name ?? `${person.given_name} ${person.family_name}`;
+      const displayName = `${person.given_name} ${person.family_name}`.trim();
       return {
         rank: 0,
         registrationId: member.registration_id,

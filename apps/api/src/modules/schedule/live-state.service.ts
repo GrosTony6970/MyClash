@@ -28,6 +28,14 @@ export interface LiveStateResponse {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function composeName(
+  p: { given_name?: string | null; family_name?: string | null } | null | undefined,
+): string | null {
+  if (!p) return null;
+  const composed = `${p.given_name ?? ''} ${p.family_name ?? ''}`.trim();
+  return composed || null;
+}
+
 @Injectable()
 export class LiveStateService {
   constructor(private readonly supabase: SupabaseService) {}
@@ -86,8 +94,8 @@ export class LiveStateService {
         .from('matches')
         .select(
           'id,status,scheduled_at,match_number_label,lice_id,' +
-            'red:registrations!matches_red_registration_id_fkey(id,persons(display_name)),' +
-            'blue:registrations!matches_blue_registration_id_fkey(id,persons(display_name)),' +
+            'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
+            'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
             'phases(tournaments(id,name))',
         )
         .in('lice_id', liceIds)
@@ -129,14 +137,21 @@ export class LiveStateService {
   }
 
   private mapLiveMatch(m: Record<string, unknown>): LiveMatch {
-    const red = m['red'] as { persons?: { display_name?: string } } | null;
-    const blue = m['blue'] as { persons?: { display_name?: string } } | null;
+    // `persons` carries given_name + family_name (no display_name);
+    // compose the visible name here. See staff.service.ts formatPersonName
+    // for the canonical comment on this constraint.
+    const red = m['red'] as {
+      persons?: { given_name?: string | null; family_name?: string | null };
+    } | null;
+    const blue = m['blue'] as {
+      persons?: { given_name?: string | null; family_name?: string | null };
+    } | null;
     const phases = m['phases'] as { tournaments?: { name?: string } } | null;
     return {
       id: m['id'] as string,
       matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
-      redFighterName: red?.persons?.display_name ?? null,
-      blueFighterName: blue?.persons?.display_name ?? null,
+      redFighterName: composeName(red?.persons),
+      blueFighterName: composeName(blue?.persons),
       scheduledAt: (m['scheduled_at'] as string | null) ?? null,
       status: (m['status'] as string) ?? 'scheduled',
       tournamentName: phases?.tournaments?.name ?? null,

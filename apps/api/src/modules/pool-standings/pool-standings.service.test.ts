@@ -68,4 +68,74 @@ describe('PoolStandingsService', () => {
     expect(Array.isArray((result as { rows?: unknown[] }).rows)).toBe(true);
     expect((result as { rows: unknown[] }).rows.length).toBe(0);
   });
+
+  it('does not request persons.display_name (column does not exist on persons)', async () => {
+    // Regression guard: persons has only given_name + family_name; the
+    // display_name column lives on global_persons. PostgREST returns
+    // 400 if we embed persons(display_name). See scoreboard 400 fix.
+    const tournamentChain = makeChain({
+      data: { id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
+      error: null,
+    });
+    const phaseChain = makeChain({ data: { id: 'phase-1' }, error: null });
+    const poolsChain = makeAwaitableChain({ data: [], error: null });
+    const matchesChain = makeAwaitableChain({ data: [], error: null });
+    fromMock
+      .mockReturnValueOnce(tournamentChain)
+      .mockReturnValueOnce(phaseChain)
+      .mockReturnValueOnce(poolsChain)
+      .mockReturnValueOnce(matchesChain);
+
+    const service = new PoolStandingsService(mockSupabase as never);
+    await service.getPoolStandings('t-1', 'overall');
+
+    const selectArg = String((poolsChain.select as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]);
+    expect(selectArg).toContain('persons(id, given_name, family_name');
+    expect(selectArg).not.toContain('display_name');
+  });
+
+  it('composes displayName from given_name + family_name', async () => {
+    const tournamentChain = makeChain({
+      data: { id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
+      error: null,
+    });
+    const phaseChain = makeChain({ data: { id: 'phase-1' }, error: null });
+    const poolsChain = makeAwaitableChain({
+      data: [
+        {
+          id: 'pool-1',
+          name: 'Pool A',
+          pool_members: [
+            {
+              registration_id: 'reg-1',
+              registrations: {
+                id: 'reg-1',
+                persons: {
+                  id: 'p-1',
+                  given_name: 'Jean',
+                  family_name: 'Dupont',
+                  clubs: null,
+                },
+              },
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+    const matchesChain = makeAwaitableChain({ data: [], error: null });
+    fromMock
+      .mockReturnValueOnce(tournamentChain)
+      .mockReturnValueOnce(phaseChain)
+      .mockReturnValueOnce(poolsChain)
+      .mockReturnValueOnce(matchesChain);
+
+    const service = new PoolStandingsService(mockSupabase as never);
+    const result = (await service.getPoolStandings('t-1', 'overall')) as {
+      rows: Array<{ displayName: string }>;
+    };
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]!.displayName).toBe('Jean Dupont');
+  });
 });
