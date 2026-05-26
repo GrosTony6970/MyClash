@@ -352,6 +352,10 @@ export default function AdminFightersPage() {
           : t('admin.globalProfiles.createSuccess', { profile: displayName }),
       );
       resetProfileForm();
+      // Return to the Profiles list so the saved row is immediately
+      // visible; the success banner is hoisted above the tab content so
+      // it survives the tab switch.
+      setTab('profiles');
       void searchPersons(personQuery);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : t('admin.globalProfiles.saveError'));
@@ -531,6 +535,12 @@ export default function AdminFightersPage() {
         ))}
       </div>
 
+      {createSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-700 rounded-md px-4 py-3 mb-4 text-sm">
+          {createSuccess}
+        </div>
+      )}
+
       {/* ── Tab: Profiles ── */}
       {tab === 'profiles' && (
         <div>
@@ -685,11 +695,6 @@ export default function AdminFightersPage() {
           {createError && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
               {createError}
-            </div>
-          )}
-          {createSuccess && (
-            <div className="bg-green-50 border border-green-200 text-green-700 rounded-md px-4 py-3 mb-4 text-sm">
-              {createSuccess}
             </div>
           )}
 
