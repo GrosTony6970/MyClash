@@ -804,9 +804,9 @@ export default function PoolsPage() {
                             setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
                           }
                           onDragEnd={() => setDragging(null)}
-                          className="group flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
+                          className="group flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
                         >
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 truncate">
                             <span className="font-medium text-gray-900">{m.personName}</span>
                             {m.clubLabel && (
                               <span className="text-gray-400 text-xs ml-2">{m.clubLabel}</span>
@@ -879,9 +879,9 @@ export default function PoolsPage() {
                           })
                         }
                         onDragEnd={() => setDragging(null)}
-                        className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
+                        className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
                       >
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 truncate">
                           <span className="font-medium text-gray-900">{u.personName}</span>
                           {u.clubLabel && (
                             <span className="text-gray-400 text-xs ml-2">{u.clubLabel}</span>
