@@ -456,6 +456,16 @@ export class UpdateTournamentDto {
   @IsUUID()
   penaltyRulesetId?: string | null;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Public URL of the tournament logo. Pass null to clear.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  logoUrl?: string | null;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

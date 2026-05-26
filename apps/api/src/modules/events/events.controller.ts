@@ -351,6 +351,38 @@ export class EventsController {
     return this.events.getTournamentById(id, userId);
   }
 
+  /** POST /api/v1/tournaments/:id/logo — per-tournament logo upload. */
+  @Post('tournaments/:id/logo')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload tournament logo (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uploadTournamentLogo(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          | {
+              filename: string;
+              mimetype: string;
+              toBuffer: () => Promise<Buffer>;
+            }
+          | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.events.uploadTournamentLogo(id, userId, {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    });
+  }
+
   /** PATCH /api/v1/tournaments/:id */
   @Patch('tournaments/:id')
   @ApiBearerAuth()

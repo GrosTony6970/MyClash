@@ -66,3 +66,25 @@ describe('UpdateTournamentDto — rulesetConfig.matchFormat', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 });
+
+describe('UpdateTournamentDto — logoUrl', () => {
+  it('accepts a string logoUrl set via PATCH', async () => {
+    const dto = plainToInstance(UpdateTournamentDto, {
+      logoUrl: 'https://cdn.test/event-assets/tournaments/abc/logo-1.png',
+    });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors).toEqual([]);
+  });
+
+  it('accepts null logoUrl (clear-logo path used by the Remove button)', async () => {
+    const dto = plainToInstance(UpdateTournamentDto, { logoUrl: null });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects a non-string logoUrl (type guard)', async () => {
+    const dto = plainToInstance(UpdateTournamentDto, { logoUrl: 12345 });
+    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+});

@@ -589,7 +589,7 @@ export class EventsService {
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, ruleset_code, status')
+      .select('id, name, weapon, ruleset_code, status, logo_url')
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
@@ -623,6 +623,7 @@ export class EventsService {
         weapon: tournament['weapon'],
         rulesetCode: tournament['ruleset_code'],
         status: tournament['status'],
+        logoUrl: (tournament['logo_url'] as string | null) ?? null,
       },
       pools,
       ...bracket,
@@ -935,6 +936,7 @@ export class EventsService {
     if (dto.rulesetVersion !== undefined) updates['ruleset_version'] = dto.rulesetVersion;
     if (dto.penaltyRulesetId !== undefined) updates['penalty_ruleset_id'] = dto.penaltyRulesetId;
     if (dto.color !== undefined) updates['color'] = dto.color;
+    if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
 
     if (dto.scoringConfig !== undefined) {
       const merged = deepMergeJson(currentJson['scoring_config_json'] ?? {}, dto.scoringConfig);
@@ -1140,6 +1142,70 @@ export class EventsService {
     if (created.error && !/already exists/iu.test(created.error.message)) {
       throw new BadRequestException(created.error.message);
     }
+  }
+
+  /**
+   * Upload a per-tournament logo. Mirrors `uploadLogo` for events: same
+   * 10 MB cap, PNG/JPEG/WebP only, shared `event-assets` bucket. Storage
+   * path is `tournaments/{tournamentId}/logo-{ts}-{safeBase}.{ext}` so
+   * each upload bypasses the public CDN cache, and we write the URL back
+   * to `tournaments.logo_url` directly (no separate themes table —
+   * matches the org pattern).
+   */
+  async uploadTournamentLogo(
+    tournamentId: string,
+    userId: string,
+    file: EventLogoUpload,
+  ): Promise<{ url: string }> {
+    const { data: row, error: readError } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (readError) throw new BadRequestException(readError.message);
+    if (!row) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+
+    const event = await this.getEventById((row as { event_id: string }).event_id);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+
+    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
+    if (file.buffer.length > EVENT_LOGO_MAX_BYTES) {
+      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
+    }
+    if (!ALLOWED_EVENT_LOGO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureLogoBucket();
+    const extension =
+      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `tournaments/${tournamentId}/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error: uploadError } = await this.supabase.service.storage
+      .from(EVENT_LOGO_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (uploadError) throw new BadRequestException(uploadError.message);
+
+    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
+    const url = data.publicUrl;
+
+    const { error: updateError } = await this.supabase.service
+      .from('tournaments')
+      .update({ logo_url: url, updated_at: new Date().toISOString() })
+      .eq('id', tournamentId);
+    if (updateError) throw new BadRequestException(updateError.message);
+
+    return { url };
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────

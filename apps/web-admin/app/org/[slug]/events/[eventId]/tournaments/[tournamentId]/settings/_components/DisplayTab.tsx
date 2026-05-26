@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 
@@ -36,7 +36,10 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
+  const logoInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
@@ -44,6 +47,7 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
+        setLogoUrl((row.logo_url as string | null) ?? null);
         const sc = (row.scoring_config ?? {}) as {
           display?: { sideColors?: { red: string; blue: string } };
           buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
@@ -57,6 +61,57 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         });
       });
   }, [tournamentId]);
+
+  async function uploadLogo(file: File) {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(t('organizer.events.logoTooLarge'));
+      return;
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast.error(t('organizer.events.logoWrongType'));
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/logo`, {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+      }
+      const { url } = (await res.json()) as { url: string };
+      setLogoUrl(url);
+      toast.success(t('organizer.events.logoUploadSuccess'));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('organizer.events.logoUploadFailed'));
+    } finally {
+      setUploadingLogo(false);
+      if (logoInput.current) logoInput.current.value = '';
+    }
+  }
+
+  async function removeLogo() {
+    setUploadingLogo(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logoUrl: null }),
+      });
+      if (!res.ok) throw new Error('Remove failed');
+      setLogoUrl(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -86,6 +141,64 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
       <h2 className="font-display text-xl text-slate-900">
         {t('organizer.tournaments.settings.display')}
       </h2>
+
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-slate-600">
+          {t('organizer.tournaments.settings.logoLabel')}
+        </legend>
+        <div className="flex items-center gap-3">
+          <div className="h-16 w-16 rounded-full overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={t('organizer.tournaments.settings.logoPreviewAlt')}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-[10px] text-slate-400">—</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <input
+                ref={logoInput}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadLogo(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => logoInput.current?.click()}
+                disabled={uploadingLogo}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {uploadingLogo
+                  ? t('organizer.tournaments.settings.logoUploading')
+                  : logoUrl
+                    ? t('organizer.tournaments.settings.logoReplace')
+                    : t('organizer.tournaments.settings.logoUpload')}
+              </button>
+              {logoUrl && (
+                <button
+                  type="button"
+                  onClick={() => void removeLogo()}
+                  disabled={uploadingLogo}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {t('organizer.tournaments.settings.logoRemove')}
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {t('organizer.tournaments.settings.logoHelp')}
+            </p>
+          </div>
+        </div>
+      </fieldset>
 
       <fieldset className="space-y-2">
         <legend className="text-xs font-medium text-slate-600">
