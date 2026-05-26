@@ -8,7 +8,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 import type { DataQualityFindingStatus } from './dto/data-quality.dto';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 
-type FindingType = 'global_person_duplicate' | 'club_duplicate' | 'referee_unlinked';
+type FindingType =
+  | 'global_person_duplicate'
+  | 'club_duplicate'
+  | 'referee_unlinked'
+  | 'identity_gap'
+  | 'placeholder_name';
 type FindingSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 type Candidate = {
@@ -28,6 +33,83 @@ type AIRanking = {
 };
 
 const FALLBACK_AI_SUMMARY = 'AI summary unavailable.';
+
+/**
+ * Cap how many candidates we feed to the LLM ranker. The deterministic
+ * scan ignores this cap (it doesn't cost per call). With 5 finder
+ * methods we can produce >100 candidates on noisy data; this prevents
+ * a runaway bill on the AI path while still surfacing the most-
+ * obvious cleanup work in the same scan.
+ */
+const AI_RANK_CAP = 100;
+
+/**
+ * Detect names that look like seed / test / demo records left behind
+ * after a manual import or development run. Returns the rule that
+ * matched so the operator can spot false positives quickly.
+ *
+ * Exported at module scope so the rule chain is unit-testable
+ * independently of the supabase mocks the service tests need.
+ */
+const PLACEHOLDER_EXACT = new Set([
+  'test',
+  'tests',
+  'testing',
+  'demo',
+  'sample',
+  'example',
+  'todo',
+  'tbd',
+  'n/a',
+  'na',
+  'xxx',
+  'yyy',
+  'zzz',
+  'asdf',
+  'qwerty',
+  'placeholder',
+  'dummy',
+  'foo',
+  'bar',
+  'baz',
+  'lorem',
+  'ipsum',
+  'temp',
+  'temporary',
+]);
+
+const PLACEHOLDER_PATTERNS: Array<{ rule: string; regex: RegExp }> = [
+  { rule: 'test_with_number', regex: /^test[\s_-]?\d+$/ },
+  { rule: 'placeholder_prefix', regex: /^(test|demo|sample|placeholder|dummy)[\s_-].+/ },
+  { rule: 'placeholder_suffix', regex: /^.+?[\s_-](test|demo|sample|placeholder|dummy)$/ },
+];
+
+export function detectPlaceholderName(value: string | null | undefined): {
+  matched: boolean;
+  rule?: string;
+} {
+  if (!value) return { matched: false };
+  const lower = value.trim().toLowerCase();
+  if (!lower) return { matched: false };
+
+  if (PLACEHOLDER_EXACT.has(lower)) return { matched: true, rule: `exact:${lower}` };
+
+  for (const { rule, regex } of PLACEHOLDER_PATTERNS) {
+    if (regex.test(lower)) return { matched: true, rule };
+  }
+
+  // 80%+ same-letter density on 5+ char alpha-only names (catches
+  // `aaaaa`, `aaaaab`, etc.). Skipped for short or punctuated values
+  // so initials like "A.B.C." don't trip the heuristic.
+  if (lower.length >= 5 && /^[a-z]+$/.test(lower)) {
+    const freq = new Map<string, number>();
+    for (const ch of lower) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+    const maxFreq = Math.max(...freq.values());
+    if (maxFreq / lower.length >= 0.8) return { matched: true, rule: 'high_letter_density' };
+  }
+
+  return { matched: false };
+}
 
 @Injectable()
 export class AIDataQualityService {
@@ -49,16 +131,7 @@ export class AIDataQualityService {
     const scan = await this.createScan(actorUserId);
 
     try {
-      const [persons, clubs, refereeQualifications] = await Promise.all([
-        this.loadGlobalPersons(),
-        this.loadClubs(),
-        this.loadRefereeQualifications(),
-      ]);
-      const candidates = [
-        ...this.findGlobalPersonDuplicates(persons),
-        ...this.findClubDuplicates(clubs),
-        ...this.findUnlinkedReferees(refereeQualifications, persons),
-      ];
+      const candidates = (await this.collectAllCandidates()).slice(0, AI_RANK_CAP);
       const findings = [];
 
       for (const candidate of candidates) {
@@ -79,6 +152,61 @@ export class AIDataQualityService {
       await this.failScan(scan.id, error instanceof Error ? error.message : 'Unknown scan error');
       throw error;
     }
+  }
+
+  /**
+   * Run the same finder battery as `startScan` but skip the LLM
+   * ranker — persist each candidate verbatim with `confidence: 1.0`
+   * and a synthesized summary. Cheap enough to run unattended on a
+   * daily cron; the operator gets a stable baseline before any
+   * AI-assisted review.
+   */
+  async runDeterministicScan(actorUserId: string): Promise<{
+    scanId: string;
+    candidateCount: number;
+    findingCount: number;
+  }> {
+    const scan = await this.createScan(actorUserId);
+    try {
+      const candidates = await this.collectAllCandidates();
+      const findings = candidates.map((candidate) =>
+        this.toDeterministicFindingRow(scan.id, candidate),
+      );
+
+      if (findings.length > 0) {
+        await this.supabase.service
+          .from('ai_data_quality_findings')
+          .upsert(findings, { onConflict: 'fingerprint' });
+      }
+
+      await this.finishScan(scan.id, 'completed', candidates.length, findings.length);
+      return { scanId: scan.id, candidateCount: candidates.length, findingCount: findings.length };
+    } catch (error) {
+      await this.failScan(scan.id, error instanceof Error ? error.message : 'Unknown scan error');
+      throw error;
+    }
+  }
+
+  /**
+   * Fan out all five finders and concat. Shared between the AI and
+   * deterministic paths so the rules stay in one place. Loads are
+   * parallelised to keep the daily cron under a couple of seconds.
+   */
+  private async collectAllCandidates(): Promise<Candidate[]> {
+    const [persons, clubs, refereeQualifications, eventPersons, registrations] = await Promise.all([
+      this.loadGlobalPersons(),
+      this.loadClubs(),
+      this.loadRefereeQualifications(),
+      this.loadEventPersons(),
+      this.loadRegistrations(),
+    ]);
+    return [
+      ...this.findGlobalPersonDuplicates(persons),
+      ...this.findClubDuplicates(clubs),
+      ...this.findUnlinkedReferees(refereeQualifications, persons),
+      ...this.findIdentityGaps(persons, eventPersons, refereeQualifications, registrations),
+      ...this.findPlaceholderNames(persons, eventPersons, clubs),
+    ];
   }
 
   async listScans() {
@@ -300,6 +428,183 @@ export class AIDataQualityService {
     return candidates;
   }
 
+  /**
+   * Identity-gap surface — four sub-codes (see plan). Each gap is a
+   * standalone finding so the operator can resolve them one by one.
+   * "Unlinked referee qualification" is already covered by
+   * `findUnlinkedReferees` so it's intentionally not duplicated here.
+   */
+  private findIdentityGaps(
+    persons: GlobalPersonRow[],
+    eventPersons: EventPersonRow[],
+    refereeQualifications: RefereeQualificationRow[],
+    registrations: RegistrationRow[],
+  ): Candidate[] {
+    const candidates: Candidate[] = [];
+
+    const referencedByEventPersons = new Set(
+      eventPersons.map((p) => p.global_person_id).filter((id): id is string => Boolean(id)),
+    );
+    const referencedByRefereeQuals = new Set(
+      refereeQualifications.map((q) => q.person_id).filter((id): id is string => Boolean(id)),
+    );
+    const referencedByRegistrations = new Set(
+      registrations.map((r) => r.fighter_id).filter((id): id is string => Boolean(id)),
+    );
+
+    for (const person of persons) {
+      if (person.deleted_at || person.merged_into_id) continue;
+
+      if (
+        !referencedByEventPersons.has(person.id) &&
+        !referencedByRefereeQuals.has(person.id) &&
+        !referencedByRegistrations.has(person.id)
+      ) {
+        candidates.push(
+          this.candidate('identity_gap', 'low', 1.0, {
+            globalPersonIds: [person.id],
+            evidence: {
+              gap_code: 'global_person_no_links',
+              globalPerson: this.safeGlobalPersonEvidence(person),
+            },
+          }),
+        );
+      }
+
+      if (person.is_referee && !referencedByRefereeQuals.has(person.id)) {
+        candidates.push(
+          this.candidate('identity_gap', 'low', 1.0, {
+            globalPersonIds: [person.id],
+            evidence: {
+              gap_code: 'referee_flag_no_qualifications',
+              globalPerson: this.safeGlobalPersonEvidence(person),
+            },
+          }),
+        );
+      }
+    }
+
+    for (const ep of eventPersons) {
+      if (ep.global_person_id) continue;
+      candidates.push(
+        this.candidate('identity_gap', 'medium', 1.0, {
+          personIds: [ep.id],
+          evidence: {
+            gap_code: 'persons_unlinked',
+            person: {
+              id: ep.id,
+              event_id: ep.event_id,
+              given_name: ep.given_name ?? null,
+              family_name: ep.family_name ?? null,
+            },
+          },
+        }),
+      );
+    }
+
+    return candidates;
+  }
+
+  /**
+   * Placeholder-name surface — flags global_persons, event-scoped
+   * persons, and clubs whose display name looks like a stub (e.g.
+   * `test`, `test fighter`, `demo club`, `aaaaaa`). See
+   * `detectPlaceholderName` for the rule chain.
+   */
+  private findPlaceholderNames(
+    persons: GlobalPersonRow[],
+    eventPersons: EventPersonRow[],
+    clubs: ClubRow[],
+  ): Candidate[] {
+    const candidates: Candidate[] = [];
+
+    for (const person of persons) {
+      if (person.deleted_at || person.merged_into_id) continue;
+      const display = person.display_name ?? personName(person);
+      const hit = detectPlaceholderName(display);
+      if (!hit.matched) continue;
+      candidates.push(
+        this.candidate('placeholder_name', 'medium', 1.0, {
+          globalPersonIds: [person.id],
+          evidence: {
+            entity_kind: 'global_person',
+            entity_table: 'global_persons',
+            name: display,
+            matched_rule: hit.rule,
+          },
+        }),
+      );
+    }
+
+    for (const ep of eventPersons) {
+      const composed = `${ep.given_name ?? ''} ${ep.family_name ?? ''}`.trim();
+      const hit = detectPlaceholderName(composed);
+      if (!hit.matched) continue;
+      candidates.push(
+        this.candidate('placeholder_name', 'medium', 1.0, {
+          personIds: [ep.id],
+          evidence: {
+            entity_kind: 'person',
+            entity_table: 'persons',
+            name: composed,
+            matched_rule: hit.rule,
+          },
+        }),
+      );
+    }
+
+    for (const club of clubs) {
+      const hit = detectPlaceholderName(club.name);
+      if (!hit.matched) continue;
+      candidates.push(
+        this.candidate('placeholder_name', 'medium', 1.0, {
+          clubIds: [club.id],
+          evidence: {
+            entity_kind: 'club',
+            entity_table: 'clubs',
+            name: club.name,
+            matched_rule: hit.rule,
+          },
+        }),
+      );
+    }
+
+    return candidates;
+  }
+
+  private async loadEventPersons(): Promise<EventPersonRow[]> {
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('id, event_id, given_name, family_name, global_person_id');
+    return (data ?? []) as EventPersonRow[];
+  }
+
+  private async loadRegistrations(): Promise<RegistrationRow[]> {
+    const { data } = await this.supabase.service.from('registrations').select('id, fighter_id');
+    return (data ?? []) as RegistrationRow[];
+  }
+
+  /**
+   * Build a finding row directly from a candidate, with confidence
+   * pinned at 1.0 (deterministic) and a synthesized summary instead
+   * of an LLM-generated one.
+   */
+  private toDeterministicFindingRow(scanId: string, candidate: Candidate) {
+    return {
+      scan_id: scanId,
+      finding_type: candidate.type,
+      severity: candidate.severity,
+      confidence: 1.0,
+      status: 'open',
+      entity_ids: candidate.entityIds,
+      evidence_json: candidate.evidence,
+      ai_summary: synthesizeSummary(candidate),
+      recommended_action: deterministicAction(candidate),
+      fingerprint: candidate.fingerprint,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   private async rankCandidate(candidate: Candidate): Promise<{
     ranking: AIRanking;
     usage: Pick<GenerationResult, 'inputTokens' | 'outputTokens' | 'costEur'>;
@@ -420,6 +725,7 @@ export class AIDataQualityService {
       globalPersonIds?: string[];
       clubIds?: string[];
       refereeQualificationIds?: string[];
+      personIds?: string[];
       evidence: Record<string, unknown>;
     },
   ): Candidate {
@@ -429,6 +735,7 @@ export class AIDataQualityService {
       ...(payload.refereeQualificationIds
         ? { refereeQualificationIds: payload.refereeQualificationIds }
         : {}),
+      ...(payload.personIds ? { personIds: payload.personIds } : {}),
     };
     return {
       type,
@@ -500,6 +807,72 @@ type RefereeQualificationRow = {
     display_name?: string | null;
   } | null;
 };
+
+type EventPersonRow = {
+  id: string;
+  event_id: string;
+  given_name?: string | null;
+  family_name?: string | null;
+  global_person_id?: string | null;
+};
+
+type RegistrationRow = {
+  id: string;
+  fighter_id?: string | null;
+};
+
+function synthesizeSummary(candidate: Candidate): string {
+  const evidence = candidate.evidence as Record<string, unknown>;
+  switch (candidate.type) {
+    case 'global_person_duplicate': {
+      const reasons = (evidence['reasons'] as string[] | undefined) ?? [];
+      return reasons.length > 0
+        ? `Two global profiles match on ${reasons.join(', ')} — consider merging.`
+        : 'Two global profiles look like duplicates — consider merging.';
+    }
+    case 'club_duplicate': {
+      const reasons = (evidence['reasons'] as string[] | undefined) ?? [];
+      return reasons.length > 0
+        ? `Clubs share ${reasons.join(', ')} — consider consolidating.`
+        : 'Two clubs look like duplicates — consider consolidating.';
+    }
+    case 'referee_unlinked':
+      return 'Referee qualification has no global identity link — consider linking the matching global profile.';
+    case 'identity_gap': {
+      const code = (evidence['gap_code'] as string | undefined) ?? 'unknown';
+      switch (code) {
+        case 'global_person_no_links':
+          return 'Global profile has no participant, registration, or qualification references.';
+        case 'persons_unlinked':
+          return 'Event participant has no global identity link.';
+        case 'referee_flag_no_qualifications':
+          return 'Profile is marked as referee but has no qualifications.';
+        default:
+          return 'Identity gap detected — review the linked records.';
+      }
+    }
+    case 'placeholder_name': {
+      const kind = (evidence['entity_kind'] as string | undefined) ?? 'record';
+      const name = (evidence['name'] as string | undefined) ?? '(empty)';
+      const rule = (evidence['matched_rule'] as string | undefined) ?? 'placeholder';
+      return `${kind} named '${name}' looks like a placeholder (${rule}) — consider deleting or renaming.`;
+    }
+  }
+}
+
+function deterministicAction(candidate: Candidate): string {
+  switch (candidate.type) {
+    case 'global_person_duplicate':
+    case 'club_duplicate':
+      return 'merge';
+    case 'referee_unlinked':
+      return 'link_global_person';
+    case 'identity_gap':
+      return 'review';
+    case 'placeholder_name':
+      return 'delete_or_rename';
+  }
+}
 
 function personName(person: {
   given_name?: string | null;

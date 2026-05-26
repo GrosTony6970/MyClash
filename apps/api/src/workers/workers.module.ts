@@ -8,9 +8,14 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AdminModule } from '../modules/admin/admin.module';
 import { LeaguesModule } from '../modules/leagues/leagues.module';
 import { NotificationEventsService } from '../modules/notifications/event-handlers/notification-events.service';
 import { SupabaseModule } from '../modules/supabase/supabase.module';
+import {
+  DATA_QUALITY_DETERMINISTIC_QUEUE,
+  DataQualityDeterministicWorker,
+} from './data-quality-deterministic.worker';
 import { EVENT_ARCHIVE_QUEUE, EventArchiveWorker } from './event-archive.worker';
 import { EVENT_STATUS_TICK_QUEUE, EventStatusTickerWorker } from './event-status-ticker.worker';
 import { FollowNotificationSchedulerService } from './follow-notification-scheduler.worker';
@@ -63,13 +68,22 @@ import {
     BullModule.registerQueue({
       name: EVENT_ARCHIVE_QUEUE,
     }),
+    BullModule.registerQueue({
+      name: DATA_QUALITY_DETERMINISTIC_QUEUE,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 60_000 },
+      },
+    }),
     SupabaseModule,
     LeaguesModule,
+    AdminModule,
   ],
   providers: [
     HemaRatingsSyncWorker,
     EventStatusTickerWorker,
     EventArchiveWorker,
+    DataQualityDeterministicWorker,
     FollowNotificationSchedulerService,
     NotificationEventsService,
     NotificationSchedulerService,

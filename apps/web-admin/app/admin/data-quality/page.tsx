@@ -36,6 +36,8 @@ const typeOptions = [
   'global_person_duplicate',
   'club_duplicate',
   'referee_unlinked',
+  'identity_gap',
+  'placeholder_name',
 ] as const;
 
 export default function AdminDataQualityPage() {
@@ -107,12 +109,14 @@ export default function AdminDataQualityPage() {
     return () => controller.abort();
   }, [apiUrl]);
 
-  async function runScan() {
+  async function runScan(mode: 'ai' | 'deterministic') {
     setScanning(true);
     setError(null);
     const res = await fetch(`${apiUrl}/api/v1/admin/data-quality/scans`, {
       method: 'POST',
       credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
     });
     setScanning(false);
     if (!res.ok) {
@@ -145,16 +149,33 @@ export default function AdminDataQualityPage() {
           <h1 className="text-2xl font-bold">{t('admin.dataQuality.title')}</h1>
           <p className="text-slate-500 text-sm mt-1">{t('admin.dataQuality.description')}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            void runScan();
-          }}
-          disabled={scanning}
-          className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-        >
-          {scanning ? t('admin.dataQuality.scanning') : t('admin.dataQuality.runScan')}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void runScan('deterministic');
+              }}
+              disabled={scanning}
+              title={t('admin.dataQuality.runDeterministicHint')}
+              className="bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            >
+              {scanning ? t('admin.dataQuality.scanning') : t('admin.dataQuality.runDeterministic')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void runScan('ai');
+              }}
+              disabled={scanning}
+              title={t('admin.dataQuality.runAiHint')}
+              className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+            >
+              {scanning ? t('admin.dataQuality.scanning') : t('admin.dataQuality.runAi')}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">{t('admin.dataQuality.cronHint')}</p>
+        </div>
       </div>
 
       {error && (

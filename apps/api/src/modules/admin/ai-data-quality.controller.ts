@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AIDataQualityService } from './ai-data-quality.service';
-import { UpdateDataQualityFindingDto } from './dto/data-quality.dto';
+import { StartDataQualityScanDto, UpdateDataQualityFindingDto } from './dto/data-quality.dto';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
 type ActorRequest = FastifyRequest & { actorUserId?: string };
@@ -19,9 +19,16 @@ export class AIDataQualityController {
   constructor(private readonly service: AIDataQualityService) {}
 
   @Post('scans')
-  @ApiOperation({ summary: 'Start a super-admin data quality scan' })
-  startScan(@Req() req: FastifyRequest) {
-    return this.service.startScan(getActorId(req));
+  @ApiOperation({
+    summary: 'Start a super-admin data quality scan',
+    description:
+      'Default mode is "ai" (LLM-ranked). Pass `mode=deterministic` to skip the LLM and persist rule-derived candidates verbatim — used by the daily cron and the operator\'s zero-cost button.',
+  })
+  startScan(@Body() body: StartDataQualityScanDto, @Req() req: FastifyRequest) {
+    const actorUserId = getActorId(req);
+    return body.mode === 'deterministic'
+      ? this.service.runDeterministicScan(actorUserId)
+      : this.service.startScan(actorUserId);
   }
 
   @Get('scans')

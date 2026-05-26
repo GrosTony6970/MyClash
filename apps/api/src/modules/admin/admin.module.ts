@@ -74,6 +74,6 @@ import { UsersAdminController } from './users.controller';
     AIDataQualityService,
     SuperAdminGuard,
   ],
-  exports: [SuperAdminGuard, AdminFeatureFlagsService],
+  exports: [SuperAdminGuard, AdminFeatureFlagsService, AIDataQualityService],
 })
 export class AdminModule {}
