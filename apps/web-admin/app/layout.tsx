@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { defaultLocale, t } from '@myclash/i18n';
-import { ToastProvider } from '@myclash/ui';
+import { MaintenanceBanner, ToastProvider } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import '../src/styles/globals.css';
 
@@ -65,7 +65,10 @@ export default function RootLayout({
           {t('navigation.skipToMainContent')}
         </a>
         <I18nProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
+            {children}
+          </ToastProvider>
         </I18nProvider>
       </body>
     </html>

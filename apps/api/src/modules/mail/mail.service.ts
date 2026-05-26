@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
+import { SupabaseService } from '../supabase/supabase.service';
 
 export interface MagicLinkEmailOptions {
   to: string;
@@ -56,13 +58,32 @@ export class MailService {
   private readonly resend: Resend;
   private readonly from: string;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly supabase: SupabaseService,
+  ) {
     const apiKey = config.getOrThrow<string>('RESEND_API_KEY');
     this.from = config.get<string>('MAIL_FROM', 'noreply@myclash.fr');
     this.resend = new Resend(apiKey);
   }
 
+  /**
+   * Honour the `disable_email` kill-switch. Every public send method
+   * starts with `if (await this.shouldSkip(method)) return;` so an
+   * outage flip silences SMTP traffic without raising exceptions to
+   * the callers (notification flows in particular don't expect
+   * `send()` to throw on the kill-switch path).
+   */
+  private async shouldSkip(method: string): Promise<boolean> {
+    if (await isFlagEnabledDirect(this.supabase, 'disable_email')) {
+      this.logger.log(`mail.skipped flag=disable_email method=${method}`);
+      return true;
+    }
+    return false;
+  }
+
   async sendMagicLink(opts: MagicLinkEmailOptions): Promise<void> {
+    if (await this.shouldSkip('sendMagicLink')) return;
     const subject =
       opts.type === 'claim'
         ? 'Confirmez votre profil MyClash / Confirm your MyClash profile'
@@ -111,6 +132,7 @@ export class MailService {
   }
 
   async sendNotification(opts: NotificationEmailOptions): Promise<void> {
+    if (await this.shouldSkip('sendNotification')) return;
     const html = this.renderBasicNotification(opts);
     const { error } = await this.resend.emails.send({
       from: this.from,
@@ -130,6 +152,7 @@ export class MailService {
   }
 
   async sendBroadcastNotification(opts: BroadcastNotificationEmailOptions): Promise<void> {
+    if (await this.shouldSkip('sendBroadcastNotification')) return;
     const severityLabel =
       opts.severity === 'alert'
         ? 'Alerte / Alert'
@@ -178,6 +201,7 @@ export class MailService {
   }
 
   async sendEmailChangeConfirmation(opts: EmailChangeConfirmationOptions): Promise<void> {
+    if (await this.shouldSkip('sendEmailChangeConfirmation')) return;
     const displayName = opts.displayName ? escapeHtml(opts.displayName) : null;
     const oldEmail = escapeHtml(opts.oldEmail);
     const newEmail = escapeHtml(opts.newEmail);
@@ -225,6 +249,7 @@ export class MailService {
   }
 
   async sendOwnerWelcomePassword(opts: OwnerWelcomePasswordOptions): Promise<void> {
+    if (await this.shouldSkip('sendOwnerWelcomePassword')) return;
     const displayName = escapeHtml(opts.displayName);
     const orgName = escapeHtml(opts.orgName);
     const temporaryPassword = escapeHtml(opts.temporaryPassword);

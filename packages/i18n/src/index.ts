@@ -909,6 +909,53 @@ export const en = {
       },
       lockdownBanner:
         'MyClash admin is currently in maintenance mode. Only super admins can sign in.',
+      groups: {
+        incident: 'Incident response',
+        delivery: 'Cost & delivery',
+        reliability: 'Reliability',
+      },
+      readOnlyMode: {
+        title: 'Read-only mode',
+        description:
+          'Allow read traffic but block every write to the API. Use during DB maintenance or a deploy hiccup when you want organisers to keep browsing. Super-admins are unaffected; non-admin writes get a 503 toast.',
+      },
+      disableSignups: {
+        title: 'Disable signups',
+        description:
+          'Block the public POST /auth/signup endpoint. Existing sessions, password logins, and OAuth flows are unaffected. Use this to stop abuse / bot signups without locking the whole platform down.',
+      },
+      maintenanceBanner: {
+        title: 'Maintenance banner',
+        description:
+          'Show a banner at the top of every app (admin / public / scoring). Edit the message + severity below; changes are visible within ~60 seconds. Use to announce maintenance windows or incidents without a deploy.',
+        messageLabel: 'Banner message',
+        messagePlaceholder: 'e.g. Saturday maintenance 03:00 UTC',
+        severityLabel: 'Severity',
+        severityInfo: 'Info',
+        severityWarning: 'Warning',
+        severityCritical: 'Critical',
+        saveButton: 'Save banner',
+      },
+      disableAiFeatures: {
+        title: 'Disable AI features',
+        description:
+          'Kill switch for every LLM call: AI data-quality scan, AI assistant, all generation endpoints. The deterministic data-quality scan and per-fighter HEMA refresh continue to work. Flip this when the AI bill spikes or the provider is failing.',
+      },
+      disableHemaSync: {
+        title: 'Disable HEMA sync',
+        description:
+          'Pause the daily 03:30 UTC HEMA Ratings cron and the per-fighter background sync triggered from the participant finder. Local snapshot reads + search keep working. Flip this when hemaratings.com is rate-limiting us or returning bad data.',
+      },
+      disableEmail: {
+        title: 'Disable email',
+        description:
+          'Skip every outbound email (broadcasts, email-change confirmations, password resets) and log a mail.skipped line instead. Use when the SMTP provider is bouncing so the platform stops queueing dead messages.',
+      },
+      disableRealtime: {
+        title: 'Disable Realtime',
+        description:
+          'Force every frontend to skip Supabase Realtime and fall back to polling. Use when Realtime is degraded and live match cards / schedule grids start desyncing — the polling fallback is slower but reliable.',
+      },
     },
     rulesets: {
       title: 'Rulesets',
@@ -3808,6 +3855,53 @@ export const fr = {
       },
       lockdownBanner:
         'MyClash admin est actuellement en mode maintenance. Seuls les super-administrateurs peuvent se connecter.',
+      groups: {
+        incident: 'Reponse aux incidents',
+        delivery: 'Couts & delivery',
+        reliability: 'Fiabilite',
+      },
+      readOnlyMode: {
+        title: 'Mode lecture seule',
+        description:
+          "Autoriser la lecture mais bloquer toute ecriture sur l'API. A utiliser pendant une maintenance DB ou un deploiement bancal pour que les organisateurs puissent continuer a consulter. Les super-administrateurs ne sont pas affectes ; les ecritures non-admin renvoient un 503.",
+      },
+      disableSignups: {
+        title: 'Desactiver les inscriptions',
+        description:
+          'Bloquer le endpoint public POST /auth/signup. Les sessions existantes, les connexions par mot de passe et OAuth ne sont pas affectees. A utiliser pour stopper les inscriptions abusives sans verrouiller toute la plateforme.',
+      },
+      maintenanceBanner: {
+        title: 'Banniere de maintenance',
+        description:
+          'Affiche une banniere en haut de chaque app (admin / public / scoring). Editez le message et la severite ci-dessous ; les changements apparaissent en ~60 secondes. A utiliser pour annoncer une fenetre de maintenance ou un incident sans deploiement.',
+        messageLabel: 'Message de la banniere',
+        messagePlaceholder: 'ex. Maintenance samedi 03:00 UTC',
+        severityLabel: 'Severite',
+        severityInfo: 'Info',
+        severityWarning: 'Avertissement',
+        severityCritical: 'Critique',
+        saveButton: 'Enregistrer la banniere',
+      },
+      disableAiFeatures: {
+        title: 'Desactiver les fonctions IA',
+        description:
+          "Interrupteur global pour tous les appels LLM : scan IA de qualite des donnees, assistant IA, toutes les generations. Le scan deterministe et le sync HEMA ponctuel continuent. A activer si la facture IA s'envole ou si le fournisseur tombe.",
+      },
+      disableHemaSync: {
+        title: 'Desactiver le sync HEMA',
+        description:
+          'Mettre en pause le cron HEMA Ratings quotidien (03:30 UTC) ET le sync ponctuel par tireur depuis le finder. La lecture locale du snapshot et la recherche continuent. A activer si hemaratings.com limite les requetes ou renvoie des donnees corrompues.',
+      },
+      disableEmail: {
+        title: 'Desactiver les emails',
+        description:
+          "Ignorer chaque envoi d'email (diffusions, confirmations de changement d'email, reset de mot de passe) et logger 'mail.skipped' a la place. A utiliser quand le fournisseur SMTP rebond pour eviter d'empiler des messages morts.",
+      },
+      disableRealtime: {
+        title: 'Desactiver Realtime',
+        description:
+          'Forcer toutes les frontends a ignorer Supabase Realtime et utiliser le polling. A activer quand Realtime est degrade et que les cartes de match / la grille de planning desynchronisent ; le polling est plus lent mais fiable.',
+      },
     },
     rulesets: {
       title: 'Rulesets',

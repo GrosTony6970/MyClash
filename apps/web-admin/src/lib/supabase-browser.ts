@@ -2,6 +2,7 @@
 
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useRef } from 'react';
+import { getRuntimeFlagsCached, useRuntimeFlags } from '@myclash/ui';
 
 let client: SupabaseClient | null = null;
 
@@ -47,11 +48,17 @@ export interface UseRealtimeOptions {
   fallbackPollMs?: number;
 }
 
+const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? '';
+
 /**
  * Subscribes to a Supabase realtime channel and falls back to a setInterval
  * poll whenever the websocket is not in the SUBSCRIBED state.
  *
  * Behavior:
+ *   • If the `disable_realtime` feature flag is on, skip the websocket
+ *     entirely and run only the polling loop. We re-subscribe to the
+ *     runtime-flags cache so flipping the flag mid-session re-runs this
+ *     effect and either reattaches or detaches the channel.
  *   • On SUBSCRIBED → stop polling.
  *   • On CHANNEL_ERROR / TIMED_OUT / CLOSED → start polling (or keep polling
  *     if we never connected). Polling resumes the live view as soon as the
@@ -63,11 +70,17 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const wasConnectedRef = useRef(false);
 
-  useEffect(() => {
-    const supabase = getSupabaseBrowser();
+  // Subscribe to the shared runtime-flags snapshot so that toggling
+  // `disable_realtime` from the admin UI triggers this effect.
+  const flags = useRuntimeFlags(API_URL);
+  const realtimeDisabled = (flags ?? getRuntimeFlagsCached(API_URL)).realtimeDisabled === true;
 
+  useEffect(() => {
     function startPolling() {
       if (pollTimerRef.current !== null) return;
+      // Fire once immediately so the consumer sees fresh data without
+      // waiting a full interval — matches the WS connected→data path.
+      opts.onFallbackPoll();
       pollTimerRef.current = window.setInterval(
         () => opts.onFallbackPoll(),
         opts.fallbackPollMs ?? 30_000,
@@ -78,6 +91,18 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
       window.clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     }
+
+    // Kill-switch path: skip the websocket entirely.
+    if (realtimeDisabled) {
+      // eslint-disable-next-line no-console
+      console.info(`[realtime] disabled by flag, polling only: ${opts.channelName}`);
+      startPolling();
+      return () => {
+        stopPolling();
+      };
+    }
+
+    const supabase = getSupabaseBrowser();
 
     const channel = supabase
       .channel(opts.channelName)
@@ -126,5 +151,5 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
       channelRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.channelName, opts.table, opts.filter, opts.event]);
+  }, [opts.channelName, opts.table, opts.filter, opts.event, realtimeDisabled]);
 }

@@ -7,6 +7,10 @@ const mockSupabase = {
   service: { from: fromMock },
 };
 
+const mockFlags = {
+  isEnabled: vi.fn().mockResolvedValue(false),
+};
+
 describe('PlatformAISettingsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -21,7 +25,7 @@ describe('PlatformAISettingsService', () => {
       }),
     });
     fromMock.mockReturnValue({ upsert });
-    const service = new PlatformAISettingsService(mockSupabase as never);
+    const service = new PlatformAISettingsService(mockSupabase as never, mockFlags as never);
     service.onModuleInit();
 
     await service.saveKey('openai', 'sk-super-admin-secret', 'actor-1');
@@ -48,7 +52,7 @@ describe('PlatformAISettingsService', () => {
         error: null,
       }),
     });
-    const service = new PlatformAISettingsService(mockSupabase as never);
+    const service = new PlatformAISettingsService(mockSupabase as never, mockFlags as never);
     service.onModuleInit();
 
     await expect(service.getProviderConfig()).resolves.toEqual({

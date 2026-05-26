@@ -20,6 +20,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { AdminFeatureFlagsService } from '../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import {
   fetchHemaRatingsProfile,
@@ -54,6 +55,7 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
   constructor(
     @InjectQueue(HEMA_RATINGS_QUEUE) private readonly queue: Queue,
     private readonly supabase: SupabaseService,
+    private readonly flags: AdminFeatureFlagsService,
   ) {
     super();
   }
@@ -80,6 +82,10 @@ export class HemaRatingsSyncWorker extends WorkerHost implements OnModuleInit {
   // ── Job handler ────────────────────────────────────────────────────────────
 
   async process(job: Job): Promise<void> {
+    if (await this.flags.isEnabled('disable_hema_sync')) {
+      this.logger.log(`HEMA sync skipped: disable_hema_sync flag is on (job ${job.id})`);
+      return;
+    }
     this.logger.log(`Starting HEMA Ratings sync (job ${job.id})`);
 
     try {

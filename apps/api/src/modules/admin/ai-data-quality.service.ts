@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type {
   GenerationRequest,
   GenerationResult,
 } from '../ai-providers/adapters/provider-adapter.interface';
 import { SupabaseService } from '../supabase/supabase.service';
+import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 import type { DataQualityFindingStatus } from './dto/data-quality.dto';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
 
@@ -116,6 +117,7 @@ export class AIDataQualityService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly platformAI: PlatformAISettingsService,
+    private readonly flags: AdminFeatureFlagsService,
   ) {}
 
   async startScan(actorUserId: string): Promise<{
@@ -123,6 +125,9 @@ export class AIDataQualityService {
     candidateCount: number;
     findingCount: number;
   }> {
+    if (await this.flags.isEnabled('disable_ai_features')) {
+      throw new ServiceUnavailableException('AI features are temporarily disabled');
+    }
     const providerConfig = await this.platformAI.getProviderConfig();
     if (!providerConfig) {
       throw new BadRequestException('Super admin AI key is not configured');

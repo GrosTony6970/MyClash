@@ -40,6 +40,7 @@ import { TournamentQueryModule } from './modules/tournament-query/tournament-que
 import { PoolStandingsModule } from './modules/pool-standings/pool-standings.module';
 import { RequestLoggingMiddleware } from './common/observability/request-logging.middleware';
 import { LockdownInterceptor } from './common/interceptors/lockdown.interceptor';
+import { ReadOnlyInterceptor } from './common/interceptors/read-only.interceptor';
 import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard';
 
 @Module({
@@ -120,6 +121,10 @@ import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard
     {
       provide: APP_INTERCEPTOR,
       useClass: LockdownInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ReadOnlyInterceptor,
     },
   ],
 })

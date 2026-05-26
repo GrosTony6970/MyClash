@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { SupabaseService } from '../supabase/supabase.service';
 
 /** Queue name re-exported here so callers don't reach into workers/. */
@@ -414,6 +415,11 @@ export class HemaRatingsService {
    * participant form.
    */
   async syncByHemaRatingsId(hemaRatingsId: string): Promise<void> {
+    // Honour the `disable_hema_sync` kill-switch via the direct-peek
+    // helper to avoid pulling AdminFeatureFlagsService through DI —
+    // AdminModule already imports HemaRatingsModule, so injecting the
+    // service back would create a circular module graph.
+    if (await isFlagEnabledDirect(this.supabase, 'disable_hema_sync')) return;
     try {
       const profile = await fetchHemaRatingsProfile(hemaRatingsId);
       await this.patchSnapshotEntry(profile);

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { AnthropicAdapter } from '../ai-providers/adapters/anthropic.adapter';
 import { MistralAdapter } from '../ai-providers/adapters/mistral.adapter';
@@ -10,6 +15,7 @@ import type {
   ProviderAdapter,
 } from '../ai-providers/adapters/provider-adapter.interface';
 import { SupabaseService } from '../supabase/supabase.service';
+import { AdminFeatureFlagsService } from './admin-feature-flags.service';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
@@ -27,7 +33,10 @@ export class PlatformAISettingsService implements OnModuleInit {
   private secretKey!: Buffer;
   private adapters!: Record<AIProvider, ProviderAdapter>;
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly flags: AdminFeatureFlagsService,
+  ) {}
 
   onModuleInit() {
     const secret = process.env['AI_KEY_SECRET'];
@@ -94,6 +103,9 @@ export class PlatformAISettingsService implements OnModuleInit {
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResult> {
+    if (await this.flags.isEnabled('disable_ai_features')) {
+      throw new ServiceUnavailableException('AI features are temporarily disabled');
+    }
     const { data } = await this.supabase.service
       .from('platform_ai_settings')
       .select('provider, api_key_enc, api_key_iv')

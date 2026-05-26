@@ -3,6 +3,9 @@ import {
   FEATURE_FLAG_REGISTRY,
   isKnownFlagKey,
   type KnownFeatureFlagKey,
+  type MaintenanceBannerPayload,
+  type MaintenanceBannerSeverity,
+  type PublicFeatureFlagsSnapshot,
 } from '@myclash/feature-flags';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { UpsertFeatureFlagDto } from './dto/admin-feature-flags.dto';
@@ -11,6 +14,7 @@ interface StoredFlag {
   key: string;
   description: string | null;
   enabled: boolean;
+  payload_json: Record<string, unknown> | null;
   updated_at: string;
   updated_by_user_id: string | null;
 }
@@ -19,7 +23,21 @@ export interface RegistryFlag {
   key: string;
   enabled: boolean;
   description: string | null;
+  payloadJson: Record<string, unknown> | null;
   updated_at: string | null;
+}
+
+const VALID_SEVERITIES: readonly MaintenanceBannerSeverity[] = ['info', 'warning', 'critical'];
+
+function parseMaintenanceBannerPayload(
+  raw: Record<string, unknown> | null | undefined,
+): MaintenanceBannerPayload | null {
+  if (!raw) return null;
+  const message = typeof raw['message'] === 'string' ? (raw['message'] as string) : null;
+  const severity = raw['severity'];
+  if (!message || typeof severity !== 'string') return null;
+  if (!VALID_SEVERITIES.includes(severity as MaintenanceBannerSeverity)) return null;
+  return { message, severity: severity as MaintenanceBannerSeverity };
 }
 
 const FLAG_CACHE_TTL_MS = 5_000;
@@ -34,7 +52,7 @@ export class AdminFeatureFlagsService {
   async listFlagsWithRegistry(): Promise<RegistryFlag[]> {
     const { data, error } = await this.supabase.service
       .from('feature_flags')
-      .select('key, description, enabled, updated_at, updated_by_user_id');
+      .select('key, description, enabled, payload_json, updated_at, updated_by_user_id');
     if (error) throw new BadRequestException(error.message);
 
     const stored = new Map<string, StoredFlag>();
@@ -46,6 +64,7 @@ export class AdminFeatureFlagsService {
         key: def.key,
         enabled: row?.enabled ?? def.default,
         description: row?.description ?? null,
+        payloadJson: def.payload ? (row?.payload_json ?? null) : null,
         updated_at: row?.updated_at ?? null,
       };
     });
@@ -56,12 +75,27 @@ export class AdminFeatureFlagsService {
       throw new BadRequestException(`Unknown feature flag: ${key}`);
     }
 
+    // Only flags with `payload` declared accept a payload_json. For any
+    // other key we silently drop the payload so a bad client can't
+    // smuggle structured data into a boolean flag row.
+    const def = FEATURE_FLAG_REGISTRY.find((f) => f.key === key);
+    let payload: Record<string, unknown> | null = null;
+    if (def?.payload === 'maintenance_banner' && dto.payloadJson) {
+      const parsed = parseMaintenanceBannerPayload(dto.payloadJson);
+      if (!parsed) {
+        throw new BadRequestException(
+          'maintenance_banner payload must be { message: string, severity: info|warning|critical }',
+        );
+      }
+      payload = { ...parsed };
+    }
+
     const now = new Date().toISOString();
     const { error } = await this.supabase.service.from('feature_flags').upsert({
       key,
       description: dto.description ?? null,
       enabled: dto.enabled,
-      payload_json: null,
+      payload_json: payload,
       updated_by_user_id: actorUserId,
       updated_at: now,
     });
@@ -72,6 +106,47 @@ export class AdminFeatureFlagsService {
     await this.writeAuditLog(actorUserId, 'feature_flag.upsert', 'feature_flag', key, {
       enabled: dto.enabled,
     });
+  }
+
+  /**
+   * Shape returned by `GET /api/v1/public/feature-flags`. Reads only
+   * the two FE-relevant flag rows in one query and never leaks other
+   * keys (e.g. `read_only_mode`, `admin_lockdown`). Defaults to
+   * "everything off" if the rows don't exist yet.
+   */
+  async getPublicFlagsSnapshot(): Promise<PublicFeatureFlagsSnapshot> {
+    const empty: PublicFeatureFlagsSnapshot = {
+      maintenanceBanner: { enabled: false, message: null, severity: null },
+      realtimeDisabled: false,
+    };
+
+    try {
+      const { data, error } = await this.supabase.service
+        .from('feature_flags')
+        .select('key, enabled, payload_json')
+        .in('key', ['maintenance_banner', 'disable_realtime']);
+      if (error) return empty;
+
+      const rows = (data ?? []) as Array<{
+        key: string;
+        enabled: boolean;
+        payload_json: Record<string, unknown> | null;
+      }>;
+      const banner = rows.find((r) => r.key === 'maintenance_banner');
+      const realtime = rows.find((r) => r.key === 'disable_realtime');
+      const payload = banner?.enabled ? parseMaintenanceBannerPayload(banner.payload_json) : null;
+
+      return {
+        maintenanceBanner: {
+          enabled: !!banner?.enabled,
+          message: payload?.message ?? null,
+          severity: payload?.severity ?? null,
+        },
+        realtimeDisabled: !!realtime?.enabled,
+      };
+    } catch {
+      return empty;
+    }
   }
 
   async isEnabled(key: KnownFeatureFlagKey): Promise<boolean> {

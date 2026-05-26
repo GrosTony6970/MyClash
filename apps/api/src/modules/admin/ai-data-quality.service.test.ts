@@ -15,6 +15,11 @@ const mockPlatformAI = {
   generate: generateMock,
 };
 
+const isEnabledMock = vi.fn().mockResolvedValue(false);
+const mockFlags = {
+  isEnabled: isEnabledMock,
+};
+
 function chain(data: unknown = [], error: unknown = null) {
   const methods = {
     select: vi.fn().mockReturnThis(),
@@ -34,6 +39,7 @@ function chain(data: unknown = [], error: unknown = null) {
 describe('AIDataQualityService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    isEnabledMock.mockResolvedValue(false);
     getProviderConfigMock.mockResolvedValue({
       provider: 'openai',
       hasKey: true,
@@ -54,7 +60,11 @@ describe('AIDataQualityService', () => {
 
   it('rejects scans when the shared super-admin AI key is missing', async () => {
     getProviderConfigMock.mockResolvedValue(null);
-    const service = new AIDataQualityService(mockSupabase as never, mockPlatformAI as never);
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
 
     await expect(service.startScan('actor-1')).rejects.toBeInstanceOf(BadRequestException);
     expect(generateMock).not.toHaveBeenCalled();
@@ -127,7 +137,11 @@ describe('AIDataQualityService', () => {
       return scanUpdate;
     });
 
-    const service = new AIDataQualityService(mockSupabase as never, mockPlatformAI as never);
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
     const result = await service.startScan('actor-1');
 
     expect(result.scanId).toBe('scan-1');
@@ -167,7 +181,11 @@ describe('AIDataQualityService', () => {
       if (table === 'clubs' || table === 'referee_qualifications') return chain([]);
       return noop;
     });
-    const service = new AIDataQualityService(mockSupabase as never, mockPlatformAI as never);
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
 
     await service.startScan('actor-1');
 
@@ -205,7 +223,11 @@ describe('AIDataQualityService', () => {
       return noop;
     });
 
-    const service = new AIDataQualityService(mockSupabase as never, mockPlatformAI as never);
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
     const result = await service.runDeterministicScan('actor-1');
 
     expect(result.scanId).toBe('scan-det');
@@ -248,7 +270,11 @@ describe('AIDataQualityService', () => {
       return noop;
     });
 
-    const service = new AIDataQualityService(mockSupabase as never, mockPlatformAI as never);
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
     await service.runDeterministicScan('actor-1');
 
     const persisted = findingsUpsert.upsert.mock.calls[0]?.[0] as Array<{
@@ -264,7 +290,11 @@ describe('AIDataQualityService', () => {
   it('updates finding review status with actor metadata', async () => {
     const update = chain(null);
     fromMock.mockReturnValue(update);
-    const service = new AIDataQualityService(mockSupabase as never, mockPlatformAI as never);
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
 
     await service.updateFindingStatus('finding-1', 'dismissed', 'actor-1');
 

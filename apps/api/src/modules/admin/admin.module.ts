@@ -26,6 +26,7 @@ import { SuperAdminGuard } from './guards/super-admin.guard';
 import { OrganizationsAdminController } from './organizations.controller';
 import { PlatformAISettingsController } from './platform-ai-settings.controller';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
+import { PublicFeatureFlagsController } from './public-feature-flags.controller';
 import { RulesetsAdminController } from './rulesets.controller';
 import { AdminSystemActionsService } from './system-actions.service';
 import { AdminSystemVersionsService } from './system-versions.service';
@@ -41,6 +42,7 @@ import { UsersAdminController } from './users.controller';
     CustomRulesetsAdminController,
     OrgCustomRulesetsController,
     FeatureFlagsAdminController,
+    PublicFeatureFlagsController,
     AuditLogAdminController,
     ExchangeEditRequestsAdminController,
     SystemVersionsAdminController,

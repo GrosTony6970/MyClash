@@ -1,10 +1,23 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  Req,
+  Res,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { SIGNUP_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
+import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { CheckSlugDto, SignupDto } from '../organizations/dto/signup.dto';
+import { SupabaseService } from '../supabase/supabase.service';
 import { AuthService } from './auth.service';
 
 @ApiTags('auth')
@@ -13,6 +26,7 @@ export class SignupController {
   constructor(
     private readonly onboarding: OnboardingService,
     private readonly auth: AuthService,
+    private readonly supabase: SupabaseService,
   ) {}
 
   /**
@@ -32,6 +46,9 @@ export class SignupController {
   @ApiResponse({ status: 409, description: 'Slug already taken or reserved' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async signup(@Body() dto: SignupDto) {
+    if (await isFlagEnabledDirect(this.supabase, 'disable_signups')) {
+      throw new ServiceUnavailableException('Signups are temporarily disabled');
+    }
     return this.onboarding.signup(dto);
   }
 

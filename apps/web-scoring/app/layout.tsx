@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { defaultLocale, t } from '@myclash/i18n';
+import { MaintenanceBanner } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import '../src/styles/globals.css';
 
@@ -40,7 +41,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           {t('navigation.skipToMainContent')}
         </a>
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
+          {children}
+        </I18nProvider>
         {/* Service worker registration */}
         <script
           dangerouslySetInnerHTML={{

@@ -455,6 +455,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@myclash/feature-flags':
+        specifier: workspace:^
+        version: link:../feature-flags
       '@myclash/i18n':
         specifier: workspace:^
         version: link:../i18n

@@ -35,6 +35,10 @@ function makeQueue() {
   return { add: vi.fn().mockResolvedValue(undefined) } as never;
 }
 
+function makeFlags() {
+  return { isEnabled: vi.fn().mockResolvedValue(false) } as never;
+}
+
 describe('HemaRatingsSyncWorker', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -51,7 +55,7 @@ describe('HemaRatingsSyncWorker', () => {
       }),
     );
 
-    const worker = new HemaRatingsSyncWorker(makeQueue(), makeSupabase([]));
+    const worker = new HemaRatingsSyncWorker(makeQueue(), makeSupabase([]), makeFlags());
     const job = { id: 'test-job' } as never;
 
     await expect(worker.process(job)).rejects.toThrow(/hemaratings\.com returned HTTP 503/);
@@ -60,7 +64,7 @@ describe('HemaRatingsSyncWorker', () => {
   it('rethrows when the global fetch itself throws (network error)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
 
-    const worker = new HemaRatingsSyncWorker(makeQueue(), makeSupabase([]));
+    const worker = new HemaRatingsSyncWorker(makeQueue(), makeSupabase([]), makeFlags());
     const job = { id: 'test-job' } as never;
 
     await expect(worker.process(job)).rejects.toThrow('ECONNRESET');

@@ -22,6 +22,18 @@ const config = {
   }),
 };
 
+const supabase = {
+  service: {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        })),
+      })),
+    })),
+  },
+};
+
 describe('MailService email-change confirmation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -29,7 +41,7 @@ describe('MailService email-change confirmation', () => {
   });
 
   it('sends confirmation to the new email with bilingual copy and escaped values', async () => {
-    const service = new MailService(config as never);
+    const service = new MailService(config as never, supabase as never);
 
     await service.sendEmailChangeConfirmation({
       to: 'new@example.com',
@@ -61,7 +73,7 @@ describe('MailService email-change confirmation', () => {
   });
 
   it('sends escaped bilingual organizer broadcast emails with severity label', async () => {
-    const service = new MailService(config as never);
+    const service = new MailService(config as never, supabase as never);
 
     await service.sendBroadcastNotification({
       to: 'person@example.com',
