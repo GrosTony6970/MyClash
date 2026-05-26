@@ -7,7 +7,7 @@
  * Dynamic skill columns, per-row availability toggles, assignment summary.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
@@ -476,13 +476,15 @@ function SkillModal({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-function roleLabel(role: AssignmentRole) {
-  // The legacy role IDs (`arbitre_declarant` / `_assesseur` / `_table`)
-  // have hand-written translations under `organizer.eventCompensation.roles`.
-  // For R2 custom slots, the skill_id (e.g. `custom-abcd1234-x9`) won't
-  // resolve there — surface a human-readable fallback so the table isn't
-  // littered with the raw IDs.
+function roleLabel(role: AssignmentRole, skillNameById?: Map<string, string>) {
+  // Resolution chain (per the "don't display IDs to humans" rule):
+  //   1. operator-typed skill name from referee_skills.name
+  //   2. legacy hand-written translation for built-in roles
+  //   3. raw role string as a dev-only last resort — operators should
+  //      never normally see this.
   const known = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
+  const skillName = skillNameById?.get(role);
+  if (skillName) return skillName;
   if (known.includes(role)) return t(`organizer.eventCompensation.roles.${role}`);
   return role;
 }
@@ -537,10 +539,17 @@ function AssignmentsTab({
   eventId,
   apiUrl,
   isReadOnly,
+  skillNameById,
 }: {
   eventId: string;
   apiUrl: string;
   isReadOnly: boolean;
+  /**
+   * Resolves a slot's role (a skill id) back to the operator-typed name.
+   * Falls back through roleLabel() if missing — see the rule documented
+   * in feedback_no_raw_ids_in_ui.md.
+   */
+  skillNameById: Map<string, string>;
 }) {
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -742,7 +751,7 @@ function AssignmentsTab({
                               key={`${slot.slotIndex}:${slot.role}`}
                               className="px-3 py-2 font-medium"
                             >
-                              {slot.displayName ?? roleLabel(slot.role)}
+                              {slot.displayName ?? roleLabel(slot.role, skillNameById)}
                             </th>
                           ))}
                         </tr>
@@ -889,7 +898,8 @@ function AssignmentsTab({
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {picker.pool.name} - {picker.slot.displayName ?? roleLabel(picker.slot.role)}
+                  {picker.pool.name} -{' '}
+                  {picker.slot.displayName ?? roleLabel(picker.slot.role, skillNameById)}
                 </h2>
                 <p className="text-sm text-gray-500">{picker.pool.tournamentName}</p>
               </div>
@@ -985,6 +995,19 @@ export default function RefereesPage() {
   const [referees, setReferees] = useState<EventRefereeRow[]>([]);
   const [qualIdMap, setQualIdMap] = useState<QualIdMap>(new Map());
   const [loading, setLoading] = useState(true);
+  /**
+   * id → human name lookup for resolving a slot's role (a skill id) back
+   * to the operator-typed name. Fed into roleLabel() at every assignment
+   * render site so custom skills never surface as raw ids like
+   * `custom-bed9d10f-a1b2c3`.
+   */
+  const skillNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const skill of skills) {
+      if (skill.name) map.set(skill.id, skill.name);
+    }
+    return map;
+  }, [skills]);
   // Ref (not state) so it does not re-trigger the effect when it flips.
   // Prevents full-table flash on subsequent refetches (refereesKey increments).
   const hasLoadedOnceRef = useRef(false);
@@ -1417,7 +1440,12 @@ export default function RefereesPage() {
       </div>
 
       {activeTab === 'assignments' ? (
-        <AssignmentsTab eventId={eventId} apiUrl={apiUrl} isReadOnly={isReadOnly} />
+        <AssignmentsTab
+          eventId={eventId}
+          apiUrl={apiUrl}
+          isReadOnly={isReadOnly}
+          skillNameById={skillNameById}
+        />
       ) : activeTab === 'qualifications' ? (
         <SkillCatalog
           skills={skills}
