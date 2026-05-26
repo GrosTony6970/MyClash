@@ -243,6 +243,65 @@ class ForfeitPolicyDto {
   disqualifyAfter?: number;
 }
 
+class TimeLimitsSecondsDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(3600)
+  pool?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(3600)
+  bracket?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(3600)
+  finals?: number | null;
+}
+
+/**
+ * Match-format payload sent by the tournament creation wizard (Step 2)
+ * and the per-tournament settings page. Persisted under
+ * `tournaments.ruleset_config.matchFormat`. Field bounds mirror the
+ * input clamps in `Step2MatchFormat.tsx`.
+ */
+class MatchFormatDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(50)
+  pointCap?: number;
+
+  @IsOptional()
+  @IsIn(['countdown', 'countup'])
+  timerMode?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TimeLimitsSecondsDto)
+  timeLimitsSeconds?: TimeLimitsSecondsDto;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(600)
+  softClockLimitSeconds?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(20)
+  maxDoubleHits?: number | null;
+
+  @IsOptional()
+  @IsIn(['normal', 'reverse_zero_loses'])
+  scoringDirection?: string;
+}
+
 class TournamentRulesetConfigDto {
   @IsOptional()
   @IsNumber()
@@ -259,6 +318,11 @@ class TournamentRulesetConfigDto {
   @ValidateNested()
   @Type(() => ForfeitPolicyDto)
   forfeitPolicy?: ForfeitPolicyDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MatchFormatDto)
+  matchFormat?: MatchFormatDto;
 }
 
 class TournamentLockConfigDto {
