@@ -52,6 +52,12 @@ interface OrganizerEventContextValue {
   selectedEventId: string | null;
   currentEvent: OrgEventSummary | null;
   selectEvent: (id: string) => void;
+  /**
+   * Re-fetch the org metadata (name, logo). Used by pages that mutate the
+   * org from outside the context — without this, the shell keeps showing
+   * the stale name / logo until the next provider mount (logout/login).
+   */
+  refetchOrg: () => Promise<void>;
 }
 
 const OrganizerEventContext = createContext<OrganizerEventContextValue | null>(null);
@@ -89,14 +95,19 @@ export function OrganizerEventContextProvider({
   // Resolve orgId + orgName + orgLogoUrl from slug. Mirrors the lookup the
   // shell did previously; centralising it here so every org-scoped page can
   // read org branding from the same source.
-  useEffect(() => {
-    if (!slug) return;
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
+  //
+  // Exposed as `refetchOrg` so write-side pages (rename, logo upload) can
+  // invalidate this snapshot without remounting the provider — the alternative
+  // was relying on logout/login to re-fetch, which is what the user actually
+  // observed in the wild before this helper existed.
+  const refetchOrg = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      if (!slug) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
+          credentials: 'include',
+          ...(signal ? { signal } : {}),
+        });
         if (!res.ok) return;
         const raw = (await res.json()) as Record<string, unknown>;
         if (typeof raw['id'] === 'string') setOrgId(raw['id']);
@@ -104,10 +115,21 @@ export function OrganizerEventContextProvider({
         const logo = raw['logo_url'] ?? raw['logoUrl'];
         if (typeof logo === 'string') setOrgLogoUrl(logo);
         else setOrgLogoUrl(null);
-      })
-      .catch(() => undefined);
+      } catch {
+        // Swallow — caller is a fire-and-forget invalidation; the next render
+        // already shows whatever stale value we have, which is no worse than
+        // before this call.
+      }
+    },
+    [slug],
+  );
+
+  useEffect(() => {
+    if (!slug) return;
+    const controller = new AbortController();
+    void refetchOrg(controller.signal);
     return () => controller.abort();
-  }, [slug]);
+  }, [slug, refetchOrg]);
 
   // Fetch the org's events for the switcher + auto-pick logic. We always
   // want the list available so the inline switcher can show options on
@@ -181,6 +203,10 @@ export function OrganizerEventContextProvider({
     [events, selectedEventId],
   );
 
+  const refetchOrgPublic = useCallback(async () => {
+    await refetchOrg();
+  }, [refetchOrg]);
+
   const value = useMemo<OrganizerEventContextValue>(
     () => ({
       orgId,
@@ -191,8 +217,19 @@ export function OrganizerEventContextProvider({
       selectedEventId,
       currentEvent,
       selectEvent,
+      refetchOrg: refetchOrgPublic,
     }),
-    [orgId, slug, orgName, orgLogoUrl, events, selectedEventId, currentEvent, selectEvent],
+    [
+      orgId,
+      slug,
+      orgName,
+      orgLogoUrl,
+      events,
+      selectedEventId,
+      currentEvent,
+      selectEvent,
+      refetchOrgPublic,
+    ],
   );
 
   return <OrganizerEventContext.Provider value={value}>{children}</OrganizerEventContext.Provider>;

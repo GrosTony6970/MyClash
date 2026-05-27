@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 
 interface DashboardStats {
   eventsTotal: number;
@@ -33,6 +34,10 @@ export default function OrgDashboardPage() {
   const { slug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  // Invalidate the shell's cached org name + logo whenever the dashboard
+  // writes a change; without this the sidebar shows the old logo / name
+  // until the next provider mount (i.e. logout + back in).
+  const { refetchOrg } = useOrganizerSelectedEvent();
 
   const [org, setOrg] = useState<OrgRow | null>(null);
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
@@ -107,6 +112,7 @@ export default function OrgDashboardPage() {
       }
       setNotice(t('organizer.dashboard.brand.saved'));
       await loadOrg();
+      await refetchOrg();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('organizer.dashboard.brand.saveError'));
     } finally {
@@ -141,6 +147,7 @@ export default function OrgDashboardPage() {
       }
       setNotice(t('organizer.events.logoUploadSuccess'));
       await loadOrg();
+      await refetchOrg();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('organizer.events.logoUploadFailed'));
     } finally {
