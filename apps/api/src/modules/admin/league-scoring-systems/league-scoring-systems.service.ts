@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -56,6 +57,8 @@ const DEFAULT_TIE_BREAKERS: string[] = [...ALLOWED_TIE_BREAKERS];
 
 @Injectable()
 export class LeagueScoringSystemsService {
+  private readonly logger = new Logger(LeagueScoringSystemsService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   async list(): Promise<LeagueScoringSystemRow[]> {
@@ -106,7 +109,12 @@ export class LeagueScoringSystemsService {
       }
       throw new BadRequestException(error.message);
     }
-    return data as LeagueScoringSystemRow;
+    const row = data as LeagueScoringSystemRow;
+    await this.writeAuditLog(userId, 'league.scoring_system.created', row.id, {
+      code: row.code,
+      name: row.name,
+    });
+    return row;
   }
 
   async update(
@@ -137,7 +145,13 @@ export class LeagueScoringSystemsService {
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
-    return data as LeagueScoringSystemRow;
+    const row = data as LeagueScoringSystemRow;
+    await this.writeAuditLog(userId, 'league.scoring_system.updated', row.id, {
+      code: row.code,
+      name: row.name,
+      changedFields: Object.keys(updates).filter((k) => k !== 'updated_at'),
+    });
+    return row;
   }
 
   async archive(id: string, userId: string): Promise<void> {
@@ -167,6 +181,11 @@ export class LeagueScoringSystemsService {
       .update({ is_archived: true, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new BadRequestException(error.message);
+
+    await this.writeAuditLog(userId, 'league.scoring_system.archived', id, {
+      code: existing.code,
+      name: existing.name,
+    });
   }
 
   private async getById(id: string): Promise<LeagueScoringSystemRow> {
@@ -243,5 +262,30 @@ export class LeagueScoringSystemsService {
       throw new BadRequestException('tieBreakers must list at least one tie-breaker');
     }
     return out;
+  }
+
+  /**
+   * Audit-log helper. Mirrors AdminFeatureFlagsService.writeAuditLog —
+   * swallow errors so audit logging never blocks the primary action.
+   */
+  private async writeAuditLog(
+    actorUserId: string,
+    action: string,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.supabase.service.from('audit_log').insert({
+        actor_user_id: actorUserId,
+        action,
+        entity_type: 'league_scoring_system',
+        entity_id: entityId,
+        payload_json: payload,
+      });
+    } catch {
+      this.logger.warn(
+        `Could not write audit log for ${action} on league_scoring_system:${entityId}`,
+      );
+    }
   }
 }

@@ -210,6 +210,12 @@ export class LeagueMembershipRequestsService {
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
+
+    await this.writeAuditLog(userId, 'league.membership_request.withdrawn', requestId, {
+      leagueId: existing.league_id,
+      organizationId: existing.organization_id,
+      previousStatus: 'requested',
+    });
     return data as LeagueMembershipRequestRow;
   }
 
@@ -287,5 +293,30 @@ export class LeagueMembershipRequestsService {
     if (userRole) return;
 
     throw new ForbiddenException('Only super-admins or league admins can review this request.');
+  }
+
+  /**
+   * Audit-log helper. Mirrors AdminFeatureFlagsService.writeAuditLog —
+   * swallow errors so audit logging never blocks the primary action.
+   */
+  private async writeAuditLog(
+    actorUserId: string,
+    action: string,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.supabase.service.from('audit_log').insert({
+        actor_user_id: actorUserId,
+        action,
+        entity_type: 'league_membership_request',
+        entity_id: entityId,
+        payload_json: payload,
+      });
+    } catch {
+      this.logger.warn(
+        `Could not write audit log for ${action} on league_membership_request:${entityId}`,
+      );
+    }
   }
 }

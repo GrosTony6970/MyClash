@@ -14,6 +14,7 @@ function buildSupabase(handlers: {
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
   const archived: unknown[] = [];
+  const auditInserts: unknown[] = [];
 
   const service = {
     from: vi.fn((table: string) => {
@@ -82,10 +83,18 @@ function buildSupabase(handlers: {
           }),
         } as never;
       }
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: unknown) => {
+            auditInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
       return {} as never;
     }),
   };
-  return { service: { service }, inserted, updated, archived };
+  return { service: { service }, inserted, updated, archived, auditInserts };
 }
 
 function makeNonSuperAdminSupabase() {
@@ -174,6 +183,25 @@ describe('LeagueScoringSystemsService', () => {
     await expect(
       svc.create({ code: 'foo', name: 'X', pointsByRank: { '1': 10 } }, 'user-1'),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('writes a league.scoring_system.created audit row on successful create', async () => {
+    const { service, auditInserts } = buildSupabase({
+      insertResult: {
+        data: { id: 'sys-1', code: 'foo_2027', name: 'Foo 2027' },
+        error: null,
+      },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    await svc.create({ code: 'foo_2027', name: 'Foo 2027', pointsByRank: { '1': 10 } }, 'user-1');
+    expect(auditInserts).toEqual([
+      expect.objectContaining({
+        actor_user_id: 'user-1',
+        action: 'league.scoring_system.created',
+        entity_type: 'league_scoring_system',
+        entity_id: 'sys-1',
+      }),
+    ]);
   });
 
   it('refuses to update a built-in row', async () => {
