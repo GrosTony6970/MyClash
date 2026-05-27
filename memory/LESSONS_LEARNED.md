@@ -40,6 +40,7 @@
 - The "My Schedule" view aggregates all of a user's commitments and surfaces conflicts. It is the most-used screen of the public PWA.
 - Never use `localStorage` / `sessionStorage` in artifacts running in Claude.ai (these APIs aren't supported there). For real production code, use IndexedDB for offline state.
 - Accessibility tests should capture page errors, keep color-contrast checks enabled, and assert keyboard activation on representative controls; an Axe-only smoke test can pass while runtime and keyboard regressions still exist.
+- `t('foo.bar') || 'fallback'` does NOT work in this project's i18n. The translator at `packages/i18n/src/index.ts` returns `[foo.bar]` (a truthy bracketed string) when a key is missing — so the `||` short-circuits and the user sees the literal `[admin.x.y]` in the UI. Visible bracketed keys are a missing-translation signal, never a naming choice. Fix: add the key to **both** `en` and `fr` in `packages/i18n/src/index.ts`. The `as const satisfies Messages` constraint enforces structural parity; a build failure means you added it to one locale but not the other.
 
 ## Build process
 
