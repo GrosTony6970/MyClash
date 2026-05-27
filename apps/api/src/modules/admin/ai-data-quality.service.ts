@@ -14,7 +14,9 @@ type FindingType =
   | 'club_duplicate'
   | 'referee_unlinked'
   | 'identity_gap'
-  | 'placeholder_name';
+  | 'placeholder_name'
+  | 'event_person_duplicate'
+  | 'missing_field';
 type FindingSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 type Candidate = {
@@ -211,6 +213,8 @@ export class AIDataQualityService {
       ...this.findUnlinkedReferees(refereeQualifications, persons),
       ...this.findIdentityGaps(persons, eventPersons, refereeQualifications, registrations),
       ...this.findPlaceholderNames(persons, eventPersons, clubs),
+      ...this.findEventPersonDuplicates(eventPersons),
+      ...this.findMissingFields(eventPersons),
     ];
   }
 
@@ -577,10 +581,95 @@ export class AIDataQualityService {
     return candidates;
   }
 
+  /**
+   * Same-event duplicates on event-scoped `persons` rows. Catches the
+   * shape the operator sees when they create two participants with the
+   * same name inside one event — the global_persons finder misses this
+   * because the resolver either linked both to one global row (no
+   * duplicate to detect there) or to two separate global rows with
+   * subtly different identifiers (rating id, club name).
+   */
+  private findEventPersonDuplicates(eventPersons: EventPersonRow[]): Candidate[] {
+    const candidates: Candidate[] = [];
+    const byEvent = new Map<string, EventPersonRow[]>();
+    for (const ep of eventPersons) {
+      const list = byEvent.get(ep.event_id) ?? [];
+      list.push(ep);
+      byEvent.set(ep.event_id, list);
+    }
+    for (const [eventId, rows] of byEvent) {
+      for (let i = 0; i < rows.length; i += 1) {
+        for (let j = i + 1; j < rows.length; j += 1) {
+          const a = rows[i]!;
+          const b = rows[j]!;
+          const aName = normalizeName(`${a.given_name ?? ''} ${a.family_name ?? ''}`);
+          const bName = normalizeName(`${b.given_name ?? ''} ${b.family_name ?? ''}`);
+          if (!aName || aName !== bName) continue;
+          candidates.push(
+            this.candidate('event_person_duplicate', 'medium', 1.0, {
+              personIds: [a.id, b.id],
+              evidence: {
+                event_id: eventId,
+                reasons: ['same_normalized_name_in_event'],
+                persons: [
+                  {
+                    id: a.id,
+                    given_name: a.given_name ?? null,
+                    family_name: a.family_name ?? null,
+                    club_id: a.club_id ?? null,
+                  },
+                  {
+                    id: b.id,
+                    given_name: b.given_name ?? null,
+                    family_name: b.family_name ?? null,
+                    club_id: b.club_id ?? null,
+                  },
+                ],
+              },
+            }),
+          );
+        }
+      }
+    }
+    return candidates;
+  }
+
+  /**
+   * Required-field gaps on event-scoped `persons` rows. One finding per
+   * row even when several fields are missing — the evidence carries the
+   * full list so the operator triages by row, not by field.
+   */
+  private findMissingFields(eventPersons: EventPersonRow[]): Candidate[] {
+    const candidates: Candidate[] = [];
+    for (const ep of eventPersons) {
+      const missing: string[] = [];
+      if (!ep.club_id) missing.push('club_id');
+      if (!ep.given_name || !ep.given_name.trim()) missing.push('given_name');
+      if (!ep.family_name || !ep.family_name.trim()) missing.push('family_name');
+      if (missing.length === 0) continue;
+      candidates.push(
+        this.candidate('missing_field', 'low', 1.0, {
+          personIds: [ep.id],
+          evidence: {
+            missing_fields: missing,
+            person: {
+              id: ep.id,
+              event_id: ep.event_id,
+              given_name: ep.given_name ?? null,
+              family_name: ep.family_name ?? null,
+              club_id: ep.club_id ?? null,
+            },
+          },
+        }),
+      );
+    }
+    return candidates;
+  }
+
   private async loadEventPersons(): Promise<EventPersonRow[]> {
     const { data } = await this.supabase.service
       .from('persons')
-      .select('id, event_id, given_name, family_name, global_person_id');
+      .select('id, event_id, given_name, family_name, global_person_id, club_id');
     return (data ?? []) as EventPersonRow[];
   }
 
@@ -819,6 +908,7 @@ type EventPersonRow = {
   given_name?: string | null;
   family_name?: string | null;
   global_person_id?: string | null;
+  club_id?: string | null;
 };
 
 type RegistrationRow = {
@@ -862,6 +952,18 @@ function synthesizeSummary(candidate: Candidate): string {
       const rule = (evidence['matched_rule'] as string | undefined) ?? 'placeholder';
       return `${kind} named '${name}' looks like a placeholder (${rule}) — consider deleting or renaming.`;
     }
+    case 'event_person_duplicate': {
+      const reasons = (evidence['reasons'] as string[] | undefined) ?? [];
+      return reasons.length > 0
+        ? `Two event participants share ${reasons.join(', ')} — likely duplicate registrations.`
+        : 'Two event participants look like duplicates — consider merging or removing one.';
+    }
+    case 'missing_field': {
+      const missing = (evidence['missing_fields'] as string[] | undefined) ?? [];
+      return missing.length > 0
+        ? `Participant is missing required field(s): ${missing.join(', ')}.`
+        : 'Participant has missing required fields.';
+    }
   }
 }
 
@@ -869,6 +971,7 @@ function deterministicAction(candidate: Candidate): string {
   switch (candidate.type) {
     case 'global_person_duplicate':
     case 'club_duplicate':
+    case 'event_person_duplicate':
       return 'merge';
     case 'referee_unlinked':
       return 'link_global_person';
@@ -876,6 +979,8 @@ function deterministicAction(candidate: Candidate): string {
       return 'review';
     case 'placeholder_name':
       return 'delete_or_rename';
+    case 'missing_field':
+      return 'fill_required_fields';
   }
 }
 

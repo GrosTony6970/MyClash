@@ -287,6 +287,117 @@ describe('AIDataQualityService', () => {
     expect(gap).toBeTruthy();
   });
 
+  // ── Operator-reported scenarios ─────────────────────────────────────────
+  // Both tests lock the rules that catch the cases the operator hit on
+  // the data-quality page (a fencer literally named "test", and two
+  // identical event participants where one has no club).
+
+  it('flags an event participant literally named "test" as placeholder_name', async () => {
+    const scanInsert = chain({ id: 'scan-placeholder' });
+    const findingsUpsert = chain(null);
+    const noop = chain(null);
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'ai_data_quality_scans') return scanInsert;
+      if (table === 'ai_data_quality_findings') return findingsUpsert;
+      if (table === 'global_persons') return chain([]);
+      if (table === 'clubs') return chain([]);
+      if (table === 'referee_qualifications') return chain([]);
+      if (table === 'persons')
+        return chain([
+          {
+            id: 'p-test',
+            event_id: 'e-1',
+            given_name: 'test',
+            family_name: null,
+            club_id: 'club-1',
+            global_person_id: 'gp-test',
+          },
+        ]);
+      if (table === 'registrations') return chain([]);
+      return noop;
+    });
+
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
+    await service.runDeterministicScan('actor-1');
+
+    const persisted = findingsUpsert.upsert.mock.calls[0]?.[0] as Array<{
+      finding_type: string;
+      entity_ids: { personIds?: string[] };
+    }>;
+    const placeholderForPerson = persisted.find(
+      (f) =>
+        f.finding_type === 'placeholder_name' && (f.entity_ids.personIds ?? []).includes('p-test'),
+    );
+    expect(placeholderForPerson).toBeTruthy();
+  });
+
+  it('flags two same-name event participants and the missing-club gap on one of them', async () => {
+    const scanInsert = chain({ id: 'scan-dup-event' });
+    const findingsUpsert = chain(null);
+    const noop = chain(null);
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'ai_data_quality_scans') return scanInsert;
+      if (table === 'ai_data_quality_findings') return findingsUpsert;
+      if (table === 'global_persons') return chain([]);
+      if (table === 'clubs') return chain([]);
+      if (table === 'referee_qualifications') return chain([]);
+      if (table === 'persons')
+        return chain([
+          {
+            id: 'p-a',
+            event_id: 'e-1',
+            given_name: 'Bob',
+            family_name: 'Smith',
+            club_id: 'club-1',
+            global_person_id: null,
+          },
+          {
+            id: 'p-b',
+            event_id: 'e-1',
+            given_name: 'Bob',
+            family_name: 'Smith',
+            // missing club on the second one
+            club_id: null,
+            global_person_id: null,
+          },
+        ]);
+      if (table === 'registrations') return chain([]);
+      return noop;
+    });
+
+    const service = new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
+    await service.runDeterministicScan('actor-1');
+
+    const persisted = findingsUpsert.upsert.mock.calls[0]?.[0] as Array<{
+      finding_type: string;
+      entity_ids: { personIds?: string[] };
+      evidence_json: Record<string, unknown>;
+    }>;
+
+    // missing_field: one row for p-b with club_id in missing_fields.
+    const missing = persisted.find(
+      (f) => f.finding_type === 'missing_field' && (f.entity_ids.personIds ?? []).includes('p-b'),
+    );
+    expect(missing).toBeTruthy();
+    expect((missing!.evidence_json['missing_fields'] as string[]) ?? []).toContain('club_id');
+
+    // event_person_duplicate: one row pairing p-a and p-b.
+    const dup = persisted.find(
+      (f) =>
+        f.finding_type === 'event_person_duplicate' &&
+        (f.entity_ids.personIds ?? []).slice().sort().join(',') === 'p-a,p-b',
+    );
+    expect(dup).toBeTruthy();
+  });
+
   it('updates finding review status with actor metadata', async () => {
     const update = chain(null);
     fromMock.mockReturnValue(update);

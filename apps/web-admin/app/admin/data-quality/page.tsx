@@ -38,6 +38,8 @@ const typeOptions = [
   'referee_unlinked',
   'identity_gap',
   'placeholder_name',
+  'event_person_duplicate',
+  'missing_field',
 ] as const;
 
 export default function AdminDataQualityPage() {
