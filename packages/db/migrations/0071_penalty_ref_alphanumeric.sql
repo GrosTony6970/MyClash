@@ -15,19 +15,25 @@
 
 BEGIN;
 
--- Per-ruleset template entries.
-ALTER TABLE penalty_ruleset_entries
-  ALTER COLUMN ref_number TYPE TEXT USING ref_number::text;
+-- IMPORTANT — order matters. The `penalty_entries_ref_check` CHECK
+-- constraint references `ref_number > 0`. When we ALTER the column
+-- type to TEXT, Postgres re-validates every still-attached CHECK
+-- against the new column type — and `text > integer` has no operator,
+-- so the ALTER fails with:
+--   ERROR 42883: operator does not exist: text > integer
+-- The fix is to DROP the constraint first, THEN change the column type.
 
--- The CHECK (ref_number > 0) constraint becomes meaningless once REF is
--- text. Drop it; the engine + API layer enforce non-empty + safe-char
--- + length-bound validation now.
+-- Per-ruleset template entries.
 ALTER TABLE penalty_ruleset_entries
   DROP CONSTRAINT IF EXISTS penalty_entries_ref_check;
 
+ALTER TABLE penalty_ruleset_entries
+  ALTER COLUMN ref_number TYPE TEXT USING ref_number::text;
+
 -- Per-match snapshot rows on match_penalties carry the same REF identifier
 -- when a penalty was issued via a ruleset entry (nullable for direct
--- card overrides).
+-- card overrides). No CHECK constraint on this column (see 0016), so
+-- the ALTER works in isolation.
 ALTER TABLE match_penalties
   ALTER COLUMN ref_number TYPE TEXT USING ref_number::text;
 
