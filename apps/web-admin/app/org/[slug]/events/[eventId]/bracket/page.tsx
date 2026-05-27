@@ -1227,8 +1227,16 @@ export default function BracketPage() {
                 bronzeMatch={bronzeMatch}
                 weapon={tournamentWeapon}
                 bracketSize={bracket.bracketSize}
-                onMatchClick={(matchId) => {
-                  if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
+                onMatchClick={(matchId, slotId) => {
+                  // Slots without a matchId yet (TBD / no fighters assigned)
+                  // had no click behaviour at all — confusing, since picking
+                  // the fighters is exactly what the operator wants here.
+                  // Empty → override modal; live/ready/done → scoreboard.
+                  if (matchId) {
+                    router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
+                  } else {
+                    setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
+                  }
                 }}
                 onOverrideSlot={(slotId) =>
                   setOverrideModal({ slotId, regAId: undefined, regBId: undefined })

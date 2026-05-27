@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { accentClassFor, tintBgClassFor, tintTextClassFor } from '../../utils/color-token';
+import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
 import type { BracketSlotData, ColorToken } from './types';
 
 export interface MatchCardProps {
@@ -77,17 +77,11 @@ export function MatchCard({
         : isReadyOrLive
           ? 'border border-amber-200'
           : 'border border-slate-200';
-  const bgClass = isChampionshipMatch
-    ? 'bg-white'
-    : isReadyOrLive
-      ? 'bg-amber-50'
-      : isTbd
-        ? 'bg-slate-50'
-        : 'bg-white';
-
+  // Outer fill stays neutral white — the per-row tint set by each
+  // FighterRow does the colour-coding. Adding an amber/slate card
+  // background here would fight the row tints visually.
   const cardClasses = [
-    'group relative flex h-[52px] w-full min-w-[180px] max-w-[320px] items-stretch rounded-md shadow-sm transition-shadow',
-    bgClass,
+    'group relative flex h-[52px] w-full min-w-[180px] max-w-[320px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow',
     borderClass,
     handleClick ? 'cursor-pointer hover:shadow-md' : '',
   ]
@@ -116,11 +110,11 @@ export function MatchCard({
         }
         className={cardClasses}
       >
-        {/* Left stripe (red side) */}
-        <span aria-hidden="true" className={`w-[3px] rounded-l-md ${accentClassFor(redColor)}`} />
-
-        {/* Fighter rows */}
-        <div className="flex flex-1 flex-col divide-y divide-slate-100">
+        {/* Stacked fighter rows. The two side colours render
+            horizontally: each row owns a left stripe + tinted
+            background driven by its sideColor (sourced from the
+            tournament's scoring_config.display.sideColors). */}
+        <div className="flex flex-1 flex-col">
           <FighterRow
             name={slot.redFighterName}
             club={slot.redClubAbbrev}
@@ -138,9 +132,6 @@ export function MatchCard({
             sideColor={blueColor}
           />
         </div>
-
-        {/* Right stripe (blue side) */}
-        <span aria-hidden="true" className={`w-[3px] rounded-r-md ${accentClassFor(blueColor)}`} />
 
         {/* Status pill bottom-right (absolute, outside the row flex) */}
         <span
@@ -166,7 +157,7 @@ export function MatchCard({
             e.stopPropagation();
             onOverride(slot.id);
           }}
-          className="absolute -top-2 -right-2 hidden h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] text-slate-500 shadow-sm hover:text-slate-900 group-hover:flex"
+          className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] text-slate-500 shadow-sm hover:text-slate-900"
         >
           ✎
         </button>
@@ -191,48 +182,61 @@ function FighterRow({
   sideColor: ColorToken;
 }) {
   const isTbd = name === null;
-  // The winner row's score chip tints to the winner's configured side colour
-  // (red / blue by default, or whatever the tournament has set in
-  // scoring_config.display.sideColors). All other states stay neutral slate.
+  // The row is now tinted with the side colour, so the winner chip
+  // escalates to the solid accent + white text — otherwise the tint-on-
+  // tint blends together and the winner doesn't read. Non-winner chips
+  // get a translucent white pill so they sit cleanly on top of the row
+  // tint without forcing a neutral slate background.
   const scoreChipClasses = isTbd
-    ? 'bg-slate-50 text-slate-300'
+    ? 'bg-white/60 text-slate-300'
     : highlight
-      ? `${tintBgClassFor(sideColor)} ${tintTextClassFor(sideColor)} font-bold`
+      ? `${accentClassFor(sideColor)} text-white font-bold`
       : isCompleted
-        ? 'bg-slate-50 text-slate-500'
-        : 'bg-slate-50 text-slate-600';
+        ? 'bg-white/70 text-slate-500'
+        : 'bg-white/70 text-slate-600';
+
+  // Each row owns its side's visual identity: a 3-px coloured stripe
+  // on the left edge + a soft tint across the full row. Both classes
+  // come from the same ColorToken (driven by the tournament's
+  // scoring_config.display.sideColors) so changing colours in the
+  // tournament settings ripples here automatically.
+  const rowTintClass = isTbd ? '' : tintBgClassFor(sideColor);
+  const stripeClass = isTbd ? 'bg-slate-200' : accentClassFor(sideColor);
 
   return (
-    <div className="flex h-[26px] flex-1 items-center justify-between gap-1 pl-2 pr-1">
-      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+    <div className={`flex h-[26px] flex-1 items-stretch ${rowTintClass}`}>
+      <span aria-hidden="true" className={`w-[3px] shrink-0 ${stripeClass}`} />
+      <div className="flex flex-1 items-center justify-between gap-1 pl-2 pr-1">
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span
+            className={[
+              'truncate text-xs',
+              isTbd
+                ? 'text-slate-400'
+                : highlight
+                  ? 'font-semibold text-slate-900'
+                  : isCompleted
+                    ? 'text-slate-500'
+                    : 'text-slate-700',
+            ].join(' ')}
+          >
+            {name ?? '-'}
+          </span>
+          {club && !isTbd && (
+            <span className="shrink-0 rounded bg-white/70 px-1 py-px text-[10px] text-slate-500">
+              {club}
+            </span>
+          )}
+        </span>
         <span
           className={[
-            'truncate text-xs',
-            isTbd
-              ? 'text-slate-400'
-              : highlight
-                ? 'font-semibold text-slate-900'
-                : isCompleted
-                  ? 'text-slate-500'
-                  : 'text-slate-700',
+            'w-[32px] shrink-0 rounded px-1 text-right font-mono text-xs tabular-nums',
+            scoreChipClasses,
           ].join(' ')}
         >
-          {name ?? '-'}
+          {score ?? '-'}
         </span>
-        {club && !isTbd && (
-          <span className="shrink-0 rounded bg-slate-100 px-1 py-px text-[10px] text-slate-500">
-            {club}
-          </span>
-        )}
-      </span>
-      <span
-        className={[
-          'w-[32px] shrink-0 rounded px-1 text-right font-mono text-xs tabular-nums',
-          scoreChipClasses,
-        ].join(' ')}
-      >
-        {score ?? '-'}
-      </span>
+      </div>
     </div>
   );
 }
