@@ -4,7 +4,13 @@ export type PenaltySource = 'ruleset' | 'direct';
 
 export interface PenaltyRulesetEntry {
   groupNumber: number;
-  refNumber: number;
+  /**
+   * Identifier of the rule within its group. String to allow alphanumeric
+   * rulebook references like "R7a" or "B-12". The engine treats it as
+   * opaque — validation only enforces non-empty + a safe-char set at the
+   * input boundary (CSV parser and API DTO).
+   */
+  refNumber: string;
   shortName: string;
   description: string;
   sanctions: readonly PenaltyCard[];
@@ -111,7 +117,7 @@ export function parsePenaltyRulesetCsv(
 
   const entries = rows.slice(1).map((row, index) => {
     const groupNumber = Number(row[0]);
-    const refNumber = Number(row[1]);
+    const refNumber = (row[1] ?? '').trim();
     const shortName = row[2]?.trim() ?? '';
     const description = row[3]?.trim() ?? '';
     const sanctions = row
@@ -123,7 +129,9 @@ export function parsePenaltyRulesetCsv(
     if (!Number.isInteger(groupNumber) || groupNumber < 1) {
       throw new Error(`Penalty CSV line ${index + 2} has an invalid group number`);
     }
-    if (!Number.isInteger(refNumber) || refNumber < 1) {
+    // REF is opaque: digits ("1"), alphanumeric ("R7a"), or hyphenated
+    // ("B-12") are all valid. Reject empty / whitespace-only / overly long.
+    if (!refNumber || refNumber.length > 20 || !/^[\w-]+$/.test(refNumber)) {
       throw new Error(`Penalty CSV line ${index + 2} has an invalid ref number`);
     }
     if (!shortName) {

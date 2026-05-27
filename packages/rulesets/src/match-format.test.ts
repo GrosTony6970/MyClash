@@ -38,6 +38,18 @@ function makeExchange(overrides: Partial<Exchange>): Exchange {
 }
 
 describe('match format config', () => {
+  it('exposes federal-rulebook defaults (pointCap=10, 90s time limits, 5s soft-clock, maxDoubleHits=4)', () => {
+    // These are the global baseline for any ruleset that doesn't override
+    // its match-format blob. Bumping these is a deliberate behavior change
+    // requested by the operator — every fresh tournament inherits them.
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.pointCap).toBe(10);
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds.pool).toBe(90);
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds.bracket).toBe(90);
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds.finals).toBe(90);
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.softClockLimitSeconds).toBe(5);
+    expect(DEFAULT_MATCH_FORMAT_CONFIG.maxDoubleHits).toBe(4);
+  });
+
   it('normalizes legacy TF_v1 matchFormat config into shared match format', () => {
     const config = normalizeMatchFormatConfig({
       firstToPoints: 7,

@@ -7,6 +7,27 @@ import {
 } from './index';
 
 describe('penalty rulesets', () => {
+  it('accepts alphanumeric REF identifiers (e.g. R7a, B-12)', () => {
+    // Real rulebooks use codes like "R7a" or "B-12" for sub-rules. The
+    // engine treats refNumber as an opaque identifier, not a counter,
+    // so we keep it as a string and only enforce non-empty + safe-char
+    // length bounds at the validator boundary.
+    const csv = [
+      'Group;Ref;short name;description;sanction 1;sanction 2;sanction 3;sanction 4',
+      '1;R7a;Test;Description text;Jaune;;;',
+    ].join('\n');
+
+    const parsed = parsePenaltyRulesetCsv(csv, {
+      code: 'alphanum_test',
+      name: 'Alphanumeric REF test',
+      version: '1',
+      accumulationScope: 'match',
+      builtIn: false,
+    });
+
+    expect(parsed.entries[0]?.refNumber).toBe('R7a');
+  });
+
   it('parses the FFAMHE semicolon CSV and normalizes French sanctions', () => {
     const csv = [
       'Group;Ref Number;short name;Nature de la faute;sanction 1;sanction 2;sanction 3;sanction 4;;;;',
@@ -24,7 +45,7 @@ describe('penalty rulesets', () => {
     expect(parsed.entries).toEqual([
       {
         groupNumber: 1,
-        refNumber: 1,
+        refNumber: '1',
         shortName: 'Sortie de Lice',
         description: 'Sortir involontairement la zone de combat',
         sanctions: ['yellow', 'red', 'red', 'black'],
@@ -35,7 +56,7 @@ describe('penalty rulesets', () => {
   it('escalates only faults in the same group', () => {
     const entry = {
       groupNumber: 3,
-      refNumber: 6,
+      refNumber: '6',
       shortName: 'Non-combativité',
       description: 'Absence d’action offensive',
       sanctions: ['yellow', 'red', 'red', 'black'] as const,
@@ -53,7 +74,7 @@ describe('penalty rulesets', () => {
   it('does not count direct-card overrides in group escalation', () => {
     const entry = {
       groupNumber: 3,
-      refNumber: 6,
+      refNumber: '6',
       shortName: 'Non-combativité',
       description: 'Absence d’action offensive',
       sanctions: ['yellow', 'red', 'red', 'black'] as const,

@@ -777,7 +777,7 @@ export class PenaltiesService {
     const row = data as Row;
     return {
       groupNumber: row['group_number'] as number,
-      refNumber: row['ref_number'] as number,
+      refNumber: row['ref_number'] as string,
       shortName: row['short_name'] as string,
       description: row['description'] as string,
       sanctions: row['sanctions'] as PenaltyCard[],
@@ -920,10 +920,23 @@ export class PenaltiesService {
     rulesetId: string,
     entries: CreatePenaltyRulesetDto['entries'],
   ): Promise<void> {
+    // Validate refNumber shape at the API boundary. The DB column is plain
+    // TEXT (migration 0071) so without this guard a caller could push
+    // anything in. Keep the constraint loose enough for real rulebook
+    // codes (R7a, B-12) but tight enough to prevent free-form text.
+    const REF_RE = /^[\w-]{1,20}$/;
+    for (const entry of entries) {
+      const ref = String(entry.refNumber ?? '').trim();
+      if (!REF_RE.test(ref)) {
+        throw new BadRequestException(
+          `Invalid penalty REF "${entry.refNumber}" — must be 1–20 chars, letters/digits/underscore/hyphen only.`,
+        );
+      }
+    }
     const rows = entries.map((entry, index) => ({
       ruleset_id: rulesetId,
       group_number: entry.groupNumber,
-      ref_number: entry.refNumber,
+      ref_number: String(entry.refNumber).trim(),
       short_name: entry.shortName,
       description: entry.description,
       sanctions: entry.sanctions,

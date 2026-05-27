@@ -6,18 +6,22 @@ export const TimerModeSchema = z.enum(['countdown', 'countup']);
 export const MaxDoubleHitOutcomeSchema = z.literal('double_loss_zero_scores');
 
 export const MatchFormatConfigSchema = z.object({
-  pointCap: z.number().int().positive().default(5),
+  // Federal-rulebook (FFAMHE) baseline. Any ruleset that wants different
+  // values must persist its own override into tf_config.matchFormat (TF v1)
+  // or match_format_defaults (custom rulesets); both are merged over this
+  // schema's defaults at form-hydration time, so stored overrides survive.
+  pointCap: z.number().int().positive().default(10),
   scoringDirection: ScoringDirectionSchema.default('normal'),
   timerMode: TimerModeSchema.default('countdown'),
   timeLimitsSeconds: z
     .object({
-      pool: z.number().int().positive().nullable().default(180),
-      bracket: z.number().int().positive().nullable().default(180),
-      finals: z.number().int().positive().nullable().default(180),
+      pool: z.number().int().positive().nullable().default(90),
+      bracket: z.number().int().positive().nullable().default(90),
+      finals: z.number().int().positive().nullable().default(90),
     })
-    .default({ pool: 180, bracket: 180, finals: 180 }),
-  softClockLimitSeconds: z.number().int().min(0).default(0),
-  maxDoubleHits: z.number().int().positive().nullable().default(null),
+    .default({ pool: 90, bracket: 90, finals: 90 }),
+  softClockLimitSeconds: z.number().int().min(0).default(5),
+  maxDoubleHits: z.number().int().positive().nullable().default(4),
   maxDoubleHitOutcome: MaxDoubleHitOutcomeSchema.default('double_loss_zero_scores'),
 });
 

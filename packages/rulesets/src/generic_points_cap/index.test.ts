@@ -71,8 +71,8 @@ describe('Generic_PointsCap', () => {
   });
 
   describe('isMatchOver', () => {
-    it('ends when red reaches pointsCap (default 5)', () => {
-      const exchanges = Array.from({ length: 5 }, (_, i) =>
+    it('ends when red reaches pointsCap (default 10)', () => {
+      const exchanges = Array.from({ length: 10 }, (_, i) =>
         makeEx({ id: `e${i}`, sequence: i + 1, firstStrikerColor: 'red' }),
       );
       const result = Generic_PointsCap.isMatchOver(BASE_MATCH, exchanges, 0, {});
@@ -80,16 +80,16 @@ describe('Generic_PointsCap', () => {
       expect(result.reason).toBe('first_to_points');
     });
 
-    it('not over at 4 points', () => {
-      const exchanges = Array.from({ length: 4 }, (_, i) =>
+    it('not over at 9 points (one short of the default pointsCap)', () => {
+      const exchanges = Array.from({ length: 9 }, (_, i) =>
         makeEx({ id: `e${i}`, sequence: i + 1, firstStrikerColor: 'red' }),
       );
       const result = Generic_PointsCap.isMatchOver(BASE_MATCH, exchanges, 0, {});
       expect(result.isOver).toBe(false);
     });
 
-    it('ends at time limit', () => {
-      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, [], 180_000, {});
+    it('ends at time limit (90s default)', () => {
+      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, [], 90_000, {});
       expect(result.isOver).toBe(true);
       expect(result.reason).toBe('time_limit');
     });

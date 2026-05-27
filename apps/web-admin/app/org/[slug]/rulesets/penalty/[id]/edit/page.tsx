@@ -31,7 +31,7 @@ interface PenaltyRulesetDetail {
   penalty_ruleset_entries: Array<{
     id: string;
     group_number: number;
-    ref_number: number;
+    ref_number: string;
     short_name: string;
     description: string;
     sanctions: Array<'yellow' | 'red' | 'black'>;
@@ -104,7 +104,7 @@ export default function OrgEditPenaltyRulesetPage() {
   }, [params.id, t]);
 
   return (
-    <main className="max-w-5xl p-8">
+    <main className="max-w-7xl p-8">
       <div className="mb-2 text-sm">
         <Link
           href={`/org/${params.slug}/rulesets/penalty`}

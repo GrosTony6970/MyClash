@@ -97,7 +97,9 @@ export class CreatePenaltyRulesetDto {
   @IsArray()
   entries!: Array<{
     groupNumber: number;
-    refNumber: number;
+    // String to allow alphanumeric rulebook IDs like "R7a" or "B-12".
+    // Validation (non-empty + safe-char + length) happens in the service.
+    refNumber: string;
     shortName: string;
     description: string;
     sanctions: Array<'yellow' | 'red' | 'black'>;
@@ -201,7 +203,7 @@ export class UpdatePenaltyRulesetDto {
   @IsArray()
   entries?: Array<{
     groupNumber: number;
-    refNumber: number;
+    refNumber: string;
     shortName: string;
     description: string;
     sanctions: Array<'yellow' | 'red' | 'black'>;

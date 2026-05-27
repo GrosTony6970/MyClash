@@ -247,12 +247,13 @@ describe('computeMatchScore', () => {
 
 describe('isMatchOver', () => {
   it('not over when clock < time limit', () => {
-    const result = isMatchOver(BASE_MATCH, [], 90_000, TFv1DefaultConfig);
+    // Default time limit is 90s; 60s is comfortably under.
+    const result = isMatchOver(BASE_MATCH, [], 60_000, TFv1DefaultConfig);
     expect(result.isOver).toBe(false);
   });
 
-  it('over when clock >= time limit (180s)', () => {
-    const result = isMatchOver(BASE_MATCH, [], 180_000, TFv1DefaultConfig);
+  it('over when clock >= time limit (90s default)', () => {
+    const result = isMatchOver(BASE_MATCH, [], 90_000, TFv1DefaultConfig);
     expect(result.isOver).toBe(true);
     expect(result.reason).toBe('time_limit');
   });
