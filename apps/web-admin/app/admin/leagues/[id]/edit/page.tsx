@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
+import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -1049,6 +1050,11 @@ export default function EditLeaguePage() {
             </div>
           )}
         </div>
+      </section>
+
+      {/* Pending requests (tournament-attach + org-join) */}
+      <section className="mb-6">
+        <LeagueRequestsPanel leagueId={leagueId} />
       </section>
     </main>
   );

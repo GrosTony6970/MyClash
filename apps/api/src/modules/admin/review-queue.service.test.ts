@@ -91,6 +91,7 @@ function makeSupabaseMock(tableData: Record<string, unknown[]>) {
       order: chainFn,
       // eq resolves (used as terminal when awaited after order chain)
       eq: vi.fn().mockReturnValue(chain),
+      neq: vi.fn().mockReturnValue(chain),
       in: vi.fn().mockResolvedValue(resolved),
       maybeSingle: vi.fn().mockResolvedValue({ data: rows[0] ?? null, error: null }),
       insert: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -131,6 +132,12 @@ function makeMockEventsService() {
   return {};
 }
 
+function makeMockLeaguesService() {
+  return {
+    reviewTournamentLink: vi.fn().mockResolvedValue({}),
+  };
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ReviewQueueService', () => {
@@ -160,6 +167,7 @@ describe('ReviewQueueService', () => {
       makeMockEventsService() as never,
       mockExchangeEditService as never,
       mockRulesetsService as never,
+      makeMockLeaguesService() as never,
     );
 
     const result = await service.listAll(null, null);
@@ -196,6 +204,7 @@ describe('ReviewQueueService', () => {
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
     );
 
     const result = await service.listAll('deletion', null);
@@ -210,6 +219,82 @@ describe('ReviewQueueService', () => {
     expect(calledTables).not.toContain('ruleset_submissions');
   });
 
+  // ── 2b. listAll includes league_tournament_request rows under "all" ─────────
+
+  it('listAll includes league_tournament_request rows from league_tournament_links', async () => {
+    const tableData: Record<string, unknown[]> = {
+      league_tournament_links: [
+        {
+          id: 'link-1',
+          status: 'requested',
+          league_id: 'league-1',
+          tournament_id: 'tournament-1',
+          requested_by_user_id: null,
+          reviewed_by_user_id: null,
+          created_at: '2026-02-01T00:00:00.000Z',
+          note: 'please attach',
+          leagues: { id: 'league-1', name: 'FFAMHE TF 2026', slug: 'ffamhe-2026' },
+          tournaments: {
+            id: 'tournament-1',
+            name: 'Open Longsword',
+            weapon: 'longsword',
+            event_id: 'event-1',
+            events: {
+              id: 'event-1',
+              name: 'Paris HEMA Open',
+              organization_id: 'org-1',
+              organizations: { id: 'org-1', name: 'Paris HEMA Club' },
+            },
+          },
+        },
+      ],
+      fighters: [],
+      organizations: [],
+      events: [],
+      tournaments: [],
+    };
+    const supabase = makeSupabaseMock(tableData);
+    service = new ReviewQueueService(
+      supabase as never,
+      makeMockEventsService() as never,
+      makeMockExchangeEditService() as never,
+      makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
+    );
+
+    const result = await service.listAll('league_tournament_request', null);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.type).toBe('league_tournament_request');
+    expect(result[0]!.status).toBe('pending');
+    expect(result[0]!.targetLabel).toContain('Open Longsword');
+    expect(result[0]!.targetLabel).toContain('FFAMHE TF 2026');
+    expect(result[0]!.organizationName).toBe('Paris HEMA Club');
+    expect(result[0]!.targetHref).toBe('/admin/leagues/league-1/edit');
+  });
+
+  // ── 2c. approve(league_tournament_request) dispatches to leagues service ─────
+
+  it('approve(league_tournament_request) calls reviewTournamentLink with status=approved', async () => {
+    const leagues = makeMockLeaguesService();
+    const supabase = makeSupabaseMock({});
+    service = new ReviewQueueService(
+      supabase as never,
+      makeMockEventsService() as never,
+      makeMockExchangeEditService() as never,
+      makeMockRulesetsService() as never,
+      leagues as never,
+    );
+
+    await service.approve('league_tournament_request', 'link-1', 'actor-1');
+
+    expect(leagues.reviewTournamentLink).toHaveBeenCalledWith(
+      'link-1',
+      { status: 'approved' },
+      'actor-1',
+    );
+  });
+
   // ── 3. approve(deletion) requires typedConfirmation='DELETE' ─────────────────
 
   it('approve(deletion) throws BadRequestException when typedConfirmation is missing', async () => {
@@ -219,6 +304,7 @@ describe('ReviewQueueService', () => {
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
     );
 
     await expect(service.approve('deletion', 'req-1', 'actor-1', {})).rejects.toThrow(
@@ -272,6 +358,7 @@ describe('ReviewQueueService', () => {
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
     );
 
     await service.approve('deletion', 'req-1', 'actor-user', { typedConfirmation: 'DELETE' });
@@ -322,6 +409,7 @@ describe('ReviewQueueService', () => {
       makeMockEventsService() as never,
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
     );
 
     const reason = 'This request does not meet the requirements for deletion.';

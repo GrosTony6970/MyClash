@@ -1,5 +1,10 @@
 export interface ReviewQueueItem {
-  type: 'deletion' | 'exchange_edit' | 'club_review' | 'ruleset_submission';
+  type:
+    | 'deletion'
+    | 'exchange_edit'
+    | 'club_review'
+    | 'ruleset_submission'
+    | 'league_tournament_request';
   id: string;
   status: 'pending' | 'approved' | 'rejected' | 'linked' | 'cancelled';
   targetLabel: string;

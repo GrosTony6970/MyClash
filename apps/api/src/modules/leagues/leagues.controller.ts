@@ -305,6 +305,24 @@ export class LeaguesController {
     return this.leagues.listTournamentLinks(leagueId, userId);
   }
 
+  @Get('admin/leagues/:leagueId/requests')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List league requests (tournament-attach + future membership requests)',
+  })
+  async listLeagueRequests(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Query('status') status: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    const allowed = ['requested', 'approved', 'rejected'] as const;
+    const normalised = (allowed as readonly string[]).includes(status ?? '')
+      ? (status as (typeof allowed)[number])
+      : undefined;
+    return this.leagues.listLeagueRequests(leagueId, userId, normalised);
+  }
+
   @Patch('admin/league-tournament-links/:linkId')
   @ApiBearerAuth()
   @ApiOperation({

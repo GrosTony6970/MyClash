@@ -1,21 +1,28 @@
 /**
  * review-queue.service.ts — Unified super-admin review queue
  *
- * Aggregates 4 request types (deletion, exchange_edit, club_review,
- * ruleset_submission) into a single normalised list and dispatches
- * approve/reject actions to the appropriate type-specific handler.
+ * Aggregates 5 request types (deletion, exchange_edit, club_review,
+ * ruleset_submission, league_tournament_request) into a single
+ * normalised list and dispatches approve/reject actions to the
+ * appropriate type-specific handler.
  */
 
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventsService } from '../events/events.service';
+import { LeaguesService } from '../leagues/leagues.service';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
 export interface ReviewQueueItem {
-  type: 'deletion' | 'exchange_edit' | 'club_review' | 'ruleset_submission';
+  type:
+    | 'deletion'
+    | 'exchange_edit'
+    | 'club_review'
+    | 'ruleset_submission'
+    | 'league_tournament_request';
   id: string;
   status: 'pending' | 'approved' | 'rejected' | 'linked' | 'cancelled';
   targetLabel: string;
@@ -50,6 +57,7 @@ export class ReviewQueueService {
     private readonly eventsService: EventsService,
     private readonly exchangeEditService: ExchangeEditRequestsAdminService,
     private readonly rulesetsService: AdminRulesetsService,
+    private readonly leaguesService: LeaguesService,
   ) {}
 
   // ── listAll ──────────────────────────────────────────────────────────────────
@@ -60,7 +68,7 @@ export class ReviewQueueService {
   ): Promise<ReviewQueueItem[]> {
     const effectiveStatus = statusFilter === null ? 'pending' : statusFilter;
 
-    const [deletions, exchanges, clubReviews, rulesets] = await Promise.all([
+    const [deletions, exchanges, clubReviews, rulesets, leagueTournamentReqs] = await Promise.all([
       !typeFilter || typeFilter === 'deletion'
         ? this.fetchDeletions(effectiveStatus)
         : Promise.resolve([] as ReviewQueueItem[]),
@@ -73,9 +81,12 @@ export class ReviewQueueService {
       !typeFilter || typeFilter === 'ruleset_submission'
         ? this.fetchRulesetSubmissions(effectiveStatus)
         : Promise.resolve([] as ReviewQueueItem[]),
+      !typeFilter || typeFilter === 'league_tournament_request'
+        ? this.fetchLeagueTournamentRequests(effectiveStatus)
+        : Promise.resolve([] as ReviewQueueItem[]),
     ]);
 
-    const all = [...deletions, ...exchanges, ...clubReviews, ...rulesets];
+    const all = [...deletions, ...exchanges, ...clubReviews, ...rulesets, ...leagueTournamentReqs];
     all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     return all;
   }
@@ -100,6 +111,16 @@ export class ReviewQueueService {
         break;
       case 'ruleset_submission':
         await this.rulesetsService.approveRuleset(id, actorUserId);
+        break;
+      case 'league_tournament_request':
+        await this.leaguesService.reviewTournamentLink(id, { status: 'approved' }, actorUserId);
+        await this.writeAuditLog(
+          actorUserId,
+          'league.tournament_request.approved',
+          'league_tournament_link',
+          id,
+          {},
+        );
         break;
       default:
         throw new BadRequestException(`Unknown review queue type: ${type}`);
@@ -140,6 +161,16 @@ export class ReviewQueueService {
         break;
       case 'ruleset_submission':
         await this.rulesetsService.rejectRuleset(id, { reason: rejectionReason }, actorUserId);
+        break;
+      case 'league_tournament_request':
+        await this.leaguesService.reviewTournamentLink(id, { status: 'rejected' }, actorUserId);
+        await this.writeAuditLog(
+          actorUserId,
+          'league.tournament_request.rejected',
+          'league_tournament_link',
+          id,
+          { rejectionReason },
+        );
         break;
       default:
         throw new BadRequestException(`Unknown review queue type: ${type}`);
@@ -373,6 +404,91 @@ export class ReviewQueueService {
         reviewedByEmail: revUser?.email ?? null,
         reviewedAt: (r['reviewed_at'] as string | null) ?? null,
         createdAt: r['created_at'] as string,
+      };
+    });
+  }
+
+  private async fetchLeagueTournamentRequests(statusFilter: string): Promise<ReviewQueueItem[]> {
+    // league_tournament_links uses 'requested' instead of 'pending' — translate
+    // the queue-wide filter so super-admins toggling status filters see the
+    // same rows under either name.
+    const dbStatus = statusFilter === 'pending' ? 'requested' : statusFilter;
+
+    let q = this.supabase.service
+      .from('league_tournament_links')
+      .select(
+        '*, leagues:league_id(id, name, slug), tournaments:tournament_id(id, name, weapon, event_id, events:event_id(id, name, organization_id, organizations:organization_id(id, name)))',
+      )
+      .order('created_at', { ascending: false });
+    if (dbStatus !== 'all') q = q.eq('status', dbStatus) as typeof q;
+    // Exclude 'removed' — those are unlinked rows, not pending review.
+    q = q.neq('status', 'removed') as typeof q;
+
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Record<string, unknown>[];
+
+    const userIds = [
+      ...new Set([
+        ...rows
+          .map((r) => r['requested_by_user_id'] as string | null)
+          .filter((id): id is string => Boolean(id)),
+        ...rows
+          .map((r) => r['reviewed_by_user_id'] as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const userMap = await this.resolveUsers(userIds);
+
+    return rows.map((r) => {
+      const league = (r['leagues'] ?? {}) as Record<string, unknown>;
+      const tournament = (r['tournaments'] ?? {}) as Record<string, unknown>;
+      const events = (tournament['events'] ?? {}) as Record<string, unknown>;
+      const orgs = (events['organizations'] ?? {}) as Record<string, unknown>;
+
+      const leagueId = (league['id'] as string | null) ?? null;
+      const leagueName = (league['name'] as string | null) ?? leagueId ?? 'Unknown league';
+      const tournamentId = (tournament['id'] as string | null) ?? null;
+      const tournamentName = (tournament['name'] as string | null) ?? tournamentId ?? 'Tournament';
+      const eventName = (events['name'] as string | null) ?? null;
+      const orgId = (orgs['id'] as string | null) ?? null;
+      const orgName = (orgs['name'] as string | null) ?? null;
+
+      const reqId = (r['requested_by_user_id'] as string | null) ?? '';
+      const reqUser = reqId ? userMap.get(reqId) : null;
+      const revId = (r['reviewed_by_user_id'] as string | null) ?? null;
+      const revUser = revId ? userMap.get(revId) : null;
+
+      const dbStat = r['status'] as string;
+      const normalised: ReviewQueueItem['status'] =
+        dbStat === 'requested'
+          ? 'pending'
+          : dbStat === 'approved'
+            ? 'approved'
+            : dbStat === 'rejected'
+              ? 'rejected'
+              : 'pending';
+
+      return {
+        type: 'league_tournament_request' as const,
+        id: r['id'] as string,
+        status: normalised,
+        targetLabel: eventName
+          ? `${tournamentName} (${eventName}) → ${leagueName}`
+          : `${tournamentName} → ${leagueName}`,
+        targetHref: leagueId ? `/admin/leagues/${leagueId}/edit` : null,
+        requesterUserId: reqId,
+        requesterName: reqUser?.name ?? reqId ?? 'unknown',
+        requesterEmail: reqUser?.email ?? null,
+        organizationId: orgId,
+        organizationName: orgName,
+        reason: (r['note'] as string | null) ?? null,
+        rejectionReason: (r['rejection_reason'] as string | null) ?? null,
+        reviewedByUserId: revId,
+        reviewedByName: revUser?.name ?? null,
+        reviewedByEmail: revUser?.email ?? null,
+        reviewedAt: (r['reviewed_at'] as string | null) ?? null,
+        createdAt: (r['created_at'] as string | null) ?? new Date(0).toISOString(),
       };
     });
   }

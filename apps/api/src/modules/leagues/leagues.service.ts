@@ -493,6 +493,33 @@ export class LeaguesService {
     return data ?? [];
   }
 
+  /**
+   * Filtered view of tournament-attach requests for a league. Used by the
+   * shared LeagueRequestsPanel rendered in the editor + standalone route.
+   * Filters out `'removed'` rows (those are unlinked tournaments, not
+   * pending review). When `status` is omitted, returns all non-removed
+   * rows so the panel can group by status client-side.
+   */
+  async listLeagueRequests(
+    leagueId: string,
+    userId: string,
+    status?: 'requested' | 'approved' | 'rejected',
+  ) {
+    await this.assertCanManageLeague(leagueId, userId);
+    let q = this.supabase.service
+      .from('league_tournament_links')
+      .select(
+        '*, tournaments(id, name, weapon, status, events(id, name, start_date, organization_id, organizations(id, name)))',
+      )
+      .eq('league_id', leagueId)
+      .neq('status', 'removed')
+      .order('created_at', { ascending: false });
+    if (status) q = q.eq('status', status) as typeof q;
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
   // ── Groups ────────────────────────────────────────────────────────────────
 
   async listGroups(leagueId: string) {

@@ -10,7 +10,13 @@ import { RejectModal } from './_components/RejectModal';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type TabValue = 'all' | 'deletion' | 'exchange_edit' | 'club_review' | 'ruleset_submission';
+type TabValue =
+  | 'all'
+  | 'deletion'
+  | 'exchange_edit'
+  | 'club_review'
+  | 'ruleset_submission'
+  | 'league_tournament_request';
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
 interface Tab {
@@ -24,6 +30,12 @@ const TABS: Tab[] = [
   { value: 'exchange_edit', label: t('admin.reviewQueue.tabExchangeEdits') },
   { value: 'club_review', label: t('admin.reviewQueue.tabClubReviews') },
   { value: 'ruleset_submission', label: t('admin.reviewQueue.tabRulesetSubmissions') },
+  // Falls back to a hard-coded label if the i18n key isn't seeded yet; the
+  // key is added below in en.json / fr.json (review-queue scope).
+  {
+    value: 'league_tournament_request',
+    label: t('admin.reviewQueue.tabLeagueTournamentRequests') || 'League tournament requests',
+  },
 ];
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
