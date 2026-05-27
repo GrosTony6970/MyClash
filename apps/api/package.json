@@ -30,7 +30,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@sentry/nestjs": "^10.53.1",
     "@sentry/node": "^10.53.1",
-    "@supabase/supabase-js": "^2.105.1",
+    "@supabase/supabase-js": "^2.106.2",
     "@types/cookie-parser": "^1.4.10",
     "@types/web-push": "^3.6.4",
     "bullmq": "^5.76.4",
