@@ -138,6 +138,12 @@ function makeMockLeaguesService() {
   };
 }
 
+function makeMockMembershipRequestsService() {
+  return {
+    review: vi.fn().mockResolvedValue({}),
+  };
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ReviewQueueService', () => {
@@ -168,6 +174,7 @@ describe('ReviewQueueService', () => {
       mockExchangeEditService as never,
       mockRulesetsService as never,
       makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     const result = await service.listAll(null, null);
@@ -205,6 +212,7 @@ describe('ReviewQueueService', () => {
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     const result = await service.listAll('deletion', null);
@@ -260,6 +268,7 @@ describe('ReviewQueueService', () => {
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     const result = await service.listAll('league_tournament_request', null);
@@ -284,6 +293,7 @@ describe('ReviewQueueService', () => {
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
       leagues as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     await service.approve('league_tournament_request', 'link-1', 'actor-1');
@@ -293,6 +303,25 @@ describe('ReviewQueueService', () => {
       { status: 'approved' },
       'actor-1',
     );
+  });
+
+  // ── 2d. approve(league_membership_request) dispatches to membership service ──
+
+  it('approve(league_membership_request) calls membership review with status=approved', async () => {
+    const membership = makeMockMembershipRequestsService();
+    const supabase = makeSupabaseMock({});
+    service = new ReviewQueueService(
+      supabase as never,
+      makeMockEventsService() as never,
+      makeMockExchangeEditService() as never,
+      makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
+      membership as never,
+    );
+
+    await service.approve('league_membership_request', 'req-1', 'actor-1');
+
+    expect(membership.review).toHaveBeenCalledWith('req-1', { status: 'approved' }, 'actor-1');
   });
 
   // ── 3. approve(deletion) requires typedConfirmation='DELETE' ─────────────────
@@ -305,6 +334,7 @@ describe('ReviewQueueService', () => {
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     await expect(service.approve('deletion', 'req-1', 'actor-1', {})).rejects.toThrow(
@@ -359,6 +389,7 @@ describe('ReviewQueueService', () => {
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     await service.approve('deletion', 'req-1', 'actor-user', { typedConfirmation: 'DELETE' });
@@ -410,6 +441,7 @@ describe('ReviewQueueService', () => {
       makeMockExchangeEditService() as never,
       makeMockRulesetsService() as never,
       makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
     );
 
     const reason = 'This request does not meet the requirements for deletion.';

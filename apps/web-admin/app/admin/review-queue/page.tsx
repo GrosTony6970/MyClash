@@ -16,7 +16,8 @@ type TabValue =
   | 'exchange_edit'
   | 'club_review'
   | 'ruleset_submission'
-  | 'league_tournament_request';
+  | 'league_tournament_request'
+  | 'league_membership_request';
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
 interface Tab {
@@ -35,6 +36,10 @@ const TABS: Tab[] = [
   {
     value: 'league_tournament_request',
     label: t('admin.reviewQueue.tabLeagueTournamentRequests') || 'League tournament requests',
+  },
+  {
+    value: 'league_membership_request',
+    label: t('admin.reviewQueue.tabLeagueMembershipRequests') || 'League join requests',
   },
 ];
 

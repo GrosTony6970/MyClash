@@ -13,6 +13,7 @@ const TYPE_BADGE: Record<ReviewQueueItem['type'], { color: string; label: string
   club_review: { color: 'green', label: 'Club review' },
   ruleset_submission: { color: 'amber', label: 'Ruleset' },
   league_tournament_request: { color: 'red', label: 'League request' },
+  league_membership_request: { color: 'red', label: 'League join request' },
 };
 
 // ── Status pill ───────────────────────────────────────────────────────────────

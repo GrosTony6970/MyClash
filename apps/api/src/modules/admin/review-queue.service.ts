@@ -10,6 +10,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EventsService } from '../events/events.service';
+import { LeagueMembershipRequestsService } from '../leagues/league-membership-requests.service';
 import { LeaguesService } from '../leagues/leagues.service';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
@@ -22,7 +23,8 @@ export interface ReviewQueueItem {
     | 'exchange_edit'
     | 'club_review'
     | 'ruleset_submission'
-    | 'league_tournament_request';
+    | 'league_tournament_request'
+    | 'league_membership_request';
   id: string;
   status: 'pending' | 'approved' | 'rejected' | 'linked' | 'cancelled';
   targetLabel: string;
@@ -58,6 +60,7 @@ export class ReviewQueueService {
     private readonly exchangeEditService: ExchangeEditRequestsAdminService,
     private readonly rulesetsService: AdminRulesetsService,
     private readonly leaguesService: LeaguesService,
+    private readonly membershipRequestsService: LeagueMembershipRequestsService,
   ) {}
 
   // ── listAll ──────────────────────────────────────────────────────────────────
@@ -68,7 +71,14 @@ export class ReviewQueueService {
   ): Promise<ReviewQueueItem[]> {
     const effectiveStatus = statusFilter === null ? 'pending' : statusFilter;
 
-    const [deletions, exchanges, clubReviews, rulesets, leagueTournamentReqs] = await Promise.all([
+    const [
+      deletions,
+      exchanges,
+      clubReviews,
+      rulesets,
+      leagueTournamentReqs,
+      leagueMembershipReqs,
+    ] = await Promise.all([
       !typeFilter || typeFilter === 'deletion'
         ? this.fetchDeletions(effectiveStatus)
         : Promise.resolve([] as ReviewQueueItem[]),
@@ -84,9 +94,19 @@ export class ReviewQueueService {
       !typeFilter || typeFilter === 'league_tournament_request'
         ? this.fetchLeagueTournamentRequests(effectiveStatus)
         : Promise.resolve([] as ReviewQueueItem[]),
+      !typeFilter || typeFilter === 'league_membership_request'
+        ? this.fetchLeagueMembershipRequests(effectiveStatus)
+        : Promise.resolve([] as ReviewQueueItem[]),
     ]);
 
-    const all = [...deletions, ...exchanges, ...clubReviews, ...rulesets, ...leagueTournamentReqs];
+    const all = [
+      ...deletions,
+      ...exchanges,
+      ...clubReviews,
+      ...rulesets,
+      ...leagueTournamentReqs,
+      ...leagueMembershipReqs,
+    ];
     all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     return all;
   }
@@ -118,6 +138,16 @@ export class ReviewQueueService {
           actorUserId,
           'league.tournament_request.approved',
           'league_tournament_link',
+          id,
+          {},
+        );
+        break;
+      case 'league_membership_request':
+        await this.membershipRequestsService.review(id, { status: 'approved' }, actorUserId);
+        await this.writeAuditLog(
+          actorUserId,
+          'league.membership_request.approved',
+          'league_membership_request',
           id,
           {},
         );
@@ -168,6 +198,20 @@ export class ReviewQueueService {
           actorUserId,
           'league.tournament_request.rejected',
           'league_tournament_link',
+          id,
+          { rejectionReason },
+        );
+        break;
+      case 'league_membership_request':
+        await this.membershipRequestsService.review(
+          id,
+          { status: 'rejected', reviewNote: rejectionReason },
+          actorUserId,
+        );
+        await this.writeAuditLog(
+          actorUserId,
+          'league.membership_request.rejected',
+          'league_membership_request',
           id,
           { rejectionReason },
         );
@@ -489,6 +533,82 @@ export class ReviewQueueService {
         reviewedByEmail: revUser?.email ?? null,
         reviewedAt: (r['reviewed_at'] as string | null) ?? null,
         createdAt: (r['created_at'] as string | null) ?? new Date(0).toISOString(),
+      };
+    });
+  }
+
+  private async fetchLeagueMembershipRequests(statusFilter: string): Promise<ReviewQueueItem[]> {
+    const dbStatus = statusFilter === 'pending' ? 'requested' : statusFilter;
+
+    let q = this.supabase.service
+      .from('league_membership_requests')
+      .select('*, leagues:league_id(id, name, slug), organizations:organization_id(id, name, slug)')
+      .order('requested_at', { ascending: false });
+    if (dbStatus !== 'all') q = q.eq('status', dbStatus) as typeof q;
+
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Record<string, unknown>[];
+
+    const userIds = [
+      ...new Set([
+        ...rows
+          .map((r) => r['requested_by_user_id'] as string | null)
+          .filter((id): id is string => Boolean(id)),
+        ...rows
+          .map((r) => r['reviewed_by_user_id'] as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const userMap = await this.resolveUsers(userIds);
+
+    return rows.map((r) => {
+      const league = (r['leagues'] ?? {}) as Record<string, unknown>;
+      const org = (r['organizations'] ?? {}) as Record<string, unknown>;
+
+      const leagueId = (league['id'] as string | null) ?? null;
+      const leagueName = (league['name'] as string | null) ?? leagueId ?? 'Unknown league';
+      const orgId = (org['id'] as string | null) ?? null;
+      const orgName = (org['name'] as string | null) ?? null;
+
+      const reqId = (r['requested_by_user_id'] as string | null) ?? '';
+      const reqUser = reqId ? userMap.get(reqId) : null;
+      const revId = (r['reviewed_by_user_id'] as string | null) ?? null;
+      const revUser = revId ? userMap.get(revId) : null;
+
+      const dbStat = r['status'] as string;
+      const normalised: ReviewQueueItem['status'] =
+        dbStat === 'requested'
+          ? 'pending'
+          : dbStat === 'approved'
+            ? 'approved'
+            : dbStat === 'rejected'
+              ? 'rejected'
+              : dbStat === 'withdrawn'
+                ? 'cancelled'
+                : 'pending';
+
+      return {
+        type: 'league_membership_request' as const,
+        id: r['id'] as string,
+        status: normalised,
+        targetLabel: orgName ? `${orgName} → ${leagueName}` : `Organization → ${leagueName}`,
+        targetHref: leagueId ? `/admin/leagues/${leagueId}/edit` : null,
+        requesterUserId: reqId,
+        requesterName: reqUser?.name ?? reqId ?? 'unknown',
+        requesterEmail: reqUser?.email ?? null,
+        organizationId: orgId,
+        organizationName: orgName,
+        reason: (r['message'] as string | null) ?? null,
+        rejectionReason: (r['review_note'] as string | null) ?? null,
+        reviewedByUserId: revId,
+        reviewedByName: revUser?.name ?? null,
+        reviewedByEmail: revUser?.email ?? null,
+        reviewedAt: (r['reviewed_at'] as string | null) ?? null,
+        createdAt:
+          (r['requested_at'] as string | null) ??
+          (r['created_at'] as string | null) ??
+          new Date(0).toISOString(),
       };
     });
   }

@@ -25,6 +25,24 @@ export interface LeagueTournamentRequest {
   } | null;
 }
 
+export interface LeagueMembershipRequest {
+  id: string;
+  league_id: string;
+  organization_id: string;
+  requested_role: string;
+  status: 'requested' | 'approved' | 'rejected' | 'withdrawn';
+  message: string | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  review_note: string | null;
+  organizations?: {
+    id: string;
+    name: string | null;
+    slug: string | null;
+    logo_url: string | null;
+  } | null;
+}
+
 interface Props {
   leagueId: string;
   // When true, render in standalone-page chrome; otherwise as a section
@@ -38,7 +56,10 @@ type Tab = 'tournament_attaches' | 'membership_requests';
 
 export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Props) {
   const [tab, setTab] = useState<Tab>('tournament_attaches');
-  const [rows, setRows] = useState<LeagueTournamentRequest[]>([]);
+
+  const [tournamentRows, setTournamentRows] = useState<LeagueTournamentRequest[]>([]);
+  const [membershipRows, setMembershipRows] = useState<LeagueMembershipRequest[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -49,13 +70,23 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${leagueId}/requests?status=requested`,
-        { credentials: 'include' },
-      );
-      if (!res.ok) throw new Error('Could not load requests');
-      const data = (await res.json()) as LeagueTournamentRequest[];
-      setRows(data);
+      const [tRes, mRes] = await Promise.all([
+        fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/requests?status=requested`, {
+          credentials: 'include',
+        }),
+        fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/membership-requests?status=requested`, {
+          credentials: 'include',
+        }),
+      ]);
+      if (!tRes.ok) throw new Error('Could not load tournament requests');
+      const tData = (await tRes.json()) as LeagueTournamentRequest[];
+      setTournamentRows(tData);
+      if (mRes.ok) {
+        const mData = (await mRes.json()) as LeagueMembershipRequest[];
+        setMembershipRows(mData);
+      } else {
+        setMembershipRows([]);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load requests');
@@ -68,7 +99,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
     void reload();
   }, [reload]);
 
-  async function review(linkId: string, status: 'approved' | 'rejected') {
+  async function reviewTournamentLink(linkId: string, status: 'approved' | 'rejected') {
     setBusyId(linkId);
     try {
       const body: Record<string, unknown> = { status };
@@ -96,6 +127,34 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
     }
   }
 
+  async function reviewMembership(reqId: string, status: 'approved' | 'rejected') {
+    setBusyId(reqId);
+    try {
+      const body: Record<string, unknown> = { status };
+      if (status === 'rejected' && rejectReason.trim()) {
+        body['reviewNote'] = rejectReason.trim();
+      }
+      const res = await fetch(`${apiUrl}/api/v1/admin/league-membership-requests/${reqId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(err.message ?? `${status} failed`);
+      }
+      toast.success(status === 'approved' ? 'Join request approved' : 'Join request rejected');
+      setRejectingId(null);
+      setRejectReason('');
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `${status} failed`);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const wrapClass = standalone
     ? 'rounded-lg border border-slate-200 bg-white p-6 shadow-sm'
     : 'rounded-lg border border-slate-200 bg-white p-4 shadow-sm';
@@ -106,7 +165,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{title ?? 'Pending requests'}</h2>
           <p className="text-xs text-slate-500">
-            Tournament-attach requests from organizers. Accept or refuse to advance the workflow.
+            Tournament attaches and org-join requests. Accept or refuse to advance the workflow.
           </p>
         </div>
         <button
@@ -118,7 +177,6 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
         </button>
       </header>
 
-      {/* Inner tabs — only one type today; Bundle 3 will enable the second. */}
       <div className="mb-3 flex gap-1 border-b border-slate-200 text-sm">
         <button
           type="button"
@@ -132,7 +190,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
         >
           Tournament attaches{' '}
           <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
-            {rows.length}
+            {tournamentRows.length}
           </span>
         </button>
         <button
@@ -145,7 +203,10 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
               : 'border-transparent text-slate-500 hover:text-slate-700',
           ].join(' ')}
         >
-          Org join requests
+          Org join requests{' '}
+          <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+            {membershipRows.length}
+          </span>
         </button>
       </div>
 
@@ -158,11 +219,11 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       {tab === 'tournament_attaches' ? (
         <>
           {loading && <p className="py-4 text-sm text-slate-400">Loading…</p>}
-          {!loading && rows.length === 0 && (
+          {!loading && tournamentRows.length === 0 && (
             <p className="py-4 text-sm text-slate-500">No pending tournament-attach requests.</p>
           )}
           <ul className="space-y-2">
-            {rows.map((row) => {
+            {tournamentRows.map((row) => {
               const tournament = row.tournaments;
               const event = tournament?.events;
               const org = event?.organizations;
@@ -193,7 +254,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                     <div className="flex shrink-0 gap-2">
                       <button
                         type="button"
-                        onClick={() => void review(row.id, 'approved')}
+                        onClick={() => void reviewTournamentLink(row.id, 'approved')}
                         disabled={busyId === row.id || isRejecting}
                         className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                       >
@@ -213,34 +274,16 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                     </div>
                   </div>
                   {isRejecting && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                        placeholder="Reason (optional)"
-                        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void review(row.id, 'rejected')}
-                        disabled={busyId === row.id}
-                        className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
-                      >
-                        Confirm refuse
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRejectingId(null);
-                          setRejectReason('');
-                        }}
-                        className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                    <RejectInline
+                      busy={busyId === row.id}
+                      reason={rejectReason}
+                      setReason={setRejectReason}
+                      onConfirm={() => void reviewTournamentLink(row.id, 'rejected')}
+                      onCancel={() => {
+                        setRejectingId(null);
+                        setRejectReason('');
+                      }}
+                    />
                   )}
                 </li>
               );
@@ -248,10 +291,112 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
           </ul>
         </>
       ) : (
-        <p className="py-4 text-sm text-slate-500">
-          Org join requests will appear here once the membership-request flow ships.
-        </p>
+        <>
+          {loading && <p className="py-4 text-sm text-slate-400">Loading…</p>}
+          {!loading && membershipRows.length === 0 && (
+            <p className="py-4 text-sm text-slate-500">No pending join requests.</p>
+          )}
+          <ul className="space-y-2">
+            {membershipRows.map((row) => {
+              const isRejecting = rejectingId === row.id;
+              return (
+                <li
+                  key={row.id}
+                  className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-900">
+                        {row.organizations?.name ?? 'Organization'}
+                        <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-mono text-slate-600">
+                          {row.requested_role}
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Submitted {new Date(row.requested_at).toLocaleString()}
+                      </p>
+                      {row.message && (
+                        <p className="mt-1 text-xs italic text-slate-600">"{row.message}"</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void reviewMembership(row.id, 'approved')}
+                        disabled={busyId === row.id || isRejecting}
+                        className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectingId(row.id);
+                          setRejectReason('');
+                        }}
+                        disabled={busyId === row.id || isRejecting}
+                        className="rounded-md border border-red-700 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Refuse
+                      </button>
+                    </div>
+                  </div>
+                  {isRejecting && (
+                    <RejectInline
+                      busy={busyId === row.id}
+                      reason={rejectReason}
+                      setReason={setRejectReason}
+                      onConfirm={() => void reviewMembership(row.id, 'rejected')}
+                      onCancel={() => {
+                        setRejectingId(null);
+                        setRejectReason('');
+                      }}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </section>
+  );
+}
+
+interface RejectInlineProps {
+  busy: boolean;
+  reason: string;
+  setReason: (s: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function RejectInline({ busy, reason, setReason, onConfirm, onCancel }: RejectInlineProps) {
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <input
+        type="text"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="Reason (optional)"
+        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
+        autoFocus
+      />
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={busy}
+        className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+      >
+        Confirm refuse
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
