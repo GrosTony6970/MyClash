@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { LeaguesService } from './leagues.service';
 
@@ -142,6 +142,101 @@ describe('LeaguesService create authorization', () => {
         role: 'owner',
       }),
     ]);
+  });
+
+  describe('addOrganizationRole platform-org guard', () => {
+    function buildAddOrgService(orgRow: { is_platform?: boolean; slug?: string } | null) {
+      const upsertPayloads: unknown[] = [];
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'platform_roles') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { role: 'super_admin' },
+                  error: null,
+                }),
+              };
+            }
+            if (table === 'organizations') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: orgRow, error: null }),
+              };
+            }
+            // league_organization_roles + anything else
+            return {
+              upsert: vi.fn((payload: unknown) => {
+                upsertPayloads.push(payload);
+                return {
+                  select: vi.fn().mockReturnThis(),
+                  single: vi.fn().mockResolvedValue({ data: payload, error: null }),
+                };
+              }),
+            };
+          }),
+        },
+      };
+      const service = new LeaguesService(
+        supabase as never,
+        { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+        {} as never,
+      );
+      return { service, upsertPayloads };
+    }
+
+    it('rejects an organization flagged as is_platform=true', async () => {
+      const { service, upsertPayloads } = buildAddOrgService({
+        is_platform: true,
+        slug: 'myclash-hq',
+      });
+      await expect(
+        service.addOrganizationRole(
+          'league-1',
+          { organizationId: 'platform-org', role: 'member' as never },
+          'super-admin-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(upsertPayloads).toEqual([]);
+    });
+
+    it('rejects the well-known myclash-hq slug even when is_platform is false', async () => {
+      // Defends against legacy rows where migration 0049's backfill missed.
+      const { service, upsertPayloads } = buildAddOrgService({
+        is_platform: false,
+        slug: 'myclash-hq',
+      });
+      await expect(
+        service.addOrganizationRole(
+          'league-1',
+          { organizationId: 'platform-org', role: 'member' as never },
+          'super-admin-1',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(upsertPayloads).toEqual([]);
+    });
+
+    it('accepts a non-platform organization', async () => {
+      const { service, upsertPayloads } = buildAddOrgService({
+        is_platform: false,
+        slug: 'lyon-amhe',
+      });
+      await service.addOrganizationRole(
+        'league-1',
+        { organizationId: 'lyon-org', role: 'member' as never },
+        'super-admin-1',
+      );
+      expect(upsertPayloads).toEqual([
+        expect.objectContaining({
+          league_id: 'league-1',
+          organization_id: 'lyon-org',
+          role: 'member',
+        }),
+      ]);
+    });
   });
 
   it('returns a conflict for duplicate league slugs', async () => {

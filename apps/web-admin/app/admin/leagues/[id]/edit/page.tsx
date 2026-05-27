@@ -264,7 +264,11 @@ export default function EditLeaguePage() {
 
   const availableOrgs = useMemo(() => {
     const taken = new Set(orgRoles.map((r) => r.organizationId));
-    return allOrgs.filter((o) => !taken.has(o.id));
+    // Belt-and-braces: server query already passes `excludePlatform=true`, but
+    // legacy rows where `is_platform` was never flagged still slip through.
+    // Drop the well-known platform slug `myclash-hq` here so the picker is
+    // always clean — the server's addOrganizationRole guard also refuses it.
+    return allOrgs.filter((o) => !taken.has(o.id) && o.slug !== 'myclash-hq');
   }, [allOrgs, orgRoles]);
 
   const filteredEvents = useMemo(() => {

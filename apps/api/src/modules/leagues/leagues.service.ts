@@ -198,6 +198,26 @@ export class LeaguesService {
 
   async addOrganizationRole(leagueId: string, dto: AddLeagueOrganizationRoleDto, userId: string) {
     await this.assertCanManageLeague(leagueId, userId);
+    // Belt-and-braces: the FE filters the platform org out of the picker, but a
+    // bypassed call must still be rejected. The org's `is_platform` flag is
+    // the canonical source; we also defend against legacy rows where the flag
+    // wasn't backfilled by matching the well-known `myclash-hq` slug.
+    const { data: org, error: orgError } = await this.supabase.service
+      .from('organizations')
+      .select('id, slug, is_platform')
+      .eq('id', dto.organizationId)
+      .maybeSingle();
+    if (orgError) throw new BadRequestException(orgError.message);
+    if (!org) throw new BadRequestException('Organization not found.');
+    const platformOrg =
+      (org as { is_platform?: boolean; slug?: string }).is_platform === true ||
+      (org as { slug?: string }).slug === 'myclash-hq';
+    if (platformOrg) {
+      throw new BadRequestException(
+        'The MyClash platform organisation cannot be added to a league.',
+      );
+    }
+
     const { data, error } = await this.supabase.service
       .from('league_organization_roles')
       .upsert({
