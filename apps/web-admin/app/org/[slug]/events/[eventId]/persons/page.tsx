@@ -290,8 +290,10 @@ export default function ParticipantsPage() {
           return (ac - bc) * dir;
         }
         case 'referee': {
-          const ar = refereePersonIds.has(a.id);
-          const br = refereePersonIds.has(b.id);
+          // refereePersonIds holds global_persons.id values; the row's id is
+          // event-scoped. Match on globalPersonId.
+          const ar = a.globalPersonId ? refereePersonIds.has(a.globalPersonId) : false;
+          const br = b.globalPersonId ? refereePersonIds.has(b.globalPersonId) : false;
           return (Number(br) - Number(ar)) * dir; // true first when asc
         }
         default:
@@ -350,13 +352,18 @@ export default function ParticipantsPage() {
         const body = (await personRes.json()) as { message?: string };
         throw new Error(body.message ?? 'Failed to create participant');
       }
-      const person = (await personRes.json()) as { id: string; claimedByUserId?: string | null };
+      const person = (await personRes.json()) as {
+        id: string;
+        globalPersonId: string | null;
+        claimedByUserId?: string | null;
+      };
 
-      // Post-0063: referee registration keys on the person's global_persons.id.
-      // Claimed-vs-unclaimed is irrelevant to the API call; we only surface
-      // the "unclaimed" hint in the success toast for operator clarity.
-      if (addForm.isReferee) {
-        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${person.id}`;
+      // Post-0063: referee registration keys on the person's global_persons.id,
+      // NOT the event-scoped persons.id. createPerson always resolves or creates
+      // a global_persons row, so globalPersonId is non-null in practice — the
+      // guard exists only to satisfy the type.
+      if (addForm.isReferee && person.globalPersonId) {
+        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${person.globalPersonId}`;
         fetch(url, { method: 'POST', credentials: 'include' })
           .then(async (res) => {
             if (!res.ok) {
@@ -410,7 +417,7 @@ export default function ParticipantsPage() {
 
   function openEdit(p: Person) {
     setEditPerson(p);
-    const currentlyReferee = refereePersonIds.has(p.id);
+    const currentlyReferee = p.globalPersonId ? refereePersonIds.has(p.globalPersonId) : false;
     setEditForm({
       givenName: p.givenName,
       familyName: p.familyName,
@@ -500,14 +507,21 @@ export default function ParticipantsPage() {
         toast.success('Profile and tournament assignments updated.');
       }
 
-      // Post-0063: referee endpoints key on person_id only.
-      const wasReferee = refereePersonIds.has(editPerson.id);
+      // Post-0063: referee endpoints key on global_persons.id, NOT the
+      // event-scoped persons.id. refereePersonIds holds global ids too.
+      const wasReferee = editPerson.globalPersonId
+        ? refereePersonIds.has(editPerson.globalPersonId)
+        : false;
       if (editForm.isReferee !== wasReferee) {
-        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${editPerson.id}`;
-        const method = editForm.isReferee ? 'POST' : 'DELETE';
-        const r = await fetch(url, { method, credentials: 'include' });
-        if (!r.ok) {
+        if (!editPerson.globalPersonId) {
           toast.warning(t('organizer.persons.refereeUpdateFailed'));
+        } else {
+          const url = `${apiUrl}/api/v1/events/${eventId}/referees/${editPerson.globalPersonId}`;
+          const method = editForm.isReferee ? 'POST' : 'DELETE';
+          const r = await fetch(url, { method, credentials: 'include' });
+          if (!r.ok) {
+            toast.warning(t('organizer.persons.refereeUpdateFailed'));
+          }
         }
       }
 
@@ -960,7 +974,7 @@ export default function ParticipantsPage() {
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      {refereePersonIds.has(p.id) ? (
+                      {p.globalPersonId && refereePersonIds.has(p.globalPersonId) ? (
                         <SkillBadge
                           color="violet"
                           label={
