@@ -334,7 +334,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config_json)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -361,7 +361,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config_json)),pools(sort_order),bracket_slots(round)',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -570,7 +570,7 @@ export class StaffService {
         weapon?: string;
         bracket_size?: number | null;
         scoring_config_json?: unknown;
-        ruleset_config_json?: { matchFormat?: unknown };
+        ruleset_config?: { matchFormat?: unknown };
       };
     } | null;
     const tournament = phase?.tournaments ?? null;
@@ -607,7 +607,7 @@ export class StaffService {
       tournamentName: tournament?.name ?? null,
       weapon: tournament?.weapon ?? null,
       scoringConfig: tournament?.scoring_config_json ?? null,
-      matchFormat: tournament?.ruleset_config_json?.matchFormat ?? null,
+      matchFormat: tournament?.ruleset_config?.matchFormat ?? null,
     };
   }
 
@@ -626,7 +626,7 @@ export class StaffService {
         weapon?: string;
         bracket_size?: number | null;
         scoring_config_json?: unknown;
-        ruleset_config_json?: { matchFormat?: unknown };
+        ruleset_config?: { matchFormat?: unknown };
       };
     } | null;
     const pool = match['pools'] as { sort_order?: number } | null;
@@ -668,7 +668,7 @@ export class StaffService {
       event: lices?.events ?? null,
       tournament: phases?.tournaments ?? null,
       scoringConfig: phases?.tournaments?.scoring_config_json ?? null,
-      matchFormat: phases?.tournaments?.ruleset_config_json?.matchFormat ?? null,
+      matchFormat: phases?.tournaments?.ruleset_config?.matchFormat ?? null,
     };
   }
 }
