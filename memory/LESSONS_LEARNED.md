@@ -48,6 +48,7 @@
 - Run `pnpm lint && pnpm typecheck && pnpm test` before opening every PR. CI is the second line of defense, not the first.
 - When a build task references an `[O-NNN]` owner-side prerequisite that's not done, **stop and notify the user**. Do not improvise around it.
 - For local perf-budget builds of Next apps, allow a non-standalone build mode when standalone Docker output is irrelevant. It keeps budget scripts focused on route assets and avoids Windows/pnpm trace edge cases in local verification.
+- When a workspace package becomes a new `dependency` of `@myclash/ui` (or any other widely-imported shared package), audit **every** app Dockerfile that builds it. Each Dockerfile must (a) `COPY packages/<new-pkg>/` into both the deps and builder stages, (b) include `--filter @myclash/<new-pkg>` in the install step, and (c) place `pnpm --filter @myclash/<new-pkg> build` **before** the consuming package's build step. `tsc` resolves `workspace:^` deps from `dist/index.d.ts` on disk, not via the pnpm symlink — wrong build order produces `TS2307: Cannot find module` even though `pnpm install` succeeded. Local `pnpm typecheck` won't catch this because it builds packages in topological order automatically; only Docker does it manually.
 
 ## Identity & auth
 

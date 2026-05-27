@@ -65,9 +65,9 @@ RUN pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/design-tokens build \
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/api-client build \
- && pnpm --filter @myclash/ui build \
  && pnpm --filter @myclash/rulesets build \
  && pnpm --filter @myclash/feature-flags build \
+ && pnpm --filter @myclash/ui build \
  && pnpm --filter @myclash/web-admin build
 
 FROM node:${NODE_VERSION}-alpine AS runner
