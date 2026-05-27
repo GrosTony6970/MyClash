@@ -18,6 +18,7 @@ COPY packages/ui/package.json ./packages/ui/
 COPY packages/design-tokens/package.json ./packages/design-tokens/
 COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/api-client/package.json ./packages/api-client/
+COPY packages/feature-flags/package.json ./packages/feature-flags/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile \
       --filter @myclash/web-scoring \
@@ -25,7 +26,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
       --filter @myclash/ui \
       --filter @myclash/design-tokens \
       --filter @myclash/i18n \
-      --filter @myclash/api-client
+      --filter @myclash/api-client \
+      --filter @myclash/feature-flags
 
 FROM deps AS builder
 ARG GIT_COMMIT=unknown
@@ -54,11 +56,15 @@ COPY packages/ui/ ./packages/ui/
 COPY packages/design-tokens/ ./packages/design-tokens/
 COPY packages/i18n/ ./packages/i18n/
 COPY packages/api-client/ ./packages/api-client/
+COPY packages/feature-flags/ ./packages/feature-flags/
 
+# feature-flags is built before ui because @myclash/ui imports types from it
+# (MaintenanceBanner + useRuntimeFlags consume PublicFeatureFlagsSnapshot).
 RUN pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/design-tokens build \
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/api-client build \
+ && pnpm --filter @myclash/feature-flags build \
  && pnpm --filter @myclash/ui build \
  && pnpm --filter @myclash/web-scoring build
 

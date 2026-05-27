@@ -57,6 +57,7 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly resend: Resend;
   private readonly from: string;
+  private readonly logoUrl: string;
 
   constructor(
     private readonly config: ConfigService,
@@ -64,7 +65,37 @@ export class MailService {
   ) {
     const apiKey = config.getOrThrow<string>('RESEND_API_KEY');
     this.from = config.get<string>('MAIL_FROM', 'noreply@myclash.fr');
+    // The logo lives in every Next app's `public/brand/` dir; we point at
+    // the root domain in prod (`https://myclash.fr/brand/...`). Operators
+    // can override via MAIL_LOGO_URL if they host the asset elsewhere
+    // (e.g. a CDN) without redeploying the API code.
+    const domain = config.get<string>('DOMAIN', 'myclash.fr');
+    this.logoUrl = config.get<string>(
+      'MAIL_LOGO_URL',
+      `https://${domain}/brand/Logomini_nobackground.png`,
+    );
     this.resend = new Resend(apiKey);
+  }
+
+  /**
+   * Shared header markup for every outbound email: a 40×40 logo image
+   * next to the "MyClash" wordmark. The wordmark stays as text so
+   * image-blocking clients (Outlook desktop, privacy-mode webmail)
+   * still see the brand. Inline styles only — email clients ignore
+   * <style> blocks and external CSS.
+   */
+  private renderHeader(): string {
+    return `
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px">
+  <tr>
+    <td style="vertical-align:middle;padding-right:12px">
+      <img src="${escapeHtml(this.logoUrl)}" alt="MyClash" width="40" height="40" style="display:block;border:0;outline:none;text-decoration:none">
+    </td>
+    <td style="vertical-align:middle;font-family:sans-serif;font-size:24px;font-weight:bold;color:#1a1a1a">
+      MyClash
+    </td>
+  </tr>
+</table>`;
   }
 
   /**
@@ -100,7 +131,7 @@ export class MailService {
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  ${this.renderHeader()}
   <p>${greeting}</p>
   ${intro}
   <p style="margin:32px 0">
@@ -170,7 +201,7 @@ export class MailService {
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  ${this.renderHeader()}
   <p style="display:inline-block;background:${severityColor};color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:bold">${severityLabel}</p>
   <h2 style="font-size:20px;margin-bottom:12px">${title}</h2>
   <p>${body}</p>
@@ -214,7 +245,7 @@ export class MailService {
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  ${this.renderHeader()}
   <p>${greeting}</p>
   <p>Vous avez demande a changer l email de votre compte MyClash de <strong>${oldEmail}</strong> vers <strong>${newEmail}</strong>.</p>
   <p>You requested to change your MyClash account email from <strong>${oldEmail}</strong> to <strong>${newEmail}</strong>.</p>
@@ -261,7 +292,7 @@ export class MailService {
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  ${this.renderHeader()}
   <p>Bonjour ${displayName},</p>
   <p>Un compte MyClash a ete cree pour vous en tant qu organisateur de <strong>${orgName}</strong>.</p>
   <p>A MyClash account has been created for you as organizer of <strong>${orgName}</strong>.</p>
@@ -314,7 +345,7 @@ export class MailService {
 <html lang="fr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-  <h1 style="font-size:24px;margin-bottom:8px">MyClash</h1>
+  ${this.renderHeader()}
   <h2 style="font-size:20px;margin-bottom:12px">${title}</h2>
   <p>${body}</p>
   ${
