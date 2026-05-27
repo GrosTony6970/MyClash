@@ -3,32 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { TournamentColorDot, useToast } from '@myclash/ui';
+import {
+  buildDisplayConfigFromRow,
+  DISPLAY_DEFAULTS,
+  type AfterblowButton,
+  type CleanButton,
+  type DisplayState,
+} from './buildDisplayConfigFromRow';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-
-interface CleanButton {
-  label: string;
-  value: number;
-  visible: boolean;
-}
-interface AfterblowButton {
-  label: string;
-  attackerPts: number;
-  defenderPts: number;
-  visible: boolean;
-}
-interface DisplayState {
-  sideColors: { red: string; blue: string };
-  buttons: { clean: CleanButton[]; afterblow: AfterblowButton[] };
-}
-
-const DEFAULTS: DisplayState = {
-  sideColors: { red: 'red', blue: 'blue' },
-  buttons: {
-    clean: [{ label: 'Point', value: 1, visible: true }],
-    afterblow: [{ label: 'Afterblow', attackerPts: 1, defenderPts: 1, visible: true }],
-  },
-};
+const DEFAULTS: DisplayState = DISPLAY_DEFAULTS;
 
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];
 
@@ -78,17 +62,13 @@ export function Step3Display({
         setRulesetCode(row.ruleset_code);
         setTournamentColor((row.color as string | null) ?? '');
         setLogoUrl((row.logo_url as string | null) ?? null);
-        const sc = (row.scoring_config ?? {}) as {
-          display?: { sideColors?: { red: string; blue: string } };
-          buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
-        };
-        setData({
-          sideColors: sc.display?.sideColors ?? DEFAULTS.sideColors,
-          buttons: {
-            clean: sc.buttons?.clean ?? DEFAULTS.buttons.clean,
-            afterblow: sc.buttons?.afterblow ?? DEFAULTS.buttons.afterblow,
-          },
-        });
+        // Pluck-not-spread, same as Step 2 / Step 4.
+        setData(
+          buildDisplayConfigFromRow(
+            (row.scoring_config ?? {}) as Record<string, unknown>,
+            DEFAULTS,
+          ),
+        );
       });
   }, [tournamentId]);
 

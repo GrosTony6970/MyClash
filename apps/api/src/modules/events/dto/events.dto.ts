@@ -227,7 +227,17 @@ class TargetValuesDto {
   shallowTarget?: number;
 }
 
-class ForfeitPolicyDto {
+/**
+ * Tournament-level policy switches set by the wizard's Step 4.
+ *
+ * Renamed from `ForfeitPolicyDto` / `forfeitPolicy` because that name
+ * collided with the rulesets-engine `forfeitPolicy.reasons.*` blob
+ * (per-reason scoring data) — same JSON key, totally different shape.
+ * The collision tripped a 400 on the wizard's final PATCH whenever the
+ * persisted row carried the engine shape. Migration 0062 moves any
+ * legacy wizard-shape rows from `forfeitPolicy` to `tournamentPolicy`.
+ */
+class TournamentPolicyDto {
   @IsOptional()
   @IsBoolean()
   forfeitDrawsCount?: boolean;
@@ -316,8 +326,8 @@ class TournamentRulesetConfigDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => ForfeitPolicyDto)
-  forfeitPolicy?: ForfeitPolicyDto;
+  @Type(() => TournamentPolicyDto)
+  tournamentPolicy?: TournamentPolicyDto;
 
   @IsOptional()
   @ValidateNested()

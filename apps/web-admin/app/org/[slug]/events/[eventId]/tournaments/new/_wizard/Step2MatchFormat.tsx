@@ -3,28 +3,16 @@
 import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
+import {
+  buildMatchFormatFromRow,
+  MATCH_FORMAT_DEFAULTS,
+  type WizardMatchFormat,
+} from './buildMatchFormatFromRow';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
-interface MatchFormat {
-  pointCap: number;
-  timerMode: 'countdown' | 'countup';
-  timeLimitsSeconds: { pool: number | null; bracket: number | null; finals: number | null };
-  softClockLimitSeconds: number;
-  maxDoubleHits: number | null;
-  afterblowMode: 'full' | 'deductive';
-  scoringDirection: 'normal' | 'reverse_zero_loses';
-}
-
-const DEFAULTS: MatchFormat = {
-  pointCap: 5,
-  timerMode: 'countdown',
-  timeLimitsSeconds: { pool: 180, bracket: 240, finals: 300 },
-  softClockLimitSeconds: 60,
-  maxDoubleHits: 3,
-  afterblowMode: 'full',
-  scoringDirection: 'normal',
-};
+type MatchFormat = WizardMatchFormat;
+const DEFAULTS: MatchFormat = MATCH_FORMAT_DEFAULTS;
 
 export function Step2MatchFormat({
   tournamentId,
@@ -46,18 +34,15 @@ export function Step2MatchFormat({
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
-        const rc = (row.ruleset_config ?? {}) as { matchFormat?: Partial<MatchFormat> };
-        const mf = rc.matchFormat ?? {};
-        const sc = (row.scoring_config_json ?? {}) as Partial<MatchFormat>;
-        setData({
-          pointCap: mf.pointCap ?? DEFAULTS.pointCap,
-          timerMode: mf.timerMode ?? DEFAULTS.timerMode,
-          timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
-          softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
-          maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
-          scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
-          afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
-        });
+        // Pluck-not-spread to keep stray engine/legacy keys out of the
+        // PATCH body — same discipline as Step 4. See buildMatchFormatFromRow.
+        setData(
+          buildMatchFormatFromRow(
+            (row.ruleset_config ?? {}) as Record<string, unknown>,
+            (row.scoring_config_json ?? {}) as Record<string, unknown>,
+            DEFAULTS,
+          ),
+        );
       });
   }, [tournamentId]);
 

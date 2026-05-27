@@ -15,6 +15,21 @@ import {
 } from '../match-format';
 import { DEFAULT_FORFEIT_POLICY, ForfeitPolicySchema } from '../forfeits';
 
+/**
+ * Wizard-set tournament policy switches. Lives next to (not inside)
+ * `forfeitPolicy` — that engine-owned key carries per-reason scoring
+ * data and is structurally unrelated. Earlier code overloaded
+ * `forfeitPolicy` for both concepts and tripped a 400 on the wizard
+ * PATCH; see `Step4Advanced.tsx` and migration 0062.
+ */
+export const TournamentPolicySchema = z.object({
+  forfeitDrawsCount: z.boolean().default(false),
+  forfeitFighterBefore1stMatch: z.boolean().default(false),
+  disqualifyAfter: z.number().int().min(1).max(10).default(2),
+});
+
+export const DEFAULT_TOURNAMENT_POLICY = TournamentPolicySchema.parse({});
+
 export const TFv1ConfigSchema = z.object({
   winBonus: z.number().int().positive().default(3),
   targetValues: z
@@ -29,6 +44,7 @@ export const TFv1ConfigSchema = z.object({
   /** Whitelisted formula key — never eval'd */
   doublePenaltyFormula: z.literal('n*(n-1)/3').default('n*(n-1)/3'),
   forfeitPolicy: ForfeitPolicySchema.default(DEFAULT_FORFEIT_POLICY),
+  tournamentPolicy: TournamentPolicySchema.default(DEFAULT_TOURNAMENT_POLICY),
 });
 
 export type TFv1Config = z.infer<typeof TFv1ConfigSchema>;
