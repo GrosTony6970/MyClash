@@ -6,6 +6,7 @@ import { Button } from '@myclash/ui';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { ColorSwatchPicker } from '../../../../../src/components/ColorSwatchPicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
 
 interface WizardState {
   step: 1 | 2 | 3 | 4;
@@ -429,6 +430,10 @@ export default function NewEventPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
   const router = useRouter();
+  // Mark the freshly-created event as selected before navigating so the
+  // shell's event switcher and any localStorage-backed defaults reflect it
+  // immediately, instead of waiting for the next page's URL-effect to run.
+  const { selectEvent } = useOrganizerSelectedEvent();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { locale, t } = useI18n();
 
@@ -549,6 +554,7 @@ export default function NewEventPage() {
           body: formData,
         });
         if (!logoRes.ok) {
+          selectEvent(event.id);
           router.push(`/org/${slug}/events/${event.id}/theme?logoUpload=failed`);
           return;
         }
@@ -566,6 +572,7 @@ export default function NewEventPage() {
         }),
       });
 
+      selectEvent(event.id);
       router.push(`/org/${slug}/events/${event.id}`);
     } catch (err) {
       dispatch({

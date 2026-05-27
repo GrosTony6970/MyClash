@@ -6,6 +6,11 @@ import { redirect } from 'next/navigation';
  * consolidated into a single "Rulesets" menu with tabs. This stub keeps
  * old bookmarks and deep links working.
  */
-export default function OrgPenaltyRulesetsLegacyIndex({ params }: { params: { slug: string } }) {
-  redirect(`/org/${params.slug}/rulesets/penalty`);
+export default async function OrgPenaltyRulesetsLegacyIndex({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  redirect(`/org/${slug}/rulesets/penalty`);
 }
