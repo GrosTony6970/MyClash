@@ -102,6 +102,37 @@ describe('ProgrammeService', () => {
     service = new ProgrammeService(mockSupabase as never);
   });
 
+  it('strips seconds from start_time / end_time when listing saved blocks', async () => {
+    // Postgres column is TIME, which PostgREST serialises as "HH:MM:SS".
+    // The FE then PUT-saves that string back, and the DTO regex
+    // ^\d{2}:\d{2}$ rejects it → "blocks.0.startTime must match …" 400.
+    // The mapper must normalise to HH:MM so the round-trip survives.
+    const blockRow = {
+      id: 'block-1',
+      event_id: 'event-1',
+      day_index: 0,
+      sort_order: 0,
+      block_type: 'admin',
+      label: 'Registration',
+      competition_id: null,
+      competition_phase: null,
+      workshop_id: null,
+      lice_count: 0,
+      start_time: '08:00:00',
+      end_time: '09:00:00',
+      match_gap_seconds: 0,
+      match_duration_minutes: 0,
+      generated_at: null,
+    };
+    fromMock.mockReturnValueOnce(makeChain({ data: [blockRow], error: null }));
+
+    const blocks = await service.listBlocks('event-1');
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.startTime).toBe('08:00');
+    expect(blocks[0]!.endTime).toBe('09:00');
+  });
+
   it('saves auto-suggested non-competition blocks with zero match duration', async () => {
     const deleteChain = makeChain({ data: null, error: null });
     const insertChain = makeChain({

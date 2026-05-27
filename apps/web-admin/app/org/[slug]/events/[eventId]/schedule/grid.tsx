@@ -174,11 +174,14 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
           setConflicts(detectConflicts(m));
         }
         if (eventRes.ok) {
+          // GET /api/v1/events/:id resolves to `getEventBySlug` which returns
+          // the raw Supabase row — snake_case fields. Don't paper over it
+          // with `startDate` aliases unless the API mapping is unified.
           const ev = (await eventRes.json()) as {
-            startDate: string;
-            endDate?: string | null;
+            start_date: string;
+            end_date?: string | null;
           };
-          const eventDays = eachDay(ev.startDate, ev.endDate ?? null);
+          const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
           setDays(eventDays);
           if (eventDays[0]) setActiveDay(eventDays[0]);
         }

@@ -21,6 +21,17 @@ function minToTime(min: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/**
+ * Normalise the `HH:MM:SS[.sss]` strings PostgREST returns for `TIME`
+ * columns down to the `HH:MM` form the DTO regex (and the FE
+ * `<input type="time">`) expects. Pass-through for already-trimmed
+ * values; defensive against null / undefined inputs.
+ */
+function trimSeconds(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return /^\d{2}:\d{2}:/.test(raw) ? raw.slice(0, 5) : raw;
+}
+
 function computeNeededMin(
   matchCount: number,
   parallelLice: number,
@@ -609,8 +620,8 @@ export class ProgrammeService {
       competitionPhase: (raw['competition_phase'] as ProgrammeBlock['competitionPhase']) ?? null,
       workshopId: (raw['workshop_id'] as string | null) ?? null,
       liceCount: raw['lice_count'] as number,
-      startTime: raw['start_time'] as string,
-      endTime: raw['end_time'] as string,
+      startTime: trimSeconds(raw['start_time'] as string),
+      endTime: trimSeconds(raw['end_time'] as string),
       matchGapSeconds: raw['match_gap_seconds'] as number,
       matchDurationMinutes: raw['match_duration_minutes'] as number,
       generatedAt: (raw['generated_at'] as string | null) ?? null,
