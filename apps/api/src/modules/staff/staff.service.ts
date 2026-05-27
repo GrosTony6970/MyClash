@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { formatRoundCode } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -333,7 +334,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,scoring_config_json,ruleset_config_json)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config_json)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -360,7 +361,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config_json))',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config_json)),pools(sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -567,17 +568,31 @@ export class StaffService {
         id?: string;
         name?: string;
         weapon?: string;
+        bracket_size?: number | null;
         scoring_config_json?: unknown;
         ruleset_config_json?: { matchFormat?: unknown };
       };
     } | null;
     const tournament = phase?.tournaments ?? null;
+    const pool = match['pools'] as { sort_order?: number } | null;
+    const bracketSlot = match['bracket_slots'] as { round?: number } | null;
+    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
+    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const roundCode = formatRoundCode({
+      weapon: tournament?.weapon ?? null,
+      poolNumber,
+      bracketRound,
+      bracketSize: tournament?.bracket_size ?? null,
+      matchNumber: (match['match_number_label'] as string | null | undefined) ?? null,
+    });
+
     return {
       id: match['id'],
       status: match['status'],
       phaseType: phase?.type ?? null,
       scheduledAt: match['scheduled_at'],
       matchNumberLabel: match['match_number_label'],
+      roundCode,
       redRegistrationId: match['red_registration_id'],
       blueRegistrationId: match['blue_registration_id'],
       redScore: match['red_score'],
@@ -609,10 +624,28 @@ export class StaffService {
         id?: string;
         name?: string;
         weapon?: string;
+        bracket_size?: number | null;
         scoring_config_json?: unknown;
         ruleset_config_json?: { matchFormat?: unknown };
       };
     } | null;
+    const pool = match['pools'] as { sort_order?: number } | null;
+    const bracketSlot = match['bracket_slots'] as { round?: number } | null;
+
+    const weapon = phases?.tournaments?.weapon ?? null;
+    const bracketSize = phases?.tournaments?.bracket_size ?? null;
+    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
+    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const matchNumber = (match['match_number_label'] as string | null | undefined) ?? null;
+
+    const roundCode = formatRoundCode({
+      weapon,
+      poolNumber,
+      bracketRound,
+      bracketSize,
+      matchNumber,
+    });
+
     return {
       id: match['id'],
       status: match['status'],
@@ -620,6 +653,7 @@ export class StaffService {
       startedAt: match['started_at'],
       endedAt: match['ended_at'],
       matchNumberLabel: match['match_number_label'],
+      roundCode,
       redRegistrationId: match['red_registration_id'],
       blueRegistrationId: match['blue_registration_id'],
       redScore: match['red_score'],

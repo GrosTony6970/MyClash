@@ -25,6 +25,8 @@ interface DisplayMatch {
   id: string;
   status: MatchStatus;
   matchNumberLabel: string | null;
+  /** Round code computed server-side: e.g. `LSW-QF-M1`, `RAP-P2-M5`. */
+  roundCode?: string | null;
   redScore: number;
   blueScore: number;
   redFighterName: string | null;
@@ -293,6 +295,11 @@ export function MatchScoreboard({
                 .filter(Boolean)
                 .join(' - ')}
             </p>
+            {match.roundCode && (
+              <p className="mt-1 font-mono text-sm uppercase tracking-widest text-amber-300">
+                {match.roundCode}
+              </p>
+            )}
           </div>
           <div className="rounded-full border border-white/20 px-5 py-2 text-lg font-bold uppercase">
             {t(`scoring.liveMatch.status.${match.status}`)}

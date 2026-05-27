@@ -20,6 +20,12 @@ export interface MatchCardProps {
    * Set by the bronze block in `BracketView`.
    */
   isBronzeMatch?: boolean;
+  /**
+   * Short human-readable identifier for this match (e.g. `LSW-QF-M1`).
+   * Computed by the caller via `formatRoundCode` from `@myclash/types` —
+   * the card doesn't know about weapons, pools, or bracket sizes.
+   */
+  roundCode?: string;
 }
 
 function statusPill(status: string): { label: string; cls: string } {
@@ -48,6 +54,7 @@ export function MatchCard({
   registerRef,
   isChampionshipMatch = false,
   isBronzeMatch = false,
+  roundCode,
 }: MatchCardProps) {
   const isTbd =
     (slot.redFighterName === null || slot.blueFighterName === null) && slot.status !== 'completed';
@@ -142,6 +149,13 @@ export function MatchCard({
           {isLive && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-600" />}
           {pill.label}
         </span>
+
+        {/* Round code bottom-left, mirror to the status pill. */}
+        {roundCode && (
+          <span className="absolute -bottom-2 left-2 inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
+            {roundCode}
+          </span>
+        )}
       </div>
 
       {onOverride && (

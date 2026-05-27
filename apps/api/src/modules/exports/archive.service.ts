@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { formatRoundCode } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import type {
@@ -575,24 +576,82 @@ export class ArchiveService {
     const exchanges = tables.exchanges.filter((row) =>
       matchIds.includes(row['match_id'] as string),
     );
+
+    // Pre-compute a matchId → roundCode map once per tournament. The pool
+    // sort_order + bracket round + tournament weapon/size all come from
+    // sibling tables in the same archive snapshot, so this stays consistent
+    // with the data being exported even if the live DB drifts later.
+    const roundCodes = this.computeRoundCodes(tournament, matches, tables);
+
     return {
       tournamentId,
       tournamentName: tournament['name'] as string,
-      matchesCsv: this.buildMatchesCsv(matches),
+      matchesCsv: this.buildMatchesCsv(matches, roundCodes),
       exchangesCsv: this.buildExchangesCsv(exchanges),
-      resultsCsv: this.buildResultsReportCsv(matches, registrations, tables.persons),
+      resultsCsv: this.buildResultsReportCsv(matches, registrations, tables.persons, roundCodes),
       rankingsCsv: this.buildRankingsCsv(matches, registrations, tables.persons),
     };
   }
 
-  private buildMatchesCsv(matches: ArchiveRow[]): string {
+  private computeRoundCodes(
+    tournament: ArchiveRow,
+    matches: ArchiveRow[],
+    tables: ArchiveTables,
+  ): Map<string, string> {
+    const weapon = (tournament['weapon'] as string | null | undefined) ?? null;
+    const bracketSize =
+      typeof tournament['bracket_size'] === 'number'
+        ? (tournament['bracket_size'] as number)
+        : null;
+    const poolSortOrder = new Map<string, number>();
+    for (const pool of tables.pools) {
+      if (typeof pool['sort_order'] === 'number') {
+        poolSortOrder.set(pool['id'] as string, pool['sort_order'] as number);
+      }
+    }
+    const slotRound = new Map<string, number>();
+    for (const slot of tables.bracketSlots) {
+      if (typeof slot['round'] === 'number') {
+        slotRound.set(slot['id'] as string, slot['round'] as number);
+      }
+    }
+
+    const out = new Map<string, string>();
+    for (const match of matches) {
+      const poolId = match['pool_id'] as string | null;
+      const bracketSlotId = match['bracket_slot_id'] as string | null;
+      const poolNumber =
+        poolId !== null && poolSortOrder.has(poolId)
+          ? (poolSortOrder.get(poolId) as number) + 1
+          : null;
+      const bracketRound =
+        bracketSlotId !== null && slotRound.has(bracketSlotId)
+          ? (slotRound.get(bracketSlotId) as number)
+          : null;
+      out.set(
+        match['id'] as string,
+        formatRoundCode({
+          weapon,
+          poolNumber,
+          bracketRound,
+          bracketSize,
+          matchNumber: (match['match_number_label'] as string | null) ?? null,
+        }),
+      );
+    }
+    return out;
+  }
+
+  private buildMatchesCsv(matches: ArchiveRow[], roundCodes?: Map<string, string>): string {
     const lines = [
-      'match_id,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id',
+      'match_id,round_code,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id',
     ];
     for (const match of matches) {
+      const code = roundCodes?.get(match['id'] as string) ?? '';
       lines.push(
         [
           match['id'],
+          this.csvEscape(code),
           this.csvEscape(String(match['match_number_label'] ?? '')),
           match['status'] ?? '',
           match['red_registration_id'] ?? '',
@@ -631,14 +690,17 @@ export class ArchiveService {
     matches: ArchiveRow[],
     registrations: ArchiveRow[],
     persons: ArchiveRow[],
+    roundCodes?: Map<string, string>,
   ): string {
-    const lines = ['match_label,red,blue,red_score,blue_score,winner'];
+    const lines = ['round_code,match_label,red,blue,red_score,blue_score,winner'];
     for (const match of matches) {
       const red = this.registrationName(match['red_registration_id'], registrations, persons);
       const blue = this.registrationName(match['blue_registration_id'], registrations, persons);
       const winner = this.registrationName(match['winner_registration_id'], registrations, persons);
+      const code = roundCodes?.get(match['id'] as string) ?? '';
       lines.push(
         [
+          this.csvEscape(code),
           this.csvEscape(String(match['match_number_label'] ?? '')),
           this.csvEscape(red),
           this.csvEscape(blue),

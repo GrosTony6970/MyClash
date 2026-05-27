@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { formatRoundCode } from '@myclash/types';
 import { MatchCard } from './bracket/MatchCard';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
 import type { BracketConfig, BracketSlotData, ColorToken, PodiumData } from './bracket/types';
@@ -23,6 +24,16 @@ export interface BracketViewProps {
   bronzeMatch?: BracketSlotData | null;
   /** Round-label overrides — by default, last-round = Final, etc. */
   roundLabels?: Record<number, string>;
+  /**
+   * Tournament weapon — feeds the per-card round code (e.g. LSW-QF-M1).
+   * Omitted → no round code rendered on the cards.
+   */
+  weapon?: string | null;
+  /**
+   * Total fighters the bracket started with. Combined with `weapon` to
+   * compute the position label (R32 / QF / SF / F).
+   */
+  bracketSize?: number | null;
 }
 
 const ROUND_GAP_CLASS = 'gap-16';
@@ -39,8 +50,27 @@ export function BracketView({
   blueColor = 'blue',
   bronzeMatch,
   roundLabels,
+  weapon = null,
+  bracketSize = null,
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
+
+  // Memoised per-slot round-code resolver. The match number segment uses
+  // the slot's `position + 1` (1-indexed within the round) since bracket
+  // slots don't carry a separate match_number_label.
+  const roundCodeFor = React.useCallback(
+    (slot: BracketSlotData): string | undefined => {
+      if (!weapon) return undefined;
+      return formatRoundCode({
+        weapon,
+        poolNumber: null,
+        bracketRound: slot.round,
+        bracketSize,
+        matchNumber: slot.position + 1,
+      });
+    },
+    [weapon, bracketSize],
+  );
 
   if (isDoubleElim) {
     return (
@@ -52,6 +82,7 @@ export function BracketView({
         onOverrideSlot={onOverrideSlot}
         redColor={redColor}
         blueColor={blueColor}
+        roundCodeFor={roundCodeFor}
       />
     );
   }
@@ -67,6 +98,7 @@ export function BracketView({
       blueColor={blueColor}
       bronzeMatch={bronzeMatch ?? null}
       roundLabels={roundLabels}
+      roundCodeFor={roundCodeFor}
     />
   );
 }
@@ -83,6 +115,7 @@ interface SingleElimLayoutProps {
   blueColor: ColorToken;
   bronzeMatch: BracketSlotData | null;
   roundLabels?: Record<number, string>;
+  roundCodeFor: (slot: BracketSlotData) => string | undefined;
 }
 
 function SingleElimLayout({
@@ -95,6 +128,7 @@ function SingleElimLayout({
   blueColor,
   bronzeMatch,
   roundLabels,
+  roundCodeFor,
 }: SingleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -197,6 +231,7 @@ function SingleElimLayout({
                       onOverride={onOverrideSlot}
                       registerRef={registerRef}
                       isChampionshipMatch={isFinalRound}
+                      roundCode={roundCodeFor(slot)}
                     />
                   ))}
                   {isFinalRound && bronzeMatch && (
@@ -212,6 +247,7 @@ function SingleElimLayout({
                         onOverride={onOverrideSlot}
                         registerRef={registerRef}
                         isBronzeMatch={true}
+                        roundCode={roundCodeFor(bronzeMatch)}
                       />
                     </div>
                   )}
@@ -239,6 +275,7 @@ interface DoubleElimLayoutProps {
   onOverrideSlot?: BracketViewProps['onOverrideSlot'];
   redColor: ColorToken;
   blueColor: ColorToken;
+  roundCodeFor: (slot: BracketSlotData) => string | undefined;
 }
 
 function DoubleElimLayout({
@@ -249,6 +286,7 @@ function DoubleElimLayout({
   onOverrideSlot,
   redColor,
   blueColor,
+  roundCodeFor,
 }: DoubleElimLayoutProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cardRefs = React.useRef(new Map<string, HTMLDivElement | null>());
@@ -304,6 +342,7 @@ function DoubleElimLayout({
               onClick={onMatchClick}
               onOverride={onOverrideSlot}
               registerRef={registerRef}
+              roundCode={roundCodeFor(slot)}
             />
           )}
           accent="text-amber-600"
@@ -321,6 +360,7 @@ function DoubleElimLayout({
                 onClick={onMatchClick}
                 onOverride={onOverrideSlot}
                 registerRef={registerRef}
+                roundCode={roundCodeFor(slot)}
               />
             )}
             accent="text-blue-600"
@@ -339,6 +379,7 @@ function DoubleElimLayout({
                 onClick={onMatchClick}
                 onOverride={onOverrideSlot}
                 registerRef={registerRef}
+                roundCode={roundCodeFor(slot)}
               />
             )}
             accent="text-violet-600"

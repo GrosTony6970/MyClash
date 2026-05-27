@@ -14,6 +14,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { formatRoundCode } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -175,7 +176,9 @@ export class ExportsService {
         matches (
           id, match_number_label, status,
           red_registration_id, blue_registration_id,
-          phases ( tournaments ( name, slug ) )
+          pools ( sort_order ),
+          bracket_slots ( round ),
+          phases ( tournaments ( name, slug, weapon, bracket_size ) )
         )
       `,
       )
@@ -183,19 +186,35 @@ export class ExportsService {
       .order('occurred_at');
 
     const lines = [
-      'tournament,match,sequence,type,first_striker,first_strike_value,afterblow_value,no_exchange_reason,clock_time_ms,voided,voided_reason',
+      'tournament,round_code,match,sequence,type,first_striker,first_strike_value,afterblow_value,no_exchange_reason,clock_time_ms,voided,voided_reason',
     ];
 
     for (const ex of exchanges ?? []) {
       const row = ex as Record<string, unknown>;
       const match = row['matches'] as Record<string, unknown> | null;
       const phase = match?.['phases'] as Record<string, unknown> | null;
-      const tournament = phase?.['tournaments'] as { name: string } | null;
+      const tournament = phase?.['tournaments'] as {
+        name: string;
+        weapon?: string | null;
+        bracket_size?: number | null;
+      } | null;
+      const pool = match?.['pools'] as { sort_order?: number } | null;
+      const bracketSlot = match?.['bracket_slots'] as { round?: number } | null;
+      const matchLabel = (match?.['match_number_label'] as string | null) ?? '';
+
+      const roundCode = formatRoundCode({
+        weapon: tournament?.weapon ?? null,
+        poolNumber: typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null,
+        bracketRound: typeof bracketSlot?.round === 'number' ? bracketSlot.round : null,
+        bracketSize: tournament?.bracket_size ?? null,
+        matchNumber: matchLabel || null,
+      });
 
       lines.push(
         [
           this.csvEscape(tournament?.name ?? ''),
-          this.csvEscape((match?.['match_number_label'] as string | null) ?? ''),
+          this.csvEscape(roundCode),
+          this.csvEscape(matchLabel),
           row['sequence'],
           row['type'],
           row['first_striker_color'] ?? '',

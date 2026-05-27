@@ -14,6 +14,8 @@ import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/ty
 interface MatchInfo {
   id: string;
   matchNumberLabel: string;
+  /** Round code computed server-side (e.g. LSW-P1-M3). Empty for older matches. */
+  roundCode?: string;
   status: string;
   rulesetCode: string;
   rulesetVersion: string;
@@ -189,6 +191,11 @@ function MatchView({
     <div className="flex-1 flex flex-col p-4 gap-4">
       {/* Match header */}
       <div className="text-center">
+        {match.roundCode && (
+          <p className="font-mono text-base font-semibold tracking-widest text-amber-300">
+            {match.roundCode}
+          </p>
+        )}
         <p className="text-gray-400 text-sm">{match.matchNumberLabel}</p>
         <p className="text-xs text-gray-500 mt-0.5">
           {t('scoring.lice.rulesetVersion', {

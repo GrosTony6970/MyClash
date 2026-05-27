@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { t } from '@myclash/i18n';
+import { formatRoundCode } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 
@@ -55,6 +56,7 @@ interface MatchesTabProps {
 export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: MatchesTabProps) {
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
+  const [weapon, setWeapon] = useState<string | null>(null);
   const [redColor, setRedColor] = useState<ColorToken>('red');
   const [blueColor, setBlueColor] = useState<ColorToken>('blue');
   const [lices, setLices] = useState<Lice[]>([]);
@@ -81,11 +83,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       }).then((r) => (r.ok ? r.json() : [])),
     ]).then(([poolsData, tournamentData, licesData, refereesData]) => {
       setPools(poolsData as PoolWithMatches[]);
-      const sc = (
-        tournamentData as {
-          scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
-        } | null
-      )?.scoring_config;
+      const tournament = tournamentData as {
+        weapon?: string | null;
+        scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
+      } | null;
+      setWeapon(tournament?.weapon ?? null);
+      const sc = tournament?.scoring_config;
       if (sc?.display?.sideColors) {
         setRedColor((sc.display.sideColors.red as ColorToken) ?? 'red');
         setBlueColor((sc.display.sideColors.blue as ColorToken) ?? 'blue');
@@ -170,9 +173,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         </p>
       )}
 
-      {pools.map((pool) => {
+      {pools.map((pool, poolIdx) => {
         const done = pool.matches.filter((m) => m.status === 'completed').length;
         const total = pool.matches.length;
+        // Pools come back ordered by sort_order ascending, so the array
+        // index is the canonical "pool 1, pool 2, …" display number.
+        const poolNumber = poolIdx + 1;
         return (
           <section key={pool.poolId} className="rounded-lg border border-slate-200 bg-white">
             <header className="border-b border-slate-200 px-4 py-3">
@@ -222,8 +228,14 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         }}
                         className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300"
                       >
-                        <td className="px-4 py-2 text-slate-500">
-                          {m.match_number_label ?? m.round_number}
+                        <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-slate-500">
+                          {formatRoundCode({
+                            weapon,
+                            poolNumber,
+                            bracketRound: null,
+                            bracketSize: null,
+                            matchNumber: m.match_number_label ?? m.round_number,
+                          })}
                         </td>
                         <td className="px-4 py-2">
                           <span className="flex items-center gap-2">

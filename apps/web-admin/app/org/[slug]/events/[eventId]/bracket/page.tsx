@@ -131,6 +131,7 @@ export default function BracketPage() {
   const [existingBracket, setExistingBracket] = useState(false);
   const [redColor, setRedColor] = useState<ColorToken>('red');
   const [blueColor, setBlueColor] = useState<ColorToken>('blue');
+  const [tournamentWeapon, setTournamentWeapon] = useState<string | null>(null);
 
   // Config
   const [qualifyCount, setQualifyCount] = useState<number | ''>('');
@@ -206,8 +207,10 @@ export default function BracketPage() {
       .then(async (res) => {
         if (!res.ok) return;
         const data = (await res.json()) as {
+          weapon?: string | null;
           scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
         } | null;
+        setTournamentWeapon(data?.weapon ?? null);
         const sc = data?.scoring_config?.display?.sideColors;
         if (sc) {
           setRedColor((sc.red as ColorToken) ?? 'red');
@@ -1222,6 +1225,8 @@ export default function BracketPage() {
                 redColor={redColor}
                 blueColor={blueColor}
                 bronzeMatch={bronzeMatch}
+                weapon={tournamentWeapon}
+                bracketSize={bracket.bracketSize}
                 onMatchClick={(matchId) => {
                   if (matchId) router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
                 }}
