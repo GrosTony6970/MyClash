@@ -456,10 +456,23 @@ fi
 # ── Bring up new stack ───────────────────────────────────────────
 hdr "Starting stack"
 
-if ! docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d; then
-  err "Stack failed to start cleanly"
-  print_service_health_diagnostics supabase-rest supabase-storage
-  exit 1
+# Bound `up -d` with a hard timeout. Compose v2's progress renderer has been
+# observed parking on the last frame even after every container is healthy
+# (likely a TTY/SSH interaction with the depends_on wait state machine). We
+# don't actually rely on `up -d`'s exit code for readiness — the healthcheck
+# poll below is the source of truth. So: a 124 (timeout) falls through with
+# a warning; any other non-zero is still a real failure and aborts.
+UP_TIMEOUT=120
+if ! timeout --kill-after=10 "$UP_TIMEOUT" \
+     docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" up -d; then
+  rc=$?
+  if [[ "$rc" -eq 124 ]]; then
+    warn "docker compose up -d did not exit within ${UP_TIMEOUT}s — verifying container state via healthcheck poll"
+  else
+    err "docker compose up -d failed (exit $rc)"
+    print_service_health_diagnostics supabase-rest supabase-storage api
+    exit 1
+  fi
 fi
 ok "Stack started"
 
@@ -468,7 +481,7 @@ hdr "Waiting for services to become healthy"
 
 RETRIES=20
 DELAY=3
-for svc in api web-public web-scoring web-admin; do
+for svc in api web-public web-scoring web-admin supabase-storage; do
   for i in $(seq 1 "$RETRIES"); do
     HEALTH=$(docker inspect --format='{{.State.Health.Status}}' \
               "$(docker compose --env-file "$DOTENV" "${COMPOSE_FILES[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")
