@@ -5,7 +5,7 @@
  * Imported by AppModule.
  */
 
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminModule } from '../modules/admin/admin.module';
@@ -77,7 +77,13 @@ import {
     }),
     SupabaseModule,
     LeaguesModule,
-    AdminModule,
+    // forwardRef breaks the WorkersModule → AdminModule → MatchesModule
+    // → WorkersModule cycle. AdminModule's services (AIDataQualityService,
+    // AdminFeatureFlagsService) are constructor-injected into workers, but
+    // the lookup happens after the module graph is resolved — so deferring
+    // the AdminModule reference here is safe and matches Nest's documented
+    // pattern for service-level cycles.
+    forwardRef(() => AdminModule),
   ],
   providers: [
     HemaRatingsSyncWorker,
