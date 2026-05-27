@@ -87,6 +87,16 @@ interface TournamentOption {
   status: string | null;
 }
 
+interface ScoringSystemOption {
+  id: string;
+  code: string;
+  name: string;
+  is_builtin: boolean;
+  points_by_rank: Record<string, number>;
+  tie_breakers: string[];
+  description: string | null;
+}
+
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
@@ -115,8 +125,12 @@ export default function EditLeaguePage() {
   const [rankingDimensions, setRankingDimensions] = useState<'weapon' | 'weapon_category'>(
     'weapon',
   );
-  const [scoringSystem, setScoringSystem] = useState<'ffamhe_tf_2026' | 'custom'>('ffamhe_tf_2026');
+  // The scoring system is a free-form code: 'ffamhe_tf_2026', 'custom', or
+  // any preset code from the `league_scoring_systems` registry (migration
+  // 0068). The literal 'custom' branch shows the inline rank→points grid.
+  const [scoringSystem, setScoringSystem] = useState<string>('ffamhe_tf_2026');
   const [customPoints, setCustomPoints] = useState<Record<number, number>>(FFAMHE_POINTS);
+  const [scoringSystemOptions, setScoringSystemOptions] = useState<ScoringSystemOption[]>([]);
 
   // Add forms
   const [userSearch, setUserSearch] = useState('');
@@ -144,11 +158,20 @@ export default function EditLeaguePage() {
     setStatus(found.status);
     setPublicVisibility(found.public_visibility);
     setRankingDimensions(found.scoring_config?.rankingDimensions ?? 'weapon');
-    setScoringSystem(found.scoring_config?.scoringSystem ?? 'ffamhe_tf_2026');
+    setScoringSystem(found.scoring_system ?? 'ffamhe_tf_2026');
     if (found.scoring_config?.customPointsByRank) {
       setCustomPoints(found.scoring_config.customPointsByRank);
     }
   }, [leagueId]);
+
+  const loadScoringSystems = useCallback(async () => {
+    const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, {
+      credentials: 'include',
+    });
+    if (!res.ok) return;
+    const rows = (await res.json()) as ScoringSystemOption[];
+    setScoringSystemOptions(rows);
+  }, []);
 
   const loadAssignments = useCallback(async () => {
     const [usersRes, orgsRes, linksRes, groupsRes] = await Promise.all([
@@ -229,6 +252,7 @@ export default function EditLeaguePage() {
       setError(err instanceof Error ? err.message : 'Could not load league');
     });
     void loadAssignments().catch(() => undefined);
+    void loadScoringSystems().catch(() => undefined);
     void fetch(`${apiUrl}/api/v1/admin/users?perPage=200`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((data: { users: AdminUserOption[] }) => setAllUsers(data.users ?? []))
@@ -248,7 +272,7 @@ export default function EditLeaguePage() {
       .then((r) => (r.ok ? r.json() : []))
       .then((data: EventOption[]) => setAllEvents(data ?? []))
       .catch(() => undefined);
-  }, [loadLeague, loadAssignments]);
+  }, [loadLeague, loadAssignments, loadScoringSystems]);
 
   const filteredUsers = useMemo(() => {
     const taken = new Set(userRoles.map((r) => r.userId));
@@ -589,12 +613,26 @@ export default function EditLeaguePage() {
             Scoring system
             <select
               value={scoringSystem}
-              onChange={(e) => setScoringSystem(e.target.value as 'ffamhe_tf_2026' | 'custom')}
+              onChange={(e) => setScoringSystem(e.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="ffamhe_tf_2026">FFAMHE TF 2026</option>
-              <option value="custom">Custom</option>
+              {scoringSystemOptions.length === 0 && (
+                <option value="ffamhe_tf_2026">FFAMHE TF 2026</option>
+              )}
+              {scoringSystemOptions.map((opt) => (
+                <option key={opt.id} value={opt.code}>
+                  {opt.name}
+                  {opt.is_builtin ? ' (built-in)' : ''}
+                </option>
+              ))}
+              <option value="custom">Custom (per-league)</option>
             </select>
+            <Link
+              href="/admin/leagues/scoring-systems"
+              className="mt-1 inline-block text-[11px] font-medium text-red-700 hover:underline"
+            >
+              Manage scoring systems →
+            </Link>
           </label>
           <label className="text-xs font-medium text-slate-600">
             Status

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
 import type {
   LeagueRankingRow,
   LeagueScoringConfig,
@@ -7,14 +8,83 @@ import type {
   TournamentContributionInput,
 } from './league.types';
 
+/** Legacy hard-coded FFAMHE TF 2026 table — used as last-resort fallback when
+ *  the registry row is missing AND the league config never embedded a points
+ *  table. Mirrors the seed in migration 0068. */
+const FALLBACK_FFAMHE_2026: Record<number, number> = {
+  1: 16,
+  2: 13,
+  3: 11,
+  4: 10,
+  5: 9,
+  6: 8,
+  7: 7,
+  8: 6,
+  9: 5,
+  10: 4,
+  11: 3,
+  12: 2,
+  13: 1,
+  14: 1,
+  15: 1,
+  16: 1,
+};
+
 @Injectable()
 export class LeagueScoringService {
+  // SupabaseService is optional so existing unit tests that instantiate
+  // LeagueScoringService with no args (pure scoring math) keep working.
+  constructor(private readonly supabase?: SupabaseService) {}
+
   pointsForRank(config: LeagueScoringConfig, finalRank: number): number {
     if (!Number.isInteger(finalRank) || finalRank < 1) return 0;
-    if (config.scoringSystem === 'custom') {
-      return Math.max(0, Number(config.customPointsByRank?.[finalRank] ?? 0));
+    if (config.customPointsByRank) {
+      return Math.max(0, Number(config.customPointsByRank[finalRank] ?? 0));
     }
-    return Math.max(0, 17 - finalRank);
+    if (config.scoringSystem === 'custom') return 0;
+    if (config.scoringSystem === 'ffamhe_tf_2026') {
+      return FALLBACK_FFAMHE_2026[finalRank] ?? 0;
+    }
+    return 0;
+  }
+
+  /**
+   * Hydrate a league scoring config by resolving its `scoringSystem` code
+   * against the `league_scoring_systems` registry (migration 0068). Returns
+   * a copy with `customPointsByRank` and `tieBreakers` filled in from the
+   * preset when applicable. Per-league `'custom'` configs are returned
+   * unchanged. Unknown / archived codes also pass through (caller falls
+   * back to the hard-coded table via `pointsForRank`).
+   */
+  async resolveConfig(config: LeagueScoringConfig): Promise<LeagueScoringConfig> {
+    if (config.scoringSystem === 'custom') return config;
+    if (config.customPointsByRank) return config;
+    if (!this.supabase) return config;
+
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_systems')
+      .select('points_by_rank, tie_breakers')
+      .eq('code', config.scoringSystem)
+      .eq('is_archived', false)
+      .maybeSingle();
+    if (error || !data) return config;
+
+    const raw = (data as { points_by_rank?: Record<string, number> }).points_by_rank ?? {};
+    const pointsByRank: Record<number, number> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const rank = Number(k);
+      const pts = Number(v);
+      if (Number.isInteger(rank) && Number.isFinite(pts)) {
+        pointsByRank[rank] = Math.max(0, Math.round(pts));
+      }
+    }
+    const tieBreakersRaw = (data as { tie_breakers?: string[] }).tie_breakers;
+    const tieBreakers =
+      Array.isArray(tieBreakersRaw) && tieBreakersRaw.length > 0
+        ? (tieBreakersRaw as LeagueTieBreaker[])
+        : config.tieBreakers;
+
+    return { ...config, customPointsByRank: pointsByRank, tieBreakers };
   }
 
   groupKey(config: LeagueScoringConfig, contribution: TournamentContributionInput): string {

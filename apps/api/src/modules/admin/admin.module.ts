@@ -23,6 +23,8 @@ import { ExchangeEditRequestsAdminController } from './exchange-edit-requests.co
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { FeatureFlagsAdminController } from './feature-flags.controller';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { LeagueScoringSystemsController } from './league-scoring-systems/league-scoring-systems.controller';
+import { LeagueScoringSystemsService } from './league-scoring-systems/league-scoring-systems.service';
 import { OrganizationsAdminController } from './organizations.controller';
 import { PlatformAISettingsController } from './platform-ai-settings.controller';
 import { PlatformAISettingsService } from './platform-ai-settings.service';
@@ -51,6 +53,7 @@ import { UsersAdminController } from './users.controller';
     AIDataQualityController,
     AdminDashboardStatsController,
     HemaRatingsAdminController,
+    LeagueScoringSystemsController,
   ],
   providers: [
     AdminOrganizationsService,
@@ -74,8 +77,14 @@ import { UsersAdminController } from './users.controller';
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
     AIDataQualityService,
+    LeagueScoringSystemsService,
     SuperAdminGuard,
   ],
-  exports: [SuperAdminGuard, AdminFeatureFlagsService, AIDataQualityService],
+  exports: [
+    SuperAdminGuard,
+    AdminFeatureFlagsService,
+    AIDataQualityService,
+    LeagueScoringSystemsService,
+  ],
 })
 export class AdminModule {}

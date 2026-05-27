@@ -1,4 +1,9 @@
-export type LeagueScoringSystem = 'ffamhe_tf_2026' | 'custom';
+/**
+ * Stored on `leagues.scoring_system`. The literals 'ffamhe_tf_2026' and
+ * 'custom' are the legacy hard-coded values; any other lowercase code is
+ * a reference into the `league_scoring_systems` registry (migration 0068).
+ */
+export type LeagueScoringSystem = 'ffamhe_tf_2026' | 'custom' | (string & {});
 export type LeagueRankingDimensions = 'weapon' | 'weapon_category';
 export type LeagueTieBreaker =
   | 'total_points'

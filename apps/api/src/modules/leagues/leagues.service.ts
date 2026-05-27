@@ -702,7 +702,9 @@ export class LeaguesService {
     for (const link of (links ?? []) as Row[]) {
       const league = link['leagues'] as Row | null;
       if (!league) continue;
-      const config = normalizeScoringConfig(league['scoring_config']);
+      const config = await this.scoring.resolveConfig(
+        normalizeScoringConfig(league['scoring_config']),
+      );
       const contributions = await this.computeTournamentContributions(
         String(link['league_id']),
         String(link['tournament_id']),
@@ -726,7 +728,9 @@ export class LeaguesService {
   async recomputeLeagueRankings(leagueId: string, userId?: string) {
     if (userId) await this.assertCanManageLeague(leagueId, userId);
     const league = await this.getLeagueById(leagueId);
-    const config = normalizeScoringConfig(league['scoring_config']);
+    const config = await this.scoring.resolveConfig(
+      normalizeScoringConfig(league['scoring_config']),
+    );
     const rows = await this.listRows('league_tournament_results', 'league_id', leagueId);
     const contributions: LeagueTournamentContribution[] = rows.map((row) => ({
       leagueId,

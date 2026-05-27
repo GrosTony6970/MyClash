@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { LeagueScoringService } from './league-scoring.service';
 import type { LeagueScoringConfig, TournamentContributionInput } from './league.types';
 
@@ -84,7 +84,8 @@ describe('LeagueScoringService', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       fighterId: 'f-a',
-      totalPoints: 31,
+      // FFAMHE TF 2026 fallback: rank 1 = 16, rank 2 = 13 → 29 total.
+      totalPoints: 29,
       participationCount: 2,
       medalCount: 2,
       rank: 1,
@@ -100,6 +101,60 @@ describe('LeagueScoringService', () => {
     ]);
 
     expect(rows.map((row) => row.fighterId)).toEqual(['f-b', 'f-a']);
+  });
+
+  describe('resolveConfig (registry hydration)', () => {
+    function makeServiceWithRegistry(
+      row: { points_by_rank: unknown; tie_breakers: unknown } | null,
+    ) {
+      const supabase = {
+        service: {
+          from: vi.fn(() => ({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+          })),
+        },
+      };
+      return new LeagueScoringService(supabase as never);
+    }
+
+    it('hydrates customPointsByRank and tieBreakers from the registry row', async () => {
+      const svc = makeServiceWithRegistry({
+        points_by_rank: { '1': 30, '2': 20, '3': 10 },
+        tie_breakers: ['total_points', 'medal_count'],
+      });
+      const resolved = await svc.resolveConfig({
+        scoringSystem: 'custom_2027',
+        rankingDimensions: 'weapon',
+        tieBreakers: ['total_points'],
+      });
+      expect(resolved.customPointsByRank).toEqual({ 1: 30, 2: 20, 3: 10 });
+      expect(resolved.tieBreakers).toEqual(['total_points', 'medal_count']);
+    });
+
+    it('returns the config unchanged when scoringSystem is custom', async () => {
+      const svc = makeServiceWithRegistry({ points_by_rank: { '1': 99 }, tie_breakers: [] });
+      const cfg: LeagueScoringConfig = {
+        scoringSystem: 'custom',
+        rankingDimensions: 'weapon',
+        customPointsByRank: { 1: 5 },
+        tieBreakers: ['total_points'],
+      };
+      const resolved = await svc.resolveConfig(cfg);
+      expect(resolved).toBe(cfg);
+    });
+
+    it('falls back silently when the registry row is missing', async () => {
+      const svc = makeServiceWithRegistry(null);
+      const cfg: LeagueScoringConfig = {
+        scoringSystem: 'nonexistent_code',
+        rankingDimensions: 'weapon',
+        tieBreakers: ['total_points'],
+      };
+      const resolved = await svc.resolveConfig(cfg);
+      expect(resolved.customPointsByRank).toBeUndefined();
+    });
   });
 
   it('throws actionable validation errors for missing global Fighter IDs', () => {
