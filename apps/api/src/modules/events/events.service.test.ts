@@ -572,4 +572,65 @@ describe('EventsService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
+
+  // ── Public listEvents — drives /api/v1/events used by the public site root.
+  // Locks the SELECT shape + status filter that the public landing page
+  // depends on. The "unavailable" banner at app.myclash.fr/ only renders
+  // when this endpoint fails — keeping the contract here pinned guards
+  // against silent regressions.
+  describe('listEvents (public)', () => {
+    it('returns published / running / completed events with org name+slug joined', async () => {
+      const rows = [
+        {
+          id: 'event-pub',
+          name: 'Lyon Spring',
+          status: 'published',
+          start_date: '2026-06-01',
+          end_date: '2026-06-02',
+          organizations: { name: 'Lyon AMHE', slug: 'lyon-amhe' },
+        },
+      ];
+      const chain = makeAwaitableChain({ data: rows, error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      const result = (await service.listEvents({})) as typeof rows;
+
+      expect(result).toEqual(rows);
+      // Public landing page relies on the joined organization name/slug;
+      // dropping either breaks the card subtitle on app.myclash.fr/.
+      expect(chain.select).toHaveBeenCalledWith('*, organizations(name, slug)');
+      // Default status filter when no `status` arg is given.
+      expect(chain.in).toHaveBeenCalledWith('status', ['published', 'running', 'completed']);
+      // Newest events first so the freshly-published event lands at the
+      // top of the public list immediately after the admin publish.
+      expect(chain.order).toHaveBeenCalledWith('start_date', { ascending: false });
+    });
+
+    it('honours an explicit status filter when the caller passes one', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      await service.listEvents({ status: 'completed' });
+
+      expect(chain.eq).toHaveBeenCalledWith('status', 'completed');
+      // The default `in('status', [...])` must NOT be applied when the
+      // caller narrowed the filter explicitly.
+      expect(chain.in).not.toHaveBeenCalled();
+    });
+
+    it('translates a supabase error into BadRequestException', async () => {
+      // The public landing page treats any non-2xx as "unavailable" and
+      // shows a banner with no diagnostic. The error path here is what
+      // produces that 400 → ensures we don't accidentally start
+      // returning `[]` on supabase errors (which would mask the failure
+      // as "empty events").
+      const chain = makeAwaitableChain({
+        data: null,
+        error: { message: 'boom' },
+      });
+      fromMock.mockReturnValueOnce(chain);
+
+      await expect(service.listEvents({})).rejects.toThrow(BadRequestException);
+    });
+  });
 });

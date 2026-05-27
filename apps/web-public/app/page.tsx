@@ -2,6 +2,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 
+// Next.js 16 defaults route segments to static rendering. The public
+// landing page must always reflect the current published-events list
+// (operators publish on the admin and expect their event to appear
+// here within seconds), so we force fresh SSR on every request. The
+// `cache: 'no-store'` on the fetch below covers the data layer; these
+// exports cover the route-segment layer.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface PublicEvent {
   id?: string | null;
   slug?: string | null;
@@ -25,17 +34,42 @@ const visibleStatuses = new Set(['published', 'running', 'completed']);
 
 async function fetchPublicEvents(): Promise<EventLoadResult> {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const target = `${apiUrl}/api/v1/events`;
 
   try {
-    const res = await fetch(`${apiUrl}/api/v1/events`, { cache: 'no-store' });
-    if (!res.ok) return { events: [], unavailable: true };
+    const res = await fetch(target, { cache: 'no-store' });
+    if (!res.ok) {
+      // Surface WHICH failure path fired so operators / Sentry can
+      // diagnose the next occurrence of the "Events are temporarily
+      // unavailable" banner. Captured by @sentry/nextjs via the
+      // console.error breadcrumb.
+      let bodySnippet = '';
+      try {
+        bodySnippet = (await res.text()).slice(0, 500);
+      } catch {
+        // ignore — the body wasn't readable, status code is enough
+      }
+      // eslint-disable-next-line no-console
+      console.error('[public-home] /events returned non-OK', {
+        target,
+        status: res.status,
+        statusText: res.statusText,
+        bodySnippet,
+      });
+      return { events: [], unavailable: true };
+    }
 
     const events = ((await res.json()) as PublicEvent[])
       .filter((event) => visibleStatuses.has(event.status ?? ''))
       .filter((event) => event.slug || event.id);
 
     return { events, unavailable: false };
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[public-home] /events fetch threw', {
+      target,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    });
     return { events: [], unavailable: true };
   }
 }
