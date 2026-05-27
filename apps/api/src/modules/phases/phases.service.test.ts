@@ -957,4 +957,43 @@ describe('PhasesService', () => {
       );
     });
   });
+
+  describe('listMatchScores', () => {
+    // Lightweight endpoint for the pools-matches "surgical poll" path —
+    // returns only the fields the FE needs to merge a score update in
+    // place (no referee assignments, no derived labels). Lock the
+    // shape so we don't accidentally leak privileged data through
+    // a cheap polling endpoint.
+    it("returns only (id, status, red_score, blue_score) for a tournament's matches", async () => {
+      const matchesChain = makeChain({
+        data: [
+          { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
+          { id: 'm-2', status: 'pending', red_score: null, blue_score: null },
+        ],
+        error: null,
+      });
+      // The chain resolves when awaited after `.eq(...)`; mirror the
+      // pattern used by listPoolsWithMatches's data selects.
+      matchesChain.eq.mockResolvedValue({
+        data: [
+          { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
+          { id: 'm-2', status: 'pending', red_score: null, blue_score: null },
+        ],
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(matchesChain);
+
+      const result = await service.listMatchScores('tournament-1');
+
+      expect(result).toEqual([
+        { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
+        { id: 'm-2', status: 'pending', red_score: null, blue_score: null },
+      ]);
+      // The SELECT must NOT include privileged fields like referee_id
+      // or lice_id — those should only come through the heavier
+      // `pools-with-matches` endpoint that handles permissions properly.
+      expect(matchesChain.select).toHaveBeenCalledWith('id, status, red_score, blue_score');
+      expect(matchesChain.eq).toHaveBeenCalledWith('tournament_id', 'tournament-1');
+    });
+  });
 });

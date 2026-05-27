@@ -1571,4 +1571,33 @@ export class PhasesService {
       }),
     );
   }
+
+  /**
+   * Lightweight per-tournament match-score snapshot. Used by the pools
+   * Matches tab's 30s fallback poll to merge score updates in place
+   * without re-fetching the whole `pools-with-matches` payload.
+   *
+   * Deliberately narrow SELECT: only the four fields the FE needs to
+   * decide "did the score / status change for this row?". Privileged
+   * fields (referee_id, lice_id) intentionally not exposed here so
+   * this cheap polling endpoint can't be used to siphon assignment
+   * data.
+   */
+  async listMatchScores(
+    tournamentId: string,
+  ): Promise<
+    Array<{ id: string; status: string; red_score: number | null; blue_score: number | null }>
+  > {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, status, red_score, blue_score')
+      .eq('tournament_id', tournamentId);
+    if (error) return [];
+    return (data ?? []) as Array<{
+      id: string;
+      status: string;
+      red_score: number | null;
+      blue_score: number | null;
+    }>;
+  }
 }

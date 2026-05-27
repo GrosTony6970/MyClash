@@ -93,6 +93,20 @@ export class PhasesController {
     return this.phases.listPoolsWithMatches(tournamentId);
   }
 
+  /**
+   * Lightweight score snapshot for the pools Matches tab's 30s fallback
+   * poll. Returns only `(id, status, red_score, blue_score)` so the FE
+   * can merge changes in place without re-rendering the whole table.
+   *
+   * GET /api/v1/tournaments/:tournamentId/match-scores
+   */
+  @Get('tournaments/:tournamentId/match-scores')
+  @ApiOperation({ summary: 'Per-tournament match scores (lightweight, for surgical FE polling)' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async listMatchScores(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.phases.listMatchScores(tournamentId);
+  }
+
   /** GET /api/v1/tournaments/:tournamentId/unassigned-fighters */
   @Get('tournaments/:tournamentId/unassigned-fighters')
   @ApiOperation({ summary: 'List tournament registrations not yet assigned to any pool' })
