@@ -27,6 +27,10 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export default function OrgPenaltyRulesetsPage() {
   const params = useParams<{ slug: string }>();
+  // Guard against transient `params.slug === undefined`. See
+  // organizer-auth-decision.ts for the downstream fix that catches
+  // the auth-gate redirect this prevented before.
+  const slugForLink = params.slug ?? '';
   const { t } = useI18n();
   const toast = useToast();
 
@@ -165,7 +169,7 @@ export default function OrgPenaltyRulesetsPage() {
         <p className="mt-1 text-sm text-slate-500">{t('admin.penaltyRulesets.description')}</p>
       </div>
 
-      <RulesetsTopNav active="penalty" basePath={`/org/${params.slug}/rulesets`} />
+      <RulesetsTopNav active="penalty" basePath={`/org/${slugForLink}/rulesets`} />
 
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -178,7 +182,7 @@ export default function OrgPenaltyRulesetsPage() {
           {t('admin.penaltyRulesets.curatedTitle')}
         </h2>
         <Link
-          href={`/org/${params.slug}/rulesets/penalty/new`}
+          href={`/org/${slugForLink}/rulesets/penalty/new`}
           className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800"
         >
           {t('admin.penaltyRulesets.createButton')}
@@ -245,7 +249,7 @@ export default function OrgPenaltyRulesetsPage() {
                         ) : null;
                       })()}
                       <Link
-                        href={`/org/${params.slug}/rulesets/penalty/${row.id}/edit`}
+                        href={`/org/${slugForLink}/rulesets/penalty/${row.id}/edit`}
                         className={rowActionClasses('edit')}
                       >
                         {row.built_in

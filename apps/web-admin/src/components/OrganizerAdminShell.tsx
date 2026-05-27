@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
+import { resolveAuthDecision } from './organizer-auth-decision';
 
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
@@ -121,8 +122,16 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [switcherOpen]);
 
-  // Auth gate — verifies the current session has access to this org. Mirrors
-  // the prior shell behaviour; org + events fetching lives in the context now.
+  // Auth gate — verifies the current session has access to this org.
+  // `unauthenticated`        → /login (real auth failure).
+  // `no_access`              → silent client-side replace to the user's first
+  //                            real org. This handles the stale-link case where
+  //                            a `<Link>` interpolated `undefined` into the
+  //                            slug segment and the user clicked through to
+  //                            `/org/undefined/...`. Previously we destroyed
+  //                            the session here; that was the source of the
+  //                            "logged out after toggling event publish" report.
+  // `allow`                  → no-op.
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${apiUrl}/api/v1/me`, {
@@ -134,15 +143,24 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
           window.location.replace('/login');
           return;
         }
-        const data = (await res.json()) as {
-          type?: string;
-          admin?: { isSuperAdmin?: boolean; organizations?: Array<{ slug: string }> };
-        };
-        const hasOrganizationAccess = Boolean(
-          data.admin?.organizations?.some((organization) => organization.slug === slug),
-        );
-        if (data.type !== 'claimed' || (!data.admin?.isSuperAdmin && !hasOrganizationAccess)) {
+        const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1];
+        const decision = resolveAuthDecision(slug, data);
+        if (decision.kind === 'unauthenticated') {
           window.location.replace('/login');
+        } else if (decision.kind === 'no_access') {
+          // eslint-disable-next-line no-console
+          console.error('[OrganizerAdminShell] redirecting away from inaccessible slug', {
+            slug,
+            redirectTo: decision.redirectTo,
+            pathname,
+          });
+          // `router.replace` keeps the session intact and lands the user on
+          // a working route. Falls back to a hard nav if the target is /login.
+          if (decision.redirectTo === '/login') {
+            window.location.replace('/login');
+          } else {
+            router.replace(decision.redirectTo);
+          }
         }
       })
       .catch((err: unknown) => {
@@ -151,7 +169,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         }
       });
     return () => controller.abort();
-  }, [apiUrl, slug]);
+  }, [apiUrl, slug, pathname, router]);
 
   const orgBase = `/org/${slug}`;
   // Event base resolved from the context's selectedEventId — survives nav

@@ -8,6 +8,8 @@ export default function RefereeAssignmentsRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Guard against transient undefined params — see organizer-auth-decision.ts.
+    if (!params.slug || !params.eventId) return;
     router.replace(`/org/${params.slug}/events/${params.eventId}/referees#assignments`);
   }, [params.eventId, params.slug, router]);
 

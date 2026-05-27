@@ -14,6 +14,8 @@ export default function EventsManageRedirectPage() {
   const params = useParams<{ slug: string }>();
   const router = useRouter();
   useEffect(() => {
+    // Guard against transient undefined param — see organizer-auth-decision.ts.
+    if (!params.slug) return;
     router.replace(`/org/${params.slug}/events`);
   }, [params.slug, router]);
   return null;

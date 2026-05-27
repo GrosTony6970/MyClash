@@ -14,6 +14,9 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export default function OrgNewPenaltyRulesetPage() {
   const params = useParams<{ slug: string }>();
+  // See organizer-auth-decision.ts — guard against `undefined` getting
+  // stringified into the slug segment of `<Link>` / router.push targets.
+  const slugForLink = params.slug ?? '';
   const router = useRouter();
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -58,7 +61,7 @@ export default function OrgNewPenaltyRulesetPage() {
     <main className="max-w-5xl p-8">
       <div className="mb-2 text-sm">
         <Link
-          href={`/org/${params.slug}/rulesets/penalty`}
+          href={`/org/${slugForLink}/rulesets/penalty`}
           className="text-slate-500 hover:underline"
         >
           {t('admin.rulesets.backToList')}
@@ -98,13 +101,13 @@ export default function OrgNewPenaltyRulesetPage() {
               throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
             }
             const created = (await res.json()) as { id: string };
-            router.push(`/org/${params.slug}/rulesets/penalty/${created.id}/edit`);
+            router.push(`/org/${slugForLink}/rulesets/penalty/${created.id}/edit`);
           } catch (err) {
             setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
             setBusy(false);
           }
         }}
-        onCancel={() => router.push(`/org/${params.slug}/rulesets/penalty`)}
+        onCancel={() => router.push(`/org/${slugForLink}/rulesets/penalty`)}
       />
     </main>
   );

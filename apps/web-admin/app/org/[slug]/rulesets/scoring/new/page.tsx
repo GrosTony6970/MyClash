@@ -20,6 +20,7 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
  */
 export default function OrgNewScoringRulesetPage() {
   const params = useParams<{ slug: string }>();
+  const slugForLink = params.slug ?? '';
   const router = useRouter();
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -45,7 +46,7 @@ export default function OrgNewScoringRulesetPage() {
     <main className="max-w-4xl p-8">
       <div className="mb-2 text-sm">
         <Link
-          href={`/org/${params.slug}/rulesets/scoring`}
+          href={`/org/${slugForLink}/rulesets/scoring`}
           className="text-slate-500 hover:underline"
         >
           {t('admin.rulesets.backToList')}
@@ -89,13 +90,13 @@ export default function OrgNewScoringRulesetPage() {
               throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
             }
             const created = (await res.json()) as { id: string };
-            router.push(`/org/${params.slug}/rulesets/scoring/${created.id}/edit`);
+            router.push(`/org/${slugForLink}/rulesets/scoring/${created.id}/edit`);
           } catch (err) {
             setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
             setBusy(false);
           }
         }}
-        onCancel={() => router.push(`/org/${params.slug}/rulesets/scoring`)}
+        onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
       />
     </main>
   );

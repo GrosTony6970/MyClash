@@ -41,6 +41,7 @@ interface OrgCustomRulesetDetail {
  */
 export default function OrgEditScoringRulesetPage() {
   const params = useParams<{ slug: string; id: string }>();
+  const slugForLink = params.slug ?? '';
   const router = useRouter();
   const { t } = useI18n();
 
@@ -134,7 +135,7 @@ export default function OrgEditScoringRulesetPage() {
     <main className="max-w-4xl p-8">
       <div className="mb-2 text-sm">
         <Link
-          href={`/org/${params.slug}/rulesets/scoring`}
+          href={`/org/${slugForLink}/rulesets/scoring`}
           className="text-slate-500 hover:underline"
         >
           {t('admin.rulesets.backToList')}
@@ -187,13 +188,13 @@ export default function OrgEditScoringRulesetPage() {
                 const body = (await res.json().catch(() => ({}))) as { message?: string };
                 throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
               }
-              router.push(`/org/${params.slug}/rulesets/scoring`);
+              router.push(`/org/${slugForLink}/rulesets/scoring`);
             } catch (err) {
               setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
               setBusy(false);
             }
           }}
-          onCancel={() => router.push(`/org/${params.slug}/rulesets/scoring`)}
+          onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}
         />
       )}
     </main>

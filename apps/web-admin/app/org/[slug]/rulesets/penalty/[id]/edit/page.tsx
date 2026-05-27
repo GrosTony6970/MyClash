@@ -41,6 +41,8 @@ interface PenaltyRulesetDetail {
 
 export default function OrgEditPenaltyRulesetPage() {
   const params = useParams<{ slug: string; id: string }>();
+  // Avoid `undefined` ever being stringified into a `<Link>` / router target.
+  const slugForLink = params.slug ?? '';
   const router = useRouter();
   const { t } = useI18n();
 
@@ -107,7 +109,7 @@ export default function OrgEditPenaltyRulesetPage() {
     <main className="max-w-7xl p-8">
       <div className="mb-2 text-sm">
         <Link
-          href={`/org/${params.slug}/rulesets/penalty`}
+          href={`/org/${slugForLink}/rulesets/penalty`}
           className="text-slate-500 hover:underline"
         >
           {t('admin.rulesets.backToList')}
@@ -166,13 +168,13 @@ export default function OrgEditPenaltyRulesetPage() {
                   const body = (await res.json().catch(() => ({}))) as { message?: string };
                   throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
                 }
-                router.push(`/org/${params.slug}/rulesets/penalty`);
+                router.push(`/org/${slugForLink}/rulesets/penalty`);
               } catch (err) {
                 setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
                 setBusy(false);
               }
             }}
-            onCancel={() => router.push(`/org/${params.slug}/rulesets/penalty`)}
+            onCancel={() => router.push(`/org/${slugForLink}/rulesets/penalty`)}
           />
         </>
       )}

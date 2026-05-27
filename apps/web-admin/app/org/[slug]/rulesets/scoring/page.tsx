@@ -41,6 +41,11 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
  */
 export default function OrgScoringRulesetsPage() {
   const params = useParams<{ slug: string }>();
+  // Guard against `params.slug` being momentarily undefined during a route
+  // transition. Without this, template literals like `/org/${params.slug}/...`
+  // stringify undefined into the URL → `/org/undefined/...` → auth-gate
+  // bounce. See organizer-auth-decision.ts for the downstream fix.
+  const slugForLink = params.slug ?? '';
   const { t } = useI18n();
   const toast = useToast();
 
@@ -192,7 +197,7 @@ export default function OrgScoringRulesetsPage() {
         <p className="mt-1 text-sm text-slate-500">{t('admin.rulesets.description')}</p>
       </div>
 
-      <RulesetsTopNav active="scoring" basePath={`/org/${params.slug}/rulesets`} />
+      <RulesetsTopNav active="scoring" basePath={`/org/${slugForLink}/rulesets`} />
 
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -203,7 +208,7 @@ export default function OrgScoringRulesetsPage() {
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">{t('admin.rulesets.curatedTitle')}</h2>
         <Link
-          href={`/org/${params.slug}/rulesets/scoring/new`}
+          href={`/org/${slugForLink}/rulesets/scoring/new`}
           className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800"
         >
           {t('admin.rulesets.createButton')}
@@ -274,7 +279,7 @@ export default function OrgScoringRulesetsPage() {
                       <div className="flex flex-wrap gap-2">
                         {isMine && (
                           <Link
-                            href={`/org/${params.slug}/rulesets/scoring/${row.id}/edit`}
+                            href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
                             className={rowActionClasses('edit')}
                           >
                             {t('admin.rulesets.editAction')}

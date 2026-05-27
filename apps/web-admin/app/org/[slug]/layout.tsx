@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { OrganizerAdminShell } from '../../../src/components/OrganizerAdminShell';
 import { OrganizerEventContextProvider } from '../../../src/components/organizer-event-context';
 
@@ -18,6 +18,20 @@ export default function OrganizerLayout({ children }: { children: ReactNode }) {
   const params = useParams<{ slug?: string; eventId?: string }>();
   const slug = asString(params.slug);
   const urlEventId = asString(params.eventId) || null;
+
+  // Telemetry: surface the "stale link interpolated undefined into the slug"
+  // bug class so we can locate the offending <Link> on the next occurrence.
+  // The shell's auth gate handles the recovery; this is purely an observability
+  // hook. Costs nothing on the happy path (`slug === 'test-org'`).
+  useEffect(() => {
+    if (slug === 'undefined' || slug === '') {
+      // eslint-disable-next-line no-console
+      console.error('[OrganizerLayout] empty or literal-"undefined" slug', {
+        pathname: typeof window !== 'undefined' ? window.location.pathname : null,
+        referrer: typeof document !== 'undefined' ? document.referrer : null,
+      });
+    }
+  }, [slug]);
 
   return (
     <OrganizerEventContextProvider slug={slug} urlEventId={urlEventId}>
