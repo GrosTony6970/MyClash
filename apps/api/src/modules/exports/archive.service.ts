@@ -273,7 +273,6 @@ export class ArchiveService {
         slug: restoredSlug,
         name: `${sourceEvent['name'] as string} (restored)`,
         status: 'draft',
-        theme_id: null,
         created_at: undefined,
         updated_at: undefined,
       }),
@@ -390,7 +389,6 @@ export class ArchiveService {
     }
 
     this.mapFk(next, 'event_id', maps.events, targets.targetEventId);
-    this.mapFk(next, 'theme_id', maps.themes);
     this.mapFk(next, 'lice_id', maps.lices);
     this.mapFk(next, 'person_id', maps.persons);
     this.mapFk(next, 'fighter_id', maps.fighters);

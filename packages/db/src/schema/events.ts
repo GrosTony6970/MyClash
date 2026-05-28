@@ -19,7 +19,6 @@ export const events = pgTable('events', {
   endDate: text('end_date').notNull(), // ISO date
   status: text('status').notNull().default('draft'),
   // draft | published | running | completed | archived
-  themeId: uuid('theme_id'),
   publicLandingMd: text('public_landing_md'),
   penaltyRulesetId: uuid('penalty_ruleset_id').references(() => penaltyRulesets.id, {
     onDelete: 'set null',
