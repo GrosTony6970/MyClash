@@ -82,6 +82,12 @@ export const en = {
       findEvents: 'Find public events',
       quickActions: 'Quick actions',
       dateOfBirthLabel: 'Date of birth',
+      unlinkAction: 'Not me?',
+      unlinkConfirmTitle: 'Unlink this profile?',
+      unlinkConfirmBody:
+        'Your match history, referee history, and event records stay as they are — only the link to your account is removed. You can find and claim a different profile afterwards.',
+      unlinkConfirmYes: 'Yes, unlink',
+      unlinkError: 'Could not unlink. Try again in a moment.',
       roles: {
         fighter: 'Fighter',
         referee: 'Referee',
@@ -3118,6 +3124,12 @@ export const fr = {
       findEvents: 'Trouver des evenements publics',
       quickActions: 'Actions rapides',
       dateOfBirthLabel: 'Date de naissance',
+      unlinkAction: "Ce n'est pas moi ?",
+      unlinkConfirmTitle: 'Délier ce profil ?',
+      unlinkConfirmBody:
+        "Votre historique de matchs, d'arbitrage et d'événements reste inchangé — seul le lien avec votre compte est retiré. Vous pourrez rechercher et revendiquer un autre profil ensuite.",
+      unlinkConfirmYes: 'Oui, délier',
+      unlinkError: 'Impossible de délier. Réessayez dans un instant.',
       roles: {
         fighter: 'Combattant',
         referee: 'Arbitre',

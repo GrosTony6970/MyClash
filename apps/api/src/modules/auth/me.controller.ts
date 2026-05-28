@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
@@ -81,6 +92,22 @@ export class MeController {
     @Body() dto: GlobalPersonClaimRequestDto,
   ): Promise<{ status: 'confirmation_sent'; redactedEmail: string }> {
     return this.auth.requestGlobalPersonClaim(req, dto.globalPersonId);
+  }
+
+  /**
+   * DELETE /api/v1/me/global-person-link
+   *
+   * "This isn't me." Clears claimed_by_user_id on the row currently
+   * linked to the caller. Idempotent.
+   */
+  @Delete('me/global-person-link')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlink the current user from their global profile' })
+  @ApiResponse({ status: 200, description: 'Unlinked (or no-op if not linked)' })
+  async unlinkGlobalPerson(
+    @Req() req: FastifyRequest,
+  ): Promise<{ ok: true; unlinkedGlobalPersonId: string | null }> {
+    return this.auth.unlinkGlobalPerson(req);
   }
 
   /**

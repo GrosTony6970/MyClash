@@ -162,6 +162,19 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                           </span>
                         </p>
                       )}
+                    <UnlinkButton
+                      apiUrl={apiUrl}
+                      onUnlinked={() => {
+                        setData((current) =>
+                          current
+                            ? {
+                                ...current,
+                                profiles: { ...current.profiles, globalPerson: null },
+                              }
+                            : current,
+                        );
+                      }}
+                    />
                   </>
                 ) : (
                   <ClaimSearchSection apiUrl={apiUrl} />
@@ -364,6 +377,82 @@ function RolePill({ active, label }: { active: boolean; label: string }) {
       ].join(' ')}
     >
       {label}
+    </div>
+  );
+}
+
+type UnlinkUi = { kind: 'idle' } | { kind: 'confirming' } | { kind: 'pending' } | { kind: 'error' };
+
+function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () => void }) {
+  const { t } = useI18n();
+  const [state, setState] = useState<UnlinkUi>({ kind: 'idle' });
+
+  async function unlink(): Promise<void> {
+    setState({ kind: 'pending' });
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/me/global-person-link`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        setState({ kind: 'error' });
+        return;
+      }
+      onUnlinked();
+      setState({ kind: 'idle' });
+    } catch {
+      setState({ kind: 'error' });
+    }
+  }
+
+  if (state.kind === 'confirming' || state.kind === 'pending') {
+    return (
+      <div
+        className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={t('publicApp.personalSpace.unlinkConfirmTitle')}
+      >
+        <p className="font-semibold">{t('publicApp.personalSpace.unlinkConfirmTitle')}</p>
+        <p className="mt-1">{t('publicApp.personalSpace.unlinkConfirmBody')}</p>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => void unlink()}
+            disabled={state.kind === 'pending'}
+            className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-60"
+          >
+            {state.kind === 'pending'
+              ? t('common.loading')
+              : t('publicApp.personalSpace.unlinkConfirmYes')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setState({ kind: 'idle' })}
+            disabled={state.kind === 'pending'}
+            className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+          >
+            {t('actions.cancel')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      {state.kind === 'error' && (
+        <p className="mb-2 text-xs text-red-700" role="alert">
+          {t('publicApp.personalSpace.unlinkError')}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => setState({ kind: 'confirming' })}
+        className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+      >
+        {t('publicApp.personalSpace.unlinkAction')}
+      </button>
     </div>
   );
 }

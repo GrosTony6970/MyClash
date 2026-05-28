@@ -672,6 +672,44 @@ export class AuthService {
     }
   }
 
+  // ── §6: unlink the current user from their global profile ──────────────
+
+  /**
+   * "This isn't me." Wipes claimed_by_user_id on the row currently
+   * linked to the caller. Idempotent — if no row matches, returns ok
+   * with linked: false. The user can immediately autolink again on
+   * next login if the original match was the right one; otherwise
+   * the manual self-service claim path remains open.
+   */
+  async unlinkGlobalPerson(
+    request: FastifyRequest,
+  ): Promise<{ ok: true; unlinkedGlobalPersonId: string | null }> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid session');
+
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .update({ claimed_by_user_id: null, updated_at: new Date().toISOString() })
+      .eq('claimed_by_user_id', user.id)
+      .select('id');
+    if (error) {
+      throw new ServiceUnavailableException(`Could not unlink: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as Array<{ id: string }>;
+    if (rows.length === 0) {
+      return { ok: true, unlinkedGlobalPersonId: null };
+    }
+
+    const ids = rows.map((r) => r.id).join(', ');
+    this.logger.log(
+      `global-person unlink: user ${user.id} → cleared ${rows.length} row(s) [${ids}]`,
+    );
+    return { ok: true, unlinkedGlobalPersonId: rows[0]!.id };
+  }
+
   // ── §3: self-service claim from /me ─────────────────────────────────────
 
   /**
