@@ -14,11 +14,27 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../../organizations/organizations.service';
+import { SupabaseService } from '../../supabase/supabase.service';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import { CreateCustomRulesetDto, UpdateCustomRulesetDto } from './dto/custom-rulesets.dto';
 
-function getActorId(req: FastifyRequest): string {
-  return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';
+// Resolve the caller's user id from their Supabase JWT (cookie or Bearer).
+// We deliberately do NOT read `req.actorUserId` here — that property is only
+// populated by `SuperAdminGuard`, and this controller intentionally doesn't
+// use that guard (organizers aren't super-admins). Without this helper, every
+// `assertOrgRole(orgId, 'unknown', 'admin')` would 403, even for real org
+// admins. See LESSONS_LEARNED.md > Identity & auth.
+async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
+  const authHeader = req.headers['authorization'];
+  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : cookies?.['sb-access-token'];
+  if (!token) return 'anonymous';
+  const {
+    data: { user },
+  } = await supabase.anon.auth.getUser(token);
+  return user?.id ?? 'anonymous';
 }
 
 /**
@@ -41,6 +57,7 @@ export class OrgCustomRulesetsController {
   constructor(
     private readonly service: CustomRulesetsService,
     private readonly orgs: OrganizationsService,
+    private readonly supabase: SupabaseService,
   ) {}
 
   private async assertOrgAdmin(orgId: string, userId: string): Promise<void> {
@@ -52,7 +69,7 @@ export class OrgCustomRulesetsController {
     summary: 'List scoring rulesets visible to this org (own + system + public).',
   })
   async list(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
-    const userId = getActorId(req);
+    const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     return this.service.listForOrg(orgId, userId);
   }
@@ -64,7 +81,7 @@ export class OrgCustomRulesetsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = getActorId(req);
+    const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     return this.service.assertOrgOwns(id, orgId);
   }
@@ -76,7 +93,7 @@ export class OrgCustomRulesetsController {
     @Body() dto: CreateCustomRulesetDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = getActorId(req);
+    const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     return this.service.createForOrg(orgId, dto, userId);
   }
@@ -89,7 +106,7 @@ export class OrgCustomRulesetsController {
     @Body() dto: UpdateCustomRulesetDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = getActorId(req);
+    const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     await this.service.assertOrgOwns(id, orgId);
     return this.service.update(id, dto, userId);
@@ -103,7 +120,7 @@ export class OrgCustomRulesetsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = getActorId(req);
+    const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     await this.service.assertOrgOwns(id, orgId);
     await this.service.deleteForOrg(id, userId);
@@ -119,7 +136,7 @@ export class OrgCustomRulesetsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: FastifyRequest,
   ) {
-    const userId = getActorId(req);
+    const userId = await getUserId(req, this.supabase);
     await this.assertOrgAdmin(orgId, userId);
     await this.service.assertOrgOwns(id, orgId);
     return this.service.submitForReview(id, userId);
