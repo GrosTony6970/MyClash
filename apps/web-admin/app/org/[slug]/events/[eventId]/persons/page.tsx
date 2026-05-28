@@ -7,6 +7,10 @@ import { ConfirmDialog, SkillBadge, TournamentColorDot, useToast } from '@myclas
 import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
+import {
+  computeClubPickerRows,
+  type ClubSuggestion as ClubPickerSuggestion,
+} from './_components/club-picker-rows';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface Person {
@@ -114,6 +118,7 @@ export default function ParticipantsPage() {
   const [clubSuggestions, setClubSuggestions] = useState<ClubSuggestion[]>([]);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [selectedClubLabel, setSelectedClubLabel] = useState('');
+  const [newClubName, setNewClubName] = useState<string | null>(null);
   const [editPerson, setEditPerson] = useState<Person | null>(null);
   const [editForm, setEditForm] = useState<AddForm>(EMPTY_ADD_FORM);
   const [editError, setEditError] = useState<string | null>(null);
@@ -323,6 +328,7 @@ export default function ParticipantsPage() {
     setClubSuggestions([]);
     setSelectedClubId(null);
     setSelectedClubLabel('');
+    setNewClubName(null);
     setSelectedTournaments(new Set());
   }
 
@@ -344,6 +350,7 @@ export default function ParticipantsPage() {
           familyName: addForm.familyName.trim(),
           email: addForm.email.trim() || null,
           clubId: selectedClubId || null,
+          newClubName: newClubName || null,
           hemaRatingsId,
           globalPersonId: selectedGlobalId || null,
         }),
@@ -1209,32 +1216,61 @@ export default function ParticipantsPage() {
                     setClubSearch(e.target.value);
                     setSelectedClubId(null);
                     setSelectedClubLabel('');
+                    setNewClubName(null);
                   }}
-                  placeholder="Search by name or abbreviation…"
+                  placeholder="Search by name or abbreviation, or type to create a new one…"
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
-                {clubSuggestions.length > 0 && !selectedClubId && (
-                  <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
-                    {clubSuggestions.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedClubId(c.id);
-                          setSelectedClubLabel(c.name);
-                          setClubSearch(c.name);
-                          setClubSuggestions([]);
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        {c.abbreviation && (
-                          <span className="text-gray-400 ml-2 text-xs">{c.abbreviation}</span>
+                {!selectedClubId &&
+                  !newClubName &&
+                  (() => {
+                    const rows = computeClubPickerRows(
+                      clubSearch,
+                      clubSuggestions as ClubPickerSuggestion[],
+                    );
+                    if (rows.length === 0) return null;
+                    return (
+                      <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                        {rows.map((row, idx) =>
+                          row.kind === 'existing' ? (
+                            <button
+                              key={`existing-${row.club.id}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedClubId(row.club.id);
+                                setSelectedClubLabel(row.club.name);
+                                setClubSearch(row.club.name);
+                                setClubSuggestions([]);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                            >
+                              <span className="font-medium">{row.club.name}</span>
+                              {row.club.abbreviation && (
+                                <span className="text-gray-400 ml-2 text-xs">
+                                  {row.club.abbreviation}
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              key={`create-${idx}`}
+                              type="button"
+                              data-testid="new-club-create-row"
+                              onClick={() => {
+                                setNewClubName(row.name);
+                                setSelectedClubId(null);
+                                setSelectedClubLabel('');
+                                setClubSuggestions([]);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 border-b border-gray-100 last:border-0 font-medium"
+                            >
+                              + Create new club &quot;{row.name}&quot; (unverified)
+                            </button>
+                          ),
                         )}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      </div>
+                    );
+                  })()}
                 {selectedClubId && (
                   <p className="text-xs text-green-700 mt-1">
                     {selectedClubLabel}{' '}
@@ -1244,6 +1280,21 @@ export default function ParticipantsPage() {
                       onClick={() => {
                         setSelectedClubId(null);
                         setSelectedClubLabel('');
+                        setClubSearch('');
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </p>
+                )}
+                {newClubName && (
+                  <p className="text-xs text-green-700 mt-1" data-testid="new-club-chip">
+                    New club: <span className="font-medium">{newClubName}</span> (will be created){' '}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setNewClubName(null);
                         setClubSearch('');
                       }}
                     >
