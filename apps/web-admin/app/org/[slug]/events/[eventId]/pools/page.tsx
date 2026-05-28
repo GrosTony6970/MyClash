@@ -731,12 +731,12 @@ export default function PoolsPage() {
 
             {/* Pool cards with drag-drop */}
             {pools && pools.length > 0 && (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="flex flex-wrap gap-4">
                 {pools.map((pool) => (
                   <div
                     key={pool.id}
                     className={[
-                      'border-2 rounded-xl p-4 transition-colors',
+                      'w-72 border-2 rounded-xl p-4 transition-colors',
                       dragging ? 'border-dashed border-red-300 bg-red-50/30' : 'border-gray-200',
                     ].join(' ')}
                     onDragOver={(e) => e.preventDefault()}
