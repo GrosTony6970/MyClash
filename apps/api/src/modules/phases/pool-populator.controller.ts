@@ -33,7 +33,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from '../referees/settings.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { PhasesService } from './phases.service';
-import type { GeneratePoolsDto } from './dto/phases.dto';
+import { GeneratePoolsDto } from './dto/phases.dto';
 
 @ApiTags('phases')
 @Controller()

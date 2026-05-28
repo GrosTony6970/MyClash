@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { BracketAdvanceService } from './bracket-advance.service';
-import type { UpdateBracketSlotDto } from './dto/phases.dto';
+import { UpdateBracketSlotDto } from './dto/phases.dto';
 
 @ApiTags('bracket-slots')
 @ApiBearerAuth()
