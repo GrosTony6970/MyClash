@@ -1024,23 +1024,110 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       );
     });
 
-    it('rejects when personId does not match a global_person', async () => {
+    it('rejects when personId does not match a global_person OR a persons row', async () => {
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
       const eventChain = makeChain({ data: eventRow, error: null });
       eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
 
-      // global_person check — not found
-      const personChain = makeChain({ data: null, error: null });
-      personChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      // global_persons check — not found
+      const gpChain = makeChain({ data: null, error: null });
+      gpChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      // persons fallback check — also not found
+      const pChain = makeChain({ data: null, error: null });
+      pChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       fromMock
         .mockReturnValueOnce(eventChain) // getEvent
-        .mockReturnValueOnce(personChain); // global_persons existence check → null
+        .mockReturnValueOnce(gpChain) // global_persons existence check → null
+        .mockReturnValueOnce(pChain); // persons fallback → null
 
       await expect(
         service.ensureEventReferee('event-1', 'nonexistent-person-id', 'actor-admin'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('falls back to persons.id and resolves to the linked global_person_id', async () => {
+      // When the FE passes an event-scoped persons.id (because the lookup
+      // surface doesn't always have global_person_id cached), the backend
+      // should look up the persons row, take its global_person_id, and use
+      // that for the rest of the function.
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      // global_persons check on the persons.id — misses
+      const gpChain = makeChain({ data: null, error: null });
+      gpChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      // persons fallback — found with a linked global_person_id
+      const pChain = makeChain({
+        data: { global_person_id: 'gp-resolved', event_id: 'event-1' },
+        error: null,
+      });
+      pChain.maybeSingle.mockResolvedValue({
+        data: { global_person_id: 'gp-resolved', event_id: 'event-1' },
+        error: null,
+      });
+
+      // After resolution, re-fetch the global_persons row for is_referee
+      const gp2Chain = makeChain({ data: { is_referee: null }, error: null });
+      gp2Chain.maybeSingle.mockResolvedValue({ data: { is_referee: null }, error: null });
+
+      const upsertChain = makeResolvedChain({ data: null, error: null });
+      const gpUpdateChain = makeResolvedChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(gpChain) // global_persons → null
+        .mockReturnValueOnce(pChain) // persons fallback → has global_person_id
+        .mockReturnValueOnce(gp2Chain) // global_persons refetch (for is_referee)
+        .mockReturnValueOnce(upsertChain) // event_referees upsert
+        .mockReturnValueOnce(gpUpdateChain); // global_persons update
+
+      await service.ensureEventReferee('event-1', 'persons-id-1', 'actor-admin');
+
+      // event_referees insert should use the RESOLVED global id, not the
+      // input persons id.
+      const upsertCall = (upsertChain as unknown as { upsert: ReturnType<typeof vi.fn> }).upsert;
+      expect(upsertCall).toHaveBeenCalledWith(
+        expect.objectContaining({ person_id: 'gp-resolved' }),
+        expect.objectContaining({ ignoreDuplicates: true }),
+      );
+    });
+
+    it('throws a clearer error when persons row has no linked global_person_id', async () => {
+      // The participant exists at the event level but has no global profile
+      // attached. We don't auto-create one (would risk duplicating an
+      // existing profile). Surface a clearer error so the operator knows
+      // what to fix.
+      const eventRow = { id: 'event-1', organization_id: 'org-1' };
+      const eventChain = makeChain({ data: eventRow, error: null });
+      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+
+      // global_persons check — misses
+      const gpChain = makeChain({ data: null, error: null });
+      gpChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+
+      // persons fallback — found, but global_person_id is null
+      const pChain = makeChain({
+        data: { global_person_id: null, event_id: 'event-1' },
+        error: null,
+      });
+      pChain.maybeSingle.mockResolvedValue({
+        data: { global_person_id: null, event_id: 'event-1' },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(eventChain) // getEvent
+        .mockReturnValueOnce(gpChain) // global_persons → null
+        .mockReturnValueOnce(pChain); // persons fallback → no global
+
+      await expect(
+        service.ensureEventReferee('event-1', 'persons-id-no-gp', 'actor-admin'),
+      ).rejects.toThrowError(/no global profile/i);
     });
 
     it('succeeds when personId matches a global_person', async () => {
@@ -1156,5 +1243,43 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       expect(row.assignments).toHaveLength(1);
       expect(row.assignments[0]!.matchCount).toBe(1);
     });
+  });
+});
+
+/**
+ * Regression guard for the cascade-induced silent fail on the referees
+ * page. The pre-fix code selected `'*, persons ( given_name, family_name )'`
+ * but post-migration 0063 there's no FK from referee_qualifications.person_id
+ * to persons — PostgREST 400s on the unresolvable embed. The embedded
+ * fields are never read by the row mapper, so the embed was dead code.
+ *
+ * Locking the select shape with `.select('*')` (no persons embed)
+ * keeps the endpoint working and prevents the page-level Promise.all
+ * from rejecting (which was the root cause of the post-add refresh
+ * silently failing).
+ */
+describe('QualificationsService.listForEvent — no broken persons embed', () => {
+  let service: QualificationsService;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockOrganizations.assertOrgRole.mockResolvedValue(undefined);
+    service = new QualificationsService(mockSupabase as never, mockOrganizations as never);
+  });
+
+  it('selects qualifications without embedding persons (no FK to persons post-0063)', async () => {
+    const qualChain = makeResolvedChain({ data: [], error: null });
+    fromMock.mockReturnValueOnce(qualChain);
+
+    await service.listForEvent('event-1', true);
+
+    const selectCall = (qualChain as unknown as { select: ReturnType<typeof vi.fn> }).select;
+    expect(selectCall).toHaveBeenCalledWith('*');
+    // Defensive: even if a future change uses a different shape, it must
+    // never include a `persons` embed (the FK doesn't exist).
+    for (const call of selectCall.mock.calls) {
+      const arg = call[0] as string;
+      expect(arg.includes('persons')).toBe(false);
+    }
   });
 });

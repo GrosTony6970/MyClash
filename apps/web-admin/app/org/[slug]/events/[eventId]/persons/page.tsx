@@ -365,12 +365,14 @@ export default function ParticipantsPage() {
         claimedByUserId?: string | null;
       };
 
-      // Post-0063: referee registration keys on the person's global_persons.id,
-      // NOT the event-scoped persons.id. createPerson always resolves or creates
-      // a global_persons row, so globalPersonId is non-null in practice — the
-      // guard exists only to satisfy the type.
-      if (addForm.isReferee && person.globalPersonId) {
-        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${person.globalPersonId}`;
+      // Post-0063: referee registration keys on the person's global_persons.id.
+      // The backend's ensureEventReferee also accepts the event-scoped
+      // persons.id as a fallback (resolves to global via the persons row),
+      // so participants whose globalPersonId isn't cached on this surface
+      // still get auto-registered when isReferee is checked.
+      if (addForm.isReferee) {
+        const refereeId = person.globalPersonId ?? person.id;
+        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${refereeId}`;
         fetch(url, { method: 'POST', credentials: 'include' })
           .then(async (res) => {
             if (!res.ok) {

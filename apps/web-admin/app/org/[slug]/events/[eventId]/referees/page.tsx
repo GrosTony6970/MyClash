@@ -1510,25 +1510,20 @@ export default function RefereesPage() {
                           </p>
                           {p.club_label && <p className="text-xs text-gray-400">{p.club_label}</p>}
                         </div>
-                        {p.global_person_id ? (
-                          <button
-                            onClick={() => {
-                              void addReferee(p.global_person_id!);
-                              setSearch('');
-                              setSearchResults([]);
-                            }}
-                            className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
-                          >
-                            {t('organizer.refereesPage.addQualification')}
-                          </button>
-                        ) : (
-                          <span
-                            title={t('organizer.refereesPage.linkProfileFirst')}
-                            className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-0.5 cursor-not-allowed"
-                          >
-                            {t('organizer.refereesPage.addQualification')}
-                          </span>
-                        )}
+                        <button
+                          onClick={() => {
+                            // Backend accepts either a global_persons.id OR an
+                            // event-scoped persons.id — see ensureEventReferee.
+                            // Falling back to p.id lets participants without
+                            // a cached global_person_id still be added.
+                            void addReferee(p.global_person_id ?? p.id);
+                            setSearch('');
+                            setSearchResults([]);
+                          }}
+                          className="text-xs border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-100"
+                        >
+                          {t('organizer.refereesPage.addQualification')}
+                        </button>
                       </div>
                     ))}
                   </div>

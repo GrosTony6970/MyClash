@@ -109,9 +109,13 @@ export class QualificationsService {
   // ── List qualifications for event ────────────────────────────────────────────
 
   async listForEvent(eventId: string, activeOnly = true): Promise<RefereeQualification[]> {
+    // Post-0063: referee_qualifications.person_id is a global_persons.id, not
+    // a persons.id — so a `persons ( ... )` embed has no FK to resolve and
+    // PostgREST 400s. The row mapper at the bottom of this file only reads
+    // qualification columns anyway, so the embed was dead code.
     let q = this.supabase.service
       .from('referee_qualifications')
-      .select('*, persons ( given_name, family_name )')
+      .select('*')
       .eq('event_id', eventId);
 
     if (activeOnly) q = q.eq('active', true) as typeof q;
@@ -447,22 +451,57 @@ export class QualificationsService {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
-    // Verify the global_person exists.
-    const { data: person, error: personErr } = await this.supabase.service
+    // Try the canonical case first: personId is a global_persons.id.
+    const { data: globalPerson, error: gpErr } = await this.supabase.service
       .from('global_persons')
       .select('id, is_referee')
       .eq('id', personId)
       .maybeSingle();
+    if (gpErr) throw new BadRequestException(gpErr.message);
 
-    if (personErr) throw new BadRequestException(personErr.message);
-    if (!person) {
+    let resolvedGlobalId: string | null = (globalPerson as { id: string } | null)?.id ?? null;
+    let isRefereeRaw: string | null =
+      (globalPerson as { is_referee: string | null } | null)?.is_referee ?? null;
+
+    // Fallback: the caller may have passed an event-scoped persons.id (the
+    // FE's lookup payload exposes both ids and the picker / participants-
+    // page auto-add may pass either). Look the row up in `persons` and use
+    // its global_person_id when set. If the row exists but the link is
+    // null, surface a clearer error so the operator knows what to fix.
+    if (!resolvedGlobalId) {
+      const { data: personsRow, error: pErr } = await this.supabase.service
+        .from('persons')
+        .select('global_person_id, event_id')
+        .eq('id', personId)
+        .eq('event_id', eventId)
+        .maybeSingle();
+      if (pErr) throw new BadRequestException(pErr.message);
+
+      const linkedGlobalId =
+        (personsRow as { global_person_id: string | null } | null)?.global_person_id ?? null;
+      if (linkedGlobalId) {
+        resolvedGlobalId = linkedGlobalId;
+        const { data: gp2 } = await this.supabase.service
+          .from('global_persons')
+          .select('is_referee')
+          .eq('id', resolvedGlobalId)
+          .maybeSingle();
+        isRefereeRaw = (gp2 as { is_referee: string | null } | null)?.is_referee ?? null;
+      } else if (personsRow) {
+        throw new BadRequestException(
+          `Participant ${personId} has no global profile — link or create one first.`,
+        );
+      }
+    }
+
+    if (!resolvedGlobalId) {
       throw new BadRequestException(`Global person ${personId} not found.`);
     }
 
     const { error: upsertError } = await this.supabase.service.from('event_referees').upsert(
       {
         event_id: eventId,
-        person_id: personId,
+        person_id: resolvedGlobalId,
         available_all_tournaments: true,
         available_all_event_duration: true,
       },
@@ -471,7 +510,7 @@ export class QualificationsService {
 
     if (upsertError) throw new BadRequestException(upsertError.message);
 
-    if ((person as { is_referee: string | null }).is_referee === null) {
+    if (isRefereeRaw === null) {
       await this.supabase.service
         .from('global_persons')
         .update({
@@ -479,7 +518,7 @@ export class QualificationsService {
           is_referee_event_managed: true,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', personId)
+        .eq('id', resolvedGlobalId)
         .is('is_referee', null);
     }
   }
