@@ -160,13 +160,41 @@ function htmlToLines(html: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Read-side defence against the snapshot's HTML residue. The sync
+ * worker's parseHtml strips tags BEFORE decoding entities, so escaped
+ * anchors in the upstream listing survive in three shapes by the time
+ * they reach storage:
+ *
+ *   1. Well-formed pairs    — `<a href="...">X</a>`.
+ *   2. Leading attribute    — `href="...">X` (the opening `<a ` was
+ *                              consumed by the parser, leaving the
+ *                              attribute tail and its closing `>`).
+ *   3. Trailing orphan tag  — `X <a` (the closing `>` of the tag never
+ *                              made it through, so the regex can't
+ *                              recognize it as a tag).
+ *
+ * Real-world cases combine 2 + 3 around the visible text, e.g.
+ *   `href="/fighters/details/5716/"> De Feu et d'Acier <a`
+ * which the old single-pass `/<[^>]+>/g` regex left untouched. Four
+ * passes here, in order:
+ *
+ *   - Decode entities first so post-decode `<` / `>` get caught by
+ *     subsequent strips.
+ *   - Strip a leading `attr="value">` fragment — gated on the
+ *     `attr=` prefix so a legitimate `Bigger > Smaller`-style value
+ *     isn't truncated.
+ *   - Strip well-formed tags (the original behaviour).
+ *   - Strip a trailing `<tag…` fragment — gated on `<` followed by an
+ *     alphabetic char so `I <3 fencing` isn't mangled.
+ */
 function cleanHtmlText(html: string): string {
-  return decodeHtml(
-    html
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim(),
-  );
+  return decodeHtml(html)
+    .replace(/^\s*[a-zA-Z-]+\s*=\s*"[^"]*"\s*>\s*/g, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/<[a-zA-Z][^>]*$/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function monthToIso(month: string | undefined): string | null {

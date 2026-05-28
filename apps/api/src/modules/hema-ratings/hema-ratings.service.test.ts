@@ -233,6 +233,101 @@ describe('HemaRatingsService', () => {
     expect(results.map((r) => r.id)).not.toContain('107');
   });
 
+  it('strips truncated-anchor residue from club (parser-mangled shape)', async () => {
+    // Reproduces the tournament-organizer report: the picker's club
+    // column showed the raw text `href="/fighters/details/5716/"> De
+    // Feu et d'Acier <a` instead of `De Feu et d'Acier`. The sync
+    // worker's parseHtml mangled the upstream anchor so the stored
+    // value has a leading `attr="value">` fragment AND a trailing
+    // orphan `<a` (no closing `>`) — neither shape contains a
+    // well-formed <…> pair, so the original cleanHtmlText regex
+    // (/<[^>]+>/g) matched nothing and let the garbage through.
+    const fighters = [
+      {
+        id: 5716,
+        name: 'Some Fighter',
+        club: 'href="/fighters/details/5716/"> De Feu et d\'Acier <a',
+        nationality: 'France',
+      },
+    ];
+    const from = vi
+      .fn()
+      .mockReturnValue(makeLatestSnapshotChain({ data: { fighters }, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    const results = await service.search('some', 5);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.club).toBe("De Feu et d'Acier");
+  });
+
+  it('strips a leading attribute fragment with no trailing orphan tag', async () => {
+    // Shape: `attr="value">Visible` — only the leading parse-residue
+    // survived. Verifies the new leading-fragment regex doesn't need
+    // the trailing-orphan pass to fire.
+    const fighters = [
+      {
+        id: 5717,
+        name: 'Other Fighter',
+        club: 'href="/clubs/details/42/">Bristol HEMA',
+        nationality: 'United Kingdom',
+      },
+    ];
+    const from = vi
+      .fn()
+      .mockReturnValue(makeLatestSnapshotChain({ data: { fighters }, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    const results = await service.search('other', 5);
+
+    expect(results[0]?.club).toBe('Bristol HEMA');
+  });
+
+  it('strips a trailing orphan opening tag with no leading fragment', async () => {
+    // Shape: `Visible <tag` — only the trailing orphan survived (the
+    // upstream lost the closing `>`).
+    const fighters = [
+      {
+        id: 5718,
+        name: 'Third Fighter',
+        club: 'Paris HEMA <a',
+        nationality: 'France',
+      },
+    ];
+    const from = vi
+      .fn()
+      .mockReturnValue(makeLatestSnapshotChain({ data: { fighters }, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    const results = await service.search('third', 5);
+
+    expect(results[0]?.club).toBe('Paris HEMA');
+  });
+
+  it('preserves legitimate text containing > or < without HTML markup', async () => {
+    // Guard rail: the new regex passes are GATED so they only strip
+    // shapes that look like HTML attributes / tags. A legitimate
+    // `Bigger > Smaller` value (no `attr="value">` prefix) and
+    // `I <3 fencing` (no alphabetic char after `<`) must survive.
+    const fighters = [
+      {
+        id: 5719,
+        name: 'I <3 fencing',
+        club: 'Bigger > Smaller Club',
+        nationality: null,
+      },
+    ];
+    const from = vi
+      .fn()
+      .mockReturnValue(makeLatestSnapshotChain({ data: { fighters }, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    const results = await service.search('fencing', 5);
+
+    expect(results[0]?.name).toBe('I <3 fencing');
+    expect(results[0]?.club).toBe('Bigger > Smaller Club');
+  });
+
   it('strips HTML residue from name and club before returning', async () => {
     // The sync worker's parseHtml (workers/hema-ratings-sync.worker.ts) strips
     // tags BEFORE decoding entities, so escaped anchors in the upstream
