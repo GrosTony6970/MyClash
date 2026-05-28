@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
+import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -67,12 +68,9 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   }, [tournamentId]);
 
   async function uploadLogo(file: File) {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(t('organizer.events.logoTooLarge'));
-      return;
-    }
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      toast.error(t('organizer.events.logoWrongType'));
+    const check = validateLogoFile(file);
+    if (!check.ok) {
+      toast.error(t(check.errorKey));
       return;
     }
     setUploadingLogo(true);

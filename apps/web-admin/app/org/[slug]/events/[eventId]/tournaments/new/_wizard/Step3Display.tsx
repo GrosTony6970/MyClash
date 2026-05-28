@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { TournamentColorDot, useToast } from '@myclash/ui';
+import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
 import {
   buildDisplayConfigFromRow,
   DISPLAY_DEFAULTS,
@@ -76,12 +77,9 @@ export function Step3Display({
   }, [tournamentId]);
 
   async function uploadLogo(file: File) {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(t('organizer.events.logoTooLarge'));
-      return;
-    }
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      toast.error(t('organizer.events.logoWrongType'));
+    const check = validateLogoFile(file);
+    if (!check.ok) {
+      toast.error(t(check.errorKey));
       return;
     }
     setUploadingLogo(true);

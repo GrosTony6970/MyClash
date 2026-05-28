@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { validateLogoFile } from '../../../../src/lib/validate-logo-file';
 
 interface OrgEvent {
   id: string;
@@ -108,6 +109,14 @@ export default function OrgEventsListPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<OrgEvent | null>(null);
   const [form, setForm] = useState<EventForm | null>(null);
+  // Staged logo edits live next to the modal's `form` state but are not
+  // part of the JSON PATCH body — uploads use the multipart endpoint
+  // first, and the remove path becomes `logoUrl: null` in the same
+  // PATCH. Reset on every openEdit / close to avoid leaking between
+  // sessions.
+  const [logoPendingFile, setLogoPendingFile] = useState<File | null>(null);
+  const [logoRemove, setLogoRemove] = useState(false);
+  const editLogoInput = useRef<HTMLInputElement | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<OrgEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -190,8 +199,39 @@ export default function OrgEventsListPage() {
   function openEdit(event: OrgEvent) {
     setEditing(event);
     setForm(toForm(event));
+    setLogoPendingFile(null);
+    setLogoRemove(false);
     setError(null);
     setNotice(null);
+  }
+
+  function closeEdit() {
+    setEditing(null);
+    setForm(null);
+    setLogoPendingFile(null);
+    setLogoRemove(false);
+  }
+
+  // Local preview URL for the staged file. Revoke when it changes so we
+  // don't leak the previous one.
+  const stagedLogoPreview = useMemo(
+    () => (logoPendingFile ? URL.createObjectURL(logoPendingFile) : null),
+    [logoPendingFile],
+  );
+  useEffect(() => {
+    if (!stagedLogoPreview) return;
+    return () => URL.revokeObjectURL(stagedLogoPreview);
+  }, [stagedLogoPreview]);
+
+  function handleEditLogoPick(file: File) {
+    const check = validateLogoFile(file);
+    if (!check.ok) {
+      setError(t(check.errorKey));
+      return;
+    }
+    setError(null);
+    setLogoPendingFile(file);
+    setLogoRemove(false);
   }
 
   async function saveEdit(event: FormEvent<HTMLFormElement>) {
@@ -201,25 +241,43 @@ export default function OrgEventsListPage() {
     setError(null);
     setNotice(null);
     try {
+      // Two-step save when a logo change is staged: upload first so the
+      // backend has the new asset, then PATCH the rest of the form.
+      // Remove takes a single PATCH with `logoUrl: null`. Picking a new
+      // file always wins over a prior Remove (Remove is cleared on pick).
+      if (logoPendingFile) {
+        const fd = new FormData();
+        fd.append('file', logoPendingFile);
+        const upload = await fetch(`${apiUrl}/api/v1/events/${editing.id}/logo`, {
+          method: 'POST',
+          credentials: 'include',
+          body: fd,
+        });
+        if (!upload.ok) {
+          const body = (await upload.json().catch(() => ({}))) as { message?: string };
+          throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+        }
+      }
+      const patchBody: Record<string, unknown> = {
+        name: form.name,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        location: form.location || null,
+        status: form.status,
+        publicLandingMd: form.publicLandingMd || null,
+      };
+      if (logoRemove && !logoPendingFile) patchBody['logoUrl'] = null;
       const res = await fetch(`${apiUrl}/api/v1/events/${editing.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          startDate: form.startDate,
-          endDate: form.endDate,
-          location: form.location || null,
-          status: form.status,
-          publicLandingMd: form.publicLandingMd || null,
-        }),
+        body: JSON.stringify(patchBody),
       });
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
         throw new Error(body.message ?? t('organizer.events.saveError'));
       }
-      setEditing(null);
-      setForm(null);
+      closeEdit();
       setNotice(t('organizer.events.saved'));
       load();
     } catch (err) {
@@ -257,12 +315,9 @@ export default function OrgEventsListPage() {
   }
 
   async function uploadLogo(eventId: string, file: File) {
-    if (file.size > 10 * 1024 * 1024) {
-      setError(t('organizer.events.logoTooLarge'));
-      return;
-    }
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setError(t('organizer.events.logoWrongType'));
+    const check = validateLogoFile(file);
+    if (!check.ok) {
+      setError(t(check.errorKey));
       return;
     }
     setBusyId(eventId);
@@ -553,6 +608,71 @@ export default function OrgEventsListPage() {
             <p className="mt-1 text-sm text-slate-500">
               {t('organizer.events.slugReadOnly', { slug: editing.slug })}
             </p>
+
+            {/* Logo edit block — staged. Picking a file shows a local
+                preview only; the actual upload runs from saveEdit
+                alongside the field PATCH. Remove flags the slot for
+                clearing on Save without touching anything until then. */}
+            <div className="mt-5 flex items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+                {stagedLogoPreview ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={stagedLogoPreview} alt="" className="h-full w-full object-cover" />
+                ) : logoRemove || !editing.logoUrl ? (
+                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    {editing.name.slice(0, 2)}
+                  </div>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={editing.logoUrl} alt="" className="h-full w-full object-cover" />
+                )}
+              </div>
+              <div className="flex flex-1 flex-wrap items-center gap-2">
+                <input
+                  ref={editLogoInput}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleEditLogoPick(file);
+                    if (editLogoInput.current) editLogoInput.current.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => editLogoInput.current?.click()}
+                  disabled={busyId === editing.id}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  {logoPendingFile || editing.logoUrl
+                    ? t('organizer.events.logoReplace')
+                    : t('organizer.events.uploadLogo')}
+                </button>
+                {(logoPendingFile || (editing.logoUrl && !logoRemove)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoPendingFile(null);
+                      setLogoRemove(true);
+                    }}
+                    disabled={busyId === editing.id}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {t('organizer.events.logoRemove')}
+                  </button>
+                )}
+                {logoPendingFile && (
+                  <span className="text-xs text-slate-500">{logoPendingFile.name}</span>
+                )}
+                {logoRemove && !logoPendingFile && (
+                  <span className="text-xs italic text-slate-500">
+                    {t('organizer.events.logoEmpty')}
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 {t('organizer.newEvent.eventName')}
@@ -619,7 +739,7 @@ export default function OrgEventsListPage() {
               </label>
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <Button type="button" variant="cancel" onClick={() => setEditing(null)}>
+              <Button type="button" variant="cancel" onClick={closeEdit}>
                 {t('common.cancel')}
               </Button>
               <Button type="submit" variant="next" loading={busyId === editing.id}>
