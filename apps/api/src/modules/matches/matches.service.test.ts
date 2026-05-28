@@ -58,6 +58,51 @@ describe('MatchesService', () => {
     );
   });
 
+  // ── Match summary — canonical roundCode ──────────────────────────────────
+
+  describe('getMatchSummary', () => {
+    it('returns roundCode built via the shared helper for a pool match', async () => {
+      // The scoreboard used to render `match_number_label` raw, while the
+      // pool list re-formatted client-side via formatRoundCode. Same match,
+      // two different visible codes. Push the build into the backend so
+      // both surfaces render the same `roundCode` field.
+      //
+      // Fixture: longsword tournament, pool A (sort_order=0 → number 1),
+      // match label `L1-PA-M1` → formatRoundCode yields `LSW-P1-ML1-PA-M1`.
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'vw_tournament_query_matches') {
+          return makeChain({
+            data: {
+              match_id: 'm1',
+              match_number_label: 'L1-PA-M1',
+              status: 'scheduled',
+              pool_id: 'p1',
+              pool_name: 'Pool A',
+              bracket_round: null,
+              red_name: 'Alice',
+              blue_name: 'Bob',
+              red_club: 'AAA',
+              blue_club: 'BBB',
+              tournament_id: 't1',
+            },
+            error: null,
+          });
+        }
+        if (tableName === 'tournaments') {
+          return makeChain({ data: { weapon: 'longsword' }, error: null });
+        }
+        if (tableName === 'pools') {
+          return makeChain({ data: { sort_order: 0 }, error: null });
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = (await service.getMatchSummary('m1')) as { roundCode: string };
+
+      expect(result.roundCode).toBe('LSW-P1-ML1-PA-M1');
+    });
+  });
+
   // ── Idempotency on client_uuid ────────────────────────────────────────────
 
   describe('createExchange — idempotency', () => {

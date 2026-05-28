@@ -18,6 +18,11 @@ import { getSupabaseBrowser } from '@/lib/supabase-browser';
 
 interface MatchSummary {
   matchLabel: string;
+  /** Canonical round code (e.g. `LSW-P1-ML1-PA-M1`). Computed on the
+   *  backend so the pool list and the scoreboard render the same
+   *  identifier for the same match. `matchLabel` stays in the payload
+   *  for back-compat but the UI should prefer `roundCode`. */
+  roundCode: string;
   status: string;
   poolName: string;
   redName: string;
@@ -135,7 +140,11 @@ export default function ScoreboardPage({
 
         <h1 className="text-lg font-semibold text-slate-900">
           {t('organizer.scoreboard.matchHeaderFormat', {
-            matchLabel: summary.matchLabel,
+            // Render the canonical roundCode (backend-built); previously
+            // matchLabel here was the raw `match_number_label`, which
+            // produced `L1-PA-M1` for matches that the pool list showed
+            // as `LSW-P1-ML1-PA-M1`. Same field, two surfaces — one code.
+            matchLabel: summary.roundCode,
             poolNumber: summary.poolName,
             weapon: summary.weapon,
           })}

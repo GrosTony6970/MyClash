@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
+import { buildRoundCode } from './round-code.helper';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import type { BracketAdvanceService } from '../phases/bracket-advance.service';
@@ -63,7 +64,7 @@ export class MatchesService {
     const { data, error } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, match_number_label, status, pool_name, red_name, blue_name, red_club, blue_club, tournament_id',
+        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id',
       )
       .eq('match_id', matchId)
       .maybeSingle();
@@ -75,7 +76,9 @@ export class MatchesService {
       match_id: string;
       match_number_label: string | null;
       status: string;
+      pool_id: string | null;
       pool_name: string | null;
+      bracket_round: number | null;
       red_name: string | null;
       blue_name: string | null;
       red_club: string | null;
@@ -83,22 +86,50 @@ export class MatchesService {
       tournament_id: string;
     };
 
-    // Fetch weapon from tournament (not in view)
+    // Fetch weapon from tournament (not in view). bracket_size doesn't
+    // exist on tournaments today (see staff.service comments + the
+    // 2026-05-28 fix); roundCode degrades to `B{round}` for bracket
+    // matches until phases.config_json is wired in a follow-up.
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
       .select('weapon')
       .eq('id', row.tournament_id)
       .maybeSingle();
+    const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
+
+    // Pool sort_order isn't projected by vw_tournament_query_matches, so
+    // we fetch it here when the match belongs to a pool — needed to feed
+    // formatRoundCode's poolNumber (1-indexed).
+    let poolNumber: number | null = null;
+    if (row.pool_id) {
+      const { data: pool } = await this.supabase.service
+        .from('pools')
+        .select('sort_order')
+        .eq('id', row.pool_id)
+        .maybeSingle();
+      const sortOrder = (pool as { sort_order?: number | null } | null)?.sort_order;
+      if (typeof sortOrder === 'number') poolNumber = sortOrder + 1;
+    }
+
+    const roundCode = buildRoundCode({
+      weapon,
+      poolNumber,
+      bracketRound: row.bracket_round,
+      bracketSize: null,
+      matchNumberLabel: row.match_number_label,
+      roundNumber: null,
+    });
 
     return {
       matchLabel: row.match_number_label ?? '',
+      roundCode,
       status: row.status,
       poolName: row.pool_name ?? '',
       redName: row.red_name ?? '',
       redClub: row.red_club ?? null,
       blueName: row.blue_name ?? '',
       blueClub: row.blue_club ?? null,
-      weapon: (tournament as { weapon?: string | null } | null)?.weapon ?? '',
+      weapon: weapon ?? '',
     };
   }
 

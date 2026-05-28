@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { formatRoundCode } from '@myclash/types';
+import { buildRoundCode } from '../matches/round-code.helper';
 import type { FastifyRequest } from 'fastify';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -585,13 +585,14 @@ export class StaffService {
     const bracketSlot = match['bracket_slots'] as { round?: number } | null;
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
-    const roundCode = formatRoundCode({
+    const roundCode = buildRoundCode({
       weapon: tournament?.weapon ?? null,
       poolNumber,
       bracketRound,
       // bracketSize would come from phases.config_json; pending follow-up.
       bracketSize: null,
-      matchNumber: (match['match_number_label'] as string | null | undefined) ?? null,
+      matchNumberLabel: (match['match_number_label'] as string | null | undefined) ?? null,
+      roundNumber: null,
     });
 
     return {
@@ -645,14 +646,15 @@ export class StaffService {
     const bracketSize: number | null = null;
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
-    const matchNumber = (match['match_number_label'] as string | null | undefined) ?? null;
+    const matchNumberLabel = (match['match_number_label'] as string | null | undefined) ?? null;
 
-    const roundCode = formatRoundCode({
+    const roundCode = buildRoundCode({
       weapon,
       poolNumber,
       bracketRound,
       bracketSize,
-      matchNumber,
+      matchNumberLabel,
+      roundNumber: null,
     });
 
     return {
