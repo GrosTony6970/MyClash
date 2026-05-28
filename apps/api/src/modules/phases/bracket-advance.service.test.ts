@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { singleElimBracket } from '@myclash/rulesets/dist/scheduling/index';
 
@@ -250,5 +251,137 @@ describe('BracketAdvanceService.advanceByeSlots', () => {
     await service.advanceByeSlots('phase-1');
 
     expect(insertCalls.length).toBe(0);
+  });
+});
+
+// ── overrideSlot — fails loud ─────────────────────────────────────────────────
+//
+// Production trace showed the manual-assign PATCH returning 200 with no
+// row actually persisted: the service was issuing
+// `update(...).eq(...)` without `.select()` and without checking the
+// returned `error`, so an FK violation or a stale slotId was swallowed.
+// These tests pin the contract: zero-rows → NotFoundException, supabase
+// error → BadRequestException. The Nest exception filter then surfaces
+// a 4xx instead of a lying 200.
+
+// ── advanceFromSlot — fails loud ──────────────────────────────────────────────
+//
+// The auto-advance path mirrors the overrideSlot bug: the four
+// propagation writes at lines 144-165 also ran without `.select()` or
+// error checks. Same sweep, same contract — if the downstream-slot
+// update affects zero rows (slot was deleted between the SELECT and
+// the UPDATE), throw NotFoundException so the failure is observable
+// instead of corrupting in-memory state passed to createMatchIfReady.
+
+describe('BracketAdvanceService.advanceFromSlot — fails loud', () => {
+  it('throws NotFoundException when the downstream-slot update affects zero rows', async () => {
+    // Calling advanceFromSlot directly: the only supabase touches are
+    //   1. bracket_slots.select().eq().or()  — downstream query
+    //   2. bracket_slots.update().eq().select().maybeSingle()  — writeSlotSide
+    //   3. matches.select().eq().not().maybeSingle()  — createMatchIfReady idempotency (skipped because we throw at step 2)
+    const downstreamSlot = {
+      id: 'ds-1',
+      round: 2,
+      position: 1,
+      phase_id: 'phase-1',
+      source_a_type: 'winner_of',
+      source_a_ref: 'winner of R1P1',
+      source_b_type: 'winner_of',
+      source_b_ref: 'winner of R1P2',
+      registration_a_id: null,
+      registration_b_id: null,
+    };
+
+    let bracketSlotsCall = 0;
+    const fromMock = vi.fn((table: string) => {
+      if (table === 'bracket_slots') {
+        bracketSlotsCall += 1;
+        if (bracketSlotsCall === 1) {
+          // Downstream query — `.or()` resolves the chain.
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            or: vi.fn().mockResolvedValue({ data: [downstreamSlot], error: null }),
+          };
+        }
+        // Second bracket_slots call is writeSlotSide — return zero rows.
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            select: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        };
+      }
+      // matches table — unreachable on the unhappy path, but mock for safety.
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        not: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    });
+    const mockSupabase = { service: { from: fromMock } };
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    // `advanceFromSlot` is private; call via reflection so the throw
+    // surfaces here instead of being swallowed by onMatchCompleted's
+    // top-level try/catch.
+    const advanceFromSlot = (
+      service as unknown as Record<
+        string,
+        (
+          phaseId: string,
+          selfRef: string,
+          winnerRegId: string,
+          loserRegId: string | null,
+        ) => Promise<void>
+      >
+    )['advanceFromSlot']!.bind(service);
+
+    await expect(
+      advanceFromSlot('phase-1', 'R1P1', 'reg-winner', 'reg-loser'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('BracketAdvanceService.overrideSlot — fails loud', () => {
+  function makeOverrideMock(updateResult: { data: unknown; error: unknown }) {
+    const updateChain = {
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue(updateResult),
+    };
+    return {
+      service: {
+        from: vi.fn(() => ({
+          update: vi.fn().mockReturnValue(updateChain),
+        })),
+      },
+    };
+  }
+
+  it('throws NotFoundException when the update matches zero rows', async () => {
+    const mockSupabase = makeOverrideMock({ data: null, error: null });
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await expect(service.overrideSlot('missing-slot-id', 'reg-a', 'reg-b')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('throws BadRequestException with the supabase message on error', async () => {
+    const mockSupabase = makeOverrideMock({
+      data: null,
+      error: { message: 'violates foreign key constraint' },
+    });
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await expect(service.overrideSlot('slot-1', 'orphan-reg-a', 'reg-b')).rejects.toThrow(
+      /violates foreign key constraint/,
+    );
+    await expect(service.overrideSlot('slot-1', 'orphan-reg-a', 'reg-b')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

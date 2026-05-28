@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 interface PhaseConfig {
@@ -77,13 +77,33 @@ export class BracketAdvanceService {
     registrationAId: string | null | undefined,
     registrationBId: string | null | undefined,
   ): Promise<void> {
+    this.logger.log(
+      `overrideSlot slot=${slotId} a=${registrationAId ?? 'unchanged'} b=${registrationBId ?? 'unchanged'}`,
+    );
+
     const updates: Record<string, unknown> = {};
     if (registrationAId !== undefined) updates['registration_a_id'] = registrationAId;
     if (registrationBId !== undefined) updates['registration_b_id'] = registrationBId;
 
     if (Object.keys(updates).length === 0) return;
 
-    await this.supabase.service.from('bracket_slots').update(updates).eq('id', slotId);
+    // Fail loud: production trace showed manual-assign PATCHes returning
+    // 200 with no row actually persisted because the supabase result was
+    // not inspected. `select().maybeSingle()` returns the updated row (1)
+    // or null (0) — null + null-error means the WHERE clause matched
+    // nothing, supabase error means the DB rejected the write (e.g. FK
+    // violation on a stale registration id).
+    const { data: persisted, error: updateError } = await this.supabase.service
+      .from('bracket_slots')
+      .update(updates)
+      .eq('id', slotId)
+      .select('id, registration_a_id, registration_b_id')
+      .maybeSingle();
+    if (updateError) throw new BadRequestException(updateError.message);
+    if (!persisted) throw new NotFoundException(`Bracket slot ${slotId} not found`);
+    this.logger.log(
+      `overrideSlot persisted slot=${slotId} a=${(persisted as { registration_a_id: string | null }).registration_a_id ?? 'null'} b=${(persisted as { registration_b_id: string | null }).registration_b_id ?? 'null'}`,
+    );
 
     // Re-check if slot is now fully resolved
     const slot = await this.loadSlot(slotId);
@@ -138,31 +158,22 @@ export class BracketAdvanceService {
       let updatedA = ds.registration_a_id;
       let updatedB = ds.registration_b_id;
 
-      // Determine which side this slot is filling
+      // Determine which side this slot is filling. Each branch goes
+      // through writeSlotSide so a failed write throws instead of
+      // silently corrupting the in-memory `updatedSlot` we hand to
+      // createMatchIfReady below.
       if (ds.source_a_ref === winnerRef && ds.registration_a_id === null) {
         updatedA = winnerRegId;
-        await this.supabase.service
-          .from('bracket_slots')
-          .update({ registration_a_id: winnerRegId })
-          .eq('id', ds.id);
+        await this.writeSlotSide(ds.id, 'a', winnerRegId);
       } else if (ds.source_a_ref === loserRef && loserRegId && ds.registration_a_id === null) {
         updatedA = loserRegId;
-        await this.supabase.service
-          .from('bracket_slots')
-          .update({ registration_a_id: loserRegId })
-          .eq('id', ds.id);
+        await this.writeSlotSide(ds.id, 'a', loserRegId);
       } else if (ds.source_b_ref === winnerRef && ds.registration_b_id === null) {
         updatedB = winnerRegId;
-        await this.supabase.service
-          .from('bracket_slots')
-          .update({ registration_b_id: winnerRegId })
-          .eq('id', ds.id);
+        await this.writeSlotSide(ds.id, 'b', winnerRegId);
       } else if (ds.source_b_ref === loserRef && loserRegId && ds.registration_b_id === null) {
         updatedB = loserRegId;
-        await this.supabase.service
-          .from('bracket_slots')
-          .update({ registration_b_id: loserRegId })
-          .eq('id', ds.id);
+        await this.writeSlotSide(ds.id, 'b', loserRegId);
       }
 
       // Re-load with updated values for match creation check
@@ -212,6 +223,31 @@ export class BracketAdvanceService {
     });
 
     this.logger.log(`Created match for bracket slot ${slot.id}`);
+  }
+
+  /**
+   * Persist a winner/loser propagation onto one side of a downstream
+   * slot, asserting the row was actually modified. The pre-fix code
+   * issued `update(...).eq(...)` with no `.select()` and no `error`
+   * check, so an FK violation or a stale slot id (e.g. the downstream
+   * row was deleted between the SELECT in advanceFromSlot and this
+   * write) silently no-op'd and corrupted the in-memory state we
+   * then passed to createMatchIfReady.
+   */
+  private async writeSlotSide(
+    slotId: string,
+    side: 'a' | 'b',
+    registrationId: string,
+  ): Promise<void> {
+    const column = side === 'a' ? 'registration_a_id' : 'registration_b_id';
+    const { data, error } = await this.supabase.service
+      .from('bracket_slots')
+      .update({ [column]: registrationId })
+      .eq('id', slotId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Bracket slot ${slotId} not found`);
   }
 
   private async deleteUnstartedMatch(slotId: string): Promise<void> {
