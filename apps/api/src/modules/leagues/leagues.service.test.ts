@@ -256,3 +256,170 @@ describe('LeaguesService create authorization', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 });
+
+/**
+ * When a league owner accepts a tournament-add request, the requesting
+ * tournament's organization should be auto-added to the league's
+ * member roster as `role: 'member'`. The upsert uses
+ * `ignoreDuplicates: true` so an org that's already a `member` /
+ * `admin` / `owner` is NOT demoted — the existing row wins.
+ *
+ * Rejection (status='rejected') must NOT grant membership.
+ */
+describe('LeaguesService.reviewTournamentLink — auto-grant member role on approval', () => {
+  type UpsertCapture = { payload: unknown; options: unknown };
+
+  function buildReviewService(opts: {
+    /** Resolves the tournament's org id via the events embed. */
+    tournamentOrgId?: string | null;
+  }) {
+    const linkRow = {
+      id: 'link-1',
+      league_id: 'league-1',
+      tournament_id: 't-1',
+      status: 'requested',
+    };
+    const updatedLinkRow = (status: string) => ({
+      ...linkRow,
+      status,
+      reviewed_by_user_id: 'reviewer-1',
+    });
+
+    const linksUpdates: unknown[] = [];
+    const orgRoleUpserts: UpsertCapture[] = [];
+    let lastUpdateStatus: string | null = null;
+
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        // platform_roles is hit by isSuperAdmin() inside assertCanManageLeague —
+        // return super_admin so the auth check passes without touching the rest.
+        if (table === 'platform_roles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { role: 'super_admin' },
+              error: null,
+            }),
+          };
+        }
+
+        // league_tournament_links: initial select returns the link row;
+        // update returns the updated row.
+        if (table === 'league_tournament_links') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: linkRow, error: null }),
+            update: vi.fn((payload: Record<string, unknown>) => {
+              linksUpdates.push(payload);
+              lastUpdateStatus =
+                typeof payload['status'] === 'string' ? (payload['status'] as string) : null;
+              return {
+                eq: vi.fn().mockReturnThis(),
+                select: vi.fn().mockReturnThis(),
+                single: vi.fn().mockResolvedValue({
+                  data: updatedLinkRow(lastUpdateStatus ?? 'requested'),
+                  error: null,
+                }),
+              };
+            }),
+          };
+        }
+
+        // tournaments: the new lookup that resolves the tournament's org.
+        // Returns the embedded events row with the org id (or null if no org).
+        if (table === 'tournaments') {
+          const data =
+            opts.tournamentOrgId === undefined
+              ? null
+              : { events: { organization_id: opts.tournamentOrgId } };
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+          };
+        }
+
+        // league_organization_roles: capture upsert payload + options.
+        if (table === 'league_organization_roles') {
+          return {
+            upsert: vi.fn((payload: unknown, options: unknown) => {
+              orgRoleUpserts.push({ payload, options });
+              return Promise.resolve({ data: payload, error: null });
+            }),
+          };
+        }
+
+        // Fallback — any other table returns an empty chain.
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          single: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }),
+    };
+
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+    );
+
+    return { service, linksUpdates, orgRoleUpserts };
+  }
+
+  it('upserts the tournament org into league_organization_roles as member on approval', async () => {
+    const { service, linksUpdates, orgRoleUpserts } = buildReviewService({
+      tournamentOrgId: 'org-x',
+    });
+
+    await service.reviewTournamentLink('link-1', { status: 'approved' }, 'reviewer-1');
+
+    // Link row updated to approved
+    expect(linksUpdates).toHaveLength(1);
+    expect(linksUpdates[0]).toMatchObject({ status: 'approved' });
+
+    // Org auto-granted as member with ignoreDuplicates
+    expect(orgRoleUpserts).toHaveLength(1);
+    expect(orgRoleUpserts[0]!.payload).toMatchObject({
+      league_id: 'league-1',
+      organization_id: 'org-x',
+      role: 'member',
+    });
+    expect(orgRoleUpserts[0]!.options).toMatchObject({
+      onConflict: 'league_id,organization_id',
+      ignoreDuplicates: true,
+    });
+  });
+
+  it('passes ignoreDuplicates: true so an existing admin/owner role is preserved', async () => {
+    // The supabase mock can't reproduce the actual ON CONFLICT DO NOTHING
+    // semantics, but we can lock the contract: every approval upsert must
+    // include ignoreDuplicates: true. That flag is the load-bearing piece
+    // that prevents demoting an existing admin/owner back to member.
+    const { service, orgRoleUpserts } = buildReviewService({ tournamentOrgId: 'org-x' });
+
+    await service.reviewTournamentLink('link-1', { status: 'approved' }, 'reviewer-1');
+
+    expect(orgRoleUpserts[0]!.options).toMatchObject({ ignoreDuplicates: true });
+  });
+
+  it('does NOT grant membership when the request is rejected', async () => {
+    const { service, linksUpdates, orgRoleUpserts } = buildReviewService({
+      tournamentOrgId: 'org-x',
+    });
+
+    await service.reviewTournamentLink('link-1', { status: 'rejected' }, 'reviewer-1');
+
+    // Link row updated to rejected
+    expect(linksUpdates).toHaveLength(1);
+    expect(linksUpdates[0]).toMatchObject({ status: 'rejected' });
+
+    // No membership write fired
+    expect(orgRoleUpserts).toHaveLength(0);
+  });
+});

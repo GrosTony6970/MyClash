@@ -639,6 +639,35 @@ export class LeaguesService {
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
+
+    // Auto-grant the requesting org a `member` role on the league when
+    // the tournament link is approved. The org gains read access to
+    // league metadata, private results/rankings, the roster, and the
+    // tournament-request history — see migration 0015's RLS rules.
+    // Uses `ignoreDuplicates: true` so an org that's already a member /
+    // admin / owner keeps its existing (potentially higher) role —
+    // re-approval must never demote an admin back to member.
+    if (update.status === 'approved') {
+      const tournamentId = String((link as Row)['tournament_id'] ?? '');
+      if (tournamentId) {
+        const { data: tournament } = await this.supabase.service
+          .from('tournaments')
+          .select('events ( organization_id )')
+          .eq('id', tournamentId)
+          .maybeSingle();
+        const orgId = (tournament as { events?: { organization_id?: string } } | null)?.events
+          ?.organization_id;
+        if (orgId) {
+          await this.supabase.service
+            .from('league_organization_roles')
+            .upsert(
+              { league_id: leagueId, organization_id: orgId, role: 'member' },
+              { onConflict: 'league_id,organization_id', ignoreDuplicates: true },
+            );
+        }
+      }
+    }
+
     return data;
   }
 
