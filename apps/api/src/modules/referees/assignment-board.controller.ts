@@ -44,6 +44,16 @@ export class AssignmentBoardController {
     return this.assignments.getBoard(eventId);
   }
 
+  @Get('tournaments/:tournamentId/pool-match-role-config')
+  @ApiOperation({
+    summary:
+      'Distinct referee roles to render as columns in the pool-match table. Returns system + per-event custom skills.',
+  })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async getPoolMatchRoleConfig(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.assignments.getPoolMatchRoleConfig(tournamentId);
+  }
+
   @Post('events/:eventId/referee-assignment-preview')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Preview referee auto-assignment without persisting' })

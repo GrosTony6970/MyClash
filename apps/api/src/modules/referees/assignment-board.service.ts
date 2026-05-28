@@ -251,6 +251,46 @@ export class AssignmentBoardService {
     return { ...result, swapSuggestions: [] };
   }
 
+  /**
+   * Distinct referee roles a per-match referee column should render
+   * for this tournament. Source of truth is the resolved staffing
+   * config — `pool[].allowedSkillIds` covers both system skills
+   * (arbitre_declarant / assesseur / table) and any custom skills
+   * the event configured. We dedupe across slots, then look up
+   * `referee_skills.name` for the human-readable column header.
+   * Roles preserve the slot order they appeared in.
+   */
+  async getPoolMatchRoleConfig(
+    tournamentId: string,
+  ): Promise<{ roles: Array<{ id: string; displayName: string }> }> {
+    const config = await this.staffing.getResolvedConfigForAssignmentBoard(tournamentId);
+
+    const orderedDistinct: string[] = [];
+    const seen = new Set<string>();
+    for (const slot of config.pool) {
+      for (const skillId of slot.allowedSkillIds) {
+        if (seen.has(skillId)) continue;
+        seen.add(skillId);
+        orderedDistinct.push(skillId);
+      }
+    }
+
+    if (orderedDistinct.length === 0) return { roles: [] };
+
+    const { data: skills } = await this.supabase.service
+      .from('referee_skills')
+      .select('id, name')
+      .in('id', orderedDistinct);
+
+    const nameById = new Map<string, string>(
+      ((skills ?? []) as Array<{ id: string; name: string }>).map((s) => [s.id, s.name]),
+    );
+
+    return {
+      roles: orderedDistinct.map((id) => ({ id, displayName: nameById.get(id) ?? id })),
+    };
+  }
+
   async applyPreview(eventId: string): Promise<AssignmentResult & { persisted: number }> {
     const context = await this.loadContext(eventId);
     const result = await this.previewFromContext(context);

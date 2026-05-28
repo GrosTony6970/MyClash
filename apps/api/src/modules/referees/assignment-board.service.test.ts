@@ -246,4 +246,44 @@ describe('AssignmentBoardService', () => {
       ]),
     );
   });
+
+  // ── Slice C ──────────────────────────────────────────────────────────────
+  // The per-match referee columns in the pool tab need to know which
+  // roles exist for this tournament (system + custom). The endpoint reads
+  // the resolved staffing config, dedupes allowed skill ids across pool
+  // slots, and joins referee_skills for human-readable names.
+  describe('getPoolMatchRoleConfig', () => {
+    it('returns one role per distinct skill id with the referee_skills display name', async () => {
+      mockStaffing.getResolvedConfigForAssignmentBoard.mockResolvedValueOnce({
+        pool: [
+          { index: 1, displayName: null, allowedSkillIds: ['arbitre_declarant'] },
+          { index: 2, displayName: null, allowedSkillIds: ['arbitre_assesseur'] },
+          { index: 3, displayName: 'Custom', allowedSkillIds: ['custom_skill_1'] },
+        ],
+        bracket: [],
+        finals: [],
+        inheritsEventDefault: false,
+        isHardCodedFloor: false,
+      });
+
+      fromMock.mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 'arbitre_declarant', name: 'Déclarant' },
+            { id: 'arbitre_assesseur', name: 'Assesseur' },
+            { id: 'custom_skill_1', name: 'Chronométreur' },
+          ],
+          error: null,
+        }),
+      );
+
+      const result = await service.getPoolMatchRoleConfig('tournament-1');
+
+      expect(result.roles).toEqual([
+        { id: 'arbitre_declarant', displayName: 'Déclarant' },
+        { id: 'arbitre_assesseur', displayName: 'Assesseur' },
+        { id: 'custom_skill_1', displayName: 'Chronométreur' },
+      ]);
+    });
+  });
 });
