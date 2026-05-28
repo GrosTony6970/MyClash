@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
-import type { CsvImportReport } from '@myclash/types';
+import { getDateFormat, type CsvImportReport } from '@myclash/types';
 
 export interface CsvRow {
   given_name: string;
@@ -22,6 +22,27 @@ export interface CsvRow {
 
 /** Strict ISO calendar date (YYYY-MM-DD) — no time, no timezone. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Normalize a CSV date cell to ISO YYYY-MM-DD. Preferred input is
+ * DD/MM/YYYY (French organizer convention; matches the helper from
+ * `getDateFormat('fr')`). ISO YYYY-MM-DD is accepted as a fallback
+ * so historical organizer uploads keep working. Returns null when
+ * the value is missing or matches neither shape (caller surfaces a
+ * row-level invalid entry).
+ *
+ * MM/DD/YYYY is intentionally NOT auto-detected — it's ambiguous
+ * with DD/MM/YYYY and we don't want silent mis-parses. English-
+ * locale admins re-save the file as ISO before upload.
+ */
+function parseCsvDate(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const fr = getDateFormat('fr').parse(trimmed);
+  if (fr) return fr;
+  if (ISO_DATE_RE.test(trimmed)) return trimmed;
+  return null;
+}
 
 export interface ParsedCsvResult {
   rows: Array<CsvRow & { rowNumber: number }>;
@@ -137,17 +158,23 @@ export class CsvImportService {
         return;
       }
 
-      // date_of_birth is optional — strict ISO calendar date when present.
-      // Reject MM/DD/YYYY, DD/MM/YYYY, slashes, dotted forms with a clear
-      // per-row reason so the super-admin can fix the source CSV.
+      // date_of_birth is optional — accept DD/MM/YYYY (preferred,
+      // French convention) or ISO YYYY-MM-DD (legacy fallback) and
+      // normalize to ISO before downstream. MM/DD/YYYY stays
+      // ambiguous and gets rejected — admins re-save as ISO.
       const rawDob = (normalized['date_of_birth'] ?? '').trim();
-      if (rawDob && !ISO_DATE_RE.test(rawDob)) {
-        invalid.push({
-          row: rowNumber,
-          reason: `Invalid date_of_birth: ${rawDob} (expected YYYY-MM-DD)`,
-          raw: rawStr,
-        });
-        return;
+      let isoDob: string | undefined;
+      if (rawDob) {
+        const parsed = parseCsvDate(rawDob);
+        if (!parsed) {
+          invalid.push({
+            row: rowNumber,
+            reason: `Invalid date_of_birth: ${rawDob} (expected DD/MM/YYYY)`,
+            raw: rawStr,
+          });
+          return;
+        }
+        isoDob = parsed;
       }
 
       rows.push({
@@ -156,7 +183,7 @@ export class CsvImportService {
         family_name: familyName,
         display_name: (normalized['display_name'] ?? '').trim() || undefined,
         email: rawEmail || undefined,
-        date_of_birth: rawDob || undefined,
+        date_of_birth: isoDob,
         club: (normalized['club'] ?? '').trim() || undefined,
         club_abv: (normalized['club_abv'] ?? '').trim() || undefined,
         club_city: (normalized['club_city'] ?? '').trim() || undefined,

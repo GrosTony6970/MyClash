@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { getDateFormat } from '@myclash/types';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface ClubLink {
@@ -119,7 +120,7 @@ function splitNames(value: string): Array<{ clubName: string }> {
     .map((clubName) => ({ clubName }));
 }
 
-function formFromProfile(profile: FighterProfile): FormState {
+function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => string): FormState {
   const selectedWeapons: FormState['selectedWeapons'] = {};
   for (const weapon of profile.weapons ?? []) {
     const id = weapon.weapon_catalog?.id;
@@ -133,7 +134,7 @@ function formFromProfile(profile: FighterProfile): FormState {
     givenName: profile.given_name ?? '',
     familyName: profile.family_name ?? '',
     nationality: profile.country_code ?? '',
-    dateOfBirth: profile.dateOfBirth ?? '',
+    dateOfBirth: formatDob(profile.dateOfBirth ?? ''),
     bio: profile.bio ?? '',
     photoUrl: profile.photo_url ?? '',
     mainClub: clubsByRole(profile.clubs, 'main'),
@@ -152,7 +153,8 @@ function formatDuration(
 }
 
 export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [weapons, setWeapons] = useState<WeaponCatalogEntry[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -174,7 +176,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           : [];
         setDashboard(nextDashboard);
         setWeapons(nextWeapons);
-        setForm(formFromProfile(nextDashboard.profile));
+        setForm(formFromProfile(nextDashboard.profile, dateFormat.format));
       })
       .catch(() => {
         setError(t('publicApp.fighterProfile.loadError'));
@@ -182,7 +184,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [apiUrl, t]);
+  }, [apiUrl, t, dateFormat]);
 
   useEffect(() => {
     load();
@@ -226,6 +228,18 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
 
   const save = () => {
     if (!dashboard) return;
+    // Convert the locale-formatted DOB back to ISO before PATCH.
+    // Empty is fine (DOB optional); non-empty + unparseable surfaces
+    // an inline error and aborts before we leak a malformed value.
+    let dateOfBirthIso: string | undefined;
+    if (form.dateOfBirth.trim()) {
+      const parsed = dateFormat.parse(form.dateOfBirth);
+      if (!parsed) {
+        setError(t('publicApp.fighterProfile.errors.dobFormat'));
+        return;
+      }
+      dateOfBirthIso = parsed;
+    }
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -239,7 +253,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         givenName: form.givenName,
         familyName: form.familyName,
         countryCode: form.nationality || undefined,
-        dateOfBirth: form.dateOfBirth || undefined,
+        dateOfBirth: dateOfBirthIso,
         bio: form.bio || undefined,
         photoUrl: form.photoUrl || undefined,
         mainClub: form.mainClub ? { clubName: form.mainClub } : undefined,
@@ -252,7 +266,7 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         if (!response.ok) throw new Error('save');
         const profile = (await response.json()) as FighterProfile;
         setDashboard((current) => (current ? { ...current, profile } : current));
-        setForm(formFromProfile(profile));
+        setForm(formFromProfile(profile, dateFormat.format));
         setMessage(t('publicApp.fighterProfile.saveSuccess'));
       })
       .catch(() => {
@@ -306,9 +320,15 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           />
           <Field
             label={t('publicApp.fighterProfile.dateOfBirth')}
-            type="date"
+            type="text"
             value={form.dateOfBirth}
             onChange={(value) => updateField('dateOfBirth', value)}
+            placeholder={dateFormat.placeholder}
+            hint={
+              form.dateOfBirth && !dateFormat.parse(form.dateOfBirth)
+                ? t('publicApp.fighterProfile.errors.dobFormat')
+                : undefined
+            }
           />
           <Field
             label={t('publicApp.fighterProfile.photoUrl')}
@@ -469,12 +489,14 @@ function Field({
   onChange,
   type = 'text',
   hint,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   hint?: string;
+  placeholder?: string;
 }) {
   const inputId = useId();
   return (
@@ -484,6 +506,7 @@ function Field({
         id={inputId}
         type={type}
         aria-label={label}
+        placeholder={placeholder}
         className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white outline-none focus:border-amber-500"
         value={value}
         onChange={(event) => onChange(event.target.value)}

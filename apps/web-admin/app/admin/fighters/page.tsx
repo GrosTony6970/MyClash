@@ -1,9 +1,11 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { getDateFormat } from '@myclash/types';
 import { SortableHeader, useSortableList } from '@myclash/ui';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -16,6 +18,8 @@ interface FighterRow {
   club_id: string | null;
   country_code: string | null;
   hema_ratings_id: string | null;
+  email?: string | null;
+  date_of_birth?: string | null;
   photo_url: string | null;
   bio: string | null;
   gender_category: string | null;
@@ -65,6 +69,10 @@ interface ProfileForm {
   familyName: string;
   displayName: string;
   hemaRatingsId: string;
+  email: string;
+  /** Locale-formatted DOB (DD/MM/YYYY for fr, MM/DD/YYYY for en).
+   *  Converted to/from ISO at the form boundary via getDateFormat. */
+  dateOfBirth: string;
   clubQuery: string;
   clubId: string;
   clubName: string;
@@ -80,6 +88,8 @@ const emptyProfileForm: ProfileForm = {
   familyName: '',
   displayName: '',
   hemaRatingsId: '',
+  email: '',
+  dateOfBirth: '',
   clubQuery: '',
   clubId: '',
   clubName: '',
@@ -153,7 +163,15 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   if (res.status === 429) return t('common.tooManyRequests');
   try {
     const body = (await res.json()) as { message?: unknown };
-    if (typeof body.message === 'string') return body.message;
+    if (typeof body.message === 'string') {
+      // The fighters service translates the partial-unique-index
+      // violation on lower(email) into ConflictException('email_in_use').
+      // Surface a friendly i18n string rather than the raw code.
+      if (res.status === 409 && body.message === 'email_in_use') {
+        return t('admin.globalProfiles.errors.emailInUse');
+      }
+      return body.message;
+    }
   } catch {
     // Keep the localized fallback when the API body is empty.
   }
@@ -164,6 +182,8 @@ type Tab = 'profiles' | 'create' | 'merge';
 
 export default function AdminFightersPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { locale } = useI18n();
+  const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
   const [tab, setTab] = useState<Tab>('profiles');
 
   // ── Global persons list ──────────────────────────────────────────────────────
@@ -236,6 +256,8 @@ export default function AdminFightersPage() {
       familyName: profile.family_name ?? '',
       displayName: profile.display_name ?? '',
       hemaRatingsId: profile.hema_ratings_id ?? '',
+      email: profile.email ?? '',
+      dateOfBirth: dateFormat.format(profile.date_of_birth ?? ''),
       clubQuery: profile.clubs?.name ?? '',
       clubId: profile.club_id ?? '',
       clubName: profile.clubs?.name ?? '',
@@ -313,6 +335,18 @@ export default function AdminFightersPage() {
       if (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant) {
         throw new Error(t('admin.globalProfiles.roleRequired'));
       }
+      // Convert the locale-formatted DOB to ISO before POST. Empty
+      // input is fine (DOB is optional); a non-empty value that
+      // fails to parse is a user error caught here so we never POST
+      // a malformed date.
+      let dateOfBirthIso: string | undefined;
+      if (form.dateOfBirth.trim()) {
+        const parsed = dateFormat.parse(form.dateOfBirth);
+        if (!parsed) {
+          throw new Error(t('admin.globalProfiles.errors.dobFormat'));
+        }
+        dateOfBirthIso = parsed;
+      }
       const displayName =
         form.displayName.trim() || `${form.givenName.trim()} ${form.familyName.trim()}`;
       const res = await fetch(
@@ -330,6 +364,8 @@ export default function AdminFightersPage() {
             clubAbbreviation: form.clubId ? undefined : form.clubAbbreviation.trim() || undefined,
             clubCity: form.clubId ? undefined : form.clubCity.trim() || undefined,
             hemaRatingsId: form.hemaRatingsId.trim() || undefined,
+            email: form.email.trim() || undefined,
+            dateOfBirth: dateOfBirthIso,
             isFighter: form.isFighter,
             isReferee: form.isReferee,
             isWorkshopParticipant: form.isWorkshopParticipant,
@@ -747,6 +783,38 @@ export default function AdminFightersPage() {
                 value={form.hemaRatingsId}
                 onChange={(e) => setForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
                 className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {t('admin.globalProfiles.email')}
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder={t('admin.globalProfiles.emailPlaceholder')}
+                className="border border-slate-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {t('admin.globalProfiles.dateOfBirth')}
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.dateOfBirth}
+                onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                placeholder={dateFormat.placeholder}
+                pattern={dateFormat.htmlPattern}
+                className={`rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-red-800/30 ${
+                  form.dateOfBirth && !dateFormat.parse(form.dateOfBirth)
+                    ? 'border border-red-400'
+                    : 'border border-slate-300'
+                }`}
               />
             </div>
 

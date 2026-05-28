@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -1048,6 +1049,8 @@ export class FightersService {
         family_name: dto.familyName.trim(),
         club_id: clubId,
         hema_ratings_id: this.trimOptional(dto.hemaRatingsId),
+        email: dto.email?.trim().toLowerCase() || null,
+        date_of_birth: dto.dateOfBirth?.trim() || null,
         is_fighter: dto.isFighter ?? false,
         is_referee: dto.isReferee ?? false,
         is_workshop_participant: dto.isWorkshopParticipant ?? false,
@@ -1055,7 +1058,14 @@ export class FightersService {
       .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
       .single();
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      // Partial unique index on LOWER(email) from migration 0075 —
+      // surface as a 409 so the UI can render a friendly message.
+      if (/duplicate key|unique/i.test(error.message)) {
+        throw new ConflictException('email_in_use');
+      }
+      throw new BadRequestException(error.message);
+    }
 
     if (dto.isReferee) {
       await this.ensureRefereeProfile(String((data as Row)['id']));
@@ -1096,6 +1106,12 @@ export class FightersService {
     if (dto.hemaRatingsId !== undefined) {
       updates['hema_ratings_id'] = this.trimOptional(dto.hemaRatingsId);
     }
+    if (dto.email !== undefined) {
+      updates['email'] = dto.email?.trim().toLowerCase() || null;
+    }
+    if (dto.dateOfBirth !== undefined) {
+      updates['date_of_birth'] = dto.dateOfBirth?.trim() || null;
+    }
     if (dto.isFighter !== undefined) updates['is_fighter'] = dto.isFighter;
     if (dto.isReferee !== undefined) updates['is_referee'] = dto.isReferee;
     if (dto.isWorkshopParticipant !== undefined) {
@@ -1110,7 +1126,12 @@ export class FightersService {
       .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
       .single();
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      if (/duplicate key|unique/i.test(error.message)) {
+        throw new ConflictException('email_in_use');
+      }
+      throw new BadRequestException(error.message);
+    }
     if (!data) throw new NotFoundException(`Global person ${id} not found`);
 
     if (nextRoles.isReferee) await this.ensureRefereeProfile(id);

@@ -3,6 +3,7 @@
  */
 
 export * from './compensation';
+export * from './date';
 export * from './password';
 export * from './programme';
 export * from './persons';

@@ -214,6 +214,9 @@ export const en = {
       matchHistoryLoadMore: 'Load more',
       matchHistoryNoMore: 'No more matches.',
       matchHistoryEmpty: 'No matches yet.',
+      errors: {
+        dobFormat: 'Date of birth must match the placeholder format.',
+      },
     },
     emailChange: {
       title: 'Change email',
@@ -1426,6 +1429,9 @@ export const en = {
         '* Required fields. Display name is generated from given name + family name when left blank.',
       cancelEdit: 'Cancel edit',
       hemaRatingsId: 'HEMA Ratings ID (optional)',
+      email: 'Email (optional)',
+      emailPlaceholder: 'optional',
+      dateOfBirth: 'Date of birth (optional)',
       clubAbbreviation: 'Club abbreviation (optional)',
       clubCity: 'Club city (optional)',
       clubCreateFromSearch: 'Create new club from this search',
@@ -1437,6 +1443,11 @@ export const en = {
       createError: 'Creation failed',
       updateError: 'Update failed',
       saveError: 'Save failed',
+      errors: {
+        emailInUse: 'This email is already linked to another global profile.',
+        dobFormat:
+          'Date of birth must match the placeholder format (DD/MM/YYYY or MM/DD/YYYY by locale).',
+      },
       createSuccess: 'Profile created: {profile}',
       updateSuccess: 'Profile updated: {profile}',
       creating: 'Creating...',
@@ -3344,6 +3355,9 @@ export const fr = {
       matchHistoryLoadMore: 'Charger plus',
       matchHistoryNoMore: 'Plus de matches.',
       matchHistoryEmpty: 'Aucun match.',
+      errors: {
+        dobFormat: 'La date de naissance doit respecter le format affiche.',
+      },
     },
     emailChange: {
       title: 'Changer l email',
@@ -4570,6 +4584,9 @@ export const fr = {
         '* Champs obligatoires. Le nom affiche est genere depuis le prenom + nom si laisse vide.',
       cancelEdit: 'Annuler la modification',
       hemaRatingsId: 'ID HEMA Ratings (optionnel)',
+      email: 'Email (optionnel)',
+      emailPlaceholder: 'facultatif',
+      dateOfBirth: 'Date de naissance (optionnel)',
       clubAbbreviation: 'Abreviation du club (optionnel)',
       clubCity: 'Ville du club (optionnel)',
       clubCreateFromSearch: 'Creer un club depuis cette recherche',
@@ -4581,6 +4598,11 @@ export const fr = {
       createError: 'Creation impossible',
       updateError: 'Mise a jour impossible',
       saveError: 'Sauvegarde impossible',
+      errors: {
+        emailInUse: 'Cet email est deja lie a un autre profil global.',
+        dobFormat:
+          'La date de naissance doit respecter le format affiche (JJ/MM/AAAA ou MM/DD/YYYY selon la langue).',
+      },
       createSuccess: 'Profil cree : {profile}',
       updateSuccess: 'Profil mis a jour : {profile}',
       creating: 'Creation...',

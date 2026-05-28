@@ -3,14 +3,17 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -265,6 +268,19 @@ export class CreateGlobalPersonDto {
   @MaxLength(100)
   hemaRatingsId?: string;
 
+  @ApiProperty({ required: false, format: 'email' })
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
+
+  @ApiProperty({ required: false, description: 'ISO YYYY-MM-DD' })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dateOfBirth must be ISO YYYY-MM-DD',
+  })
+  dateOfBirth?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsBoolean()
@@ -330,6 +346,21 @@ export class UpdateGlobalPersonDto {
   @IsString()
   @MaxLength(100)
   hemaRatingsId?: string | null;
+
+  @ApiProperty({ required: false, format: 'email', nullable: true })
+  @IsOptional()
+  @ValidateIf((_obj, value) => value !== null && value !== '')
+  @IsEmail()
+  @MaxLength(254)
+  email?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @ValidateIf((_obj, value) => value !== null && value !== '')
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dateOfBirth must be ISO YYYY-MM-DD',
+  })
+  dateOfBirth?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -9,6 +9,8 @@
 
 import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
+import { getDateFormat } from '@myclash/types';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 type RowStatus = 'ok' | 'invalid' | 'duplicate';
 type RowAction = 'skip' | 'create_new' | 'overwrite';
@@ -62,6 +64,8 @@ function defaultAction(status: RowStatus): RowAction {
 
 export default function GlobalPersonsImportPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { locale } = useI18n();
+  const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
 
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<Step>('upload');
@@ -206,10 +210,11 @@ export default function GlobalPersonsImportPage() {
             <p className="text-xs text-slate-500 mb-3">
               <span className="font-semibold">email</span> and{' '}
               <span className="font-semibold">date_of_birth</span> are optional.{' '}
-              <span className="font-semibold">date_of_birth</span> must be ISO{' '}
-              <span className="font-mono">YYYY-MM-DD</span>. When a row resolves to an existing
-              global profile, email and DOB are <em>only</em> written if the existing row has them
-              unset — no overwrite.
+              <span className="font-semibold">date_of_birth</span> must be{' '}
+              <span className="font-mono">DD/MM/YYYY</span> (ISO{' '}
+              <span className="font-mono">YYYY-MM-DD</span> also accepted for legacy uploads). When
+              a row resolves to an existing global profile, email and DOB are <em>only</em> written
+              if the existing row has them unset — no overwrite.
             </p>
             <p className="text-xs text-slate-500 mb-3">
               <a
@@ -415,12 +420,31 @@ export default function GlobalPersonsImportPage() {
                       </td>
                       <td className="px-3 py-2">
                         <input
-                          type="date"
-                          value={row.fields.dateOfBirth ?? ''}
-                          onChange={(e) =>
-                            updateRowField(row.index, 'dateOfBirth', e.target.value || null)
-                          }
-                          className="w-32 border border-slate-200 rounded px-2 py-1 text-xs"
+                          type="text"
+                          inputMode="numeric"
+                          value={dateFormat.format(row.fields.dateOfBirth ?? '')}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (!next.trim()) {
+                              updateRowField(row.index, 'dateOfBirth', null);
+                              return;
+                            }
+                            // Accept the locale format; keep the ISO
+                            // fallback so the backend-projected value
+                            // round-trips cleanly without an extra edit.
+                            const iso =
+                              dateFormat.parse(next) ??
+                              (/^\d{4}-\d{2}-\d{2}$/.test(next.trim()) ? next.trim() : null);
+                            updateRowField(row.index, 'dateOfBirth', iso ?? next);
+                          }}
+                          placeholder={dateFormat.placeholder}
+                          pattern={dateFormat.htmlPattern}
+                          className={`w-32 border rounded px-2 py-1 text-xs ${
+                            row.fields.dateOfBirth &&
+                            !/^\d{4}-\d{2}-\d{2}$/.test(row.fields.dateOfBirth)
+                              ? 'border-red-400'
+                              : 'border-slate-200'
+                          }`}
                           disabled={row.action === 'skip'}
                         />
                       </td>

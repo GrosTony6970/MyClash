@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { formatLocalizedDate } from '@myclash/types';
 import { useI18n } from '../../src/i18n/I18nProvider';
 
 interface PersonalSpaceResponse {
@@ -42,7 +43,7 @@ function roleEnabled(profile: Record<string, unknown> | null, key: string) {
 }
 
 export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [data, setData] = useState<PersonalSpaceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -158,7 +159,7 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                             {t('publicApp.personalSpace.dateOfBirthLabel')}:
                           </span>{' '}
                           <span className="tabular-nums">
-                            {globalPerson['date_of_birth'] as string}
+                            {formatLocalizedDate(globalPerson['date_of_birth'] as string, locale)}
                           </span>
                         </p>
                       )}
