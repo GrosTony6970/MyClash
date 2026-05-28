@@ -334,7 +334,12 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
+        // tournaments.bracket_size doesn't exist — see migrations/0001
+        // (tournaments table) and ALTERs since. The real source for bracket
+        // sizing is phases.config_json; round labels degrade to `B{round}`
+        // via bracketRoundLabel's null fallback until a follow-up restores
+        // the value from the right column.
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -361,7 +366,10 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,bracket_size,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round)',
+        // tournaments.bracket_size doesn't exist (see sibling query
+        // comment above). Drop it from the select so the request stops
+        // 400ing on PostgREST; bracketRoundLabel handles null cleanly.
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -568,7 +576,6 @@ export class StaffService {
         id?: string;
         name?: string;
         weapon?: string;
-        bracket_size?: number | null;
         scoring_config_json?: unknown;
         ruleset_config?: { matchFormat?: unknown };
       };
@@ -582,7 +589,8 @@ export class StaffService {
       weapon: tournament?.weapon ?? null,
       poolNumber,
       bracketRound,
-      bracketSize: tournament?.bracket_size ?? null,
+      // bracketSize would come from phases.config_json; pending follow-up.
+      bracketSize: null,
       matchNumber: (match['match_number_label'] as string | null | undefined) ?? null,
     });
 
@@ -624,7 +632,6 @@ export class StaffService {
         id?: string;
         name?: string;
         weapon?: string;
-        bracket_size?: number | null;
         scoring_config_json?: unknown;
         ruleset_config?: { matchFormat?: unknown };
       };
@@ -633,7 +640,9 @@ export class StaffService {
     const bracketSlot = match['bracket_slots'] as { round?: number } | null;
 
     const weapon = phases?.tournaments?.weapon ?? null;
-    const bracketSize = phases?.tournaments?.bracket_size ?? null;
+    // tournaments.bracket_size doesn't exist — see select-clause comment
+    // above. bracketRoundLabel falls back to `B{round}` when null.
+    const bracketSize: number | null = null;
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
     const matchNumber = (match['match_number_label'] as string | null | undefined) ?? null;
