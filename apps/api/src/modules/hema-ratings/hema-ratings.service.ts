@@ -380,10 +380,16 @@ export class HemaRatingsService {
     const enriched = await Promise.all(
       matches.map(async ({ fighter }) => {
         const id = String(fighter.id);
+        // Defend against HTML residue in stored snapshot rows. The sync
+        // worker's parseHtml strips tags before decoding entities, so any
+        // escaped anchors in the upstream listing arrive here as live
+        // <a> tags or stray entity refs. cleanHtmlText (same file) strips
+        // tags then decodes entities — the right order for read-side
+        // sanitization regardless of how messy the stored value is.
         const base: HemaRatingsSearchResult = {
           id,
-          name: fighter.name,
-          club: fighter.club ?? '',
+          name: cleanHtmlText(fighter.name ?? ''),
+          club: cleanHtmlText(fighter.club ?? ''),
           nationality: fighter.nationality ?? null,
           detailsUrl: `https://hemaratings.com/fighters/details/${id}/`,
         };

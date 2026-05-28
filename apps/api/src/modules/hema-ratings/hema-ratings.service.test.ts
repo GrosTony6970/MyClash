@@ -233,6 +233,37 @@ describe('HemaRatingsService', () => {
     expect(results.map((r) => r.id)).not.toContain('107');
   });
 
+  it('strips HTML residue from name and club before returning', async () => {
+    // The sync worker's parseHtml (workers/hema-ratings-sync.worker.ts) strips
+    // tags BEFORE decoding entities, so escaped anchors in the upstream
+    // listing come back as live <a> tags in the stored club field. Search()
+    // is the read boundary that must defend every consumer, so name and
+    // club go through cleanHtmlText on the way out.
+    const fighters = [
+      {
+        id: 6282,
+        name: 'Jean &amp; Dupont',
+        club: '<a href="/fighters/details/6282/">Lyon AMHE</a>',
+        nationality: 'France',
+      },
+    ];
+    const from = vi
+      .fn()
+      .mockReturnValue(makeLatestSnapshotChain({ data: { fighters }, error: null }));
+    const service = new HemaRatingsService({ service: { from } } as never);
+
+    const results = await service.search('lyon', 5);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({
+      id: '6282',
+      name: 'Jean & Dupont',
+      club: 'Lyon AMHE',
+      nationality: 'France',
+      detailsUrl: 'https://hemaratings.com/fighters/details/6282/',
+    });
+  });
+
   it('returns cached nationality from the snapshot without calling fetch', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
