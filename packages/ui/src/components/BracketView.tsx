@@ -212,7 +212,7 @@ function SingleElimLayout({
             return (
               <div
                 key={round}
-                className="relative z-10 flex min-w-[180px] max-w-[320px] flex-1 flex-col"
+                className="relative z-10 flex min-w-[220px] max-w-[360px] flex-1 flex-col"
               >
                 <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">
                   {labels[round] ?? `R${round}`}
@@ -421,7 +421,7 @@ function Lane({
           const rSlots = byRound.get(round) ?? [];
           const label = roundLabelFn ? roundLabelFn(round, idx, rounds.length) : `R${idx + 1}`;
           return (
-            <div key={round} className="flex min-w-[180px] max-w-[320px] flex-1 flex-col">
+            <div key={round} className="flex min-w-[220px] max-w-[360px] flex-1 flex-col">
               <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 {label}
               </p>

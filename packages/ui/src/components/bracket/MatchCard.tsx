@@ -81,7 +81,7 @@ export function MatchCard({
   // FighterRow does the colour-coding. Adding an amber/slate card
   // background here would fight the row tints visually.
   const cardClasses = [
-    'group relative flex h-[52px] w-full min-w-[180px] max-w-[320px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow',
+    'group relative flex h-[52px] w-full min-w-[220px] max-w-[360px] items-stretch overflow-hidden rounded-md bg-white shadow-sm transition-shadow',
     borderClass,
     handleClick ? 'cursor-pointer hover:shadow-md' : '',
   ]
@@ -132,22 +132,24 @@ export function MatchCard({
             sideColor={blueColor}
           />
         </div>
-
-        {/* Status pill bottom-right (absolute, outside the row flex) */}
-        <span
-          className={`absolute -bottom-2 right-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${pill.cls}`}
-        >
-          {isLive && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-600" />}
-          {pill.label}
-        </span>
-
-        {/* Round code bottom-left, mirror to the status pill. */}
-        {roundCode && (
-          <span className="absolute -bottom-2 left-2 inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
-            {roundCode}
-          </span>
-        )}
       </div>
+
+      {/* Status pill bottom-right — lifted out of the card's
+          overflow-hidden so it renders fully. z-10 keeps it above
+          connector lines that pass through the same region. */}
+      <span
+        className={`absolute -bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${pill.cls}`}
+      >
+        {isLive && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-600" />}
+        {pill.label}
+      </span>
+
+      {/* Round code bottom-left, mirror to the status pill. Also lifted. */}
+      {roundCode && (
+        <span className="absolute -bottom-2 left-2 z-10 inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
+          {roundCode}
+        </span>
+      )}
 
       {onOverride && (
         <button
