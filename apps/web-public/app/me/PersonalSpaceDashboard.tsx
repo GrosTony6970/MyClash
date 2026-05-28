@@ -26,6 +26,17 @@ interface PersonalSpaceResponse {
   };
 }
 
+interface GlobalPersonSearchResult {
+  id: string;
+  slug: string;
+  display_name: string;
+  given_name: string;
+  family_name: string;
+  country_code: string | null;
+  hema_ratings_id: string | null;
+  club_label: string | null;
+}
+
 function roleEnabled(profile: Record<string, unknown> | null, key: string) {
   return Boolean(profile?.[key]);
 }
@@ -140,20 +151,7 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                     />
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4">
-                    <p className="text-sm font-semibold text-slate-700">
-                      {t('publicApp.personalSpace.emptyProfileTitle')}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      {t('publicApp.personalSpace.emptyProfileDescription')}
-                    </p>
-                    <Link
-                      href="/"
-                      className="mt-4 inline-flex rounded-md bg-[#1d4ed8] px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
-                    >
-                      {t('publicApp.personalSpace.findEvents')}
-                    </Link>
-                  </div>
+                  <ClaimSearchSection apiUrl={apiUrl} />
                 )}
               </div>
 
@@ -175,6 +173,161 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
         )}
       </div>
     </main>
+  );
+}
+
+type ClaimUiState =
+  | { kind: 'idle' }
+  | { kind: 'requesting' }
+  | { kind: 'sent'; redactedEmail: string }
+  | { kind: 'error'; code: string };
+
+function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
+  const { t } = useI18n();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<GlobalPersonSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [claim, setClaim] = useState<ClaimUiState>({ kind: 'idle' });
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      // Below the search threshold — nothing to fetch. We deliberately
+      // do NOT setResults([]) here; rendering already gates on
+      // `trimmed.length >= 2`, so stale results stay in state but
+      // remain hidden until the user types enough to fetch fresh ones.
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      fetch(`${apiUrl}/api/v1/me/global-person-search?q=${encodeURIComponent(trimmed)}`, {
+        credentials: 'include',
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('search');
+          setResults((await res.json()) as GlobalPersonSearchResult[]);
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          setResults([]);
+        })
+        .finally(() => setSearching(false));
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [apiUrl, query]);
+
+  const showResults = query.trim().length >= 2;
+
+  async function startClaim(candidate: GlobalPersonSearchResult): Promise<void> {
+    setClaim({ kind: 'requesting' });
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/me/global-person-claim`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ globalPersonId: candidate.id }),
+      });
+      if (!res.ok) {
+        let code = 'unknown';
+        try {
+          const body = (await res.json()) as { message?: string; error?: string };
+          code = body.error ?? body.message ?? `http_${res.status}`;
+        } catch {
+          code = `http_${res.status}`;
+        }
+        setClaim({ kind: 'error', code });
+        return;
+      }
+      const body = (await res.json()) as { redactedEmail: string };
+      setClaim({ kind: 'sent', redactedEmail: body.redactedEmail });
+    } catch {
+      setClaim({ kind: 'error', code: 'network' });
+    }
+  }
+
+  if (claim.kind === 'sent') {
+    return (
+      <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-4">
+        <p className="text-sm font-bold text-emerald-800">{t('publicApp.claim.sentTitle')}</p>
+        <p className="mt-2 text-sm text-emerald-700">
+          {t('publicApp.claim.sentDescription', { email: claim.redactedEmail })}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      <p className="text-sm font-semibold text-slate-700">{t('publicApp.claim.searchTitle')}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-500">
+        {t('publicApp.claim.searchDescription')}
+      </p>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t('publicApp.claim.searchPlaceholder')}
+        className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-[#1d4ed8] focus:outline-none focus:ring-1 focus:ring-[#1d4ed8]"
+        aria-label={t('publicApp.claim.searchPlaceholder')}
+      />
+      {claim.kind === 'error' && (
+        <p className="mt-2 text-sm text-red-700" role="alert">
+          {claim.code === 'profile_has_no_email'
+            ? t('publicApp.claim.errors.profileHasNoEmail')
+            : claim.code === 'already_claimed' || claim.code === 'Profile is already claimed'
+              ? t('publicApp.claim.errors.alreadyClaimed')
+              : t('publicApp.claim.errors.generic')}
+        </p>
+      )}
+      <ul className="mt-3 flex flex-col gap-2">
+        {showResults && searching && (
+          <li className="text-sm text-slate-500">{t('publicApp.claim.searching')}</li>
+        )}
+        {showResults && !searching && results.length === 0 && (
+          <li className="text-sm text-slate-500">{t('publicApp.claim.noResults')}</li>
+        )}
+        {showResults &&
+          results.map((row) => (
+            <li
+              key={row.id}
+              className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-800">{row.display_name}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {[
+                    row.club_label,
+                    row.country_code,
+                    row.hema_ratings_id ? `HEMA #${row.hema_ratings_id}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || t('publicApp.claim.noClub')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void startClaim(row)}
+                disabled={claim.kind === 'requesting'}
+                className="shrink-0 rounded-md bg-[#1d4ed8] px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {t('publicApp.claim.thisIsMe')}
+              </button>
+            </li>
+          ))}
+      </ul>
+      <p className="mt-4 text-xs text-slate-500">
+        {t('publicApp.claim.findEventsFallback')}{' '}
+        <Link href="/" className="font-bold text-[#1d4ed8] hover:underline">
+          {t('publicApp.personalSpace.findEvents')}
+        </Link>
+      </p>
+    </div>
   );
 }
 

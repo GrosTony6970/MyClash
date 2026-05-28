@@ -226,6 +226,36 @@ export const en = {
       alert: 'Alert',
       fromEvent: 'From {event}',
     },
+    claim: {
+      searchTitle: 'Find your profile',
+      searchDescription:
+        'Type your name to find an existing global profile. If we match by email, we will send a confirmation link to verify it is you.',
+      searchPlaceholder: 'Type your name...',
+      searching: 'Searching...',
+      noResults: 'No matching profile yet. Try a different spelling or use Find Events below.',
+      noClub: 'No club on file',
+      thisIsMe: 'This is me',
+      sentTitle: 'Check your email',
+      sentDescription:
+        'We sent a confirmation link to {email}. Click it from that inbox to finish linking the profile.',
+      findEventsFallback: 'Not finding your profile?',
+      confirming: 'Linking your profile',
+      confirmingWait: 'Please wait while we finish linking your profile.',
+      errorTitle: 'Could not link your profile',
+      backToMe: 'Back to personal space',
+      errors: {
+        missingToken: 'The confirmation link is missing its token.',
+        expired: 'This confirmation link has expired. Request a new one.',
+        alreadyClaimed: 'This profile has already been claimed.',
+        userMismatch: 'This link was issued for a different MyClash account.',
+        profileHasNoEmail:
+          'This profile has no email on file. Ask an organizer to set one via CSV import.',
+        serverRejected: 'The MyClash server rejected the confirmation.',
+        timeout: 'The confirmation request timed out. Try again in a moment.',
+        network: 'Could not reach the MyClash server. Check your connection and try again.',
+        generic: 'Something went wrong while requesting the claim.',
+      },
+    },
   },
   metadata: {
     publicTitle: 'MyClash',
@@ -3232,6 +3262,37 @@ export const fr = {
       warning: 'Attention',
       alert: 'Alerte',
       fromEvent: 'De {event}',
+    },
+    claim: {
+      searchTitle: 'Retrouvez votre profil',
+      searchDescription:
+        "Tapez votre nom pour retrouver un profil global existant. Si l'email correspond, nous enverrons un lien de confirmation pour vérifier que c'est bien vous.",
+      searchPlaceholder: 'Tapez votre nom...',
+      searching: 'Recherche en cours...',
+      noResults:
+        'Aucun profil ne correspond. Essayez une autre orthographe ou utilisez Trouver des événements ci-dessous.',
+      noClub: 'Aucun club enregistré',
+      thisIsMe: "C'est moi",
+      sentTitle: 'Vérifiez votre boîte mail',
+      sentDescription:
+        'Nous avons envoyé un lien de confirmation à {email}. Cliquez dessus depuis cette boîte pour finaliser la liaison du profil.',
+      findEventsFallback: 'Vous ne trouvez pas votre profil ?',
+      confirming: 'Liaison de votre profil',
+      confirmingWait: 'Veuillez patienter pendant la finalisation de la liaison.',
+      errorTitle: 'Impossible de lier votre profil',
+      backToMe: "Retour à l'espace personnel",
+      errors: {
+        missingToken: 'Le lien de confirmation ne contient pas de jeton.',
+        expired: 'Ce lien de confirmation a expiré. Demandez-en un nouveau.',
+        alreadyClaimed: 'Ce profil a déjà été réclamé.',
+        userMismatch: 'Ce lien a été émis pour un autre compte MyClash.',
+        profileHasNoEmail:
+          "Ce profil n'a aucun email enregistré. Demandez à un organisateur d'en ajouter un via l'import CSV.",
+        serverRejected: 'Le serveur MyClash a refusé la confirmation.',
+        timeout: 'La requête de confirmation a expiré. Réessayez dans un instant.',
+        network: 'Impossible de joindre le serveur MyClash. Vérifiez votre connexion et réessayez.',
+        generic: 'Une erreur est survenue lors de la demande de liaison.',
+      },
     },
   },
   metadata: {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
@@ -34,6 +36,31 @@ type GoTruePasswordTokenResponse = {
 };
 
 type AdminLandingContext = NonNullable<MeResponseDto['admin']>;
+
+/**
+ * Public projection of a global_persons row for the self-service
+ * claim search UI. Never exposes email or DOB — those would let
+ * anonymous probing harvest identity data.
+ */
+export interface GlobalPersonSearchResult {
+  id: string;
+  slug: string;
+  display_name: string;
+  given_name: string;
+  family_name: string;
+  country_code: string | null;
+  hema_ratings_id: string | null;
+  club_label: string | null;
+}
+
+function redactEmail(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return '***';
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const visible = local.length <= 2 ? (local[0] ?? '') : `${local[0]}***${local[local.length - 1]}`;
+  return `${visible}@${domain}`;
+}
 
 function normalizeOrganizationMembership(
   row: unknown,
@@ -641,6 +668,210 @@ export class AuthService {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.debug(`autolink skipped (likely pre-migration): ${message}`);
     }
+  }
+
+  // ── §3: self-service claim from /me ─────────────────────────────────────
+
+  /**
+   * Search unclaimed, unmerged global_persons by name/club for the /me
+   * "Find your profile" UI. Never returns email or date_of_birth — those
+   * fields would leak identity to anonymous probing.
+   */
+  async searchGlobalPersonsForClaim(
+    request: FastifyRequest,
+    rawQuery: string,
+  ): Promise<GlobalPersonSearchResult[]> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid session');
+
+    const query = rawQuery.trim();
+    if (!query || query.length < 2) return [];
+    const safe = sanitizePostgrestFilterValue(query);
+    if (!safe) return [];
+
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select(
+        'id, slug, display_name, given_name, family_name, country_code, hema_ratings_id, clubs(name)',
+      )
+      .is('claimed_by_user_id', null)
+      .is('merged_into_id', null)
+      .or(`display_name.ilike.%${safe}%,given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`)
+      .order('display_name', { ascending: true })
+      .limit(20);
+
+    if (error) {
+      this.logger.warn(`global-person search failed: ${error.message}`);
+      return [];
+    }
+
+    return (data ?? []).map((row) => {
+      const r = row as {
+        id: string;
+        slug: string;
+        display_name: string;
+        given_name: string;
+        family_name: string;
+        country_code: string | null;
+        hema_ratings_id: string | null;
+        clubs: { name: string } | { name: string }[] | null;
+      };
+      const club = Array.isArray(r.clubs) ? (r.clubs[0]?.name ?? null) : (r.clubs?.name ?? null);
+      return {
+        id: r.id,
+        slug: r.slug,
+        display_name: r.display_name,
+        given_name: r.given_name,
+        family_name: r.family_name,
+        country_code: r.country_code,
+        hema_ratings_id: r.hema_ratings_id,
+        club_label: club,
+      };
+    });
+  }
+
+  /**
+   * Request a claim on a global_persons row. Validates ownership
+   * pre-conditions, then either mails a confirmation link to
+   * `global_persons.email` (happy path) or 422s with a hint about
+   * asking an organizer (Slice F will replace the 422 with a queue
+   * insert).
+   */
+  async requestGlobalPersonClaim(
+    request: FastifyRequest,
+    globalPersonId: string,
+  ): Promise<{ status: 'confirmation_sent'; redactedEmail: string }> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid session');
+
+    const { data: target, error: loadError } = await this.supabase.service
+      .from('global_persons')
+      .select('id, display_name, email, claimed_by_user_id, merged_into_id, clubs(name)')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (loadError) {
+      throw new ServiceUnavailableException('Could not load profile');
+    }
+    if (!target) {
+      throw new NotFoundException('Profile not found');
+    }
+    const row = target as {
+      id: string;
+      display_name: string;
+      email: string | null;
+      claimed_by_user_id: string | null;
+      merged_into_id: string | null;
+      clubs: { name: string } | { name: string }[] | null;
+    };
+    if (row.merged_into_id) {
+      throw new BadRequestException('This profile has been merged');
+    }
+    if (row.claimed_by_user_id) {
+      throw new BadRequestException('Profile is already claimed');
+    }
+    if (!row.email) {
+      // Slice F will replace this with a pending-request insert.
+      throw new BadRequestException('profile_has_no_email');
+    }
+
+    // Issue a one-time token. UUID is opaque enough for a single-use,
+    // 1-hour link; consistent with §3e schema.
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    const { error: tokenError } = await this.supabase.service
+      .from('global_person_claim_tokens')
+      .insert({
+        token,
+        user_id: user.id,
+        global_person_id: row.id,
+        expires_at: expiresAt,
+      });
+    if (tokenError) {
+      this.logger.error(`global-person claim token insert failed: ${tokenError.message}`);
+      throw new ServiceUnavailableException('Could not create claim token');
+    }
+
+    const confirmUrl = `${this.buildPostAuthRedirectUrl('/me/claim-confirm', 'public_login')}?token=${encodeURIComponent(token)}`;
+    await this.mail.sendMagicLink({
+      to: row.email,
+      magicLink: confirmUrl,
+      type: 'claim',
+      displayName: row.display_name,
+    });
+
+    return {
+      status: 'confirmation_sent',
+      redactedEmail: redactEmail(row.email),
+    };
+  }
+
+  /**
+   * Finalize a claim from the confirmation link. The web-public
+   * `/me/claim-confirm` page posts the token back here after the
+   * user clicks the magic link in their inbox.
+   */
+  async confirmGlobalPersonClaim(
+    request: FastifyRequest,
+    token: string,
+  ): Promise<{ status: 'claimed'; globalPersonId: string }> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid session');
+
+    const { data: tokenRow, error: loadError } = await this.supabase.service
+      .from('global_person_claim_tokens')
+      .select('token, user_id, global_person_id, expires_at')
+      .eq('token', token)
+      .maybeSingle();
+    if (loadError) {
+      throw new ServiceUnavailableException('Could not load token');
+    }
+    if (!tokenRow) {
+      throw new BadRequestException('expired_or_used');
+    }
+    const t = tokenRow as {
+      token: string;
+      user_id: string;
+      global_person_id: string;
+      expires_at: string;
+    };
+    if (new Date(t.expires_at).getTime() < Date.now()) {
+      // Best-effort cleanup; ignore errors.
+      await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+      throw new BadRequestException('expired_or_used');
+    }
+    if (t.user_id !== user.id) {
+      throw new ForbiddenException('user_mismatch');
+    }
+
+    // Race-guard: only set if still unclaimed.
+    const { data: updated, error: updateError } = await this.supabase.service
+      .from('global_persons')
+      .update({ claimed_by_user_id: user.id, updated_at: new Date().toISOString() })
+      .eq('id', t.global_person_id)
+      .is('claimed_by_user_id', null)
+      .select('id')
+      .maybeSingle();
+    if (updateError) {
+      throw new ServiceUnavailableException('Could not finalize claim');
+    }
+    if (!updated) {
+      // Someone else already claimed in the racing window.
+      await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+      throw new BadRequestException('already_claimed');
+    }
+
+    await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+
+    this.logger.log(`global-person claim confirmed: user ${user.id} → ${t.global_person_id}`);
+
+    return { status: 'claimed', globalPersonId: t.global_person_id };
   }
 
   private async hasAdminAccess(userId: string): Promise<boolean> {
