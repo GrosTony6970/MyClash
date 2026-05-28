@@ -38,13 +38,54 @@ export const en = {
       subtitle:
         'Sign in to review your fighter profile, referee history, workshop enrollments, and notifications even when no event is currently public.',
       formTitle: 'Participant login',
-      formDescription:
-        'Use the email attached to a claimed roster profile, or continue with Google.',
-      sendMagicLink: 'Send magic link',
+      formDescription: 'Use your MyClash account, or continue with Google.',
+      sendMagicLink: 'Send magic link instead',
       checkEmail: 'If this email is registered, a login link has been sent.',
       backToEvents: 'Back to public events',
+      tabsLabel: 'Sign in or sign up',
+      tabSignIn: 'Sign in',
+      tabSignUp: 'Sign up',
+      signupTitle: 'Create your account',
+      signupDescription:
+        'Use an email + password. We will email you a link to confirm your address before you can sign in.',
+      createAccount: 'Create account',
+      passwordConfirmLabel: 'Confirm password',
+      forgotPassword: 'Forgot password?',
+      or: 'or',
+      signupCheckEmail: 'Check your inbox at {email} and click the link to confirm your account.',
+      resetTitle: 'Reset your password',
+      resetDescription:
+        'Enter your email. If an account exists, we will send a link to set a new password.',
+      sendResetLink: 'Send reset link',
+      resetCheckEmail: 'If this email is registered, a password reset link has been sent.',
+      passwordRules: {
+        length: 'At least 12 characters',
+        uppercase: 'At least one uppercase letter',
+        lowercase: 'At least one lowercase letter',
+        digit: 'At least one digit',
+        special: 'At least one special character',
+      },
       errors: {
         magicLinkFailed: 'Could not send a login link.',
+        passwordLoginFailed: 'Wrong email or password.',
+        emailNotConfirmed:
+          'Confirm your email before signing in. Check your inbox for the confirmation link.',
+        weakPassword: 'Password does not meet the requirements.',
+        passwordMismatch: 'The two passwords do not match.',
+        signupFailed: 'Could not create the account. Try again in a moment.',
+        signupsDisabled: 'Signups are temporarily disabled. Try again later.',
+      },
+    },
+    resetPassword: {
+      title: 'Set a new password',
+      description: 'Choose a new password for your MyClash account.',
+      newPassword: 'New password',
+      submit: 'Update password',
+      errors: {
+        missingToken: 'The reset link is missing its token.',
+        expired: 'This reset link has expired. Request a new one.',
+        generic: 'Could not update the password.',
+        network: 'Could not reach the MyClash server. Try again.',
       },
     },
     personalShell: {
@@ -967,6 +1008,11 @@ export const en = {
         title: 'Disable signups',
         description:
           'Block the public POST /auth/signup endpoint. Existing sessions, password logins, and OAuth flows are unaffected. Use this to stop abuse / bot signups without locking the whole platform down.',
+      },
+      disablePublicSignups: {
+        title: 'Disable public account signups',
+        description:
+          'Block the public app POST /auth/public-signup endpoint (email + password account creation on app.myclash.fr). Independent of `Disable signups` which targets organizer signups. Existing accounts and the public magic-link / Google paths stay open.',
       },
       maintenanceBanner: {
         title: 'Maintenance banner',
@@ -3079,13 +3125,55 @@ export const fr = {
       subtitle:
         'Connectez-vous pour consulter votre profil combattant, votre historique arbitre, vos ateliers et vos notifications meme si aucun evenement public n est ouvert.',
       formTitle: 'Connexion participant',
-      formDescription:
-        'Utilisez l email associe a un profil de roster revendique, ou continuez avec Google.',
-      sendMagicLink: 'Envoyer le lien magique',
+      formDescription: 'Utilisez votre compte MyClash, ou continuez avec Google.',
+      sendMagicLink: 'Envoyer le lien magique a la place',
       checkEmail: 'Si cet email est enregistre, un lien de connexion a ete envoye.',
       backToEvents: 'Retour aux evenements publics',
+      tabsLabel: 'Se connecter ou créer un compte',
+      tabSignIn: 'Se connecter',
+      tabSignUp: 'Créer un compte',
+      signupTitle: 'Créez votre compte',
+      signupDescription:
+        'Utilisez un email + mot de passe. Nous vous enverrons un lien pour confirmer votre email avant la première connexion.',
+      createAccount: 'Créer le compte',
+      passwordConfirmLabel: 'Confirmer le mot de passe',
+      forgotPassword: 'Mot de passe oublié ?',
+      or: 'ou',
+      signupCheckEmail:
+        'Vérifiez votre boîte mail à {email} et cliquez sur le lien pour confirmer votre compte.',
+      resetTitle: 'Réinitialiser le mot de passe',
+      resetDescription:
+        'Entrez votre email. Si un compte existe, nous enverrons un lien pour définir un nouveau mot de passe.',
+      sendResetLink: 'Envoyer le lien',
+      resetCheckEmail: 'Si cet email est enregistré, un lien de réinitialisation a été envoyé.',
+      passwordRules: {
+        length: 'Au moins 12 caractères',
+        uppercase: 'Au moins une majuscule',
+        lowercase: 'Au moins une minuscule',
+        digit: 'Au moins un chiffre',
+        special: 'Au moins un caractère spécial',
+      },
       errors: {
         magicLinkFailed: 'Impossible d envoyer un lien de connexion.',
+        passwordLoginFailed: 'Email ou mot de passe incorrect.',
+        emailNotConfirmed:
+          'Confirmez votre email avant de vous connecter. Consultez votre boîte de réception.',
+        weakPassword: 'Le mot de passe ne respecte pas les règles.',
+        passwordMismatch: 'Les deux mots de passe ne correspondent pas.',
+        signupFailed: 'Impossible de créer le compte. Réessayez dans un instant.',
+        signupsDisabled: 'Les inscriptions sont temporairement désactivées. Réessayez plus tard.',
+      },
+    },
+    resetPassword: {
+      title: 'Définir un nouveau mot de passe',
+      description: 'Choisissez un nouveau mot de passe pour votre compte MyClash.',
+      newPassword: 'Nouveau mot de passe',
+      submit: 'Mettre à jour le mot de passe',
+      errors: {
+        missingToken: 'Le lien de réinitialisation ne contient pas de jeton.',
+        expired: 'Ce lien de réinitialisation a expiré. Demandez-en un nouveau.',
+        generic: 'Impossible de mettre à jour le mot de passe.',
+        network: 'Impossible de joindre le serveur MyClash. Réessayez.',
       },
     },
     personalShell: {
@@ -4021,6 +4109,11 @@ export const fr = {
         title: 'Desactiver les inscriptions',
         description:
           'Bloquer le endpoint public POST /auth/signup. Les sessions existantes, les connexions par mot de passe et OAuth ne sont pas affectees. A utiliser pour stopper les inscriptions abusives sans verrouiller toute la plateforme.',
+      },
+      disablePublicSignups: {
+        title: 'Désactiver les inscriptions publiques',
+        description:
+          'Bloquer le endpoint POST /auth/public-signup de l app publique (création de compte email + mot de passe sur app.myclash.fr). Indépendant de « Désactiver les inscriptions » qui concerne les organisateurs. Les comptes existants et les chemins magic-link / Google restent ouverts.',
       },
       maintenanceBanner: {
         title: 'Banniere de maintenance',

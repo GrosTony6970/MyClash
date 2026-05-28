@@ -26,14 +26,16 @@ describe('AdminFeatureFlagsService', () => {
 
     const flags = await service.listFlagsWithRegistry();
 
-    // Registry has 8 entries (admin_lockdown + 7 added in this feature)
-    expect(flags).toHaveLength(8);
+    // Registry has 9 entries (admin_lockdown + 8 added across features,
+    // including disable_public_signups from the global-profile slice).
+    expect(flags).toHaveLength(9);
     const keys = flags.map((f) => f.key);
     expect(keys).toEqual(
       expect.arrayContaining([
         'admin_lockdown',
         'read_only_mode',
         'disable_signups',
+        'disable_public_signups',
         'maintenance_banner',
         'disable_ai_features',
         'disable_hema_sync',

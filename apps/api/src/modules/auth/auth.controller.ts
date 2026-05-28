@@ -2,11 +2,20 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, Res } fr
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { AUTH_ACTION_THROTTLE } from '../../common/throttling/throttle-profiles';
+import {
+  AUTH_ACTION_THROTTLE,
+  SIGNUP_ACTION_THROTTLE,
+} from '../../common/throttling/throttle-profiles';
 import { AuthService } from './auth.service';
 import { MeResponseDto } from './dto/me-response.dto';
 import { OAuthSessionDto } from './dto/oauth-session.dto';
 import { PasswordLoginDto } from './dto/password-login.dto';
+import {
+  PublicLoginDto,
+  PublicPasswordResetConfirmDto,
+  PublicPasswordResetDto,
+  PublicSignupDto,
+} from './dto/public-auth.dto';
 import { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 
 @ApiTags('auth')
@@ -63,6 +72,77 @@ export class AuthController {
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async passwordLogin(@Body() dto: PasswordLoginDto, @Res() reply: FastifyReply): Promise<void> {
     await this.authService.passwordLogin(dto, reply);
+  }
+
+  /**
+   * POST /api/v1/auth/public-signup
+   *
+   * Create a Supabase auth.users row with email + password. Supabase
+   * sends its built-in confirmation email; the user can't log in
+   * until they click the link. Gated by the disable_public_signups
+   * feature flag.
+   */
+  @Post('public-signup')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle(SIGNUP_ACTION_THROTTLE)
+  @ApiOperation({ summary: 'Create a public email + password account' })
+  @ApiResponse({ status: 202, description: 'Confirmation email queued' })
+  @ApiResponse({ status: 400, description: 'Weak password' })
+  @ApiResponse({ status: 503, description: 'Signups temporarily disabled' })
+  async publicSignup(@Body() dto: PublicSignupDto): Promise<{ message: string }> {
+    return this.authService.publicSignup(dto.email, dto.password);
+  }
+
+  /**
+   * POST /api/v1/auth/public-login
+   *
+   * Email + password sign-in for the public app. Unlike `password-login`
+   * this does NOT require admin/organizer access. Surfaces
+   * `email_not_confirmed` as a 403 so the UI can route to the "check
+   * your inbox" state.
+   */
+  @Post('public-login')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_ACTION_THROTTLE)
+  @ApiOperation({ summary: 'Sign in to the public app with email + password' })
+  @ApiResponse({ status: 200, description: 'Session accepted' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 403, description: 'email_not_confirmed' })
+  async publicLogin(@Body() dto: PublicLoginDto, @Res() reply: FastifyReply): Promise<void> {
+    await this.authService.publicLogin(dto.email, dto.password, reply);
+  }
+
+  /**
+   * POST /api/v1/auth/public-password-reset
+   *
+   * Request a password reset email. Always 202 + generic message.
+   */
+  @Post('public-password-reset')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle(SIGNUP_ACTION_THROTTLE)
+  @ApiOperation({ summary: 'Request a password reset email' })
+  @ApiResponse({ status: 202, description: 'Reset link sent (or silently dropped)' })
+  async publicPasswordReset(@Body() dto: PublicPasswordResetDto): Promise<{ message: string }> {
+    return this.authService.publicPasswordReset(dto.email);
+  }
+
+  /**
+   * POST /api/v1/auth/public-password-reset-confirm
+   *
+   * Exchange the recovery token for a session and set the new password.
+   */
+  @Post('public-password-reset-confirm')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_ACTION_THROTTLE)
+  @ApiOperation({ summary: 'Confirm a password reset and sign in' })
+  @ApiResponse({ status: 200, description: 'Password updated + session set' })
+  @ApiResponse({ status: 400, description: 'Weak password' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  async publicPasswordResetConfirm(
+    @Body() dto: PublicPasswordResetConfirmDto,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    await this.authService.publicPasswordResetConfirm(dto.token, dto.password, reply);
   }
 
   @Post('logout')

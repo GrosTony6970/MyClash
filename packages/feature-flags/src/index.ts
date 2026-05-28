@@ -53,6 +53,13 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagDefinition[] = [
     group: 'incident',
   },
   {
+    key: 'disable_public_signups',
+    labelKey: 'admin.featureFlags.disablePublicSignups.title',
+    descriptionKey: 'admin.featureFlags.disablePublicSignups.description',
+    default: false,
+    group: 'incident',
+  },
+  {
     key: 'maintenance_banner',
     labelKey: 'admin.featureFlags.maintenanceBanner.title',
     descriptionKey: 'admin.featureFlags.maintenanceBanner.description',
@@ -96,6 +103,7 @@ export type KnownFeatureFlagKey =
   | 'admin_lockdown'
   | 'read_only_mode'
   | 'disable_signups'
+  | 'disable_public_signups'
   | 'maintenance_banner'
   | 'disable_ai_features'
   | 'disable_hema_sync'

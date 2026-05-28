@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { validatePassword } from '@myclash/types';
+import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
@@ -708,6 +711,205 @@ export class AuthService {
       `global-person unlink: user ${user.id} → cleared ${rows.length} row(s) [${ids}]`,
     );
     return { ok: true, unlinkedGlobalPersonId: rows[0]!.id };
+  }
+
+  // ── §7: public email + password account ────────────────────────────────
+
+  /**
+   * POST /auth/public-signup — create a Supabase auth.users row with
+   * the supplied email + password. Email confirmation is required
+   * before login can succeed (Supabase sends its built-in
+   * confirmation template; copy/branding is dashboard-side, not code).
+   */
+  async publicSignup(email: string, password: string): Promise<{ message: string }> {
+    if (await isFlagEnabledDirect(this.supabase, 'disable_public_signups')) {
+      throw new ServiceUnavailableException({
+        code: 'signups_disabled',
+        message: 'Public signups are temporarily disabled',
+      });
+    }
+    const validation = validatePassword(password);
+    if (!validation.ok) {
+      throw new BadRequestException({
+        code: 'weak_password',
+        failing: validation.failing,
+      });
+    }
+    const normalized = email.trim().toLowerCase();
+
+    const { error } = await this.supabase.service.auth.admin.createUser({
+      email: normalized,
+      password,
+      email_confirm: false,
+    });
+    if (error) {
+      // Already exists, weak password caught server-side, etc.
+      // Stay vague to avoid email enumeration ("if the email is new
+      // we'll send a confirmation link"); the UI shows the success
+      // banner regardless of the underlying state.
+      this.logger.warn(`public-signup failed for ${normalized}: ${error.message}`);
+    }
+
+    return {
+      message: 'If this email is new, a confirmation link has been sent.',
+    };
+  }
+
+  /**
+   * POST /auth/public-login — email + password authentication for the
+   * public app. Same shape as the admin `passwordLogin` but skips the
+   * `hasAdminAccess` check and surfaces an explicit
+   * `email_not_confirmed` code instead of a generic 401 when the
+   * Supabase user exists but hasn't confirmed their email yet.
+   */
+  async publicLogin(email: string, password: string, reply: FastifyReply): Promise<void> {
+    const normalized = email.trim().toLowerCase();
+    const tokenResponse = await this.requestPasswordTokenForPublic(normalized, password);
+
+    if (!tokenResponse.access_token || !tokenResponse.refresh_token || !tokenResponse.user?.id) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    this.setAuthCookies(
+      reply,
+      tokenResponse.access_token,
+      tokenResponse.refresh_token,
+      tokenResponse.expires_in,
+    );
+    await this.tryAutolinkGlobalPerson(tokenResponse.user.id, normalized);
+    void reply.send({ next: '/me' });
+  }
+
+  /**
+   * POST /auth/public-password-reset — request a password-reset email.
+   * Always returns 202 + a generic message so the response shape is
+   * identical for unknown emails (no enumeration).
+   */
+  async publicPasswordReset(email: string): Promise<{ message: string }> {
+    const normalized = email.trim().toLowerCase();
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    const redirectTo = `https://app.${domain}/reset-password`;
+
+    try {
+      const { data, error } = await this.supabase.service.auth.admin.generateLink({
+        type: 'recovery',
+        email: normalized,
+        options: { redirectTo },
+      });
+      if (error || !data.properties?.action_link) {
+        this.logger.warn(`public-password-reset: link generation failed for ${normalized}`);
+      } else {
+        await this.mail.sendMagicLink({
+          to: normalized,
+          magicLink: data.properties.action_link,
+          type: 'login',
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `public-password-reset: unexpected error for ${normalized}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
+    return { message: 'If this email is registered, a reset link has been sent.' };
+  }
+
+  /**
+   * POST /auth/public-password-reset-confirm — exchange the recovery
+   * token for a session and update the password.
+   */
+  async publicPasswordResetConfirm(
+    token: string,
+    password: string,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const validation = validatePassword(password);
+    if (!validation.ok) {
+      throw new BadRequestException({
+        code: 'weak_password',
+        failing: validation.failing,
+      });
+    }
+
+    // Recovery tokens come back as `?code=…` Supabase PKCE codes
+    // since the email flow goes through the new `verifyOtp` API.
+    const { data, error } = await this.supabase.anon.auth.verifyOtp({
+      token_hash: token,
+      type: 'recovery',
+    });
+    if (error || !data.session || !data.user) {
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+
+    const { error: updateError } = await this.supabase.service.auth.admin.updateUserById(
+      data.user.id,
+      { password },
+    );
+    if (updateError) {
+      throw new ServiceUnavailableException('Could not update password');
+    }
+
+    this.setAuthCookies(
+      reply,
+      data.session.access_token,
+      data.session.refresh_token ?? '',
+      data.session.expires_in,
+    );
+    await this.tryAutolinkGlobalPerson(data.user.id, data.user.email ?? null);
+    void reply.send({ next: '/me' });
+  }
+
+  /**
+   * Variant of requestPasswordToken that distinguishes "email not
+   * confirmed" (specific 403 code) from generic "invalid credentials"
+   * (401), so the UI can route the user to "Check your inbox" instead
+   * of "Wrong password."
+   */
+  private async requestPasswordTokenForPublic(
+    email: string,
+    password: string,
+  ): Promise<GoTruePasswordTokenResponse> {
+    const authUrl =
+      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
+      this.config.getOrThrow<string>('SUPABASE_URL');
+    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
+
+    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
+    try {
+      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: anonKey },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    if (!response.ok) {
+      const errorCode =
+        body && typeof body === 'object'
+          ? ((body as Record<string, unknown>)['error_code'] ??
+            (body as Record<string, unknown>)['error'])
+          : undefined;
+      if (errorCode === 'email_not_confirmed') {
+        throw new HttpException(
+          { code: 'email_not_confirmed', message: 'Email not confirmed' },
+          403,
+        );
+      }
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    return body as GoTruePasswordTokenResponse;
   }
 
   // ── §3: self-service claim from /me ─────────────────────────────────────
