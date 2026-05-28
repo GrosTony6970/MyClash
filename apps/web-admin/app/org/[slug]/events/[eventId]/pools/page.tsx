@@ -729,14 +729,16 @@ export default function PoolsPage() {
               </div>
             )}
 
-            {/* Pool cards with drag-drop */}
+            {/* Pool cards with drag-drop — one pool per row, full width of
+                the left column. Stacks vertically so each pool's fighter
+                list reads horizontally with room for the club label. */}
             {pools && pools.length > 0 && (
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col gap-4">
                 {pools.map((pool) => (
                   <div
                     key={pool.id}
                     className={[
-                      'w-72 border-2 rounded-xl p-4 transition-colors',
+                      'w-full border-2 rounded-xl p-4 transition-colors',
                       dragging ? 'border-dashed border-red-300 bg-red-50/30' : 'border-gray-200',
                     ].join(' ')}
                     onDragOver={(e) => e.preventDefault()}
@@ -842,63 +844,6 @@ export default function PoolsPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Unassigned fighters bucket */}
-            {pools && pools.length > 0 && (
-              <div
-                className={[
-                  'rounded-xl border-2 p-4 transition-colors',
-                  dragging
-                    ? 'border-dashed border-red-300 bg-red-50/30'
-                    : 'border-gray-200 bg-gray-50',
-                ].join(' ')}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => void handleDropOnUnassigned()}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900">Unassigned fighters</h3>
-                  <span className="text-xs text-gray-400">{unassigned.length} fighters</span>
-                </div>
-                {unassigned.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">
-                    All registered fighters are in a pool. Drag a fighter here to remove them from
-                    their pool.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                    {unassigned.map((u) => (
-                      <div
-                        key={u.registrationId}
-                        draggable
-                        onDragStart={() =>
-                          setDragging({
-                            memberId: u.registrationId,
-                            fromPoolId: UNASSIGNED_DROP_ID,
-                          })
-                        }
-                        onDragEnd={() => setDragging(null)}
-                        className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
-                      >
-                        <div className="min-w-0 flex-1 truncate">
-                          <span className="font-medium text-gray-900">{u.personName}</span>
-                          {u.clubLabel && (
-                            <span className="text-gray-400 text-xs ml-2">{u.clubLabel}</span>
-                          )}
-                        </div>
-                        {u.hemaWeightedRating !== null && (
-                          <span
-                            className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 shrink-0"
-                            title="HEMA weighted rating"
-                          >
-                            {u.hemaWeightedRating.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
 
@@ -1072,6 +1017,69 @@ export default function PoolsPage() {
                 </Link>
               )}
             </div>
+
+            {/* Unassigned fighters bucket — moved into the right rail so
+                it stays reachable as you scroll through pools (the rail
+                is sticky). Chips stack one per row to fit the 280 px
+                column; the list caps at 40vh and scrolls so the
+                lifecycle actions above remain visible. */}
+            {pools && pools.length > 0 && (
+              <div
+                className={[
+                  'rounded-xl border-2 p-3 transition-colors',
+                  dragging
+                    ? 'border-dashed border-red-300 bg-red-50/30'
+                    : 'border-gray-200 bg-gray-50',
+                ].join(' ')}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => void handleDropOnUnassigned()}
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Unassigned
+                  </h3>
+                  <span className="text-xs text-gray-400">{unassigned.length}</span>
+                </div>
+                {unassigned.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">
+                    All registered fighters are in a pool. Drag a fighter here to remove them from
+                    their pool.
+                  </p>
+                ) : (
+                  <div className="flex max-h-[40vh] flex-col gap-1.5 overflow-y-auto">
+                    {unassigned.map((u) => (
+                      <div
+                        key={u.registrationId}
+                        draggable
+                        onDragStart={() =>
+                          setDragging({
+                            memberId: u.registrationId,
+                            fromPoolId: UNASSIGNED_DROP_ID,
+                          })
+                        }
+                        onDragEnd={() => setDragging(null)}
+                        className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300"
+                      >
+                        <div className="min-w-0 flex-1 truncate">
+                          <span className="font-medium text-gray-900">{u.personName}</span>
+                          {u.clubLabel && (
+                            <span className="text-gray-400 text-xs ml-1.5">{u.clubLabel}</span>
+                          )}
+                        </div>
+                        {u.hemaWeightedRating !== null && (
+                          <span
+                            className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800 shrink-0"
+                            title="HEMA weighted rating"
+                          >
+                            {u.hemaWeightedRating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </aside>
         </div>
       )}
