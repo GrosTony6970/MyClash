@@ -106,10 +106,9 @@ export class PersonsService {
     // a real id (creating an unverified club if needed) before the rest
     // of the flow runs. clubId wins if both are set — DTO validation
     // rejects that combination, but the service is defensive.
-    const newClubName = (dto as { newClubName?: string }).newClubName;
     let resolvedClubId = dto.clubId ?? null;
-    if (!resolvedClubId && newClubName) {
-      resolvedClubId = await this.resolveOrCreateClubByName(newClubName);
+    if (!resolvedClubId && dto.newClubName) {
+      resolvedClubId = await this.resolveOrCreateClubByName(dto.newClubName);
     }
 
     const email = dto.email ? dto.email.toLowerCase().trim() : null;

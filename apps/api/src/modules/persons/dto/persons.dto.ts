@@ -8,7 +8,26 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  type ValidationArguments,
 } from 'class-validator';
+
+@ValidatorConstraint({ name: 'ClubIdOrNewClubName', async: false })
+class ClubIdOrNewClubNameConstraint implements ValidatorConstraintInterface {
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const obj = args.object as { clubId?: string; newClubName?: string };
+    const hasId = typeof obj.clubId === 'string' && obj.clubId.length > 0;
+    const hasName = typeof obj.newClubName === 'string';
+    if (hasId && hasName) return false;
+    if (hasName && obj.newClubName!.trim().length === 0) return false;
+    return true;
+  }
+  defaultMessage(): string {
+    return 'clubId and newClubName are mutually exclusive, and newClubName must be a non-empty trimmed string';
+  }
+}
 
 export class CreatePersonDto {
   @ApiProperty({ example: 'Jean' })
@@ -32,6 +51,18 @@ export class CreatePersonDto {
   @IsOptional()
   @IsUUID()
   clubId?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Auto-create a new club with this name (unverified=true) and attach the participant to it. ' +
+      'Mutually exclusive with clubId. Trims to a non-empty value.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  @Validate(ClubIdOrNewClubNameConstraint)
+  newClubName?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
