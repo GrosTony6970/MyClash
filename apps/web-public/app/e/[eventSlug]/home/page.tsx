@@ -11,6 +11,7 @@
  */
 
 import { cookies } from 'next/headers';
+import { getApiUrl } from '@/lib/api-url';
 import type { Metadata } from 'next';
 import { CompetitorHome } from './CompetitorHome';
 import { AccompanistHome } from './AccompanistHome';
@@ -38,7 +39,7 @@ export default async function HomePage({ params }: Props) {
   const { eventSlug } = await params;
   const cookieStore = await cookies();
   const persona = resolvePersona(cookieStore);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   switch (persona) {
     case 'competitor':

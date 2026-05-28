@@ -516,6 +516,11 @@ services:
       TZ: ${TZ}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
       NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+      # Server-side fetches (SSR + route handlers) use the internal
+      # docker service name. The public hostname doesn't hairpin
+      # cleanly from inside the container — it resolves to 127.0.0.1
+      # which has no listener. See apps/web-public/src/lib/api-url.ts.
+      API_URL_INTERNAL: http://api:4000
       NEXT_PUBLIC_SENTRY_DSN_PUBLIC: ${NEXT_PUBLIC_SENTRY_DSN_PUBLIC:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
       NEXT_PUBLIC_SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
@@ -524,12 +529,18 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
     healthcheck:
+      # Deeper probe than /api/health (which only verifies Next is alive).
+      # /api/health/api-reachable performs the same server-side fetch the
+      # public pages do — if SSR can't reach the API for ANY reason (DNS,
+      # routing, TLS, hairpin), this returns 503 and the container goes
+      # unhealthy. Deploy script's healthcheck poll then fails fast,
+      # preventing a broken public site from going live.
       test:
         [
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+          "require('http').get('http://localhost:3000/api/health/api-reachable',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
         ]
       interval: 30s
       timeout: 5s

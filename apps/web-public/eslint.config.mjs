@@ -8,6 +8,10 @@ import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 
 export default tseslint.config(
   ...rootConfig,
+  // Test files run under vitest (esbuild handles TS) and are excluded
+  // from tsconfig — so eslint with parserOptions.project can't parse
+  // them. Skip them at the lint boundary.
+  { ignores: ['**/*.test.ts', '**/*.test.tsx'] },
   {
     plugins: {
       '@next/next': nextPlugin,
@@ -39,6 +43,27 @@ export default tseslint.config(
         project: './tsconfig.json',
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  // Guard against the SSR-hairpin regression: server-side fetches must
+  // go through `getApiUrl()` (which picks API_URL_INTERNAL on the
+  // server) so they don't try to reach the public hostname from inside
+  // the docker network. Direct `process.env['NEXT_PUBLIC_API_URL']`
+  // reads bypass that branch. The helper file itself is the single
+  // exception.
+  {
+    files: ['app/**/*.{ts,tsx}'],
+    ignores: ['src/lib/api-url.ts', 'src/lib/api-url.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.object.name='process'][object.property.name='env'][property.value='NEXT_PUBLIC_API_URL']",
+          message:
+            "Don't read NEXT_PUBLIC_API_URL directly — use getApiUrl() from '@/lib/api-url'. Direct reads break SSR inside the Docker network (the public hostname doesn't hairpin).",
+        },
+      ],
     },
   },
 );

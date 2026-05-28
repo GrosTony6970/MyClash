@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
@@ -34,7 +35,7 @@ export default function PeoplePage() {
   const { t } = useI18n();
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PersonResult[]>([]);

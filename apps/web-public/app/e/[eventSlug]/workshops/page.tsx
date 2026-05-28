@@ -8,6 +8,7 @@
  */
 
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 
 interface Props {
@@ -84,7 +85,7 @@ function capacityBadge(confirmed: number, capacity: number) {
 export default async function WorkshopsPage({ params, searchParams }: Props) {
   const { eventSlug } = await params;
   const filters = await searchParams;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const workshops = await fetchWorkshops(eventSlug, apiUrl);
 

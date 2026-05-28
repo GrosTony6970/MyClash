@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -50,7 +51,7 @@ const WARNING_REASONS: { id: WarningReason; label: string }[] = [
 export default function RefereeMatchPage() {
   const params = useParams<{ eventSlug: string; matchId: string }>();
   const { eventSlug, matchId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [refereeCtx, setRefereeCtx] = useState<RefereeContext | null>(null);

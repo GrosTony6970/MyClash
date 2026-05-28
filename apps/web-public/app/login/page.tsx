@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@myclash/ui';
@@ -14,7 +15,7 @@ export default function PublicLoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   async function sendMagicLink() {
     if (!email.trim() || sending) return;

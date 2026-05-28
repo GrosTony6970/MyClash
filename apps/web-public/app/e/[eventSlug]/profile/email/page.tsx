@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 interface Props {
@@ -32,7 +33,7 @@ export default function EmailChangePage({ params }: Props) {
   const [cancelling, setCancelling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   useEffect(() => {
     void params.then(({ eventSlug: slug }) => setEventSlug(slug));

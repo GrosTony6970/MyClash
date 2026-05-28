@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getApiUrl } from '@/lib/api-url';
 import { t } from '@myclash/i18n';
 
 interface League {
@@ -60,7 +61,7 @@ export default async function PublicLeagueStandingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
   const league = await fetchLeague(apiUrl, slug);
   if (!league) notFound();
   const standings = await fetchStandings(apiUrl, league.id);

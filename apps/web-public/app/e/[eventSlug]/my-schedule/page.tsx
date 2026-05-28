@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -128,7 +129,7 @@ function itemLabel(item: ScheduleItem): string {
 export default function MySchedulePage() {
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);
   const [loading, setLoading] = useState(true);

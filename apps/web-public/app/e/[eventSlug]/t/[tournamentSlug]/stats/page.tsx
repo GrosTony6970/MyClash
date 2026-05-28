@@ -14,6 +14,7 @@
  */
 
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 
 interface Props {
@@ -131,7 +132,7 @@ function pct(n: number, total: number): string {
 
 export default async function StatsPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const tournamentId = await fetchTournamentId(eventSlug, tournamentSlug, apiUrl);
   if (!tournamentId) {

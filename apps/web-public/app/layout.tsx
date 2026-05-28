@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import { defaultLocale, t } from '@myclash/i18n';
 import { MaintenanceBanner } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
@@ -28,7 +29,7 @@ export default function RootLayout({
           {t('navigation.skipToMainContent')}
         </a>
         <I18nProvider>
-          <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
+          <MaintenanceBanner apiUrl={getApiUrl()} />
           {children}
         </I18nProvider>
       </body>

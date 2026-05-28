@@ -1,9 +1,10 @@
 'use client';
 
 import { MatchScoreboard } from '@myclash/ui';
+import { getApiUrl } from '@/lib/api-url';
 import { supabase } from '@/lib/supabase';
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const API_URL = getApiUrl();
 
 interface Props {
   apiUrl: string;

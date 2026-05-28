@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
+import { getApiUrl } from '@/lib/api-url';
 import { DisplayView } from './display-view';
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const API_URL = getApiUrl();
 
 interface Props {
   params: Promise<{ matchId: string }>;

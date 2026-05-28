@@ -12,6 +12,7 @@
  */
 
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import { fetchEventTheme, themeToCss } from '../../../src/theme';
 
 interface Props {
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EventLayout({ children, params }: Props) {
   const { eventSlug } = await params;
 
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const theme = await fetchEventTheme(eventSlug, apiUrl);
   const css = themeToCss(theme);

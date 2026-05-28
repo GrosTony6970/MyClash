@@ -4,6 +4,7 @@
  */
 
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
@@ -272,7 +273,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function FighterPage({ params }: Props) {
   const { slug } = await params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
   const [fighter, career, refereeStats] = await Promise.all([
     fetchFighter(slug, apiUrl),
     fetchCareer(slug, apiUrl),
@@ -639,18 +640,12 @@ export default async function FighterPage({ params }: Props) {
               );
             })}
           </div>
-          <MatchHistoryTrigger
-            slug={fighter.slug}
-            apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'}
-          />
+          <MatchHistoryTrigger slug={fighter.slug} apiUrl={getApiUrl()} />
         </section>
       ) : (
         <div className="py-12 text-center">
           <p className="text-sm text-gray-500">{t('publicApp.fighterProfile.noMatchHistory')}</p>
-          <MatchHistoryTrigger
-            slug={fighter.slug}
-            apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'}
-          />
+          <MatchHistoryTrigger slug={fighter.slug} apiUrl={getApiUrl()} />
         </div>
       )}
     </main>

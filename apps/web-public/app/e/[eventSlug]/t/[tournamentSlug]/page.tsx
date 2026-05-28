@@ -14,6 +14,7 @@
 /* eslint-disable myclash/no-literal-string */
 
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
 import { BracketView } from './BracketView';
 
@@ -101,7 +102,7 @@ async function fetchTournamentData(
 
 export default async function TournamentPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const data = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
 

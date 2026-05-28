@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
+import { getApiUrl } from '@/lib/api-url';
 import type { ExchangeRow, MatchPenaltyRow, MatchRow } from './match-live-view';
 import { MatchLiveView } from './match-live-view';
 
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const API_URL = getApiUrl();
 
 async function fetchMatch(matchId: string): Promise<MatchRow | null> {
   const res = await fetch(`${API_URL}/api/v1/matches/${matchId}`, {

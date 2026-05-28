@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useReducer } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 import { PersonLookup, type PersonMatch } from '../../../../src/components/PersonLookup';
 
@@ -62,7 +63,7 @@ export default function OnboardingPage({ params, searchParams }: Props) {
   const router = useRouter();
   const [eventSlug, setEventSlug] = React.useState<string | null>(null);
   const [eventId, setEventId] = React.useState<string | null>(null);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [state, dispatch] = useReducer(reducer, {
     step: 'lookup',

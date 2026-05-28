@@ -1,8 +1,9 @@
 import { t } from '@myclash/i18n';
+import { getApiUrl } from '@/lib/api-url';
 import { FighterProfileClient } from '../../profile/fighter/FighterProfileClient';
 
 export default function PersonalFighterPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   return (
     <main className="px-4 py-6 sm:px-6 lg:px-8">

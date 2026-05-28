@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getApiUrl } from '@/lib/api-url';
 import { t } from '@myclash/i18n';
 
 interface League {
@@ -20,7 +21,7 @@ async function fetchLeagues(apiUrl: string): Promise<League[]> {
 }
 
 export default async function PublicLeaguesPage() {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
   const leagues = await fetchLeagues(apiUrl);
 
   return (

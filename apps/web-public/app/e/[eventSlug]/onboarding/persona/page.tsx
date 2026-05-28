@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useRouter } from 'next/navigation';
 
 type Persona = 'competitor' | 'referee' | 'workshop_attendee' | 'accompanist' | 'public';
@@ -70,7 +71,7 @@ export default function PersonaPage({ params }: Props) {
   const [saving, setSaving] = useState(false);
   const [claimSent, setClaimSent] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   useEffect(() => {
     void params.then(({ eventSlug: slug }) => setEventSlug(slug));

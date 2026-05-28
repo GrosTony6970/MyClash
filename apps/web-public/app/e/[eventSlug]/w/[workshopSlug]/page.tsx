@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
@@ -51,7 +52,7 @@ export default function WorkshopDetailPage() {
   const params = useParams<{ eventSlug: string; workshopSlug: string }>();
   const searchParams = useSearchParams();
   const { eventSlug, workshopSlug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [loading, setLoading] = useState(true);

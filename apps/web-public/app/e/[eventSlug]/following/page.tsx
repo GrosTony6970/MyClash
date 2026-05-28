@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -99,7 +100,7 @@ function Initials({ name }: { name: string }) {
 export default function FollowingPage() {
   const params = useParams<{ eventSlug: string }>();
   const { eventSlug } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [follows, setFollows] = useState<FollowedPerson[]>([]);
   const [loading, setLoading] = useState(true);

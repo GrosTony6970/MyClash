@@ -2,6 +2,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { getApiUrl } from '@/lib/api-url';
 import { Suspense, useState } from 'react';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
@@ -16,7 +17,7 @@ function ClaimForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   async function handleGoogleClaim() {
     if (!personId) {

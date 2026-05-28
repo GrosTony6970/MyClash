@@ -6,6 +6,7 @@
  */
 
 import type { Metadata } from 'next';
+import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 
 interface Props {
@@ -60,7 +61,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ClubPage({ params }: Props) {
   const { slug } = await params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
   const club = await fetchClub(slug, apiUrl);
 
   if (!club) {

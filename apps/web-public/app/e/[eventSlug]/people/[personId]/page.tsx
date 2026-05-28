@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -53,7 +54,7 @@ interface PersonSchedule {
 export default function PersonProfilePage() {
   const params = useParams<{ eventSlug: string; personId: string }>();
   const { eventSlug, personId } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);

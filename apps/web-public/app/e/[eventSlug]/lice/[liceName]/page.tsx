@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -40,7 +41,7 @@ interface LiceData {
 export default function LicePage() {
   const params = useParams<{ eventSlug: string; liceName: string }>();
   const { eventSlug, liceName } = params;
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [data, setData] = useState<LiceData | null>(null);
   const [loading, setLoading] = useState(true);

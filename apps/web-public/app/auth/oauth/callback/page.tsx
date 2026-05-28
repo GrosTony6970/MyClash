@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-url';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
@@ -42,7 +43,7 @@ function PublicOAuthCallback() {
         return;
       }
 
-      const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+      const apiUrl = getApiUrl();
       const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 
@@ -33,7 +34,7 @@ interface EventLoadResult {
 const visibleStatuses = new Set(['published', 'running', 'completed']);
 
 async function fetchPublicEvents(): Promise<EventLoadResult> {
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
   const target = `${apiUrl}/api/v1/events`;
 
   try {
