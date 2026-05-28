@@ -1130,6 +1130,8 @@ export class FightersService {
         familyName: string;
         displayName: string;
         hemaRatingsId: string | null;
+        email: string | null;
+        dateOfBirth: string | null;
         clubLabel: string | null;
         clubAbbreviation: string | null;
         clubCity: string | null;
@@ -1191,6 +1193,8 @@ export class FightersService {
           familyName: '',
           displayName: '',
           hemaRatingsId: null,
+          email: null,
+          dateOfBirth: null,
           clubLabel: null,
           clubAbbreviation: null,
           clubCity: null,
@@ -1217,6 +1221,8 @@ export class FightersService {
           familyName: row.family_name,
           displayName: row.display_name?.trim() || `${row.given_name} ${row.family_name}`,
           hemaRatingsId: row.hema_ratings_id ?? null,
+          email: row.email ?? null,
+          dateOfBirth: row.date_of_birth ?? null,
           clubLabel: row.club ?? null,
           clubAbbreviation: row.club_abv ?? null,
           clubCity: row.club_city ?? null,
@@ -1280,12 +1286,27 @@ export class FightersService {
       }
 
       const displayName = decision.displayName?.trim() || `${givenName} ${familyName}`;
+      const emailRaw = decision.email?.trim().toLowerCase() || null;
+      const dobRaw = decision.dateOfBirth?.trim() || null;
+      if (dobRaw && !/^\d{4}-\d{2}-\d{2}$/.test(dobRaw)) {
+        failed.push({
+          index: decision.index,
+          reason: `Invalid date_of_birth: ${dobRaw} (expected YYYY-MM-DD)`,
+        });
+        continue;
+      }
+      // The super-admin has reviewed every row in the table; trust the
+      // explicit per-row decision here. The no-overwrite-if-set rule
+      // only applies to the auto-resolve path used by per-event
+      // participant adds (persons.service.resolveOrCreateGlobalPerson).
       const payload = {
         display_name: displayName,
         given_name: givenName,
         family_name: familyName,
         club_id: clubId,
         hema_ratings_id: decision.hemaRatingsId?.trim() || null,
+        email: emailRaw,
+        date_of_birth: dobRaw,
         is_fighter: decision.isFighter ? 'true' : 'false',
         is_referee: decision.isReferee ? 'true' : 'false',
         is_workshop_participant: decision.isWorkshopParticipant ? 'true' : 'false',

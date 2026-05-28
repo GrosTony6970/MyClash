@@ -7,6 +7,8 @@ export interface CsvRow {
   family_name: string;
   display_name?: string;
   email?: string;
+  /** ISO YYYY-MM-DD; rejected as an invalid row if any other format. */
+  date_of_birth?: string;
   club?: string;
   club_abv?: string;
   club_city?: string;
@@ -17,6 +19,9 @@ export interface CsvRow {
   is_referee?: string;
   is_workshop_participant?: string;
 }
+
+/** Strict ISO calendar date (YYYY-MM-DD) — no time, no timezone. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface ParsedCsvResult {
   rows: Array<CsvRow & { rowNumber: number }>;
@@ -132,12 +137,26 @@ export class CsvImportService {
         return;
       }
 
+      // date_of_birth is optional — strict ISO calendar date when present.
+      // Reject MM/DD/YYYY, DD/MM/YYYY, slashes, dotted forms with a clear
+      // per-row reason so the super-admin can fix the source CSV.
+      const rawDob = (normalized['date_of_birth'] ?? '').trim();
+      if (rawDob && !ISO_DATE_RE.test(rawDob)) {
+        invalid.push({
+          row: rowNumber,
+          reason: `Invalid date_of_birth: ${rawDob} (expected YYYY-MM-DD)`,
+          raw: rawStr,
+        });
+        return;
+      }
+
       rows.push({
         rowNumber,
         given_name: givenName,
         family_name: familyName,
         display_name: (normalized['display_name'] ?? '').trim() || undefined,
         email: rawEmail || undefined,
+        date_of_birth: rawDob || undefined,
         club: (normalized['club'] ?? '').trim() || undefined,
         club_abv: (normalized['club_abv'] ?? '').trim() || undefined,
         club_city: (normalized['club_city'] ?? '').trim() || undefined,

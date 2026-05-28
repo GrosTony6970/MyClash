@@ -1,0 +1,4 @@
+given_name,family_name,display_name,club,club_abv,club_city,hema_ratings_id,email,date_of_birth,is_fighter,is_referee,is_workshop_participant
+Jean,Dupont,Jean Dupont,Cercle d'Escrime de Paris,CEP,Paris,12345,jean.dupont@example.com,1990-03-15,true,false,false
+Marie,Leclerc,Marie Leclerc,Lyon HEMA,LH,Lyon,,,,true,true,false
+Tom,Sawyer,Tom Sawyer,,,,,tom@example.com,,false,false,true

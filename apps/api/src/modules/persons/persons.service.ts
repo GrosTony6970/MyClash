@@ -162,6 +162,7 @@ export class PersonsService {
         clubId: resolvedClubId,
         hemaRatingsId: dto.hemaRatingsId ?? null,
         dateOfBirth: dto.dateOfBirth ?? null,
+        email,
         genderCategory: dto.genderCategory ?? null,
       }));
 
@@ -209,22 +210,31 @@ export class PersonsService {
     clubId: string | null;
     hemaRatingsId: string | null;
     dateOfBirth: string | null;
+    email: string | null;
     genderCategory: string | null;
   }): Promise<string> {
     const givenName = input.givenName.trim();
     const familyName = input.familyName.trim();
     const hemaRatingsId = input.hemaRatingsId?.trim() || null;
     const dateOfBirth = input.dateOfBirth?.trim() || null;
+    const email = input.email?.trim().toLowerCase() || null;
 
     // Tier 1 — HEMA Ratings ID.
     if (hemaRatingsId) {
       const { data: hits } = await this.supabase.service
         .from('global_persons')
-        .select('id')
+        .select('id, email, date_of_birth')
         .eq('hema_ratings_id', hemaRatingsId)
         .limit(2);
-      const rows = (hits ?? []) as Array<{ id: string }>;
-      if (rows.length === 1) return rows[0]!.id;
+      const rows = (hits ?? []) as Array<{
+        id: string;
+        email: string | null;
+        date_of_birth: string | null;
+      }>;
+      if (rows.length === 1) {
+        await this.backfillGlobalPersonIdentity(rows[0]!, { email, dateOfBirth });
+        return rows[0]!.id;
+      }
     }
 
     // Tier 2 — name + club + DOB. Each part must be present; partial
@@ -232,14 +242,21 @@ export class PersonsService {
     if (input.clubId && dateOfBirth) {
       const { data: hits } = await this.supabase.service
         .from('global_persons')
-        .select('id')
+        .select('id, email, date_of_birth')
         .ilike('given_name', givenName)
         .ilike('family_name', familyName)
         .eq('club_id', input.clubId)
         .eq('date_of_birth', dateOfBirth)
         .limit(2);
-      const rows = (hits ?? []) as Array<{ id: string }>;
-      if (rows.length === 1) return rows[0]!.id;
+      const rows = (hits ?? []) as Array<{
+        id: string;
+        email: string | null;
+        date_of_birth: string | null;
+      }>;
+      if (rows.length === 1) {
+        await this.backfillGlobalPersonIdentity(rows[0]!, { email, dateOfBirth });
+        return rows[0]!.id;
+      }
     }
 
     // No confident match — mint a fresh global identity.
@@ -255,13 +272,52 @@ export class PersonsService {
         club_id: input.clubId,
         hema_ratings_id: hemaRatingsId,
         date_of_birth: dateOfBirth,
+        email,
         gender_category: input.genderCategory ?? null,
         is_fighter: true,
       })
       .select('id')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      // Likely a unique-email collision (partial unique index on
+      // LOWER(email) for unmerged rows). Surface a row-level error
+      // so the CSV importer can flag it cleanly.
+      if (/duplicate key|unique/i.test(error.message)) {
+        throw new BadRequestException(
+          `Email ${this.csv.maskEmail(email ?? '')} is already linked to another global profile`,
+        );
+      }
+      throw new BadRequestException(error.message);
+    }
     return (data as { id: string }).id;
+  }
+
+  /**
+   * After a Tier-1 or Tier-2 match, fill in email / date_of_birth on
+   * the existing global_persons row when the column is currently NULL
+   * and the CSV supplied a value. Never overwrites — a value already
+   * on the row stays; conflicts surface as no-ops (organizers can use
+   * the global-persons admin if they need to overwrite).
+   *
+   * Errors are swallowed (logged): the participant insert should
+   * still succeed even if a backfill stumbles.
+   */
+  private async backfillGlobalPersonIdentity(
+    row: { id: string; email: string | null; date_of_birth: string | null },
+    incoming: { email: string | null; dateOfBirth: string | null },
+  ): Promise<void> {
+    const updates: Record<string, unknown> = {};
+    if (incoming.email && !row.email) updates['email'] = incoming.email;
+    if (incoming.dateOfBirth && !row.date_of_birth) updates['date_of_birth'] = incoming.dateOfBirth;
+    if (Object.keys(updates).length === 0) return;
+
+    const { error } = await this.supabase.service
+      .from('global_persons')
+      .update(updates)
+      .eq('id', row.id);
+    if (error) {
+      this.logger.warn(`global_persons backfill failed for ${row.id}: ${error.message}`);
+    }
   }
 
   // ── Update ──────────────────────────────────────────────────────────────────

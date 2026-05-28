@@ -24,6 +24,8 @@ interface PreviewRow {
     familyName: string;
     displayName: string;
     hemaRatingsId: string | null;
+    email: string | null;
+    dateOfBirth: string | null;
     clubLabel: string | null;
     clubAbbreviation: string | null;
     clubCity: string | null;
@@ -116,6 +118,8 @@ export default function GlobalPersonsImportPage() {
           familyName: row.fields.familyName,
           displayName: row.fields.displayName,
           hemaRatingsId: row.fields.hemaRatingsId ?? undefined,
+          email: row.fields.email ?? undefined,
+          dateOfBirth: row.fields.dateOfBirth ?? undefined,
           clubLabel: row.fields.clubLabel ?? undefined,
           clubAbbreviation: row.fields.clubAbbreviation ?? undefined,
           clubCity: row.fields.clubCity ?? undefined,
@@ -197,7 +201,24 @@ export default function GlobalPersonsImportPage() {
             <p className="font-medium text-slate-700 mb-2">Expected CSV columns:</p>
             <p className="font-mono text-xs text-slate-500 mb-3">
               given_name, family_name, display_name, club, club_abv, club_city, hema_ratings_id,
-              is_fighter, is_referee, is_workshop_participant
+              email, date_of_birth, is_fighter, is_referee, is_workshop_participant
+            </p>
+            <p className="text-xs text-slate-500 mb-3">
+              <span className="font-semibold">email</span> and{' '}
+              <span className="font-semibold">date_of_birth</span> are optional.{' '}
+              <span className="font-semibold">date_of_birth</span> must be ISO{' '}
+              <span className="font-mono">YYYY-MM-DD</span>. When a row resolves to an existing
+              global profile, email and DOB are <em>only</em> written if the existing row has them
+              unset — no overwrite.
+            </p>
+            <p className="text-xs text-slate-500 mb-3">
+              <a
+                href="/csv-samples/global-persons.csv"
+                download
+                className="text-blue-700 hover:underline font-medium"
+              >
+                Download sample CSV
+              </a>
             </p>
             <p className="text-xs text-slate-500">
               The next step will show every parsed row plus duplicates with the existing profile,
@@ -289,6 +310,8 @@ export default function GlobalPersonsImportPage() {
                   <th className="px-3 py-2">Display name</th>
                   <th className="px-3 py-2">Club</th>
                   <th className="px-3 py-2">HEMA ID</th>
+                  <th className="px-3 py-2">Email</th>
+                  <th className="px-3 py-2">DOB</th>
                   <th className="px-3 py-2">Roles</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
@@ -375,6 +398,29 @@ export default function GlobalPersonsImportPage() {
                             updateRowField(row.index, 'hemaRatingsId', e.target.value || null)
                           }
                           className="w-24 border border-slate-200 rounded px-2 py-1 text-xs"
+                          disabled={row.action === 'skip'}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="email"
+                          value={row.fields.email ?? ''}
+                          onChange={(e) =>
+                            updateRowField(row.index, 'email', e.target.value || null)
+                          }
+                          placeholder="optional"
+                          className="w-40 border border-slate-200 rounded px-2 py-1 text-xs"
+                          disabled={row.action === 'skip'}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="date"
+                          value={row.fields.dateOfBirth ?? ''}
+                          onChange={(e) =>
+                            updateRowField(row.index, 'dateOfBirth', e.target.value || null)
+                          }
+                          className="w-32 border border-slate-200 rounded px-2 py-1 text-xs"
                           disabled={row.action === 'skip'}
                         />
                       </td>

@@ -443,6 +443,16 @@ export class ImportDecisionDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  email?: string;
+
+  @ApiProperty({ required: false, description: 'ISO YYYY-MM-DD' })
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   clubLabel?: string;
 
   @ApiProperty({ required: false })
