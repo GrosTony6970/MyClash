@@ -19,6 +19,7 @@
 - When data is deeply relational (Tournament → Event → Phase → Match → Exchange + cross-cutting Fighter/Club), choose Postgres over a document store. Document stores fight relational queries and cost more per read.
 - Use Supabase for what it's good at (auth, storage, realtime, the DB itself) and a dedicated backend (NestJS) for business logic. Don't cram domain code into Postgres functions.
 - Three frontend apps with shared `packages/ui` is preferable to a single mega-app when one of them (the scoring app) has materially different UX constraints (offline-first PWA).
+- Every Drizzle `uuid('foo_id')` that points at a public-schema table must have BOTH a `.references(...)` chain in the Drizzle column declaration AND a `REFERENCES ...` clause in the SQL migration that creates the column. PostgREST embeds (`/rest/v1/foo?select=*,bar(...)`) resolve through `information_schema.referential_constraints`; without the SQL FK, the embed returns 400 "Could not find a relationship". Without the Drizzle reference, future generated migrations and introspection drift away from the live DB. The `auth.users` references are the deliberate exception: they live in a different schema and we don't cross-schema FK on purpose.
 
 ## Domain integrity
 

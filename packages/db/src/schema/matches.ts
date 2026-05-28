@@ -5,14 +5,18 @@
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { lices } from './events';
 import { persons } from './persons';
-import { pools, registrations } from './tournaments';
+import { bracketSlots, phases, pools, registrations, tournaments } from './tournaments';
 
 // ── Matches ───────────────────────────────────────────────────────────────────
 export const matches = pgTable('matches', {
   id: uuid('id').primaryKey().defaultRandom(),
-  phaseId: uuid('phase_id').notNull(),
+  phaseId: uuid('phase_id')
+    .notNull()
+    .references(() => phases.id, { onDelete: 'cascade' }),
   poolId: uuid('pool_id').references(() => pools.id, { onDelete: 'set null' }),
-  bracketSlotId: uuid('bracket_slot_id'),
+  bracketSlotId: uuid('bracket_slot_id').references(() => bracketSlots.id, {
+    onDelete: 'set null',
+  }),
   liceId: uuid('lice_id').references(() => lices.id, { onDelete: 'set null' }),
   refereeId: uuid('referee_id').references(() => persons.id, { onDelete: 'set null' }),
   redRegistrationId: uuid('red_registration_id').references(() => registrations.id, {
@@ -53,7 +57,9 @@ export const matchForfeits = pgTable('match_forfeits', {
   matchId: uuid('match_id')
     .notNull()
     .references(() => matches.id, { onDelete: 'cascade' }),
-  tournamentId: uuid('tournament_id').notNull(),
+  tournamentId: uuid('tournament_id')
+    .notNull()
+    .references(() => tournaments.id, { onDelete: 'cascade' }),
   forfeitingRegistrationId: uuid('forfeiting_registration_id')
     .notNull()
     .references(() => registrations.id, { onDelete: 'restrict' }),
