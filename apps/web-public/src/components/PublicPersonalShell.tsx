@@ -11,6 +11,7 @@ const navItems = [
   { href: '/me/fighter', labelKey: 'publicApp.personalShell.nav.fighter', badge: 'F' },
   { href: '/me/referee', labelKey: 'publicApp.personalShell.nav.referee', badge: 'R' },
   { href: '/me/notifications', labelKey: 'publicApp.personalShell.nav.notifications', badge: 'N' },
+  { href: '/profile/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
   { href: '/', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
 ] as const;
 

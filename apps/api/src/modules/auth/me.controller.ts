@@ -20,6 +20,7 @@ import {
 } from './dto/global-person-claim.dto';
 import { MeResponseDto } from './dto/me-response.dto';
 import { PersonalSpaceResponseDto } from './dto/personal-space-response.dto';
+import { ChangePasswordDto, DeleteAccountDto } from './dto/security.dto';
 
 class GlobalPersonSearchQueryDto {
   @IsOptional()
@@ -128,5 +129,67 @@ export class MeController {
     @Body() dto: GlobalPersonClaimConfirmDto,
   ): Promise<{ status: 'claimed'; globalPersonId: string }> {
     return this.auth.confirmGlobalPersonClaim(req, dto.token);
+  }
+
+  /**
+   * GET /api/v1/me/security-status
+   *
+   * Tells the /profile/security UI whether the current user has a
+   * usable email/password identity (vs. Google-only signup), so the
+   * page can render the right Change-password and Delete-account
+   * variants.
+   */
+  @Get('me/security-status')
+  @ApiOperation({ summary: 'Security status (does this user have a password set)' })
+  @ApiResponse({ status: 200, description: '{ hasPassword, email }' })
+  async getSecurityStatus(
+    @Req() req: FastifyRequest,
+  ): Promise<{ hasPassword: boolean; email: string | null }> {
+    return this.auth.getSecurityStatus(req);
+  }
+
+  /**
+   * POST /api/v1/me/change-password
+   *
+   * Update the current user's password. Requires the current
+   * password as defense in depth (cookie alone is not enough).
+   */
+  @Post('me/change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change the current user password' })
+  @ApiResponse({ status: 200, description: 'Password updated' })
+  @ApiResponse({ status: 400, description: 'Weak new password' })
+  @ApiResponse({ status: 401, description: 'Current password incorrect / no session' })
+  async changePassword(
+    @Req() req: FastifyRequest,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ ok: true }> {
+    return this.auth.changePassword(req, dto.currentPassword, dto.newPassword);
+  }
+
+  /**
+   * DELETE /api/v1/me/account
+   *
+   * Irreversibly delete the current user's auth row and strip
+   * claim linkages on global_persons + persons (history rows
+   * survive). Requires the current password and literal 'DELETE'
+   * confirmation. v1 refuses for users without a password
+   * identity — they should set one via change-password first.
+   */
+  @Delete('me/account')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete the current user account' })
+  @ApiResponse({ status: 200, description: 'Account deleted; cookies cleared' })
+  @ApiResponse({
+    status: 400,
+    description: 'Confirmation typo / Google-only user (no_password_set)',
+  })
+  @ApiResponse({ status: 401, description: 'Wrong current password' })
+  async deleteAccount(
+    @Req() req: FastifyRequest,
+    @Body() dto: DeleteAccountDto,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    await this.auth.deleteAccount(req, dto.currentPassword, dto.confirmation, reply);
   }
 }

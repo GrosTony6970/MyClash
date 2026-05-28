@@ -107,6 +107,7 @@ export const en = {
         fighter: 'Fighter profile',
         referee: 'Referee profile',
         notifications: 'Notifications',
+        security: 'Security',
         events: 'Public events',
       },
     },
@@ -273,6 +274,40 @@ export const en = {
       warning: 'Warning',
       alert: 'Alert',
       fromEvent: 'From {event}',
+    },
+    security: {
+      title: 'Security',
+      subtitle: 'Manage your password and account.',
+      loadError: 'Could not load security settings.',
+      changePasswordTitle: 'Change password',
+      changePasswordAction: 'Update password',
+      changePasswordSuccess:
+        'Password updated. Sign in again with the new password on any other device.',
+      currentPassword: 'Current password',
+      newPassword: 'New password',
+      googleOnlyTitle: 'You signed in with Google',
+      googleOnlyBody:
+        "You don't have a password set yet. We'll email you a link to set one — after that you can sign in with email + password too.",
+      sendSetPasswordLink: 'Send set-password link',
+      setPasswordEmailSent: 'Check your inbox for the set-password link.',
+      deleteTitle: 'Delete my account',
+      deleteSubtitle:
+        'This is permanent. Your sign-in will be removed and your linked profiles unlinked. Match results, event history, and referee records stay as historical facts — they are no longer associated with your account.',
+      deleteAction: 'Delete my account',
+      deleteModalTitle: 'Type DELETE to confirm',
+      deleteModalBody:
+        'Enter your current password and type DELETE (uppercase) to permanently remove this account.',
+      deleteConfirmationLabel: 'Type DELETE to confirm',
+      deleteConfirmAction: 'Delete account',
+      errors: {
+        wrongCurrentPassword: 'Current password is incorrect.',
+        changePasswordFailed: 'Could not update the password. Try again.',
+        confirmationMismatch: 'Type DELETE (uppercase) in the confirmation field.',
+        deleteFailed: 'Could not delete the account. Try again.',
+        noPasswordSet:
+          "You don't have a password yet. Set one via Change password first, then come back to delete.",
+        network: 'Could not reach the MyClash server. Try again.',
+      },
     },
     claim: {
       searchTitle: 'Find your profile',
@@ -3200,6 +3235,7 @@ export const fr = {
         fighter: 'Profil combattant',
         referee: 'Profil arbitre',
         notifications: 'Notifications',
+        security: 'Sécurité',
         events: 'Evenements publics',
       },
     },
@@ -3369,6 +3405,40 @@ export const fr = {
       warning: 'Attention',
       alert: 'Alerte',
       fromEvent: 'De {event}',
+    },
+    security: {
+      title: 'Sécurité',
+      subtitle: 'Gérez votre mot de passe et votre compte.',
+      loadError: 'Impossible de charger les paramètres de sécurité.',
+      changePasswordTitle: 'Modifier le mot de passe',
+      changePasswordAction: 'Mettre à jour le mot de passe',
+      changePasswordSuccess:
+        'Mot de passe mis à jour. Reconnectez-vous avec le nouveau sur vos autres appareils.',
+      currentPassword: 'Mot de passe actuel',
+      newPassword: 'Nouveau mot de passe',
+      googleOnlyTitle: 'Vous êtes connecté avec Google',
+      googleOnlyBody:
+        "Vous n'avez pas encore de mot de passe. Nous vous enverrons un lien pour en définir un — vous pourrez ensuite vous connecter aussi par email + mot de passe.",
+      sendSetPasswordLink: 'Envoyer le lien',
+      setPasswordEmailSent: 'Consultez votre boîte mail pour le lien de création de mot de passe.',
+      deleteTitle: 'Supprimer mon compte',
+      deleteSubtitle:
+        "Cette action est définitive. Votre connexion sera supprimée et vos profils déliés. L'historique de matchs, d'événements et d'arbitrage reste comme faits historiques — il ne sera plus associé à votre compte.",
+      deleteAction: 'Supprimer mon compte',
+      deleteModalTitle: 'Tapez DELETE pour confirmer',
+      deleteModalBody:
+        'Entrez votre mot de passe actuel et tapez DELETE (majuscules) pour supprimer définitivement ce compte.',
+      deleteConfirmationLabel: 'Tapez DELETE pour confirmer',
+      deleteConfirmAction: 'Supprimer le compte',
+      errors: {
+        wrongCurrentPassword: 'Mot de passe actuel incorrect.',
+        changePasswordFailed: 'Impossible de mettre à jour le mot de passe. Réessayez.',
+        confirmationMismatch: 'Tapez DELETE (majuscules) dans le champ de confirmation.',
+        deleteFailed: 'Impossible de supprimer le compte. Réessayez.',
+        noPasswordSet:
+          "Vous n'avez pas encore de mot de passe. Définissez-en un via « Modifier le mot de passe » puis revenez pour supprimer.",
+        network: 'Impossible de joindre le serveur MyClash. Réessayez.',
+      },
     },
     claim: {
       searchTitle: 'Retrouvez votre profil',

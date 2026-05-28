@@ -713,6 +713,142 @@ export class AuthService {
     return { ok: true, unlinkedGlobalPersonId: rows[0]!.id };
   }
 
+  // ── §9: /profile/security — change password + delete account ──────────
+
+  /**
+   * Tell the UI whether the current user has a usable email/password
+   * identity. False means they signed up via Google only — the
+   * change-password form needs to swap to a "set initial password
+   * via magic link" variant and the delete-account modal needs the
+   * email-confirm path (v1: refused with a hint).
+   */
+  async getSecurityStatus(
+    request: FastifyRequest,
+  ): Promise<{ hasPassword: boolean; email: string | null }> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user) throw new UnauthorizedException('Invalid session');
+
+    const identities = (user as { identities?: Array<{ provider?: string }> }).identities ?? [];
+    const hasPassword = identities.some((i) => i.provider === 'email');
+    return { hasPassword, email: user.email ?? null };
+  }
+
+  /**
+   * Change the current user's password. Verifies the current
+   * password by re-issuing a Supabase token (grant_type=password),
+   * then updates via admin.updateUserById. Other sessions are
+   * invalidated by Supabase as a side-effect of the password
+   * update.
+   */
+  async changePassword(
+    request: FastifyRequest,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: true }> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user || !user.email) throw new UnauthorizedException('Invalid session');
+
+    const validation = validatePassword(newPassword);
+    if (!validation.ok) {
+      throw new BadRequestException({ code: 'weak_password', failing: validation.failing });
+    }
+
+    // Re-verify ownership by exchanging email + currentPassword.
+    const tokenResponse = await this.requestPasswordTokenForPublic(user.email, currentPassword);
+    if (!tokenResponse.user?.id || tokenResponse.user.id !== user.id) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const { error: updateError } = await this.supabase.service.auth.admin.updateUserById(user.id, {
+      password: newPassword,
+    });
+    if (updateError) {
+      throw new ServiceUnavailableException('Could not update password');
+    }
+
+    this.logger.log(`password changed for user ${user.id}`);
+    return { ok: true };
+  }
+
+  /**
+   * Delete the current user's account. Strips claim links from
+   * global_persons + persons (history rows survive), removes
+   * pending tokens/requests by the user, then deletes the
+   * auth.users row via Supabase admin. Idempotent on the row-strip
+   * step; the auth delete is the one-shot. Refuses for users
+   * without a password identity (v1) with a hint to set a password
+   * via the change-password flow first.
+   */
+  async deleteAccount(
+    request: FastifyRequest,
+    currentPassword: string,
+    confirmation: string,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user || !user.email) throw new UnauthorizedException('Invalid session');
+
+    if (confirmation !== 'DELETE') {
+      throw new BadRequestException({ code: 'confirmation_mismatch' });
+    }
+
+    const identities = (user as { identities?: Array<{ provider?: string }> }).identities ?? [];
+    const hasPassword = identities.some((i) => i.provider === 'email');
+    if (!hasPassword) {
+      throw new BadRequestException({
+        code: 'no_password_set',
+        message:
+          'Set a password via Change password first (this lets us verify the deletion request).',
+      });
+    }
+
+    const tokenResponse = await this.requestPasswordTokenForPublic(user.email, currentPassword);
+    if (!tokenResponse.user?.id || tokenResponse.user.id !== user.id) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Strip claim linkages — historical match/referee/event facts
+    // survive; the rows just become unclaimed.
+    await this.supabase.service
+      .from('global_persons')
+      .update({ claimed_by_user_id: null, updated_at: new Date().toISOString() })
+      .eq('claimed_by_user_id', user.id);
+    await this.supabase.service
+      .from('persons')
+      .update({ claimed_by_user_id: null, claim_status: 'unclaimed' })
+      .eq('claimed_by_user_id', user.id);
+
+    // Clean up the user's own pending tokens and queue requests.
+    await this.supabase.service.from('global_person_claim_tokens').delete().eq('user_id', user.id);
+    await this.supabase.service
+      .from('global_person_claim_requests')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('status', 'pending');
+
+    const { error: deleteError } = await this.supabase.service.auth.admin.deleteUser(user.id);
+    if (deleteError) {
+      throw new ServiceUnavailableException(`Auth delete failed: ${deleteError.message}`);
+    }
+
+    // Clear our own cookies; the Supabase session is gone anyway.
+    const cookieReply = reply as FastifyReply & {
+      clearCookie: (name: string, opts: Record<string, unknown>) => void;
+    };
+    const clearOptions = buildClearCookieOptions(this.config.get<string>('NODE_ENV'));
+    cookieReply.clearCookie('sb-access-token', clearOptions);
+    cookieReply.clearCookie('sb-refresh-token', clearOptions);
+
+    this.logger.log(`account deleted: user ${user.id} (${user.email})`);
+    void reply.send({ ok: true, next: '/?account_deleted=1' });
+  }
+
   // ── §7: public email + password account ────────────────────────────────
 
   /**
