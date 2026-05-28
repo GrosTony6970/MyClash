@@ -81,6 +81,7 @@ export const en = {
         'Open a public event and claim your roster profile to connect fighter, referee, or workshop activity to this account.',
       findEvents: 'Find public events',
       quickActions: 'Quick actions',
+      dateOfBirthLabel: 'Date of birth',
       roles: {
         fighter: 'Fighter',
         referee: 'Referee',
@@ -3116,6 +3117,7 @@ export const fr = {
         'Ouvrez un evenement public et revendiquez votre profil de roster pour lier votre activite de combattant, arbitre ou atelier a ce compte.',
       findEvents: 'Trouver des evenements publics',
       quickActions: 'Actions rapides',
+      dateOfBirthLabel: 'Date de naissance',
       roles: {
         fighter: 'Combattant',
         referee: 'Arbitre',

@@ -136,20 +136,33 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                   {t('publicApp.personalSpace.profileTitle')}
                 </h2>
                 {globalPerson ? (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <RolePill
-                      active={roleEnabled(globalPerson, 'is_fighter')}
-                      label={t('publicApp.personalSpace.roles.fighter')}
-                    />
-                    <RolePill
-                      active={roleEnabled(globalPerson, 'is_referee')}
-                      label={t('publicApp.personalSpace.roles.referee')}
-                    />
-                    <RolePill
-                      active={roleEnabled(globalPerson, 'is_workshop_participant')}
-                      label={t('publicApp.personalSpace.roles.workshopParticipant')}
-                    />
-                  </div>
+                  <>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <RolePill
+                        active={roleEnabled(globalPerson, 'is_fighter')}
+                        label={t('publicApp.personalSpace.roles.fighter')}
+                      />
+                      <RolePill
+                        active={roleEnabled(globalPerson, 'is_referee')}
+                        label={t('publicApp.personalSpace.roles.referee')}
+                      />
+                      <RolePill
+                        active={roleEnabled(globalPerson, 'is_workshop_participant')}
+                        label={t('publicApp.personalSpace.roles.workshopParticipant')}
+                      />
+                    </div>
+                    {typeof globalPerson['date_of_birth'] === 'string' &&
+                      globalPerson['date_of_birth'] && (
+                        <p className="mt-4 text-sm text-slate-600">
+                          <span className="font-semibold text-slate-700">
+                            {t('publicApp.personalSpace.dateOfBirthLabel')}:
+                          </span>{' '}
+                          <span className="tabular-nums">
+                            {globalPerson['date_of_birth'] as string}
+                          </span>
+                        </p>
+                      )}
+                  </>
                 ) : (
                   <ClaimSearchSection apiUrl={apiUrl} />
                 )}

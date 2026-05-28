@@ -491,10 +491,12 @@ export class AuthService {
 
   private async fetchGlobalPerson(userId: string): Promise<Record<string, unknown> | null> {
     try {
+      // date_of_birth is projected ONLY here (owner-scoped via the
+      // claimed_by_user_id filter) — public fighter routes still strip it.
       const { data, error } = await this.supabase.service
         .from('global_persons')
         .select(
-          'id, slug, display_name, given_name, family_name, country_code, is_fighter, is_referee, is_workshop_participant',
+          'id, slug, display_name, given_name, family_name, country_code, date_of_birth, is_fighter, is_referee, is_workshop_participant',
         )
         .eq('claimed_by_user_id', userId)
         .maybeSingle();
