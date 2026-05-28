@@ -1,7 +1,7 @@
 /**
  * Fighters and clubs — global cross-event identity.
  */
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // ── Clubs ─────────────────────────────────────────────────────────────────────
 export const clubs = pgTable('clubs', {
@@ -36,7 +36,9 @@ export const fighters = pgTable('global_persons', {
   isFighter: text('is_fighter'),
   isReferee: text('is_referee'),
   isWorkshopParticipant: text('is_workshop_participant'),
-  mergedIntoId: uuid('merged_into_id'),
+  mergedIntoId: uuid('merged_into_id').references((): AnyPgColumn => fighters.id, {
+    onDelete: 'set null',
+  }),
   mergedAt: timestamp('merged_at', { withTimezone: true }),
   mergeRevertedAt: timestamp('merge_reverted_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
