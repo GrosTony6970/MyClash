@@ -164,6 +164,7 @@ export class AuthService {
     }
 
     this.setAuthCookies(reply, dto.accessToken, dto.refreshToken);
+    await this.tryAutolinkGlobalPerson(user.id, user.email ?? null);
     void reply.send({ next: destination });
   }
 
@@ -188,6 +189,7 @@ export class AuthService {
       tokenResponse.refresh_token,
       tokenResponse.expires_in,
     );
+    await this.tryAutolinkGlobalPerson(tokenResponse.user.id, dto.email);
     void reply.send({ next: destination === '/' ? '/dashboard' : destination });
   }
 
@@ -271,6 +273,10 @@ export class AuthService {
     if (type === 'claim' && personId) {
       await this.completeClaim(session.user.id, personId);
     }
+
+    // Silent autolink to a matching global profile on any login path
+    // (login / public_login / claim — all benefit).
+    await this.tryAutolinkGlobalPerson(session.user.id, session.user.email ?? null);
 
     // Redirect to appropriate destination
     const safeRedirect = this.validateRedirect(next);
@@ -577,6 +583,64 @@ export class AuthService {
     // unclaimed → claimed transition. Notification dispatch + "my schedule"
     // resolve the JWT user_id → person_id at request time via
     // global_persons.claimed_by_user_id.
+  }
+
+  /**
+   * Silent auto-link of an authenticated user to a matching global_persons
+   * row by email. Runs at the tail of every successful login path.
+   *
+   * Rules:
+   * - Skip if the user already has a linked global profile (idempotent).
+   * - Match must be EXACTLY one unclaimed, unmerged row on LOWER(email).
+   * - Zero or multiple matches → no-op (the user falls through to the
+   *   manual /me search UI).
+   *
+   * Trust model: Supabase already verified the email during signup /
+   * OAuth, so we trust the match without a second confirmation. The
+   * link is reversible via the "Not me?" unlink endpoint.
+   */
+  async tryAutolinkGlobalPerson(userId: string, email: string | null | undefined): Promise<void> {
+    if (!email || !email.trim()) return;
+    const normalized = email.trim().toLowerCase();
+
+    try {
+      const { data: existing } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .eq('claimed_by_user_id', userId)
+        .is('merged_into_id', null)
+        .limit(1)
+        .maybeSingle();
+      if (existing) return;
+
+      const { data: candidates, error: candidatesError } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .ilike('email', normalized)
+        .is('claimed_by_user_id', null)
+        .is('merged_into_id', null)
+        .limit(2);
+      if (candidatesError || !Array.isArray(candidates) || candidates.length !== 1) return;
+
+      const target = candidates[0] as { id: string };
+      const { error: updateError } = await this.supabase.service
+        .from('global_persons')
+        .update({ claimed_by_user_id: userId, updated_at: new Date().toISOString() })
+        .eq('id', target.id)
+        .is('claimed_by_user_id', null);
+      if (updateError) {
+        this.logger.warn(
+          `autolink: update failed for global_persons ${target.id}: ${updateError.message}`,
+        );
+        return;
+      }
+
+      this.logger.log(`autolink: user ${userId} linked to global_persons ${target.id}`);
+    } catch (err) {
+      // Column or table missing pre-migration — silent no-op so login still works.
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.debug(`autolink skipped (likely pre-migration): ${message}`);
+    }
   }
 
   private async hasAdminAccess(userId: string): Promise<boolean> {

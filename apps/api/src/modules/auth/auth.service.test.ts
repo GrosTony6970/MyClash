@@ -530,7 +530,15 @@ describe('AuthService', () => {
         reply as never,
       );
 
-      expect(fromMock).not.toHaveBeenCalled();
+      // Autolink runs even on public_login (queries global_persons) but
+      // no-ops cleanly when there's no match (the default mock returns
+      // null data). Only global_persons should be queried — no persons,
+      // no platform_roles, no claim mutation.
+      expect(fromMock).toHaveBeenCalledWith('global_persons');
+      const otherTables = fromMock.mock.calls
+        .map((call: unknown[]) => call[0] as string)
+        .filter((name: string) => name !== 'global_persons');
+      expect(otherTables).toEqual([]);
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'access-token',
