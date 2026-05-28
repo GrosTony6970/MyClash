@@ -1025,6 +1025,100 @@ describe('PhasesService', () => {
       expect(result[0]?.matches).toHaveLength(1);
       expect((result[0]?.matches[0] as { roundCode: string }).roundCode).toBe('LSW-P1-ML1-PA-M1');
     });
+
+    // Slice E of the per-role-referee spec: each match exposes a
+    // `referees[]` array (one entry per scope_type='match' row in
+    // `referee_assignments`) so the FE renders one column per role
+    // with the referee's NAME instead of a single column of UUIDs.
+    it('includes a referees[] array per match with role + refereeId + refereeName', async () => {
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+          return chain;
+        }
+        if (tableName === 'tournaments') {
+          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          return chain;
+        }
+        if (tableName === 'pools') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-1',
+                blue_registration_id: 'r-2',
+                red_name: 'Red',
+                blue_name: 'Blue',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M1',
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'matches') {
+          const chain = makeChain({ data: [], error: null });
+          chain.eq.mockResolvedValue({ data: [], error: null });
+          return chain;
+        }
+        if (tableName === 'referee_assignments') {
+          // Per-match assignments. The service joins persons for the
+          // display name; mock the embedded shape Supabase returns.
+          const chain = makeChain({ data: null, error: null });
+          chain.eq.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                role: 'arbitre_declarant',
+                person_id: 'person-1',
+                persons: { display_name: 'Alice', given_name: 'Alice', family_name: 'Smith' },
+              },
+              {
+                match_id: 'm-1',
+                role: 'arbitre_assesseur',
+                person_id: 'person-2',
+                persons: { display_name: null, given_name: 'Bob', family_name: 'Jones' },
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      const match = result[0]!.matches[0] as {
+        referees: Array<{ role: string; refereeId: string; refereeName: string }>;
+      };
+      expect(match.referees).toEqual(
+        expect.arrayContaining([
+          { role: 'arbitre_declarant', refereeId: 'person-1', refereeName: 'Alice' },
+          { role: 'arbitre_assesseur', refereeId: 'person-2', refereeName: 'Bob Jones' },
+        ]),
+      );
+    });
   });
 
   describe('listMatchScores', () => {

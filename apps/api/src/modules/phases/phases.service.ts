@@ -1533,6 +1533,50 @@ export class PhasesService {
       ]),
     );
 
+    // 4b. Per-role match referee assignments (scope_type='match').
+    // The pool tab renders one column per role with the referee's NAME
+    // — distinct from the legacy matches.referee_id single field which
+    // PATCH /matches/:id still writes.
+    type PersonEmbed = {
+      display_name: string | null;
+      given_name: string | null;
+      family_name: string | null;
+    };
+    type RefereeAssignmentRow = {
+      match_id: string;
+      role: string;
+      person_id: string;
+      // PostgREST returns embedded relations as either a single row or
+      // an array depending on the resolved FK cardinality; tolerate both.
+      persons: PersonEmbed | PersonEmbed[] | null;
+    };
+    const matchIds = ((viewMatches ?? []) as Array<{ match_id: string }>).map((m) => m.match_id);
+    const refereesByMatch = new Map<
+      string,
+      Array<{ role: string; refereeId: string; refereeName: string }>
+    >();
+    if (matchIds.length > 0) {
+      const { data: assignmentRows } = await this.supabase.service
+        .from('referee_assignments')
+        .select('match_id, role, person_id, persons(display_name, given_name, family_name)')
+        .eq('scope_type', 'match');
+      for (const row of (assignmentRows ?? []) as unknown as RefereeAssignmentRow[]) {
+        const person: PersonEmbed | null = Array.isArray(row.persons)
+          ? (row.persons[0] ?? null)
+          : row.persons;
+        const display =
+          person?.display_name ??
+          [person?.given_name, person?.family_name].filter(Boolean).join(' ');
+        const existing = refereesByMatch.get(row.match_id) ?? [];
+        existing.push({
+          role: row.role,
+          refereeId: row.person_id,
+          refereeName: display || row.person_id,
+        });
+        refereesByMatch.set(row.match_id, existing);
+      }
+    }
+
     // 5. Group matches by pool
     type ViewMatch = {
       match_id: string;
@@ -1580,6 +1624,7 @@ export class PhasesService {
             lice_id: m.lice_id,
             referee_id: refereeMap.get(m.match_id) ?? null,
             match_number_label: m.match_number_label,
+            referees: refereesByMatch.get(m.match_id) ?? [],
             roundCode: buildRoundCode({
               weapon,
               poolNumber,

@@ -10,6 +10,12 @@ import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
+interface RefereeAssignment {
+  role: string;
+  refereeId: string;
+  refereeName: string;
+}
+
 interface MatchRow {
   id: string;
   pool_id: string;
@@ -30,6 +36,22 @@ interface MatchRow {
    *  by `listPoolsWithMatches`. The scoreboard ships the same field via
    *  `getMatchSummary` — render it verbatim, do not re-format here. */
   roundCode: string;
+  /** Per-role assignments from `referee_assignments` (scope_type='match').
+   *  One entry per role the operator has assigned a referee to. The pool
+   *  tab renders one column per configured role, falling back to
+   *  "Unassigned" when no entry exists for that role. */
+  referees: RefereeAssignment[];
+}
+
+interface RoleConfig {
+  id: string;
+  displayName: string;
+}
+
+interface Qualification {
+  personId: string;
+  role: string;
+  active: boolean;
 }
 
 interface PoolWithMatches {
@@ -64,6 +86,10 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   const [blueColor, setBlueColor] = useState<ColorToken>('blue');
   const [lices, setLices] = useState<Lice[]>([]);
   const [referees, setReferees] = useState<Referee[]>([]);
+  const [roleConfig, setRoleConfig] = useState<RoleConfig[]>([]);
+  const [qualifiedRefereesByRole, setQualifiedRefereesByRole] = useState<Map<string, Set<string>>>(
+    () => new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -84,20 +110,46 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       fetch(`${apiUrl}/api/v1/events/${eventId}/persons?is_referee=true`, {
         credentials: 'include',
       }).then((r) => (r.ok ? r.json() : [])),
-    ]).then(([poolsData, tournamentData, licesData, refereesData]) => {
-      setPools(poolsData as PoolWithMatches[]);
-      const tournament = tournamentData as {
-        scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
-      } | null;
-      const sc = tournament?.scoring_config;
-      if (sc?.display?.sideColors) {
-        setRedColor((sc.display.sideColors.red as ColorToken) ?? 'red');
-        setBlueColor((sc.display.sideColors.blue as ColorToken) ?? 'blue');
-      }
-      setLices(licesData as Lice[]);
-      setReferees(refereesData as Referee[]);
-      setLoading(false);
-    });
+      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-match-role-config`, {
+        credentials: 'include',
+      }).then((r) => (r.ok ? r.json() : { roles: [] })),
+      fetch(`${apiUrl}/api/v1/events/${eventId}/referee-qualifications`, {
+        credentials: 'include',
+      }).then((r) => (r.ok ? r.json() : [])),
+    ]).then(
+      ([
+        poolsData,
+        tournamentData,
+        licesData,
+        refereesData,
+        roleConfigData,
+        qualificationsData,
+      ]) => {
+        setPools(poolsData as PoolWithMatches[]);
+        const tournament = tournamentData as {
+          scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
+        } | null;
+        const sc = tournament?.scoring_config;
+        if (sc?.display?.sideColors) {
+          setRedColor((sc.display.sideColors.red as ColorToken) ?? 'red');
+          setBlueColor((sc.display.sideColors.blue as ColorToken) ?? 'blue');
+        }
+        setLices(licesData as Lice[]);
+        setReferees(refereesData as Referee[]);
+        setRoleConfig((roleConfigData as { roles: RoleConfig[] }).roles ?? []);
+        // Build role → Set<personId> map for fast filtering when
+        // populating each role-column's dropdown options.
+        const qualByRole = new Map<string, Set<string>>();
+        for (const q of (qualificationsData as Qualification[]) ?? []) {
+          if (!q.active) continue;
+          const set = qualByRole.get(q.role) ?? new Set<string>();
+          set.add(q.personId);
+          qualByRole.set(q.role, set);
+        }
+        setQualifiedRefereesByRole(qualByRole);
+        setLoading(false);
+      },
+    );
   }, [tournamentId, eventId, poolPhaseId, refreshKey]);
 
   // Surgical sync: pull (id, status, red_score, blue_score) only and
@@ -173,6 +225,44 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
     return name || r.id;
   }
 
+  async function updateMatchRoleAssignment(
+    matchId: string,
+    role: string,
+    refereeId: string | null,
+  ) {
+    // Optimistic: rewrite the referees array for this match (replace
+    // existing entry for `role`, or drop it when refereeId is null).
+    setPools((prev) =>
+      prev.map((pool) => ({
+        ...pool,
+        matches: pool.matches.map((m) => {
+          if (m.id !== matchId) return m;
+          const others = m.referees.filter((a) => a.role !== role);
+          if (refereeId === null) return { ...m, referees: others };
+          const ref = referees.find((r) => r.id === refereeId);
+          const refName = ref ? refereeLabel(ref) : refereeId;
+          return {
+            ...m,
+            referees: [...others, { role, refereeId, refereeName: refName }],
+          };
+        }),
+      })),
+    );
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/referee-role-assignments`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, refereeId }),
+      });
+      if (!res.ok) throw new Error('Role assignment update failed');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Referee role assignment failed:', err);
+      refresh();
+    }
+  }
+
   if (loading) {
     return <p className="text-sm text-slate-500">{t('common.loading')}</p>;
   }
@@ -236,7 +326,15 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         <th className="px-4 py-2">{t('organizer.pools.matches.blue')}</th>
                         <th className="w-32 px-4 py-2">{t('organizer.pools.matches.status')}</th>
                         <th className="w-32 px-4 py-2">{t('organizer.pools.matches.lice')}</th>
-                        <th className="w-32 px-4 py-2">{t('organizer.pools.matches.referee')}</th>
+                        {/* One column per resolved referee role — system or
+                            custom — coming from the tournament's staffing
+                            config. Each cell renders a dropdown of
+                            referees QUALIFIED for that role. */}
+                        {roleConfig.map((role) => (
+                          <th key={role.id} className="w-32 px-4 py-2">
+                            {role.displayName}
+                          </th>
+                        ))}
                         <th className="w-10 px-4 py-2" />
                       </tr>
                     </thead>
@@ -352,26 +450,47 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                 ))}
                               </select>
                             </td>
-                            <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
-                              <select
-                                value={m.referee_id ?? ''}
-                                onChange={(e) =>
-                                  void updateMatchAssignment(
-                                    m.id,
-                                    'refereeId',
-                                    e.target.value || null,
-                                  )
-                                }
-                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
-                              >
-                                <option value="">{t('common.none')}</option>
-                                {referees.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {refereeLabel(r)}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
+                            {roleConfig.map((role) => {
+                              const current =
+                                m.referees.find((a) => a.role === role.id)?.refereeId ?? '';
+                              const qualifiedSet = qualifiedRefereesByRole.get(role.id);
+                              // Filter referees by qualification. If no
+                              // one is qualified for this role yet, fall
+                              // back to the full referee list so the
+                              // operator can still assign someone — and
+                              // we don't render a dropdown that's stuck
+                              // on "Unassigned" with no options.
+                              const options =
+                                qualifiedSet && qualifiedSet.size > 0
+                                  ? referees.filter((r) => qualifiedSet.has(r.id))
+                                  : referees;
+                              return (
+                                <td
+                                  key={role.id}
+                                  className="px-4 py-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <select
+                                    value={current}
+                                    onChange={(e) =>
+                                      void updateMatchRoleAssignment(
+                                        m.id,
+                                        role.id,
+                                        e.target.value || null,
+                                      )
+                                    }
+                                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                                  >
+                                    <option value="">{t('common.none')}</option>
+                                    {options.map((r) => (
+                                      <option key={r.id} value={r.id}>
+                                        {refereeLabel(r)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                              );
+                            })}
                             <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                               <Link
                                 href={auditHref}
