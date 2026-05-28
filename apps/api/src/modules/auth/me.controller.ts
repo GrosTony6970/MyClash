@@ -90,7 +90,9 @@ export class MeController {
   async requestGlobalPersonClaim(
     @Req() req: FastifyRequest,
     @Body() dto: GlobalPersonClaimRequestDto,
-  ): Promise<{ status: 'confirmation_sent'; redactedEmail: string }> {
+  ): Promise<
+    { status: 'confirmation_sent'; redactedEmail: string } | { status: 'pending_approval' }
+  > {
     return this.auth.requestGlobalPersonClaim(req, dto.globalPersonId);
   }
 

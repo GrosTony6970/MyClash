@@ -984,7 +984,9 @@ export class AuthService {
   async requestGlobalPersonClaim(
     request: FastifyRequest,
     globalPersonId: string,
-  ): Promise<{ status: 'confirmation_sent'; redactedEmail: string }> {
+  ): Promise<
+    { status: 'confirmation_sent'; redactedEmail: string } | { status: 'pending_approval' }
+  > {
     const accessToken = this.extractToken(request);
     if (!accessToken) throw new UnauthorizedException('Authentication required');
     const user = await this.requestAuthUser(accessToken);
@@ -1016,8 +1018,28 @@ export class AuthService {
       throw new BadRequestException('Profile is already claimed');
     }
     if (!row.email) {
-      // Slice F will replace this with a pending-request insert.
-      throw new BadRequestException('profile_has_no_email');
+      // §8 organizer-approval queue: no email on file → queue the
+      // request for human review instead of dead-ending the user.
+      const { error: pendingError } = await this.supabase.service
+        .from('global_person_claim_requests')
+        .insert({
+          user_id: user.id,
+          global_person_id: row.id,
+          status: 'pending',
+        });
+      if (pendingError) {
+        // Most likely a partial-unique-index violation: same user
+        // already has a pending request for this profile.
+        if (/duplicate key|unique/i.test(pendingError.message)) {
+          throw new BadRequestException({
+            code: 'already_pending',
+            message: 'You already have a pending request for this profile',
+          });
+        }
+        throw new ServiceUnavailableException('Could not submit claim request');
+      }
+      this.logger.log(`claim-request queued: user ${user.id} → global_persons ${row.id}`);
+      return { status: 'pending_approval' };
     }
 
     // Issue a one-time token. UUID is opaque enough for a single-use,

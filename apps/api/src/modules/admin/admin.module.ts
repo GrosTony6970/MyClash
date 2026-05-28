@@ -15,6 +15,8 @@ import { AdminOrganizationsService } from './admin-organizations.service';
 import { AdminRulesetsService } from './admin-rulesets.service';
 import { AdminUsersService } from './admin-users.service';
 import { AuditLogAdminController } from './audit-log.controller';
+import { ClaimRequestsAdminController } from './claim-requests.controller';
+import { ClaimRequestsService } from './claim-requests.service';
 import { CustomRulesetsAdminController } from './custom-rulesets/custom-rulesets.controller';
 import { CustomRulesetsService } from './custom-rulesets/custom-rulesets.service';
 import { OrgCustomRulesetsController } from './custom-rulesets/org-custom-rulesets.controller';
@@ -54,8 +56,10 @@ import { UsersAdminController } from './users.controller';
     AdminDashboardStatsController,
     HemaRatingsAdminController,
     LeagueScoringSystemsController,
+    ClaimRequestsAdminController,
   ],
   providers: [
+    ClaimRequestsService,
     AdminOrganizationsService,
     AdminUsersService,
     AdminRulesetsService,

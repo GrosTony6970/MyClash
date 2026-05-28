@@ -286,6 +286,9 @@ export const en = {
       sentTitle: 'Check your email',
       sentDescription:
         'We sent a confirmation link to {email}. Click it from that inbox to finish linking the profile.',
+      pendingTitle: 'Submitted for review',
+      pendingDescription:
+        'This profile has no email on file, so we sent your request to an organizer. You will be notified at your account address when it is approved or rejected.',
       findEventsFallback: 'Not finding your profile?',
       confirming: 'Linking your profile',
       confirmingWait: 'Please wait while we finish linking your profile.',
@@ -298,6 +301,8 @@ export const en = {
         userMismatch: 'This link was issued for a different MyClash account.',
         profileHasNoEmail:
           'This profile has no email on file. Ask an organizer to set one via CSV import.',
+        alreadyPending:
+          'You already have a pending request for this profile. An organizer will review it.',
         serverRejected: 'The MyClash server rejected the confirmation.',
         timeout: 'The confirmation request timed out. Try again in a moment.',
         network: 'Could not reach the MyClash server. Check your connection and try again.',
@@ -3378,6 +3383,9 @@ export const fr = {
       sentTitle: 'Vérifiez votre boîte mail',
       sentDescription:
         'Nous avons envoyé un lien de confirmation à {email}. Cliquez dessus depuis cette boîte pour finaliser la liaison du profil.',
+      pendingTitle: 'Demande soumise',
+      pendingDescription:
+        "Ce profil n'a pas d'email enregistré, votre demande a donc été transmise à un organisateur. Vous serez notifié à l'adresse de votre compte une fois approuvée ou refusée.",
       findEventsFallback: 'Vous ne trouvez pas votre profil ?',
       confirming: 'Liaison de votre profil',
       confirmingWait: 'Veuillez patienter pendant la finalisation de la liaison.',
@@ -3390,6 +3398,8 @@ export const fr = {
         userMismatch: 'Ce lien a été émis pour un autre compte MyClash.',
         profileHasNoEmail:
           "Ce profil n'a aucun email enregistré. Demandez à un organisateur d'en ajouter un via l'import CSV.",
+        alreadyPending:
+          "Vous avez déjà une demande en attente pour ce profil. Un organisateur l'examinera.",
         serverRejected: 'Le serveur MyClash a refusé la confirmation.',
         timeout: 'La requête de confirmation a expiré. Réessayez dans un instant.',
         network: 'Impossible de joindre le serveur MyClash. Vérifiez votre connexion et réessayez.',

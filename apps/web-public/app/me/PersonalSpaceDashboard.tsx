@@ -206,6 +206,7 @@ type ClaimUiState =
   | { kind: 'idle' }
   | { kind: 'requesting' }
   | { kind: 'sent'; redactedEmail: string }
+  | { kind: 'pending' }
   | { kind: 'error'; code: string };
 
 function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
@@ -270,11 +271,26 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
         setClaim({ kind: 'error', code });
         return;
       }
-      const body = (await res.json()) as { redactedEmail: string };
-      setClaim({ kind: 'sent', redactedEmail: body.redactedEmail });
+      const body = (await res.json()) as
+        | { status: 'confirmation_sent'; redactedEmail: string }
+        | { status: 'pending_approval' };
+      if (body.status === 'pending_approval') {
+        setClaim({ kind: 'pending' });
+      } else {
+        setClaim({ kind: 'sent', redactedEmail: body.redactedEmail });
+      }
     } catch {
       setClaim({ kind: 'error', code: 'network' });
     }
+  }
+
+  if (claim.kind === 'pending') {
+    return (
+      <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-4">
+        <p className="text-sm font-bold text-blue-800">{t('publicApp.claim.pendingTitle')}</p>
+        <p className="mt-2 text-sm text-blue-700">{t('publicApp.claim.pendingDescription')}</p>
+      </div>
+    );
   }
 
   if (claim.kind === 'sent') {
@@ -304,8 +320,8 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
       />
       {claim.kind === 'error' && (
         <p className="mt-2 text-sm text-red-700" role="alert">
-          {claim.code === 'profile_has_no_email'
-            ? t('publicApp.claim.errors.profileHasNoEmail')
+          {claim.code === 'already_pending'
+            ? t('publicApp.claim.errors.alreadyPending')
             : claim.code === 'already_claimed' || claim.code === 'Profile is already claimed'
               ? t('publicApp.claim.errors.alreadyClaimed')
               : t('publicApp.claim.errors.generic')}
