@@ -96,8 +96,13 @@ export function MatchCard({
   );
 
   return (
-    <div ref={refCallback} className="relative">
+    // Outer wrapper holds the card + its pill row + the override button.
+    // The width constraint moves here so the pill row tracks the card's
+    // resolved width (it's a flex column — children stretch to the
+    // wrapper's width which equals the card's).
+    <div className="relative flex w-full min-w-[220px] max-w-[360px] flex-col gap-1.5">
       <div
+        ref={refCallback}
         role={handleClick ? 'button' : undefined}
         tabIndex={handleClick ? 0 : undefined}
         onClick={handleClick}
@@ -134,22 +139,26 @@ export function MatchCard({
         </div>
       </div>
 
-      {/* Status pill bottom-right — lifted out of the card's
-          overflow-hidden so it renders fully. z-10 keeps it above
-          connector lines that pass through the same region. */}
-      <span
-        className={`absolute -bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${pill.cls}`}
-      >
-        {isLive && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-600" />}
-        {pill.label}
-      </span>
-
-      {/* Round code bottom-left, mirror to the status pill. Also lifted. */}
-      {roundCode && (
-        <span className="absolute -bottom-2 left-2 z-10 inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
-          {roundCode}
+      {/* Pills row sits BELOW the card (no overlap). Round code left,
+          status pill right, justify-between keeps them anchored to
+          the card edges. The empty span on the round-code side is
+          rendered as a flex placeholder when roundCode is undefined
+          so the status pill stays right-aligned. */}
+      <div className="flex items-center justify-between px-1">
+        {roundCode ? (
+          <span className="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
+            {roundCode}
+          </span>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${pill.cls}`}
+        >
+          {isLive && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-600" />}
+          {pill.label}
         </span>
-      )}
+      </div>
 
       {onOverride && (
         <button
