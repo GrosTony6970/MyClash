@@ -48,7 +48,11 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
         setLogoUrl((row.logo_url as string | null) ?? null);
-        const sc = (row.scoring_config ?? {}) as {
+        // The column is `scoring_config_json` (the `_json` suffix
+        // matters — DisplayTab previously read `row.scoring_config`
+        // and silently fell back to defaults, mirroring the Step 3
+        // wizard bug).
+        const sc = (row.scoring_config_json ?? {}) as {
           display?: { sideColors?: { red: string; blue: string } };
           buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
         };

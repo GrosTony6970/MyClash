@@ -398,9 +398,9 @@ export default function EventTournamentsPage() {
                             slug: tournament.slug,
                             ruleset_code: tournament.ruleset_code,
                             ruleset_version: tournament.ruleset_version,
-                            scoring_config: tournament.scoring_config_json,
+                            scoring_config_json: tournament.scoring_config_json,
                             ruleset_config: tournament.ruleset_config,
-                            lock_config: tournament.lock_config_json,
+                            lock_config_json: tournament.lock_config_json,
                             status: tournament.status,
                           });
                           if (wizardStep === null) return null;

@@ -62,10 +62,13 @@ export function Step3Display({
         setRulesetCode(row.ruleset_code);
         setTournamentColor((row.color as string | null) ?? '');
         setLogoUrl((row.logo_url as string | null) ?? null);
-        // Pluck-not-spread, same as Step 2 / Step 4.
+        // Pluck-not-spread, same as Step 2 / Step 4. The column is
+        // `scoring_config_json` (the `_json` suffix matters — Step 3
+        // previously read `row.scoring_config` and silently fell back
+        // to defaults, hiding every saved button on reload).
         setData(
           buildDisplayConfigFromRow(
-            (row.scoring_config ?? {}) as Record<string, unknown>,
+            (row.scoring_config_json ?? {}) as Record<string, unknown>,
             DEFAULTS,
           ),
         );
