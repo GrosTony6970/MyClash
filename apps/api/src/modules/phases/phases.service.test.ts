@@ -958,6 +958,75 @@ describe('PhasesService', () => {
     });
   });
 
+  describe('listPoolsWithMatches', () => {
+    // Slice B of the canonical-round-code spec: the pool list and the
+    // scoreboard previously rendered the same match under two different
+    // identifiers because the pool tab built the code client-side.
+    // `listPoolsWithMatches` must now ship a pre-built `roundCode` so the
+    // FE renders it verbatim — same shape as `getMatchSummary`.
+    it("returns a backend-built roundCode on each match (e.g. 'LSW-P1-ML1-PA-M1')", async () => {
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+          return chain;
+        }
+        if (tableName === 'tournaments') {
+          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          chain.single.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          return chain;
+        }
+        if (tableName === 'pools') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-1',
+                blue_registration_id: 'r-2',
+                red_name: 'Red',
+                blue_name: 'Blue',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M1',
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'matches') {
+          const chain = makeChain({ data: [], error: null });
+          chain.eq.mockResolvedValue({ data: [], error: null });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.matches).toHaveLength(1);
+      expect((result[0]?.matches[0] as { roundCode: string }).roundCode).toBe('LSW-P1-ML1-PA-M1');
+    });
+  });
+
   describe('listMatchScores', () => {
     // Lightweight endpoint for the pools-matches "surgical poll" path —
     // returns only the fields the FE needs to merge a score update in

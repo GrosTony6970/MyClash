@@ -32,6 +32,7 @@ import type {
 import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import type { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import type { BracketAdvanceService } from './bracket-advance.service';
+import { buildRoundCode } from '../matches/round-code.helper';
 
 @Injectable()
 export class PhasesService {
@@ -1490,6 +1491,16 @@ export class PhasesService {
     if (!phase) return [];
     const phaseId = (phase as { id: string }).id;
 
+    // 1b. Tournament weapon — needed by buildRoundCode so the FE
+    // renders the same canonical code (LSW-P1-ML1-PA-M1) that the
+    // scoreboard ships from getMatchSummary.
+    const { data: tournament } = await this.supabase.service
+      .from('tournaments')
+      .select('weapon')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const weapon = (tournament as { weapon: string | null } | null)?.weapon ?? null;
+
     // 2. Get pools ordered by sort_order
     const { data: pools } = await this.supabase.service
       .from('pools')
@@ -1548,27 +1559,38 @@ export class PhasesService {
     }
 
     return ((pools ?? []) as Array<{ id: string; name: string; sort_order: number }>).map(
-      (pool) => ({
-        poolId: pool.id,
-        poolName: pool.name,
-        matches: (matchesByPool.get(pool.id) ?? []).map((m, idx) => ({
-          id: m.match_id,
-          pool_id: m.pool_id,
-          round_number: idx + 1,
-          red_registration_id: m.red_registration_id,
-          blue_registration_id: m.blue_registration_id,
-          red_name: m.red_name ?? '',
-          red_club_abbrev: m.red_club ?? null,
-          blue_name: m.blue_name ?? '',
-          blue_club_abbrev: m.blue_club ?? null,
-          red_score: m.red_score,
-          blue_score: m.blue_score,
-          status: m.status,
-          lice_id: m.lice_id,
-          referee_id: refereeMap.get(m.match_id) ?? null,
-          match_number_label: m.match_number_label,
-        })),
-      }),
+      (pool) => {
+        const poolNumber = pool.sort_order + 1;
+        return {
+          poolId: pool.id,
+          poolName: pool.name,
+          matches: (matchesByPool.get(pool.id) ?? []).map((m, idx) => ({
+            id: m.match_id,
+            pool_id: m.pool_id,
+            round_number: idx + 1,
+            red_registration_id: m.red_registration_id,
+            blue_registration_id: m.blue_registration_id,
+            red_name: m.red_name ?? '',
+            red_club_abbrev: m.red_club ?? null,
+            blue_name: m.blue_name ?? '',
+            blue_club_abbrev: m.blue_club ?? null,
+            red_score: m.red_score,
+            blue_score: m.blue_score,
+            status: m.status,
+            lice_id: m.lice_id,
+            referee_id: refereeMap.get(m.match_id) ?? null,
+            match_number_label: m.match_number_label,
+            roundCode: buildRoundCode({
+              weapon,
+              poolNumber,
+              bracketRound: null,
+              bracketSize: null,
+              matchNumberLabel: m.match_number_label,
+              roundNumber: idx + 1,
+            }),
+          })),
+        };
+      },
     );
   }
 
