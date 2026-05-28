@@ -8,11 +8,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Req,
   Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StaffService } from '../staff/staff.service';
 import { ClockService, type ClockAction } from './clock.service';
@@ -38,6 +39,16 @@ class ClockActionDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+class RefereeRoleAssignmentDto {
+  @IsString()
+  role!: string;
+
+  // Null clears the assignment for this (match, role) pair.
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  refereeId!: string | null;
 }
 
 @ApiTags('matches')
@@ -105,6 +116,19 @@ export class MatchesController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMatchDto) {
     return this.matches.update(id, dto);
+  }
+
+  @Put('matches/:id/referee-role-assignments')
+  @ApiOperation({
+    summary:
+      'Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async setRefereeRoleAssignment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RefereeRoleAssignmentDto,
+  ) {
+    return this.matches.setRefereeRoleAssignment(id, dto.role, dto.refereeId);
   }
 
   @Post('matches/:id/void')

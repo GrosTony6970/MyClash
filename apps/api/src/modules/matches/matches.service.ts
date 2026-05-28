@@ -211,6 +211,80 @@ export class MatchesService {
     return data;
   }
 
+  /**
+   * Set (or clear) the referee for a single (match, role) pair.
+   *
+   * Writes go to `referee_assignments` with `scope_type='match'`. This
+   * is the per-role-column write path used by the pool tab's matches
+   * table — distinct from the legacy single `matches.referee_id`
+   * field that `update()` still maintains for back-compat. The legacy
+   * field stays on the schema until a follow-up backfill migration
+   * lands.
+   *
+   * Behaviour:
+   *   refereeId = string  → delete any existing row for (match, role),
+   *                         then insert the new assignment.
+   *   refereeId = null    → delete any existing row, do not insert.
+   */
+  async setRefereeRoleAssignment(
+    matchId: string,
+    role: string,
+    refereeId: string | null,
+  ): Promise<{ matchId: string; role: string; refereeId: string | null }> {
+    // 1. Load match to derive event_id (via phases.event_id) and to
+    //    carry lice_id onto the assignment row so the assignment-board
+    //    scheduling joins still resolve.
+    const { data: match, error: matchErr } = await this.supabase.service
+      .from('matches')
+      .select('phase_id, lice_id')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (matchErr) throw new BadRequestException(matchErr.message);
+    if (!match) throw new NotFoundException(`Match ${matchId} not found`);
+    const phaseId = (match as { phase_id: string }).phase_id;
+    const liceId = (match as { lice_id: string | null }).lice_id ?? null;
+
+    const { data: phase, error: phaseErr } = await this.supabase.service
+      .from('phases')
+      .select('event_id')
+      .eq('id', phaseId)
+      .maybeSingle();
+    if (phaseErr) throw new BadRequestException(phaseErr.message);
+    if (!phase) throw new NotFoundException(`Phase ${phaseId} not found`);
+    const eventId = (phase as { event_id: string }).event_id;
+
+    // 2. Idempotent clear — delete any existing assignment for the
+    //    (match, role) tuple. Mirrors the manual-assignment branch in
+    //    AssignmentBoardService.persistAssignments.
+    const { error: delErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('scope_type', 'match')
+      .eq('match_id', matchId)
+      .eq('role', role);
+    if (delErr) throw new BadRequestException(delErr.message);
+
+    if (refereeId === null) {
+      return { matchId, role, refereeId: null };
+    }
+
+    const { error: insErr } = await this.supabase.service.from('referee_assignments').insert({
+      event_id: eventId,
+      person_id: refereeId,
+      scope_type: 'match',
+      pool_id: null,
+      match_id: matchId,
+      lice_id: liceId,
+      role,
+      auto_assigned: false,
+      status: 'assigned',
+      conflicts_jsonb: [],
+    });
+    if (insErr) throw new BadRequestException(insErr.message);
+
+    return { matchId, role, refereeId };
+  }
+
   async update(matchId: string, dto: UpdateMatchDto) {
     const updates: Record<string, unknown> = {};
     if (dto.liceId !== undefined) updates['lice_id'] = dto.liceId;

@@ -27,6 +27,7 @@ function makeChain(result: unknown) {
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
+    delete: vi.fn() as ReturnType<typeof vi.fn>,
     limit: vi.fn() as ReturnType<typeof vi.fn>,
     in: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
@@ -37,6 +38,7 @@ function makeChain(result: unknown) {
   chain.order.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
+  chain.delete.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
   return chain;
@@ -479,6 +481,99 @@ describe('MatchesService', () => {
       await expect(
         service.clearLastExchange('match-1', {}, { staffAccountId: 'staff-1' }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── Slice D ──────────────────────────────────────────────────────────────
+  // Per-match referee assignment goes through `referee_assignments` with
+  // scope_type='match' (vs. the legacy single matches.referee_id field
+  // which the public PATCH still writes for back-compat). The setter
+  // always deletes the existing row for (match_id, role) and then either
+  // stops (refereeId=null) or inserts the new row.
+  describe('setRefereeRoleAssignment', () => {
+    // The service does `await this.supabase.service.from('referee_assignments').delete().eq(...).eq(...).eq(...)`,
+    // so the chain itself must be thenable. `makeChain` is not — patch
+    // it to a Promise-wrapped variant for the referee_assignments
+    // chain that resolves to { data: null, error: null } when awaited.
+    function makeAwaitableDeleteChain() {
+      const result = { data: null, error: null };
+      const promise = Promise.resolve(result);
+      const chain = Object.assign(promise, {
+        select: vi.fn(),
+        eq: vi.fn(),
+        delete: vi.fn(),
+        in: vi.fn(),
+        order: vi.fn(),
+        insert: vi.fn().mockResolvedValue(result),
+        update: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue(result),
+        single: vi.fn().mockResolvedValue(result),
+      });
+      for (const key of ['select', 'eq', 'delete', 'in', 'order', 'update']) {
+        (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+      }
+      return chain;
+    }
+
+    it('upserts a row in referee_assignments with scope_type=match', async () => {
+      let insertedRow: Record<string, unknown> | null = null;
+      const refereeChain = makeAwaitableDeleteChain();
+      refereeChain.insert = vi.fn((row: Record<string, unknown>) => {
+        insertedRow = row;
+        return Promise.resolve({ data: null, error: null });
+      }) as never;
+
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'matches') {
+          return makeChain({ data: { phase_id: 'phase-1', lice_id: 'lice-1' }, error: null });
+        }
+        if (tableName === 'phases') {
+          return makeChain({ data: { event_id: 'event-1' }, error: null });
+        }
+        if (tableName === 'referee_assignments') {
+          return refereeChain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
+
+      expect(refereeChain.delete).toHaveBeenCalled();
+      expect(insertedRow).toMatchObject({
+        event_id: 'event-1',
+        person_id: 'person-1',
+        scope_type: 'match',
+        pool_id: null,
+        match_id: 'match-1',
+        lice_id: 'lice-1',
+        role: 'arbitre_declarant',
+        auto_assigned: false,
+        status: 'assigned',
+      });
+    });
+
+    it('only deletes when refereeId is null (unassign)', async () => {
+      const refereeChain = makeAwaitableDeleteChain();
+      const insertSpy = vi.fn();
+      refereeChain.insert = insertSpy as never;
+
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'matches') {
+          return makeChain({ data: { phase_id: 'phase-1', lice_id: null }, error: null });
+        }
+        if (tableName === 'phases') {
+          return makeChain({ data: { event_id: 'event-1' }, error: null });
+        }
+        if (tableName === 'referee_assignments') {
+          return refereeChain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', null);
+
+      expect(refereeChain.delete).toHaveBeenCalled();
+      expect(insertSpy).not.toHaveBeenCalled();
     });
   });
 });
