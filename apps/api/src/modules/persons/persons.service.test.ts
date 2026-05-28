@@ -236,3 +236,87 @@ describe('PersonsService.createPerson — global_persons matcher', () => {
     expect(insertCaptures['persons']![0]).toMatchObject({ global_person_id: 'gp-fresh' });
   });
 });
+
+describe('PersonsService.createPerson — newClubName branch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('creates a new unverified club and links the participant when newClubName is set', async () => {
+    const { supabase, queueResult, insertCaptures } = makeSupabase();
+    // 1) email uniqueness check → no match
+    queueResult('persons', { data: null, error: null });
+    // 2) find_club_by_name RPC (called from the new resolveOrCreateClubByName)
+    //    returns no match → fallthrough to insert
+    //    NB: rpc() returns the chain too; makeChain treats the trailing .limit
+    //    awaitable as the result.
+    // 3) clubs insert → returns the new club id
+    queueResult('clubs', { data: { id: 'club-new' }, error: null });
+    // 4) global_persons matcher inserts a fresh row (no HEMA, no DOB)
+    queueResult('global_persons', { data: { id: 'gp-new' }, error: null });
+    // 5) persons insert → returns the row
+    queueResult('persons', {
+      data: { id: 'p-1', global_person_id: 'gp-new', club_id: 'club-new', clubs: null },
+      error: null,
+    });
+
+    // Mock the RPC path used by resolveOrCreateClubByName.
+    (supabase.service as unknown as { rpc: unknown }).rpc = vi.fn(() => ({
+      limit: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }));
+
+    const service = new PersonsService(
+      supabase as never,
+      { maskEmail: () => '' } as never,
+      {} as never,
+    );
+
+    await service.createPerson(
+      'event-1',
+      { ...baseDto, newClubName: 'Lyon AMHE' } as never,
+      'actor-1',
+    );
+
+    // Club insert payload
+    expect(insertCaptures['clubs']).toHaveLength(1);
+    expect(insertCaptures['clubs']![0]).toMatchObject({
+      name: 'Lyon AMHE',
+      unverified: 'true',
+    });
+    // Person insert links to the new club id
+    expect(insertCaptures['persons']).toHaveLength(1);
+    expect(insertCaptures['persons']![0]).toMatchObject({ club_id: 'club-new' });
+  });
+
+  it('ignores newClubName when clubId is already provided (defensive)', async () => {
+    // The DTO layer guards against both being set, but PersonsService should
+    // still behave correctly if a future caller passes both: clubId wins.
+    const { supabase, queueResult, insertCaptures } = makeSupabase();
+    queueResult('persons', { data: null, error: null }); // email uniq
+    queueResult('global_persons', { data: { id: 'gp-new' }, error: null });
+    queueResult('persons', {
+      data: { id: 'p-1', global_person_id: 'gp-new', club_id: 'club-existing', clubs: null },
+      error: null,
+    });
+
+    const service = new PersonsService(
+      supabase as never,
+      { maskEmail: () => '' } as never,
+      {} as never,
+    );
+
+    await service.createPerson(
+      'event-1',
+      { ...baseDto, clubId: 'club-existing', newClubName: 'Should be ignored' } as never,
+      'actor-1',
+    );
+
+    // No clubs insert fired
+    expect(insertCaptures['clubs']).toBeUndefined();
+    // Person linked to the existing club
+    expect(insertCaptures['persons']![0]).toMatchObject({ club_id: 'club-existing' });
+  });
+});

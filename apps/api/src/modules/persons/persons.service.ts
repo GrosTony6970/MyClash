@@ -100,6 +100,18 @@ export class PersonsService {
     dto: CreatePersonDto,
     createdByUserId: string,
   ): Promise<Person> {
+    // Inline "Create new club" support. When the organizer accepted the
+    // "+ Create new club X" dropdown row in the add-participant modal,
+    // the client sends `newClubName` instead of `clubId`. Resolve it to
+    // a real id (creating an unverified club if needed) before the rest
+    // of the flow runs. clubId wins if both are set — DTO validation
+    // rejects that combination, but the service is defensive.
+    const newClubName = (dto as { newClubName?: string }).newClubName;
+    let resolvedClubId = dto.clubId ?? null;
+    if (!resolvedClubId && newClubName) {
+      resolvedClubId = await this.resolveOrCreateClubByName(newClubName);
+    }
+
     const email = dto.email ? dto.email.toLowerCase().trim() : null;
 
     // Check email uniqueness within event when email is provided
@@ -148,7 +160,7 @@ export class PersonsService {
       (await this.resolveOrCreateGlobalPerson({
         givenName: dto.givenName,
         familyName: dto.familyName,
-        clubId: dto.clubId ?? null,
+        clubId: resolvedClubId,
         hemaRatingsId: dto.hemaRatingsId ?? null,
         dateOfBirth: dto.dateOfBirth ?? null,
         genderCategory: dto.genderCategory ?? null,
@@ -161,7 +173,7 @@ export class PersonsService {
         given_name: dto.givenName.trim(),
         family_name: dto.familyName.trim(),
         email,
-        club_id: dto.clubId ?? null,
+        club_id: resolvedClubId,
         hema_ratings_id: dto.hemaRatingsId ?? null,
         date_of_birth: dto.dateOfBirth ?? null,
         gender_category: dto.genderCategory ?? null,
@@ -607,7 +619,62 @@ export class PersonsService {
     };
   }
 
-  /** Resolve or create club (writes to DB — used during commit). */
+  /**
+   * Resolve a free-text club name to an existing club id, or create a
+   * new unverified club row. Used by both:
+   *   - CSV import (via the `resolveOrCreateClub` wrapper below, which
+   *     also pushes the new club name into the import report).
+   *   - The single-participant add flow (when an organizer types a
+   *     club name that doesn't match any existing club and accepts the
+   *     "+ Create new club" dropdown row).
+   *
+   * The lookup uses the `find_club_by_name` Postgres RPC (trigram +
+   * unaccent) with threshold 0.4 — same as the CSV path. Returns null
+   * only on a DB-level insert failure; callers may decide to surface
+   * that as a 400 or just skip the club link.
+   */
+  private async resolveOrCreateClubByName(name: string): Promise<string | null> {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+
+    const { data: matches } = await this.supabase.service
+      .rpc('find_club_by_name', { search_name: trimmed, threshold: 0.4 })
+      .limit(1);
+
+    const first = (matches as Array<{ id: string; name: string; confidence: string }> | null)?.[0];
+    if (first) return first.id;
+
+    const slug = trimmed
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 50);
+
+    const uniqueSlug = `${slug}-${Date.now().toString(36)}`;
+
+    const { data: newClub, error } = await this.supabase.service
+      .from('clubs')
+      .insert({
+        name: trimmed,
+        slug: uniqueSlug,
+        abbreviation: null,
+        city: null,
+        unverified: 'true',
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      this.logger.warn(`Could not create club "${trimmed}": ${error.message}`);
+      return null;
+    }
+
+    return (newClub as { id: string }).id;
+  }
+
+  /** CSV-flavoured wrapper: resolves a club name and also records it for the import report. */
   private async resolveOrCreateClub(
     clubName: string | undefined,
     clubAbv: string | undefined,
@@ -623,7 +690,6 @@ export class PersonsService {
     const first = (matches as Array<{ id: string; name: string; confidence: string }> | null)?.[0];
     if (first) return first.id;
 
-    // Fallback: search by full name if abbreviation didn't match
     if (clubAbv && clubName) {
       const { data: nameMatches } = await this.supabase.service
         .rpc('find_club_by_name', { search_name: clubName, threshold: 0.4 })
@@ -632,7 +698,6 @@ export class PersonsService {
       if (nameFirst) return nameFirst.id;
     }
 
-    // Create new unverified club
     const name = clubName ?? clubAbv ?? '';
     const slug = name
       .toLowerCase()
