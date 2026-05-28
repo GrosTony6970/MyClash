@@ -374,6 +374,17 @@ services:
       - traefik.http.routers.myclash-admin-api.middlewares=myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-admin-api.priority=30
       - traefik.http.routers.myclash-admin-api.service=myclash-api
+      # Public app same-origin API: app.${DOMAIN}/api/v1/* → API container.
+      # Mirrors the admin pattern above. Lets the browser bundle call the API
+      # on the same origin it loaded from, sidestepping the api.${DOMAIN}
+      # cert (dev/untrusted in this deploy) entirely.
+      - traefik.http.routers.myclash-public-api.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.myclash-public-api.entrypoints=websecure
+      - traefik.http.routers.myclash-public-api.tls=true
+      - traefik.http.routers.myclash-public-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-public-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-public-api.priority=30
+      - traefik.http.routers.myclash-public-api.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
       # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
@@ -500,7 +511,10 @@ services:
       dockerfile: apps/web-public/Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
-        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        # Same-origin API: browser bundle calls app.${DOMAIN}/api/v1/*
+        # via the myclash-public-api Traefik router (see api service labels).
+        # Avoids the api.${DOMAIN} cross-origin path entirely.
+        NEXT_PUBLIC_API_URL: https://app.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_URL: https://app.${DOMAIN}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -515,7 +529,8 @@ services:
       PORT: 3000
       TZ: ${TZ}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
-      NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+      # Same-origin API (see build-arg comment above).
+      NEXT_PUBLIC_API_URL: https://app.${DOMAIN}
       # Server-side fetches (SSR + route handlers) use the internal
       # docker service name. The public hostname doesn't hairpin
       # cleanly from inside the container — it resolves to 127.0.0.1
