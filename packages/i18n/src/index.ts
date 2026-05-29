@@ -2815,6 +2815,8 @@ export const en = {
         summary: '{done} of {total} matches done',
         empty: 'No matches generated for this pool.',
         noPools: 'No pools yet. Generate pools first in the Configure tab.',
+        applyToAll: 'Apply to all:',
+        mixed: '(mixed)',
       },
       standings: {
         overall: 'Overall',
@@ -6057,6 +6059,8 @@ export const fr = {
         summary: '{done} sur {total} combats terminés',
         empty: 'Aucun combat généré pour cette poule.',
         noPools: "Aucune poule générée. Générez les poules dans l'onglet Configurer.",
+        applyToAll: 'Appliquer à tous :',
+        mixed: '(mixte)',
       },
       standings: {
         overall: 'Global',

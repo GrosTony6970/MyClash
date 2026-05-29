@@ -269,6 +269,86 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
     }
   }
 
+  // ── Pool-wide assignments ───────────────────────────────────────────────
+  // The pool header strip lets the operator apply one Lice / one
+  // referee-per-role to every match in the pool in a single click. We
+  // optimistically rewrite the row state, then PUT; on failure we refetch.
+
+  async function applyPoolLice(poolId: string, liceId: string | null) {
+    setPools((prev) =>
+      prev.map((pool) =>
+        pool.poolId === poolId
+          ? { ...pool, matches: pool.matches.map((m) => ({ ...m, lice_id: liceId })) }
+          : pool,
+      ),
+    );
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/lice`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ liceId }),
+      });
+      if (!res.ok) throw new Error('Pool lice update failed');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Pool lice update failed:', err);
+      refresh();
+    }
+  }
+
+  async function applyPoolReferee(poolId: string, role: string, refereeId: string | null) {
+    const ref = refereeId ? referees.find((r) => r.id === refereeId) : null;
+    const refName = ref ? refereeLabel(ref) : (refereeId ?? '');
+    setPools((prev) =>
+      prev.map((pool) => {
+        if (pool.poolId !== poolId) return pool;
+        return {
+          ...pool,
+          matches: pool.matches.map((m) => {
+            const others = m.referees.filter((a) => a.role !== role);
+            return refereeId === null
+              ? { ...m, referees: others }
+              : { ...m, referees: [...others, { role, refereeId, refereeName: refName }] };
+          }),
+        };
+      }),
+    );
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/referee-role-assignments`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, refereeId }),
+      });
+      if (!res.ok) throw new Error('Pool referee role assignment failed');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Pool referee role assignment failed:', err);
+      refresh();
+    }
+  }
+
+  // The strip displays a value in its picker only when every match in
+  // the pool shares the same assignment for that field — otherwise we
+  // render `(mixed)` so the operator knows the field varies. Picking a
+  // value still applies it to every match.
+  function poolLiceCommonValue(pool: { matches: MatchRow[] }): string | 'mixed' {
+    if (pool.matches.length === 0) return '';
+    const first = pool.matches[0]?.lice_id ?? '';
+    return pool.matches.every((m) => (m.lice_id ?? '') === first) ? first : 'mixed';
+  }
+
+  function poolRoleCommonValue(pool: { matches: MatchRow[] }, role: string): string | 'mixed' {
+    if (pool.matches.length === 0) return '';
+    const first = pool.matches[0]?.referees.find((a) => a.role === role)?.refereeId ?? '';
+    return pool.matches.every(
+      (m) => (m.referees.find((a) => a.role === role)?.refereeId ?? '') === first,
+    )
+      ? first
+      : 'mixed';
+  }
+
   if (loading) {
     return <p className="text-sm text-slate-500">{t('common.loading')}</p>;
   }
@@ -311,6 +391,78 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                   })}
                 </p>
               </header>
+
+              {/*
+                Pool-wide assignment strip. One picker per field; picking
+                a value bulk-applies to every match in this pool via the
+                pool-scoped endpoints. `(mixed)` is shown when the
+                pool's matches already have different values — picking
+                resets them all to the chosen value.
+              */}
+              {pool.matches.length > 0 && (
+                <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
+                  <span className="font-semibold uppercase tracking-wide text-slate-500">
+                    {t('organizer.pools.matches.applyToAll')}
+                  </span>
+                  <label className="flex items-center gap-1.5">
+                    <span className="text-slate-600">{t('organizer.pools.matches.lice')}</span>
+                    <select
+                      value={(() => {
+                        const v = poolLiceCommonValue(pool);
+                        return v === 'mixed' ? '__mixed__' : v;
+                      })()}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === '__mixed__') return;
+                        void applyPoolLice(pool.poolId, raw || null);
+                      }}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                    >
+                      {poolLiceCommonValue(pool) === 'mixed' && (
+                        <option value="__mixed__">{t('organizer.pools.matches.mixed')}</option>
+                      )}
+                      <option value="">{t('common.none')}</option>
+                      {lices.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {roleConfig.map((role) => {
+                    const common = poolRoleCommonValue(pool, role.id);
+                    const qualifiedSet = qualifiedRefereesByRole.get(role.id);
+                    const options =
+                      qualifiedSet && qualifiedSet.size > 0
+                        ? referees.filter((r) => qualifiedSet.has(r.id))
+                        : referees;
+                    return (
+                      <label key={role.id} className="flex items-center gap-1.5">
+                        <span className="text-slate-600">{role.displayName}</span>
+                        <select
+                          value={common === 'mixed' ? '__mixed__' : common}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === '__mixed__') return;
+                            void applyPoolReferee(pool.poolId, role.id, raw || null);
+                          }}
+                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                        >
+                          {common === 'mixed' && (
+                            <option value="__mixed__">{t('organizer.pools.matches.mixed')}</option>
+                          )}
+                          <option value="">{t('common.none')}</option>
+                          {options.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {refereeLabel(r)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
 
               {pool.matches.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-400">
