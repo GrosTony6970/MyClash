@@ -239,24 +239,30 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
 
   return (
     <div className="w-full">
-      {/* Day tabs — one per event day. Tabs hide when the event spans a single day. */}
-      {days.length > 1 && (
+      {/* Day tabs — one per event day. Even on a single-day event we render
+          a non-clickable label so the operator always sees which day the
+          grid is showing. Multi-day events get a clickable pill per day
+          that switches activeDay. */}
+      {days.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {days.map((day, idx) => {
             const active = day === activeDay;
+            const single = days.length === 1;
             return (
               <button
                 key={day}
                 type="button"
                 onClick={() => setActiveDay(day)}
+                disabled={single}
                 className={[
                   'rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors',
                   active
                     ? 'border-red-700 bg-red-700 text-white'
                     : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400',
+                  single ? 'cursor-default' : '',
                 ].join(' ')}
               >
-                Jour {idx + 1} · {formatDayLabel(day)}
+                {single ? formatDayLabel(day) : `Jour ${idx + 1} · ${formatDayLabel(day)}`}
               </button>
             );
           })}
