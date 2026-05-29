@@ -143,7 +143,17 @@ export class GenerateBracketDto {
 }
 
 export class UpdatePhaseVisibilityDto {
+  // The DTO is consumed by NestJS's global ValidationPipe with
+  // forbidNonWhitelisted=true; without these decorators every
+  // property gets stripped/rejected and the publish/unpublish
+  // POOLs button 400s with "property visibility should not exist".
+  @ApiProperty({ enum: ['hidden', 'published'] })
+  @IsIn(['hidden', 'published'])
   visibility!: 'hidden' | 'published';
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
   confirmStarted?: boolean;
 }
 
