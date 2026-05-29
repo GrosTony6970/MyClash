@@ -333,37 +333,52 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                 gridAutoRows: `${SLOT_HEIGHT_PX}px`,
               }}
             >
-              {/* Row 1: header — corner cell + lice name cells */}
-              <div className="sticky top-0 z-20 bg-white border-b border-gray-300" />
-              {lices.map((lice) => (
+              {/* Row 1: header — corner cell + lice name cells. Every cell is
+                  explicitly placed so the per-slot Fragment below can't be
+                  cascaded out of position by the absolutely-placed match
+                  cards (see Slice 1 of the schedule overhaul plan). */}
+              <div
+                className="sticky top-0 z-20 bg-white border-b border-gray-300"
+                style={{ gridColumn: 1, gridRow: 1 }}
+              />
+              {lices.map((lice, liceIndex) => (
                 <div
                   key={lice.id}
                   className="sticky top-0 z-20 bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center"
-                  style={{ height: SLOT_HEIGHT_PX * 2 }}
+                  style={{ gridColumn: liceIndex + 2, gridRow: 1, height: SLOT_HEIGHT_PX * 2 }}
                 >
                   <span className="text-xs font-bold text-gray-700 truncate">{lice.name}</span>
                 </div>
               ))}
 
-              {/* Rows 2..TOTAL_SLOTS+1: time-label cell + one drop-target cell per lice */}
+              {/* Rows 2..TOTAL_SLOTS+1: time-label cell + one drop-target cell per lice.
+                  Every cell is explicitly placed via gridColumn/gridRow so that
+                  match cards (which are also explicitly placed below) can't
+                  cascade auto-flow rightward. Dropping a fight at e.g. 09:10 in
+                  lice 2 used to push the 10:00 label out of col 1 — see the
+                  schedule overhaul plan, Slice 1. */}
               {Array.from({ length: TOTAL_SLOTS }, (_, slot) => (
                 <Fragment key={slot}>
-                  {/* Time label — sticky left */}
+                  {/* Time label — sticky left, explicit (col 1, row slot+2) */}
                   <div
                     className="sticky left-0 z-10 bg-white text-xs text-gray-400 pr-1 flex items-center justify-end select-none"
                     style={{
+                      gridColumn: 1,
+                      gridRow: slot + 2,
                       borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                     }}
                   >
                     {slot % 12 === 0 ? formatSlotTime(slot) : ''}
                   </div>
 
-                  {/* Drop-target cells — one per lice */}
-                  {lices.map((lice) => (
+                  {/* Drop-target cells — one per lice, explicit column index */}
+                  {lices.map((lice, liceIndex) => (
                     <div
                       key={lice.id}
                       className="bg-gray-50 border-l border-l-gray-200"
                       style={{
+                        gridColumn: liceIndex + 2,
+                        gridRow: slot + 2,
                         borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                       }}
                       onDragOver={(e) => e.preventDefault()}
