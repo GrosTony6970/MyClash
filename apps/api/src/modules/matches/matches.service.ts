@@ -205,6 +205,30 @@ export class MatchesService {
     return this.updateStatus(matchId, { status: 'voided' });
   }
 
+  /**
+   * Bulk-clear every match of one pool that's scheduled on a specific
+   * calendar day. Backs the "Clear pool" action surfaced on the schedule
+   * grid: the operator wants to wipe an accidentally-misplaced pool
+   * without losing the rest of the day's plan.
+   *
+   * Day is matched in UTC against `[YYYY-MM-DDT00:00:00Z, next day)` —
+   * same convention the FE uses to decide which day a match belongs to.
+   */
+  async clearPoolScheduleForDay(poolId: string, dayIso: string) {
+    const start = `${dayIso}T00:00:00.000Z`;
+    const nextDay = new Date(`${dayIso}T00:00:00.000Z`);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    const end = nextDay.toISOString();
+
+    const { error } = await this.supabase.service
+      .from('matches')
+      .update({ lice_id: null, scheduled_at: null, updated_at: new Date().toISOString() })
+      .eq('pool_id', poolId)
+      .gte('scheduled_at', start)
+      .lt('scheduled_at', end);
+    if (error) throw new BadRequestException(error.message);
+  }
+
   async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),

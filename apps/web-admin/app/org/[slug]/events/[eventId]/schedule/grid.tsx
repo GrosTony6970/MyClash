@@ -312,6 +312,73 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     [matches, activeDay],
   );
 
+  // Slice 6: group active-day matches by pool so the operator can
+  // clear an entire pool's day in one click. Each group also exposes
+  // the topmost slot/lice it occupies so the handle can be anchored to
+  // the right cell in the grid.
+  type PoolGroup = {
+    poolId: string;
+    poolName: string;
+    tournamentName: string | null;
+    minSlot: number;
+    minLiceIndex: number;
+    matchCount: number;
+  };
+  const poolGroupsOnActiveDay = useMemo<PoolGroup[]>(() => {
+    if (!activeDay) return [];
+    const byPool = new Map<string, PoolGroup>();
+    for (const m of scheduledOnActiveDay) {
+      if (!m.poolId || !m.poolName) continue;
+      const liceIndex = lices.findIndex((l) => l.id === m.liceId);
+      if (liceIndex === -1) continue;
+      const slot = isoToSlot(m.scheduledAt!, activeDay);
+      const existing = byPool.get(m.poolId);
+      if (!existing) {
+        byPool.set(m.poolId, {
+          poolId: m.poolId,
+          poolName: m.poolName,
+          tournamentName: m.tournamentName,
+          minSlot: slot,
+          minLiceIndex: liceIndex,
+          matchCount: 1,
+        });
+      } else {
+        existing.matchCount += 1;
+        if (slot < existing.minSlot) {
+          existing.minSlot = slot;
+          existing.minLiceIndex = liceIndex;
+        }
+      }
+    }
+    return Array.from(byPool.values());
+  }, [scheduledOnActiveDay, lices, activeDay]);
+
+  const [pendingPoolClear, setPendingPoolClear] = useState<PoolGroup | null>(null);
+  const [clearingPool, setClearingPool] = useState(false);
+
+  async function clearPool(group: PoolGroup) {
+    if (!activeDay) return;
+    setClearingPool(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${group.poolId}/schedule?day=${activeDay}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Optimistic local state update: null out matching matches.
+      const updated = matches.map((m) =>
+        m.poolId === group.poolId && m.scheduledAt && matchBelongsToDay(m.scheduledAt, activeDay)
+          ? { ...m, liceId: null, scheduledAt: null }
+          : m,
+      );
+      setMatches(updated);
+      setConflicts(detectConflicts(updated));
+    } finally {
+      setClearingPool(false);
+      setPendingPoolClear(null);
+    }
+  }
+
   // Slice 4: slot index for "now" on the active day. Null when the
   // active day isn't today, when the current time is before the grid
   // start, or when it's past the grid end — caller renders nothing in
@@ -549,6 +616,35 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                 );
               })}
 
+              {/* Slice 6: per-pool handle. Anchored to the topmost match
+                  of each pool group on the active day. Clicking the
+                  handle opens the confirm modal for clearing the pool. */}
+              {poolGroupsOnActiveDay.map((group) => {
+                const palette = poolColourFor(group.tournamentName, group.poolName);
+                return (
+                  <button
+                    key={group.poolId}
+                    type="button"
+                    onClick={() => setPendingPoolClear(group)}
+                    title={`${group.poolName} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — click to clear the pool`}
+                    className={[
+                      'absolute -translate-y-full self-start rounded-t-md px-1.5 py-0.5 text-[10px] font-bold leading-none shadow-sm border border-b-0 hover:shadow-md transition-shadow',
+                      palette
+                        ? `${palette.bg} ${palette.border} ${palette.text}`
+                        : 'bg-blue-100 border-blue-300 text-blue-800',
+                    ].join(' ')}
+                    style={{
+                      gridColumn: group.minLiceIndex + 2,
+                      gridRow: group.minSlot + 2,
+                      zIndex: 12,
+                      pointerEvents: 'auto',
+                    }}
+                  >
+                    {group.poolName} · {group.matchCount}
+                  </button>
+                );
+              })}
+
               {/* Slice 4: "now" marker — horizontal red line across every
                   lice column at the current time slot. Only rendered when
                   the active day is today (see nowSlot above). */}
@@ -582,6 +678,24 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
         confirmLabel="Clear day"
         danger
         busy={clearingDay}
+      />
+
+      {/* Slice 6: Clear-pool confirm modal. */}
+      <ConfirmDialog
+        open={pendingPoolClear !== null}
+        onConfirm={() => pendingPoolClear && void clearPool(pendingPoolClear)}
+        onCancel={() => setPendingPoolClear(null)}
+        title={pendingPoolClear ? `Clear ${pendingPoolClear.poolName}?` : ''}
+        description={
+          pendingPoolClear
+            ? `This will unschedule ${pendingPoolClear.matchCount} match${
+                pendingPoolClear.matchCount === 1 ? '' : 'es'
+              } from ${pendingPoolClear.poolName}${pendingPoolClear.tournamentName ? ` (${pendingPoolClear.tournamentName})` : ''} on ${activeDay ? formatDayLabel(activeDay) : 'this day'}. Matches on other days and from other pools are not affected.`
+            : ''
+        }
+        confirmLabel="Clear pool"
+        danger
+        busy={clearingPool}
       />
     </div>
   );

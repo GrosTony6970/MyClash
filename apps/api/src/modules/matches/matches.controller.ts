@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -9,6 +11,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -108,6 +111,23 @@ export class MatchesController {
     @Body() dto: { liceId?: string | null; scheduledAt?: string | null },
   ) {
     return this.matches.scheduleMatch(id, dto.liceId ?? null, dto.scheduledAt ?? null);
+  }
+
+  @Delete('pools/:poolId/schedule')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Clear every match of a pool that is scheduled on the given day (?day=YYYY-MM-DD). Powers the "Clear pool" handle on the schedule grid.',
+  })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async clearPoolScheduleForDay(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Query('day') day: string,
+  ) {
+    if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      throw new BadRequestException('day query parameter required (YYYY-MM-DD)');
+    }
+    await this.matches.clearPoolScheduleForDay(poolId, day);
   }
 
   @Patch('matches/:id')

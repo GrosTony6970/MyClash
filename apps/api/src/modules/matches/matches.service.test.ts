@@ -24,6 +24,8 @@ function makeChain(result: unknown) {
   const chain = {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
+    gte: vi.fn() as ReturnType<typeof vi.fn>,
+    lt: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
     update: vi.fn() as ReturnType<typeof vi.fn>,
@@ -406,6 +408,39 @@ describe('MatchesService', () => {
 
       expect(mockNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
       expect(mockFollowNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
+    });
+  });
+
+  // Slice 6 of the schedule overhaul: clear every match of a pool on a
+  // given day. Backs the "Clear pool" action on the schedule grid.
+  describe('clearPoolScheduleForDay', () => {
+    it('nulls lice_id + scheduled_at on every pool match scheduled on the given day', async () => {
+      let updatePatch: Record<string, unknown> | null = null;
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.update = vi.fn((patch: Record<string, unknown>) => {
+        updatePatch = patch;
+        return updateChain;
+      }) as never;
+      // The service chains .update(...).eq('pool_id', …).gte('scheduled_at', …).lt(…)
+      // so the terminating chain.eq must resolve to a result.
+      updateChain.eq.mockReturnValue(updateChain);
+      // Last filter resolves the awaitable.
+      updateChain.lt = vi.fn().mockReturnValue(
+        Object.assign(Promise.resolve({ data: null, error: null }), {
+          eq: vi.fn().mockReturnThis(),
+          gte: vi.fn().mockReturnThis(),
+          lt: vi.fn().mockReturnThis(),
+        }),
+      ) as never;
+      updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
+      fromMock.mockReturnValue(updateChain);
+
+      await service.clearPoolScheduleForDay('pool-1', '2026-05-02');
+
+      expect(updatePatch).toMatchObject({ lice_id: null, scheduled_at: null });
+      expect(updateChain.eq).toHaveBeenCalledWith('pool_id', 'pool-1');
+      expect(updateChain.gte).toHaveBeenCalledWith('scheduled_at', '2026-05-02T00:00:00.000Z');
+      expect(updateChain.lt).toHaveBeenCalledWith('scheduled_at', '2026-05-03T00:00:00.000Z');
     });
   });
 
