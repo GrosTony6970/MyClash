@@ -68,6 +68,15 @@ export interface AssignmentBoardPool {
    * scope_type='match' instead of scope_type='pool'.
    */
   matchId?: string;
+  /**
+   * Bracket-only metadata so the frontend can render readable round
+   * labels ('Quarter-final #2') instead of the raw 'R{N}P{M}' string.
+   * All three undefined for pool-kind rows. Computed once in
+   * loadBracketAsPools from already-fetched bracket_slot info.
+   */
+  bracketRound?: number;
+  bracketPosition?: number;
+  bracketMaxRound?: number;
   members: Array<{
     registrationId: string;
     personId: string;
@@ -578,6 +587,13 @@ export class AssignmentBoardService {
         scheduledEnd,
         kind,
         matchId: m.id,
+        ...(info
+          ? {
+              bracketRound: info.round,
+              bracketPosition: info.position,
+              bracketMaxRound: maxRound,
+            }
+          : {}),
         members: [],
         matches: [
           {
