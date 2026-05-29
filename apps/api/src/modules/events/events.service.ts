@@ -687,6 +687,143 @@ export class EventsService {
     return data ?? [];
   }
 
+  /**
+   * Slice 3a of the public microsite overhaul: every person registered
+   * to a tournament on this event, grouped into one row per person
+   * with the tournaments they're entered in. Public — no auth.
+   *
+   * Excludes withdrawn / disqualified registrations; everyone else is
+   * surfaced. The `registrationState` field is forward-looking; the
+   * current schema has no waitlist status, so every projected entry
+   * reports 'active'. When a waitlist column lands the projection
+   * can switch without changing the public payload shape.
+   */
+  async listPublicParticipants(slugOrId: string): Promise<
+    Array<{
+      personId: string;
+      displayName: string;
+      clubName: string | null;
+      clubAbbrev: string | null;
+      tournaments: Array<{
+        id: string;
+        slug: string;
+        name: string;
+        color: string | null;
+        registrationState: 'active';
+      }>;
+    }>
+  > {
+    const event = await this.getEventBySlug(slugOrId);
+    const eventId = (event as { id: string }).id;
+
+    const { data: tournamentRows, error: tournErr } = await this.supabase.service
+      .from('tournaments')
+      .select('id, slug, name, color')
+      .eq('event_id', eventId);
+    if (tournErr) throw new BadRequestException(tournErr.message);
+    const tournaments = (tournamentRows ?? []) as Array<{
+      id: string;
+      slug: string;
+      name: string;
+      color: string | null;
+    }>;
+    if (tournaments.length === 0) return [];
+    const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
+
+    const { data: regRows, error: regErr } = await this.supabase.service
+      .from('registrations')
+      .select('tournament_id, person_id, status')
+      .in(
+        'tournament_id',
+        tournaments.map((t) => t.id),
+      )
+      .in('status', ['registered', 'checked_in']);
+    if (regErr) throw new BadRequestException(regErr.message);
+    const registrations = (regRows ?? []) as Array<{
+      tournament_id: string;
+      person_id: string;
+      status: string;
+    }>;
+    if (registrations.length === 0) return [];
+
+    const personIds = Array.from(new Set(registrations.map((r) => r.person_id)));
+    const { data: personRows, error: personErr } = await this.supabase.service
+      .from('persons')
+      .select('id, given_name, family_name, club_id')
+      .in('id', personIds);
+    if (personErr) throw new BadRequestException(personErr.message);
+    const persons = (personRows ?? []) as Array<{
+      id: string;
+      given_name: string;
+      family_name: string;
+      club_id: string | null;
+    }>;
+    const personById = new Map(persons.map((p) => [p.id, p]));
+
+    const clubIds = Array.from(
+      new Set(persons.map((p) => p.club_id).filter((id): id is string => !!id)),
+    );
+    const clubById = new Map<string, { name: string; abbreviation: string | null }>();
+    if (clubIds.length > 0) {
+      const { data: clubRows, error: clubErr } = await this.supabase.service
+        .from('clubs')
+        .select('id, name, abbreviation')
+        .in('id', clubIds);
+      if (clubErr) throw new BadRequestException(clubErr.message);
+      for (const c of (clubRows ?? []) as Array<{
+        id: string;
+        name: string;
+        abbreviation: string | null;
+      }>) {
+        clubById.set(c.id, { name: c.name, abbreviation: c.abbreviation });
+      }
+    }
+
+    const byPerson = new Map<
+      string,
+      {
+        personId: string;
+        displayName: string;
+        clubName: string | null;
+        clubAbbrev: string | null;
+        tournaments: Array<{
+          id: string;
+          slug: string;
+          name: string;
+          color: string | null;
+          registrationState: 'active';
+        }>;
+      }
+    >();
+    for (const reg of registrations) {
+      const person = personById.get(reg.person_id);
+      if (!person) continue;
+      const tournament = tournamentById.get(reg.tournament_id);
+      if (!tournament) continue;
+      let row = byPerson.get(reg.person_id);
+      if (!row) {
+        const club = person.club_id ? (clubById.get(person.club_id) ?? null) : null;
+        row = {
+          personId: person.id,
+          displayName: `${person.given_name} ${person.family_name}`.trim() || person.id,
+          clubName: club?.name ?? null,
+          clubAbbrev: club?.abbreviation ?? null,
+          tournaments: [],
+        };
+        byPerson.set(reg.person_id, row);
+      }
+      row.tournaments.push({
+        id: tournament.id,
+        slug: tournament.slug,
+        name: tournament.name,
+        color: tournament.color,
+        registrationState: 'active',
+      });
+    }
+
+    return Array.from(byPerson.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+
   private async getEventTournaments(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('tournaments')

@@ -647,6 +647,117 @@ describe('EventsService', () => {
   // depends on. The "unavailable" banner at app.myclash.fr/ only renders
   // when this endpoint fails — keeping the contract here pinned guards
   // against silent regressions.
+  describe('listPublicParticipants', () => {
+    function eventSlugChain() {
+      const chain = makeChain({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      chain.maybeSingle.mockResolvedValue({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      return chain;
+    }
+
+    it('groups a person into one row with both tournaments they are registered in', async () => {
+      const tournaments = [
+        { id: 't1', slug: 'longsword', name: 'Longsword Open', color: 'red' },
+        { id: 't2', slug: 'rapier', name: 'Rapier Cup', color: 'blue' },
+      ];
+      const registrations = [
+        { tournament_id: 't1', person_id: 'p1', status: 'registered' },
+        { tournament_id: 't2', person_id: 'p1', status: 'checked_in' },
+      ];
+      const persons = [{ id: 'p1', given_name: 'Alice', family_name: 'Dupont', club_id: 'c1' }];
+      const clubs = [{ id: 'c1', name: 'Lyon AMHE', abbreviation: 'LAMHE' }];
+
+      fromMock
+        .mockReturnValueOnce(eventSlugChain())
+        .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: clubs, error: null }));
+
+      const result = await service.listPublicParticipants('fal-2027');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.displayName).toBe('Alice Dupont');
+      expect(result[0]?.clubName).toBe('Lyon AMHE');
+      expect(result[0]?.clubAbbrev).toBe('LAMHE');
+      expect(result[0]?.tournaments.map((t) => t.slug).sort()).toEqual(['longsword', 'rapier']);
+    });
+
+    it('excludes withdrawn and disqualified registrations', async () => {
+      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      // Two registrations: one withdrawn, one checked_in. Only the checked_in row
+      // should make it through.
+      const registrations = [
+        { tournament_id: 't1', person_id: 'p1', status: 'withdrawn' },
+        { tournament_id: 't1', person_id: 'p2', status: 'checked_in' },
+      ];
+      const persons = [{ id: 'p2', given_name: 'Bob', family_name: 'Martin', club_id: null }];
+
+      // The status filter is applied at the DB layer (`.in('status', [...])`).
+      // The mock just returns whatever rows we provide — so we provide only
+      // the checked_in row, simulating the DB filter. The test asserts the
+      // service uses the active-only set in the .in() call.
+      const regChain = makeAwaitableChain({
+        data: [{ tournament_id: 't1', person_id: 'p2', status: 'checked_in' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(eventSlugChain())
+        .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
+        .mockReturnValueOnce(regChain)
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }));
+
+      const result = await service.listPublicParticipants('fal-2027');
+
+      expect(result.map((r) => r.personId)).toEqual(['p2']);
+      // Withdrawn / disqualified must never be in the status filter list.
+      expect(regChain.in).toHaveBeenCalledWith('status', ['registered', 'checked_in']);
+      // Defensive: registrations contained a withdrawn row from the start —
+      // the test's `registrations` variable is unused so the .in filter is
+      // the only barrier. Reference it to keep eslint happy.
+      expect(registrations.length).toBeGreaterThan(0);
+    });
+
+    it('returns the row with null club fields when the person has no club_id', async () => {
+      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
+      const persons = [{ id: 'p1', given_name: 'Carol', family_name: 'Lemaire', club_id: null }];
+
+      fromMock
+        .mockReturnValueOnce(eventSlugChain())
+        .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }));
+
+      const result = await service.listPublicParticipants('fal-2027');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.clubName).toBeNull();
+      expect(result[0]?.clubAbbrev).toBeNull();
+    });
+
+    it('marks every projected tournament with registrationState=active', async () => {
+      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
+      const persons = [{ id: 'p1', given_name: 'Dora', family_name: 'Costa', club_id: null }];
+
+      fromMock
+        .mockReturnValueOnce(eventSlugChain())
+        .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }));
+
+      const result = await service.listPublicParticipants('fal-2027');
+      expect(result[0]?.tournaments[0]?.registrationState).toBe('active');
+    });
+  });
+
   describe('listEvents (public)', () => {
     it('returns events enriched with tournament_count + org logo_url', async () => {
       const rows = [

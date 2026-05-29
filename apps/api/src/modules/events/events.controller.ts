@@ -319,6 +319,20 @@ export class EventsController {
     return this.events.listTournaments(eventId);
   }
 
+  /**
+   * GET /api/v1/events/:eventSlug/participants — public roster.
+   *
+   * Slug-based to match the rest of the public surface (highlights,
+   * standings…). Returns one row per person with the tournaments they
+   * are registered in; withdrawn / disqualified entries are excluded.
+   */
+  @Get('events/:eventSlug/participants')
+  @ApiOperation({ summary: 'List participants for an event (public)' })
+  @ApiParam({ name: 'eventSlug', type: 'string' })
+  async listParticipants(@Param('eventSlug') eventSlug: string) {
+    return this.events.listPublicParticipants(eventSlug);
+  }
+
   /** POST /api/v1/events/:eventId/tournaments */
   @Post('events/:eventId/tournaments')
   @HttpCode(HttpStatus.CREATED)
