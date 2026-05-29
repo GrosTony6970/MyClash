@@ -15,6 +15,10 @@ export interface ScheduleGridMatch {
   durationMinutes: number;
   /** 'pool' / 'single_elim' / 'double_elim' — drives the bracket-vs-pool chip on the grid. */
   phaseType: string | null;
+  /** Populated for pool-type matches so the grid can group + colour-tint
+   *  matches by pool. Null for bracket / finals matches. */
+  poolId: string | null;
+  poolName: string | null;
 }
 
 interface PhaseRow {
@@ -35,8 +39,14 @@ interface MatchRow {
   lice_id: string | null;
   scheduled_at: string | null;
   phase_id: string | null;
+  pool_id: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
+}
+
+interface PoolRow {
+  id: string;
+  name: string;
 }
 
 interface RegistrationRow {
@@ -97,7 +107,7 @@ export class ScheduleGridService {
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, match_number_label, status, lice_id, scheduled_at, phase_id, red_registration_id, blue_registration_id',
+        'id, match_number_label, status, lice_id, scheduled_at, phase_id, pool_id, red_registration_id, blue_registration_id',
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -105,6 +115,23 @@ export class ScheduleGridService {
     if (matchesErr) throw new BadRequestException(matchesErr.message);
     const matches = (matchesData ?? []) as MatchRow[];
     if (matches.length === 0) return [];
+
+    // 3b. Pools batch lookup — only the pools referenced by these matches.
+    // Drives the per-pool colour tinting + the "select all pool" handle
+    // on the FE schedule grid.
+    const poolIds = Array.from(
+      new Set(matches.map((m) => m.pool_id).filter((id): id is string => Boolean(id))),
+    );
+    const poolNameById = new Map<string, string>();
+    if (poolIds.length > 0) {
+      const { data: poolsData } = await this.supabase.service
+        .from('pools')
+        .select('id, name')
+        .in('id', poolIds);
+      for (const p of (poolsData ?? []) as PoolRow[]) {
+        poolNameById.set(p.id, p.name);
+      }
+    }
 
     // 4. Registrations → persons batch lookup for display names.
     const registrationIds = Array.from(
@@ -159,6 +186,8 @@ export class ScheduleGridService {
         tournamentName,
         durationMinutes: 5,
         phaseType: phase?.type ?? null,
+        poolId: m.pool_id,
+        poolName: m.pool_id ? (poolNameById.get(m.pool_id) ?? null) : null,
       };
     });
   }
