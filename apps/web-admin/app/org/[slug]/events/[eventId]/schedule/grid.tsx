@@ -4,6 +4,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
+import { detectConflicts, type Conflict } from './conflict-detection';
 
 interface Lice {
   id: string;
@@ -74,13 +75,6 @@ function poolColourFor(tournamentName: string | null, poolName: string | null) {
   return POOL_PALETTE[Math.abs(hash) % POOL_PALETTE.length]!;
 }
 
-interface Conflict {
-  matchA: string;
-  matchB: string;
-  personName: string;
-  time: string;
-}
-
 const SLOT_MINUTES = 5;
 const GRID_START_HOUR = 8;
 const GRID_END_HOUR = 20;
@@ -145,41 +139,6 @@ function formatDayLabel(iso: string): string {
 function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boolean {
   if (!scheduledAtIso) return false;
   return scheduledAtIso.slice(0, 10) === dayIso;
-}
-
-function detectConflicts(matches: ScheduleMatch[]): Conflict[] {
-  const conflicts: Conflict[] = [];
-  const scheduled = matches.filter((m) => m.scheduledAt && m.liceId);
-
-  for (let i = 0; i < scheduled.length; i++) {
-    for (let j = i + 1; j < scheduled.length; j++) {
-      const a = scheduled[i]!;
-      const b = scheduled[j]!;
-      const aFighters = [a.redRegistrationId, a.blueRegistrationId].filter(Boolean);
-      const bFighters = [b.redRegistrationId, b.blueRegistrationId].filter(Boolean);
-      const shared = aFighters.filter((f) => bFighters.includes(f));
-      if (shared.length === 0) continue;
-      const aStart = new Date(a.scheduledAt!).getTime();
-      const aEnd = aStart + a.durationMinutes * 60_000;
-      const bStart = new Date(b.scheduledAt!).getTime();
-      const bEnd = bStart + b.durationMinutes * 60_000;
-      if (aStart < bEnd && bStart < aEnd) {
-        conflicts.push({
-          matchA: a.matchNumberLabel,
-          matchB: b.matchNumberLabel,
-          personName:
-            shared[0] === a.redRegistrationId
-              ? (a.redFighterName ?? shared[0]!)
-              : (a.blueFighterName ?? shared[0]!),
-          time: new Date(a.scheduledAt!).toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        });
-      }
-    }
-  }
-  return conflicts;
 }
 
 export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
