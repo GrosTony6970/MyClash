@@ -286,12 +286,11 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       )}
 
       {/*
-        Responsive pool grid — stacked on phones, side-by-side from md+.
-        Capped at 2 columns so each pool card stays readable even on
-        ultrawide monitors. Operators consistently running 6+ tiny pools
-        can bump to xl:grid-cols-3 as a one-line follow-up.
+        One pool per row, full width — the per-role referee columns
+        (Déclarant / Assesseur / Table) make a 2-up grid overflow on the
+        right at common laptop widths. Matches the Configure tab pattern.
       */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="flex flex-col gap-4">
         {pools.map((pool) => {
           const done = pool.matches.filter((m) => m.status === 'completed').length;
           const total = pool.matches.length;
