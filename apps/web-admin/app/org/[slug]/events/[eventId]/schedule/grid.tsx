@@ -11,6 +11,21 @@ interface Lice {
   sortOrder: number;
 }
 
+/**
+ * Slice 7: non-fight programme blocks rendered on the grid.
+ * `dayIndex` indexes into the event's `days` array (computed below from
+ * the event start/end). `startTime` / `endTime` are HH:MM strings on
+ * that day. Currently read-only — drag-to-move stays a follow-up.
+ */
+interface ProgrammeBlockRow {
+  id: string;
+  dayIndex: number;
+  blockType: 'admin' | 'competition' | 'workshop' | 'break';
+  label: string;
+  startTime: string;
+  endTime: string;
+}
+
 interface ScheduleMatch {
   id: string;
   matchNumberLabel: string;
@@ -177,6 +192,9 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  // Slice 7: non-fight programme blocks (registration, gear check,
+  // referee meeting, breaks) rendered as full-width bars on the grid.
+  const [programmeBlocks, setProgrammeBlocks] = useState<ProgrammeBlockRow[]>([]);
   // Slice 3 of the schedule overhaul: clear every match on the active
   // day with a confirm gate. `clearing` doubles as the modal flag and
   // the in-flight busy state for the confirm button.
@@ -228,8 +246,12 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
         credentials: 'include',
         signal: controller.signal,
       }),
+      fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
     ])
-      .then(async ([licesRes, schedRes, eventRes]) => {
+      .then(async ([licesRes, schedRes, eventRes, programmeRes]) => {
         setLoading(false);
         if (licesRes.ok) {
           const l = (await licesRes.json()) as Lice[];
@@ -251,6 +273,17 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
           const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
           setDays(eventDays);
           if (eventDays[0]) setActiveDay(eventDays[0]);
+        }
+        if (programmeRes.ok) {
+          // Slice 7: fetch every programme block; we keep the admin /
+          // break entries to render as full-width bars on the grid
+          // (registration, gear check, referee meeting, breaks).
+          // Competition / workshop blocks are skipped — fights and
+          // workshops are already rendered by the matches projection.
+          const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
+          setProgrammeBlocks(
+            blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'),
+          );
         }
       })
       .catch((err: unknown) => {
@@ -468,6 +501,26 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
       setPendingPoolClear(null);
     }
   }
+
+  // Slice 7: programme blocks (admin / break) scoped to the active day,
+  // with their start/end converted into grid slot indices for rendering.
+  const blocksOnActiveDay = useMemo(() => {
+    if (!activeDay) return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
+    const dayIndex = days.indexOf(activeDay);
+    if (dayIndex < 0) return [];
+    return programmeBlocks
+      .filter((b) => b.dayIndex === dayIndex)
+      .map((b) => {
+        const [sh, sm] = b.startTime.split(':').map((s) => Number(s));
+        const [eh, em] = b.endTime.split(':').map((s) => Number(s));
+        const startMin = (sh ?? 0) * 60 + (sm ?? 0) - GRID_START_HOUR * 60;
+        const endMin = (eh ?? 0) * 60 + (em ?? 0) - GRID_START_HOUR * 60;
+        const startSlot = Math.max(0, Math.floor(startMin / SLOT_MINUTES));
+        const endSlot = Math.max(startSlot + 1, Math.ceil(endMin / SLOT_MINUTES));
+        return { ...b, startSlot, span: endSlot - startSlot };
+      })
+      .filter((b) => b.startSlot < TOTAL_SLOTS);
+  }, [programmeBlocks, activeDay, days]);
 
   // Slice 4: slot index for "now" on the active day. Null when the
   // active day isn't today, when the current time is before the grid
@@ -766,6 +819,37 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                   </button>
                 );
               })}
+
+              {/* Slice 7: non-fight programme blocks rendered as full-width
+                  bars across every lice column. Read-only for now — drag
+                  support stays a follow-up. Striped chrome distinguishes
+                  them from fight cards. */}
+              {blocksOnActiveDay.map((b) => (
+                <div
+                  key={b.id}
+                  aria-label={b.label}
+                  title={`${b.startTime} – ${b.endTime} · ${b.label}`}
+                  className={[
+                    'pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide',
+                    b.blockType === 'break'
+                      ? 'bg-slate-100 text-slate-600 border-y border-slate-300'
+                      : 'bg-purple-50 text-purple-800 border-y border-purple-300',
+                  ].join(' ')}
+                  style={{
+                    gridColumn: '2 / -1',
+                    gridRow: `${b.startSlot + 2} / span ${b.span}`,
+                    zIndex: 8,
+                    backgroundImage:
+                      b.blockType === 'break'
+                        ? 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(100,116,139,0.08) 8px, rgba(100,116,139,0.08) 16px)'
+                        : 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(147,51,234,0.08) 8px, rgba(147,51,234,0.08) 16px)',
+                  }}
+                >
+                  <span className="truncate px-2">
+                    {b.label} ({b.startTime} – {b.endTime})
+                  </span>
+                </div>
+              ))}
 
               {/* Slice 4: "now" marker — horizontal red line across every
                   lice column at the current time slot. Only rendered when
