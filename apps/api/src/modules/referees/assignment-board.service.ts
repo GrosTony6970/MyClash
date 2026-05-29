@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   assignRefereesWithPools,
   type AssignmentResult,
@@ -302,6 +307,79 @@ export class AssignmentBoardService {
     return {
       roles: orderedDistinct.map((id) => ({ id, displayName: nameById.get(id) ?? id })),
     };
+  }
+
+  /**
+   * Bulk-clear every referee assignment for an event. Feeds the
+   * "Clear all" button on the Assignments tab. Refuses to run when
+   * any row is `status='confirmed'` — operator must Unlock first
+   * (otherwise we'd silently wipe a locked board).
+   */
+  async clearEventAssignments(eventId: string): Promise<{ deleted: number }> {
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id, status')
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as Array<{ id: string; status: string }>;
+    if (rows.some((r) => r.status === 'confirmed')) {
+      throw new ConflictException('Assignments are locked. Unlock the board before clearing.');
+    }
+    if (rows.length === 0) return { deleted: 0 };
+    const { error: delErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('event_id', eventId);
+    if (delErr) throw new BadRequestException(delErr.message);
+    return { deleted: rows.length };
+  }
+
+  /**
+   * Bulk-clear every referee assignment for one pool. Wipes BOTH
+   * `scope_type='pool'` rows for the pool AND `scope_type='match'`
+   * rows for every match in the pool. Same lock guard as
+   * `clearEventAssignments`.
+   */
+  async clearPoolAssignments(poolId: string): Promise<{ deleted: number }> {
+    const { data: matches, error: matchesErr } = await this.supabase.service
+      .from('matches')
+      .select('id')
+      .eq('pool_id', poolId);
+    if (matchesErr) throw new BadRequestException(matchesErr.message);
+    const matchIds = ((matches ?? []) as Array<{ id: string }>).map((m) => m.id);
+
+    const { data: poolRows, error: poolErr } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id, status')
+      .eq('scope_type', 'pool')
+      .eq('pool_id', poolId);
+    if (poolErr) throw new BadRequestException(poolErr.message);
+
+    let matchRows: Array<{ id: string; status: string }> = [];
+    if (matchIds.length > 0) {
+      const { data: m, error: mErr } = await this.supabase.service
+        .from('referee_assignments')
+        .select('id, status')
+        .eq('scope_type', 'match')
+        .in('match_id', matchIds);
+      if (mErr) throw new BadRequestException(mErr.message);
+      matchRows = (m ?? []) as Array<{ id: string; status: string }>;
+    }
+
+    const all = [...((poolRows ?? []) as Array<{ id: string; status: string }>), ...matchRows];
+    if (all.some((r) => r.status === 'confirmed')) {
+      throw new ConflictException('Assignments are locked. Unlock the board before clearing.');
+    }
+    if (all.length === 0) return { deleted: 0 };
+    const { error: delErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .in(
+        'id',
+        all.map((r) => r.id),
+      );
+    if (delErr) throw new BadRequestException(delErr.message);
+    return { deleted: all.length };
   }
 
   async applyPreview(eventId: string): Promise<AssignmentResult & { persisted: number }> {

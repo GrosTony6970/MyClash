@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssignmentBoardService } from './assignment-board.service';
 import { HARD_CODED_DEFAULT_SLOTS } from './staffing.service';
@@ -319,6 +319,99 @@ describe('AssignmentBoardService', () => {
         { id: 'arbitre_assesseur', displayName: 'Assesseur' },
         { id: 'custom_skill_1', displayName: 'Chronométreur' },
       ]);
+    });
+  });
+
+  // ── Clear assignments ─────────────────────────────────────────────────
+  // Two new bulk-delete methods feeding the Referees → Assignments tab's
+  // "Clear all" + per-pool trash actions. Both must refuse to run when
+  // any row in scope is `status='confirmed'` (the lock guard) so the
+  // operator can't accidentally wipe a locked board.
+  describe('clearEventAssignments', () => {
+    it('deletes every row in the event when none are confirmed', async () => {
+      const selectChain = makeChain({
+        data: [
+          { id: 'a-1', status: 'assigned' },
+          { id: 'a-2', status: 'assigned' },
+        ],
+        error: null,
+      });
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(selectChain).mockReturnValueOnce(deleteChain);
+
+      const result = await service.clearEventAssignments('event-1');
+
+      expect(result).toEqual({ deleted: 2 });
+      expect(deleteChain.delete).toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when any row is confirmed (locked)', async () => {
+      const selectChain = makeChain({
+        data: [
+          { id: 'a-1', status: 'assigned' },
+          { id: 'a-2', status: 'confirmed' },
+        ],
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(selectChain);
+
+      await expect(service.clearEventAssignments('event-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('clearPoolAssignments', () => {
+    it('deletes pool-scope rows and per-match rows for matches in the pool', async () => {
+      // matches in pool
+      const matchesChain = makeChain({
+        data: [{ id: 'm-1' }, { id: 'm-2' }],
+        error: null,
+      });
+      // pool-scope rows
+      const poolRows = makeChain({
+        data: [{ id: 'p-row-1', status: 'assigned' }],
+        error: null,
+      });
+      // match-scope rows
+      const matchRows = makeChain({
+        data: [
+          { id: 'm-row-1', status: 'assigned' },
+          { id: 'm-row-2', status: 'assigned' },
+        ],
+        error: null,
+      });
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock
+        .mockReturnValueOnce(matchesChain)
+        .mockReturnValueOnce(poolRows)
+        .mockReturnValueOnce(matchRows)
+        .mockReturnValueOnce(deleteChain);
+
+      const result = await service.clearPoolAssignments('pool-1');
+
+      expect(result).toEqual({ deleted: 3 });
+      expect(deleteChain.delete).toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when any pool-scope OR per-match row is confirmed', async () => {
+      const matchesChain = makeChain({ data: [{ id: 'm-1' }], error: null });
+      const poolRows = makeChain({
+        data: [{ id: 'p-row-1', status: 'assigned' }],
+        error: null,
+      });
+      const matchRows = makeChain({
+        data: [{ id: 'm-row-1', status: 'confirmed' }],
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(matchesChain)
+        .mockReturnValueOnce(poolRows)
+        .mockReturnValueOnce(matchRows);
+
+      await expect(service.clearPoolAssignments('pool-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
   });
 });

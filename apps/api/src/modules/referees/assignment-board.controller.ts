@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -86,5 +87,26 @@ export class AssignmentBoardController {
   @ApiOperation({ summary: 'Legacy manual referee assignment endpoint' })
   async legacyManualAssign(@Body() dto: LegacyManualAssignmentRequestDto) {
     return this.assignments.applyManual(dto.eventId, dto);
+  }
+
+  @Delete('events/:eventId/referee-assignments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Clear every referee assignment for an event (refuses when locked)',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async clearEventAssignments(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.assignments.clearEventAssignments(eventId);
+  }
+
+  @Delete('pools/:poolId/referee-assignments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Clear every referee assignment for one pool — pool-scope rows + per-match rows for the pool (refuses when locked)',
+  })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async clearPoolAssignments(@Param('poolId', ParseUUIDPipe) poolId: string) {
+    return this.assignments.clearPoolAssignments(poolId);
   }
 }

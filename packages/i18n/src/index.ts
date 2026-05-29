@@ -3098,6 +3098,14 @@ export const en = {
       assignmentApplyFailed: 'Could not apply referee assignment.',
       assignmentLockFailed: 'Could not lock referee assignments.',
       assignmentUnlockFailed: 'Could not unlock referee assignments.',
+      lockedBanner: 'Assignments are locked. Click "Unlock assignments" above to edit.',
+      clearAll: 'Clear all',
+      clearAllConfirm: 'Clear every referee assignment for this event? This cannot be undone.',
+      clearPool: 'Clear pool assignments',
+      clearPoolConfirm: 'Clear every referee assignment for {poolName}? This cannot be undone.',
+      clearFailed: 'Could not clear referee assignments.',
+      editAssignment: 'Edit referee assignment',
+      assignReferee: 'Assign referee',
       noPoolsForAssignments: 'No pools generated yet. Generate pools before assigning referees.',
       unscheduledPools: 'Unscheduled pools',
       missingAssignments: 'Missing assignments',
@@ -6351,6 +6359,17 @@ export const fr = {
       assignmentApplyFailed: "Impossible d'appliquer l'affectation arbitre.",
       assignmentLockFailed: 'Impossible de verrouiller les affectations arbitres.',
       assignmentUnlockFailed: 'Impossible de deverrouiller les affectations arbitres.',
+      lockedBanner:
+        'Les affectations sont verrouillees. Cliquez sur "Deverrouiller les affectations" pour modifier.',
+      clearAll: 'Tout effacer',
+      clearAllConfirm:
+        'Effacer toutes les affectations arbitres de cet evenement ? Action irreversible.',
+      clearPool: 'Effacer les affectations de la poule',
+      clearPoolConfirm:
+        'Effacer toutes les affectations arbitres de {poolName} ? Action irreversible.',
+      clearFailed: "Impossible d'effacer les affectations arbitres.",
+      editAssignment: "Modifier l'affectation",
+      assignReferee: 'Affecter un arbitre',
       noPoolsForAssignments:
         "Aucune poule generee. Generez les poules avant d'affecter les arbitres.",
       unscheduledPools: 'Poules non planifiees',

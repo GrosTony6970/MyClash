@@ -718,6 +718,49 @@ function AssignmentsTab({
    * scope here — `setError` surfaces backend failure via the existing
    * banner so the operator still sees the result.
    */
+  async function clearAllAssignments() {
+    if (!window.confirm(t('organizer.refereesPage.clearAllConfirm'))) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignments`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.clearFailed'));
+      }
+      await loadBoard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.refereesPage.clearFailed'));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function clearPoolAssignments(poolId: string, poolName: string) {
+    const message = t('organizer.refereesPage.clearPoolConfirm').replace('{poolName}', poolName);
+    if (!window.confirm(message)) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/referee-assignments`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.clearFailed'));
+      }
+      await loadBoard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.refereesPage.clearFailed'));
+    } finally {
+      setRunning(false);
+    }
+  }
+
   async function unlockAssignments() {
     setLocking(true);
     setError(null);
@@ -802,7 +845,30 @@ function AssignmentsTab({
                         {kindPools.map((pool) => (
                           <tr key={pool.id} className="border-b border-gray-100 last:border-0">
                             <td className="px-3 py-3 align-top">
-                              <p className="font-medium text-gray-900">{pool.name}</p>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium text-gray-900">{pool.name}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => void clearPoolAssignments(pool.id, pool.name)}
+                                  disabled={isReadOnly || running || board?.locked}
+                                  aria-label={t('organizer.refereesPage.clearPool')}
+                                  title={t('organizer.refereesPage.clearPool')}
+                                  className="text-gray-400 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    className="h-4 w-4"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M8.75 1A1.75 1.75 0 0 0 7 2.75V3.5H3.75a.75.75 0 0 0 0 1.5h.59l.812 11.366A2.25 2.25 0 0 0 7.398 18.5h5.204a2.25 2.25 0 0 0 2.245-2.134L15.66 5h.59a.75.75 0 0 0 0-1.5H13V2.75A1.75 1.75 0 0 0 11.25 1h-2.5zM8.5 2.75A.25.25 0 0 1 8.75 2.5h2.5a.25.25 0 0 1 .25.25V3.5h-3V2.75zM7.75 8a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5A.75.75 0 0 1 7.75 8zm5 0a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5a.75.75 0 0 1 .75-.75z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
                               <p className="mt-1 text-sm leading-relaxed text-gray-600">
                                 {pool.members.map((member) => member.personName).join(', ')}
                               </p>
@@ -822,13 +888,18 @@ function AssignmentsTab({
                                   disabled={isReadOnly || board?.locked}
                                   onClick={() => setPicker({ pool, slot })}
                                   className={[
-                                    'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                                    'group relative min-h-12 w-full rounded border px-2 py-2 pr-6 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                                     assignmentChipClasses({
                                       hasAssignment: !!slot.assignment,
                                       isError: slot.missingReasons.length > 0 && !slot.assignment,
                                       skillColor: skillColorById.get(slot.role) ?? null,
                                     }),
                                   ].join(' ')}
+                                  aria-label={
+                                    slot.assignment
+                                      ? t('organizer.refereesPage.editAssignment')
+                                      : t('organizer.refereesPage.assignReferee')
+                                  }
                                 >
                                   <span className="block font-medium">
                                     {slot.assignment?.displayName ??
@@ -840,6 +911,19 @@ function AssignmentsTab({
                                         .map((r) => formatUnassignedReason(r, t))
                                         .join(' ')}
                                     </span>
+                                  )}
+                                  {/* Slice B: pencil affordance — only on
+                                      filled slots; unassigned cells already
+                                      look like an "add" target. */}
+                                  {slot.assignment && (
+                                    <svg
+                                      aria-hidden="true"
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                      className="pointer-events-none absolute right-1.5 top-1.5 h-3.5 w-3.5 opacity-50 group-hover:opacity-100"
+                                    >
+                                      <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.379-8.379-2.828-2.828z" />
+                                    </svg>
                                   )}
                                 </button>
                               </td>
@@ -902,6 +986,14 @@ function AssignmentsTab({
               : t('organizer.refereesPage.lockAssignments')}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => void clearAllAssignments()}
+          disabled={isReadOnly || running || board?.locked}
+          className="border border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+        >
+          {t('organizer.refereesPage.clearAll')}
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -915,38 +1007,43 @@ function AssignmentsTab({
         </div>
       ) : (
         <>
-          <AssignmentDiagnosticsPanel board={board} skillNameById={skillNameById} />
-          {renderPoolRows(board.pools)}
-          {board.unscheduledPools.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-sm font-semibold text-gray-700">
-                {t('organizer.refereesPage.unscheduledPools')}
-              </h2>
-              {renderPoolRows(board.unscheduledPools, true)}
+          {/* Slice A: when the board is locked, render a banner above
+              the grid and grey out everything below it so the operator
+              has an unmistakable signal. The Lock/Unlock buttons stay
+              live above this wrapper. */}
+          {board.locked && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+              <span aria-hidden="true">🔒</span>
+              <span>{t('organizer.refereesPage.lockedBanner')}</span>
             </div>
           )}
-          {board.missingSlots.length > 0 && (
-            <div className="border border-red-200 bg-red-50 rounded-lg p-4">
-              <p className="text-sm font-semibold text-red-800">
-                {t('organizer.refereesPage.missingAssignments')}
-              </p>
-              <ul className="mt-2 space-y-1 text-sm text-red-700">
-                {board.missingSlots.map((missing) => (
-                  <li key={`${missing.poolId}:${missing.role}`}>
-                    {missing.poolName} - {roleLabel(missing.role)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/* R4: back-to-back swap suggestions (engine-computed). Panel
-              hides itself when the list is empty. */}
-          <SwapSuggestionsPanel
-            suggestions={board.swapSuggestions ?? []}
-            isReadOnly={isReadOnly}
-            busy={running}
-            onApply={(s) => void applySwap(s)}
-          />
+          <div
+            className={board.locked ? 'pointer-events-none opacity-60' : ''}
+            aria-disabled={board.locked || undefined}
+          >
+            <AssignmentDiagnosticsPanel
+              board={board}
+              skillNameById={skillNameById}
+              roleLabel={(role) => roleLabel(role, skillNameById)}
+            />
+            {renderPoolRows(board.pools)}
+            {board.unscheduledPools.length > 0 && (
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-gray-700">
+                  {t('organizer.refereesPage.unscheduledPools')}
+                </h2>
+                {renderPoolRows(board.unscheduledPools, true)}
+              </div>
+            )}
+            {/* R4: back-to-back swap suggestions (engine-computed).
+                Panel hides itself when the list is empty. */}
+            <SwapSuggestionsPanel
+              suggestions={board.swapSuggestions ?? []}
+              isReadOnly={isReadOnly}
+              busy={running}
+              onApply={(s) => void applySwap(s)}
+            />
+          </div>
         </>
       )}
 
