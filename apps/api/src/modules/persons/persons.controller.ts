@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -25,6 +27,7 @@ import type { FastifyRequest } from 'fastify';
 import type { ImportDecision } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
+import { AssignmentsService } from '../registrations/assignments.service';
 import { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
 /** Resolve the authenticated user UUID from the Supabase access token. */
@@ -78,6 +81,7 @@ export class PersonsController {
   constructor(
     private readonly persons: PersonsService,
     private readonly supabase: SupabaseService,
+    private readonly assignments: AssignmentsService,
   ) {}
 
   /**
@@ -223,15 +227,38 @@ export class PersonsController {
 
   /**
    * DELETE /api/v1/persons/:id
-   * Delete a person (organizer only; blocked if has registrations).
+   *
+   * No query params → legacy behaviour: refuses if the person has any
+   * registrations.
+   *
+   * `?force=true&eventId=…` → force-purge from the named event:
+   * removes their registrations + scheduled matches + referee
+   * assignments, then deletes the person. Refuses with 409 if any
+   * match in that event has status running/paused/completed/forfeit/
+   * disqualified.
    */
   @Delete('persons/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a person (only if no registrations)' })
+  @ApiOperation({
+    summary:
+      'Delete a person. `?force=true&eventId=…` force-purges them from that event (409 on blocking matches).',
+  })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Deleted' })
   @ApiResponse({ status: 400, description: 'Has registrations — cannot delete' })
-  async delete(@Param('id', ParseUUIDPipe) id: string) {
+  @ApiResponse({ status: 409, description: 'Has blocking matches; force-purge refused' })
+  async delete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('force') force?: string,
+    @Query('eventId') eventId?: string,
+  ) {
+    if (force === 'true') {
+      if (!eventId) {
+        throw new BadRequestException('force=true requires eventId');
+      }
+      await this.assignments.forceDeletePersonInEvent(id, eventId);
+      return;
+    }
     await this.persons.deletePerson(id);
   }
 }

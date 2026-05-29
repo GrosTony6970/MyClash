@@ -6,7 +6,11 @@ describe('PersonsController auth', () => {
     const createPerson = vi.fn().mockResolvedValue({ id: 'person-1' });
     const getAuthUser = vi.fn().mockResolvedValue({ id: 'user-uuid-123' });
 
-    const controller = new PersonsController({ createPerson } as never, { getAuthUser } as never);
+    const controller = new PersonsController(
+      { createPerson } as never,
+      { getAuthUser } as never,
+      {} as never,
+    );
 
     await controller.create(
       '11111111-1111-4111-8111-111111111111',

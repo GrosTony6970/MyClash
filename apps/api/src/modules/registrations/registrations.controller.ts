@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
@@ -21,13 +22,33 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { RegistrationsService } from './registrations.service';
+import { AssignmentsService } from './assignments.service';
 import { CreateRegistrationDto, UpdateRegistrationStatusDto } from './dto/registrations.dto';
 
 @ApiTags('registrations')
 @ApiBearerAuth()
 @Controller()
 export class RegistrationsController {
-  constructor(private readonly registrations: RegistrationsService) {}
+  constructor(
+    private readonly registrations: RegistrationsService,
+    private readonly assignments: AssignmentsService,
+  ) {}
+
+  /** GET /api/v1/events/:eventId/persons/:personId/assignments */
+  @Get('events/:eventId/persons/:personId/assignments')
+  @ApiOperation({
+    summary:
+      'Where is this person assigned in this event? Used by the participant-delete modal to surface pool/bracket/match conflicts before force-delete.',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async getAssignments(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Query('tournamentId') tournamentId?: string,
+  ) {
+    return this.assignments.getEventAssignments(eventId, personId, tournamentId);
+  }
 
   /** GET /api/v1/tournaments/:tournamentId/registrations */
   @Get('tournaments/:tournamentId/registrations')
@@ -112,5 +133,25 @@ export class RegistrationsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async delete(@Param('id', ParseUUIDPipe) id: string) {
     await this.registrations.delete(id);
+  }
+
+  /**
+   * POST /api/v1/registrations/:id/force-delete
+   *
+   * Force-delete a single registration after the FE has confirmed the
+   * usage modal. Refuses with 409 if any blocking match exists for the
+   * person in this tournament (running/paused/completed/forfeit/
+   * disqualified). Otherwise deletes the unplayed matches that
+   * reference this registration, then deletes the registration.
+   */
+  @Post('registrations/:id/force-delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Force-delete a registration and its unplayed matches; 409 if any blocking match exists',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async forceDelete(@Param('id', ParseUUIDPipe) id: string) {
+    await this.assignments.forceDeleteRegistration(id);
   }
 }

@@ -11,6 +11,7 @@ import {
   computeClubPickerRows,
   type ClubSuggestion as ClubPickerSuggestion,
 } from './_components/club-picker-rows';
+import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface Person {
@@ -132,8 +133,14 @@ export default function ParticipantsPage() {
   // against the original set and fan POST/DELETE per added/removed id.
   const [editSelectedTournaments, setEditSelectedTournaments] = useState<Set<string>>(new Set());
   const [editOriginalTournaments, setEditOriginalTournaments] = useState<Set<string>>(new Set());
-  const [pendingDelete, setPendingDelete] = useState<Person | null>(null);
-  const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
+  // Set when the user has triggered any of the three delete surfaces;
+  // the DeleteParticipantModal renders against this state. `scope` is
+  // a tournamentId for the per-tournament Unassign path, null for the
+  // per-row / bulk delete paths.
+  const [deleteModal, setDeleteModal] = useState<{
+    persons: Person[];
+    scope: string | null;
+  } | null>(null);
   // Post-0063: event_referees keys exclusively on person_id (= global_persons.id).
   // Claimed-vs-unclaimed is purely a display distinction now.
   const [refereePersonIds, setRefereePersonIds] = useState<Set<string>>(new Set());
@@ -543,49 +550,13 @@ export default function ParticipantsPage() {
     }
   }
 
-  async function handleBulkDelete() {
+  function handleBulkDelete() {
     if (selected.size === 0) return;
-    setPendingBulkDelete(true);
-  }
-
-  /**
-   * Delete one person. If the server refuses because they have tournament
-   * registrations, cascade-delete the registrations first then retry.
-   * Returns true on success, false on irrecoverable failure (so callers can
-   * count outcomes).
-   */
-  async function deletePersonCascading(person: Person): Promise<boolean> {
-    const firstRes = await fetch(`${apiUrl}/api/v1/persons/${person.id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (firstRes.ok) return true;
-    const body = (await firstRes.json().catch(() => null)) as { message?: string } | null;
-    const message = body?.message ?? '';
-    if (!/tournament registrations/iu.test(message)) {
-      toast.error(message || `Could not delete ${person.givenName} ${person.familyName}.`);
-      return false;
-    }
-    // Cascade — drop every registration this person has, then retry.
-    const regs = registrations.filter((r) => r.personId === person.id);
-    for (const reg of regs) {
-      await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-    }
-    const retry = await fetch(`${apiUrl}/api/v1/persons/${person.id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    if (!retry.ok) {
-      const retryBody = (await retry.json().catch(() => null)) as { message?: string } | null;
-      toast.error(
-        retryBody?.message ?? `Could not delete ${person.givenName} ${person.familyName}.`,
-      );
-      return false;
-    }
-    return true;
+    const targets = Array.from(selected)
+      .map((id) => persons.find((p) => p.id === id))
+      .filter((p): p is Person => !!p);
+    if (targets.length === 0) return;
+    setDeleteModal({ persons: targets, scope: null });
   }
 
   async function handleBulkCheckIn() {
@@ -609,23 +580,15 @@ export default function ParticipantsPage() {
     refresh();
   }
 
-  async function handleBulkUnassign() {
+  function handleBulkUnassign() {
     if (selected.size === 0 || activeTab === 'all') return;
-    if (!confirm(`Unassign ${selected.size} participant(s) from this tournament?`)) return;
-    setBulkLoading(true);
-    for (const personId of selected) {
-      const reg = (registrationsByPersonId.get(personId) ?? []).find(
-        (r) => r.tournamentId === activeTab,
-      );
-      if (!reg) continue;
-      await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-    }
-    setSelected(new Set());
-    setBulkLoading(false);
-    refresh();
+    const targets = Array.from(selected)
+      .map((id) => persons.find((p) => p.id === id))
+      .filter((p): p is Person => !!p);
+    if (targets.length === 0) return;
+    // Route through the same usage-probe modal as the other delete
+    // surfaces — scoped to the active tournament tab.
+    setDeleteModal({ persons: targets, scope: activeTab });
   }
 
   async function handleBulkAssign(tournamentId: string) {
@@ -645,50 +608,10 @@ export default function ParticipantsPage() {
     refresh();
   }
 
-  async function handleDelete(personId: string) {
+  function handleDelete(personId: string) {
     const person = persons.find((p) => p.id === personId);
     if (!person) return;
-    setPendingDelete(person);
-  }
-
-  async function confirmDeleteSingle() {
-    if (!pendingDelete) return;
-    setBulkLoading(true);
-    try {
-      const ok = await deletePersonCascading(pendingDelete);
-      if (ok) {
-        toast.success(`Deleted ${pendingDelete.givenName} ${pendingDelete.familyName}.`);
-      }
-      setPendingDelete(null);
-      refresh();
-    } finally {
-      setBulkLoading(false);
-    }
-  }
-
-  async function confirmBulkDelete() {
-    setPendingBulkDelete(false);
-    setBulkLoading(true);
-    try {
-      let succeeded = 0;
-      let failed = 0;
-      for (const personId of selected) {
-        const person = persons.find((p) => p.id === personId);
-        if (!person) continue;
-        const ok = await deletePersonCascading(person);
-        if (ok) succeeded += 1;
-        else failed += 1;
-      }
-      if (failed === 0) {
-        toast.success(`Deleted ${succeeded} participant(s).`);
-      } else {
-        toast.warning(`Deleted ${succeeded}, ${failed} failed.`);
-      }
-      setSelected(new Set());
-      refresh();
-    } finally {
-      setBulkLoading(false);
-    }
+    setDeleteModal({ persons: [person], scope: null });
   }
 
   function toggleSelect(id: string) {
@@ -1050,39 +973,37 @@ export default function ParticipantsPage() {
         </span>
       </div>
 
-      <ConfirmDialog
-        open={pendingDelete !== null}
-        title="Delete participant"
-        description={
-          pendingDelete
-            ? (() => {
-                const regCount = registrations.filter(
-                  (r) => r.personId === pendingDelete.id,
-                ).length;
-                const name = `${pendingDelete.givenName} ${pendingDelete.familyName}`;
-                return regCount > 0
-                  ? `Delete ${name}? They are registered in ${regCount} tournament(s) — those registrations will also be removed.`
-                  : `Delete ${name} from this event roster?`;
-              })()
-            : ''
-        }
-        confirmLabel="Delete"
-        danger
-        busy={bulkLoading}
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={() => void confirmDeleteSingle()}
-      />
-
-      <ConfirmDialog
-        open={pendingBulkDelete}
-        title="Delete participants"
-        description={`Delete ${selected.size} participant(s)? Any tournament registrations they have will also be removed.`}
-        confirmLabel="Delete all"
-        danger
-        busy={bulkLoading}
-        onCancel={() => setPendingBulkDelete(false)}
-        onConfirm={() => void confirmBulkDelete()}
-      />
+      {deleteModal && (
+        <DeleteParticipantModal
+          apiUrl={apiUrl}
+          eventId={eventId}
+          persons={deleteModal.persons.map((p) => ({
+            id: p.id,
+            displayName: `${p.givenName} ${p.familyName}`.trim() || p.id,
+          }))}
+          tournamentId={deleteModal.scope}
+          registrationsInScope={registrations.map((r) => ({
+            registrationId: r.id,
+            personId: r.personId,
+            tournamentId: r.tournamentId,
+          }))}
+          onClose={() => setDeleteModal(null)}
+          onDeleted={({ succeeded, skipped }) => {
+            setDeleteModal(null);
+            setSelected(new Set());
+            if (succeeded.length > 0 && skipped.length === 0) {
+              toast.success(`Removed ${succeeded.length} participant(s).`);
+            } else if (succeeded.length > 0 && skipped.length > 0) {
+              toast.warning(
+                `Removed ${succeeded.length}; skipped ${skipped.length} (${skipped.join(', ')}).`,
+              );
+            } else if (succeeded.length === 0 && skipped.length > 0) {
+              toast.warning(`Skipped all ${skipped.length} (${skipped.join(', ')}).`);
+            }
+            refresh();
+          }}
+        />
+      )}
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

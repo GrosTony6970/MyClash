@@ -10,9 +10,10 @@ import { PrivacyService } from './privacy.service';
 import { PublicScheduleController } from './public-schedule.controller';
 import { PublicScheduleService } from './public-schedule.service';
 import { AuthModule } from '../auth/auth.module';
+import { RegistrationsModule } from '../registrations/registrations.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, RegistrationsModule],
   controllers: [
     PersonsController,
     LookupController,
