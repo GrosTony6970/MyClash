@@ -8,6 +8,7 @@ function makeChain(result: unknown) {
   const chain = {
     select: vi.fn(),
     eq: vi.fn(),
+    in: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     insert: vi.fn(),
@@ -17,6 +18,7 @@ function makeChain(result: unknown) {
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
@@ -29,13 +31,23 @@ function makeAwaitableChain(result: unknown) {
   const chain = Object.assign(promise, {
     select: vi.fn(),
     eq: vi.fn(),
+    in: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result),
   });
-  for (const key of ['select', 'eq', 'order', 'limit']) {
+  for (const key of ['select', 'eq', 'in', 'order', 'limit']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
+  return chain;
+}
+
+/** Slice 2 added a capacity guard to create(); these fighter-linking tests
+ *  don't exercise it, so they queue a tournament chain with null
+ *  max_participants so the guard short-circuits. */
+function noCapTournamentChain() {
+  const chain = makeChain({ data: null, error: null });
+  chain.maybeSingle.mockResolvedValue({ data: { max_participants: null }, error: null });
   return chain;
 }
 
@@ -78,6 +90,7 @@ describe('RegistrationsService fighter linking', () => {
       .mockReturnValueOnce(personChain)
       .mockReturnValueOnce(fighterChain)
       .mockReturnValueOnce(personUpdateChain)
+      .mockReturnValueOnce(noCapTournamentChain()) // Slice 2: capacity guard
       .mockReturnValueOnce(bibChain)
       .mockReturnValueOnce(regChain);
 
@@ -129,6 +142,7 @@ describe('RegistrationsService fighter linking', () => {
       .mockReturnValueOnce(personChain)
       .mockReturnValueOnce(fighterChain)
       .mockReturnValueOnce(personUpdateChain)
+      .mockReturnValueOnce(noCapTournamentChain()) // Slice 2: capacity guard
       .mockReturnValueOnce(bibChain)
       .mockReturnValueOnce(regChain);
 
@@ -166,6 +180,7 @@ describe('RegistrationsService fighter linking', () => {
     fromMock
       .mockReturnValueOnce(personChain)
       .mockReturnValueOnce(fighterUpdateChain)
+      .mockReturnValueOnce(noCapTournamentChain()) // Slice 2: capacity guard
       .mockReturnValueOnce(bibChain)
       .mockReturnValueOnce(regChain);
 

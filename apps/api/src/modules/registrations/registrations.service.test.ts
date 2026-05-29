@@ -12,6 +12,7 @@ function makeChain(result: unknown) {
   const chain = {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
+    in: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     limit: vi.fn() as ReturnType<typeof vi.fn>,
     insert: vi.fn() as ReturnType<typeof vi.fn>,
@@ -23,6 +24,7 @@ function makeChain(result: unknown) {
   };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.in.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
   chain.limit.mockReturnValue(chain);
   chain.insert.mockReturnValue(chain);
@@ -41,6 +43,7 @@ function makeAwaitableChain(result: unknown) {
   const chain = Object.assign(promise, {
     select: vi.fn(),
     eq: vi.fn(),
+    in: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     insert: vi.fn(),
@@ -53,6 +56,7 @@ function makeAwaitableChain(result: unknown) {
   for (const key of [
     'select',
     'eq',
+    'in',
     'order',
     'limit',
     'insert',
@@ -162,6 +166,14 @@ describe('RegistrationsService', () => {
   // ── Bib auto-assign ───────────────────────────────────────────────────────
 
   describe('create — bib auto-assign', () => {
+    function noCapTournamentChain() {
+      // Slice 2 added a capacity guard that fetches max_participants; tests
+      // not exercising the cap mock a null value so the guard short-circuits.
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: { max_participants: null }, error: null });
+      return chain;
+    }
+
     it('auto-assigns bib_number = max + 1 when not provided', async () => {
       const personChain = makeChain({ data: null, error: null });
       personChain.maybeSingle.mockResolvedValue({
@@ -185,6 +197,7 @@ describe('RegistrationsService', () => {
 
       fromMock
         .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(noCapTournamentChain()) // Slice 2: capacity guard tournament fetch
         .mockReturnValueOnce(bibChain) // nextBibNumber
         .mockReturnValueOnce(insertChain); // insert
 
@@ -209,10 +222,189 @@ describe('RegistrationsService', () => {
         data: { id: 'reg-new', bib_number: 42, status: 'registered' },
         error: null,
       });
-      fromMock.mockReturnValueOnce(personChain).mockReturnValueOnce(insertChain);
+      fromMock
+        .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(noCapTournamentChain()) // Slice 2: capacity guard tournament fetch
+        .mockReturnValueOnce(insertChain);
 
       const result = await service.create('tournament-1', { personId: 'person-1', bibNumber: 42 });
       expect((result as { bib_number: number }).bib_number).toBe(42);
+    });
+  });
+
+  // ── Slice 2: capacity guard + waitlist add ───────────────────────────────
+
+  describe('create — tournament capacity guard', () => {
+    function personChainFor(personId: string) {
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({
+        data: {
+          id: personId,
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          club_id: null,
+          global_person_id: 'fighter-1',
+        },
+        error: null,
+      });
+      return chain;
+    }
+
+    it('throws ConflictException with tournament_full when registered count meets max_participants', async () => {
+      const personChain = personChainFor('person-1');
+      // tournament fetch returns max_participants=3
+      const tournamentChain = makeChain({ data: null, error: null });
+      tournamentChain.maybeSingle.mockResolvedValue({
+        data: { max_participants: 3 },
+        error: null,
+      });
+      // registrations count = 3 (full)
+      const countChain = makeAwaitableChain({
+        data: [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(personChain) // resolveFighter
+        .mockReturnValueOnce(tournamentChain) // tournament fetch
+        .mockReturnValueOnce(countChain); // registered count
+
+      await expect(service.create('tournament-1', { personId: 'person-1' })).rejects.toMatchObject({
+        response: {
+          reason: 'tournament_full',
+          registeredCount: 3,
+          maxParticipants: 3,
+        },
+      });
+    });
+
+    it('succeeds when max_participants is null (no cap)', async () => {
+      const personChain = personChainFor('person-1');
+      const tournamentChain = makeChain({ data: null, error: null });
+      tournamentChain.maybeSingle.mockResolvedValue({
+        data: { max_participants: null },
+        error: null,
+      });
+      const bibChain = makeAwaitableChain({ data: [{ bib_number: 0 }], error: null });
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'reg-new', bib_number: 1, status: 'registered' },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(bibChain)
+        .mockReturnValueOnce(insertChain);
+
+      const result = await service.create('tournament-1', { personId: 'person-1' });
+      expect((result as { status: string }).status).toBe('registered');
+    });
+  });
+
+  describe('addToWaitlist', () => {
+    function personChainFor(personId: string) {
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({
+        data: {
+          id: personId,
+          given_name: 'Jean',
+          family_name: 'Dupont',
+          club_id: null,
+          global_person_id: 'fighter-1',
+        },
+        error: null,
+      });
+      return chain;
+    }
+
+    it('inserts at position 1 when the waitlist is empty', async () => {
+      const personChain = personChainFor('person-1');
+      const tournamentChain = makeChain({ data: null, error: null });
+      tournamentChain.maybeSingle.mockResolvedValue({
+        data: { max_waitlist: null },
+        error: null,
+      });
+      // max position query returns no rows
+      const maxPositionChain = makeChain({ data: null, error: null });
+      maxPositionChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'reg-w1', status: 'waitlist', waitlist_position: 1 },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(maxPositionChain)
+        .mockReturnValueOnce(insertChain);
+
+      const result = await service.addToWaitlist('tournament-1', { personId: 'person-1' });
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'waitlist', waitlist_position: 1 }),
+      );
+      expect((result as { waitlist_position: number }).waitlist_position).toBe(1);
+    });
+
+    it('inserts at position N+1 when the highest existing position is N', async () => {
+      const personChain = personChainFor('person-9');
+      const tournamentChain = makeChain({ data: null, error: null });
+      tournamentChain.maybeSingle.mockResolvedValue({
+        data: { max_waitlist: null },
+        error: null,
+      });
+      const maxPositionChain = makeChain({ data: null, error: null });
+      maxPositionChain.maybeSingle.mockResolvedValue({
+        data: { waitlist_position: 4 },
+        error: null,
+      });
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({
+        data: { id: 'reg-w5', status: 'waitlist', waitlist_position: 5 },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(maxPositionChain)
+        .mockReturnValueOnce(insertChain);
+
+      await service.addToWaitlist('tournament-1', { personId: 'person-9' });
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ waitlist_position: 5 }),
+      );
+    });
+
+    it('throws waitlist_full when the next position would exceed max_waitlist', async () => {
+      const personChain = personChainFor('person-9');
+      const tournamentChain = makeChain({ data: null, error: null });
+      tournamentChain.maybeSingle.mockResolvedValue({
+        data: { max_waitlist: 3 },
+        error: null,
+      });
+      const maxPositionChain = makeChain({ data: null, error: null });
+      maxPositionChain.maybeSingle.mockResolvedValue({
+        data: { waitlist_position: 3 },
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(maxPositionChain);
+
+      await expect(
+        service.addToWaitlist('tournament-1', { personId: 'person-9' }),
+      ).rejects.toMatchObject({
+        response: {
+          reason: 'waitlist_full',
+          currentCount: 3,
+          maxWaitlist: 3,
+        },
+      });
     });
   });
 

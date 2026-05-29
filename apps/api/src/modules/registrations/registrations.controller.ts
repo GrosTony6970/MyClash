@@ -79,6 +79,24 @@ export class RegistrationsController {
   }
 
   /**
+   * POST /api/v1/tournaments/:tournamentId/waitlist
+   *
+   * Slice 2: explicit waitlist add. Operator calls this after the regular
+   * create returned 409 reason='tournament_full'. Inserts at the next
+   * waitlist_position; returns 409 reason='waitlist_full' when capped.
+   */
+  @Post('tournaments/:tournamentId/waitlist')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a person to the tournament waitlist' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async addToWaitlist(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Body() dto: CreateRegistrationDto,
+  ) {
+    return this.registrations.addToWaitlist(tournamentId, dto);
+  }
+
+  /**
    * POST /api/v1/tournaments/:tournamentId/registrations/import
    * CSV bulk import. Columns: email, bib_number (optional).
    */

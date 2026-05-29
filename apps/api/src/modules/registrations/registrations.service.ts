@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { parse } from 'csv-parse/sync';
 import { SupabaseService } from '../supabase/supabase.service';
 import { detectCsvDelimiter } from '../persons/csv-import.service';
@@ -108,6 +113,9 @@ export class RegistrationsService {
 
   async create(tournamentId: string, dto: CreateRegistrationDto) {
     const fighterId = await this.resolveFighterForRegistration(dto);
+    // Slice 2: capacity guard — returns 409 with reason='tournament_full' so
+    // the admin UI can offer 'Add to waitlist instead?' as an explicit step.
+    await this.assertCapacityForCreate(tournamentId);
     const bibNumber = dto.bibNumber ?? (await this.nextBibNumber(tournamentId));
 
     const { data, error } = await this.supabase.service
@@ -126,6 +134,94 @@ export class RegistrationsService {
     if (error) {
       if (error.message.includes('unique')) {
         throw new BadRequestException('This person is already registered in this tournament');
+      }
+      throw new BadRequestException(error.message);
+    }
+    return data;
+  }
+
+  private async assertCapacityForCreate(tournamentId: string): Promise<void> {
+    const { data: tournament } = await this.supabase.service
+      .from('tournaments')
+      .select('max_participants')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const max =
+      (tournament as { max_participants: number | null } | null)?.max_participants ?? null;
+    if (max == null) return;
+    const { data: countRows } = await this.supabase.service
+      .from('registrations')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in']);
+    const registeredCount = (countRows ?? []).length;
+    if (registeredCount >= max) {
+      throw new ConflictException({
+        reason: 'tournament_full',
+        registeredCount,
+        maxParticipants: max,
+      });
+    }
+  }
+
+  /**
+   * Slice 2: explicit add-to-waitlist endpoint. Caller hits this after the
+   * regular create returned 409 with reason='tournament_full'. Slots in at
+   * `max(waitlist_position) + 1`; returns 409 with reason='waitlist_full'
+   * when the queue is also capped and full.
+   */
+  async addToWaitlist(tournamentId: string, dto: CreateRegistrationDto) {
+    const fighterId = await this.resolveFighterForRegistration(dto);
+
+    const { data: tournament } = await this.supabase.service
+      .from('tournaments')
+      .select('max_waitlist')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const maxWaitlist =
+      (tournament as { max_waitlist: number | null } | null)?.max_waitlist ?? null;
+
+    const { data: topRow } = await this.supabase.service
+      .from('registrations')
+      .select('waitlist_position')
+      .eq('tournament_id', tournamentId)
+      .eq('status', 'waitlist')
+      .order('waitlist_position', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const highestPosition =
+      (topRow as { waitlist_position: number | null } | null)?.waitlist_position ?? 0;
+    const nextPosition = highestPosition + 1;
+
+    if (maxWaitlist != null && nextPosition > maxWaitlist) {
+      throw new ConflictException({
+        reason: 'waitlist_full',
+        currentCount: highestPosition,
+        maxWaitlist,
+      });
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .insert({
+        tournament_id: tournamentId,
+        person_id: dto.personId,
+        fighter_id: dto.fighterId ?? fighterId,
+        seed: dto.seed ?? null,
+        // Waitlist entries don't get a bib until promoted; auto-assigning at
+        // queue time would burn numbers that may never be used.
+        bib_number: null,
+        status: 'waitlist',
+        waitlist_position: nextPosition,
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      if (error.message.includes('unique')) {
+        throw new BadRequestException(
+          'This person is already registered or on the waitlist for this tournament',
+        );
       }
       throw new BadRequestException(error.message);
     }
