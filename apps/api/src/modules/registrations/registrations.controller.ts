@@ -144,6 +144,38 @@ export class RegistrationsController {
     return this.registrations.updateStatus(id, dto.status);
   }
 
+  /**
+   * POST /api/v1/registrations/:id/promote
+   *
+   * Slice 3b: promote any waitlist entry directly to registered. Capacity
+   * stays enforced — pass ?force=true to override.
+   */
+  @Post('registrations/:id/promote')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Promote a waitlist entry to registered (?force=true to override cap)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async promote(@Param('id', ParseUUIDPipe) id: string, @Query('force') forceParam?: string) {
+    const force = forceParam === 'true';
+    await this.registrations.promoteFromWaitlist(id, force);
+    return { promoted: true };
+  }
+
+  /**
+   * PATCH /api/v1/tournaments/:tournamentId/waitlist/reorder
+   *
+   * Slice 3c: rewrite the waitlist order in one bulk call.
+   */
+  @Patch('tournaments/:tournamentId/waitlist/reorder')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Bulk reorder the tournament waitlist' })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async reorderWaitlist(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Body() dto: { orderedRegistrationIds: string[] },
+  ) {
+    await this.registrations.reorderWaitlist(tournamentId, dto.orderedRegistrationIds);
+  }
+
   /** DELETE /api/v1/registrations/:id */
   @Delete('registrations/:id')
   @HttpCode(HttpStatus.NO_CONTENT)

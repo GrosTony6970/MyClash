@@ -309,13 +309,14 @@ export class RegistrationsService {
   async updateStatus(registrationId: string, newStatus: string) {
     const { data: reg, error: fetchError } = await this.supabase.service
       .from('registrations')
-      .select('id, status')
+      .select('id, tournament_id, status')
       .eq('id', registrationId)
       .maybeSingle();
 
     if (fetchError || !reg) throw new NotFoundException(`Registration ${registrationId} not found`);
 
     const currentStatus = (reg as { status: string }).status;
+    const tournamentId = (reg as { tournament_id: string }).tournament_id;
     const allowed = REGISTRATION_STATUS_TRANSITIONS[currentStatus] ?? [];
 
     if (!allowed.includes(newStatus)) {
@@ -333,18 +334,186 @@ export class RegistrationsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    // Slice 3a: when someone withdraws out of a competing seat, auto-promote
+    // the position-1 waitlist entry to registered. Skip-the-queue is done
+    // via the explicit promoteFromWaitlist endpoint instead.
+    if (
+      newStatus === 'withdrawn' &&
+      (currentStatus === 'registered' || currentStatus === 'checked_in')
+    ) {
+      await this.autoPromoteFirstWaitlist(tournamentId);
+    }
+
     return data;
+  }
+
+  /**
+   * Slice 3a: flip position 1 to registered and shift positions 2..N up by
+   * one. No-op when the waitlist is empty.
+   */
+  private async autoPromoteFirstWaitlist(tournamentId: string): Promise<void> {
+    const { data: rows } = await this.supabase.service
+      .from('registrations')
+      .select('id, waitlist_position')
+      .eq('tournament_id', tournamentId)
+      .eq('status', 'waitlist')
+      .order('waitlist_position', { ascending: true });
+    const waitlist = (rows ?? []) as Array<{ id: string; waitlist_position: number }>;
+    if (waitlist.length === 0) return;
+
+    const first = waitlist[0];
+    if (!first) return;
+    await this.supabase.service
+      .from('registrations')
+      .update({ status: 'registered', waitlist_position: null })
+      .eq('id', first.id);
+
+    await this.shiftWaitlistPositionsDown(waitlist.slice(1));
+  }
+
+  /**
+   * Slice 3b: explicit promote of any waitlist entry to registered. Lets
+   * the operator skip the queue (sponsor commitments, etc.). Capacity is
+   * still enforced — pass `force=true` to override and intentionally seat
+   * the tournament above its cap.
+   */
+  async promoteFromWaitlist(registrationId: string, force = false) {
+    const { data: reg } = await this.supabase.service
+      .from('registrations')
+      .select('id, tournament_id, status, waitlist_position')
+      .eq('id', registrationId)
+      .maybeSingle();
+    if (!reg) throw new NotFoundException(`Registration ${registrationId} not found`);
+    const row = reg as {
+      id: string;
+      tournament_id: string;
+      status: string;
+      waitlist_position: number | null;
+    };
+    if (row.status !== 'waitlist' || row.waitlist_position == null) {
+      throw new BadRequestException('Registration is not on the waitlist');
+    }
+
+    if (!force) {
+      await this.assertCapacityForCreate(row.tournament_id);
+    }
+
+    await this.supabase.service
+      .from('registrations')
+      .update({ status: 'registered', waitlist_position: null })
+      .eq('id', row.id);
+
+    // Compact everyone with a position higher than the promoted row's.
+    const { data: tail } = await this.supabase.service
+      .from('registrations')
+      .select('id, waitlist_position')
+      .eq('tournament_id', row.tournament_id)
+      .eq('status', 'waitlist')
+      .order('waitlist_position', { ascending: true });
+    const tailRows = ((tail ?? []) as Array<{ id: string; waitlist_position: number }>).filter(
+      (r) => r.waitlist_position > row.waitlist_position!,
+    );
+    await this.shiftWaitlistPositionsDown(tailRows);
+  }
+
+  /**
+   * Slice 3c: bulk reorder. Validates every id belongs to this tournament's
+   * waitlist, then rewrites positions 1..N in the supplied order via a
+   * two-pass write to dodge the partial unique-index collision.
+   */
+  async reorderWaitlist(tournamentId: string, orderedRegistrationIds: string[]) {
+    const { data: rows } = await this.supabase.service
+      .from('registrations')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('status', 'waitlist');
+    const validIds = new Set(((rows ?? []) as Array<{ id: string }>).map((r) => r.id));
+    for (const id of orderedRegistrationIds) {
+      if (!validIds.has(id)) {
+        throw new BadRequestException(
+          `Registration ${id} is not a waitlist entry on this tournament`,
+        );
+      }
+    }
+    if (orderedRegistrationIds.length !== validIds.size) {
+      throw new BadRequestException(
+        `Reorder payload must list every waitlist entry exactly once (got ${orderedRegistrationIds.length}, expected ${validIds.size})`,
+      );
+    }
+    // Pass 1: move every row to a negative slot to break the unique index
+    // before reassigning the new positive positions.
+    for (let i = 0; i < orderedRegistrationIds.length; i++) {
+      await this.supabase.service
+        .from('registrations')
+        .update({ waitlist_position: -(i + 1) })
+        .eq('id', orderedRegistrationIds[i]);
+    }
+    for (let i = 0; i < orderedRegistrationIds.length; i++) {
+      await this.supabase.service
+        .from('registrations')
+        .update({ waitlist_position: i + 1 })
+        .eq('id', orderedRegistrationIds[i]);
+    }
+  }
+
+  /** Shared helper: shift the given rows' positions DOWN by 1 via the
+   *  same two-pass write the reorder path uses. */
+  private async shiftWaitlistPositionsDown(
+    rows: Array<{ id: string; waitlist_position: number }>,
+  ): Promise<void> {
+    for (const row of rows) {
+      await this.supabase.service
+        .from('registrations')
+        .update({ waitlist_position: -(row.waitlist_position - 1) })
+        .eq('id', row.id);
+    }
+    for (const row of rows) {
+      await this.supabase.service
+        .from('registrations')
+        .update({ waitlist_position: row.waitlist_position - 1 })
+        .eq('id', row.id);
+    }
   }
 
   // ── Delete ───────────────────────────────────────────────────────────────────
 
   async delete(registrationId: string) {
+    // Slice 3d: when the row being deleted was on the waitlist, compact
+    // the positions of every row behind it. Already-registered deletions
+    // don't touch the queue.
+    const { data: existing } = await this.supabase.service
+      .from('registrations')
+      .select('id, tournament_id, status, waitlist_position')
+      .eq('id', registrationId)
+      .maybeSingle();
+
     const { error } = await this.supabase.service
       .from('registrations')
       .delete()
       .eq('id', registrationId);
 
     if (error) throw new BadRequestException(error.message);
+
+    if (existing) {
+      const row = existing as {
+        tournament_id: string;
+        status: string;
+        waitlist_position: number | null;
+      };
+      if (row.status === 'waitlist' && row.waitlist_position != null) {
+        const { data: tail } = await this.supabase.service
+          .from('registrations')
+          .select('id, waitlist_position')
+          .eq('tournament_id', row.tournament_id)
+          .eq('status', 'waitlist')
+          .order('waitlist_position', { ascending: true });
+        const tailRows = ((tail ?? []) as Array<{ id: string; waitlist_position: number }>).filter(
+          (r) => r.waitlist_position > row.waitlist_position!,
+        );
+        await this.shiftWaitlistPositionsDown(tailRows);
+      }
+    }
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
