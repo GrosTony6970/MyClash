@@ -32,6 +32,8 @@ export interface RefereeSkill {
   sortOrder: number;
   /** R4: optional free-text tooltip / subtitle. Empty when unset. */
   description?: string;
+  /** Slice 6: per-event hidden flag. */
+  isHidden?: boolean;
 }
 
 export interface RefereeRowForCatalog {
@@ -58,6 +60,11 @@ interface Props {
    * the full ordered list of skill IDs (the order shown after the drop).
    */
   onReorder?: (orderedSkillIds: string[]) => void | Promise<void>;
+  /**
+   * Slice 6: toggle per-event hidden flag. Caller PATCHes
+   * `/api/v1/events/:eventId/referee-skills/:skillId/visibility`.
+   */
+  onToggleVisibility?: (skill: RefereeSkill, nextHidden: boolean) => void | Promise<void>;
 }
 
 export function SkillCatalog({
@@ -69,6 +76,7 @@ export function SkillCatalog({
   onUpsertQualification,
   onRemoveQualification,
   onReorder,
+  onToggleVisibility,
 }: Props) {
   const [drillSkillId, setDrillSkillId] = useState<string | null>(null);
   const drillSkill = drillSkillId ? (skills.find((s) => s.id === drillSkillId) ?? null) : null;
@@ -155,6 +163,7 @@ export function SkillCatalog({
                 className={[
                   'border-t border-gray-100 hover:bg-gray-50 cursor-pointer',
                   dragId === skill.id ? 'opacity-50' : '',
+                  skill.isHidden ? 'bg-slate-50 text-slate-400' : '',
                 ].join(' ')}
                 onClick={() => setDrillSkillId(skill.id)}
                 onDragOver={handleDragOver}
@@ -243,6 +252,23 @@ export function SkillCatalog({
                         }
                       >
                         🗑 {t('organizer.refereesPage.catalogDeleteAction')}
+                      </button>
+                    )}
+                    {onToggleVisibility && (
+                      <button
+                        type="button"
+                        disabled={isReadOnly}
+                        onClick={() => onToggleVisibility(skill, !skill.isHidden)}
+                        className="text-xs text-gray-500 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          skill.isHidden
+                            ? t('organizer.refereesPage.catalogShowAction')
+                            : t('organizer.refereesPage.catalogHideAction')
+                        }
+                      >
+                        {skill.isHidden
+                          ? `👁 ${t('organizer.refereesPage.catalogShowAction')}`
+                          : `🚫 ${t('organizer.refereesPage.catalogHideAction')}`}
                       </button>
                     )}
                   </div>

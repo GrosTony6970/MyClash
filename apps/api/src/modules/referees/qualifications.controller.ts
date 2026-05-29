@@ -95,6 +95,11 @@ class ReorderRefereeSkillsDto {
   orderedSkillIds!: string[];
 }
 
+class SetSkillVisibilityDto {
+  @IsBoolean()
+  isHidden!: boolean;
+}
+
 export class UpdateRefereeAvailabilityDto {
   @IsOptional()
   @IsBoolean()
@@ -214,6 +219,22 @@ export class QualificationsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     await this.qualifications.reorderSkills(eventId, dto.orderedSkillIds, userId);
+  }
+
+  /** Slice 6: hide / un-hide a skill for this event (works for system skills). */
+  @Patch('events/:eventId/referee-skills/:skillId/visibility')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Hide or un-hide a skill in this event (organizer+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'skillId', type: 'string' })
+  async setSkillVisibility(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('skillId') skillId: string,
+    @Body() dto: SetSkillVisibilityDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.qualifications.setSkillVisibility(eventId, skillId, dto.isHidden, userId);
   }
 
   @Delete('referee-skills/:skillId')

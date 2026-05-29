@@ -1283,3 +1283,82 @@ describe('QualificationsService.listForEvent — no broken persons embed', () =>
     }
   });
 });
+
+describe('QualificationsService — skill visibility', () => {
+  let service: QualificationsService;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockOrganizations.assertOrgRole.mockResolvedValue(undefined);
+    service = new QualificationsService(mockSupabase as never, mockOrganizations as never);
+  });
+
+  it('setSkillVisibility upserts a hidden row when hiding', async () => {
+    const eventRow = { id: 'event-1', organization_id: 'org-1' };
+    const eventChain = makeChain({ data: eventRow, error: null });
+    eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+    const upsertChain = makeChain({ data: null, error: null });
+    fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(upsertChain);
+
+    await service.setSkillVisibility('event-1', 'arbitre_table', true, 'user-1');
+
+    expect(mockOrganizations.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    expect(upsertChain.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ event_id: 'event-1', skill_id: 'arbitre_table' }),
+      expect.anything(),
+    );
+  });
+
+  it('setSkillVisibility deletes the hidden row when un-hiding', async () => {
+    const eventRow = { id: 'event-1', organization_id: 'org-1' };
+    const eventChain = makeChain({ data: eventRow, error: null });
+    eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
+    const deleteChain = makeChain({ data: null, error: null });
+    deleteChain.eq.mockReturnValue(deleteChain);
+    fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(deleteChain);
+
+    await service.setSkillVisibility('event-1', 'arbitre_table', false, 'user-1');
+
+    expect(deleteChain.delete).toHaveBeenCalled();
+    expect(deleteChain.eq).toHaveBeenCalledWith('event_id', 'event-1');
+    expect(deleteChain.eq).toHaveBeenCalledWith('skill_id', 'arbitre_table');
+  });
+
+  it('listEventSkills marks skills as hidden when an event_hidden_skills row exists', async () => {
+    const skills = [
+      {
+        id: 'arbitre_declarant',
+        event_id: null,
+        name: 'Déclarant',
+        color: 'orange',
+        is_system: true,
+        sort_order: 1,
+        description: '',
+        created_at: 'x',
+        updated_at: 'x',
+      },
+      {
+        id: 'arbitre_table',
+        event_id: null,
+        name: 'Table',
+        color: 'purple',
+        is_system: true,
+        sort_order: 3,
+        description: '',
+        created_at: 'x',
+        updated_at: 'x',
+      },
+    ];
+    const skillsChain = makeResolvedChain({ data: skills, error: null });
+    const hiddenChain = makeResolvedChain({
+      data: [{ skill_id: 'arbitre_table' }],
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(skillsChain).mockReturnValueOnce(hiddenChain);
+
+    const result = await service.listEventSkills('event-1');
+
+    expect(result.find((s) => s.id === 'arbitre_declarant')?.isHidden).toBe(false);
+    expect(result.find((s) => s.id === 'arbitre_table')?.isHidden).toBe(true);
+  });
+});

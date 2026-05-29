@@ -31,6 +31,9 @@ interface RefereeSkill {
   sortOrder: number;
   /** R4: optional tooltip / subtitle. */
   description?: string;
+  /** Slice 6: per-event hidden flag. Hidden skills disappear from list
+   *  columns and the role picker; existing qualifications are inert. */
+  isHidden?: boolean;
 }
 
 interface EventRefereeRow {
@@ -1010,20 +1013,24 @@ export default function RefereesPage() {
    * render site so custom skills never surface as raw ids like
    * `custom-bed9d10f-a1b2c3`.
    */
+  /** Slice 6: skills the operator hasn't hidden — drives list columns,
+   *  the role picker, and the chip-colour Map. The catalog still gets the
+   *  full list so it can render the un-hide toggle for hidden rows. */
+  const visibleSkills = useMemo(() => skills.filter((s) => !s.isHidden), [skills]);
   const skillNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const skill of skills) {
+    for (const skill of visibleSkills) {
       if (skill.name) map.set(skill.id, skill.name);
     }
     return map;
-  }, [skills]);
+  }, [visibleSkills]);
   const skillColorById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const skill of skills) {
+    for (const skill of visibleSkills) {
       if (skill.color) map.set(skill.id, skill.color);
     }
     return map;
-  }, [skills]);
+  }, [visibleSkills]);
   // Ref (not state) so it does not re-trigger the effect when it flips.
   // Prevents full-table flash on subsequent refetches (refereesKey increments).
   const hasLoadedOnceRef = useRef(false);
@@ -1279,6 +1286,32 @@ export default function RefereesPage() {
   }
 
   /**
+   * Slice 6: hide / un-hide a skill for this event. The backend
+   * upserts (or deletes) a row in event_hidden_skills — works for
+   * system skills too, scoped per event.
+   */
+  async function toggleSkillVisibility(skill: RefereeSkill, nextHidden: boolean) {
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/events/${eventId}/referee-skills/${skill.id}/visibility`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isHidden: nextHidden }),
+        },
+      );
+      if (!res.ok) {
+        toast.error(t('organizer.refereesPage.catalogVisibilityFailed'));
+        return;
+      }
+      setSkillsKey((k) => k + 1);
+    } catch {
+      toast.error(t('organizer.refereesPage.catalogVisibilityFailed'));
+    }
+  }
+
+  /**
    * R5: persist a drag-reorder of skills. Re-fetches the catalog so
    * SkillCatalog re-renders in the new order.
    */
@@ -1490,6 +1523,7 @@ export default function RefereesPage() {
             void upsertQualification(personId, skillId, rating)
           }
           onRemoveQualification={(personId, skillId) => void removeQualification(personId, skillId)}
+          onToggleVisibility={(skill, nextHidden) => void toggleSkillVisibility(skill, nextHidden)}
         />
       ) : activeTab === 'staffing' ? (
         <StaffingTab eventId={eventId} apiUrl={apiUrl} skills={skills} isReadOnly={isReadOnly} />
@@ -1578,7 +1612,7 @@ export default function RefereesPage() {
                         tab onto the Referees tab as part of the R1 staffing
                         overhaul. Qualifications is now a skill catalog. */}
                     {activeTab === 'referees' &&
-                      skills.map((skill) => (
+                      visibleSkills.map((skill) => (
                         <th
                           key={skill.id}
                           className={[
@@ -1725,7 +1759,7 @@ export default function RefereesPage() {
 
                       {/* Skill cells — relocated from Qualifications to Referees in R1. */}
                       {activeTab === 'referees' &&
-                        skills.map((skill) => {
+                        visibleSkills.map((skill) => {
                           const qual = ref.qualifications.find((q) => q.skillId === skill.id);
                           const isSaving = savingQual === `${ref.personId}-${skill.id}`;
                           return (

@@ -36,6 +36,13 @@ export interface RefereeSkill {
   sortOrder: number;
   /** R4: free-text tooltip / subtitle. Empty string when unset. */
   description: string;
+  /**
+   * Per-event "hidden" flag (Slice 6 of the referees overhaul). True when
+   * an `event_hidden_skills` row exists for (eventId, this skill). The
+   * row-level columns on `referee_skills` stay event-agnostic — this flag
+   * is composed at read time inside `listEventSkills`.
+   */
+  isHidden: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -241,7 +248,56 @@ export class QualificationsService {
       .order('sort_order', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return (data ?? []).map((r) => this.mapSkill(r as Record<string, unknown>));
+
+    // Slice 6: compose isHidden per event from event_hidden_skills. Catalog
+    // callers still need every skill (so they can render the toggle); the
+    // active-only projection lives in listActiveEventSkills().
+    const { data: hiddenRows, error: hiddenErr } = await this.supabase.service
+      .from('event_hidden_skills')
+      .select('skill_id')
+      .eq('event_id', eventId);
+    if (hiddenErr) throw new BadRequestException(hiddenErr.message);
+    const hidden = new Set((hiddenRows ?? []).map((r) => (r as { skill_id: string }).skill_id));
+
+    return (data ?? []).map((r) => {
+      const skill = this.mapSkill(r as Record<string, unknown>);
+      return { ...skill, isHidden: hidden.has(skill.id) };
+    });
+  }
+
+  /** Active skills only — used by the assigner, role picker, and list column projection. */
+  async listActiveEventSkills(eventId: string): Promise<RefereeSkill[]> {
+    const all = await this.listEventSkills(eventId);
+    return all.filter((s) => !s.isHidden);
+  }
+
+  /**
+   * Hide or un-hide a skill for this event. Works for system skills too —
+   * the row lives in the per-event join table, never on referee_skills,
+   * so global rows stay shared.
+   */
+  async setSkillVisibility(
+    eventId: string,
+    skillId: string,
+    isHidden: boolean,
+    userId: string,
+  ): Promise<void> {
+    const event = await this.getEvent(eventId);
+    await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+
+    if (isHidden) {
+      const { error } = await this.supabase.service
+        .from('event_hidden_skills')
+        .upsert({ event_id: eventId, skill_id: skillId }, { onConflict: 'event_id,skill_id' });
+      if (error) throw new BadRequestException(error.message);
+    } else {
+      const { error } = await this.supabase.service
+        .from('event_hidden_skills')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('skill_id', skillId);
+      if (error) throw new BadRequestException(error.message);
+    }
   }
 
   /** Create a custom skill for this event. */
@@ -977,6 +1033,8 @@ export class QualificationsService {
       isSystem: Boolean(r['is_system']),
       sortOrder: (r['sort_order'] as number) ?? 0,
       description: typeof r['description'] === 'string' ? (r['description'] as string) : '',
+      // Default false — listEventSkills overrides with per-event lookup.
+      isHidden: false,
       createdAt: r['created_at'] as string,
       updatedAt: r['updated_at'] as string,
     };
