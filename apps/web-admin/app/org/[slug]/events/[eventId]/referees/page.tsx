@@ -761,7 +761,7 @@ function AssignmentsTab({
                           <tr key={pool.id} className="border-b border-gray-100 last:border-0">
                             <td className="px-3 py-3 align-top">
                               <p className="font-medium text-gray-900">{pool.name}</p>
-                              <p className="mt-1 text-xs text-gray-400">
+                              <p className="mt-1 text-sm leading-relaxed text-gray-600">
                                 {pool.members.map((member) => member.personName).join(', ')}
                               </p>
                             </td>
@@ -1554,7 +1554,7 @@ export default function RefereesPage() {
                   <tr className="border-b border-gray-200 text-left text-gray-500">
                     {/* Name column */}
                     <th className="py-2 pr-4 font-medium whitespace-nowrap">
-                      {t('organizer.refereesPage.personColumn')}
+                      {t('organizer.refereesPage.personColumn')} ({referees.length})
                     </th>
 
                     {/* Skill columns — the matrix moved from the Qualifications
