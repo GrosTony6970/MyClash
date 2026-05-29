@@ -1439,6 +1439,10 @@ export default function RefereesPage() {
         </nav>
       </div>
 
+      <p className="mb-4 text-sm leading-relaxed text-gray-600">
+        {t(`organizer.refereesPage.tabIntros.${activeTab}`)}
+      </p>
+
       {activeTab === 'assignments' ? (
         <AssignmentsTab
           eventId={eventId}

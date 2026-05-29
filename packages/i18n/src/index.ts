@@ -2949,10 +2949,20 @@ export const en = {
     refereesPage: {
       addCustomSkill: 'Add custom skill',
       tabs: {
-        referees: 'Referees',
+        referees: 'List',
         qualifications: 'Qualifications',
         staffing: 'Staffing',
         assignments: 'Assignments',
+      },
+      tabIntros: {
+        referees:
+          "The people registered to officiate at this event. Each row shows their qualifications, availability, and how many matches they're currently scheduled to ref.",
+        qualifications:
+          'Decide which skills exist for this event, and which referees have which skill — Déclarant, Assesseur, Table, or any custom skill you add.',
+        staffing:
+          'Auto-assign referees to pools based on their qualifications and availability, then tune the result by hand.',
+        assignments:
+          "Read-only view of every pool with its assigned Déclarant / Assesseur / Table. Lock once you're happy with the result; unlock if you need to redo it.",
       },
       catalogEmpty: 'No skills yet. Add a custom skill to get started.',
       catalogColColor: 'Color',
@@ -6125,10 +6135,20 @@ export const fr = {
     refereesPage: {
       addCustomSkill: 'Ajouter une competence personnalisee',
       tabs: {
-        referees: 'Arbitres',
+        referees: 'Liste',
         qualifications: 'Qualifications',
         staffing: 'Effectif',
         assignments: 'Affectations',
+      },
+      tabIntros: {
+        referees:
+          'Les personnes inscrites pour arbitrer cet evenement. Chaque ligne montre leurs qualifications, disponibilites et le nombre de matchs deja programmes a arbitrer.',
+        qualifications:
+          'Definissez les competences disponibles pour cet evenement et qui possede chaque competence — Declarant, Assesseur, Table, ou toute competence personnalisee.',
+        staffing:
+          'Affectez automatiquement les arbitres aux poules selon leurs qualifications et disponibilites, puis ajustez le resultat a la main.',
+        assignments:
+          'Vue lecture seule de chaque poule avec ses Declarant / Assesseur / Table affectes. Verrouillez quand le resultat vous convient ; deverrouillez pour le retoucher.',
       },
       catalogEmpty:
         'Aucune competence pour le moment. Ajoutez une competence personnalisee pour commencer.',
