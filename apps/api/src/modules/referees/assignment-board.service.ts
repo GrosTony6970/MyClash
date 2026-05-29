@@ -41,6 +41,10 @@ export interface AssignmentBoardCandidate {
   clubLabel: string | null;
   qualifications: Array<{ role: string; rating: number | null }>;
   workload: number;
+  /** Slice 8: per-tournament allowlist read from event_referee_tournaments. */
+  availableTournamentIds?: string[];
+  /** Slice 8: per-day allowlist read from event_referee_days. */
+  availableDayIndices?: number[];
 }
 
 export interface AssignmentBoardPool {
@@ -392,10 +396,21 @@ export class AssignmentBoardService {
   }
 
   private async loadContext(eventId: string) {
+    // Slice 8: event.start_date anchors dayIndex computation for the
+    // per-day availability filter. Fetched up front so every pool can
+    // resolve its own day index without re-querying.
+    const { data: eventRow } = await this.supabase.service
+      .from('events')
+      .select('start_date')
+      .eq('id', eventId)
+      .maybeSingle();
+    const eventStartDate = (eventRow as { start_date: string | null } | null)?.start_date ?? null;
+
     const tournaments = await this.listTournaments(eventId);
     if (tournaments.length === 0) {
       return {
         eventId,
+        eventStartDate,
         tournaments,
         phases: [] as PhaseRow[],
         pools: [] as AssignmentBoardPool[],
@@ -447,6 +462,7 @@ export class AssignmentBoardService {
 
     return {
       eventId,
+      eventStartDate,
       tournaments,
       phases,
       pools: allPools,
@@ -753,11 +769,35 @@ export class AssignmentBoardService {
       );
     }
 
+    // Slice 8: per-tournament + per-day allowlists.
+    const tournamentsByPerson = new Map<string, string[]>();
+    const daysByPerson = new Map<string, number[]>();
+    const { data: tournRows } = await this.supabase.service
+      .from('event_referee_tournaments')
+      .select('person_id, tournament_id')
+      .eq('event_id', eventId);
+    for (const t of (tournRows ?? []) as Array<{ person_id: string; tournament_id: string }>) {
+      const list = tournamentsByPerson.get(t.person_id) ?? [];
+      list.push(t.tournament_id);
+      tournamentsByPerson.set(t.person_id, list);
+    }
+    const { data: dayRows } = await this.supabase.service
+      .from('event_referee_days')
+      .select('person_id, day_index')
+      .eq('event_id', eventId);
+    for (const d of (dayRows ?? []) as Array<{ person_id: string; day_index: number }>) {
+      const list = daysByPerson.get(d.person_id) ?? [];
+      list.push(d.day_index);
+      daysByPerson.set(d.person_id, list);
+    }
+
     return eventReferees.map((referee): AssignmentBoardCandidate => {
       const gp = gpById.get(referee.person_id) ?? null;
       const name = gp
         ? `${gp.given_name} ${gp.family_name}`.trim() || referee.person_id
         : referee.person_id;
+      const availableTournamentIds = tournamentsByPerson.get(referee.person_id);
+      const availableDayIndices = daysByPerson.get(referee.person_id);
       return {
         personId: referee.person_id,
         userId: gp?.claimed_by_user_id ?? null,
@@ -765,6 +805,8 @@ export class AssignmentBoardService {
         clubLabel: gp?.club_id ? (clubsById.get(gp.club_id) ?? null) : null,
         qualifications: qualificationsByPerson.get(referee.person_id) ?? [],
         workload: 0,
+        ...(availableTournamentIds ? { availableTournamentIds } : {}),
+        ...(availableDayIndices ? { availableDayIndices } : {}),
       };
     });
   }
@@ -802,6 +844,9 @@ export class AssignmentBoardService {
     // config.bracket, 'finals' uses config.finals. Pools whose
     // tournament has no Staffing config get `slotDefinitions: undefined`,
     // which makes the engine fall back to LEGACY_DEFAULT_SLOTS.
+    const eventStartMs = context.eventStartDate
+      ? new Date(`${context.eventStartDate}T00:00:00.000Z`).getTime()
+      : null;
     const poolSlots: RefereePoolSlot[] = context.pools.map((pool) => {
       const config = context.slotConfigByTournament.get(pool.tournamentId);
       const kind = pool.kind ?? 'pool';
@@ -812,11 +857,21 @@ export class AssignmentBoardService {
         displayName: s.displayName,
         allowedSkillIds: s.allowedSkillIds,
       }));
+      // Slice 8: dayIndex floored from (poolStart - eventStart) / 86400000.
+      // Pools with no scheduled start get no dayIndex — the engine then
+      // skips the per-day filter for them.
+      let dayIndex: number | undefined;
+      if (eventStartMs !== null && pool.scheduledStart) {
+        const poolMs = new Date(pool.scheduledStart).getTime();
+        dayIndex = Math.max(0, Math.floor((poolMs - eventStartMs) / 86_400_000));
+      }
       return {
         poolId: pool.id,
         poolName: pool.name,
         earliestStart: pool.scheduledStart,
         latestEnd: pool.scheduledEnd,
+        tournamentId: pool.tournamentId,
+        ...(dayIndex !== undefined ? { dayIndex } : {}),
         matches: pool.matches.map((match) => ({
           id: match.id,
           scheduledAt: match.scheduledAt,
@@ -842,6 +897,12 @@ export class AssignmentBoardService {
         fighterRegistrationIds:
           context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [],
         workshopWindows: [] as Array<{ start: string; end: string }>,
+        ...(candidate.availableTournamentIds
+          ? { availableTournamentIds: candidate.availableTournamentIds }
+          : {}),
+        ...(candidate.availableDayIndices
+          ? { availableDayIndices: candidate.availableDayIndices }
+          : {}),
       }),
     );
 

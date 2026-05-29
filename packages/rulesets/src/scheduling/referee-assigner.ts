@@ -90,6 +90,15 @@ export interface RefereeCandidate {
   fighterRegistrationIds: string[];
   /** Workshop session time windows this person is enrolled in */
   workshopWindows: Array<{ start: string; end: string }>;
+  /**
+   * Slice 8: explicit per-tournament allowlist. When undefined the engine
+   * treats the candidate as available for every tournament (legacy
+   * pre-Slice-8 behaviour). When set, the candidate is dropped from
+   * candidates whose pool's `tournamentId` is not in the list.
+   */
+  availableTournamentIds?: string[];
+  /** Slice 8: per-day allowlist. Same semantics as above. */
+  availableDayIndices?: number[];
 }
 
 export interface PoolSlot {
@@ -107,6 +116,15 @@ export interface PoolSlot {
   earliestStart: string | null;
   /** Latest match end in this pool (null if unscheduled) */
   latestEnd: string | null;
+  /**
+   * Slice 8: tournament owning this pool. Used by the engine to filter
+   * candidates against their availableTournamentIds. Optional for
+   * backwards compatibility with pre-Slice-8 callers / tests that don't
+   * populate it — when undefined the per-tournament filter is skipped.
+   */
+  tournamentId?: string;
+  /** Slice 8: 0-based day index relative to event.start_date. */
+  dayIndex?: number;
   /**
    * Slot definitions for this pool (typically from `StaffingService`).
    * Optional — when absent the engine uses `LEGACY_DEFAULT_SLOTS` so
@@ -446,12 +464,40 @@ function assignSlot(
     return { assigned: null, warnings, rejectionReasons };
   }
 
+  // Slice 8: HARD filter — referee must be allowlisted for this pool's
+  // tournament AND day. Undefined allowlists = legacy "no restriction".
+  // pool.tournamentId / pool.dayIndex are optional for backwards
+  // compatibility with pre-Slice-8 callers; missing pool metadata means
+  // the matching dimension's filter is skipped.
+  const available = qualified.filter(({ candidate }) => {
+    if (
+      pool.tournamentId !== undefined &&
+      candidate.availableTournamentIds !== undefined &&
+      !candidate.availableTournamentIds.includes(pool.tournamentId)
+    ) {
+      return false;
+    }
+    if (
+      pool.dayIndex !== undefined &&
+      candidate.availableDayIndices !== undefined &&
+      !candidate.availableDayIndices.includes(pool.dayIndex)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (available.length === 0) {
+    rejectionReasons.push('all_qualified_unavailable_for_this_pool');
+    return { assigned: null, warnings, rejectionReasons };
+  }
+
   // Filter: not already assigned to this pool in any slot (HARD)
   const alreadyAssignedToPool = new Set(
     existingAssignments.filter((a) => a.poolId === pool.poolId).map((a) => a.personId),
   );
 
-  const notAlreadyAssigned = qualified.filter(
+  const notAlreadyAssigned = available.filter(
     (q) => !alreadyAssignedToPool.has(q.candidate.personId),
   );
 

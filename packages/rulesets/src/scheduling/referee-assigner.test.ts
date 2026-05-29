@@ -251,6 +251,77 @@ describe('No qualified users for a role', () => {
   });
 });
 
+// ── Slice 8: granular per-tournament + per-day availability ──────────────────
+
+describe('Granular availability (Slice 8)', () => {
+  it('excludes a referee who is not allowlisted for the pool tournament', () => {
+    const pool: PoolSlot = {
+      ...makePool('p1', 'Pool A'),
+      tournamentId: 't-longsword',
+    };
+    const restricted: RefereeCandidate = {
+      ...makeCandidate('r1', 'Restricted', [
+        'arbitre_declarant',
+        'arbitre_assesseur',
+        'arbitre_table',
+      ]),
+      availableTournamentIds: ['t-rapier'], // only available for rapier
+    };
+
+    const result = assignRefereesWithPools([pool], [restricted], DEFAULT_SETTINGS);
+
+    const declarant = result.missing.find((m) => m.role === 'arbitre_declarant');
+    expect(declarant).toBeDefined();
+    expect(declarant!.rejectionReasons).toContain('all_qualified_unavailable_for_this_pool');
+  });
+
+  it('excludes a referee who is not allowlisted for the pool day', () => {
+    const pool: PoolSlot = {
+      ...makePool('p1', 'Pool A'),
+      tournamentId: 't1',
+      dayIndex: 1,
+    };
+    const restricted: RefereeCandidate = {
+      ...makeCandidate('r1', 'Restricted', [
+        'arbitre_declarant',
+        'arbitre_assesseur',
+        'arbitre_table',
+      ]),
+      availableTournamentIds: ['t1'],
+      availableDayIndices: [0], // only available on day 0, pool runs on day 1
+    };
+
+    const result = assignRefereesWithPools([pool], [restricted], DEFAULT_SETTINGS);
+
+    const declarant = result.missing.find((m) => m.role === 'arbitre_declarant');
+    expect(declarant).toBeDefined();
+    expect(declarant!.rejectionReasons).toContain('all_qualified_unavailable_for_this_pool');
+  });
+
+  it('keeps a referee whose allowlist covers the pool tournament and day', () => {
+    const pool: PoolSlot = {
+      ...makePool('p1', 'Pool A'),
+      tournamentId: 't1',
+      dayIndex: 0,
+    };
+    const ok: RefereeCandidate = {
+      ...makeCandidate('r1', 'Available', [
+        'arbitre_declarant',
+        'arbitre_assesseur',
+        'arbitre_table',
+      ]),
+      availableTournamentIds: ['t1', 't2'],
+      availableDayIndices: [0, 1],
+    };
+
+    const result = assignRefereesWithPools([pool], [ok], DEFAULT_SETTINGS);
+
+    expect(
+      result.assignments.find((a) => a.poolId === 'p1' && a.role === 'arbitre_declarant'),
+    ).toBeDefined();
+  });
+});
+
 // ── Time overlap: referee cannot be in two pools simultaneously ───────────────
 
 describe('Time overlap: referee cannot referee two simultaneous pools', () => {

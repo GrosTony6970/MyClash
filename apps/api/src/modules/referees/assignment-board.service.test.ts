@@ -38,6 +38,7 @@ function makeChain(result: unknown) {
     order: vi.fn(),
     delete: vi.fn(),
     insert: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
   });
 
   for (const key of ['select', 'eq', 'in', 'order', 'delete']) {
@@ -50,6 +51,8 @@ function makeChain(result: unknown) {
 
 function queueBoardReads(assignments: unknown[] = []) {
   fromMock
+    // Slice 8: loadContext now fetches event.start_date up front.
+    .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
     .mockReturnValueOnce(
       makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
     )
@@ -133,6 +136,11 @@ function queueBoardReads(assignments: unknown[] = []) {
         error: null,
       }),
     )
+    // Slice 8: listCandidates now reads event_referee_tournaments + event_referee_days.
+    // Empty here — fixture has no granular allowlists, so the engine
+    // treats every candidate as available for every tournament + day.
+    .mockReturnValueOnce(makeChain({ data: [], error: null }))
+    .mockReturnValueOnce(makeChain({ data: [], error: null }))
     .mockReturnValueOnce(
       makeChain({
         data: [
