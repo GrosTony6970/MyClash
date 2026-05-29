@@ -24,6 +24,8 @@ import {
   SwapSuggestionsPanel,
   type SwapSuggestion,
 } from '../../referees/_components/SwapSuggestionsPanel';
+import { assignmentChipClasses } from '../../referees/_components/assignment-chip-classes';
+import { formatBracketMatchLabel } from '../../referees/_components/format-bracket-match-label';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -65,8 +67,20 @@ interface AssignmentBoardPool {
   scheduledEnd: string | null;
   kind?: 'pool' | 'bracket' | 'finals';
   matchId?: string;
+  /** Bracket-only metadata so the title can render 'Quarter-final #2'
+   *  instead of the raw 'R{N}P{M}'. See Slice 3 of the pools+bracket
+   *  referees overhaul. */
+  bracketRound?: number;
+  bracketPosition?: number;
+  bracketMaxRound?: number;
   members: Array<{ registrationId: string; personId: string; personName: string }>;
   roleSlots: AssignmentBoardRoleSlot[];
+}
+
+interface RefereeSkill {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface AssignmentBoard {
@@ -93,6 +107,42 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
   } | null>(null);
+  const [skills, setSkills] = useState<RefereeSkill[]>([]);
+  /** Slice 4: local override of the parent's tournamentId — the in-view
+   *  tab strip switches between tournaments without forcing the operator
+   *  back up to the page-level dropdown. Defaults to the prop. */
+  const [activeTournamentId, setActiveTournamentId] = useState<string>(tournamentId);
+  useEffect(() => {
+    setActiveTournamentId(tournamentId);
+  }, [tournamentId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as RefereeSkill[];
+        setSkills(data);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [apiUrl, eventId]);
+
+  const skillNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const skill of skills) if (skill.name) map.set(skill.id, skill.name);
+    return map;
+  }, [skills]);
+  const skillColorById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const skill of skills) if (skill.color) map.set(skill.id, skill.color);
+    return map;
+  }, [skills]);
 
   const loadBoard = useCallback(
     async (signal?: AbortSignal) => {
@@ -132,12 +182,24 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
    * Bracket-kind pools for this tournament. Filters out the real
    * pool-kind entries — those belong on the pool detail page.
    */
+  /** Distinct tournaments that have at least one bracket / finals row.
+   *  Drives the tab strip — only rendered when there's more than one. */
+  const bracketTournaments = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const p of allBoardPools) {
+      if (p.kind !== 'bracket' && p.kind !== 'finals') continue;
+      if (!seen.has(p.tournamentId)) seen.set(p.tournamentId, p.tournamentName || p.tournamentId);
+    }
+    return Array.from(seen, ([id, name]) => ({ id, name }));
+  }, [allBoardPools]);
+
   const bracketPools = useMemo(
     () =>
       allBoardPools.filter(
-        (p) => p.tournamentId === tournamentId && (p.kind === 'bracket' || p.kind === 'finals'),
+        (p) =>
+          p.tournamentId === activeTournamentId && (p.kind === 'bracket' || p.kind === 'finals'),
       ),
-    [allBoardPools, tournamentId],
+    [allBoardPools, activeTournamentId],
   );
 
   const bracketGroup = useMemo(
@@ -248,12 +310,40 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         </div>
       )}
 
+      {bracketTournaments.length > 1 && (
+        <nav
+          aria-label={t('organizer.bracketPage.refereesTournamentTabsLabel')}
+          className="flex flex-wrap gap-2 border-b border-gray-200"
+        >
+          {bracketTournaments.map((bt) => {
+            const active = bt.id === activeTournamentId;
+            return (
+              <button
+                key={bt.id}
+                type="button"
+                onClick={() => setActiveTournamentId(bt.id)}
+                className={[
+                  '-mb-px border-b-2 px-3 py-1.5 text-sm font-medium transition-colors',
+                  active
+                    ? 'border-red-700 text-red-700'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700',
+                ].join(' ')}
+              >
+                {bt.name}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
       {bracketGroup.length > 0 && (
         <BracketMatchSection
           title={t('organizer.bracketPage.refereesBracketSection')}
           pools={bracketGroup}
           isReadOnly={isReadOnly || board.locked}
           busy={busy}
+          skillNameById={skillNameById}
+          skillColorById={skillColorById}
           onAssignClick={(pool, slot) => setPicker({ pool, slot })}
           onUnassign={(id) => void unassign(id)}
         />
@@ -265,6 +355,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           pools={finalsGroup}
           isReadOnly={isReadOnly || board.locked}
           busy={busy}
+          skillNameById={skillNameById}
+          skillColorById={skillColorById}
           onAssignClick={(pool, slot) => setPicker({ pool, slot })}
           onUnassign={(id) => void unassign(id)}
         />
@@ -296,6 +388,8 @@ function BracketMatchSection({
   pools,
   isReadOnly,
   busy,
+  skillNameById,
+  skillColorById,
   onAssignClick,
   onUnassign,
 }: {
@@ -303,6 +397,8 @@ function BracketMatchSection({
   pools: AssignmentBoardPool[];
   isReadOnly: boolean;
   busy: boolean;
+  skillNameById: Map<string, string>;
+  skillColorById: Map<string, string>;
   onAssignClick: (pool: AssignmentBoardPool, slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
@@ -315,6 +411,8 @@ function BracketMatchSection({
           pool={pool}
           isReadOnly={isReadOnly}
           busy={busy}
+          skillNameById={skillNameById}
+          skillColorById={skillColorById}
           onAssignClick={(slot) => onAssignClick(pool, slot)}
           onUnassign={onUnassign}
         />
@@ -327,24 +425,36 @@ function BracketMatchCard({
   pool,
   isReadOnly,
   busy,
+  skillNameById,
+  skillColorById,
   onAssignClick,
   onUnassign,
 }: {
   pool: AssignmentBoardPool;
   isReadOnly: boolean;
   busy: boolean;
+  skillNameById: Map<string, string>;
+  skillColorById: Map<string, string>;
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
+  // Slice 4: readable round label ('Quarter-final #2') instead of the
+  // raw R{N}P{M}. Falls back to pool.name when bracket metadata is
+  // missing (e.g. an older payload), so the title is never empty.
+  const roundLabel =
+    pool.bracketMaxRound !== undefined &&
+    pool.bracketRound !== undefined &&
+    pool.bracketPosition !== undefined
+      ? formatBracketMatchLabel(pool.bracketRound, pool.bracketPosition, pool.bracketMaxRound, t)
+      : pool.name;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="mb-3 flex items-baseline justify-between">
-        <p className="font-semibold text-gray-900">{pool.name}</p>
+        <p className="font-semibold text-gray-900">
+          {pool.tournamentName ? `${pool.tournamentName} – ${roundLabel}` : roundLabel}
+        </p>
         {pool.scheduledStart && (
-          <p className="text-xs text-gray-500">
-            {formatHHMM(pool.scheduledStart)}
-            {pool.liceId && ` · ${pool.liceId}`}
-          </p>
+          <p className="text-xs text-gray-500">{formatHHMM(pool.scheduledStart)}</p>
         )}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -353,21 +463,19 @@ function BracketMatchCard({
             key={`${slot.slotIndex}:${slot.role}`}
             className={[
               'rounded-md border px-3 py-2',
-              slot.assignment
-                ? 'border-emerald-200 bg-emerald-50'
-                : slot.missingReasons.length
-                  ? 'border-red-200 bg-red-50'
-                  : 'border-gray-200 bg-white',
+              assignmentChipClasses({
+                hasAssignment: !!slot.assignment,
+                isError: slot.missingReasons.length > 0 && !slot.assignment,
+                skillColor: skillColorById.get(slot.role) ?? null,
+              }),
             ].join(' ')}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-              {slot.displayName ?? slot.role}
+            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+              {slot.displayName ?? skillNameById.get(slot.role) ?? slot.role}
             </p>
             {slot.assignment ? (
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-emerald-900">
-                  {slot.assignment.displayName}
-                </p>
+                <p className="text-sm font-medium">{slot.assignment.displayName}</p>
                 <button
                   type="button"
                   disabled={isReadOnly || busy}

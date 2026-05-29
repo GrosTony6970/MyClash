@@ -2748,6 +2748,7 @@ export const en = {
         r16: 'Round of 16',
         r32: 'Round of 32',
       },
+      refereesTournamentTabsLabel: 'Switch tournament',
     },
     pools: {
       tabs: {
@@ -5969,6 +5970,7 @@ export const fr = {
         r16: '8e de finale',
         r32: '16e de finale',
       },
+      refereesTournamentTabsLabel: 'Changer de tournoi',
     },
     pools: {
       tabs: {
