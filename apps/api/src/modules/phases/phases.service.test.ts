@@ -1019,6 +1019,151 @@ describe('PhasesService', () => {
     });
   });
 
+  describe('getTournamentBracket — enriched shape', () => {
+    // Bug: manually overriding a slot persisted registration_a_id on
+    // the row, but the projection only selected raw bracket_slots
+    // columns. The frontend BracketSlotData interface expects
+    // redFighterName, redScore, status, matchId etc. — so the slot
+    // card always rendered the '-' placeholder regardless of writes.
+    // The fix joins matches (by bracket_slot_id) and registrations
+    // (by registration_a_id / registration_b_id) so the projection
+    // returns the shape MatchCard actually consumes.
+
+    function phaseChain() {
+      return makeChain({
+        data: {
+          id: 'phase-1',
+          type: 'single_elim',
+          visibility_status: 'published',
+          config_json: { bracketSize: 4, fighterCount: 4, rounds: 2 },
+        },
+        error: null,
+      });
+    }
+
+    it('resolves redFighterName + redClubAbbrev from registration_a_id (tracer)', async () => {
+      const slotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 's-1',
+            round: 0,
+            position: 0,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: 'reg-1',
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+      const matchesChain = makeAwaitableChain({ data: [], error: null });
+      const regsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'reg-1',
+            persons: {
+              given_name: 'Alice',
+              family_name: 'Smith',
+              clubs: { name: 'Lyon AMHE' },
+            },
+          },
+        ],
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(phaseChain())
+        .mockReturnValueOnce(slotsChain)
+        .mockReturnValueOnce(matchesChain)
+        .mockReturnValueOnce(regsChain);
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slot = result!.slots[0] as Record<string, unknown>;
+      expect(slot['redFighterName']).toBe('Alice Smith');
+      expect(slot['redClubAbbrev']).toBe('Lyon AMHE');
+    });
+
+    it('carries status + red/blue scores + matchId from the linked match row', async () => {
+      const slotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 's-1',
+            round: 0,
+            position: 0,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+      const matchesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'match-1',
+            bracket_slot_id: 's-1',
+            status: 'completed',
+            red_score: 5,
+            blue_score: 3,
+          },
+        ],
+        error: null,
+      });
+      // regsChain is NOT queued because the slot has no
+      // registration_a_id / registration_b_id; the impl skips the
+      // registrations fetch entirely in that case.
+      fromMock
+        .mockReturnValueOnce(phaseChain())
+        .mockReturnValueOnce(slotsChain)
+        .mockReturnValueOnce(matchesChain);
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slot = result!.slots[0] as Record<string, unknown>;
+      expect(slot['matchId']).toBe('match-1');
+      expect(slot['status']).toBe('completed');
+      expect(slot['redScore']).toBe(5);
+      expect(slot['blueScore']).toBe(3);
+    });
+
+    it("empty slot returns null-shaped fields (not undefined) so MatchCard renders '-'", async () => {
+      const slotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 's-1',
+            round: 0,
+            position: 0,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+      const matchesChain = makeAwaitableChain({ data: [], error: null });
+      // regsChain skipped — see note in score test.
+      fromMock
+        .mockReturnValueOnce(phaseChain())
+        .mockReturnValueOnce(slotsChain)
+        .mockReturnValueOnce(matchesChain);
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slot = result!.slots[0] as Record<string, unknown>;
+      expect(slot['redFighterName']).toBeNull();
+      expect(slot['blueFighterName']).toBeNull();
+      expect(slot['redScore']).toBeNull();
+      expect(slot['blueScore']).toBeNull();
+      expect(slot['matchId']).toBeNull();
+      expect(slot['status']).toBe('scheduled');
+    });
+  });
+
   describe('createInitialBracketMatches', () => {
     // Bracket matches must carry `match_number_label` (just the slot
     // position, stringified) so consumers downstream resolve the same

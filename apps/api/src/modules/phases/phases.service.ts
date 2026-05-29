@@ -1021,6 +1021,111 @@ export class PhasesService {
       .eq('phase_id', phaseId)
       .order('round', { ascending: true });
     if (error) throw new BadRequestException(error.message);
+
+    // Enrich slots so the response shape matches BracketSlotData on
+    // the frontend. The projection used to return raw bracket_slots
+    // rows, which left `redFighterName`, scores, status etc. as
+    // undefined — every MatchCard rendered the '-' placeholder,
+    // including after a successful manual override. Two extra
+    // fetches: the matches keyed by bracket_slot_id (status +
+    // scores + matchId), and the registrations referenced by either
+    // side of any slot (with persons + clubs embeds for the name +
+    // club label).
+    type RawSlot = {
+      id: string;
+      round: number;
+      position: number;
+      source_a_type: string | null;
+      source_a_ref: string | null;
+      source_b_type: string | null;
+      source_b_ref: string | null;
+      registration_a_id: string | null;
+      registration_b_id: string | null;
+    };
+    const rawSlots = (slots ?? []) as RawSlot[];
+    const slotIds = rawSlots.map((s) => s.id);
+
+    const matchBySlot = new Map<
+      string,
+      { id: string; status: string; red_score: number | null; blue_score: number | null }
+    >();
+    if (slotIds.length > 0) {
+      const { data: matchRows } = await this.supabase.service
+        .from('matches')
+        .select('id, bracket_slot_id, status, red_score, blue_score')
+        .in('bracket_slot_id', slotIds);
+      for (const m of (matchRows ?? []) as Array<{
+        id: string;
+        bracket_slot_id: string;
+        status: string;
+        red_score: number | null;
+        blue_score: number | null;
+      }>) {
+        matchBySlot.set(m.bracket_slot_id, {
+          id: m.id,
+          status: m.status,
+          red_score: m.red_score,
+          blue_score: m.blue_score,
+        });
+      }
+    }
+
+    type EmbeddedPerson = {
+      given_name: string | null;
+      family_name: string | null;
+      clubs: { name: string | null } | Array<{ name: string | null }> | null;
+    };
+    type RegRow = { id: string; persons: EmbeddedPerson | EmbeddedPerson[] | null };
+    const regIds = Array.from(
+      new Set(
+        rawSlots
+          .flatMap((s) => [s.registration_a_id, s.registration_b_id])
+          .filter((v): v is string => Boolean(v)),
+      ),
+    );
+    const regById = new Map<string, { fighterName: string | null; clubAbbrev: string | null }>();
+    if (regIds.length > 0) {
+      const { data: regRows } = await this.supabase.service
+        .from('registrations')
+        .select('id, persons(given_name, family_name, clubs(name))')
+        .in('id', regIds);
+      for (const r of (regRows ?? []) as RegRow[]) {
+        const person = Array.isArray(r.persons) ? (r.persons[0] ?? null) : r.persons;
+        const clubsEmbed = person?.clubs ?? null;
+        const club = Array.isArray(clubsEmbed) ? (clubsEmbed[0] ?? null) : clubsEmbed;
+        const name = `${person?.given_name ?? ''} ${person?.family_name ?? ''}`.trim();
+        regById.set(r.id, {
+          fighterName: name || null,
+          clubAbbrev: club?.name ?? null,
+        });
+      }
+    }
+
+    const enrichedSlots = rawSlots.map((s) => {
+      const match = matchBySlot.get(s.id) ?? null;
+      const red = s.registration_a_id ? (regById.get(s.registration_a_id) ?? null) : null;
+      const blue = s.registration_b_id ? (regById.get(s.registration_b_id) ?? null) : null;
+      return {
+        id: s.id,
+        round: s.round,
+        position: s.position,
+        redFighterName: red?.fighterName ?? null,
+        blueFighterName: blue?.fighterName ?? null,
+        redClubAbbrev: red?.clubAbbrev ?? null,
+        blueClubAbbrev: blue?.clubAbbrev ?? null,
+        redScore: match?.red_score ?? null,
+        blueScore: match?.blue_score ?? null,
+        status: match?.status ?? 'scheduled',
+        matchId: match?.id ?? null,
+        source_a_type: s.source_a_type,
+        source_a_ref: s.source_a_ref,
+        source_b_type: s.source_b_type,
+        source_b_ref: s.source_b_ref,
+        registration_a_id: s.registration_a_id,
+        registration_b_id: s.registration_b_id,
+      };
+    });
+
     const config = ((phase as { config_json?: Record<string, unknown> }).config_json ?? {}) as {
       bracketSize?: number;
       mainBracketSize?: number;
@@ -1055,8 +1160,8 @@ export class PhasesService {
       grandFinalReset: config.grandFinalReset ?? false,
       seedingStrategy: config.seedingStrategy ?? 'snake',
       bronzeSlotId: config.bronzeSlotId ?? null,
-      totalSlots: (slots ?? []).length,
-      slots: slots ?? [],
+      totalSlots: enrichedSlots.length,
+      slots: enrichedSlots,
     };
   }
 
