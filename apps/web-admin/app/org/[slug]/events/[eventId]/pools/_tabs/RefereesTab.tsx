@@ -33,6 +33,7 @@ import {
   SwapSuggestionsPanel,
   type SwapSuggestion,
 } from '../../referees/_components/SwapSuggestionsPanel';
+import { assignmentChipClasses } from '../../referees/_components/assignment-chip-classes';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -72,8 +73,23 @@ interface AssignmentBoardPool {
   liceId: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  members: Array<{ registrationId: string; personId: string; personName: string }>;
+  /** Distinguishes real pools from bracket / finals matches surfaced
+   *  alongside them. Default 'pool' for backwards compatibility with
+   *  any caller that doesn't populate it. */
+  kind?: 'pool' | 'bracket' | 'finals';
+  members: Array<{
+    registrationId: string;
+    personId: string;
+    personName: string;
+    clubLabel?: string | null;
+  }>;
   roleSlots: AssignmentBoardRoleSlot[];
+}
+
+interface RefereeSkill {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface AssignmentBoard {
@@ -101,6 +117,37 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
   } | null>(null);
+  const [skills, setSkills] = useState<RefereeSkill[]>([]);
+
+  // Load the skills catalog so chips can tint by the skill's own colour
+  // and the role label can render the human name instead of the raw id.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as RefereeSkill[];
+        setSkills(data);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [apiUrl, eventId]);
+
+  const skillNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const skill of skills) if (skill.name) map.set(skill.id, skill.name);
+    return map;
+  }, [skills]);
+  const skillColorById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const skill of skills) if (skill.color) map.set(skill.id, skill.color);
+    return map;
+  }, [skills]);
 
   const loadBoard = useCallback(
     async (signal?: AbortSignal) => {
@@ -137,7 +184,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   );
 
   const tournamentPools = useMemo(
-    () => allBoardPools.filter((p) => p.tournamentId === tournamentId),
+    () =>
+      allBoardPools.filter((p) => p.tournamentId === tournamentId && (p.kind ?? 'pool') === 'pool'),
     [allBoardPools, tournamentId],
   );
 
@@ -292,16 +340,20 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
           {t('organizer.poolsPage.refereesSlotCardsTitle')}
         </h3>
-        {tournamentPools.map((pool) => (
-          <PoolSlotCard
-            key={pool.id}
-            pool={pool}
-            isReadOnly={isReadOnly || board.locked}
-            busy={busy}
-            onAssignClick={(slot) => setPicker({ pool, slot })}
-            onUnassign={(assignmentId) => void unassign(assignmentId)}
-          />
-        ))}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {tournamentPools.map((pool) => (
+            <PoolSlotCard
+              key={pool.id}
+              pool={pool}
+              isReadOnly={isReadOnly || board.locked}
+              busy={busy}
+              skillNameById={skillNameById}
+              skillColorById={skillColorById}
+              onAssignClick={(slot) => setPicker({ pool, slot })}
+              onUnassign={(assignmentId) => void unassign(assignmentId)}
+            />
+          ))}
+        </div>
       </section>
 
       {/* R4: back-to-back swap suggestions for the assignments shown
@@ -335,54 +387,54 @@ function PoolSlotCard({
   pool,
   isReadOnly,
   busy,
+  skillNameById,
+  skillColorById,
   onAssignClick,
   onUnassign,
 }: {
   pool: AssignmentBoardPool;
   isReadOnly: boolean;
   busy: boolean;
+  skillNameById: Map<string, string>;
+  skillColorById: Map<string, string>;
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
+  // Most-important role first (slot 1 sits on top, then 2, then 3 …).
+  const orderedSlots = [...pool.roleSlots].sort((a, b) => a.slotIndex - b.slotIndex);
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <div className="mb-3 flex items-baseline justify-between">
-        <div>
-          <p className="font-semibold text-gray-900">{pool.name}</p>
-          {pool.scheduledStart && (
-            <p className="text-xs text-gray-500">
-              {formatHHMM(pool.scheduledStart)}
-              {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd)}`}
-              {pool.liceId && ` · ${pool.liceId}`}
-            </p>
-          )}
-        </div>
-        <p className="text-xs text-gray-400">
-          {pool.members.length} {t('organizer.poolsPage.refereesFighterCount')}
+    <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mb-3">
+        <p className="font-semibold text-gray-900">
+          {pool.tournamentName ? `${pool.tournamentName} – ${pool.name}` : pool.name}
         </p>
+        {pool.scheduledStart && (
+          <p className="text-xs text-gray-500">
+            {formatHHMM(pool.scheduledStart)}
+            {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd)}`}
+          </p>
+        )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {pool.roleSlots.map((slot) => (
+      <div className="space-y-2">
+        {orderedSlots.map((slot) => (
           <div
             key={`${slot.slotIndex}:${slot.role}`}
             className={[
               'rounded-md border px-3 py-2',
-              slot.assignment
-                ? 'border-emerald-200 bg-emerald-50'
-                : slot.missingReasons.length
-                  ? 'border-red-200 bg-red-50'
-                  : 'border-gray-200 bg-white',
+              assignmentChipClasses({
+                hasAssignment: !!slot.assignment,
+                isError: slot.missingReasons.length > 0 && !slot.assignment,
+                skillColor: skillColorById.get(slot.role) ?? null,
+              }),
             ].join(' ')}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-              {slot.displayName ?? slot.role}
+            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+              {slot.displayName ?? skillNameById.get(slot.role) ?? slot.role}
             </p>
             {slot.assignment ? (
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-emerald-900">
-                  {slot.assignment.displayName}
-                </p>
+                <p className="text-sm font-medium">{slot.assignment.displayName}</p>
                 <button
                   type="button"
                   disabled={isReadOnly || busy}
@@ -394,9 +446,7 @@ function PoolSlotCard({
               </div>
             ) : (
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm text-gray-500">
-                  {t('organizer.poolsPage.refereesUnassigned')}
-                </p>
+                <p className="text-sm">{t('organizer.poolsPage.refereesUnassigned')}</p>
                 <button
                   type="button"
                   disabled={isReadOnly || busy}
@@ -413,6 +463,21 @@ function PoolSlotCard({
           </div>
         ))}
       </div>
+
+      {pool.members.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3">
+          {pool.members.map((m) => (
+            <li key={m.registrationId} className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-gray-800">{m.personName}</span>
+              {m.clubLabel && (
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">
+                  {m.clubLabel}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
