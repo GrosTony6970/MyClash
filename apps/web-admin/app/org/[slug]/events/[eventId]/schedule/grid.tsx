@@ -149,6 +149,15 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   // the in-flight busy state for the confirm button.
   const [clearingDay, setClearingDay] = useState(false);
   const [pendingClear, setPendingClear] = useState(false);
+  // Slice 4: "now" marker. Tick every 60 s so the line moves through
+  // the day while the operator has the grid open. We only render the
+  // line when the active day is today — past/future days don't show
+  // anything (see nowSlot useMemo below).
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
 
@@ -269,6 +278,21 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
       ),
     [matches, activeDay],
   );
+
+  // Slice 4: slot index for "now" on the active day. Null when the
+  // active day isn't today, when the current time is before the grid
+  // start, or when it's past the grid end — caller renders nothing in
+  // those cases.
+  const nowSlot = useMemo<number | null>(() => {
+    if (!activeDay) return null;
+    const todayIso = now.toISOString().slice(0, 10);
+    if (todayIso !== activeDay) return null;
+    const start = new Date(activeDay);
+    start.setHours(GRID_START_HOUR, 0, 0, 0);
+    const slot = minutesToSlot((now.getTime() - start.getTime()) / 60_000);
+    if (slot < 0 || slot >= TOTAL_SLOTS) return null;
+    return slot;
+  }, [activeDay, now]);
 
   if (loading) {
     return (
@@ -484,6 +508,23 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                   </div>
                 );
               })}
+
+              {/* Slice 4: "now" marker — horizontal red line across every
+                  lice column at the current time slot. Only rendered when
+                  the active day is today (see nowSlot above). */}
+              {nowSlot !== null && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none flex items-center"
+                  style={{
+                    gridColumn: '1 / -1',
+                    gridRow: nowSlot + 2,
+                    zIndex: 15,
+                  }}
+                >
+                  <div className="h-[2px] w-full bg-red-600 shadow-[0_0_4px_rgba(220,38,38,0.6)]" />
+                </div>
+              )}
             </div>
           )}
         </div>
