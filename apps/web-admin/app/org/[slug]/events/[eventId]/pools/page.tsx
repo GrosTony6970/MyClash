@@ -797,7 +797,13 @@ export default function PoolsPage() {
                         </RowActionButton>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-1.5">
+                    {/* Inline chip layout — fighters flow left-to-right and
+                        wrap to the next line when the row is full. Same
+                        info density as the previous vertical stack; just
+                        denser horizontally. The per-chip name max-width
+                        keeps a pathological 40-char name from pushing the
+                        seed/HEMA badges off-screen. */}
+                    <div className="flex flex-wrap gap-1.5">
                       {pool.members.map((m) => (
                         <div
                           key={m.registrationId}
@@ -806,36 +812,36 @@ export default function PoolsPage() {
                             setDragging({ memberId: m.registrationId, fromPoolId: pool.id })
                           }
                           onDragEnd={() => setDragging(null)}
-                          className="group flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
+                          className="group inline-flex items-center gap-1.5 max-w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-sm cursor-grab active:cursor-grabbing hover:border-gray-300 transition-colors"
                         >
-                          <div className="min-w-0 flex-1 truncate">
-                            <span className="font-medium text-gray-900">{m.personName}</span>
-                            {m.clubLabel && (
-                              <span className="text-gray-400 text-xs ml-2">{m.clubLabel}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {m.hemaWeightedRating !== null && (
-                              <span
-                                className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
-                                title="HEMA weighted rating"
-                              >
-                                {m.hemaWeightedRating.toFixed(1)}
-                              </span>
-                            )}
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
-                              #{m.seed}
+                          <span className="font-medium text-gray-900 truncate max-w-[12rem]">
+                            {m.personName}
+                          </span>
+                          {m.clubLabel && (
+                            <span className="text-gray-400 text-xs truncate max-w-[8rem]">
+                              {m.clubLabel}
                             </span>
-                            <button
-                              type="button"
-                              disabled={editBusy}
-                              onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
-                              title="Move to unassigned"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                          )}
+                          {m.hemaWeightedRating !== null && (
+                            <span
+                              className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800"
+                              title="HEMA weighted rating"
                             >
-                              ×
-                            </button>
-                          </div>
+                              {m.hemaWeightedRating.toFixed(1)}
+                            </span>
+                          )}
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
+                            #{m.seed}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={editBusy}
+                            onClick={() => void removeMemberFromPool(pool.id, m.registrationId)}
+                            title="Move to unassigned"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                          >
+                            ×
+                          </button>
                         </div>
                       ))}
                       {pool.members.length === 0 && (
