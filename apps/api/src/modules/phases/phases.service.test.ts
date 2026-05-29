@@ -136,6 +136,67 @@ describe('PhasesService', () => {
       );
     });
 
+    it('caps poolCount so no pool is forced to be a singleton (5 fighters, targetSize=2 → 2 pools)', async () => {
+      // Prod 500 repro: with targetSize=2 and an odd fighterCount, the old
+      // Math.ceil math produced poolCount=3 and snakeSeed left one pool with
+      // a single fighter — bergerSchedule(1) then threw and the request
+      // crashed inside the NestJS handler. After the cap, poolCount=2 and
+      // the distribution is [3, 2].
+      const fiveRegs = Array.from({ length: 5 }, (_, i) => ({
+        id: `r${i + 1}`,
+        seed: i + 1,
+        bib_number: null,
+        persons: { club_id: null },
+      }));
+
+      const phaseCheckChain = makeChain({ data: null, error: null });
+      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const regsChain = makeAwaitableChain({ data: fiveRegs, error: null });
+      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
+      const phaseInsertChain = makeChain({ data: null, error: null });
+      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
+      const defaultChain = makeChain({ data: null, error: null });
+      defaultChain.single.mockResolvedValue({ data: { id: 'pool-x' }, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValue(defaultChain);
+
+      const result = await service.generatePools('tournament-1', { targetSize: 2 }, false);
+      expect(result.poolCount).toBe(2);
+    });
+
+    it('does not throw when a pool ends up with a single fighter (defensive guard)', async () => {
+      // Corner case: operator stands up a layout with a single registration
+      // (e.g. preview before the rest of the roster lands). The pool gets
+      // written + the lone pool_member gets inserted, but bergerSchedule is
+      // skipped so we don't crash on n<2. totalMatches stays 0.
+      const oneReg = [{ id: 'r1', seed: 1, bib_number: null, persons: { club_id: null } }];
+
+      const phaseCheckChain = makeChain({ data: null, error: null });
+      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const regsChain = makeAwaitableChain({ data: oneReg, error: null });
+      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
+      const phaseInsertChain = makeChain({ data: null, error: null });
+      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
+      const defaultChain = makeChain({ data: null, error: null });
+      defaultChain.single.mockResolvedValue({ data: { id: 'pool-1' }, error: null });
+
+      fromMock
+        .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phaseInsertChain)
+        .mockReturnValue(defaultChain);
+
+      const result = await service.generatePools('tournament-1', { poolCount: 1 }, false);
+      expect(result.poolCount).toBe(1);
+      expect(result.totalMatches).toBe(0);
+    });
+
     it('creates empty pools when there are zero registrations (operator pre-stages the layout)', async () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });

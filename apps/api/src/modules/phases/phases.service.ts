@@ -147,6 +147,16 @@ export class PhasesService {
     } else {
       const targetSize = dto.targetSize ?? 8;
       poolCount = Math.max(1, Math.ceil(fighterCount / targetSize));
+      // Round-robin requires ≥ 2 fighters per pool. With a small targetSize
+      // and an odd fighterCount, the ceil rounds up and snakeSeed leaves the
+      // last pool with one fighter — bergerSchedule(1) throws and the whole
+      // request 500s (prod incident 2026-05-29). Cap poolCount at
+      // floor(N/2): the operator gets a slightly larger last pool instead of
+      // a meaningless singleton.
+      const maxRoundRobinPools = Math.floor(fighterCount / 2);
+      if (maxRoundRobinPools >= 1 && poolCount > maxRoundRobinPools) {
+        poolCount = maxRoundRobinPools;
+      }
     }
 
     // Still guard against an obviously-impossible request (e.g. 5 pools for
@@ -266,28 +276,35 @@ export class PhasesService {
         if (memberRes.error)
           throw new BadRequestException(memberRes.error.message ?? 'Failed to insert pool members');
 
-        bergerMatches = bergerSchedule(registrationIds.length, {
-          liceLabel: '1',
-          poolLabel: String.fromCharCode(65 + i),
-        });
+        // bergerSchedule throws for n < 2 ("Need at least 2 players for a
+        // round-robin"). The poolCount cap above prevents this on the
+        // auto-distribution path, but an explicit dto.poolCount can still
+        // land us here when fighterCount === 1. Skip match generation; the
+        // pool + lone pool_member row stand on their own.
+        if (registrationIds.length >= 2) {
+          bergerMatches = bergerSchedule(registrationIds.length, {
+            liceLabel: '1',
+            poolLabel: String.fromCharCode(65 + i),
+          });
 
-        if (bergerMatches.length > 0) {
-          const matchInserts = bergerMatches.map((bm) => ({
-            phase_id: phaseId,
-            pool_id: poolId,
-            lice_id: dto.liceId ?? null,
-            red_registration_id: registrationIds[bm.homeIndex]!,
-            blue_registration_id: registrationIds[bm.awayIndex]!,
-            ruleset_code: 'TF_v1',
-            ruleset_version: '1.0.0',
-            match_number_label: bm.label,
-            status: 'scheduled',
-            red_score: 0,
-            blue_score: 0,
-          }));
-          const matchRes = await this.supabase.service.from('matches').insert(matchInserts);
-          if (matchRes.error)
-            throw new BadRequestException(matchRes.error.message ?? 'Failed to insert matches');
+          if (bergerMatches.length > 0) {
+            const matchInserts = bergerMatches.map((bm) => ({
+              phase_id: phaseId,
+              pool_id: poolId,
+              lice_id: dto.liceId ?? null,
+              red_registration_id: registrationIds[bm.homeIndex]!,
+              blue_registration_id: registrationIds[bm.awayIndex]!,
+              ruleset_code: 'TF_v1',
+              ruleset_version: '1.0.0',
+              match_number_label: bm.label,
+              status: 'scheduled',
+              red_score: 0,
+              blue_score: 0,
+            }));
+            const matchRes = await this.supabase.service.from('matches').insert(matchInserts);
+            if (matchRes.error)
+              throw new BadRequestException(matchRes.error.message ?? 'Failed to insert matches');
+          }
         }
       }
 
