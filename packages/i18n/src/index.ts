@@ -2740,6 +2740,14 @@ export const en = {
       refereesPick: 'Pick',
       refereesPickerRecommended: 'Recommended',
       refereesPickerBlocked: 'Blocked',
+      rounds: {
+        final: 'Final',
+        bronze: 'Bronze',
+        semi: 'Semi-final',
+        qf: 'Quarter-final',
+        r16: 'Round of 16',
+        r32: 'Round of 32',
+      },
     },
     pools: {
       tabs: {
@@ -5953,6 +5961,14 @@ export const fr = {
       refereesPick: 'Choisir',
       refereesPickerRecommended: 'Recommandes',
       refereesPickerBlocked: 'Bloques',
+      rounds: {
+        final: 'Finale',
+        bronze: 'Bronze',
+        semi: 'Demi-finale',
+        qf: 'Quart de finale',
+        r16: '8e de finale',
+        r32: '16e de finale',
+      },
     },
     pools: {
       tabs: {
