@@ -388,8 +388,12 @@ services:
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
       # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
+      # NOTE: realtime is the exception — supabase/realtime v2 mounts its
+      # Phoenix endpoint at /realtime/v1/websocket natively, so the
+      # router below intentionally does NOT use a strip middleware.
+      # Stripping `/realtime/v1` here used to cause 404s on the WebSocket
+      # upgrade, which Firefox surfaced as NS_ERROR_WEBSOCKET_CONNECTION_REFUSED.
       - traefik.http.middlewares.supabase-auth-strip.stripprefix.prefixes=/auth/v1
-      - traefik.http.middlewares.supabase-realtime-strip.stripprefix.prefixes=/realtime/v1
       - traefik.http.middlewares.supabase-storage-strip.stripprefix.prefixes=/storage/v1
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
@@ -403,7 +407,7 @@ services:
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
       - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file,supabase-realtime-strip
+      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
       - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.url=http://supabase-realtime:4000
