@@ -205,6 +205,33 @@ describe('AssignmentBoardService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects a manual assignment when the referee already has another role in the same pool', async () => {
+    // Slice 7b: person-ref-b is the pure referee (qualified for all
+    // three roles per queueBoardReads). They're already assigned to
+    // pool-1 as Déclarant — assigning them as Assesseur on the same
+    // pool would split their attention across roles, so the manual
+    // PATCH must reject.
+    queueBoardReads([
+      {
+        id: 'existing-assign',
+        person_id: 'person-ref-b',
+        pool_id: 'pool-1',
+        match_id: null,
+        role: 'arbitre_declarant',
+        status: 'assigned',
+        auto_assigned: false,
+      },
+    ]);
+
+    await expect(
+      service.applyManual('event-1', {
+        poolId: 'pool-1',
+        role: 'arbitre_assesseur',
+        personId: 'person-ref-b',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   // R4: bracket-match classification.
   describe('classifyBracketMatchKind (static)', () => {
     it('flags the final and bronze rounds as finals (round === maxRound)', () => {

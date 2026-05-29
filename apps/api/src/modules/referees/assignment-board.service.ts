@@ -352,6 +352,23 @@ export class AssignmentBoardService {
       throw new BadRequestException('Selected referee is not qualified for this role');
     }
 
+    // Slice 7b: same person cannot hold two different roles on the same
+    // pool / bracket match. The auto-assigner already enforces this via
+    // `alreadyAssignedToPool` (referee-assigner.ts:449-461) — the manual
+    // PATCH was the missing entry-point. Match by pool_id for real pools
+    // and by match_id for the bracket / finals projections.
+    const isMatchScoped = (pool.kind ?? 'pool') !== 'pool';
+    const conflictingExisting = context.assignments.find((a) => {
+      if (a.person_id !== candidate.personId || a.role === dto.role) return false;
+      if (isMatchScoped) return a.match_id === pool.matchId;
+      return a.pool_id === pool.id;
+    });
+    if (conflictingExisting) {
+      throw new BadRequestException(
+        'This referee is already assigned a different role in this pool',
+      );
+    }
+
     const slotIndex = sourceSlots.find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
 
     await this.persistAssignments(
