@@ -2976,6 +2976,16 @@ export const en = {
         all_qualified_unavailable_for_this_pool:
           'Everyone qualified is unavailable for this tournament or day.',
       },
+      diagnostics: {
+        title: 'Assignment health',
+        coverage: '{filled} of {total} slots filled',
+        coverageNoneOpen: 'All slots filled',
+        unfilledLabel: 'Unfilled slots, by reason:',
+        rosterHealth: 'Roster health',
+        rosterOk: 'All skills covered.',
+        rosterShortBy: '{skill}: short by {count} ({open} open, {qualified} qualified)',
+        rosterOkSkill: '{skill}: covered ({open} open, {qualified} qualified)',
+      },
       catalogEmpty: 'No skills yet. Add a custom skill to get started.',
       catalogColColor: 'Color',
       catalogColName: 'Skill',
@@ -6175,6 +6185,16 @@ export const fr = {
           'Cette personne est deja affectee a un autre role dans cette poule.',
         all_qualified_unavailable_for_this_pool:
           'Tous les arbitres qualifies sont indisponibles pour ce tournoi ou ce jour.',
+      },
+      diagnostics: {
+        title: 'Sante des affectations',
+        coverage: '{filled} sur {total} postes pourvus',
+        coverageNoneOpen: 'Tous les postes sont pourvus',
+        unfilledLabel: 'Postes non pourvus, par raison :',
+        rosterHealth: "Sante de l'effectif",
+        rosterOk: 'Toutes les competences sont couvertes.',
+        rosterShortBy: '{skill} : il manque {count} ({open} postes ouverts, {qualified} qualifies)',
+        rosterOkSkill: '{skill} : couvert ({open} postes ouverts, {qualified} qualifies)',
       },
       catalogEmpty:
         'Aucune competence pour le moment. Ajoutez une competence personnalisee pour commencer.',

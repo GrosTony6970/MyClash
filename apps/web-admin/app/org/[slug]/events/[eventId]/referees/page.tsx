@@ -18,6 +18,7 @@ import { StaffingTab } from './_components/StaffingTab';
 import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
 import { assignmentChipClasses } from './_components/assignment-chip-classes';
 import { formatUnassignedReason } from './_components/format-unassigned-reason';
+import { AssignmentDiagnosticsPanel } from './_components/AssignmentDiagnosticsPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -865,6 +866,7 @@ function AssignmentsTab({
         </div>
       ) : (
         <>
+          <AssignmentDiagnosticsPanel board={board} skillNameById={skillNameById} />
           {renderPoolRows(board.pools)}
           {board.unscheduledPools.length > 0 && (
             <div className="space-y-2">
