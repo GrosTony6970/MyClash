@@ -191,6 +191,25 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+  // Slice 9: undo/redo stack for drag-and-drop moves. Each entry records
+  // a single transition; Ctrl+Z reverses the topmost entry, Ctrl+Y or
+  // Ctrl+Shift+Z replays. Stack is capped at 20 to keep memory bounded.
+  // Bulk operations (Clear day, Clear pool) don't push entries — they're
+  // covered by the confirm modal and aren't expected to need finger
+  // memory rewinding.
+  type ScheduleMove = {
+    matchId: string;
+    fromLiceId: string | null;
+    fromScheduledAt: string | null;
+    toLiceId: string | null;
+    toScheduledAt: string | null;
+  };
+  const [undoStack, setUndoStack] = useState<ScheduleMove[]>([]);
+  const [redoStack, setRedoStack] = useState<ScheduleMove[]>([]);
+  const undoStackRef = useRef(undoStack);
+  const redoStackRef = useRef(redoStack);
+  undoStackRef.current = undoStack;
+  redoStackRef.current = redoStack;
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
 
@@ -259,6 +278,18 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     const match = dragMatch.current;
     if (!match || !activeDay) return;
     const newScheduledAt = slotToTime(slot, activeDay);
+    // Same-cell drop = no-op; don't pollute the undo stack.
+    if (match.liceId === liceId && match.scheduledAt === newScheduledAt) {
+      dragMatch.current = null;
+      return;
+    }
+    pushUndo({
+      matchId: match.id,
+      fromLiceId: match.liceId,
+      fromScheduledAt: match.scheduledAt,
+      toLiceId: liceId,
+      toScheduledAt: newScheduledAt,
+    });
     const updated = matches.map((m) =>
       m.id === match.id ? { ...m, liceId, scheduledAt: newScheduledAt } : m,
     );
@@ -267,6 +298,65 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     void saveMatchPosition(match.id, liceId, newScheduledAt);
     dragMatch.current = null;
   }
+
+  function pushUndo(move: ScheduleMove) {
+    setUndoStack((prev) => [...prev, move].slice(-20));
+    setRedoStack([]);
+  }
+
+  async function applyMove(matchId: string, liceId: string | null, scheduledAt: string | null) {
+    const updated = matches.map((m) => (m.id === matchId ? { ...m, liceId, scheduledAt } : m));
+    setMatches(updated);
+    setConflicts(detectConflicts(updated));
+    await saveMatchPosition(matchId, liceId ?? '', scheduledAt ?? '');
+  }
+
+  async function undo() {
+    const last = undoStackRef.current[undoStackRef.current.length - 1];
+    if (!last) return;
+    setUndoStack((prev) => prev.slice(0, -1));
+    setRedoStack((prev) => [...prev, last].slice(-20));
+    await applyMove(last.matchId, last.fromLiceId, last.fromScheduledAt);
+  }
+
+  async function redo() {
+    const last = redoStackRef.current[redoStackRef.current.length - 1];
+    if (!last) return;
+    setRedoStack((prev) => prev.slice(0, -1));
+    setUndoStack((prev) => [...prev, last].slice(-20));
+    await applyMove(last.matchId, last.toLiceId, last.toScheduledAt);
+  }
+
+  // Clear the undo/redo stacks when the active day changes — pushing
+  // history across days would let an undo move a match back to a day
+  // the operator isn't looking at, which is more confusing than useful.
+  useEffect(() => {
+    setUndoStack([]);
+    setRedoStack([]);
+  }, [activeDay]);
+
+  // Keyboard shortcuts: Ctrl+Z / Cmd+Z = undo; Ctrl+Shift+Z / Cmd+Shift+Z
+  // (or Ctrl+Y) = redo. Skip when focused on an input so typing in the
+  // unscheduled-search field isn't trapped.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      if (e.key === 'z' || e.key === 'Z') {
+        e.preventDefault();
+        if (e.shiftKey) void redo();
+        else void undo();
+      } else if (e.key === 'y' || e.key === 'Y') {
+        e.preventDefault();
+        void redo();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function clearActiveDay() {
     if (!activeDay) return;
@@ -433,16 +523,37 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
               );
             })}
           </div>
-          {/* Clear active day — Slice 3. Disables when the active day has
-              nothing to clear, opens a confirm modal otherwise. */}
-          <button
-            type="button"
-            onClick={() => setPendingClear(true)}
-            disabled={clearingDay || scheduledOnActiveDay.length === 0}
-            className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent"
-          >
-            Clear day ({scheduledOnActiveDay.length})
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Slice 9: undo/redo for drag-and-drop moves. */}
+            <button
+              type="button"
+              onClick={() => void undo()}
+              disabled={undoStack.length === 0}
+              title="Undo (Ctrl+Z)"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              ↶ Undo
+            </button>
+            <button
+              type="button"
+              onClick={() => void redo()}
+              disabled={redoStack.length === 0}
+              title="Redo (Ctrl+Shift+Z)"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+            >
+              ↷ Redo
+            </button>
+            {/* Clear active day — Slice 3. Disables when the active day has
+                nothing to clear, opens a confirm modal otherwise. */}
+            <button
+              type="button"
+              onClick={() => setPendingClear(true)}
+              disabled={clearingDay || scheduledOnActiveDay.length === 0}
+              className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              Clear day ({scheduledOnActiveDay.length})
+            </button>
+          </div>
         </div>
       )}
 
@@ -474,6 +585,17 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
             onDrop={() => {
               const match = dragMatch.current;
               if (!match) return;
+              if (match.liceId === null && match.scheduledAt === null) {
+                dragMatch.current = null;
+                return;
+              }
+              pushUndo({
+                matchId: match.id,
+                fromLiceId: match.liceId,
+                fromScheduledAt: match.scheduledAt,
+                toLiceId: null,
+                toScheduledAt: null,
+              });
               const updated = matches.map((m) =>
                 m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m,
               );
