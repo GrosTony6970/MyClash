@@ -9,6 +9,7 @@ import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
 import { RequestDeletionModal } from './_components/RequestDeletionModal';
 import { EventLogoCard } from './_components/EventLogoCard';
+import { formatCountOfMax } from './format-count-of-max';
 
 interface Tournament {
   id: string;
@@ -38,10 +39,21 @@ interface DashboardStats {
   totals: {
     tournaments: number;
     registeredFighters: number;
+    waitlistedFighters: number;
+    maxParticipants: number | null;
+    maxWaitlist: number | null;
     qualifiedReferees: number;
     clubsRepresented: number;
   };
-  tournaments: Array<Tournament & { fighterCount: number; assignedRefereeCount: number }>;
+  tournaments: Array<
+    Tournament & {
+      fighterCount: number;
+      waitlistedCount: number;
+      maxParticipants: number | null;
+      maxWaitlist: number | null;
+      assignedRefereeCount: number;
+    }
+  >;
 }
 
 interface AIUsage {
@@ -331,16 +343,28 @@ export default function EventDetailPage() {
           <MetricCard
             label={t('organizer.eventHub.dashboard.tournaments')}
             value={String(stats?.totals.tournaments ?? 0)}
-            detail={t('organizer.eventHub.dashboard.fighters', {
-              count: stats?.totals.registeredFighters ?? 0,
-            })}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.participants')}
+            value={formatCountOfMax(
+              stats?.totals.registeredFighters ?? 0,
+              stats?.totals.maxParticipants ?? null,
+            )}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.waitlist')}
+            value={formatCountOfMax(
+              stats?.totals.waitlistedFighters ?? 0,
+              stats?.totals.maxWaitlist ?? null,
+            )}
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.clubs')}
             value={String(stats?.totals.clubsRepresented ?? 0)}
-            detail={t('organizer.eventHub.dashboard.referees', {
-              count: stats?.totals.qualifiedReferees ?? 0,
-            })}
+          />
+          <MetricCard
+            label={t('organizer.eventHub.dashboard.qualifiedReferees')}
+            value={String(stats?.totals.qualifiedReferees ?? 0)}
           />
           <MetricCard
             label={t('organizer.eventHub.dashboard.countdown')}
@@ -401,7 +425,7 @@ export default function EventDetailPage() {
                         href={`/org/${slug}/events/${eventId}/persons`}
                         className={cellLinkClass}
                       >
-                        {tournament.fighterCount}
+                        {formatCountOfMax(tournament.fighterCount, tournament.maxParticipants)}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
@@ -627,12 +651,12 @@ export default function EventDetailPage() {
   );
 }
 
-function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+function MetricCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-2xl font-bold text-[#0f172a]">{value}</p>
-      <p className="mt-1 text-sm text-slate-500">{detail}</p>
+      {detail ? <p className="mt-1 text-sm text-slate-500">{detail}</p> : null}
     </div>
   );
 }

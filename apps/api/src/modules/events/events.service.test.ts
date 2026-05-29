@@ -186,6 +186,163 @@ describe('EventsService', () => {
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'scorekeeper');
   });
 
+  it('exposes per-tournament max_participants / max_waitlist + waitlistedCount + event totals', async () => {
+    // New dashboard cards (Participants, Waitlist) need cap fields on
+    // every tournament row plus null-aware sums on the totals object.
+    // Tournament A has caps; Tournament B does not — total caps
+    // therefore equal A's caps. The waitlisted count is filtered out
+    // of the registered total.
+    service = new EventsService(
+      { service: { from: fromMock } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+      undefined,
+      {} as never,
+    );
+    fromMock
+      .mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'event-1',
+            organization_id: 'org-1',
+            status: 'published',
+            name: 'FAL',
+            slug: 'fal',
+            start_date: '2026-06-01',
+            end_date: '2026-06-02',
+            location: 'Lyon',
+          },
+          error: null,
+        }),
+      )
+      // getEventTournaments — two tournaments, only A has caps
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            {
+              id: 'tournament-a',
+              slug: 'longsword',
+              name: 'Longsword',
+              status: 'published',
+              color: 'amber',
+              ruleset_code: 'TF_v1',
+              max_participants: 32,
+              max_waitlist: 10,
+            },
+            {
+              id: 'tournament-b',
+              slug: 'rapier',
+              name: 'Rapier',
+              status: 'draft',
+              color: 'rose',
+              ruleset_code: 'TF_v1',
+              max_participants: null,
+              max_waitlist: null,
+            },
+          ],
+          error: null,
+        }),
+      )
+      // getRegistrationsForTournaments — A: 12 active + 2 waitlist;
+      // B: 4 active, 0 waitlist. Total registered (active) = 16.
+      // Total waitlisted = 2.
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            ...Array.from({ length: 12 }, (_, i) => ({
+              tournament_id: 'tournament-a',
+              person_id: `person-a-${i}`,
+              status: 'registered',
+            })),
+            { tournament_id: 'tournament-a', person_id: 'person-wl-1', status: 'waitlist' },
+            { tournament_id: 'tournament-a', person_id: 'person-wl-2', status: 'waitlist' },
+            ...Array.from({ length: 4 }, (_, i) => ({
+              tournament_id: 'tournament-b',
+              person_id: `person-b-${i}`,
+              status: 'registered',
+            })),
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = await service.getEventDashboardStats('event-1', 'user-1');
+
+    expect(result.totals).toMatchObject({
+      registeredFighters: 16,
+      waitlistedFighters: 2,
+      maxParticipants: 32, // sum of capped tournaments only (A's 32)
+      maxWaitlist: 10,
+    });
+    expect(result.tournaments).toMatchObject([
+      {
+        id: 'tournament-a',
+        fighterCount: 12,
+        waitlistedCount: 2,
+        maxParticipants: 32,
+        maxWaitlist: 10,
+      },
+      {
+        id: 'tournament-b',
+        fighterCount: 4,
+        waitlistedCount: 0,
+        maxParticipants: null,
+        maxWaitlist: null,
+      },
+    ]);
+  });
+
+  it('returns null for totals.maxParticipants/maxWaitlist when every tournament is uncapped', async () => {
+    service = new EventsService(
+      { service: { from: fromMock } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+      undefined,
+      {} as never,
+    );
+    fromMock
+      .mockReturnValueOnce(
+        makeChain({
+          data: { id: 'event-1', organization_id: 'org-1', status: 'published' },
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        makeAwaitableChain({
+          data: [
+            {
+              id: 'tournament-a',
+              slug: 'a',
+              name: 'A',
+              status: 'draft',
+              color: null,
+              ruleset_code: null,
+              max_participants: null,
+              max_waitlist: null,
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ count: 0, error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = await service.getEventDashboardStats('event-1', 'user-1');
+
+    expect(result.totals.maxParticipants).toBeNull();
+    expect(result.totals.maxWaitlist).toBeNull();
+    expect(result.totals.waitlistedFighters).toBe(0);
+  });
+
   it('lists all clubs with selected-event fighter context', async () => {
     fromMock
       .mockReturnValueOnce(

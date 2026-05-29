@@ -329,13 +329,35 @@ export class EventsService {
       ]);
 
     const registrationsByTournament = new Map<string, number>();
+    const waitlistByTournament = new Map<string, number>();
     for (const registration of registrations) {
-      if (['withdrawn', 'disqualified'].includes(registration.status ?? '')) continue;
+      const status = registration.status ?? '';
+      if (status === 'waitlist') {
+        waitlistByTournament.set(
+          registration.tournament_id,
+          (waitlistByTournament.get(registration.tournament_id) ?? 0) + 1,
+        );
+        continue;
+      }
+      if (['withdrawn', 'disqualified'].includes(status)) continue;
       registrationsByTournament.set(
         registration.tournament_id,
         (registrationsByTournament.get(registration.tournament_id) ?? 0) + 1,
       );
     }
+
+    // Null-aware sum: if every tournament is uncapped the total
+    // stays null so the FE can drop the " / N" suffix.
+    const sumNullable = (values: Array<number | null>): number | null => {
+      const capped = values.filter((v): v is number => v != null);
+      return capped.length === 0 ? null : capped.reduce((a, b) => a + b, 0);
+    };
+    const totalMaxParticipants = sumNullable(tournaments.map((t) => t.max_participants));
+    const totalMaxWaitlist = sumNullable(tournaments.map((t) => t.max_waitlist));
+    const totalWaitlistedFighters = Array.from(waitlistByTournament.values()).reduce(
+      (a, b) => a + b,
+      0,
+    );
 
     const representedClubIds = new Set(
       persons.map((person) => person.club_id).filter((clubId): clubId is string => Boolean(clubId)),
@@ -388,9 +410,13 @@ export class EventsService {
       },
       totals: {
         tournaments: tournaments.length,
-        registeredFighters: registrations.filter(
-          (registration) => !['withdrawn', 'disqualified'].includes(registration.status ?? ''),
-        ).length,
+        registeredFighters: registrations.filter((registration) => {
+          const status = registration.status ?? '';
+          return !['withdrawn', 'disqualified', 'waitlist'].includes(status);
+        }).length,
+        waitlistedFighters: totalWaitlistedFighters,
+        maxParticipants: totalMaxParticipants,
+        maxWaitlist: totalMaxWaitlist,
         qualifiedReferees: refereeQualifications,
         clubsRepresented: representedClubIds.size,
       },
@@ -411,6 +437,9 @@ export class EventsService {
           bracketSize,
           eliminationType: elimPhase ? elimPhase.type : null,
           fighterCount: registrationsByTournament.get(tournament.id) ?? 0,
+          waitlistedCount: waitlistByTournament.get(tournament.id) ?? 0,
+          maxParticipants: tournament.max_participants ?? null,
+          maxWaitlist: tournament.max_waitlist ?? null,
           assignedRefereeCount: refereeCounts.get(tournament.id) ?? 0,
         };
       }),
@@ -827,7 +856,7 @@ export class EventsService {
   private async getEventTournaments(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, slug, name, status, color, ruleset_code')
+      .select('id, slug, name, status, color, ruleset_code, max_participants, max_waitlist')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -838,6 +867,8 @@ export class EventsService {
       status: string;
       color: string | null;
       ruleset_code: string | null;
+      max_participants: number | null;
+      max_waitlist: number | null;
     }>;
   }
 
