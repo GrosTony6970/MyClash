@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
+import { buildScoringHref } from './build-scoring-href';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+// Cross-app deep link into the web-scoring ScoringPad. Set per env
+// in infra/docker-compose.*.yml. Local dev fallback matches the
+// `next dev --port 3002` in apps/web-scoring/package.json.
+const scoringBaseUrl = process.env['NEXT_PUBLIC_SCORING_URL'] ?? 'http://localhost:3002';
 
 interface RefereeAssignment {
   role: string;
@@ -83,7 +87,6 @@ interface MatchesTabProps {
 }
 
 export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: MatchesTabProps) {
-  const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [redColor, setRedColor] = useState<ColorToken>('red');
   const [blueColor, setBlueColor] = useState<ColorToken>('blue');
@@ -497,7 +500,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                     </thead>
                     <tbody>
                       {pool.matches.map((m) => {
-                        const scoreboardHref = `/org/${slug}/events/${eventId}/matches/${m.id}/scoreboard`;
+                        const scoringHref = buildScoringHref(scoringBaseUrl, m.lice_id);
                         const auditHref = `/org/${slug}/events/${eventId}/matches/${m.id}`;
                         // Winner-bold rule: only completed matches with a
                         // clear differential elect a winner. Ties leave both
@@ -508,20 +511,31 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         const blueScore = m.blue_score ?? 0;
                         const isRedWinner = isCompleted && redScore > blueScore;
                         const isBlueWinner = isCompleted && blueScore > redScore;
+                        const rowLabel = scoringHref
+                          ? t('organizer.pool.match.openScoreboard')
+                          : t('organizer.pool.match.assignLiceFirst');
                         return (
                           <tr
                             key={m.id}
                             role="link"
                             tabIndex={0}
-                            aria-label={t('organizer.pool.match.openScoreboard')}
-                            onClick={() => router.push(scoreboardHref)}
+                            aria-label={rowLabel}
+                            title={scoringHref ? undefined : rowLabel}
+                            onClick={() => {
+                              if (scoringHref) window.location.href = scoringHref;
+                            }}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
+                              if ((e.key === 'Enter' || e.key === ' ') && scoringHref) {
                                 e.preventDefault();
-                                router.push(scoreboardHref);
+                                window.location.href = scoringHref;
                               }
                             }}
-                            className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300"
+                            className={[
+                              'border-b border-slate-100 last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300',
+                              scoringHref
+                                ? 'cursor-pointer hover:bg-slate-50'
+                                : 'cursor-not-allowed opacity-70',
+                            ].join(' ')}
                           >
                             <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-slate-500">
                               {m.roundCode}

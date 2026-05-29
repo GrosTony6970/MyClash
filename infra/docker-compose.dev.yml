@@ -346,6 +346,7 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_URL: https://admin.myclash.localhost
+        NEXT_PUBLIC_SCORING_URL: https://scoring.myclash.localhost
     container_name: myclash-dev-web-admin
     restart: unless-stopped
     environment:

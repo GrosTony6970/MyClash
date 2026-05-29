@@ -1047,12 +1047,18 @@ export class PhasesService {
 
     const matchBySlot = new Map<
       string,
-      { id: string; status: string; red_score: number | null; blue_score: number | null }
+      {
+        id: string;
+        status: string;
+        red_score: number | null;
+        blue_score: number | null;
+        lice_id: string | null;
+      }
     >();
     if (slotIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
-        .select('id, bracket_slot_id, status, red_score, blue_score')
+        .select('id, bracket_slot_id, status, red_score, blue_score, lice_id')
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as Array<{
         id: string;
@@ -1060,12 +1066,14 @@ export class PhasesService {
         status: string;
         red_score: number | null;
         blue_score: number | null;
+        lice_id: string | null;
       }>) {
         matchBySlot.set(m.bracket_slot_id, {
           id: m.id,
           status: m.status,
           red_score: m.red_score,
           blue_score: m.blue_score,
+          lice_id: m.lice_id ?? null,
         });
       }
     }
@@ -1117,6 +1125,7 @@ export class PhasesService {
         blueScore: match?.blue_score ?? null,
         status: match?.status ?? 'scheduled',
         matchId: match?.id ?? null,
+        liceId: match?.lice_id ?? null,
         source_a_type: s.source_a_type,
         source_a_ref: s.source_a_ref,
         source_b_type: s.source_b_type,

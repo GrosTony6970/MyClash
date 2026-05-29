@@ -1129,6 +1129,49 @@ describe('PhasesService', () => {
       expect(slot['blueScore']).toBe(3);
     });
 
+    it('surfaces liceId from the linked match row (drives bracket → ScoringPad redirect)', async () => {
+      // Frontend uses slot.liceId to build the cross-app scoring URL.
+      // Without this projection the bracket click would always have to
+      // fall through to the audit page.
+      const slotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 's-1',
+            round: 0,
+            position: 0,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+      const matchesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'match-1',
+            bracket_slot_id: 's-1',
+            status: 'ready',
+            red_score: 0,
+            blue_score: 0,
+            lice_id: 'lice-42',
+          },
+        ],
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(phaseChain())
+        .mockReturnValueOnce(slotsChain)
+        .mockReturnValueOnce(matchesChain);
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slot = result!.slots[0] as Record<string, unknown>;
+      expect(slot['liceId']).toBe('lice-42');
+    });
+
     it("empty slot returns null-shaped fields (not undefined) so MatchCard renders '-'", async () => {
       const slotsChain = makeAwaitableChain({
         data: [

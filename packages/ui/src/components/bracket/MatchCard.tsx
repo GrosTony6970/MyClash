@@ -6,7 +6,7 @@ export interface MatchCardProps {
   slot: BracketSlotData;
   redColor?: ColorToken;
   blueColor?: ColorToken;
-  onClick?: (matchId: string | null, slotId: string) => void;
+  onClick?: (matchId: string | null, slotId: string, liceId: string | null) => void;
   onOverride?: (slotId: string) => void;
   /** Registers the card's outer element for connector geometry. */
   registerRef?: (slotId: string, el: HTMLDivElement | null) => void;
@@ -65,7 +65,9 @@ export function MatchCard({
   const redWins = isCompleted && winsThisRow('red', slot);
   const blueWins = isCompleted && winsThisRow('blue', slot);
 
-  const handleClick = onClick ? () => onClick(slot.matchId, slot.id) : undefined;
+  const handleClick = onClick
+    ? () => onClick(slot.matchId, slot.id, slot.liceId ?? null)
+    : undefined;
 
   // Border + background priority: championship > bronze > TBD > ready/live > default.
   const borderClass = isChampionshipMatch

@@ -3216,8 +3216,9 @@ export const en = {
     },
     pool: {
       match: {
-        openScoreboard: 'Open scoreboard',
+        openScoreboard: 'Open scoring pad',
         openAudit: 'Open audit history',
+        assignLiceFirst: 'Assign a lice to score this match',
       },
     },
     scoreboard: {
@@ -6490,8 +6491,9 @@ export const fr = {
     },
     pool: {
       match: {
-        openScoreboard: 'Ouvrir le tableau de score',
+        openScoreboard: "Ouvrir le pad d'arbitrage",
         openAudit: "Ouvrir l'historique d'audit",
+        assignLiceFirst: 'Affecter une piste pour arbitrer ce combat',
       },
     },
     scoreboard: {

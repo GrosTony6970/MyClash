@@ -23,6 +23,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
+import { buildScoringHref } from '../pools/_tabs/build-scoring-href';
 
 interface Tournament {
   id: string;
@@ -106,6 +107,10 @@ export default function BracketPage() {
   const { slug, eventId } = params;
   const router = useRouter();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  // Cross-app deep link into the web-scoring ScoringPad — same env var
+  // the pool Matches tab reads. Local dev fallback matches the
+  // `next dev --port 3002` in apps/web-scoring/package.json.
+  const scoringBaseUrl = process.env['NEXT_PUBLIC_SCORING_URL'] ?? 'http://localhost:3002';
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
 
@@ -1228,15 +1233,21 @@ export default function BracketPage() {
                 bronzeMatch={bronzeMatch}
                 weapon={tournamentWeapon}
                 bracketSize={bracket.bracketSize}
-                onMatchClick={(matchId, slotId) => {
-                  // Slots without a matchId yet (TBD / no fighters assigned)
-                  // had no click behaviour at all — confusing, since picking
-                  // the fighters is exactly what the operator wants here.
-                  // Empty → override modal; live/ready/done → scoreboard.
-                  if (matchId) {
-                    router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
-                  } else {
+                onMatchClick={(matchId, slotId, liceId) => {
+                  // Empty slot → override modal so the operator can place
+                  // fighters. Match exists → jump straight into the
+                  // operator scoring pad (cross-app). If the match has
+                  // no lice yet, fall back to the audit page so the
+                  // operator still has somewhere to land.
+                  if (!matchId) {
                     setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
+                    return;
+                  }
+                  const scoringHref = buildScoringHref(scoringBaseUrl, liceId);
+                  if (scoringHref) {
+                    window.location.href = scoringHref;
+                  } else {
+                    router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
                   }
                 }}
                 onOverrideSlot={(slotId) =>

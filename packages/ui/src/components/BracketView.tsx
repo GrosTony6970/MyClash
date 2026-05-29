@@ -11,8 +11,13 @@ export interface BracketViewProps {
   rounds: number;
   /** Label for round 0 play-in slots. */
   playInLabel?: string;
-  /** Called when a match slot is clicked. Receives matchId (null if no match yet). */
-  onMatchClick?: (matchId: string | null, slotId: string) => void;
+  /**
+   * Called when a match slot is clicked. Receives matchId (null when no
+   * match exists yet for an empty slot) and liceId (null when the
+   * match has no lice assigned). The bracket page uses liceId to
+   * build the cross-app URL into the scoring app.
+   */
+  onMatchClick?: (matchId: string | null, slotId: string, liceId: string | null) => void;
   /** Called when the pencil override icon is clicked (admin only). */
   onOverrideSlot?: (slotId: string) => void;
   /** Bracket configuration — drives double_elim layout. */

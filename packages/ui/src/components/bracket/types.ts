@@ -17,6 +17,11 @@ export interface BracketSlotData {
   blueScore: number | null;
   status: string;
   matchId: string | null;
+  /** Lice currently assigned to this slot's match. Drives the
+   *  cross-app click into the scoring app's ScoringPad. Null
+   *  when the operator hasn't placed the match on a lice yet —
+   *  bracket page falls back to the audit URL in that case. */
+  liceId?: string | null;
   /** Self-ref label, e.g. 'WBR1P0', 'LBR2P1', 'GF', 'BRONZE'. */
   section?: string;
 }
