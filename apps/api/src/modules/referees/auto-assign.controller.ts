@@ -73,4 +73,29 @@ export class AutoAssignController {
 
     return { confirmed: assignmentIds.length, notificationsScheduled: assignmentIds.length };
   }
+
+  // ── Unlock assignments ────────────────────────────────────────────────────────
+
+  /**
+   * Slice 7a of the referees overhaul: reverse the lock-status transition
+   * so an operator can re-open a confirmed board without manual SQL.
+   * Mirrors `lockAssignments` above — same scope, same row filter, opposite
+   * status flip. Notifications stay attached to the assignment row, so a
+   * subsequent re-lock re-uses the existing notification record.
+   */
+  @Post('events/:eventId/unlock-referee-assignments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unlock referee assignments (transition back to assigned)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async unlockAssignments(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    const { data } = await this.supabase.service
+      .from('referee_assignments')
+      .update({ status: 'assigned' })
+      .eq('event_id', eventId)
+      .eq('status', 'confirmed')
+      .select('id');
+
+    const assignmentIds = ((data as Array<{ id: string }> | null) ?? []).map((a) => a.id);
+    return { reopened: assignmentIds.length };
+  }
 }

@@ -708,6 +708,34 @@ function AssignmentsTab({
   }
 
   /**
+   * Slice 7a of the referees overhaul: reverse the lock so the operator
+   * can edit a confirmed board again. Confirmation dialog stays out of
+   * scope here — `setError` surfaces backend failure via the existing
+   * banner so the operator still sees the result.
+   */
+  async function unlockAssignments() {
+    setLocking(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/unlock-referee-assignments`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentUnlockFailed'));
+      }
+      await loadBoard();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentUnlockFailed'),
+      );
+    } finally {
+      setLocking(false);
+    }
+  }
+
+  /**
    * R2: pools are grouped by tournament so each tournament's table can
    * show its own slot columns (slot config is per-tournament).
    *
@@ -846,16 +874,29 @@ function AssignmentsTab({
             ? t('organizer.refereesPage.applying')
             : t('organizer.refereesPage.applyAssignments')}
         </button>
-        <button
-          type="button"
-          onClick={() => void lockAssignments()}
-          disabled={isReadOnly || locking || board?.locked}
-          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
-        >
-          {locking
-            ? t('organizer.refereesPage.locking')
-            : t('organizer.refereesPage.lockAssignments')}
-        </button>
+        {board?.locked ? (
+          <button
+            type="button"
+            onClick={() => void unlockAssignments()}
+            disabled={isReadOnly || locking}
+            className="border border-amber-300 bg-amber-50 hover:border-amber-400 text-amber-800 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            {locking
+              ? t('organizer.refereesPage.unlocking')
+              : t('organizer.refereesPage.unlockAssignments')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void lockAssignments()}
+            disabled={isReadOnly || locking}
+            className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            {locking
+              ? t('organizer.refereesPage.locking')
+              : t('organizer.refereesPage.lockAssignments')}
+          </button>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
