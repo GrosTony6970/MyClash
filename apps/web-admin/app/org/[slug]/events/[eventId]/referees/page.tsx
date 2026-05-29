@@ -20,6 +20,7 @@ import { assignmentChipClasses } from './_components/assignment-chip-classes';
 import { formatUnassignedReason } from './_components/format-unassigned-reason';
 import { AssignmentDiagnosticsPanel } from './_components/AssignmentDiagnosticsPanel';
 import { AvailabilityChips } from './_components/AvailabilityChips';
+import { countQualifiedBySkill } from './count-qualified-by-skill';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1188,6 +1189,10 @@ export default function RefereesPage() {
   const [skillsKey, setSkillsKey] = useState(0);
   const [refereesKey, setRefereesKey] = useState(0);
 
+  // Count of qualified referees per skill — fuels the badge in each
+  // role column header on the Referees sub-tab.
+  const qualifiedCountBySkill = useMemo(() => countQualifiedBySkill(referees), [referees]);
+
   // ── Search state ────────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -1824,6 +1829,12 @@ export default function RefereesPage() {
                         >
                           <div className="flex items-center justify-center gap-1">
                             <span>{skill.name}</span>
+                            <span
+                              className="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+                              title={t('organizer.refereesPage.catalogColCount')}
+                            >
+                              {qualifiedCountBySkill.get(skill.id) ?? 0}
+                            </span>
                             {!skill.isSystem && (
                               <button
                                 onClick={() =>

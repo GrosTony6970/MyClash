@@ -847,6 +847,37 @@ export class QualificationsService {
       daysByPerson.set(d.person_id, list);
     }
 
+    // 7. Coalesce the per-referee allowlists against the legacy
+    //    "available_all_*" booleans. The booleans are the operator's
+    //    intent; the join tables are a backfilled index. If a
+    //    tournament was added after the backfill, the join row
+    //    doesn't exist for it — so a referee marked "all
+    //    tournaments" sees the chip picker render the OLD subset
+    //    instead of the compact "✓ All tournaments" pill. Expand
+    //    the array here so the frontend's auto-collapse fires.
+    const { data: allTournamentRows } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId);
+    const allTournamentIds = ((allTournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
+
+    const { data: eventDates } = await this.supabase.service
+      .from('events')
+      .select('start_date, end_date')
+      .eq('id', eventId)
+      .maybeSingle();
+    const start = (eventDates as { start_date?: string | null } | null)?.start_date ?? null;
+    const end = (eventDates as { end_date?: string | null } | null)?.end_date ?? start;
+    let numDays = 0;
+    if (start) {
+      const startMs = Date.parse(`${start}T00:00:00Z`);
+      const endMs = Date.parse(`${end ?? start}T00:00:00Z`);
+      if (!Number.isNaN(startMs) && !Number.isNaN(endMs)) {
+        numDays = Math.max(1, Math.floor((endMs - startMs) / 86_400_000) + 1);
+      }
+    }
+    const allDayIndices = Array.from({ length: numDays }, (_, i) => i);
+
     return rows.map((r) => {
       const gp = gpById.get(r.person_id) ?? null;
       const displayName = gp
@@ -884,8 +915,12 @@ export class QualificationsService {
         qualifications,
         availableAllTournaments: r.available_all_tournaments,
         availableAllEventDuration: r.available_all_event_duration,
-        tournamentIds: tournamentsByPerson.get(r.person_id) ?? [],
-        dayIndices: daysByPerson.get(r.person_id) ?? [],
+        tournamentIds: r.available_all_tournaments
+          ? allTournamentIds
+          : (tournamentsByPerson.get(r.person_id) ?? []),
+        dayIndices: r.available_all_event_duration
+          ? allDayIndices
+          : (daysByPerson.get(r.person_id) ?? []),
         assignments,
         totalMatchCount,
       };
