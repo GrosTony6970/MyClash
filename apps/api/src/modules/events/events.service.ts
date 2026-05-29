@@ -56,7 +56,7 @@ export class EventsService {
   async listEvents(query: EventQueryDto) {
     let q = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug)')
+      .select('*, organizations(name, slug, logo_url)')
       .order('start_date', { ascending: false });
 
     if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
@@ -66,7 +66,25 @@ export class EventsService {
 
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    if (rows.length === 0) return rows;
+
+    // Enrich with tournament_count so the public home page can show
+    // 'N tournaments' per row without a per-event roundtrip.
+    const eventIds = rows.map((r) => r['id'] as string);
+    const { data: tournRows, error: tournErr } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id')
+      .in('event_id', eventIds);
+    if (tournErr) throw new BadRequestException(tournErr.message);
+    const countByEvent = new Map<string, number>();
+    for (const t of (tournRows ?? []) as Array<{ event_id: string }>) {
+      countByEvent.set(t.event_id, (countByEvent.get(t.event_id) ?? 0) + 1);
+    }
+    return rows.map((row) => ({
+      ...row,
+      tournament_count: countByEvent.get(row['id'] as string) ?? 0,
+    }));
   }
 
   async listOrgEvents(orgId: string, userId: string) {

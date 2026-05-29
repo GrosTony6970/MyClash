@@ -648,7 +648,7 @@ describe('EventsService', () => {
   // when this endpoint fails — keeping the contract here pinned guards
   // against silent regressions.
   describe('listEvents (public)', () => {
-    it('returns published / running / completed events with org name+slug joined', async () => {
+    it('returns events enriched with tournament_count + org logo_url', async () => {
       const rows = [
         {
           id: 'event-pub',
@@ -656,23 +656,43 @@ describe('EventsService', () => {
           status: 'published',
           start_date: '2026-06-01',
           end_date: '2026-06-02',
-          organizations: { name: 'Lyon AMHE', slug: 'lyon-amhe' },
+          organizations: { name: 'Lyon AMHE', slug: 'lyon-amhe', logo_url: 'https://cdn/lyon.png' },
+        },
+        {
+          id: 'event-pub-2',
+          name: 'Paris Open',
+          status: 'completed',
+          start_date: '2025-12-01',
+          end_date: '2025-12-02',
+          organizations: { name: 'Paris HEMA', slug: 'paris-hema', logo_url: null },
         },
       ];
-      const chain = makeAwaitableChain({ data: rows, error: null });
-      fromMock.mockReturnValueOnce(chain);
+      const tournaments = [
+        { event_id: 'event-pub' },
+        { event_id: 'event-pub' },
+        { event_id: 'event-pub' },
+        { event_id: 'event-pub-2' },
+      ];
+      const eventsChain = makeAwaitableChain({ data: rows, error: null });
+      const tournamentsChain = makeAwaitableChain({ data: tournaments, error: null });
+      fromMock.mockReturnValueOnce(eventsChain).mockReturnValueOnce(tournamentsChain);
 
-      const result = (await service.listEvents({})) as typeof rows;
+      const result = (await service.listEvents({})) as Array<{
+        id: string;
+        tournament_count: number;
+      }>;
 
-      expect(result).toEqual(rows);
-      // Public landing page relies on the joined organization name/slug;
-      // dropping either breaks the card subtitle on app.myclash.fr/.
-      expect(chain.select).toHaveBeenCalledWith('*, organizations(name, slug)');
+      // Public landing page relies on the joined organization name/slug/logo_url;
+      // dropping any of these breaks the card subtitle / logo on app.myclash.fr/.
+      expect(eventsChain.select).toHaveBeenCalledWith('*, organizations(name, slug, logo_url)');
       // Default status filter when no `status` arg is given.
-      expect(chain.in).toHaveBeenCalledWith('status', ['published', 'running', 'completed']);
+      expect(eventsChain.in).toHaveBeenCalledWith('status', ['published', 'running', 'completed']);
       // Newest events first so the freshly-published event lands at the
       // top of the public list immediately after the admin publish.
-      expect(chain.order).toHaveBeenCalledWith('start_date', { ascending: false });
+      expect(eventsChain.order).toHaveBeenCalledWith('start_date', { ascending: false });
+      // tournament_count is folded onto each row from the batched lookup.
+      expect(result.find((r) => r.id === 'event-pub')?.tournament_count).toBe(3);
+      expect(result.find((r) => r.id === 'event-pub-2')?.tournament_count).toBe(1);
     });
 
     it('honours an explicit status filter when the caller passes one', async () => {
