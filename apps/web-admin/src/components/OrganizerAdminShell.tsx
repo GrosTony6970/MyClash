@@ -8,10 +8,14 @@ import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
 import { resolveAuthDecision } from './organizer-auth-decision';
+import { pickActiveHref } from './pick-active-href';
 
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
-  { href: 'events', labelKey: 'organizer.shell.nav.events', badge: 'EV' },
+  // `exact` prevents the events list from staying highlighted once
+  // the operator drills into an event — sub-routes
+  // `/org/{slug}/events/{eventId}/...` belong to the Event section.
+  { href: 'events', labelKey: 'organizer.shell.nav.events', badge: 'EV', exact: true },
   // Single "Rulesets" entry — the page redirects to /scoring and the
   // RulesetsTopNav pill at the top of each tab handles Scoring | Penalty
   // switching. pickActiveHref() uses startsWith() so the link stays
@@ -56,16 +60,6 @@ function joinPath(...parts: string[]) {
       index === 0 ? part.replace(/\/+$/u, '') : part.replace(/^\/+|\/+$/gu, ''),
     )
     .join('/');
-}
-
-function pickActiveHref(pathname: string, hrefs: readonly string[]): string | null {
-  let best: string | null = null;
-  for (const href of hrefs) {
-    const matches = pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
-    if (!matches) continue;
-    if (best === null || href.length > best.length) best = href;
-  }
-  return best;
 }
 
 export function OrganizerAdminShell({ children }: { children: ReactNode }) {
@@ -226,10 +220,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const sidebar = (
     <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-6">
       {navSections.map((section, idx) => {
-        const activeHref = pickActiveHref(
-          pathname,
-          section.items.map((i) => i.href),
-        );
+        const activeHref = pickActiveHref(pathname, section.items);
         const isEventSection = section.key === 'event';
         return (
           <div key={section.key} className={idx === 0 ? '' : 'border-t border-slate-800 pt-5'}>
