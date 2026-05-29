@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { partitionAndFilterEvents } from './filter-events';
+import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
 import { formatDateRange } from './format-date-range';
 
 interface PublicEvent {
@@ -61,10 +62,29 @@ export function EventsListSections({ events }: { events: PublicEvent[] }) {
         />
       </section>
 
-      <LiveSection events={live} />
-      <UpcomingSection events={published} />
-      <PastSection events={past} />
+      <LiveSection events={live} query={query} />
+      <UpcomingSection events={published} query={query} />
+      <PastSection events={past} query={query} />
     </div>
+  );
+}
+
+/**
+ * Empty-state placeholder shown when a section has zero events. Uses
+ * the trimmed search query to choose between a generic message and a
+ * "no matches" message, so the operator can see at a glance whether
+ * the search is hiding everything or there genuinely aren't any
+ * events. Replaces the previous `return null` guards on each
+ * section, which made the page reflow whenever the search shrank a
+ * section to zero.
+ */
+function EmptySectionMessage({ sectionKey, query }: { sectionKey: SectionKey; query: string }) {
+  const trimmed = query.trim();
+  const message = t(emptySectionMessageKey(sectionKey, trimmed)).replace('{query}', trimmed);
+  return (
+    <p className="rounded-lg border border-dashed border-neutral-800 bg-neutral-900/50 p-6 text-center text-sm text-neutral-500">
+      {message}
+    </p>
   );
 }
 
@@ -147,8 +167,7 @@ function PastTag() {
   );
 }
 
-function LiveSection({ events }: { events: PublicEvent[] }) {
-  if (events.length === 0) return null;
+function LiveSection({ events, query }: { events: PublicEvent[]; query: string }) {
   return (
     <section aria-labelledby="public-events-live-title" className="flex flex-col gap-4">
       <SectionHeader
@@ -156,46 +175,50 @@ function LiveSection({ events }: { events: PublicEvent[] }) {
         title={t('publicApp.home.sectionLive')}
         count={events.length}
       />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {events.map((event) => (
-          <Link
-            key={event.slug ?? event.id}
-            href={eventHref(event)}
-            className="group flex min-h-44 flex-col justify-between rounded-lg border border-emerald-500/30 bg-neutral-900 p-4 transition-colors hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <div className="flex flex-col gap-3">
-              <div className="flex items-start justify-between gap-3">
-                <LogoStack
-                  eventLogo={event.logo_url}
-                  orgLogo={event.organizations?.logo_url}
-                  alt={event.name ?? ''}
-                />
-                <LiveTag />
+      {events.length === 0 ? (
+        <EmptySectionMessage sectionKey="live" query={query} />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {events.map((event) => (
+            <Link
+              key={event.slug ?? event.id}
+              href={eventHref(event)}
+              className="group flex min-h-44 flex-col justify-between rounded-lg border border-emerald-500/30 bg-neutral-900 p-4 transition-colors hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <div className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <LogoStack
+                    eventLogo={event.logo_url}
+                    orgLogo={event.organizations?.logo_url}
+                    alt={event.name ?? ''}
+                  />
+                  <LiveTag />
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-white">
+                    {event.name ?? t('publicApp.home.unknownEvent')}
+                  </p>
+                  {event.organizations?.name && (
+                    <p className="mt-1 text-sm text-neutral-400">{event.organizations.name}</p>
+                  )}
+                  {event.location && (
+                    <p className="mt-1 text-sm text-neutral-500">{event.location}</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-lg font-bold text-white">
-                  {event.name ?? t('publicApp.home.unknownEvent')}
-                </p>
-                {event.organizations?.name && (
-                  <p className="mt-1 text-sm text-neutral-400">{event.organizations.name}</p>
-                )}
-                {event.location && (
-                  <p className="mt-1 text-sm text-neutral-500">{event.location}</p>
-                )}
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-neutral-400">{formatDateRange(event)}</span>
+                <span className="text-neutral-500">
+                  {tournamentCountLabel(event.tournament_count)}
+                </span>
+                <span className="font-semibold text-emerald-400 group-hover:text-emerald-300">
+                  {t('publicApp.home.openEvent')}
+                </span>
               </div>
-            </div>
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="text-neutral-400">{formatDateRange(event)}</span>
-              <span className="text-neutral-500">
-                {tournamentCountLabel(event.tournament_count)}
-              </span>
-              <span className="font-semibold text-emerald-400 group-hover:text-emerald-300">
-                {t('publicApp.home.openEvent')}
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -289,8 +312,7 @@ function EventTableHeader({ variant }: { variant: 'published' | 'past' }) {
   );
 }
 
-function UpcomingSection({ events }: { events: PublicEvent[] }) {
-  if (events.length === 0) return null;
+function UpcomingSection({ events, query }: { events: PublicEvent[]; query: string }) {
   return (
     <section aria-labelledby="public-events-published-title" className="flex flex-col gap-3">
       <SectionHeader
@@ -298,20 +320,23 @@ function UpcomingSection({ events }: { events: PublicEvent[] }) {
         title={t('publicApp.home.sectionPublished')}
         count={events.length}
       />
-      <div role="table" aria-labelledby="public-events-published-title">
-        <EventTableHeader variant="published" />
-        <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-neutral-800">
-          {events.map((event) => (
-            <EventRow key={event.slug ?? event.id} event={event} variant="published" />
-          ))}
+      {events.length === 0 ? (
+        <EmptySectionMessage sectionKey="upcoming" query={query} />
+      ) : (
+        <div role="table" aria-labelledby="public-events-published-title">
+          <EventTableHeader variant="published" />
+          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-neutral-800">
+            {events.map((event) => (
+              <EventRow key={event.slug ?? event.id} event={event} variant="published" />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
 
-function PastSection({ events }: { events: PublicEvent[] }) {
-  if (events.length === 0) return null;
+function PastSection({ events, query }: { events: PublicEvent[]; query: string }) {
   return (
     <section aria-labelledby="public-events-past-title" className="flex flex-col gap-3">
       <SectionHeader
@@ -319,18 +344,22 @@ function PastSection({ events }: { events: PublicEvent[] }) {
         title={t('publicApp.home.sectionPast')}
         count={events.length}
       />
-      <div
-        role="table"
-        aria-labelledby="public-events-past-title"
-        className="max-h-[60vh] overflow-y-auto"
-      >
-        <EventTableHeader variant="past" />
-        <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-neutral-800">
-          {events.map((event) => (
-            <EventRow key={event.slug ?? event.id} event={event} variant="past" />
-          ))}
+      {events.length === 0 ? (
+        <EmptySectionMessage sectionKey="past" query={query} />
+      ) : (
+        <div
+          role="table"
+          aria-labelledby="public-events-past-title"
+          className="max-h-[60vh] overflow-y-auto"
+        >
+          <EventTableHeader variant="past" />
+          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-neutral-800">
+            {events.map((event) => (
+              <EventRow key={event.slug ?? event.id} event={event} variant="past" />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

@@ -48,6 +48,12 @@ export const en = {
       resultsPending: 'Pending',
       emptyTitle: 'No public events yet',
       emptyDescription: 'Published events will appear here when organizers make them visible.',
+      emptyLive: 'No live events at the moment.',
+      emptyUpcoming: 'No upcoming events scheduled.',
+      emptyPast: 'No past events to display.',
+      emptyLiveNoMatch: 'No live events match "{query}".',
+      emptyUpcomingNoMatch: 'No upcoming events match "{query}".',
+      emptyPastNoMatch: 'No past events match "{query}".',
       unavailableTitle: 'Events are temporarily unavailable',
       unavailableDescription:
         'Try again in a moment, or open an event link shared by an organizer.',
@@ -3274,6 +3280,12 @@ export const fr = {
       emptyTitle: 'Aucun evenement public pour le moment',
       emptyDescription:
         'Les evenements publies apparaitront ici lorsque les organisateurs les rendront visibles.',
+      emptyLive: 'Aucun evenement en direct pour le moment.',
+      emptyUpcoming: 'Aucun evenement a venir.',
+      emptyPast: 'Aucun evenement passe a afficher.',
+      emptyLiveNoMatch: 'Aucun evenement en direct ne correspond a « {query} ».',
+      emptyUpcomingNoMatch: 'Aucun evenement a venir ne correspond a « {query} ».',
+      emptyPastNoMatch: 'Aucun evenement passe ne correspond a « {query} ».',
       unavailableTitle: 'Les evenements sont temporairement indisponibles',
       unavailableDescription:
         'Reessayez dans un instant, ou ouvrez un lien evenement partage par un organisateur.',
