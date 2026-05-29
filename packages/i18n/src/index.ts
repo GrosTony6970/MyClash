@@ -26,6 +26,7 @@ export const en = {
       unknownEvent: 'Untitled event',
       signIn: 'Sign in',
       personalSpace: 'Personal space',
+      signedInFallback: 'Your account',
       emptyTitle: 'No public events yet',
       emptyDescription: 'Published events will appear here when organizers make them visible.',
       unavailableTitle: 'Events are temporarily unavailable',
@@ -3218,6 +3219,7 @@ export const fr = {
       unknownEvent: 'Evenement sans titre',
       signIn: 'Se connecter',
       personalSpace: 'Espace personnel',
+      signedInFallback: 'Mon compte',
       emptyTitle: 'Aucun evenement public pour le moment',
       emptyDescription:
         'Les evenements publies apparaitront ici lorsque les organisateurs les rendront visibles.',

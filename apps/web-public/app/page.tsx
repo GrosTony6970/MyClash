@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
@@ -109,37 +108,6 @@ export default async function HomePage() {
       className="min-h-screen bg-neutral-950 px-4 py-6 text-neutral-50 sm:px-6"
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <Image
-              src="/brand/Logo_nobackground.png"
-              alt={t('app.name')}
-              width={72}
-              height={72}
-              priority
-              className="h-16 w-16"
-            />
-            <div>
-              <h1 className="text-3xl font-bold">{t('app.name')}</h1>
-              <p className="mt-1 text-sm text-neutral-400">{t('publicApp.home.description')}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/login"
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-            >
-              {t('publicApp.home.signIn')}
-            </Link>
-            <Link
-              href="/me"
-              className="rounded-md border border-neutral-700 px-4 py-2 text-sm font-bold text-neutral-100 transition hover:border-blue-400 hover:bg-blue-500/10"
-            >
-              {t('publicApp.home.personalSpace')}
-            </Link>
-          </div>
-        </header>
-
         <section className="border-y border-neutral-800 py-5">
           <p className="max-w-2xl text-lg font-semibold text-neutral-100">
             {t('publicApp.home.title')}
@@ -203,20 +171,6 @@ export default async function HomePage() {
                 ? t('publicApp.home.unavailableDescription')
                 : t('publicApp.home.emptyDescription')}
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Link
-                href="/login"
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-              >
-                {t('publicApp.home.signIn')}
-              </Link>
-              <Link
-                href="/me"
-                className="rounded-md border border-neutral-700 px-4 py-2 text-sm font-bold text-neutral-100 transition hover:border-blue-400 hover:bg-blue-500/10"
-              >
-                {t('publicApp.home.personalSpace')}
-              </Link>
-            </div>
           </section>
         )}
       </div>
