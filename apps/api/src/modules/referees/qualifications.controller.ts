@@ -108,6 +108,17 @@ export class UpdateRefereeAvailabilityDto {
   @IsOptional()
   @IsBoolean()
   availableAllEventDuration?: boolean;
+
+  /** Slice 8: explicit per-tournament allowlist; replaces the row set. */
+  @IsOptional()
+  @IsUUID('all', { each: true })
+  tournamentIds?: string[];
+
+  /** Slice 8: explicit per-day allowlist (0 = event start_date). */
+  @IsOptional()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  dayIndices?: number[];
 }
 
 /** Resolve the authenticated user UUID from the Supabase access token. */

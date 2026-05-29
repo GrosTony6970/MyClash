@@ -85,6 +85,14 @@ export interface RefereeQualification {
 export interface UpdateRefereeAvailabilityDto {
   availableAllTournaments?: boolean;
   availableAllEventDuration?: boolean;
+  /**
+   * Slice 8: explicit tournament allowlist. When present, replaces the
+   * referee's entire tournament-availability set. Mutually compatible
+   * with the boolean above — pass either to update that dimension.
+   */
+  tournamentIds?: string[];
+  /** Slice 8: explicit day-index allowlist (0 = event start_date). */
+  dayIndices?: number[];
 }
 
 export interface EventRefereeRow {
@@ -102,6 +110,14 @@ export interface EventRefereeRow {
   qualifications: Array<{ skillId: string; rating: number | null }>;
   availableAllTournaments: boolean;
   availableAllEventDuration: boolean;
+  /**
+   * Slice 8: explicit per-tournament allowlist composed from
+   * event_referee_tournaments. The boolean above is a derived shortcut
+   * (true iff this list contains every tournament currently on the event).
+   */
+  tournamentIds: string[];
+  /** Slice 8: explicit day-index allowlist (0 = event start_date). */
+  dayIndices: number[];
   assignments: Array<{ tournamentId: string; tournamentName: string; matchCount: number }>;
   totalMatchCount: number;
 }
@@ -672,6 +688,45 @@ export class QualificationsService {
 
       if (error) throw new BadRequestException(error.message);
     }
+
+    // Slice 8: explicit allowlists. When `tournamentIds` is present in the
+    // dto, replace the entire tournament allowlist for this referee
+    // (delete then insert). Same for `dayIndices`. Absent means "leave
+    // alone" so individual booleans can still mutate independently.
+    if (dto.tournamentIds !== undefined) {
+      await this.supabase.service
+        .from('event_referee_tournaments')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('person_id', personId);
+      if (dto.tournamentIds.length > 0) {
+        const { error } = await this.supabase.service.from('event_referee_tournaments').insert(
+          dto.tournamentIds.map((tournamentId) => ({
+            event_id: eventId,
+            person_id: personId,
+            tournament_id: tournamentId,
+          })),
+        );
+        if (error) throw new BadRequestException(error.message);
+      }
+    }
+    if (dto.dayIndices !== undefined) {
+      await this.supabase.service
+        .from('event_referee_days')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('person_id', personId);
+      if (dto.dayIndices.length > 0) {
+        const { error } = await this.supabase.service.from('event_referee_days').insert(
+          dto.dayIndices.map((dayIndex) => ({
+            event_id: eventId,
+            person_id: personId,
+            day_index: dayIndex,
+          })),
+        );
+        if (error) throw new BadRequestException(error.message);
+      }
+    }
   }
 
   /**
@@ -770,6 +825,28 @@ export class QualificationsService {
     // 5. Assignment counts per person per tournament.
     const assignmentMap = await this.countAssignmentsByReferee(eventId);
 
+    // 6. Slice 8: granular per-tournament + per-day allowlists.
+    const tournamentsByPerson = new Map<string, string[]>();
+    const daysByPerson = new Map<string, number[]>();
+    const { data: tournRows } = await this.supabase.service
+      .from('event_referee_tournaments')
+      .select('person_id, tournament_id')
+      .eq('event_id', eventId);
+    for (const t of (tournRows ?? []) as Array<{ person_id: string; tournament_id: string }>) {
+      const list = tournamentsByPerson.get(t.person_id) ?? [];
+      list.push(t.tournament_id);
+      tournamentsByPerson.set(t.person_id, list);
+    }
+    const { data: dayRows } = await this.supabase.service
+      .from('event_referee_days')
+      .select('person_id, day_index')
+      .eq('event_id', eventId);
+    for (const d of (dayRows ?? []) as Array<{ person_id: string; day_index: number }>) {
+      const list = daysByPerson.get(d.person_id) ?? [];
+      list.push(d.day_index);
+      daysByPerson.set(d.person_id, list);
+    }
+
     return rows.map((r) => {
       const gp = gpById.get(r.person_id) ?? null;
       const displayName = gp
@@ -807,6 +884,8 @@ export class QualificationsService {
         qualifications,
         availableAllTournaments: r.available_all_tournaments,
         availableAllEventDuration: r.available_all_event_duration,
+        tournamentIds: tournamentsByPerson.get(r.person_id) ?? [],
+        dayIndices: daysByPerson.get(r.person_id) ?? [],
         assignments,
         totalMatchCount,
       };
