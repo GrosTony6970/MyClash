@@ -958,6 +958,62 @@ describe('PhasesService', () => {
     });
   });
 
+  describe('createInitialBracketMatches', () => {
+    // Bracket matches must carry `match_number_label` (just the slot
+    // position, stringified) so consumers downstream resolve the same
+    // canonical round code the bracket view shows. Without this stamp,
+    // the scoreboard fell through to "B{round}" — divergent from the
+    // bracket card label.
+    it('stamps match_number_label = String(slot.position) on every inserted row', async () => {
+      let inserted: Array<Record<string, unknown>> | null = null;
+      const insertChain = makeAwaitableChain({ data: null, error: null });
+      insertChain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
+        inserted = rows;
+        return Promise.resolve({ data: null, error: null });
+      }) as never;
+      fromMock.mockReturnValueOnce(insertChain);
+
+      const slots = [
+        {
+          id: 'slot-1',
+          phase_id: 'phase-1',
+          round: 1,
+          position: 1,
+          source_b_type: 'seed',
+          registration_a_id: 'reg-a1',
+          registration_b_id: 'reg-b1',
+        },
+        {
+          id: 'slot-2',
+          phase_id: 'phase-1',
+          round: 1,
+          position: 2,
+          source_b_type: 'seed',
+          registration_a_id: 'reg-a2',
+          registration_b_id: 'reg-b2',
+        },
+      ];
+
+      // createInitialBracketMatches is private; reach in via the index
+      // type to test it in isolation without orchestrating a full
+      // generateBracket fixture.
+      await (service as unknown as Record<string, (s: unknown) => Promise<void>>)[
+        'createInitialBracketMatches'
+      ]!(slots);
+
+      expect(inserted).toEqual([
+        expect.objectContaining({
+          bracket_slot_id: 'slot-1',
+          match_number_label: '1',
+        }),
+        expect.objectContaining({
+          bracket_slot_id: 'slot-2',
+          match_number_label: '2',
+        }),
+      ]);
+    });
+  });
+
   describe('listPoolsWithMatches', () => {
     // Slice B of the canonical-round-code spec: the pool list and the
     // scoreboard previously rendered the same match under two different

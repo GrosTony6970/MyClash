@@ -55,9 +55,12 @@ export function BracketView({
 }: BracketViewProps) {
   const isDoubleElim = bracketConfig?.phaseType === 'double_elim';
 
-  // Memoised per-slot round-code resolver. The match number segment uses
-  // the slot's `position + 1` (1-indexed within the round) since bracket
-  // slots don't carry a separate match_number_label.
+  // Memoised per-slot round-code resolver. `slot.position` is already
+  // 1-indexed by the generator (see packages/rulesets/.../single-elim.ts
+  // — `position: pos + 1` for round 1, `position: pos` for later rounds
+  // where pos starts at 1). The earlier `slot.position + 1` here shifted
+  // every label by one (R16-M2…M9 instead of R16-M1…M8); see the
+  // regression test at apps/api/src/modules/matches/round-code.helper.test.ts.
   const roundCodeFor = React.useCallback(
     (slot: BracketSlotData): string | undefined => {
       if (!weapon) return undefined;
@@ -66,7 +69,7 @@ export function BracketView({
         poolNumber: null,
         bracketRound: slot.round,
         bracketSize,
-        matchNumber: slot.position + 1,
+        matchNumber: slot.position,
       });
     },
     [weapon, bracketSize],

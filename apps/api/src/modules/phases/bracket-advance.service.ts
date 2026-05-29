@@ -190,6 +190,10 @@ export class BracketAdvanceService {
   private async createMatchIfReady(slot: {
     id: string;
     phase_id: string;
+    /** 1-indexed slot position within the round. Stamped as
+     *  match_number_label so the scoreboard renders the same canonical
+     *  code (LSW-R16-M1) the bracket view shows. */
+    position?: number;
     source_b_type: string;
     registration_a_id: string | null;
     registration_b_id: string | null;
@@ -220,6 +224,7 @@ export class BracketAdvanceService {
       blue_score: 0,
       ruleset_code: 'TF_v1',
       ruleset_version: '1.0.0',
+      match_number_label: typeof slot.position === 'number' ? String(slot.position) : null,
     });
 
     this.logger.log(`Created match for bracket slot ${slot.id}`);

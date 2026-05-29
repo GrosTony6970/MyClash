@@ -345,6 +345,58 @@ describe('BracketAdvanceService.advanceFromSlot — fails loud', () => {
   });
 });
 
+describe('BracketAdvanceService.createMatchIfReady — stamps match_number_label', () => {
+  // After a winner propagates into a downstream slot, the lazily-
+  // created match must carry the bracket-local match number so
+  // buildRoundCode renders the same canonical code the bracket card
+  // shows. Without the stamp the scoreboard falls back to B{round}.
+  it('writes match_number_label = String(slot.position) on the inserted row', async () => {
+    let inserted: Record<string, unknown> | null = null;
+    const mockSupabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'matches') {
+            // Idempotency .maybeSingle returns no existing row, then
+            // the inserter receives the row body via the next call.
+            const chain = {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              not: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              insert: vi.fn((row: Record<string, unknown>) => {
+                inserted = row;
+                return Promise.resolve({ data: null, error: null });
+              }),
+            };
+            return chain;
+          }
+          return {} as never;
+        }),
+      },
+    };
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    const createMatchIfReady = (
+      service as unknown as Record<string, (slot: unknown) => Promise<void>>
+    )['createMatchIfReady']!.bind(service);
+
+    await createMatchIfReady({
+      id: 'slot-r2-p3',
+      phase_id: 'phase-1',
+      round: 2,
+      position: 3,
+      source_b_type: 'winner_of',
+      registration_a_id: 'reg-w1',
+      registration_b_id: 'reg-w2',
+    });
+
+    expect(inserted).toMatchObject({
+      bracket_slot_id: 'slot-r2-p3',
+      match_number_label: '3',
+    });
+  });
+});
+
 describe('BracketAdvanceService.overrideSlot — fails loud', () => {
   function makeOverrideMock(updateResult: { data: unknown; error: unknown }) {
     const updateChain = {

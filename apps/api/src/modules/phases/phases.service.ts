@@ -556,6 +556,10 @@ export class PhasesService {
       status: 'scheduled',
       red_score: 0,
       blue_score: 0,
+      // Stamp the bracket-local match number so buildRoundCode renders
+      // the same canonical code (LSW-R16-M1) the bracket view shows.
+      // Without this stamp the scoreboard fell through to B{round}.
+      match_number_label: typeof slot['position'] === 'number' ? String(slot['position']) : null,
     }));
 
     const { error } = await this.supabase.service.from('matches').insert(matchInserts);

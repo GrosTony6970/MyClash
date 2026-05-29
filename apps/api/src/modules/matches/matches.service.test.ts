@@ -103,6 +103,48 @@ describe('MatchesService', () => {
 
       expect(result.roundCode).toBe('LSW-P1-ML1-PA-M1');
     });
+
+    it('reads bracketSize from phases.config_json so bracket matches render LSW-R16-M1', async () => {
+      // After stamping match_number_label on bracket matches, the scoreboard
+      // had to ALSO fetch the phase's bracketSize to translate
+      // bracket_round → R16/QF/SF/F. Without this, the code fell back to
+      // B{round} and diverged from the bracket-card label.
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'vw_tournament_query_matches') {
+          return makeChain({
+            data: {
+              match_id: 'm-r16-1',
+              match_number_label: '1',
+              status: 'scheduled',
+              pool_id: null,
+              pool_name: null,
+              bracket_round: 1,
+              red_name: 'Alice',
+              blue_name: 'Bob',
+              red_club: null,
+              blue_club: null,
+              tournament_id: 't1',
+              phase_id: 'phase-1',
+            },
+            error: null,
+          });
+        }
+        if (tableName === 'tournaments') {
+          return makeChain({ data: { weapon: 'longsword' }, error: null });
+        }
+        if (tableName === 'phases') {
+          return makeChain({
+            data: { config_json: { bracketSize: 16 } },
+            error: null,
+          });
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = (await service.getMatchSummary('m-r16-1')) as { roundCode: string };
+
+      expect(result.roundCode).toBe('LSW-R16-M1');
+    });
   });
 
   // ── Idempotency on client_uuid ────────────────────────────────────────────

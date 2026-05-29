@@ -64,7 +64,7 @@ export class MatchesService {
     const { data, error } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id',
+        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id, phase_id',
       )
       .eq('match_id', matchId)
       .maybeSingle();
@@ -84,18 +84,32 @@ export class MatchesService {
       red_club: string | null;
       blue_club: string | null;
       tournament_id: string;
+      phase_id: string | null;
     };
 
-    // Fetch weapon from tournament (not in view). bracket_size doesn't
-    // exist on tournaments today (see staff.service comments + the
-    // 2026-05-28 fix); roundCode degrades to `B{round}` for bracket
-    // matches until phases.config_json is wired in a follow-up.
+    // Fetch weapon from tournament (not in view).
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
       .select('weapon')
       .eq('id', row.tournament_id)
       .maybeSingle();
     const weapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
+
+    // For bracket matches, fetch the phase's bracketSize so the
+    // formatter resolves bracket_round → R16/QF/SF/F instead of
+    // falling back to B{round}. Stored at bracket-generation time in
+    // phases.config_json.
+    let bracketSize: number | null = null;
+    if (row.bracket_round !== null && row.phase_id) {
+      const { data: phaseRow } = await this.supabase.service
+        .from('phases')
+        .select('config_json')
+        .eq('id', row.phase_id)
+        .maybeSingle();
+      const cfg = (phaseRow as { config_json?: Record<string, unknown> } | null)?.config_json;
+      const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
+      if (typeof size === 'number') bracketSize = size;
+    }
 
     // Pool sort_order isn't projected by vw_tournament_query_matches, so
     // we fetch it here when the match belongs to a pool — needed to feed
@@ -115,7 +129,7 @@ export class MatchesService {
       weapon,
       poolNumber,
       bracketRound: row.bracket_round,
-      bracketSize: null,
+      bracketSize,
       matchNumberLabel: row.match_number_label,
       roundNumber: null,
     });
