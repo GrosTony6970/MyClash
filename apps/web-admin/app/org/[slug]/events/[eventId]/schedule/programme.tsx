@@ -66,7 +66,6 @@ export function ProgrammePlanner({
   const [blocks, setBlocks] = useState<ProgrammeBlock[]>([]);
   const [warnings, setWarnings] = useState<BlockWarning[]>([]);
   const [config, setConfig] = useState<SuggestConfig>(DEFAULT_CONFIG);
-  const [configOpen, setConfigOpen] = useState(false);
   const [activeDay, setActiveDay] = useState(0);
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
@@ -276,148 +275,139 @@ export function ProgrammePlanner({
   }
 
   return (
-    <div className="max-w-3xl">
-      {/* Config bar */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl mb-4">
-        <button
-          onClick={() => setConfigOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700"
-        >
-          <span>Configuration</span>
-          <span className="text-gray-400">{configOpen ? '▲' : '▼'}</span>
-        </button>
-        {configOpen && (
-          <div className="px-4 pb-4 grid grid-cols-2 gap-3 text-sm border-t border-gray-200 pt-3">
-            {(
-              [
-                ['Day start', 'dayStartTime', 'time'],
-                ['Day end', 'dayEndTime', 'time'],
-                ['Parallel lices', 'parallelLiceCount', 'number'],
-                ['Match duration (min)', 'matchDurationMinutes', 'number'],
-                ['Match gap (sec)', 'matchGapSeconds', 'number'],
-                ['Break between sessions (min)', 'breakBetweenSessionsMinutes', 'number'],
-                ['Midday break start', 'middayBreakStart', 'time'],
-                ['Midday break end', 'middayBreakEnd', 'time'],
-                ['Registration (min)', 'registrationDurationMinutes', 'number'],
-                ['Gear check (min)', 'gearCheckDurationMinutes', 'number'],
-                ['Referee meeting (min)', 'refereeMeetingDurationMinutes', 'number'],
-              ] as [string, keyof SuggestConfig, string][]
-            ).map(([label, key, type]) => (
-              <label key={key} className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500">{label}</span>
-                <input
-                  type={type}
-                  value={config[key]}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      [key]: type === 'number' ? Number(e.target.value) : e.target.value,
-                    }))
-                  }
-                  className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </label>
-            ))}
-            <div className="col-span-2 flex justify-end">
-              <button
-                onClick={() => void suggest()}
-                disabled={suggesting}
-                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-              >
-                {suggesting ? 'Generating…' : '✦ Auto-suggest'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
-          {error}
-        </div>
-      )}
-
-      {generateResult && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm mb-4">
-          Generated {generateResult.matchesScheduled} matches and{' '}
-          {generateResult.workshopSessionsCreated} workshop sessions. Redirecting to grid…
-        </div>
-      )}
-
-      {/* Day tabs */}
-      {numDays > 1 && (
-        <div className="flex gap-1 mb-4">
-          {Array.from({ length: numDays }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setActiveDay(i)}
-              className={[
-                'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                activeDay === i
-                  ? 'bg-red-700 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-              ].join(' ')}
-            >
-              Day {i + 1}
-            </button>
+    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      {/* Slice 8: Configuration sidebar — fixed 280 px sticky column on
+          lg+, stacks above the preview on smaller viewports. The Suggest
+          button stays inside the sidebar so operators don't have to
+          hunt for it after tweaking values. */}
+      <aside className="lg:sticky lg:top-6 lg:self-start space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Configuration
+        </h2>
+        <div className="grid grid-cols-1 gap-3">
+          {(
+            [
+              ['Day start', 'dayStartTime', 'time'],
+              ['Day end', 'dayEndTime', 'time'],
+              ['Parallel lices', 'parallelLiceCount', 'number'],
+              ['Match duration (min)', 'matchDurationMinutes', 'number'],
+              ['Match gap (sec)', 'matchGapSeconds', 'number'],
+              ['Break between sessions (min)', 'breakBetweenSessionsMinutes', 'number'],
+              ['Midday break start', 'middayBreakStart', 'time'],
+              ['Midday break end', 'middayBreakEnd', 'time'],
+              ['Registration (min)', 'registrationDurationMinutes', 'number'],
+              ['Gear check (min)', 'gearCheckDurationMinutes', 'number'],
+              ['Referee meeting (min)', 'refereeMeetingDurationMinutes', 'number'],
+            ] as [string, keyof SuggestConfig, string][]
+          ).map(([label, key, type]) => (
+            <label key={key} className="flex flex-col gap-1">
+              <span className="text-xs text-slate-500">{label}</span>
+              <input
+                type={type}
+                value={config[key]}
+                onChange={(e) =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    [key]: type === 'number' ? Number(e.target.value) : e.target.value,
+                  }))
+                }
+                className="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+            </label>
           ))}
         </div>
-      )}
-
-      {/* Block list */}
-      {dayBlocks.length === 0 ? (
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-4 py-3 text-sm mb-4">
-          No blocks for this day. Use Auto-suggest or add blocks manually.
-        </div>
-      ) : (
-        <div className="flex flex-col gap-1.5 mb-4">
-          {dayBlocks.map((block, idx) => {
-            const warning = warnings.find((w) => w.blockId === block.id);
-            return (
-              <BlockRow
-                key={block.id}
-                block={block}
-                warning={warning}
-                dragging={draggingIndex === idx}
-                onDragStart={() => handleDragStart(idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDragEnd={() => {
-                  dragIndex.current = null;
-                  setDraggingIndex(null);
-                }}
-                onChange={(patch) => updateBlock(block.id, patch)}
-                onRemove={() => removeBlock(block.id)}
-                onApplyWarning={() => applyWarning(block.id)}
-                onDismissWarning={() => dismissWarning(block.id)}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Action bar */}
-      <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => void suggest()}
           disabled={suggesting}
-          className="text-sm text-red-700 hover:underline disabled:opacity-50"
+          className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
         >
           {suggesting ? 'Generating…' : '✦ Auto-suggest'}
         </button>
-        <button
-          onClick={() => void saveProgramme()}
-          disabled={saving || blocks.length === 0}
-          className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save programme'}
-        </button>
-        <button
-          onClick={() => setConfirmGenerate(true)}
-          disabled={generating || blocks.length === 0}
-          className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
-        >
-          {generating ? 'Generating…' : 'Generate schedule →'}
-        </button>
+      </aside>
+
+      {/* Preview / output column. */}
+      <div className="min-w-0 space-y-4">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm mb-4">
+            {error}
+          </div>
+        )}
+
+        {generateResult && (
+          <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm mb-4">
+            Generated {generateResult.matchesScheduled} matches and{' '}
+            {generateResult.workshopSessionsCreated} workshop sessions. Redirecting to grid…
+          </div>
+        )}
+
+        {/* Day tabs */}
+        {numDays > 1 && (
+          <div className="flex gap-1 mb-4">
+            {Array.from({ length: numDays }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveDay(i)}
+                className={[
+                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                  activeDay === i
+                    ? 'bg-red-700 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                ].join(' ')}
+              >
+                Day {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Block list */}
+        {dayBlocks.length === 0 ? (
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-4 py-3 text-sm mb-4">
+            No blocks for this day. Use Auto-suggest or add blocks manually.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 mb-4">
+            {dayBlocks.map((block, idx) => {
+              const warning = warnings.find((w) => w.blockId === block.id);
+              return (
+                <BlockRow
+                  key={block.id}
+                  block={block}
+                  warning={warning}
+                  dragging={draggingIndex === idx}
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={() => {
+                    dragIndex.current = null;
+                    setDraggingIndex(null);
+                  }}
+                  onChange={(patch) => updateBlock(block.id, patch)}
+                  onRemove={() => removeBlock(block.id)}
+                  onApplyWarning={() => applyWarning(block.id)}
+                  onDismissWarning={() => dismissWarning(block.id)}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Action bar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => void saveProgramme()}
+            disabled={saving || blocks.length === 0}
+            className="border border-gray-300 rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save programme'}
+          </button>
+          <button
+            onClick={() => setConfirmGenerate(true)}
+            disabled={generating || blocks.length === 0}
+            className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
+          >
+            {generating ? 'Generating…' : 'Generate schedule →'}
+          </button>
+        </div>
       </div>
 
       {/* Confirm generate modal */}
