@@ -186,7 +186,7 @@ export class EventsService {
   async getEventBySlug(slug: string) {
     const query = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug), themes(*), lices(*)');
+      .select('*, organizations(name, slug, logo_url), themes(*), lices(*)');
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
     const { data, error } = await (
