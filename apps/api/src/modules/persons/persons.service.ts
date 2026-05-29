@@ -420,8 +420,13 @@ export class PersonsService {
           ? await this.resolveClubPreview(row.club, row.club_abv, row.club_city)
           : undefined;
 
-      // Global person match
-      const globalPersonMatch = await this.findGlobalPersonMatch(row.given_name, row.family_name);
+      // Global person match — HEMA Ratings ID lookup takes priority over
+      // name fuzz when the CSV row carries one.
+      const globalPersonMatch = await this.findGlobalPersonMatch(
+        row.given_name,
+        row.family_name,
+        row.hema_ratings_id ?? null,
+      );
 
       previewRows.push({
         index: row.rowNumber - 2,
@@ -792,28 +797,8 @@ export class PersonsService {
   private async findGlobalPersonMatch(
     givenName: string,
     familyName: string,
+    hemaRatingsId?: string | null,
   ): Promise<GlobalPersonCandidate | null> {
-    const fullName = `${givenName} ${familyName}`;
-
-    const { data } = await this.supabase.service
-      .from('global_persons')
-      .select(
-        `
-        id,
-        given_name,
-        family_name,
-        display_name,
-        clubs ( name, abbreviation )
-      `,
-      )
-      .limit(5);
-
-    if (!data) return null;
-
-    // Filter by trigram similarity in JS (Supabase JS client doesn't expose similarity() directly)
-    // We rely on the index for speed; filter by threshold client-side from the small result set.
-    // For production scale, switch to an RPC function.
-    const threshold = 0.85;
     type GpRow = {
       id: string;
       given_name: string;
@@ -821,7 +806,58 @@ export class PersonsService {
       display_name: string;
       clubs: { name: string; abbreviation: string | null } | null;
     };
+    const SELECT = `
+      id,
+      given_name,
+      family_name,
+      display_name,
+      clubs ( name, abbreviation )
+    `;
 
+    // Tier 1: HEMA Ratings ID — unique identifier; takes priority over
+    // name fuzz when the CSV row carries one. Exact equality lookup.
+    if (hemaRatingsId) {
+      const { data } = await this.supabase.service
+        .from('global_persons')
+        .select(SELECT)
+        .eq('hema_ratings_id', hemaRatingsId)
+        .limit(1);
+      const hit = (data as unknown as GpRow[] | null)?.[0];
+      if (hit) return this.hydrateGlobalPersonMatch(hit);
+    }
+
+    // Tier 2: name search. The previous implementation issued a bare
+    // `.limit(5)` and trusted the JS jaccard filter to pick the match
+    // from the first 5 rows — which only worked when the right person
+    // happened to be in those 5. For an N-row CSV against an M-row
+    // global pool this degenerated to "5 of N link, the rest are
+    // misclassified as create_new". Filter by name in SQL so the
+    // candidate set actually contains the row we care about.
+    const givenLike = `%${givenName.trim()}%`;
+    const familyLike = `%${familyName.trim()}%`;
+    let { data } = await this.supabase.service
+      .from('global_persons')
+      .select(SELECT)
+      .ilike('given_name', givenLike)
+      .ilike('family_name', familyLike)
+      .limit(20);
+
+    // Loosened fallback when the joined filter found nothing — the
+    // surname alone is more distinctive than the first name and
+    // handles minor encoding drift in the given_name column.
+    if (!data || data.length === 0) {
+      const fallback = await this.supabase.service
+        .from('global_persons')
+        .select(SELECT)
+        .ilike('family_name', familyLike)
+        .limit(20);
+      data = fallback.data ?? null;
+    }
+    if (!data) return null;
+
+    const threshold = 0.85;
+
+    const fullName = `${givenName} ${familyName}`;
     const normalizedQuery = fullName.toLowerCase().trim();
     const candidates = (data as unknown as GpRow[]).filter((gp) => {
       const gpName = `${gp.given_name} ${gp.family_name}`.toLowerCase();
@@ -830,9 +866,19 @@ export class PersonsService {
 
     if (candidates.length === 0) return null;
 
-    const best = candidates[0]!;
+    return this.hydrateGlobalPersonMatch(candidates[0]!);
+  }
 
-    // Fetch a representative email from any linked person record
+  /**
+   * Side-fetch a representative email for a matched `global_persons` row
+   * and shape the response. Shared by the HEMA-ID and name branches of
+   * `findGlobalPersonMatch` so the two paths return identical shapes.
+   */
+  private async hydrateGlobalPersonMatch(best: {
+    id: string;
+    display_name: string;
+    clubs: { name: string; abbreviation: string | null } | null;
+  }): Promise<GlobalPersonCandidate> {
     const { data: linkedPerson } = await this.supabase.service
       .from('persons')
       .select('email')

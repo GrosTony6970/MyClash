@@ -339,10 +339,39 @@ export default function CsvImportPage() {
           {/* Conflict cards — require organizer decision */}
           {conflictRows.length > 0 && (
             <div>
-              <p className="text-sm font-semibold text-amber-700 mb-2">
-                {conflictRows.length} row{conflictRows.length !== 1 ? 's' : ''} matched an existing
-                global profile — review and choose:
-              </p>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-amber-700">
+                  {conflictRows.length} row{conflictRows.length !== 1 ? 's' : ''} matched an
+                  existing global profile — review and choose:
+                </p>
+                {(() => {
+                  // Bulk-accept: link every match-bearing row to its
+                  // suggested global profile. Useful when re-importing a
+                  // big CSV that's already in the global pool — without
+                  // it the organiser would have to click through 178
+                  // individual cards.
+                  const notYetLinkedCount = conflictRows.filter(
+                    (r) => (decisions[r.index] ?? r.defaultAction) !== 'link',
+                  ).length;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDecisions((prev) => {
+                          const next = { ...prev };
+                          for (const r of conflictRows) next[r.index] = 'link';
+                          return next;
+                        })
+                      }
+                      disabled={notYetLinkedCount === 0}
+                      className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                    >
+                      Link all suggested
+                      {notYetLinkedCount > 0 ? ` (${notYetLinkedCount})` : ''}
+                    </button>
+                  );
+                })()}
+              </div>
               <div className="flex flex-col gap-3">
                 {conflictRows.map((row) => (
                   <ConflictCard

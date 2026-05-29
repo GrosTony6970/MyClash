@@ -320,3 +320,165 @@ describe('PersonsService.createPerson — newClubName branch', () => {
     expect(insertCaptures['persons']![0]).toMatchObject({ club_id: 'club-existing' });
   });
 });
+
+// ── findGlobalPersonMatch (CSV preview-time matcher) ─────────────────────────
+//
+// Used by `previewImport` to populate `globalPersonMatch` + `defaultAction`
+// on every CSV row. User reported re-importing the same 178-row CSV after a
+// super-admin global import returned "173 To create, 5 To link" because the
+// matcher was sampling the first 5 global_persons rows instead of querying
+// by name. Tests pin the new behaviour: filter by name (or HEMA id when
+// available) so the candidate set actually contains the row we care about.
+
+describe('PersonsService.findGlobalPersonMatch — narrow query', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function invoke(
+    service: PersonsService,
+    givenName: string,
+    familyName: string,
+    hemaRatingsId?: string | null,
+  ) {
+    return (
+      service as unknown as Record<
+        string,
+        (g: string, f: string, h?: string | null) => Promise<unknown>
+      >
+    )['findGlobalPersonMatch']!(givenName, familyName, hemaRatingsId);
+  }
+
+  /**
+   * Build a recording-aware supabase mock that tracks every chain method
+   * called per table. The matcher tests inspect those calls to prove the
+   * query carries the right `.ilike()` / `.eq()` filters — without that,
+   * the buggy `.limit(5)` version of the function would silently pass
+   * any test that only checked the return shape (the mock would still
+   * serve the queued row).
+   */
+  function makeRecordingSupabase() {
+    const calls: Record<string, Array<{ method: string; args: unknown[] }>> = {};
+    const queues = new Map<string, { results: MockResult[] }>();
+
+    function queueResult(table: string, result: MockResult) {
+      if (!queues.has(table)) queues.set(table, { results: [] });
+      queues.get(table)!.results.push(result);
+    }
+
+    const supabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (!calls[table]) calls[table] = [];
+          if (!queues.has(table)) queues.set(table, { results: [] });
+          const next = queues.get(table)!.results.shift() ?? { data: null, error: null };
+          const record = (method: string) =>
+            vi.fn((...args: unknown[]) => {
+              calls[table]!.push({ method, args });
+              return chain;
+            });
+          const chain = {
+            select: record('select'),
+            insert: record('insert'),
+            update: record('update'),
+            eq: record('eq'),
+            ilike: record('ilike'),
+            in: record('in'),
+            not: record('not'),
+            order: record('order'),
+            limit: record('limit'),
+            maybeSingle: vi.fn(() => {
+              calls[table]!.push({ method: 'maybeSingle', args: [] });
+              return Promise.resolve(next);
+            }),
+            single: vi.fn(() => Promise.resolve(next)),
+            then: (resolve: (value: MockResult) => unknown) => Promise.resolve(next).then(resolve),
+          };
+          return chain;
+        }),
+      },
+    };
+
+    return { supabase, queueResult, calls };
+  }
+
+  it('filters global_persons by name (not just .limit(5))', async () => {
+    const { supabase, queueResult, calls } = makeRecordingSupabase();
+
+    queueResult('global_persons', {
+      data: [
+        {
+          id: 'gp-42',
+          given_name: 'Adrián',
+          family_name: 'Dader Laguna',
+          display_name: 'Adrián Dader Laguna',
+          clubs: { name: 'Gaudiosa Esgrima Histórica', abbreviation: null },
+        },
+      ],
+      error: null,
+    });
+    queueResult('persons', { data: null, error: null });
+
+    const service = new PersonsService(
+      supabase as never,
+      { maskEmail: () => '' } as never,
+      {} as never,
+    );
+
+    const match = (await invoke(service, 'Adrián', 'Dader Laguna')) as {
+      id: string;
+    } | null;
+
+    expect(match).not.toBeNull();
+    expect(match!.id).toBe('gp-42');
+
+    // The fix: the query must carry a name filter so production with
+    // 178 globals doesn't degenerate to "first 5 only".
+    const ilikeCalls = (calls['global_persons'] ?? []).filter((c) => c.method === 'ilike');
+    expect(ilikeCalls.length).toBeGreaterThan(0);
+    const familyCall = ilikeCalls.find((c) => c.args[0] === 'family_name');
+    expect(familyCall).toBeDefined();
+    expect(String(familyCall!.args[1])).toContain('Dader');
+  });
+
+  it('prefers HEMA-ID exact lookup when the CSV row carries a hema_ratings_id', async () => {
+    const { supabase, queueResult, calls } = makeRecordingSupabase();
+
+    queueResult('global_persons', {
+      data: [
+        {
+          id: 'gp-hema-6282',
+          given_name: 'Anthony',
+          family_name: 'Garnier',
+          display_name: 'Anthony Garnier',
+          clubs: { name: 'Lyon AMHE', abbreviation: null },
+        },
+      ],
+      error: null,
+    });
+    queueResult('persons', {
+      data: { email: 'anthony.garnier70@gmail.com' },
+      error: null,
+    });
+
+    const service = new PersonsService(
+      supabase as never,
+      { maskEmail: (e: string) => e } as never,
+      {} as never,
+    );
+
+    const match = (await invoke(service, 'Anthony', 'Garnier', '6282')) as {
+      id: string;
+    } | null;
+
+    expect(match).not.toBeNull();
+    expect(match!.id).toBe('gp-hema-6282');
+
+    // The HEMA-ID branch must drive the first global_persons query with
+    // an `.eq('hema_ratings_id', '6282')` filter.
+    const eqCalls = (calls['global_persons'] ?? []).filter((c) => c.method === 'eq');
+    const hemaCall = eqCalls.find((c) => c.args[0] === 'hema_ratings_id');
+    expect(hemaCall).toBeDefined();
+    expect(String(hemaCall!.args[1])).toBe('6282');
+  });
+});
