@@ -65,11 +65,14 @@ interface Lice {
   name: string;
 }
 
+// Shape returned by GET /api/v1/events/:eventId/persons — camelCase per
+// mapPerson() in apps/api/src/modules/persons/persons.service.ts. There
+// is no display_name on the Person type; we build the label from
+// givenName + familyName.
 interface Referee {
   id: string;
-  display_name: string;
-  given_name?: string;
-  family_name?: string;
+  givenName?: string | null;
+  familyName?: string | null;
 }
 
 interface MatchesTabProps {
@@ -220,9 +223,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   }
 
   function refereeLabel(r: Referee): string {
-    if (r.display_name) return r.display_name;
-    const name = `${r.given_name ?? ''} ${r.family_name ?? ''}`.trim();
-    return name || r.id;
+    const name = `${r.givenName ?? ''} ${r.familyName ?? ''}`.trim();
+    if (name) return name;
+    // Anonymous fallback — keeps the picker readable when a person row
+    // has neither given_name nor family_name on file, instead of
+    // surfacing a raw UUID.
+    return `Anonymous (${r.id.slice(0, 6)})`;
   }
 
   async function updateMatchRoleAssignment(
