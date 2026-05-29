@@ -1201,17 +1201,21 @@ describe('PhasesService', () => {
         if (tableName === 'referee_assignments') {
           // Per-match assignments. The service joins persons for the
           // display name; mock the embedded shape Supabase returns.
+          // The widened fetch ends in `.in('scope_type', [...])`, so
+          // that's where the await resolves.
           const chain = makeChain({ data: null, error: null });
-          chain.eq.mockResolvedValue({
+          chain.in.mockResolvedValue({
             data: [
               {
                 match_id: 'm-1',
+                pool_id: null,
                 role: 'arbitre_declarant',
                 person_id: 'person-1',
                 persons: { display_name: 'Alice', given_name: 'Alice', family_name: 'Smith' },
               },
               {
                 match_id: 'm-1',
+                pool_id: null,
                 role: 'arbitre_assesseur',
                 person_id: 'person-2',
                 persons: { display_name: null, given_name: 'Bob', family_name: 'Jones' },
@@ -1235,6 +1239,255 @@ describe('PhasesService', () => {
           { role: 'arbitre_assesseur', refereeId: 'person-2', refereeName: 'Bob Jones' },
         ]),
       );
+    });
+
+    // Pool-scope referee_assignments rows (written by the Referees →
+    // Assignments tab) act as the default for every match in the pool.
+    // The Matches tab read must surface them so the operator's
+    // assignments don't appear lost.
+    it('surfaces a pool-scope assignment as the default on every match in the pool', async () => {
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+          return chain;
+        }
+        if (tableName === 'tournaments') {
+          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          return chain;
+        }
+        if (tableName === 'pools') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-1',
+                blue_registration_id: 'r-2',
+                red_name: 'Red 1',
+                blue_name: 'Blue 1',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M1',
+              },
+              {
+                match_id: 'm-2',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-3',
+                blue_registration_id: 'r-4',
+                red_name: 'Red 2',
+                blue_name: 'Blue 2',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M2',
+              },
+              {
+                match_id: 'm-3',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-5',
+                blue_registration_id: 'r-6',
+                red_name: 'Red 3',
+                blue_name: 'Blue 3',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M3',
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'matches') {
+          const chain = makeChain({ data: [], error: null });
+          chain.eq.mockResolvedValue({ data: [], error: null });
+          return chain;
+        }
+        if (tableName === 'referee_assignments') {
+          // Single pool-scope row — the Assignments tab's write shape:
+          // scope_type='pool', pool_id=X, match_id=null.
+          const chain = makeChain({ data: null, error: null });
+          chain.in.mockResolvedValue({
+            data: [
+              {
+                match_id: null,
+                pool_id: 'pool-1',
+                role: 'arbitre_declarant',
+                person_id: 'person-7',
+                persons: { display_name: 'Joe Referee', given_name: 'Joe', family_name: 'Referee' },
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      const matches = result[0]!.matches as Array<{
+        id: string;
+        referees: Array<{ role: string; refereeId: string; refereeName: string }>;
+      }>;
+      expect(matches).toHaveLength(3);
+      for (const m of matches) {
+        expect(m.referees).toContainEqual({
+          role: 'arbitre_declarant',
+          refereeId: 'person-7',
+          refereeName: 'Joe Referee',
+        });
+      }
+    });
+
+    it('lets a per-match scope_type=match row override the pool default for that one match', async () => {
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+          return chain;
+        }
+        if (tableName === 'tournaments') {
+          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          return chain;
+        }
+        if (tableName === 'pools') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-1',
+                blue_registration_id: 'r-2',
+                red_name: 'Red 1',
+                blue_name: 'Blue 1',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M1',
+              },
+              {
+                match_id: 'm-2',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-3',
+                blue_registration_id: 'r-4',
+                red_name: 'Red 2',
+                blue_name: 'Blue 2',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M2',
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'matches') {
+          const chain = makeChain({ data: [], error: null });
+          chain.eq.mockResolvedValue({ data: [], error: null });
+          return chain;
+        }
+        if (tableName === 'referee_assignments') {
+          const chain = makeChain({ data: null, error: null });
+          chain.in.mockResolvedValue({
+            data: [
+              // Pool default — Joe is Déclarant for the whole pool
+              {
+                match_id: null,
+                pool_id: 'pool-1',
+                role: 'arbitre_declarant',
+                person_id: 'person-7',
+                persons: { display_name: 'Joe Default', given_name: 'Joe', family_name: 'Default' },
+              },
+              // Per-match override — m-2 gets Lea as Déclarant instead
+              {
+                match_id: 'm-2',
+                pool_id: null,
+                role: 'arbitre_declarant',
+                person_id: 'person-9',
+                persons: {
+                  display_name: 'Lea Override',
+                  given_name: 'Lea',
+                  family_name: 'Override',
+                },
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+      const matches = result[0]!.matches as Array<{
+        id: string;
+        referees: Array<{ role: string; refereeId: string; refereeName: string }>;
+      }>;
+
+      const m1 = matches.find((m) => m.id === 'm-1')!;
+      const m2 = matches.find((m) => m.id === 'm-2')!;
+
+      expect(m1.referees).toContainEqual({
+        role: 'arbitre_declarant',
+        refereeId: 'person-7',
+        refereeName: 'Joe Default',
+      });
+      expect(m2.referees).toContainEqual({
+        role: 'arbitre_declarant',
+        refereeId: 'person-9',
+        refereeName: 'Lea Override',
+      });
+      // The override replaces the role — should not see both at once.
+      expect(m2.referees.filter((r) => r.role === 'arbitre_declarant')).toHaveLength(1);
     });
   });
 

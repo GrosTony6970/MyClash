@@ -1650,24 +1650,36 @@ export class PhasesService {
       given_name: string | null;
       family_name: string | null;
     };
+    // Referee assignments live in two row shapes:
+    //   - scope_type='pool', pool_id=X, match_id=null
+    //       Written by the Referees → Assignments tab. Acts as the
+    //       DEFAULT for every match in pool X.
+    //   - scope_type='match', match_id=Y, pool_id=null
+    //       Written by the Matches tab (per-row picker + pool-header
+    //       strip). Acts as an OVERRIDE for one specific match.
+    // The Matches tab read merges them: pool defaults flow onto every
+    // match, per-match rows replace the role for that one match.
     type RefereeAssignmentRow = {
-      match_id: string;
+      match_id: string | null;
+      pool_id: string | null;
       role: string;
       person_id: string;
       // PostgREST returns embedded relations as either a single row or
       // an array depending on the resolved FK cardinality; tolerate both.
       persons: PersonEmbed | PersonEmbed[] | null;
     };
+    type RoleAssignment = { refereeId: string; refereeName: string };
+
     const matchIds = ((viewMatches ?? []) as Array<{ match_id: string }>).map((m) => m.match_id);
-    const refereesByMatch = new Map<
-      string,
-      Array<{ role: string; refereeId: string; refereeName: string }>
-    >();
+    const poolDefaults = new Map<string, Map<string, RoleAssignment>>();
+    const perMatchAssignments = new Map<string, Map<string, RoleAssignment>>();
     if (matchIds.length > 0) {
       const { data: assignmentRows } = await this.supabase.service
         .from('referee_assignments')
-        .select('match_id, role, person_id, persons(display_name, given_name, family_name)')
-        .eq('scope_type', 'match');
+        .select(
+          'match_id, pool_id, role, person_id, persons(display_name, given_name, family_name)',
+        )
+        .in('scope_type', ['pool', 'match']);
       for (const row of (assignmentRows ?? []) as unknown as RefereeAssignmentRow[]) {
         const person: PersonEmbed | null = Array.isArray(row.persons)
           ? (row.persons[0] ?? null)
@@ -1675,14 +1687,34 @@ export class PhasesService {
         const display =
           person?.display_name ??
           [person?.given_name, person?.family_name].filter(Boolean).join(' ');
-        const existing = refereesByMatch.get(row.match_id) ?? [];
-        existing.push({
-          role: row.role,
+        const entry: RoleAssignment = {
           refereeId: row.person_id,
           refereeName: display || row.person_id,
-        });
-        refereesByMatch.set(row.match_id, existing);
+        };
+        if (row.match_id) {
+          const byRole = perMatchAssignments.get(row.match_id) ?? new Map<string, RoleAssignment>();
+          byRole.set(row.role, entry);
+          perMatchAssignments.set(row.match_id, byRole);
+        } else if (row.pool_id) {
+          const byRole = poolDefaults.get(row.pool_id) ?? new Map<string, RoleAssignment>();
+          byRole.set(row.role, entry);
+          poolDefaults.set(row.pool_id, byRole);
+        }
       }
+    }
+
+    function resolveReferees(
+      matchId: string,
+      poolId: string | null,
+    ): Array<{ role: string; refereeId: string; refereeName: string }> {
+      const merged = new Map<string, RoleAssignment>();
+      if (poolId) {
+        const defaults = poolDefaults.get(poolId);
+        if (defaults) for (const [role, val] of defaults) merged.set(role, val);
+      }
+      const overrides = perMatchAssignments.get(matchId);
+      if (overrides) for (const [role, val] of overrides) merged.set(role, val);
+      return Array.from(merged, ([role, val]) => ({ role, ...val }));
     }
 
     // 5. Group matches by pool
@@ -1732,7 +1764,7 @@ export class PhasesService {
             lice_id: m.lice_id,
             referee_id: refereeMap.get(m.match_id) ?? null,
             match_number_label: m.match_number_label,
-            referees: refereesByMatch.get(m.match_id) ?? [],
+            referees: resolveReferees(m.match_id, m.pool_id),
             roundCode: buildRoundCode({
               weapon,
               poolNumber,
