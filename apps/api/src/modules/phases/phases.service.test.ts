@@ -1276,4 +1276,210 @@ describe('PhasesService', () => {
       expect(matchesChain.eq).toHaveBeenCalledWith('tournament_id', 'tournament-1');
     });
   });
+
+  // ── setPoolLice — pool-wide assignment ──────────────────────────────────
+  // The matches tab pool-header strip lets operators pick one Lice for the
+  // whole pool. Backend update is a single UPDATE matches SET lice_id=$1
+  // WHERE pool_id=$2, gated by the same auth as the per-match PATCH.
+  describe('setPoolLice', () => {
+    it('updates every match in the pool to the given liceId', async () => {
+      // Pool context lookup (private getPoolContext): pools.select.maybeSingle
+      const poolCtxChain = makeChain({
+        data: {
+          id: 'pool-1',
+          name: 'A',
+          phase_id: 'phase-1',
+          sort_order: 0,
+          phases: {
+            id: 'phase-1',
+            tournament_id: 'tournament-1',
+            tournaments: {
+              event_id: 'event-1',
+              weapon: 'longsword',
+              tournament_id: 'tournament-1',
+              events: { organization_id: 'org-1' },
+            },
+          },
+        },
+        error: null,
+      });
+      // assertPoolEditable: matches.select.eq.in (no started matches)
+      const editableChain = makeChain({ data: [], error: null });
+      editableChain.in.mockResolvedValue({ data: [], error: null });
+      // Bulk update: matches.update({lice_id}).eq('pool_id', poolId)
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.eq.mockResolvedValue({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(poolCtxChain)
+        .mockReturnValueOnce(editableChain)
+        .mockReturnValueOnce(updateChain);
+
+      const result = await service.setPoolLice('pool-1', 'lice-1', 'user-1');
+
+      expect(updateChain.update).toHaveBeenCalledWith({ lice_id: 'lice-1' });
+      expect(updateChain.eq).toHaveBeenCalledWith('pool_id', 'pool-1');
+      expect(result).toEqual({ poolId: 'pool-1', liceId: 'lice-1' });
+    });
+
+    it('clears the lice on every match when liceId is null', async () => {
+      const poolCtxChain = makeChain({
+        data: {
+          id: 'pool-1',
+          name: 'A',
+          phase_id: 'phase-1',
+          sort_order: 0,
+          phases: {
+            id: 'phase-1',
+            tournament_id: 'tournament-1',
+            tournaments: {
+              event_id: 'event-1',
+              weapon: 'longsword',
+              tournament_id: 'tournament-1',
+              events: { organization_id: 'org-1' },
+            },
+          },
+        },
+        error: null,
+      });
+      const editableChain = makeChain({ data: [], error: null });
+      editableChain.in.mockResolvedValue({ data: [], error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.eq.mockResolvedValue({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(poolCtxChain)
+        .mockReturnValueOnce(editableChain)
+        .mockReturnValueOnce(updateChain);
+
+      const result = await service.setPoolLice('pool-1', null, 'user-1');
+
+      expect(updateChain.update).toHaveBeenCalledWith({ lice_id: null });
+      expect(result).toEqual({ poolId: 'pool-1', liceId: null });
+    });
+  });
+
+  // ── setPoolRefereeRoleAssignment — pool-wide per-role assignment ───────
+  describe('setPoolRefereeRoleAssignment', () => {
+    function makeAwaitableDeleteChain(result: unknown = { data: null, error: null }) {
+      const promise = Promise.resolve(result);
+      const chain = Object.assign(promise, {
+        select: vi.fn(),
+        eq: vi.fn(),
+        in: vi.fn(),
+        delete: vi.fn(),
+        insert: vi.fn().mockResolvedValue(result),
+        order: vi.fn(),
+        update: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue(result),
+        single: vi.fn().mockResolvedValue(result),
+      });
+      for (const key of ['select', 'eq', 'in', 'delete', 'order', 'update']) {
+        (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+      }
+      return chain;
+    }
+
+    function poolContextChain() {
+      return makeChain({
+        data: {
+          id: 'pool-1',
+          name: 'A',
+          phase_id: 'phase-1',
+          sort_order: 0,
+          phases: {
+            id: 'phase-1',
+            tournament_id: 'tournament-1',
+            tournaments: {
+              event_id: 'event-1',
+              weapon: 'longsword',
+              tournament_id: 'tournament-1',
+              events: { organization_id: 'org-1' },
+            },
+          },
+        },
+        error: null,
+      });
+    }
+
+    it('inserts one assignment per match in the pool, scoped to (match, role)', async () => {
+      const editableChain = makeChain({ data: [], error: null });
+      editableChain.in.mockResolvedValue({ data: [], error: null });
+      // matches.select('id, lice_id').eq('pool_id', poolId) — list of pool matches
+      const matchesListChain = makeChain({ data: null, error: null });
+      matchesListChain.eq.mockResolvedValue({
+        data: [
+          { id: 'm-1', lice_id: 'lice-1' },
+          { id: 'm-2', lice_id: null },
+          { id: 'm-3', lice_id: 'lice-2' },
+        ],
+        error: null,
+      });
+      const insertedRows: Array<Record<string, unknown>> = [];
+      const refereeChain = makeAwaitableDeleteChain();
+      refereeChain.insert = vi.fn((rows: Record<string, unknown>[]) => {
+        insertedRows.push(...rows);
+        return Promise.resolve({ data: null, error: null });
+      }) as never;
+
+      fromMock
+        .mockReturnValueOnce(poolContextChain())
+        .mockReturnValueOnce(editableChain)
+        .mockReturnValueOnce(matchesListChain)
+        .mockReturnValueOnce(refereeChain) // delete pass
+        .mockReturnValueOnce(refereeChain); // insert pass
+
+      const result = await service.setPoolRefereeRoleAssignment(
+        'pool-1',
+        'arbitre_declarant',
+        'person-7',
+        'user-1',
+      );
+
+      expect(refereeChain.delete).toHaveBeenCalled();
+      expect(insertedRows).toHaveLength(3);
+      expect(insertedRows[0]).toMatchObject({
+        event_id: 'event-1',
+        person_id: 'person-7',
+        scope_type: 'match',
+        pool_id: null,
+        match_id: 'm-1',
+        lice_id: 'lice-1',
+        role: 'arbitre_declarant',
+        auto_assigned: false,
+        status: 'assigned',
+      });
+      expect(insertedRows[1]).toMatchObject({ match_id: 'm-2', lice_id: null });
+      expect(insertedRows[2]).toMatchObject({ match_id: 'm-3', lice_id: 'lice-2' });
+      expect(result).toEqual({
+        poolId: 'pool-1',
+        role: 'arbitre_declarant',
+        refereeId: 'person-7',
+      });
+    });
+
+    it('only deletes existing assignments when refereeId is null', async () => {
+      const editableChain = makeChain({ data: [], error: null });
+      editableChain.in.mockResolvedValue({ data: [], error: null });
+      const matchesListChain = makeChain({ data: null, error: null });
+      matchesListChain.eq.mockResolvedValue({
+        data: [{ id: 'm-1', lice_id: null }],
+        error: null,
+      });
+      const insertSpy = vi.fn();
+      const refereeChain = makeAwaitableDeleteChain();
+      refereeChain.insert = insertSpy as never;
+
+      fromMock
+        .mockReturnValueOnce(poolContextChain())
+        .mockReturnValueOnce(editableChain)
+        .mockReturnValueOnce(matchesListChain)
+        .mockReturnValueOnce(refereeChain);
+
+      await service.setPoolRefereeRoleAssignment('pool-1', 'arbitre_assesseur', null, 'user-1');
+
+      expect(refereeChain.delete).toHaveBeenCalled();
+      expect(insertSpy).not.toHaveBeenCalled();
+    });
+  });
 });

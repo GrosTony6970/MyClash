@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -127,6 +128,42 @@ export class PhasesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.phases.renamePool(poolId, dto.name, userId);
+  }
+
+  /** PUT /api/v1/pools/:poolId/lice */
+  @Put('pools/:poolId/lice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk-assign one lice to every match in a pool (org admin+)' })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async setPoolLice(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Body() dto: { liceId: string | null },
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.setPoolLice(poolId, dto.liceId ?? null, userId);
+  }
+
+  /** PUT /api/v1/pools/:poolId/referee-role-assignments */
+  @Put('pools/:poolId/referee-role-assignments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Bulk-assign (or clear) one referee for one role on every match in a pool (org admin+)',
+  })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async setPoolRefereeRoleAssignment(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Body() dto: { role: string; refereeId: string | null },
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.setPoolRefereeRoleAssignment(
+      poolId,
+      dto.role,
+      dto.refereeId ?? null,
+      userId,
+    );
   }
 
   /** POST /api/v1/pools/:poolId/members */

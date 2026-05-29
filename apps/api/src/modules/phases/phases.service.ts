@@ -1142,6 +1142,93 @@ export class PhasesService {
     return ctx;
   }
 
+  /**
+   * Set (or clear) the lice for every match in a pool.
+   *
+   * Mirrors the per-match `liceId` field on PATCH /matches/:id but applied
+   * to every match in the pool in one UPDATE — the matches-tab pool-header
+   * lets the operator pick once instead of N times.
+   */
+  async setPoolLice(
+    poolId: string,
+    liceId: string | null,
+    userId: string,
+  ): Promise<{ poolId: string; liceId: string | null }> {
+    await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    const { error } = await this.supabase.service
+      .from('matches')
+      .update({ lice_id: liceId })
+      .eq('pool_id', poolId);
+    if (error) throw new BadRequestException(error.message);
+
+    return { poolId, liceId };
+  }
+
+  /**
+   * Set (or clear) the referee for one role on every match in a pool.
+   *
+   * Mirrors `MatchesService.setRefereeRoleAssignment` but fans out to
+   * every match in the pool. Idempotent — always deletes existing
+   * (match_id, role) rows for those matches before inserting fresh
+   * ones. When `refereeId` is null we just clear.
+   */
+  async setPoolRefereeRoleAssignment(
+    poolId: string,
+    role: string,
+    refereeId: string | null,
+    userId: string,
+  ): Promise<{ poolId: string; role: string; refereeId: string | null }> {
+    const ctx = await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    const { data: matches, error: matchesErr } = await this.supabase.service
+      .from('matches')
+      .select('id, lice_id')
+      .eq('pool_id', poolId);
+    if (matchesErr) throw new BadRequestException(matchesErr.message);
+
+    const rows = (matches ?? []) as Array<{ id: string; lice_id: string | null }>;
+    if (rows.length === 0) {
+      return { poolId, role, refereeId };
+    }
+
+    const matchIds = rows.map((m) => m.id);
+
+    const { error: delErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('scope_type', 'match')
+      .eq('role', role)
+      .in('match_id', matchIds);
+    if (delErr) throw new BadRequestException(delErr.message);
+
+    if (refereeId === null) {
+      return { poolId, role, refereeId: null };
+    }
+
+    const inserts = rows.map((m) => ({
+      event_id: ctx.eventId,
+      person_id: refereeId,
+      scope_type: 'match',
+      pool_id: null,
+      match_id: m.id,
+      lice_id: m.lice_id,
+      role,
+      auto_assigned: false,
+      status: 'assigned',
+      conflicts_jsonb: [],
+    }));
+
+    const { error: insErr } = await this.supabase.service
+      .from('referee_assignments')
+      .insert(inserts);
+    if (insErr) throw new BadRequestException(insErr.message);
+
+    return { poolId, role, refereeId };
+  }
+
   async renamePool(poolId: string, name: string, userId: string) {
     const trimmed = name?.trim();
     if (!trimmed) throw new BadRequestException('Pool name is required');
