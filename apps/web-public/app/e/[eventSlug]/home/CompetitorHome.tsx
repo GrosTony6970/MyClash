@@ -6,6 +6,7 @@
  */
 
 import Link from 'next/link';
+import { EventBackLink } from './_components/EventBackLink';
 
 interface Match {
   id: string;
@@ -69,7 +70,9 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
   const nextMatch = upcoming[0] ?? null;
 
   return (
-    <main className="flex flex-col gap-8 px-4 py-6 max-w-lg mx-auto">
+    <main className="mx-auto flex max-w-lg flex-col gap-8 px-4 py-6">
+      <EventBackLink />
+
       {branding && (branding.logoUrl || branding.name) && (
         <section className="flex items-center gap-3">
           {branding.logoUrl && (
@@ -77,60 +80,56 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
             <img
               src={branding.logoUrl}
               alt=""
-              className="h-14 w-14 rounded-lg object-cover border border-gray-800"
+              className="h-14 w-14 rounded-lg border border-neutral-800 object-cover"
             />
           )}
           {branding.name && (
-            <p
-              className="text-lg font-bold"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
-            >
-              {branding.name}
-            </p>
+            <p className="font-display text-lg font-bold text-neutral-100">{branding.name}</p>
           )}
         </section>
       )}
 
       {/* Next match */}
       <section>
-        <h2
-          className="text-xs font-bold uppercase tracking-widest mb-3"
-          style={{ color: 'var(--event-accent, #f59e0b)' }}
-        >
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
           Next match
         </h2>
         {nextMatch ? (
-          <Link href={`/e/${eventSlug}/match/${nextMatch.id}`}>
-            <div
-              className="rounded-xl border-2 p-5 transition-colors"
-              style={{ borderColor: 'var(--event-primary, #c0392b)' }}
+          <Link
+            href={`/e/${eventSlug}/match/${nextMatch.id}`}
+            className="block rounded-xl border border-emerald-500/30 bg-neutral-900 p-5 transition-colors hover:border-emerald-400/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          >
+            <p className="mb-1 text-xs text-neutral-400">{nextMatch.matchNumberLabel}</p>
+            <p className="text-xl font-bold text-neutral-100">
+              vs {nextMatch.opponentName ?? 'TBD'}
+            </p>
+            {nextMatch.scheduledAt && (
+              <p className="mt-1 text-sm text-neutral-400">
+                {new Date(nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                })}
+                {nextMatch.liceName && ` · ${nextMatch.liceName}`}
+              </p>
+            )}
+            <span
+              className={[
+                'mt-3 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold uppercase',
+                nextMatch.status === 'running'
+                  ? 'border border-emerald-400/40 bg-emerald-500/15 text-emerald-300'
+                  : 'border border-neutral-700 bg-neutral-800 text-neutral-300',
+              ].join(' ')}
             >
-              <p className="text-xs text-gray-400 mb-1">{nextMatch.matchNumberLabel}</p>
-              <p className="text-xl font-bold text-white">vs {nextMatch.opponentName ?? 'TBD'}</p>
-              {nextMatch.scheduledAt && (
-                <p className="text-sm text-gray-400 mt-1">
-                  {new Date(nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                  {nextMatch.liceName && ` · ${nextMatch.liceName}`}
-                </p>
+              {nextMatch.status === 'running' && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
               )}
-              <span
-                className="inline-block mt-3 text-xs font-bold px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor:
-                    nextMatch.status === 'running' ? 'var(--event-primary, #c0392b)' : '#374151',
-                  color: 'white',
-                }}
-              >
-                {nextMatch.status === 'running' ? '● LIVE' : nextMatch.status}
-              </span>
-            </div>
+              {nextMatch.status === 'running' ? 'LIVE' : nextMatch.status}
+            </span>
           </Link>
         ) : (
-          <div className="rounded-xl border border-gray-800 p-5 text-center">
-            <p className="text-gray-500 text-sm">No upcoming matches</p>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5 text-center">
+            <p className="text-sm text-neutral-500">No upcoming matches</p>
           </div>
         )}
       </section>
@@ -138,27 +137,31 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Today's parcours */}
       {upcoming.length > 1 && (
         <section>
-          <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
-          >
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
             Today&apos;s schedule
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.slice(1).map((m) => (
-              <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+              <Link
+                key={m.id}
+                href={`/e/${eventSlug}/match/${m.id}`}
+                className="block rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 transition-colors hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">vs {m.opponentName ?? 'TBD'}</p>
-                    <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
+                    <p className="text-sm font-medium text-neutral-100">
+                      vs {m.opponentName ?? 'TBD'}
+                    </p>
+                    <p className="text-xs text-neutral-500">{m.matchNumberLabel}</p>
                   </div>
                   {m.scheduledAt && (
-                    <p className="text-sm text-gray-400">
+                    <span className="rounded-md bg-neutral-800 px-2 py-1 text-xs font-mono text-neutral-300">
                       {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
+                        hour12: false,
                       })}
-                    </p>
+                    </span>
                   )}
                 </div>
               </Link>
@@ -170,24 +173,31 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
       {/* Last results */}
       {past.length > 0 && (
         <section>
-          <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
-          >
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
             Recent results
           </h2>
           <div className="flex flex-col gap-2">
             {past.map((m) => (
-              <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+              <Link
+                key={m.id}
+                href={`/e/${eventSlug}/match/${m.id}`}
+                className="block rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 transition-colors hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">vs {m.opponentName ?? 'TBD'}</p>
-                    <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
+                    <p className="text-sm font-medium text-neutral-100">
+                      vs {m.opponentName ?? 'TBD'}
+                    </p>
+                    <p className="text-xs text-neutral-500">{m.matchNumberLabel}</p>
                   </div>
-                  <p className="text-lg font-black tabular-nums">
-                    <span style={{ color: 'var(--event-primary, #c0392b)' }}>{m.redScore}</span>
-                    <span className="text-gray-600 mx-1">–</span>
-                    <span style={{ color: 'var(--color-blue-400, #60a5fa)' }}>{m.blueScore}</span>
+                  <p className="text-lg font-black tabular-nums text-neutral-100">
+                    <span className={m.redScore > m.blueScore ? 'text-emerald-400' : undefined}>
+                      {m.redScore}
+                    </span>
+                    <span className="mx-1 text-neutral-600">–</span>
+                    <span className={m.blueScore > m.redScore ? 'text-emerald-400' : undefined}>
+                      {m.blueScore}
+                    </span>
                   </p>
                 </div>
               </Link>
@@ -198,9 +208,11 @@ export async function CompetitorHome({ eventSlug, apiUrl }: Props) {
 
       {/* Empty state */}
       {matches.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-4xl mb-3">⚔️</p>
-          <p className="text-gray-400">Your matches will appear here once the schedule is set.</p>
+        <div className="py-12 text-center">
+          <p className="mb-3 text-4xl">⚔️</p>
+          <p className="text-neutral-400">
+            Your matches will appear here once the schedule is set.
+          </p>
         </div>
       )}
     </main>

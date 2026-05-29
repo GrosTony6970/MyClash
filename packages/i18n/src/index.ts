@@ -13,6 +13,9 @@ export const en = {
   },
   publicApp: {
     name: 'MyClash',
+    eventHome: {
+      backToEvents: 'Back to events',
+    },
     home: {
       description: 'Public event app',
       title: 'Follow live HEMA events from your phone.',
@@ -3245,6 +3248,9 @@ export const fr = {
   },
   publicApp: {
     name: 'MyClash',
+    eventHome: {
+      backToEvents: 'Retour aux evenements',
+    },
     home: {
       description: 'Application publique evenement',
       title: 'Suivez les evenements AMHE en direct depuis votre telephone.',

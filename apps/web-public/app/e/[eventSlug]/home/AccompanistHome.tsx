@@ -6,6 +6,7 @@
  */
 
 import Link from 'next/link';
+import { EventBackLink } from './_components/EventBackLink';
 
 interface FavoriteMatch {
   id: string;
@@ -69,7 +70,9 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
   const upcoming = matches.filter((m) => m.status === 'scheduled');
 
   return (
-    <main className="flex flex-col gap-8 px-4 py-6 max-w-lg mx-auto">
+    <main className="mx-auto flex max-w-lg flex-col gap-8 px-4 py-6">
+      <EventBackLink />
+
       {branding && (branding.logoUrl || branding.name) && (
         <section className="flex items-center gap-3">
           {branding.logoUrl && (
@@ -77,16 +80,11 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
             <img
               src={branding.logoUrl}
               alt=""
-              className="h-14 w-14 rounded-lg object-cover border border-gray-800"
+              className="h-14 w-14 rounded-lg border border-neutral-800 object-cover"
             />
           )}
           {branding.name && (
-            <p
-              className="text-lg font-bold"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
-            >
-              {branding.name}
-            </p>
+            <p className="font-display text-lg font-bold text-neutral-100">{branding.name}</p>
           )}
         </section>
       )}
@@ -94,33 +92,33 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {/* Live now */}
       {live.length > 0 && (
         <section>
-          <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-            style={{ color: 'var(--event-primary, #c0392b)' }}
-          >
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-300">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
             Live now
           </h2>
           <div className="flex flex-col gap-3">
             {live.map((m) => (
-              <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-                <div
-                  className="rounded-xl border-2 p-4 transition-colors"
-                  style={{ borderColor: 'var(--event-primary, #c0392b)' }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-gray-400">{m.matchNumberLabel}</p>
-                    {m.liceName && <p className="text-xs text-gray-500">{m.liceName}</p>}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="font-bold text-white">{m.redFighterName ?? '?'}</p>
-                    <p className="text-2xl font-black tabular-nums">
-                      <span style={{ color: 'var(--event-primary, #c0392b)' }}>{m.redScore}</span>
-                      <span className="text-gray-600 mx-1.5">–</span>
-                      <span style={{ color: 'var(--color-blue-400, #60a5fa)' }}>{m.blueScore}</span>
-                    </p>
-                    <p className="font-bold text-white">{m.blueFighterName ?? '?'}</p>
-                  </div>
+              <Link
+                key={m.id}
+                href={`/e/${eventSlug}/match/${m.id}`}
+                className="block rounded-xl border border-emerald-500/30 bg-neutral-900 p-4 transition-colors hover:border-emerald-400/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs text-neutral-400">{m.matchNumberLabel}</p>
+                  {m.liceName && <p className="text-xs text-neutral-500">{m.liceName}</p>}
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-neutral-100">{m.redFighterName ?? '?'}</p>
+                  <p className="text-2xl font-black tabular-nums text-neutral-100">
+                    <span className={m.redScore > m.blueScore ? 'text-emerald-400' : undefined}>
+                      {m.redScore}
+                    </span>
+                    <span className="mx-1.5 text-neutral-600">–</span>
+                    <span className={m.blueScore > m.redScore ? 'text-emerald-400' : undefined}>
+                      {m.blueScore}
+                    </span>
+                  </p>
+                  <p className="font-bold text-neutral-100">{m.blueFighterName ?? '?'}</p>
                 </div>
               </Link>
             ))}
@@ -131,29 +129,31 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
       {/* Upcoming favorites */}
       {upcoming.length > 0 && (
         <section>
-          <h2
-            className="text-xs font-bold uppercase tracking-widest mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
-          >
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
             Coming up
           </h2>
           <div className="flex flex-col gap-2">
             {upcoming.map((m) => (
-              <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 hover:border-gray-600 transition-colors">
+              <Link
+                key={m.id}
+                href={`/e/${eventSlug}/match/${m.id}`}
+                className="block rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 transition-colors hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-neutral-100">
                       {m.redFighterName ?? '?'} vs {m.blueFighterName ?? '?'}
                     </p>
-                    <p className="text-xs text-gray-500">{m.matchNumberLabel}</p>
+                    <p className="text-xs text-neutral-500">{m.matchNumberLabel}</p>
                   </div>
                   {m.scheduledAt && (
-                    <p className="text-sm text-gray-400">
+                    <span className="rounded-md bg-neutral-800 px-2 py-1 text-xs font-mono text-neutral-300">
                       {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
+                        hour12: false,
                       })}
-                    </p>
+                    </span>
                   )}
                 </div>
               </Link>
@@ -164,13 +164,12 @@ export async function AccompanistHome({ eventSlug, apiUrl }: Props) {
 
       {/* Empty state */}
       {matches.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-4xl mb-3">👥</p>
-          <p className="text-gray-400 mb-4">Follow fighters to see their matches here.</p>
+        <div className="py-12 text-center">
+          <p className="mb-3 text-4xl">👥</p>
+          <p className="mb-4 text-neutral-400">Follow fighters to see their matches here.</p>
           <Link
             href={`/e/${eventSlug}/people`}
-            className="text-sm underline"
-            style={{ color: 'var(--event-primary, #c0392b)' }}
+            className="text-sm font-semibold text-emerald-400 underline hover:text-emerald-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
           >
             Browse participants →
           </Link>
