@@ -510,6 +510,75 @@ describe('EventsService', () => {
     ]);
   });
 
+  it('listOrgEvents falls back to auth admin display_name when global_persons is empty', async () => {
+    const eventsChain = makeAwaitableChain({
+      data: [{ id: 'event-1', created_by_user_id: 'user-ops' }],
+      error: null,
+    });
+    // global_persons returns nothing — user-ops is an org admin with no
+    // fighter record.
+    const globalPersonsChain = makeAwaitableChain({ data: [], error: null });
+    const tournamentsChain = makeAwaitableChain({ data: [], error: null });
+    fromMock
+      .mockReturnValueOnce(eventsChain)
+      .mockReturnValueOnce(globalPersonsChain)
+      .mockReturnValueOnce(tournamentsChain);
+    const getUserById = vi.fn().mockResolvedValue({
+      data: {
+        user: {
+          id: 'user-ops',
+          email: 'ops@example.com',
+          user_metadata: { display_name: 'Operations' },
+        },
+      },
+      error: null,
+    });
+    service = new EventsService(
+      { service: { from: fromMock, auth: { admin: { getUserById } } } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+    );
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = (await service.listOrgEvents('org-1', 'user-1')) as Array<{
+      created_by_user_name: string | null;
+    }>;
+
+    expect(getUserById).toHaveBeenCalledWith('user-ops');
+    expect(result[0]?.created_by_user_name).toBe('Operations');
+  });
+
+  it('listOrgEvents falls back to auth admin email when display_name is missing', async () => {
+    const eventsChain = makeAwaitableChain({
+      data: [{ id: 'event-1', created_by_user_id: 'user-bare' }],
+      error: null,
+    });
+    const globalPersonsChain = makeAwaitableChain({ data: [], error: null });
+    const tournamentsChain = makeAwaitableChain({ data: [], error: null });
+    fromMock
+      .mockReturnValueOnce(eventsChain)
+      .mockReturnValueOnce(globalPersonsChain)
+      .mockReturnValueOnce(tournamentsChain);
+    const getUserById = vi.fn().mockResolvedValue({
+      data: {
+        user: { id: 'user-bare', email: 'bare@example.com', user_metadata: {} },
+      },
+      error: null,
+    });
+    service = new EventsService(
+      { service: { from: fromMock, auth: { admin: { getUserById } } } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+    );
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = (await service.listOrgEvents('org-1', 'user-1')) as Array<{
+      created_by_user_name: string | null;
+    }>;
+
+    expect(result[0]?.created_by_user_name).toBe('bare@example.com');
+  });
+
   it('uploadLogo writes logo_url and returns the public URL', async () => {
     // 1) getEventById
     const eventChain = makeChain({

@@ -114,9 +114,16 @@ export class EventsService {
   }
 
   /**
-   * Batch-resolve user_ids to display names. Mirrors the resolveUsers
-   * pattern in review-queue.service.ts: pulls given_name + family_name
-   * from global_persons keyed by claimed_by_user_id. First match wins.
+   * Batch-resolve user_ids to display names. First-found wins across:
+   *   1. global_persons (given_name + family_name) — covers organisers
+   *      who self-claimed a fighter record.
+   *   2. auth admin getUserById — covers org admins who created events
+   *      but have no global_persons row. Reads user_metadata.display_name
+   *      then falls back to email. This mirrors the precedent in
+   *      admin-users.service.ts:normalizeDisplayName.
+   * auth.users is GoTrue-only and not joinable from SQL, so the second
+   * step is a per-id round-trip — kept narrow by only resolving ids that
+   * step 1 missed.
    */
   private async resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();
@@ -136,7 +143,26 @@ export class EventsService {
       const name = `${row.given_name ?? ''} ${row.family_name ?? ''}`.trim();
       if (name) map.set(uid, name);
     }
+    for (const uid of userIds) {
+      if (map.has(uid)) continue;
+      const name = await this.resolveAuthDisplayName(uid);
+      if (name) map.set(uid, name);
+    }
     return map;
+  }
+
+  private async resolveAuthDisplayName(userId: string): Promise<string | null> {
+    try {
+      const { data, error } = await this.supabase.service.auth.admin.getUserById(userId);
+      if (error || !data?.user) return null;
+      const meta = (data.user.user_metadata ?? {}) as Record<string, unknown>;
+      const displayName =
+        typeof meta['display_name'] === 'string' ? meta['display_name'].trim() : '';
+      if (displayName) return displayName;
+      return data.user.email ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async getEventBySlug(slug: string) {
