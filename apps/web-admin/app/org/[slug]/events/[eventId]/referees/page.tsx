@@ -16,6 +16,7 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
 import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
+import { assignmentChipClasses } from './_components/assignment-chip-classes';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -540,6 +541,7 @@ function AssignmentsTab({
   apiUrl,
   isReadOnly,
   skillNameById,
+  skillColorById,
 }: {
   eventId: string;
   apiUrl: string;
@@ -550,6 +552,8 @@ function AssignmentsTab({
    * in feedback_no_raw_ids_in_ui.md.
    */
   skillNameById: Map<string, string>;
+  /** Per-skill colour token for the chip tint (see assignment-chip-classes). */
+  skillColorById: Map<string, string>;
 }) {
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -781,11 +785,11 @@ function AssignmentsTab({
                                   onClick={() => setPicker({ pool, slot })}
                                   className={[
                                     'min-h-12 w-full rounded border px-2 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                                    slot.assignment
-                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                                      : slot.missingReasons.length
-                                        ? 'border-red-200 bg-red-50 text-red-900'
-                                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                                    assignmentChipClasses({
+                                      hasAssignment: !!slot.assignment,
+                                      isError: slot.missingReasons.length > 0 && !slot.assignment,
+                                      skillColor: skillColorById.get(slot.role) ?? null,
+                                    }),
                                   ].join(' ')}
                                 >
                                   <span className="block font-medium">
@@ -1005,6 +1009,13 @@ export default function RefereesPage() {
     const map = new Map<string, string>();
     for (const skill of skills) {
       if (skill.name) map.set(skill.id, skill.name);
+    }
+    return map;
+  }, [skills]);
+  const skillColorById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const skill of skills) {
+      if (skill.color) map.set(skill.id, skill.color);
     }
     return map;
   }, [skills]);
@@ -1449,6 +1460,7 @@ export default function RefereesPage() {
           apiUrl={apiUrl}
           isReadOnly={isReadOnly}
           skillNameById={skillNameById}
+          skillColorById={skillColorById}
         />
       ) : activeTab === 'qualifications' ? (
         <SkillCatalog
