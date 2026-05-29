@@ -17,6 +17,7 @@ import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
 import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
 import { assignmentChipClasses } from './_components/assignment-chip-classes';
+import { formatUnassignedReason } from './_components/format-unassigned-reason';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -798,7 +799,9 @@ function AssignmentsTab({
                                   </span>
                                   {slot.missingReasons.length > 0 && (
                                     <span className="block text-xs opacity-80">
-                                      {slot.missingReasons.join(', ')}
+                                      {slot.missingReasons
+                                        .map((r) => formatUnassignedReason(r, t))
+                                        .join(' ')}
                                     </span>
                                   )}
                                 </button>

@@ -2964,6 +2964,18 @@ export const en = {
         assignments:
           "Read-only view of every pool with its assigned Déclarant / Assesseur / Table. Lock once you're happy with the result; unlock if you need to redo it.",
       },
+      unassignedReasons: {
+        no_qualified_users: 'No one with this qualification is registered.',
+        all_qualified_already_assigned_to_pool:
+          'Everyone qualified is already assigned to another role in this pool.',
+        all_qualified_are_fighters_in_this_pool: 'Everyone qualified is fighting in this pool.',
+        all_qualified_have_time_conflict_with_other_pool:
+          'Everyone qualified has a conflict with another pool at the same time.',
+        no_candidates_after_scoring: 'No one passed the scoring filter.',
+        would_self_conflict_in_pool: 'They are already assigned to a different role in this pool.',
+        all_qualified_unavailable_for_this_pool:
+          'Everyone qualified is unavailable for this tournament or day.',
+      },
       catalogEmpty: 'No skills yet. Add a custom skill to get started.',
       catalogColColor: 'Color',
       catalogColName: 'Skill',
@@ -6149,6 +6161,20 @@ export const fr = {
           'Affectez automatiquement les arbitres aux poules selon leurs qualifications et disponibilites, puis ajustez le resultat a la main.',
         assignments:
           'Vue lecture seule de chaque poule avec ses Declarant / Assesseur / Table affectes. Verrouillez quand le resultat vous convient ; deverrouillez pour le retoucher.',
+      },
+      unassignedReasons: {
+        no_qualified_users: "Personne ayant cette qualification n'est inscrit.",
+        all_qualified_already_assigned_to_pool:
+          'Tous les arbitres qualifies sont deja affectes a un autre role dans cette poule.',
+        all_qualified_are_fighters_in_this_pool:
+          'Tous les arbitres qualifies combattent dans cette poule.',
+        all_qualified_have_time_conflict_with_other_pool:
+          'Tous les arbitres qualifies ont un conflit avec une autre poule au meme moment.',
+        no_candidates_after_scoring: "Aucun candidat n'a passe le filtre de notation.",
+        would_self_conflict_in_pool:
+          'Cette personne est deja affectee a un autre role dans cette poule.',
+        all_qualified_unavailable_for_this_pool:
+          'Tous les arbitres qualifies sont indisponibles pour ce tournoi ou ce jour.',
       },
       catalogEmpty:
         'Aucune competence pour le moment. Ajoutez une competence personnalisee pour commencer.',
