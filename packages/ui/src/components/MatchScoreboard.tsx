@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { createTranslator, getMessages } from '@myclash/i18n';
+import { formatFightOfTotal } from './format-fight-of-total';
 
 export interface MatchScoreboardProps {
   matchId: string;
@@ -40,6 +41,20 @@ interface DisplayMatch {
   scoringConfig?: TournamentScoringConfig | null;
   matchFormat?: MatchFormatConfig | null;
   sideOrder?: 'red_left' | 'blue_left';
+  /** External-display redesign: pool position the operator
+   *  references during callouts. Null for bracket matches. */
+  poolName?: string | null;
+  fightIndex?: number | null;
+  totalFightsInPool?: number | null;
+  /** External-display redesign: club + logo per side, COALESCEd
+   *  between persons.club_id and global_persons.club_id by the
+   *  staff service. */
+  redClub?: { name: string; logoUrl: string | null } | null;
+  blueClub?: { name: string; logoUrl: string | null } | null;
+  /** External-display redesign: registration ids so the realtime
+   *  penalty list can be split per side. */
+  redRegistrationId?: string | null;
+  blueRegistrationId?: string | null;
 }
 
 interface Penalty {
@@ -111,20 +126,60 @@ function FighterPanel({
   color,
   name,
   score,
+  club,
+  penalties,
 }: {
   color: keyof typeof DISPLAY_COLOR_STYLE;
   name: string;
   score: number;
+  club: { name: string; logoUrl: string | null } | null;
+  penalties: Penalty[];
 }): React.ReactElement {
   return (
     <div className="text-center">
-      <p className="min-h-24 text-5xl font-black leading-tight">{name}</p>
+      {/* Big score — was below the name; now sits at the top of the
+          column so the name + club + cards form a labelled block
+          below it (matches the operator-approved Layout A). */}
       <p
-        className="mt-10 text-[18rem] font-black leading-none tabular-nums"
+        className="text-[16rem] font-black leading-none tabular-nums"
         style={{ color: DISPLAY_COLOR_STYLE[color] }}
       >
         {score}
       </p>
+      <p className="mt-6 text-5xl font-black uppercase tracking-wide leading-tight">{name}</p>
+      {club && (
+        <div className="mt-3 flex items-center justify-center gap-2 text-2xl text-gray-300">
+          {club.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={club.logoUrl}
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-full border border-white/20 bg-white/5 object-contain"
+            />
+          )}
+          <span>{club.name}</span>
+        </div>
+      )}
+      {penalties.length > 0 && (
+        <div className="mt-4 flex items-center justify-center gap-1.5" aria-label="Penalty cards">
+          {penalties.map((p) => (
+            <span
+              key={p.id}
+              title={p.card}
+              className={[
+                'h-6 w-4 rounded-sm border border-white/30 shadow',
+                p.card === 'yellow'
+                  ? 'bg-yellow-400'
+                  : p.card === 'red'
+                    ? 'bg-red-600'
+                    : 'bg-black',
+              ].join(' ')}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -268,35 +323,61 @@ export function MatchScoreboard({
   const matchFormat = match.matchFormat ?? DEFAULT_MATCH_FORMAT_CONFIG;
   const shownMs = formatClockMs(displayClockMs(elapsedMs, matchFormat));
   const warnClock = shouldWarnClock(elapsedMs, matchFormat);
+  // External-display redesign: split the realtime penalty list per
+  // side so each FighterPanel can render its own card row.
+  const redPenalties = activePenalties.filter(
+    (p) => match.redRegistrationId && p.registration_id === match.redRegistrationId,
+  );
+  const bluePenalties = activePenalties.filter(
+    (p) => match.blueRegistrationId && p.registration_id === match.blueRegistrationId,
+  );
+
   const redPanel = {
     color: sideColors.red,
     name: match.redFighterName ?? t('scoring.liveMatch.red'),
     score: match.redScore,
+    club: match.redClub ?? null,
+    penalties: redPenalties,
   };
   const bluePanel = {
     color: sideColors.blue,
     name: match.blueFighterName ?? t('scoring.liveMatch.blue'),
     score: match.blueScore,
+    club: match.blueClub ?? null,
+    penalties: bluePenalties,
   };
   const panels: [typeof redPanel, typeof bluePanel] =
     match.sideOrder === 'blue_left' ? [bluePanel, redPanel] : [redPanel, bluePanel];
 
+  // Compact title strip — drops the duplicate matchNumberLabel line
+  // and the standalone roundCode block in favour of one breadcrumb:
+  //   Tournament · Lice · Pool · Fight X / Y
+  // The roundCode survives as a tiny mono caption underneath
+  // because operators read it on the mic during callouts.
+  const fightOfTotal = formatFightOfTotal(match.fightIndex, match.totalFightsInPool);
+  const titleSegments = [
+    match.tournament?.name,
+    match.lice?.name,
+    match.poolName,
+    fightOfTotal,
+  ].filter(Boolean);
+
   return (
     <main className={`bg-black text-white ${className ?? ''}`}>
       <div className="flex min-h-screen flex-col px-10 py-8">
+        {/* Compact title strip — replaces the two duplicate
+            identifier lines (matchNumberLabel + roundCode) with one
+            breadcrumb. Status pill stays on the right. */}
         <header className="flex items-start justify-between gap-6">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.25em] text-red-400">
               {t('scoring.liveMatch.displayTitle')}
             </p>
-            <h1 className="mt-2 text-4xl font-black">{match.event?.name ?? 'MyClash'}</h1>
-            <p className="mt-2 text-xl text-gray-300">
-              {[match.tournament?.name, match.lice?.name, match.matchNumberLabel]
-                .filter(Boolean)
-                .join(' - ')}
-            </p>
+            <h1 className="mt-2 text-3xl font-black uppercase tracking-wide">
+              {titleSegments.join(' · ') || match.event?.name || 'MyClash'}
+            </h1>
             {match.roundCode && (
-              <p className="mt-1 font-mono text-sm uppercase tracking-widest text-amber-300">
+              <p className="mt-1 font-mono text-xs uppercase tracking-widest text-amber-300/80">
                 {match.roundCode}
               </p>
             )}
@@ -306,43 +387,42 @@ export function MatchScoreboard({
           </div>
         </header>
 
+        {/* Timer — centred above the score columns, big and
+            monospaced so the spectator can read it from the back of
+            the hall. */}
         <div
-          className={`mt-8 text-center text-8xl font-black tabular-nums ${
-            warnClock ? 'text-red-500' : 'text-white'
+          className={`mt-6 text-center text-8xl font-black tabular-nums ${
+            warnClock ? 'text-red-500' : 'text-amber-300'
           }`}
         >
           {shownMs}
         </div>
 
-        <section className="grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-10">
-          <FighterPanel color={panels[0].color} name={panels[0].name} score={panels[0].score} />
-          <div className="text-7xl font-black text-gray-500">-</div>
-          <FighterPanel color={panels[1].color} name={panels[1].name} score={panels[1].score} />
+        {/* Two-column score block — each FighterPanel stacks score
+            → name → club logo + name → penalty card row. */}
+        <section className="mt-8 grid flex-1 grid-cols-[1fr_auto_1fr] items-start gap-10">
+          <FighterPanel
+            color={panels[0].color}
+            name={panels[0].name}
+            score={panels[0].score}
+            club={panels[0].club}
+            penalties={panels[0].penalties}
+          />
+          <div className="self-center text-7xl font-black text-gray-500">-</div>
+          <FighterPanel
+            color={panels[1].color}
+            name={panels[1].name}
+            score={panels[1].score}
+            club={panels[1].club}
+            penalties={panels[1].penalties}
+          />
         </section>
 
-        <footer className="grid grid-cols-2 gap-6 border-t border-white/10 pt-6">
-          <div className="flex flex-wrap gap-3">
-            {activePenalties.map((penalty) => (
-              <span
-                key={penalty.id}
-                className={`rounded-lg px-4 py-2 text-lg font-black uppercase ${
-                  penalty.card === 'yellow'
-                    ? 'bg-yellow-400 text-black'
-                    : penalty.card === 'red'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-white text-black'
-                }`}
-              >
-                {penalty.card}
-              </span>
-            ))}
-          </div>
-          {showNextMatch && (
-            <div className="text-right text-xl text-gray-300">
-              {t('scoring.liveMatch.waitingForMatch')}
-            </div>
-          )}
-        </footer>
+        {showNextMatch && (
+          <footer className="border-t border-white/10 pt-6 text-right text-xl text-gray-300">
+            {t('scoring.liveMatch.waitingForMatch')}
+          </footer>
+        )}
       </div>
     </main>
   );

@@ -366,16 +366,40 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        // tournaments.bracket_size doesn't exist (see sibling query
-        // comment above). Drop it from the select so the request stops
-        // 400ing on PostgREST; bracketRoundLabel handles null cleanly.
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round)',
+        // Extended for the external-display redesign:
+        //   - pools(id,name) so the title can show "Pool A" without
+        //     a separate fetch.
+        //   - persons embeds now carry club_id + clubs(name,
+        //     logo_url) AND global_person_id +
+        //     global_persons(club_id, clubs(name, logo_url)) so the
+        //     payload can COALESCE both club paths (mirrors the
+        //     0079_tournament_query_global_person_clubs migration).
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_person_id,global_persons(club_id,clubs(name,logo_url)))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_person_id,global_persons(club_id,clubs(name,logo_url)))),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Match not found');
-    return this.mapDisplayMatch(data);
+
+    // Sibling matches in the same pool drive Fight X / Y. Skipped
+    // for bracket matches (pool_id is null).
+    let fightIndex: number | null = null;
+    let totalFightsInPool: number | null = null;
+    const poolId = (data as { pool_id?: string | null }).pool_id ?? null;
+    if (poolId) {
+      const { data: siblings, error: siblingsErr } = await this.supabase.service
+        .from('matches')
+        .select('id, match_number_label')
+        .eq('pool_id', poolId)
+        .order('match_number_label', { ascending: true });
+      if (siblingsErr) throw new BadRequestException(siblingsErr.message);
+      const ordered = (siblings ?? []) as Array<{ id: string; match_number_label: string | null }>;
+      totalFightsInPool = ordered.length;
+      const idx = ordered.findIndex((m) => m.id === matchId);
+      fightIndex = idx >= 0 ? idx + 1 : null;
+    }
+
+    return this.mapDisplayMatch(data, { fightIndex, totalFightsInPool });
   }
 
   private async getMatchContext(matchId: string) {
@@ -620,13 +644,24 @@ export class StaffService {
     };
   }
 
-  private mapDisplayMatch(match: Record<string, unknown>) {
-    const red = match['red'] as {
-      persons?: { given_name?: string | null; family_name?: string | null };
-    } | null;
-    const blue = match['blue'] as {
-      persons?: { given_name?: string | null; family_name?: string | null };
-    } | null;
+  private mapDisplayMatch(
+    match: Record<string, unknown>,
+    extras: { fightIndex: number | null; totalFightsInPool: number | null } = {
+      fightIndex: null,
+      totalFightsInPool: null,
+    },
+  ) {
+    type ClubsEmbed = { name?: string | null; logo_url?: string | null } | null;
+    type PersonEmbed = {
+      given_name?: string | null;
+      family_name?: string | null;
+      club_id?: string | null;
+      clubs?: ClubsEmbed;
+      global_person_id?: string | null;
+      global_persons?: { club_id?: string | null; clubs?: ClubsEmbed } | null;
+    };
+    const red = match['red'] as { persons?: PersonEmbed } | null;
+    const blue = match['blue'] as { persons?: PersonEmbed } | null;
     const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
     const phases = match['phases'] as {
       tournaments?: {
@@ -637,8 +672,36 @@ export class StaffService {
         ruleset_config?: { matchFormat?: unknown };
       };
     } | null;
-    const pool = match['pools'] as { sort_order?: number } | null;
+    const pool = match['pools'] as {
+      id?: string;
+      name?: string | null;
+      sort_order?: number;
+    } | null;
     const bracketSlot = match['bracket_slots'] as { round?: number } | null;
+    const poolName = pool?.name ?? null;
+
+    // COALESCE the club between persons.club_id and
+    // persons.global_person_id → global_persons.club_id. Mirrors
+    // 0079_tournament_query_global_person_clubs so HEMA-synced
+    // participants whose club only lives on global_persons still
+    // surface here.
+    function resolveClub(
+      side: { persons?: PersonEmbed } | null,
+    ): { name: string; logoUrl: string | null } | null {
+      const person = side?.persons;
+      if (!person) return null;
+      const local = person.clubs;
+      if (local && (local.name || local.logo_url)) {
+        return { name: local.name ?? '', logoUrl: local.logo_url ?? null };
+      }
+      const global = person.global_persons?.clubs;
+      if (global && (global.name || global.logo_url)) {
+        return { name: global.name ?? '', logoUrl: global.logo_url ?? null };
+      }
+      return null;
+    }
+    const redClub = resolveClub(red);
+    const blueClub = resolveClub(blue);
 
     const weapon = phases?.tournaments?.weapon ?? null;
     // tournaments.bracket_size doesn't exist — see select-clause comment
@@ -680,6 +743,11 @@ export class StaffService {
       tournament: phases?.tournaments ?? null,
       scoringConfig: phases?.tournaments?.scoring_config_json ?? null,
       matchFormat: phases?.tournaments?.ruleset_config?.matchFormat ?? null,
+      poolName,
+      fightIndex: extras.fightIndex,
+      totalFightsInPool: extras.totalFightsInPool,
+      redClub,
+      blueClub,
     };
   }
 }
