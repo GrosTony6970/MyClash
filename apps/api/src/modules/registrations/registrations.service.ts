@@ -63,6 +63,7 @@ export class RegistrationsService {
       tournamentName: string;
       status: string;
       seed: number | null;
+      waitlistPosition: number | null;
     }>
   > {
     const { data, error } = await this.supabase.service
@@ -75,6 +76,7 @@ export class RegistrationsService {
         status,
         seed,
         bib_number,
+        waitlist_position,
         tournaments!inner(id, name, event_id)
       `,
       )
@@ -91,6 +93,7 @@ export class RegistrationsService {
       tournament_id: string;
       status: string;
       seed: number | null;
+      waitlist_position: number | null;
       tournaments:
         | { id: string; name: string; event_id: string }
         | { id: string; name: string; event_id: string }[]
@@ -105,6 +108,7 @@ export class RegistrationsService {
         tournamentName: tournament?.name ?? '',
         status: row.status,
         seed: row.seed,
+        waitlistPosition: row.waitlist_position,
       };
     });
   }

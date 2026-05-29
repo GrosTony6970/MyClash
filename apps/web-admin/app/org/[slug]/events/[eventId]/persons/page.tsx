@@ -12,6 +12,7 @@ import {
   type ClubSuggestion as ClubPickerSuggestion,
 } from './_components/club-picker-rows';
 import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
+import { WaitingListPanel } from './_components/WaitingListPanel';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface Person {
@@ -31,14 +32,18 @@ interface Registration {
   personId: string;
   tournamentId: string;
   tournamentName: string;
-  status: 'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified';
+  status: 'registered' | 'checked_in' | 'done' | 'withdrawn' | 'disqualified' | 'waitlist';
   seed: number | null;
+  /** Slice 5: position 1..N for waitlist entries; null otherwise. */
+  waitlistPosition: number | null;
 }
 
 interface Tournament {
   id: string;
   name: string;
   color?: string | null;
+  /** Slice 5: waitlist cap surfaced on the per-tournament panel header. */
+  maxWaitlist?: number | null;
 }
 
 interface ClubSuggestion {
@@ -92,6 +97,19 @@ export default function ParticipantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<string>('all');
+  /** Slice 5: top-level mode toggle. 'persons' shows the existing roster
+   *  view; 'waiting-list' renders per-tournament waitlist tables instead. */
+  const [mode, setMode] = useState<'persons' | 'waiting-list'>(() => {
+    if (typeof window === 'undefined') return 'persons';
+    return window.location.hash === '#waiting-list' ? 'waiting-list' : 'persons';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const desired = mode === 'waiting-list' ? '#waiting-list' : '';
+    if (window.location.hash !== desired) {
+      window.history.replaceState(null, '', `${window.location.pathname}${desired}`);
+    }
+  }, [mode]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -178,7 +196,17 @@ export default function ParticipantsPage() {
         setLoading(false);
         if (pRes.ok) setPersons((await pRes.json()) as Person[]);
         if (rRes.ok) setRegistrations((await rRes.json()) as Registration[]);
-        if (tRes.ok) setTournaments((await tRes.json()) as Tournament[]);
+        if (tRes.ok) {
+          const raw = (await tRes.json()) as Array<Tournament & { max_waitlist?: number | null }>;
+          setTournaments(
+            raw.map((t) => ({
+              id: t.id,
+              name: t.name,
+              color: t.color ?? null,
+              maxWaitlist: t.maxWaitlist ?? t.max_waitlist ?? null,
+            })),
+          );
+        }
       })
       .catch((err: unknown) => {
         setLoading(false);
@@ -666,113 +694,116 @@ export default function ParticipantsPage() {
         </div>
       </div>
 
-      <div className="mb-4">
-        <input
-          type="search"
-          placeholder="Search by name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-64"
+      {/* Slice 5: top-level mode toggle. 'Persons' is the existing roster
+       *  view; 'Waiting list' renders per-tournament queue tables instead. */}
+      <div className="mb-4 inline-flex rounded-lg border border-gray-300 bg-white p-0.5">
+        <button
+          type="button"
+          onClick={() => setMode('persons')}
+          className={[
+            'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+            mode === 'persons' ? 'bg-red-700 text-white' : 'text-gray-600 hover:bg-gray-50',
+          ].join(' ')}
+        >
+          Persons
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('waiting-list')}
+          className={[
+            'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+            mode === 'waiting-list' ? 'bg-red-700 text-white' : 'text-gray-600 hover:bg-gray-50',
+          ].join(' ')}
+        >
+          Waiting list
+        </button>
+      </div>
+
+      {mode === 'waiting-list' && (
+        <WaitingListPanel
+          apiUrl={apiUrl}
+          tournaments={tournaments}
+          registrations={registrations}
+          personById={
+            new Map(
+              persons.map((p) => [
+                p.id,
+                {
+                  id: p.id,
+                  givenName: p.givenName,
+                  familyName: p.familyName,
+                  clubLabel: p.clubLabel,
+                },
+              ]),
+            )
+          }
+          onChange={refresh}
         />
-      </div>
+      )}
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {(['all', ...tournaments.map((tour) => tour.id)] as string[]).map((tabId) => {
-          const label =
-            tabId === 'all'
-              ? 'All event'
-              : (tournaments.find((tour) => tour.id === tabId)?.name ?? tabId);
-          const active = activeTab === tabId;
-          return (
-            <button
-              key={tabId}
-              onClick={() => {
-                setActiveTab(tabId);
-                setSelected(new Set());
-              }}
-              className={[
-                'px-3 py-1.5 rounded-full text-sm font-medium transition-colors border',
-                active
-                  ? 'bg-red-700 text-white border-red-700'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      {mode === 'persons' && (
+        <>
+          <div className="mb-4">
+            <input
+              type="search"
+              placeholder="Search by name…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-64"
+            />
+          </div>
 
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
-          <span className="text-sm text-gray-600 font-medium">{selected.size} selected</span>
-          <button
-            onClick={() => void handleBulkDelete()}
-            disabled={bulkLoading || isReadOnly}
-            title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-            className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
-          >
-            Delete selected
-          </button>
-          {activeTab === 'all' && tournaments.length > 0 && (
-            <div className="flex items-center gap-2">
-              <select
-                value={bulkAssignTournamentId}
-                onChange={(e) => setBulkAssignTournamentId(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs"
-              >
-                <option value="">Assign to tournament…</option>
-                {tournaments.map((tour) => (
-                  <option key={tour.id} value={tour.id}>
-                    {tour.name}
-                  </option>
-                ))}
-              </select>
-              {bulkAssignTournamentId && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {(['all', ...tournaments.map((tour) => tour.id)] as string[]).map((tabId) => {
+              const label =
+                tabId === 'all'
+                  ? 'All event'
+                  : (tournaments.find((tour) => tour.id === tabId)?.name ?? tabId);
+              const active = activeTab === tabId;
+              return (
                 <button
-                  onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
-                  disabled={bulkLoading}
-                  className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                  key={tabId}
+                  onClick={() => {
+                    setActiveTab(tabId);
+                    setSelected(new Set());
+                  }}
+                  className={[
+                    'px-3 py-1.5 rounded-full text-sm font-medium transition-colors border',
+                    active
+                      ? 'bg-red-700 text-white border-red-700'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                  ].join(' ')}
                 >
-                  Assign
+                  {label}
                 </button>
-              )}
-            </div>
-          )}
-          {activeTab !== 'all' && (
-            <>
+              );
+            })}
+          </div>
+
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
+              <span className="text-sm text-gray-600 font-medium">{selected.size} selected</span>
               <button
-                onClick={() => void handleBulkCheckIn()}
+                onClick={() => void handleBulkDelete()}
                 disabled={bulkLoading || isReadOnly}
                 title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                className="text-sm text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
+                className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
               >
-                Check in selected
+                Delete selected
               </button>
-              <button
-                onClick={() => void handleBulkUnassign()}
-                disabled={bulkLoading || isReadOnly}
-                title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
-              >
-                Unassign from{' '}
-                {tournaments.find((tour) => tour.id === activeTab)?.name ?? 'tournament'}
-              </button>
-              {tournaments.filter((tour) => tour.id !== activeTab).length > 0 && (
+              {activeTab === 'all' && tournaments.length > 0 && (
                 <div className="flex items-center gap-2">
                   <select
                     value={bulkAssignTournamentId}
                     onChange={(e) => setBulkAssignTournamentId(e.target.value)}
                     className="border border-gray-300 rounded px-2 py-1 text-xs"
                   >
-                    <option value="">Assign to another…</option>
-                    {tournaments
-                      .filter((tour) => tour.id !== activeTab)
-                      .map((tour) => (
-                        <option key={tour.id} value={tour.id}>
-                          {tour.name}
-                        </option>
-                      ))}
+                    <option value="">Assign to tournament…</option>
+                    {tournaments.map((tour) => (
+                      <option key={tour.id} value={tour.id}>
+                        {tour.name}
+                      </option>
+                    ))}
                   </select>
                   {bulkAssignTournamentId && (
                     <button
@@ -785,722 +816,781 @@ export default function ParticipantsPage() {
                   )}
                 </div>
               )}
-            </>
+              {activeTab !== 'all' && (
+                <>
+                  <button
+                    onClick={() => void handleBulkCheckIn()}
+                    disabled={bulkLoading || isReadOnly}
+                    title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                    className="text-sm text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
+                  >
+                    Check in selected
+                  </button>
+                  <button
+                    onClick={() => void handleBulkUnassign()}
+                    disabled={bulkLoading || isReadOnly}
+                    title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                    className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
+                  >
+                    Unassign from{' '}
+                    {tournaments.find((tour) => tour.id === activeTab)?.name ?? 'tournament'}
+                  </button>
+                  {tournaments.filter((tour) => tour.id !== activeTab).length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={bulkAssignTournamentId}
+                        onChange={(e) => setBulkAssignTournamentId(e.target.value)}
+                        className="border border-gray-300 rounded px-2 py-1 text-xs"
+                      >
+                        <option value="">Assign to another…</option>
+                        {tournaments
+                          .filter((tour) => tour.id !== activeTab)
+                          .map((tour) => (
+                            <option key={tour.id} value={tour.id}>
+                              {tour.name}
+                            </option>
+                          ))}
+                      </select>
+                      {bulkAssignTournamentId && (
+                        <button
+                          onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
+                          disabled={bulkLoading}
+                          className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          Assign
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {loading ? (
-        <p className="text-gray-400 text-sm">Loading…</p>
-      ) : filteredPersons.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-          <p className="text-gray-400 text-sm">No participants found.</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200 text-left text-gray-500">
-                <th className="py-2 pr-3 w-8">
-                  <input
-                    type="checkbox"
-                    checked={selected.size === filteredPersons.length && filteredPersons.length > 0}
-                    onChange={toggleAll}
-                    className="rounded"
-                  />
-                </th>
-                <SortableTh
-                  label="Name"
-                  sortKey="name"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onClick={() => toggleSort('name')}
-                />
-                <SortableTh
-                  label="Club"
-                  sortKey="club"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onClick={() => toggleSort('club')}
-                />
-                <SortableTh
-                  label="Claim status"
-                  sortKey="claim"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onClick={() => toggleSort('claim')}
-                />
-                <SortableTh
-                  label="Tournaments"
-                  sortKey="tournaments"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onClick={() => toggleSort('tournaments')}
-                />
-                <SortableTh
-                  label={t('organizer.persons.refereeColumn')}
-                  sortKey="referee"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onClick={() => toggleSort('referee')}
-                />
-                <th className="py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPersons.map((p) => {
-                const regs = registrationsByPersonId.get(p.id) ?? [];
-                const displayRegs =
-                  activeTab === 'all' ? regs : regs.filter((r) => r.tournamentId === activeTab);
-                return (
-                  <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 pr-3">
+          {loading ? (
+            <p className="text-gray-400 text-sm">Loading…</p>
+          ) : filteredPersons.length === 0 ? (
+            <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+              <p className="text-gray-400 text-sm">No participants found.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                    <th className="py-2 pr-3 w-8">
                       <input
                         type="checkbox"
-                        checked={selected.has(p.id)}
-                        onChange={() => toggleSelect(p.id)}
+                        checked={
+                          selected.size === filteredPersons.length && filteredPersons.length > 0
+                        }
+                        onChange={toggleAll}
                         className="rounded"
                       />
-                    </td>
-                    <td className="py-2 pr-4">
-                      <p className="font-medium text-gray-900">
-                        {p.givenName} {p.familyName}
-                      </p>
-                      {p.email && <p className="text-xs text-gray-400 font-mono">{p.email}</p>}
-                    </td>
-                    <td className="py-2 pr-4 text-gray-600">{p.clubLabel ?? '—'}</td>
-                    <td className="py-2 pr-4">
-                      <span
-                        className={[
-                          'text-xs px-2 py-0.5 rounded-full font-medium',
-                          CLAIM_COLORS[p.claimStatus] ?? '',
-                        ].join(' ')}
-                      >
-                        {p.claimStatus.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4">
-                      {displayRegs.length === 0 ? (
-                        <span className="text-gray-400 text-xs">—</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {displayRegs.map((r) => {
-                            const tour = tournaments.find((tour) => tour.id === r.tournamentId);
-                            return (
-                              <span
-                                key={r.id}
-                                className={[
-                                  'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
-                                  REG_STATUS_COLORS[r.status] ?? '',
-                                ].join(' ')}
-                                title={r.tournamentName}
-                              >
-                                <TournamentColorDot color={tour?.color} />
-                                {activeTab === 'all'
-                                  ? r.tournamentName
-                                  : r.status.replace('_', ' ')}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4">
-                      {p.globalPersonId && refereePersonIds.has(p.globalPersonId) ? (
-                        <SkillBadge
-                          color="violet"
-                          label={
-                            !p.claimedByUserId
-                              ? `${t('organizer.persons.refereeTag')} · ${t('organizer.persons.refereeUnclaimedBadge')}`
-                              : t('organizer.persons.refereeTag')
-                          }
-                        />
-                      ) : null}
-                    </td>
-                    <td className="py-2">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openEdit(p)}
-                          disabled={isReadOnly}
-                          title={
-                            isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
-                          }
-                          className="text-xs text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => void handleDelete(p.id)}
-                          disabled={isReadOnly}
-                          title={
-                            isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
-                          }
-                          className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                    </th>
+                    <SortableTh
+                      label="Name"
+                      sortKey="name"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onClick={() => toggleSort('name')}
+                    />
+                    <SortableTh
+                      label="Club"
+                      sortKey="club"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onClick={() => toggleSort('club')}
+                    />
+                    <SortableTh
+                      label="Claim status"
+                      sortKey="claim"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onClick={() => toggleSort('claim')}
+                    />
+                    <SortableTh
+                      label="Tournaments"
+                      sortKey="tournaments"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onClick={() => toggleSort('tournaments')}
+                    />
+                    <SortableTh
+                      label={t('organizer.persons.refereeColumn')}
+                      sortKey="referee"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onClick={() => toggleSort('referee')}
+                    />
+                    <th className="py-2 font-medium">Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Claim-status legend. Pills match the column palette exactly so the
-          column reads as documented. */}
-      <div className="mt-3 flex flex-col gap-1 text-xs text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-        <span className="font-semibold text-gray-500">Claim status:</span>
-        <span className="inline-flex items-center gap-2">
-          <span className={`${CLAIM_COLORS.unclaimed} px-2 py-0.5 rounded-full font-medium`}>
-            unclaimed
-          </span>
-          <span>no MyClash account yet; organizer added them, no claim made</span>
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className={`${CLAIM_COLORS.guest_active} px-2 py-0.5 rounded-full font-medium`}>
-            guest active
-          </span>
-          <span>guest session active (followed the event, no permanent account)</span>
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className={`${CLAIM_COLORS.claimed} px-2 py-0.5 rounded-full font-medium`}>
-            claimed
-          </span>
-          <span>linked to a real MyClash account</span>
-        </span>
-      </div>
-
-      {deleteModal && (
-        <DeleteParticipantModal
-          apiUrl={apiUrl}
-          eventId={eventId}
-          persons={deleteModal.persons.map((p) => ({
-            id: p.id,
-            displayName: `${p.givenName} ${p.familyName}`.trim() || p.id,
-          }))}
-          tournamentId={deleteModal.scope}
-          registrationsInScope={registrations.map((r) => ({
-            registrationId: r.id,
-            personId: r.personId,
-            tournamentId: r.tournamentId,
-          }))}
-          onClose={() => setDeleteModal(null)}
-          onDeleted={({ succeeded, skipped }) => {
-            setDeleteModal(null);
-            setSelected(new Set());
-            if (succeeded.length > 0 && skipped.length === 0) {
-              toast.success(`Removed ${succeeded.length} participant(s).`);
-            } else if (succeeded.length > 0 && skipped.length > 0) {
-              toast.warning(
-                `Removed ${succeeded.length}; skipped ${skipped.length} (${skipped.join(', ')}).`,
-              );
-            } else if (succeeded.length === 0 && skipped.length > 0) {
-              toast.warning(`Skipped all ${skipped.length} (${skipped.join(', ')}).`);
-            }
-            refresh();
-          }}
-        />
-      )}
-
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-4">Add participant</h2>
-
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Search global profiles by name
-              </label>
-              <input
-                type="search"
-                value={globalSearch}
-                onChange={(e) => {
-                  setGlobalSearch(e.target.value);
-                  setSelectedGlobalId(null);
-                }}
-                placeholder="Type a name to search…"
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              />
-              {globalSuggestions.length > 0 && !selectedGlobalId && (
-                <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
-                  {globalSuggestions.map((g) => {
-                    const alreadyAdded = existingGlobalIds.has(g.id);
+                </thead>
+                <tbody>
+                  {filteredPersons.map((p) => {
+                    const regs = registrationsByPersonId.get(p.id) ?? [];
+                    const displayRegs =
+                      activeTab === 'all' ? regs : regs.filter((r) => r.tournamentId === activeTab);
                     return (
-                      <button
-                        key={g.id}
-                        type="button"
-                        disabled={alreadyAdded}
-                        onClick={() => {
-                          if (alreadyAdded) return;
-                          setSelectedGlobalId(g.id);
-                          setGlobalSearch(g.displayName);
-                          setGlobalSuggestions([]);
-                          setAddForm((f) => ({
-                            ...f,
-                            givenName: g.givenName,
-                            familyName: g.familyName,
-                            hemaRatingsId: g.hemaRatingsId ?? '',
-                          }));
-                          if (g.clubLabel) {
-                            setSelectedClubId(g.clubId);
-                            setSelectedClubLabel(g.clubLabel);
-                            setClubSearch(g.clubLabel);
-                            setClubSuggestions([]);
-                          }
-                        }}
-                        className={
-                          alreadyAdded
-                            ? 'w-full text-left px-3 py-2 text-sm bg-slate-50 text-slate-400 border-b border-gray-100 last:border-0 cursor-not-allowed'
-                            : 'w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0'
-                        }
-                      >
-                        <span className="font-medium">{g.displayName}</span>
-                        {g.clubLabel && (
-                          <span className="text-gray-400 ml-2 text-xs">{g.clubLabel}</span>
-                        )}
-                        {alreadyAdded && (
-                          <span className="ml-2 text-xs italic text-slate-500">
-                            already in event
+                      <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 pr-3">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(p.id)}
+                            onChange={() => toggleSelect(p.id)}
+                            className="rounded"
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <p className="font-medium text-gray-900">
+                            {p.givenName} {p.familyName}
+                          </p>
+                          {p.email && <p className="text-xs text-gray-400 font-mono">{p.email}</p>}
+                        </td>
+                        <td className="py-2 pr-4 text-gray-600">{p.clubLabel ?? '—'}</td>
+                        <td className="py-2 pr-4">
+                          <span
+                            className={[
+                              'text-xs px-2 py-0.5 rounded-full font-medium',
+                              CLAIM_COLORS[p.claimStatus] ?? '',
+                            ].join(' ')}
+                          >
+                            {p.claimStatus.replace('_', ' ')}
                           </span>
-                        )}
-                      </button>
+                        </td>
+                        <td className="py-2 pr-4">
+                          {displayRegs.length === 0 ? (
+                            <span className="text-gray-400 text-xs">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {displayRegs.map((r) => {
+                                const tour = tournaments.find((tour) => tour.id === r.tournamentId);
+                                return (
+                                  <span
+                                    key={r.id}
+                                    className={[
+                                      'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+                                      REG_STATUS_COLORS[r.status] ?? '',
+                                    ].join(' ')}
+                                    title={r.tournamentName}
+                                  >
+                                    <TournamentColorDot color={tour?.color} />
+                                    {activeTab === 'all'
+                                      ? r.tournamentName
+                                      : r.status.replace('_', ' ')}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {p.globalPersonId && refereePersonIds.has(p.globalPersonId) ? (
+                            <SkillBadge
+                              color="violet"
+                              label={
+                                !p.claimedByUserId
+                                  ? `${t('organizer.persons.refereeTag')} · ${t('organizer.persons.refereeUnclaimedBadge')}`
+                                  : t('organizer.persons.refereeTag')
+                              }
+                            />
+                          ) : null}
+                        </td>
+                        <td className="py-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEdit(p)}
+                              disabled={isReadOnly}
+                              title={
+                                isReadOnly
+                                  ? t('organizer.deletionRequest.archivedReadOnly')
+                                  : undefined
+                              }
+                              className="text-xs text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => void handleDelete(p.id)}
+                              disabled={isReadOnly}
+                              title={
+                                isReadOnly
+                                  ? t('organizer.deletionRequest.archivedReadOnly')
+                                  : undefined
+                              }
+                              className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
-                </div>
-              )}
-              {selectedGlobalId && (
-                <p className="text-xs text-green-700 mt-1">
-                  Linked to global profile.{' '}
-                  <button
-                    type="button"
-                    className="underline"
-                    onClick={() => {
-                      setSelectedGlobalId(null);
-                      setGlobalSearch('');
-                    }}
-                  >
-                    Clear
-                  </button>
-                </p>
-              )}
+                </tbody>
+              </table>
             </div>
+          )}
 
-            <hr className="my-3 border-gray-100" />
+          {/* Claim-status legend. Pills match the column palette exactly so the
+          column reads as documented. */}
+          <div className="mt-3 flex flex-col gap-1 text-xs text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <span className="font-semibold text-gray-500">Claim status:</span>
+            <span className="inline-flex items-center gap-2">
+              <span className={`${CLAIM_COLORS.unclaimed} px-2 py-0.5 rounded-full font-medium`}>
+                unclaimed
+              </span>
+              <span>no MyClash account yet; organizer added them, no claim made</span>
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className={`${CLAIM_COLORS.guest_active} px-2 py-0.5 rounded-full font-medium`}>
+                guest active
+              </span>
+              <span>guest session active (followed the event, no permanent account)</span>
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className={`${CLAIM_COLORS.claimed} px-2 py-0.5 rounded-full font-medium`}>
+                claimed
+              </span>
+              <span>linked to a real MyClash account</span>
+            </span>
+          </div>
 
-            <p className="mb-3 text-sm font-semibold text-slate-700">
-              Or create profile manually if it does not exist:
-            </p>
+          {deleteModal && (
+            <DeleteParticipantModal
+              apiUrl={apiUrl}
+              eventId={eventId}
+              persons={deleteModal.persons.map((p) => ({
+                id: p.id,
+                displayName: `${p.givenName} ${p.familyName}`.trim() || p.id,
+              }))}
+              tournamentId={deleteModal.scope}
+              registrationsInScope={registrations.map((r) => ({
+                registrationId: r.id,
+                personId: r.personId,
+                tournamentId: r.tournamentId,
+              }))}
+              onClose={() => setDeleteModal(null)}
+              onDeleted={({ succeeded, skipped }) => {
+                setDeleteModal(null);
+                setSelected(new Set());
+                if (succeeded.length > 0 && skipped.length === 0) {
+                  toast.success(`Removed ${succeeded.length} participant(s).`);
+                } else if (succeeded.length > 0 && skipped.length > 0) {
+                  toast.warning(
+                    `Removed ${succeeded.length}; skipped ${skipped.length} (${skipped.join(', ')}).`,
+                  );
+                } else if (succeeded.length === 0 && skipped.length > 0) {
+                  toast.warning(`Skipped all ${skipped.length} (${skipped.join(', ')}).`);
+                }
+                refresh();
+              }}
+            />
+          )}
 
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+          {showAdd && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-lg font-bold mb-4">Add participant</h2>
+
+                <div className="mb-4">
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Given name *
+                    Search global profiles by name
                   </label>
                   <input
-                    type="text"
-                    value={addForm.givenName}
-                    onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
+                    type="search"
+                    value={globalSearch}
+                    onChange={(e) => {
+                      setGlobalSearch(e.target.value);
+                      setSelectedGlobalId(null);
+                    }}
+                    placeholder="Type a name to search…"
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Family name *
-                  </label>
-                  <input
-                    type="text"
-                    value={addForm.familyName}
-                    onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={addForm.email}
-                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
-                <input
-                  type="search"
-                  value={clubSearch}
-                  onChange={(e) => {
-                    setClubSearch(e.target.value);
-                    setSelectedClubId(null);
-                    setSelectedClubLabel('');
-                    setNewClubName(null);
-                  }}
-                  placeholder="Search by name or abbreviation, or type to create a new one…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-                {!selectedClubId &&
-                  !newClubName &&
-                  (() => {
-                    const rows = computeClubPickerRows(
-                      clubSearch,
-                      clubSuggestions as ClubPickerSuggestion[],
-                    );
-                    if (rows.length === 0) return null;
-                    return (
-                      <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
-                        {rows.map((row, idx) =>
-                          row.kind === 'existing' ? (
-                            <button
-                              key={`existing-${row.club.id}`}
-                              type="button"
-                              onClick={() => {
-                                setSelectedClubId(row.club.id);
-                                setSelectedClubLabel(row.club.name);
-                                setClubSearch(row.club.name);
+                  {globalSuggestions.length > 0 && !selectedGlobalId && (
+                    <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                      {globalSuggestions.map((g) => {
+                        const alreadyAdded = existingGlobalIds.has(g.id);
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            disabled={alreadyAdded}
+                            onClick={() => {
+                              if (alreadyAdded) return;
+                              setSelectedGlobalId(g.id);
+                              setGlobalSearch(g.displayName);
+                              setGlobalSuggestions([]);
+                              setAddForm((f) => ({
+                                ...f,
+                                givenName: g.givenName,
+                                familyName: g.familyName,
+                                hemaRatingsId: g.hemaRatingsId ?? '',
+                              }));
+                              if (g.clubLabel) {
+                                setSelectedClubId(g.clubId);
+                                setSelectedClubLabel(g.clubLabel);
+                                setClubSearch(g.clubLabel);
                                 setClubSuggestions([]);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                            >
-                              <span className="font-medium">{row.club.name}</span>
-                              {row.club.abbreviation && (
-                                <span className="text-gray-400 ml-2 text-xs">
-                                  {row.club.abbreviation}
-                                </span>
-                              )}
-                            </button>
-                          ) : (
-                            <button
-                              key={`create-${idx}`}
-                              type="button"
-                              data-testid="new-club-create-row"
-                              onClick={() => {
-                                setNewClubName(row.name);
-                                setSelectedClubId(null);
-                                setSelectedClubLabel('');
-                                setClubSuggestions([]);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 border-b border-gray-100 last:border-0 font-medium"
-                            >
-                              + Create new club &quot;{row.name}&quot; (unverified)
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    );
-                  })()}
-                {selectedClubId && (
-                  <p className="text-xs text-green-700 mt-1">
-                    {selectedClubLabel}{' '}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
+                              }
+                            }}
+                            className={
+                              alreadyAdded
+                                ? 'w-full text-left px-3 py-2 text-sm bg-slate-50 text-slate-400 border-b border-gray-100 last:border-0 cursor-not-allowed'
+                                : 'w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0'
+                            }
+                          >
+                            <span className="font-medium">{g.displayName}</span>
+                            {g.clubLabel && (
+                              <span className="text-gray-400 ml-2 text-xs">{g.clubLabel}</span>
+                            )}
+                            {alreadyAdded && (
+                              <span className="ml-2 text-xs italic text-slate-500">
+                                already in event
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedGlobalId && (
+                    <p className="text-xs text-green-700 mt-1">
+                      Linked to global profile.{' '}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          setSelectedGlobalId(null);
+                          setGlobalSearch('');
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </p>
+                  )}
+                </div>
+
+                <hr className="my-3 border-gray-100" />
+
+                <p className="mb-3 text-sm font-semibold text-slate-700">
+                  Or create profile manually if it does not exist:
+                </p>
+
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Given name *
+                      </label>
+                      <input
+                        type="text"
+                        value={addForm.givenName}
+                        onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Family name *
+                      </label>
+                      <input
+                        type="text"
+                        value={addForm.familyName}
+                        onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={addForm.email}
+                      onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
+                    <input
+                      type="search"
+                      value={clubSearch}
+                      onChange={(e) => {
+                        setClubSearch(e.target.value);
                         setSelectedClubId(null);
                         setSelectedClubLabel('');
-                        setClubSearch('');
-                      }}
-                    >
-                      Clear
-                    </button>
-                  </p>
-                )}
-                {newClubName && (
-                  <p className="text-xs text-green-700 mt-1" data-testid="new-club-chip">
-                    New club: <span className="font-medium">{newClubName}</span> (will be created){' '}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
                         setNewClubName(null);
-                        setClubSearch('');
                       }}
-                    >
-                      Clear
-                    </button>
+                      placeholder="Search by name or abbreviation, or type to create a new one…"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                    {!selectedClubId &&
+                      !newClubName &&
+                      (() => {
+                        const rows = computeClubPickerRows(
+                          clubSearch,
+                          clubSuggestions as ClubPickerSuggestion[],
+                        );
+                        if (rows.length === 0) return null;
+                        return (
+                          <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                            {rows.map((row, idx) =>
+                              row.kind === 'existing' ? (
+                                <button
+                                  key={`existing-${row.club.id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedClubId(row.club.id);
+                                    setSelectedClubLabel(row.club.name);
+                                    setClubSearch(row.club.name);
+                                    setClubSuggestions([]);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                >
+                                  <span className="font-medium">{row.club.name}</span>
+                                  {row.club.abbreviation && (
+                                    <span className="text-gray-400 ml-2 text-xs">
+                                      {row.club.abbreviation}
+                                    </span>
+                                  )}
+                                </button>
+                              ) : (
+                                <button
+                                  key={`create-${idx}`}
+                                  type="button"
+                                  data-testid="new-club-create-row"
+                                  onClick={() => {
+                                    setNewClubName(row.name);
+                                    setSelectedClubId(null);
+                                    setSelectedClubLabel('');
+                                    setClubSuggestions([]);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 border-b border-gray-100 last:border-0 font-medium"
+                                >
+                                  + Create new club &quot;{row.name}&quot; (unverified)
+                                </button>
+                              ),
+                            )}
+                          </div>
+                        );
+                      })()}
+                    {selectedClubId && (
+                      <p className="text-xs text-green-700 mt-1">
+                        {selectedClubLabel}{' '}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => {
+                            setSelectedClubId(null);
+                            setSelectedClubLabel('');
+                            setClubSearch('');
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </p>
+                    )}
+                    {newClubName && (
+                      <p className="text-xs text-green-700 mt-1" data-testid="new-club-chip">
+                        New club: <span className="font-medium">{newClubName}</span> (will be
+                        created){' '}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => {
+                            setNewClubName(null);
+                            setClubSearch('');
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      HEMA Ratings ID (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={addForm.hemaRatingsId}
+                      onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
+                      placeholder="Paste an ID or pick from the suggestions below"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  </div>
+
+                  <HemaRatingsSuggest
+                    apiUrl={apiUrl}
+                    personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
+                    selectedId={addForm.hemaRatingsId}
+                    onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
+                  />
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Seed (optional)
+                    </label>
+                    <input
+                      type="number"
+                      value={addForm.seed}
+                      onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
+                      min="1"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  </div>
+
+                  <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={addForm.isReferee}
+                      disabled={isReadOnly}
+                      onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
+                    />
+                    {t('organizer.persons.addAsReferee')}
+                  </label>
+
+                  {tournaments.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        Register in tournaments (optional)
+                      </label>
+                      <div className="flex flex-col gap-1.5">
+                        {tournaments.map((tour) => (
+                          <label
+                            key={tour.id}
+                            className="flex items-center gap-2 text-sm cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTournaments.has(tour.id)}
+                              onChange={() =>
+                                setSelectedTournaments((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(tour.id)) next.delete(tour.id);
+                                  else next.add(tour.id);
+                                  return next;
+                                })
+                              }
+                              className="rounded"
+                            />
+                            {tour.name}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {addError && (
+                  <p className="text-sm text-red-600 mt-3" role="alert">
+                    {addError}
                   </p>
                 )}
+
+                <div className="flex justify-end gap-2 mt-5">
+                  <button
+                    onClick={closeAddModal}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleAdd()}
+                    disabled={addSaving}
+                    className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                  >
+                    {addSaving ? 'Adding…' : 'Add participant'}
+                  </button>
+                </div>
               </div>
+            </div>
+          )}
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  HEMA Ratings ID (optional)
-                </label>
-                <input
-                  type="text"
-                  value={addForm.hemaRatingsId}
-                  onChange={(e) => setAddForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
-                  placeholder="Paste an ID or pick from the suggestions below"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-
-              <HemaRatingsSuggest
-                apiUrl={apiUrl}
-                personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
-                selectedId={addForm.hemaRatingsId}
-                onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}
-              />
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Seed (optional)
-                </label>
-                <input
-                  type="number"
-                  value={addForm.seed}
-                  onChange={(e) => setAddForm((f) => ({ ...f, seed: e.target.value }))}
-                  min="1"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-
-              <label className="mt-3 inline-flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={addForm.isReferee}
-                  disabled={isReadOnly}
-                  onChange={(e) => setAddForm((f) => ({ ...f, isReferee: e.target.checked }))}
-                />
-                {t('organizer.persons.addAsReferee')}
-              </label>
-
-              {tournaments.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">
-                    Register in tournaments (optional)
-                  </label>
-                  <div className="flex flex-col gap-1.5">
-                    {tournaments.map((tour) => (
-                      <label
-                        key={tour.id}
-                        className="flex items-center gap-2 text-sm cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedTournaments.has(tour.id)}
-                          onChange={() =>
-                            setSelectedTournaments((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(tour.id)) next.delete(tour.id);
-                              else next.add(tour.id);
-                              return next;
-                            })
-                          }
-                          className="rounded"
-                        />
-                        {tour.name}
+          {editPerson && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                <h2 className="text-lg font-bold mb-4">Edit participant</h2>
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Given name *
                       </label>
-                    ))}
+                      <input
+                        type="text"
+                        value={editForm.givenName}
+                        onChange={(e) => setEditForm((f) => ({ ...f, givenName: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Family name *
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.familyName}
+                        onChange={(e) => setEditForm((f) => ({ ...f, familyName: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {addError && (
-              <p className="text-sm text-red-600 mt-3" role="alert">
-                {addError}
-              </p>
-            )}
-
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={closeAddModal}
-                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void handleAdd()}
-                disabled={addSaving}
-                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
-              >
-                {addSaving ? 'Adding…' : 'Add participant'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editPerson && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold mb-4">Edit participant</h2>
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Given name *
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.givenName}
-                    onChange={(e) => setEditForm((f) => ({ ...f, givenName: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Family name *
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.familyName}
-                    onChange={(e) => setEditForm((f) => ({ ...f, familyName: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
-                <input
-                  type="search"
-                  value={editClubSearch}
-                  onChange={(e) => {
-                    setEditClubSearch(e.target.value);
-                    setEditClubId(null);
-                    setEditClubLabel('');
-                  }}
-                  placeholder="Search club…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-                {editClubSuggestions.length > 0 && !editClubId && (
-                  <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
-                    {editClubSuggestions.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setEditClubId(c.id);
-                          setEditClubLabel(c.name);
-                          setEditClubSearch(c.name);
-                          setEditClubSuggestions([]);
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
-                      >
-                        <span className="font-medium">{c.name}</span>
-                        {c.abbreviation && (
-                          <span className="text-gray-400 ml-2 text-xs">{c.abbreviation}</span>
-                        )}
-                      </button>
-                    ))}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
                   </div>
-                )}
-                {editClubId && (
-                  <p className="text-xs text-green-700 mt-1">
-                    {editClubLabel}{' '}
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Club</label>
+                    <input
+                      type="search"
+                      value={editClubSearch}
+                      onChange={(e) => {
+                        setEditClubSearch(e.target.value);
                         setEditClubId(null);
                         setEditClubLabel('');
-                        setEditClubSearch('');
                       }}
-                    >
-                      Clear
-                    </button>
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  HEMA Ratings ID
-                </label>
-                <input
-                  type="text"
-                  value={editForm.hemaRatingsId}
-                  onChange={(e) => setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))}
-                  placeholder="hr-12345"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
-              {/* R6: referee checkbox is always enabled. Unclaimed persons
+                      placeholder="Search club…"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                    {editClubSuggestions.length > 0 && !editClubId && (
+                      <div className="border border-gray-200 rounded-lg mt-1 max-h-36 overflow-y-auto">
+                        {editClubSuggestions.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setEditClubId(c.id);
+                              setEditClubLabel(c.name);
+                              setEditClubSearch(c.name);
+                              setEditClubSuggestions([]);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                          >
+                            <span className="font-medium">{c.name}</span>
+                            {c.abbreviation && (
+                              <span className="text-gray-400 ml-2 text-xs">{c.abbreviation}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {editClubId && (
+                      <p className="text-xs text-green-700 mt-1">
+                        {editClubLabel}{' '}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => {
+                            setEditClubId(null);
+                            setEditClubLabel('');
+                            setEditClubSearch('');
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      HEMA Ratings ID
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.hemaRatingsId}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, hemaRatingsId: e.target.value }))
+                      }
+                      placeholder="hr-12345"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  </div>
+                  {/* R6: referee checkbox is always enabled. Unclaimed persons
                   get a person_id-keyed event_referees row; once they claim,
                   the row auto-flips to user_id-keyed. */}
-              <div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={editForm.isReferee}
-                    onChange={(e) => setEditForm((f) => ({ ...f, isReferee: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <span className="text-gray-700">{t('organizer.persons.addAsReferee')}</span>
-                </label>
-                {!editPerson.claimedByUserId && editForm.isReferee && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('organizer.persons.refereeUnclaimedHint')}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editForm.isReferee}
+                        onChange={(e) =>
+                          setEditForm((f) => ({ ...f, isReferee: e.target.checked }))
+                        }
+                        className="rounded"
+                      />
+                      <span className="text-gray-700">{t('organizer.persons.addAsReferee')}</span>
+                    </label>
+                    {!editPerson.claimedByUserId && editForm.isReferee && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {t('organizer.persons.refereeUnclaimedHint')}
+                      </p>
+                    )}
+                  </div>
+                  {tournaments.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        Tournaments
+                      </label>
+                      <div className="flex flex-col gap-1.5">
+                        {tournaments.map((tour) => (
+                          <label
+                            key={tour.id}
+                            className="flex items-center gap-2 text-sm cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editSelectedTournaments.has(tour.id)}
+                              onChange={() =>
+                                setEditSelectedTournaments((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(tour.id)) next.delete(tour.id);
+                                  else next.add(tour.id);
+                                  return next;
+                                })
+                              }
+                              className="rounded"
+                            />
+                            {tour.name}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {editError && (
+                  <p className="text-sm text-red-600 mt-3" role="alert">
+                    {editError}
                   </p>
                 )}
-              </div>
-              {tournaments.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">
-                    Tournaments
-                  </label>
-                  <div className="flex flex-col gap-1.5">
-                    {tournaments.map((tour) => (
-                      <label
-                        key={tour.id}
-                        className="flex items-center gap-2 text-sm cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editSelectedTournaments.has(tour.id)}
-                          onChange={() =>
-                            setEditSelectedTournaments((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(tour.id)) next.delete(tour.id);
-                              else next.add(tour.id);
-                              return next;
-                            })
-                          }
-                          className="rounded"
-                        />
-                        {tour.name}
-                      </label>
-                    ))}
-                  </div>
+                <div className="flex justify-end gap-2 mt-5">
+                  <button
+                    onClick={() => setEditPerson(null)}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleEditSave()}
+                    disabled={editSaving}
+                    className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+                  >
+                    {editSaving ? 'Saving…' : 'Save changes'}
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
-            {editError && (
-              <p className="text-sm text-red-600 mt-3" role="alert">
-                {editError}
-              </p>
-            )}
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setEditPerson(null)}
-                className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void handleEditSave()}
-                disabled={editSaving}
-                className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
-              >
-                {editSaving ? 'Saving…' : 'Save changes'}
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </main>
   );
