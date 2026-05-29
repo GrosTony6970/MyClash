@@ -497,4 +497,23 @@ export class UpdateTournamentDto {
   @IsString()
   @MaxLength(32)
   color?: string | null;
+
+  /**
+   * Slice 4 of the capacity overhaul: max number of registered + checked-in
+   * fighters. Null = no cap (current behaviour). When set, the registrations
+   * create endpoint returns 409 reason='tournament_full' once the count
+   * meets this value.
+   */
+  @ApiProperty({ required: false, nullable: true, minimum: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  maxParticipants?: number | null;
+
+  /** Slice 4: max waitlist size. Null = no cap. */
+  @ApiProperty({ required: false, nullable: true, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxWaitlist?: number | null;
 }

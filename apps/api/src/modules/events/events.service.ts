@@ -1118,6 +1118,10 @@ export class EventsService {
     if (dto.penaltyRulesetId !== undefined) updates['penalty_ruleset_id'] = dto.penaltyRulesetId;
     if (dto.color !== undefined) updates['color'] = dto.color;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
+    // Slice 4: capacity caps. null clears the cap; operator leaves blank
+    // for no limit, fills in for a hard ceiling.
+    if (dto.maxParticipants !== undefined) updates['max_participants'] = dto.maxParticipants;
+    if (dto.maxWaitlist !== undefined) updates['max_waitlist'] = dto.maxWaitlist;
 
     if (dto.scoringConfig !== undefined) {
       const merged = deepMergeJson(currentJson['scoring_config_json'] ?? {}, dto.scoringConfig);

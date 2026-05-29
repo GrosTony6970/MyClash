@@ -22,6 +22,10 @@ interface TournamentBasics {
   rulesetCode: string;
   rulesetVersion: string;
   penaltyRulesetId: string | null;
+  /** Slice 4: cap on registered + checked_in. Null = unlimited. */
+  maxParticipants: number | null;
+  /** Slice 4: cap on waitlist size. Null = unlimited. */
+  maxWaitlist: number | null;
 }
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -67,6 +71,8 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
               rulesetCode: row.ruleset_code,
               rulesetVersion: row.ruleset_version,
               penaltyRulesetId: row.penalty_ruleset_id,
+              maxParticipants: row.max_participants ?? null,
+              maxWaitlist: row.max_waitlist ?? null,
             });
           }
           setRulesets(r as Ruleset[]);
@@ -89,6 +95,8 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           rulesetCode: data.rulesetCode,
           rulesetVersion: data.rulesetVersion,
           penaltyRulesetId: data.penaltyRulesetId,
+          maxParticipants: data.maxParticipants,
+          maxWaitlist: data.maxWaitlist,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -165,6 +173,47 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
             </option>
           ))}
         </select>
+      </Field>
+
+      {/* Slice 4: capacity caps. Leaving either field blank means "no cap".
+       *  When the participant cap is reached, the registrations create
+       *  endpoint returns 409 and the admin UI offers an explicit
+       *  'Add to waitlist instead?' confirmation. */}
+      <Field label="Max participants">
+        <input
+          type="number"
+          min={1}
+          value={data.maxParticipants ?? ''}
+          onChange={(e) =>
+            setData({
+              ...data,
+              maxParticipants: e.target.value === '' ? null : Number(e.target.value),
+            })
+          }
+          placeholder="No cap"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </Field>
+
+      <Field label="Max waitlist">
+        <input
+          type="number"
+          min={0}
+          value={data.maxWaitlist ?? ''}
+          onChange={(e) =>
+            setData({
+              ...data,
+              maxWaitlist: e.target.value === '' ? null : Number(e.target.value),
+            })
+          }
+          placeholder="No cap"
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+        {data.maxWaitlist != null && data.maxWaitlist > 0 && data.maxParticipants == null && (
+          <p className="mt-1 text-xs text-amber-600">
+            Set a participant cap above to make the waitlist meaningful.
+          </p>
+        )}
       </Field>
 
       <button
