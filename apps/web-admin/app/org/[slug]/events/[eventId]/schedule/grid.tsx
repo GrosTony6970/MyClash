@@ -3,6 +3,7 @@
 /* eslint-disable myclash/no-literal-string */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { ConfirmDialog } from '@myclash/ui';
 
 interface Lice {
   id: string;
@@ -143,6 +144,11 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  // Slice 3 of the schedule overhaul: clear every match on the active
+  // day with a confirm gate. `clearing` doubles as the modal flag and
+  // the in-flight busy state for the confirm button.
+  const [clearingDay, setClearingDay] = useState(false);
+  const [pendingClear, setPendingClear] = useState(false);
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
 
@@ -220,6 +226,41 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     dragMatch.current = null;
   }
 
+  async function clearActiveDay() {
+    if (!activeDay) return;
+    const targets = matches.filter(
+      (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay),
+    );
+    if (targets.length === 0) {
+      setPendingClear(false);
+      return;
+    }
+    setClearingDay(true);
+    try {
+      // Fan out PATCHes in parallel. Last write wins per match — no
+      // ordering required since each touches its own row.
+      await Promise.all(
+        targets.map((m) =>
+          fetch(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ liceId: null, scheduledAt: null }),
+          }),
+        ),
+      );
+      const targetIds = new Set(targets.map((m) => m.id));
+      const updated = matches.map((m) =>
+        targetIds.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
+      );
+      setMatches(updated);
+      setConflicts(detectConflicts(updated));
+    } finally {
+      setClearingDay(false);
+      setPendingClear(false);
+    }
+  }
+
   const unscheduled = useMemo(() => matches.filter((m) => !m.scheduledAt || !m.liceId), [matches]);
   const scheduledOnActiveDay = useMemo(
     () =>
@@ -244,28 +285,40 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
           grid is showing. Multi-day events get a clickable pill per day
           that switches activeDay. */}
       {days.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {days.map((day, idx) => {
-            const active = day === activeDay;
-            const single = days.length === 1;
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => setActiveDay(day)}
-                disabled={single}
-                className={[
-                  'rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors',
-                  active
-                    ? 'border-red-700 bg-red-700 text-white'
-                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400',
-                  single ? 'cursor-default' : '',
-                ].join(' ')}
-              >
-                {single ? formatDayLabel(day) : `Jour ${idx + 1} · ${formatDayLabel(day)}`}
-              </button>
-            );
-          })}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {days.map((day, idx) => {
+              const active = day === activeDay;
+              const single = days.length === 1;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => setActiveDay(day)}
+                  disabled={single}
+                  className={[
+                    'rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors',
+                    active
+                      ? 'border-red-700 bg-red-700 text-white'
+                      : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400',
+                    single ? 'cursor-default' : '',
+                  ].join(' ')}
+                >
+                  {single ? formatDayLabel(day) : `Jour ${idx + 1} · ${formatDayLabel(day)}`}
+                </button>
+              );
+            })}
+          </div>
+          {/* Clear active day — Slice 3. Disables when the active day has
+              nothing to clear, opens a confirm modal otherwise. */}
+          <button
+            type="button"
+            onClick={() => setPendingClear(true)}
+            disabled={clearingDay || scheduledOnActiveDay.length === 0}
+            className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:hover:bg-transparent"
+          >
+            Clear day ({scheduledOnActiveDay.length})
+          </button>
         </div>
       )}
 
@@ -435,6 +488,20 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
           )}
         </div>
       </div>
+
+      {/* Slice 3: Clear-day confirm modal. */}
+      <ConfirmDialog
+        open={pendingClear}
+        onConfirm={() => void clearActiveDay()}
+        onCancel={() => setPendingClear(false)}
+        title="Clear day?"
+        description={`This will unschedule ${scheduledOnActiveDay.length} match${
+          scheduledOnActiveDay.length === 1 ? '' : 'es'
+        } on ${activeDay ? formatDayLabel(activeDay) : 'this day'} and move them back to the Unscheduled list. Matches on other days are not affected.`}
+        confirmLabel="Clear day"
+        danger
+        busy={clearingDay}
+      />
     </div>
   );
 }
