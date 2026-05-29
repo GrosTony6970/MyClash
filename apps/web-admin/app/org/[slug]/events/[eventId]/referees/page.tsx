@@ -19,6 +19,7 @@ import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
 import { assignmentChipClasses } from './_components/assignment-chip-classes';
 import { formatUnassignedReason } from './_components/format-unassigned-reason';
 import { AssignmentDiagnosticsPanel } from './_components/AssignmentDiagnosticsPanel';
+import { AvailabilityChips } from './_components/AvailabilityChips';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,10 @@ interface EventRefereeRow {
   qualifications: Array<{ skillId: string; rating: number | null }>;
   availableAllTournaments: boolean;
   availableAllEventDuration: boolean;
+  /** Slice 8: per-tournament allowlist. Empty array = no restriction set. */
+  tournamentIds: string[];
+  /** Slice 8: per-day allowlist. Empty array = no restriction set. */
+  dayIndices: number[];
   assignments: Array<{ tournamentId: string; tournamentName: string; matchCount: number }>;
   totalMatchCount: number;
 }
@@ -1046,6 +1051,12 @@ export default function RefereesPage() {
   // ── Data state ──────────────────────────────────────────────────────────────
   const [skills, setSkills] = useState<RefereeSkill[]>([]);
   const [referees, setReferees] = useState<EventRefereeRow[]>([]);
+  /** Slice 8: list of tournaments on the event — feeds the per-tournament
+   *  availability chip column. Fetched once on mount. */
+  const [eventTournaments, setEventTournaments] = useState<Array<{ id: string; name: string }>>([]);
+  /** Slice 8: list of day indices on the event — feeds the per-day
+   *  availability chip column. Derived from event.start_date / end_date. */
+  const [eventDays, setEventDays] = useState<Array<{ index: number; label: string }>>([]);
   const [qualIdMap, setQualIdMap] = useState<QualIdMap>(new Map());
   const [loading, setLoading] = useState(true);
   /**
@@ -1125,6 +1136,52 @@ export default function RefereesPage() {
       });
     return () => controller.abort();
   }, [eventId, apiUrl, skillsKey]);
+
+  // Slice 8: tournaments + event days for the availability chip columns.
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([
+      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
+      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
+    ])
+      .then(async ([tRes, eRes]) => {
+        if (tRes.ok) {
+          const data = (await tRes.json()) as Array<{ id: string; name: string }>;
+          setEventTournaments(data.map((t) => ({ id: t.id, name: t.name })));
+        }
+        if (eRes.ok) {
+          // Events endpoint returns snake_case start_date / end_date.
+          const ev = (await eRes.json()) as { start_date: string; end_date?: string | null };
+          const start = new Date(`${ev.start_date}T00:00:00.000Z`);
+          const end = ev.end_date ? new Date(`${ev.end_date}T00:00:00.000Z`) : start;
+          const days: Array<{ index: number; label: string }> = [];
+          const cursor = new Date(start);
+          let idx = 0;
+          while (cursor.getTime() <= end.getTime()) {
+            days.push({
+              index: idx,
+              label: cursor.toLocaleDateString(undefined, {
+                weekday: 'short',
+                day: 'numeric',
+              }),
+            });
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
+            idx += 1;
+          }
+          setEventDays(days);
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
 
   // ── Fetch referees (enriched) + qual id map ─────────────────────────────────
 
@@ -1376,7 +1433,12 @@ export default function RefereesPage() {
 
   async function updateAvailability(
     personId: string,
-    patch: { availableAllTournaments?: boolean; availableAllEventDuration?: boolean },
+    patch: {
+      availableAllTournaments?: boolean;
+      availableAllEventDuration?: boolean;
+      tournamentIds?: string[];
+      dayIndices?: number[];
+    },
   ) {
     // Optimistic update
     setReferees((prev) =>
@@ -1387,6 +1449,8 @@ export default function RefereesPage() {
               availableAllTournaments: patch.availableAllTournaments ?? r.availableAllTournaments,
               availableAllEventDuration:
                 patch.availableAllEventDuration ?? r.availableAllEventDuration,
+              tournamentIds: patch.tournamentIds ?? r.tournamentIds,
+              dayIndices: patch.dayIndices ?? r.dayIndices,
             }
           : r,
       ),
@@ -1692,14 +1756,15 @@ export default function RefereesPage() {
                         </th>
                       ))}
 
-                    {/* Availability columns */}
+                    {/* Availability columns — Slice 8: granular chip picker
+                        per tournament + per day instead of two booleans. */}
                     {activeTab === 'referees' && (
                       <>
                         <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                          {t('organizer.refereesPage.availableAllTournaments')}
+                          {t('organizer.refereesPage.availableTournamentsColumn')}
                         </th>
                         <th className="py-2 px-3 font-medium text-center whitespace-nowrap">
-                          {t('organizer.refereesPage.availableAllEventDuration')}
+                          {t('organizer.refereesPage.availableDaysColumn')}
                         </th>
                       </>
                     )}
@@ -1857,37 +1922,39 @@ export default function RefereesPage() {
                           );
                         })}
 
-                      {/* Available all tournaments toggle */}
+                      {/* Slice 8: per-tournament chip picker. */}
                       {activeTab === 'referees' && (
-                        <td className="py-3 px-3 text-center align-middle">
-                          <div className="flex justify-center">
-                            <Toggle
-                              checked={ref.availableAllTournaments}
-                              disabled={isReadOnly}
-                              onChange={(v) =>
-                                void updateAvailability(ref.personId, {
-                                  availableAllTournaments: v,
-                                })
-                              }
-                            />
-                          </div>
+                        <td className="py-3 px-3 align-middle">
+                          <AvailabilityChips
+                            options={eventTournaments.map((t) => ({
+                              value: t.id,
+                              label: t.name,
+                            }))}
+                            selected={ref.tournamentIds}
+                            disabled={isReadOnly}
+                            allLabel={t('organizer.refereesPage.availableAllTournamentsShort')}
+                            onChange={(ids) =>
+                              void updateAvailability(ref.personId, { tournamentIds: ids })
+                            }
+                          />
                         </td>
                       )}
 
-                      {/* Available all event duration toggle */}
+                      {/* Slice 8: per-day chip picker. */}
                       {activeTab === 'referees' && (
-                        <td className="py-3 px-3 text-center align-middle">
-                          <div className="flex justify-center">
-                            <Toggle
-                              checked={ref.availableAllEventDuration}
-                              disabled={isReadOnly}
-                              onChange={(v) =>
-                                void updateAvailability(ref.personId, {
-                                  availableAllEventDuration: v,
-                                })
-                              }
-                            />
-                          </div>
+                        <td className="py-3 px-3 align-middle">
+                          <AvailabilityChips
+                            options={eventDays.map((d) => ({
+                              value: d.index,
+                              label: d.label,
+                            }))}
+                            selected={ref.dayIndices}
+                            disabled={isReadOnly}
+                            allLabel={t('organizer.refereesPage.availableAllDaysShort')}
+                            onChange={(indices) =>
+                              void updateAvailability(ref.personId, { dayIndices: indices })
+                            }
+                          />
                         </td>
                       )}
 
