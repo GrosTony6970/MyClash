@@ -1208,6 +1208,7 @@ export default function BracketPage() {
                   podium={podium}
                   showBronze={!!bronzeMatch}
                   labels={{
+                    title: t('organizer.phaseVisibility.podiumTitle'),
                     gold: t('organizer.phaseVisibility.podiumGold'),
                     silver: t('organizer.phaseVisibility.podiumSilver'),
                     bronze: t('organizer.phaseVisibility.podiumBronze'),
