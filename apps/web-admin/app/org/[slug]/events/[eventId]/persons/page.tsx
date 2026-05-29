@@ -20,6 +20,7 @@ interface Person {
   givenName: string;
   familyName: string;
   email: string | null;
+  clubId: string | null;
   clubLabel: string | null;
   claimStatus: 'unclaimed' | 'guest_active' | 'claimed';
   hemaRatingsId: string | null;
@@ -471,7 +472,11 @@ export default function ParticipantsPage() {
       isReferee: currentlyReferee,
     });
     setEditClubSearch(p.clubLabel ?? '');
-    setEditClubId(null);
+    // Load the current club_id from the loaded Person so a Save that
+    // doesn't touch the club picker round-trips it in the PATCH body
+    // instead of stomping the column to null (prod regression
+    // reported on the persons page).
+    setEditClubId(p.clubId ?? null);
     setEditClubLabel(p.clubLabel ?? '');
     setEditError(null);
     const initial = new Set(
