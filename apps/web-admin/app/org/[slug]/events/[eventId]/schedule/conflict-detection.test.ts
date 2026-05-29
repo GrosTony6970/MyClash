@@ -85,4 +85,29 @@ describe('detectConflicts', () => {
     // Defensive: explicitly confirm the UUID never leaks.
     expect(conflicts[0]?.personName).not.toBe('reg-shared');
   });
+
+  it('renders the conflict time in strict 24h HH:MM, never AM/PM', () => {
+    // Per operator request: unify time display to 24h across the
+    // schedule page. The conflict banner is one site; locking the
+    // shape here protects against any locale or browser that would
+    // otherwise hand us "10:30 AM".
+    const matchA = buildMatch({
+      matchNumberLabel: 'L1-PA-M1',
+      scheduledAt: '2026-05-29T15:45:00.000Z',
+      redRegistrationId: 'reg-shared',
+    });
+    const matchB = buildMatch({
+      matchNumberLabel: 'L1-PA-M2',
+      scheduledAt: '2026-05-29T15:45:00.000Z',
+      redRegistrationId: 'reg-shared',
+    });
+
+    const conflicts = detectConflicts([matchA, matchB]);
+
+    expect(conflicts).toHaveLength(1);
+    // 24h shape: two digits, colon, two digits. No AM/PM marker.
+    expect(conflicts[0]?.time).toMatch(/^([01][0-9]|2[0-3]):[0-5][0-9]$/);
+    expect(conflicts[0]?.time?.toUpperCase()).not.toContain('AM');
+    expect(conflicts[0]?.time?.toUpperCase()).not.toContain('PM');
+  });
 });

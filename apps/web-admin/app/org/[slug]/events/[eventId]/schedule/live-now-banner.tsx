@@ -138,6 +138,7 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                       {new Date(ls.nextMatch.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
+                        hour12: false,
                       })}
                     </span>
                   )}

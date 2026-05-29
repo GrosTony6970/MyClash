@@ -190,6 +190,57 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
 
+  // Slice C: inline "Add lice" form. Toggled by the toolbar button;
+  // POSTs to /events/:id/lices then refetches the lice list so the
+  // new column appears live.
+  const [showAddLice, setShowAddLice] = useState(false);
+  const [newLiceName, setNewLiceName] = useState('');
+  const [newLiceColor, setNewLiceColor] = useState('#ef4444');
+  const [addLiceBusy, setAddLiceBusy] = useState(false);
+  const [addLiceError, setAddLiceError] = useState<string | null>(null);
+
+  async function refetchLices(): Promise<void> {
+    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+      credentials: 'include',
+    });
+    if (!res.ok) return;
+    const l = (await res.json()) as Lice[];
+    setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
+  }
+
+  async function addLice() {
+    const name = newLiceName.trim();
+    if (!name) {
+      setAddLiceError('Name required');
+      return;
+    }
+    setAddLiceBusy(true);
+    setAddLiceError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          colorHex: newLiceColor,
+          sortOrder: lices.length,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? 'Failed to add lice');
+      }
+      await refetchLices();
+      setNewLiceName('');
+      setShowAddLice(false);
+    } catch (err) {
+      setAddLiceError(err instanceof Error ? err.message : 'Failed to add lice');
+    } finally {
+      setAddLiceBusy(false);
+    }
+  }
+
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([
@@ -565,7 +616,63 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
             >
               Clear day ({scheduledOnActiveDay.length})
             </button>
+            {/* Slice C: spawn a new lice. Toggles an inline form below
+                the toolbar; submit POSTs to /events/:id/lices and the
+                new column appears in the grid live. */}
+            <button
+              type="button"
+              onClick={() => setShowAddLice((v) => !v)}
+              className="rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+            >
+              + Add lice
+            </button>
           </div>
+        </div>
+      )}
+
+      {showAddLice && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-600">Name</span>
+            <input
+              type="text"
+              value={newLiceName}
+              onChange={(e) => setNewLiceName(e.target.value)}
+              placeholder="Lice 4"
+              maxLength={50}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+              autoFocus
+            />
+          </label>
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-600">Colour</span>
+            <input
+              type="color"
+              value={newLiceColor}
+              onChange={(e) => setNewLiceColor(e.target.value)}
+              className="h-7 w-10 cursor-pointer rounded border border-slate-300"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void addLice()}
+            disabled={addLiceBusy || !newLiceName.trim()}
+            className="rounded-md bg-slate-800 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
+          >
+            {addLiceBusy ? 'Adding…' : 'Add'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowAddLice(false);
+              setNewLiceName('');
+              setAddLiceError(null);
+            }}
+            className="rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+          {addLiceError && <span className="text-red-700">{addLiceError}</span>}
         </div>
       )}
 

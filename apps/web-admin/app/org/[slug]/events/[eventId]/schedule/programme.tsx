@@ -218,6 +218,39 @@ export function ProgrammePlanner({
 
   // ── Block manipulation ─────────────────────────────────────────────────────
 
+  /**
+   * Append a blank block to the active day. Operator fills it in via
+   * the existing inline editors (BlockRow) and persists with "Save
+   * programme" — same code path as auto-suggested blocks. Defaults to
+   * an admin block since that's the only type that doesn't require
+   * picking a linked competition/workshop up front.
+   */
+  function addBlock() {
+    const id =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const sortOrder = blocks.filter((b) => b.dayIndex === activeDay).length;
+    const newBlock: ProgrammeBlock = {
+      id,
+      eventId,
+      dayIndex: activeDay,
+      sortOrder,
+      blockType: 'admin',
+      label: '',
+      competitionId: null,
+      competitionPhase: null,
+      workshopId: null,
+      liceCount: 0,
+      startTime: '08:00',
+      endTime: '08:30',
+      matchGapSeconds: 0,
+      matchDurationMinutes: 0,
+      generatedAt: null,
+    };
+    setBlocks((prev) => [...prev, newBlock]);
+  }
+
   function updateBlock(id: string, patch: Partial<ProgrammeBlock>) {
     setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   }
@@ -299,22 +332,36 @@ export function ProgrammePlanner({
               ['Gear check (min)', 'gearCheckDurationMinutes', 'number'],
               ['Referee meeting (min)', 'refereeMeetingDurationMinutes', 'number'],
             ] as [string, keyof SuggestConfig, string][]
-          ).map(([label, key, type]) => (
-            <label key={key} className="flex flex-col gap-1">
-              <span className="text-xs text-slate-500">{label}</span>
-              <input
-                type={type}
-                value={config[key]}
-                onChange={(e) =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    [key]: type === 'number' ? Number(e.target.value) : e.target.value,
-                  }))
-                }
-                className="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-              />
-            </label>
-          ))}
+          ).map(([label, key, type]) => {
+            // Slice A of the schedule overhaul: 'time' fields use a
+            // custom HH:MM text input instead of <input type="time">.
+            // Native time pickers defer to the user's browser/OS
+            // locale — en-US users see AM/PM. The text input keeps
+            // the picker UX simple ("type the time") and the value
+            // shape is identical (HH:MM strings, what SuggestConfig
+            // already stores). Numeric pattern blocks junk input.
+            const isTime = type === 'time';
+            return (
+              <label key={key} className="flex flex-col gap-1">
+                <span className="text-xs text-slate-500">{label}</span>
+                <input
+                  type={isTime ? 'text' : type}
+                  inputMode={isTime ? 'numeric' : undefined}
+                  pattern={isTime ? '^([01]?[0-9]|2[0-3]):[0-5][0-9]$' : undefined}
+                  placeholder={isTime ? 'HH:MM' : undefined}
+                  maxLength={isTime ? 5 : undefined}
+                  value={config[key]}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      [key]: type === 'number' ? Number(e.target.value) : e.target.value,
+                    }))
+                  }
+                  className="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </label>
+            );
+          })}
         </div>
         <button
           onClick={() => void suggest()}
@@ -366,7 +413,7 @@ export function ProgrammePlanner({
             No blocks for this day. Use Auto-suggest or add blocks manually.
           </div>
         ) : (
-          <div className="flex flex-col gap-1.5 mb-4">
+          <div className="flex flex-col gap-1.5 mb-2">
             {dayBlocks.map((block, idx) => {
               const warning = warnings.find((w) => w.blockId === block.id);
               return (
@@ -390,6 +437,16 @@ export function ProgrammePlanner({
             })}
           </div>
         )}
+
+        {/* Slice B: manual block add — appended in component state,
+            persisted on next "Save programme". */}
+        <button
+          type="button"
+          onClick={addBlock}
+          className="mb-4 inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900"
+        >
+          + Add block
+        </button>
 
         {/* Action bar */}
         <div className="flex items-center gap-3 flex-wrap">

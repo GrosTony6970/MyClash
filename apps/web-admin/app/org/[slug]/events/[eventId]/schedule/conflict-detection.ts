@@ -64,6 +64,7 @@ export function detectConflicts(matches: ScheduleMatchForConflict[]): Conflict[]
           time: new Date(a.scheduledAt!).toLocaleTimeString('fr-FR', {
             hour: '2-digit',
             minute: '2-digit',
+            hour12: false,
           }),
         });
       }
