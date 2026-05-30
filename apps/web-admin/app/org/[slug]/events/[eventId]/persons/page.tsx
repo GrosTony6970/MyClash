@@ -641,6 +641,53 @@ export default function ParticipantsPage() {
     refresh();
   }
 
+  async function handleBulkRegisterReferee() {
+    if (selected.size === 0) return;
+    if (!confirm(t('organizer.persons.bulk.registerRefereeConfirm', { count: selected.size }))) {
+      return;
+    }
+    setBulkLoading(true);
+    let ok = 0;
+    for (const personId of selected) {
+      const person = persons.find((p) => p.id === personId);
+      // Mirror the single-person path at the "Add referee" toggle:
+      // fall back to event-scoped id when globalPersonId is absent
+      // — ensureEventReferee resolves either.
+      const targetId = person?.globalPersonId ?? personId;
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${targetId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) ok += 1;
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
+    refresh();
+    toast.success(t('organizer.persons.bulk.registerRefereeToast', { count: ok }));
+  }
+
+  async function handleBulkUnregisterReferee() {
+    if (selected.size === 0) return;
+    if (!confirm(t('organizer.persons.bulk.unregisterRefereeConfirm', { count: selected.size }))) {
+      return;
+    }
+    setBulkLoading(true);
+    let ok = 0;
+    for (const personId of selected) {
+      const person = persons.find((p) => p.id === personId);
+      const targetId = person?.globalPersonId ?? personId;
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${targetId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) ok += 1;
+    }
+    setSelected(new Set());
+    setBulkLoading(false);
+    refresh();
+    toast.success(t('organizer.persons.bulk.unregisterRefereeToast', { count: ok }));
+  }
+
   function handleDelete(personId: string) {
     const person = persons.find((p) => p.id === personId);
     if (!person) return;
@@ -786,89 +833,134 @@ export default function ParticipantsPage() {
           </div>
 
           {selected.size > 0 && (
-            <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex-wrap">
-              <span className="text-sm text-gray-600 font-medium">{selected.size} selected</span>
-              <button
-                onClick={() => void handleBulkDelete()}
-                disabled={bulkLoading || isReadOnly}
-                title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                className="text-sm text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
-              >
-                Delete selected
-              </button>
-              {activeTab === 'all' && tournaments.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={bulkAssignTournamentId}
-                    onChange={(e) => setBulkAssignTournamentId(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  >
-                    <option value="">Assign to tournament…</option>
-                    {tournaments.map((tour) => (
-                      <option key={tour.id} value={tour.id}>
-                        {tour.name}
-                      </option>
-                    ))}
-                  </select>
-                  {bulkAssignTournamentId && (
-                    <button
-                      onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
-                      disabled={bulkLoading}
-                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Assign
-                    </button>
-                  )}
-                </div>
-              )}
-              {activeTab !== 'all' && (
-                <>
-                  <button
-                    onClick={() => void handleBulkCheckIn()}
-                    disabled={bulkLoading || isReadOnly}
-                    title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                    className="text-sm text-green-700 hover:text-green-900 font-medium disabled:opacity-50"
-                  >
-                    Check in selected
-                  </button>
-                  <button
-                    onClick={() => void handleBulkUnassign()}
-                    disabled={bulkLoading || isReadOnly}
-                    title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                    className="text-sm text-orange-600 hover:text-orange-800 font-medium disabled:opacity-50"
-                  >
-                    Unassign from{' '}
-                    {tournaments.find((tour) => tour.id === activeTab)?.name ?? 'tournament'}
-                  </button>
-                  {tournaments.filter((tour) => tour.id !== activeTab).length > 0 && (
+            <div className="mb-3 flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <div className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                {selected.size} {t('organizer.persons.bulk.selected')}
+              </div>
+
+              {((activeTab === 'all' && tournaments.length > 0) || activeTab !== 'all') && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {t('organizer.persons.bulk.section.tournament')}
+                  </span>
+                  {activeTab === 'all' && tournaments.length > 0 && (
                     <div className="flex items-center gap-2">
                       <select
                         value={bulkAssignTournamentId}
                         onChange={(e) => setBulkAssignTournamentId(e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1 text-xs"
+                        className="rounded border border-gray-300 px-2 py-1 text-xs"
                       >
-                        <option value="">Assign to another…</option>
-                        {tournaments
-                          .filter((tour) => tour.id !== activeTab)
-                          .map((tour) => (
-                            <option key={tour.id} value={tour.id}>
-                              {tour.name}
-                            </option>
-                          ))}
+                        <option value="">{t('organizer.persons.bulk.assignToTournament')}</option>
+                        {tournaments.map((tour) => (
+                          <option key={tour.id} value={tour.id}>
+                            {tour.name}
+                          </option>
+                        ))}
                       </select>
                       {bulkAssignTournamentId && (
                         <button
                           onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
                           disabled={bulkLoading}
-                          className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                          className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
                         >
-                          Assign
+                          {t('organizer.persons.bulk.assign')}
                         </button>
                       )}
                     </div>
                   )}
-                </>
+                  {activeTab !== 'all' && (
+                    <>
+                      <button
+                        onClick={() => void handleBulkCheckIn()}
+                        disabled={bulkLoading || isReadOnly}
+                        title={
+                          isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                        }
+                        className="text-sm font-medium text-green-700 hover:text-green-900 disabled:opacity-50"
+                      >
+                        {t('organizer.persons.bulk.checkIn')}
+                      </button>
+                      <button
+                        onClick={() => void handleBulkUnassign()}
+                        disabled={bulkLoading || isReadOnly}
+                        title={
+                          isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined
+                        }
+                        className="text-sm font-medium text-orange-600 hover:text-orange-800 disabled:opacity-50"
+                      >
+                        {t('organizer.persons.bulk.unassignFrom', {
+                          tournament: tournaments.find((tour) => tour.id === activeTab)?.name ?? '',
+                        })}
+                      </button>
+                      {tournaments.filter((tour) => tour.id !== activeTab).length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={bulkAssignTournamentId}
+                            onChange={(e) => setBulkAssignTournamentId(e.target.value)}
+                            className="rounded border border-gray-300 px-2 py-1 text-xs"
+                          >
+                            <option value="">{t('organizer.persons.bulk.assignToAnother')}</option>
+                            {tournaments
+                              .filter((tour) => tour.id !== activeTab)
+                              .map((tour) => (
+                                <option key={tour.id} value={tour.id}>
+                                  {tour.name}
+                                </option>
+                              ))}
+                          </select>
+                          {bulkAssignTournamentId && (
+                            <button
+                              onClick={() => void handleBulkAssign(bulkAssignTournamentId)}
+                              disabled={bulkLoading}
+                              className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {t('organizer.persons.bulk.assign')}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
+
+              {/* Referee bulk actions — always available, all tabs */}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t('organizer.persons.bulk.section.referee')}
+                </span>
+                <button
+                  onClick={() => void handleBulkRegisterReferee()}
+                  disabled={bulkLoading || isReadOnly}
+                  title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                  className="text-sm font-medium text-indigo-700 hover:text-indigo-900 disabled:opacity-50"
+                >
+                  {t('organizer.persons.bulk.registerReferee')}
+                </button>
+                <button
+                  onClick={() => void handleBulkUnregisterReferee()}
+                  disabled={bulkLoading || isReadOnly}
+                  title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                  className="text-sm font-medium text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                >
+                  {t('organizer.persons.bulk.unregisterReferee')}
+                </button>
+              </div>
+
+              {/* Danger zone — separated, restyled */}
+              <div className="flex items-center gap-3 border-t border-gray-200 pt-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                  {t('organizer.persons.bulk.section.danger')}
+                </span>
+                <button
+                  onClick={() => void handleBulkDelete()}
+                  disabled={bulkLoading || isReadOnly}
+                  title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
+                  className="rounded-md px-2.5 py-1 text-sm font-semibold text-red-700 ring-1 ring-red-300 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {t('organizer.persons.bulk.deleteFromEvent')}
+                </button>
+              </div>
             </div>
           )}
 
