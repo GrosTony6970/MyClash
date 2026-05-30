@@ -84,17 +84,12 @@ describe('FighterMergeService', () => {
     personsSelect.select.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ data: [{ id: 'person-1' }], error: null }),
     });
-    const registrationsSelect = makeChain({ data: [{ id: 'registration-1' }], error: null });
-    registrationsSelect.select.mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: [{ id: 'registration-1' }], error: null }),
-    });
     const instructorsSelect = makeChain({ data: [{ id: 'instructor-1' }], error: null });
     instructorsSelect.select.mockReturnValue({
       eq: vi.fn().mockResolvedValue({ data: [{ id: 'instructor-1' }], error: null }),
     });
     const fighterUpdate = makeChain({ data: null, error: null });
     const personsUpdate = makeChain({ data: null, error: null });
-    const registrationsUpdate = makeChain({ data: null, error: null });
     const instructorsUpdate = makeChain({ data: null, error: null });
     const auditInsert = makeChain({ data: null, error: null });
 
@@ -103,11 +98,6 @@ describe('FighterMergeService', () => {
       if (table === 'global_persons') return fighterChains.shift() ?? fighterUpdate;
       if (table === 'persons')
         return personsSelect.select.mock.calls.length ? personsUpdate : personsSelect;
-      if (table === 'registrations') {
-        return registrationsSelect.select.mock.calls.length
-          ? registrationsUpdate
-          : registrationsSelect;
-      }
       if (table === 'workshop_instructors') {
         return instructorsSelect.select.mock.calls.length ? instructorsUpdate : instructorsSelect;
       }
@@ -124,7 +114,7 @@ describe('FighterMergeService', () => {
       merged: true,
       sourceId: 'source',
       targetId: 'target',
-      moved: { persons: 1, registrations: 1, workshopInstructors: 1 },
+      moved: { persons: 1, workshopInstructors: 1 },
     });
     const fighterUpdateCalls = fighterUpdate.update.mock.calls;
     expect(auditInsert.insert).toHaveBeenCalledWith(
@@ -133,7 +123,6 @@ describe('FighterMergeService', () => {
         payload_json: expect.objectContaining({
           moved: {
             personIds: ['person-1'],
-            registrationIds: ['registration-1'],
             workshopInstructorIds: ['instructor-1'],
           },
           reason: 'duplicate registration',
@@ -141,7 +130,6 @@ describe('FighterMergeService', () => {
       }),
     );
     expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
-    expect(registrationsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'target' });
     expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
     expect(fighterUpdateCalls).toContainEqual([
       expect.objectContaining({
@@ -158,7 +146,6 @@ describe('FighterMergeService', () => {
         payload_json: expect.objectContaining({
           moved: {
             personIds: ['person-1'],
-            registrationIds: ['registration-1'],
             workshopInstructorIds: ['instructor-1'],
           },
           reason: 'duplicate registration',
@@ -189,7 +176,6 @@ describe('FighterMergeService', () => {
     });
     auditChain.select.mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle }) });
     const personsUpdate = makeChain({ data: null, error: null });
-    const registrationsUpdate = makeChain({ data: null, error: null });
     const instructorsUpdate = makeChain({ data: null, error: null });
     const sourceUpdate = makeChain({ data: null, error: null });
     const auditInsert = makeChain({ data: null, error: null });
@@ -198,7 +184,6 @@ describe('FighterMergeService', () => {
       if (table === 'audit_log')
         return auditChain.select.mock.calls.length ? auditInsert : auditChain;
       if (table === 'persons') return personsUpdate;
-      if (table === 'registrations') return registrationsUpdate;
       if (table === 'workshop_instructors') return instructorsUpdate;
       if (table === 'global_persons') return sourceUpdate;
       return makeChain({ data: null, error: null });
@@ -206,8 +191,10 @@ describe('FighterMergeService', () => {
 
     await service.revertMerge('audit-1', 'actor-user');
 
+    // Reverting persons.global_person_id automatically reverts the
+    // registrations that referenced those persons — no direct
+    // registrations.fighter_id cascade after 0083.
     expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
-    expect(registrationsUpdate.update).toHaveBeenCalledWith({ fighter_id: 'source' });
     expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
     expect(sourceUpdate.update).toHaveBeenCalledWith(
       expect.objectContaining({

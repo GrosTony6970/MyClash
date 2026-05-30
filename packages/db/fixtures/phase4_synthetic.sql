@@ -88,12 +88,13 @@ VALUES (
   1
 );
 
-INSERT INTO registrations (id, tournament_id, person_id, fighter_id, seed, status, bib_number)
+-- Identity flows via person_id → persons.global_person_id (the
+-- legacy registrations.fighter_id column was retired in 0083).
+INSERT INTO registrations (id, tournament_id, person_id, seed, status, bib_number)
 SELECT
   ('10000000-0000-4000-8000-000000005' || lpad(i::text, 3, '0'))::uuid,
   '10000000-0000-4000-8000-000000000300',
   ('10000000-0000-4000-8000-000000003' || lpad(i::text, 3, '0'))::uuid,
-  ('10000000-0000-4000-8000-000000002' || lpad(i::text, 3, '0'))::uuid,
   i,
   'checked_in',
   i

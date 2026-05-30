@@ -116,7 +116,11 @@ export class RegistrationsService {
   // ── Create (single) ──────────────────────────────────────────────────────────
 
   async create(tournamentId: string, dto: CreateRegistrationDto) {
-    const fighterId = await this.resolveFighterForRegistration(dto);
+    // Side effect only: ensures persons.global_person_id is populated
+    // (mints a global_persons row if needed). Identity now flows via
+    // person_id → persons.global_person_id; registrations.fighter_id
+    // is being retired.
+    await this.resolveFighterForRegistration(dto);
     // Slice 2: capacity guard — returns 409 with reason='tournament_full' so
     // the admin UI can offer 'Add to waitlist instead?' as an explicit step.
     await this.assertCapacityForCreate(tournamentId);
@@ -127,7 +131,6 @@ export class RegistrationsService {
       .insert({
         tournament_id: tournamentId,
         person_id: dto.personId,
-        fighter_id: dto.fighterId ?? fighterId,
         seed: dto.seed ?? null,
         bib_number: bibNumber,
         status: 'registered',
@@ -175,7 +178,9 @@ export class RegistrationsService {
    * when the queue is also capped and full.
    */
   async addToWaitlist(tournamentId: string, dto: CreateRegistrationDto) {
-    const fighterId = await this.resolveFighterForRegistration(dto);
+    // Same side-effect-only call as create() — populates the canonical
+    // persons.global_person_id link; we no longer write fighter_id.
+    await this.resolveFighterForRegistration(dto);
 
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
@@ -210,7 +215,6 @@ export class RegistrationsService {
       .insert({
         tournament_id: tournamentId,
         person_id: dto.personId,
-        fighter_id: dto.fighterId ?? fighterId,
         seed: dto.seed ?? null,
         // Waitlist entries don't get a bib until promoted; auto-assigning at
         // queue time would burn numbers that may never be used.

@@ -16,7 +16,8 @@ interface MergeAuditPayload {
   target: FighterRow;
   moved: {
     personIds: string[];
-    registrationIds: string[];
+    /** @deprecated registrations now follow persons.global_person_id, no direct cascade. */
+    registrationIds?: string[];
     workshopInstructorIds: string[];
   };
   reason: string | null;
@@ -64,11 +65,6 @@ export class FighterMergeService {
     }
 
     const personIds = await this.selectReferenceIds('persons', 'global_person_id', dto.sourceId);
-    const registrationIds = await this.selectReferenceIds(
-      'registrations',
-      'fighter_id',
-      dto.sourceId,
-    );
     const workshopInstructorIds = await this.selectReferenceIds(
       'workshop_instructors',
       'global_person_id',
@@ -80,8 +76,10 @@ export class FighterMergeService {
       .update(fillTargetFields(source, target))
       .eq('id', dto.targetId);
 
+    // Registrations cascade via persons.global_person_id — no direct
+    // fighter_id update needed. Updating persons here re-points every
+    // registration that references those persons.id.
     await this.updateReferences('persons', 'global_person_id', personIds, dto.targetId);
-    await this.updateReferences('registrations', 'fighter_id', registrationIds, dto.targetId);
     await this.updateReferences(
       'workshop_instructors',
       'global_person_id',
@@ -104,7 +102,7 @@ export class FighterMergeService {
     const payload: MergeAuditPayload = {
       source,
       target,
-      moved: { personIds, registrationIds, workshopInstructorIds },
+      moved: { personIds, workshopInstructorIds },
       reason: dto.reason?.trim() || null,
     };
     await this.writeAudit(actorUserId, 'fighter.merge', dto.sourceId, payload);
@@ -115,7 +113,6 @@ export class FighterMergeService {
       targetId: dto.targetId,
       moved: {
         persons: personIds.length,
-        registrations: registrationIds.length,
         workshopInstructors: workshopInstructorIds.length,
       },
     };
@@ -146,16 +143,14 @@ export class FighterMergeService {
 
     const payload = audit.payload_json;
     const sourceId = payload.source.id;
+    // Reverting the persons cascade automatically reverts the
+    // registrations that referenced those persons. Older audit logs
+    // may carry a moved.registrationIds list; ignore it — the column
+    // no longer exists post-0083.
     await this.updateReferences(
       'persons',
       'global_person_id',
       payload.moved.personIds ?? [],
-      sourceId,
-    );
-    await this.updateReferences(
-      'registrations',
-      'fighter_id',
-      payload.moved.registrationIds ?? [],
       sourceId,
     );
     await this.updateReferences(

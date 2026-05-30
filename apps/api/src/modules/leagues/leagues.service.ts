@@ -878,7 +878,7 @@ export class LeaguesService {
   ): Promise<LeagueTournamentContribution[]> {
     const tournament = await this.getTournamentWithEvent(tournamentId);
     const [registrations, matches, groupName] = await Promise.all([
-      this.listRows('registrations', 'tournament_id', tournamentId),
+      this.listRegistrationsWithIdentity(tournamentId),
       this.listMatchesForTournament(tournamentId),
       this.lookupLinkGroupName(leagueId, tournamentId),
     ]);
@@ -968,7 +968,11 @@ export class LeaguesService {
           leagueId,
           tournamentId: String(tournament['id']),
           eventId: String(tournament['event_id']),
-          fighterId: (registration['fighter_id'] as string | null) ?? null,
+          fighterId:
+            ((registration['persons'] as { global_person_id?: string | null } | null)
+              ?.global_person_id ??
+              null) ||
+            null,
           fighterName: name,
           clubName: null,
           clubCity: null,
@@ -1116,6 +1120,20 @@ export class LeaguesService {
 
   private async listRows(table: string, column: string, value: string): Promise<Row[]> {
     const { data, error } = await this.supabase.service.from(table).select('*').eq(column, value);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as Row[];
+  }
+
+  /**
+   * Registrations joined with their canonical identity. Identity flows
+   * via person_id → persons.global_person_id (the legacy
+   * registrations.fighter_id column was retired in 0083).
+   */
+  private async listRegistrationsWithIdentity(tournamentId: string): Promise<Row[]> {
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .select('*, persons!inner(global_person_id, given_name, family_name)')
+      .eq('tournament_id', tournamentId);
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as Row[];
   }

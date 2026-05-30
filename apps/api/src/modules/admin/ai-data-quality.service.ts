@@ -674,8 +674,19 @@ export class AIDataQualityService {
   }
 
   private async loadRegistrations(): Promise<RegistrationRow[]> {
-    const { data } = await this.supabase.service.from('registrations').select('id, fighter_id');
-    return (data ?? []) as RegistrationRow[];
+    // Identity now flows through person_id → persons.global_person_id;
+    // the legacy registrations.fighter_id column was retired in 0083.
+    const { data } = await this.supabase.service
+      .from('registrations')
+      .select('id, persons!inner(global_person_id)');
+    const rows = (data ?? []) as Array<{
+      id: string;
+      persons: { global_person_id: string | null } | { global_person_id: string | null }[] | null;
+    }>;
+    return rows.map((r) => {
+      const link = Array.isArray(r.persons) ? r.persons[0] : r.persons;
+      return { id: r.id, fighter_id: link?.global_person_id ?? null };
+    });
   }
 
   /**

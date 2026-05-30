@@ -82,7 +82,7 @@ describe('RegistrationsService fighter linking', () => {
     const bibChain = makeAwaitableChain({ data: [], error: null });
     const regChain = makeChain({ data: null, error: null });
     regChain.single.mockResolvedValue({
-      data: { id: 'reg-1', fighter_id: 'fighter-1' },
+      data: { id: 'reg-1', person_id: 'person-1' },
       error: null,
     });
 
@@ -96,7 +96,10 @@ describe('RegistrationsService fighter linking', () => {
 
     const result = await service.create('tournament-1', { personId: 'person-1' });
 
-    expect((result as { fighter_id: string }).fighter_id).toBe('fighter-1');
+    // Identity flows via person_id → persons.global_person_id; the
+    // service mints the global_persons row (side effect) but no
+    // longer writes registrations.fighter_id.
+    expect((result as { id: string }).id).toBe('reg-1');
     expect(fighterChain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         display_name: 'Jean Dupont',
@@ -107,8 +110,9 @@ describe('RegistrationsService fighter linking', () => {
       }),
     );
     expect(regChain.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ fighter_id: 'fighter-1' }),
+      expect.objectContaining({ person_id: 'person-1' }),
     );
+    expect(regChain.insert.mock.calls[0]?.[0]).not.toHaveProperty('fighter_id');
   });
 
   it('creates a Fighter with hema_ratings_id when selected during registration', async () => {
@@ -134,7 +138,7 @@ describe('RegistrationsService fighter linking', () => {
     const bibChain = makeAwaitableChain({ data: [], error: null });
     const regChain = makeChain({ data: null, error: null });
     regChain.single.mockResolvedValue({
-      data: { id: 'reg-1', fighter_id: 'fighter-1' },
+      data: { id: 'reg-1', person_id: 'person-1' },
       error: null,
     });
 
@@ -173,7 +177,7 @@ describe('RegistrationsService fighter linking', () => {
     const bibChain = makeAwaitableChain({ data: [], error: null });
     const regChain = makeChain({ data: null, error: null });
     regChain.single.mockResolvedValue({
-      data: { id: 'reg-1', fighter_id: 'fighter-1' },
+      data: { id: 'reg-1', person_id: 'person-1' },
       error: null,
     });
 
@@ -191,7 +195,8 @@ describe('RegistrationsService fighter linking', () => {
 
     expect(fighterUpdateChain.update).toHaveBeenCalledWith({ hema_ratings_id: '456' });
     expect(regChain.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ fighter_id: 'fighter-1' }),
+      expect.objectContaining({ person_id: 'person-1' }),
     );
+    expect(regChain.insert.mock.calls[0]?.[0]).not.toHaveProperty('fighter_id');
   });
 });
