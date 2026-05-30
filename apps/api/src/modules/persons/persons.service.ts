@@ -166,6 +166,20 @@ export class PersonsService {
         genderCategory: dto.genderCategory ?? null,
       }));
 
+    // If the caller didn't supply a club, inherit it from the linked
+    // global profile. Keeps persons.club_id and global_persons.club_id
+    // in sync at insert time so the tournament-query views can drop
+    // the local/global COALESCE on every read. NULL stays NULL —
+    // independent / unaffiliated fighters are a real domain case.
+    if (!resolvedClubId) {
+      const { data: gp } = await this.supabase.service
+        .from('global_persons')
+        .select('club_id')
+        .eq('id', globalPersonId)
+        .maybeSingle();
+      resolvedClubId = (gp as { club_id: string | null } | null)?.club_id ?? null;
+    }
+
     const { data, error } = await this.supabase.service
       .from('persons')
       .insert({
@@ -922,10 +936,23 @@ export class PersonsService {
     const action = decision?.action ?? 'create_new';
 
     if (action === 'link' && decision?.globalPersonId) {
-      await this.supabase.service
-        .from('persons')
-        .update({ global_person_id: decision.globalPersonId })
-        .eq('id', personId);
+      // Inherit the global profile's club when the CSV row didn't
+      // supply one. Keeps persons.club_id consistent with
+      // global_persons.club_id at link time so views can drop the
+      // local/global COALESCE.
+      const updates: { global_person_id: string; club_id?: string } = {
+        global_person_id: decision.globalPersonId,
+      };
+      if (!clubId) {
+        const { data: gp } = await this.supabase.service
+          .from('global_persons')
+          .select('club_id')
+          .eq('id', decision.globalPersonId)
+          .maybeSingle();
+        const inherited = (gp as { club_id: string | null } | null)?.club_id ?? null;
+        if (inherited) updates.club_id = inherited;
+      }
+      await this.supabase.service.from('persons').update(updates).eq('id', personId);
       return;
     }
 

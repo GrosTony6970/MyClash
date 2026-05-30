@@ -369,12 +369,11 @@ export class StaffService {
         // Extended for the external-display redesign:
         //   - pools(id,name) so the title can show "Pool A" without
         //     a separate fetch.
-        //   - persons embeds now carry club_id + clubs(name,
-        //     logo_url) AND global_person_id +
-        //     global_persons(club_id, clubs(name, logo_url)) so the
-        //     payload can COALESCE both club paths (mirrors the
-        //     0079_tournament_query_global_person_clubs migration).
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_person_id,global_persons(club_id,clubs(name,logo_url)))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url),global_person_id,global_persons(club_id,clubs(name,logo_url)))),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
+        //   - persons embeds carry club_id + clubs(name, logo_url).
+        //     0081 simplified the schema so the global_persons club
+        //     fallback is no longer needed — persons.club_id is
+        //     populated eagerly at insert/link time.
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -657,8 +656,6 @@ export class StaffService {
       family_name?: string | null;
       club_id?: string | null;
       clubs?: ClubsEmbed;
-      global_person_id?: string | null;
-      global_persons?: { club_id?: string | null; clubs?: ClubsEmbed } | null;
     };
     const red = match['red'] as { persons?: PersonEmbed } | null;
     const blue = match['blue'] as { persons?: PersonEmbed } | null;
@@ -680,23 +677,18 @@ export class StaffService {
     const bracketSlot = match['bracket_slots'] as { round?: number } | null;
     const poolName = pool?.name ?? null;
 
-    // COALESCE the club between persons.club_id and
-    // persons.global_person_id → global_persons.club_id. Mirrors
-    // 0079_tournament_query_global_person_clubs so HEMA-synced
-    // participants whose club only lives on global_persons still
-    // surface here.
+    // Read club from persons.club_id. createPerson() now eagerly
+    // copies global_persons.club_id into the local row at insert
+    // time (and applyGlobalPersonDecision does the same on link),
+    // so the global_persons fallback is no longer needed here —
+    // matches 0081's view simplification.
     function resolveClub(
       side: { persons?: PersonEmbed } | null,
     ): { name: string; logoUrl: string | null } | null {
       const person = side?.persons;
-      if (!person) return null;
-      const local = person.clubs;
+      const local = person?.clubs;
       if (local && (local.name || local.logo_url)) {
         return { name: local.name ?? '', logoUrl: local.logo_url ?? null };
-      }
-      const global = person.global_persons?.clubs;
-      if (global && (global.name || global.logo_url)) {
-        return { name: global.name ?? '', logoUrl: global.logo_url ?? null };
       }
       return null;
     }

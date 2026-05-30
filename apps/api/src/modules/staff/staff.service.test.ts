@@ -128,8 +128,6 @@ describe('StaffService.getPublicMatchDisplay', () => {
             family_name: 'Garnier',
             club_id: 'club-lyon',
             clubs: { name: 'Lyon AMHE', logo_url: 'https://cdn.example/lyon.png' },
-            global_person_id: null,
-            global_persons: null,
           },
         },
         blue: {
@@ -138,14 +136,11 @@ describe('StaffService.getPublicMatchDisplay', () => {
             id: 'p-b',
             given_name: 'Aleksandr',
             family_name: 'Ermolov',
-            // Direct club null — should fall back to global_persons.club_id
-            club_id: null,
-            clubs: null,
-            global_person_id: 'gp-b',
-            global_persons: {
-              club_id: 'club-lyon',
-              clubs: { name: 'Lyon AMHE', logo_url: null },
-            },
+            // persons.club_id is populated eagerly by createPerson()
+            // and applyGlobalPersonDecision() — no global_persons
+            // fallback needed (matches 0081's view simplification).
+            club_id: 'club-lyon',
+            clubs: { name: 'Lyon AMHE', logo_url: null },
           },
         },
         phases: {
