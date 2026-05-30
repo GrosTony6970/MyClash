@@ -4,8 +4,15 @@
  * code lives on match cards, scoring screens, and CSV/PDF exports.
  *
  * Format:
- *   Pool match    →  <WEAPON>-P<pool_num>-M<match_num>     e.g. LSW-P1-M3
- *   Bracket match →  <WEAPON>-<ROUND>-M<match_num>          e.g. LSW-QF-M1
+ *   Pool match    →  <WEAPON>-P<pool_num>-M<match_num>      e.g. LSW-P1-M3
+ *   Bracket match →  <WEAPON>-B-<ROUND>-M<match_num>        e.g. LSW-B-QF-M1
+ *   Play-in match →  <WEAPON>-B-PI-M<match_num>             e.g. LSW-B-PI-M5
+ *
+ * The B segment marks every bracket-tier match so pool vs bracket vs
+ * play-in is unambiguous at a glance (operators previously couldn't
+ * tell LSW-M1 apart from LSW-QF-M1 without context). Play-ins are
+ * single-elim slots at `bracket_slots.round === 0` (seed-in matches
+ * before the main bracket).
  *
  * Weapon abbreviations: canonical 5 weapons (LSW / SDW / RAP / SBR / SB)
  * plus a deterministic first-3-letters-uppercased fallback for anything
@@ -15,7 +22,8 @@
  * Bracket round labels resolve to F / SF / QF / R16 / R32 / R64 / R128
  * based on how many fighters remain at that round (= 2^(total_rounds −
  * round + 1)) for single-elim brackets. Falls back to B<round> when the
- * bracket size is unknown.
+ * bracket size is unknown — yielding the harmless double-B form
+ * LSW-B-B2-M1 in that rare case.
  *
  * The whole module is pure — no I/O, no React, no Node-only APIs — so
  * it works identically in the NestJS API (exports) and every web app
@@ -87,15 +95,25 @@ export function bracketRoundLabel(round: number, bracketSize: number | null): st
 
 export function formatRoundCode(input: RoundCodeInput): string {
   const w = weaponAbbr(input.weapon);
-  const middle =
-    input.poolNumber !== null && input.poolNumber !== undefined
-      ? `P${input.poolNumber}`
-      : input.bracketRound !== null && input.bracketRound !== undefined
-        ? bracketRoundLabel(input.bracketRound, input.bracketSize)
-        : '';
+
+  // Pool matches use a single P<n> segment; bracket matches get a
+  // B segment (plus the round label, or PI for play-ins) so the
+  // pool/bracket/play-in distinction shows up in the code itself.
+  let middle: string[] = [];
+  if (input.poolNumber !== null && input.poolNumber !== undefined) {
+    middle = [`P${input.poolNumber}`];
+  } else if (input.bracketRound !== null && input.bracketRound !== undefined) {
+    if (input.bracketRound === 0) {
+      middle = ['B', 'PI'];
+    } else {
+      middle = ['B', bracketRoundLabel(input.bracketRound, input.bracketSize)];
+    }
+  }
+
   const tail =
     input.matchNumber !== null && input.matchNumber !== undefined && input.matchNumber !== ''
       ? `M${input.matchNumber}`
       : '';
-  return [w, middle, tail].filter(Boolean).join('-');
+
+  return [w, ...middle, tail].filter(Boolean).join('-');
 }

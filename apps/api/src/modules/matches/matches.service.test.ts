@@ -106,7 +106,7 @@ describe('MatchesService', () => {
       expect(result.roundCode).toBe('LSW-P1-ML1-PA-M1');
     });
 
-    it('reads bracketSize from phases.config_json so bracket matches render LSW-R16-M1', async () => {
+    it('reads bracketSize from phases.config_json so bracket matches render LSW-B-R16-M1', async () => {
       // After stamping match_number_label on bracket matches, the scoreboard
       // had to ALSO fetch the phase's bracketSize to translate
       // bracket_round → R16/QF/SF/F. Without this, the code fell back to
@@ -145,7 +145,7 @@ describe('MatchesService', () => {
 
       const result = (await service.getMatchSummary('m-r16-1')) as { roundCode: string };
 
-      expect(result.roundCode).toBe('LSW-R16-M1');
+      expect(result.roundCode).toBe('LSW-B-R16-M1');
     });
   });
 

@@ -25,7 +25,6 @@ import {
   type SwapSuggestion,
 } from '../../referees/_components/SwapSuggestionsPanel';
 import { assignmentChipClasses } from '../../referees/_components/assignment-chip-classes';
-import { formatBracketMatchLabel } from '../../referees/_components/format-bracket-match-label';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -438,15 +437,12 @@ function BracketMatchCard({
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
-  // Slice 4: readable round label ('Quarter-final #2') instead of the
-  // raw R{N}P{M}. Falls back to pool.name when bracket metadata is
-  // missing (e.g. an older payload), so the title is never empty.
-  const roundLabel =
-    pool.bracketMaxRound !== undefined &&
-    pool.bracketRound !== undefined &&
-    pool.bracketPosition !== undefined
-      ? formatBracketMatchLabel(pool.bracketRound, pool.bracketPosition, pool.bracketMaxRound, t)
-      : pool.name;
+  // Unified match code. The server now returns pool.name in the
+  // canonical LSW-B-QF-M1 / LSW-B-PI-M5 shape via formatRoundCode,
+  // so this surface no longer needs its own "Quarter-final #2"
+  // re-formatter — the code matches what the bracket page, scoring
+  // app, and exports already show.
+  const roundLabel = pool.name;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="mb-3 flex items-baseline justify-between">

@@ -93,7 +93,7 @@ describe('formatRoundCode', () => {
     ).toBe('RAP-P2-M5');
   });
 
-  it('produces LSW-QF-M1 for a quarter-final in a 32-bracket', () => {
+  it('produces LSW-B-QF-M1 for a quarter-final in a 32-bracket', () => {
     expect(
       formatRoundCode({
         weapon: 'Longsword',
@@ -102,10 +102,10 @@ describe('formatRoundCode', () => {
         bracketSize: 32,
         matchNumber: 1,
       }),
-    ).toBe('LSW-QF-M1');
+    ).toBe('LSW-B-QF-M1');
   });
 
-  it('produces LSW-F-M1 for the final', () => {
+  it('produces LSW-B-F-M1 for the final', () => {
     expect(
       formatRoundCode({
         weapon: 'Longsword',
@@ -114,10 +114,38 @@ describe('formatRoundCode', () => {
         bracketSize: 32,
         matchNumber: 1,
       }),
-    ).toBe('LSW-F-M1');
+    ).toBe('LSW-B-F-M1');
   });
 
-  it('produces LSW-B2-M3 when bracketSize is unknown', () => {
+  it('produces LSW-B-R16-M1 for the first round of a 16-bracket', () => {
+    expect(
+      formatRoundCode({
+        weapon: 'Longsword',
+        poolNumber: null,
+        bracketRound: 1,
+        bracketSize: 16,
+        matchNumber: 1,
+      }),
+    ).toBe('LSW-B-R16-M1');
+  });
+
+  it('produces LSW-B-PI-M5 for a play-in match (round 0)', () => {
+    expect(
+      formatRoundCode({
+        weapon: 'Longsword',
+        poolNumber: null,
+        bracketRound: 0,
+        bracketSize: 16,
+        matchNumber: 5,
+      }),
+    ).toBe('LSW-B-PI-M5');
+  });
+
+  it('produces LSW-B-B2-M3 when bracketSize is unknown — double-B is acceptable', () => {
+    // Rare: only fires when bracketSize is null. The 'B' from the
+    // new bracket marker collides with the bracketRoundLabel
+    // fallback 'B<round>' — operators still see B clearly so it's
+    // not worth carving an exception.
     expect(
       formatRoundCode({
         weapon: 'Longsword',
@@ -126,7 +154,7 @@ describe('formatRoundCode', () => {
         bracketSize: null,
         matchNumber: 3,
       }),
-    ).toBe('LSW-B2-M3');
+    ).toBe('LSW-B-B2-M3');
   });
 
   it('handles custom weapon names via the 3-letter fallback', () => {

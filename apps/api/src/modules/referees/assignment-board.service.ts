@@ -12,6 +12,7 @@ import {
   type RefereePoolSlot,
   type RefereeRole,
 } from '@myclash/rulesets/dist/scheduling/index';
+import { formatRoundCode } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
 import { StaffingService, type ResolvedConfig } from './staffing.service';
@@ -177,6 +178,7 @@ export interface ManualAssignmentDto {
 interface TournamentRow {
   id: string;
   name: string;
+  weapon: string | null;
 }
 
 interface PhaseRow {
@@ -694,7 +696,20 @@ export class AssignmentBoardService {
 
       return {
         id: `match-${m.id}`,
-        name: info ? `R${info.round}P${info.position}` : `Match ${m.id.slice(0, 6)}`,
+        // Unified code via the shared formatRoundCode helper so the
+        // bracket page, scoring app, scoreboard, and this referee
+        // board all agree. Bracket rounds get the LSW-B-QF-M1 shape;
+        // play-ins (round 0) get LSW-B-PI-M5. 2^maxRound derives a
+        // bracketSize the helper uses for QF/SF/F/Rn naming.
+        name: info
+          ? formatRoundCode({
+              weapon: tournament?.weapon ?? null,
+              poolNumber: null,
+              bracketRound: info.round,
+              bracketSize: maxRound > 0 ? 2 ** maxRound : null,
+              matchNumber: info.position,
+            })
+          : `Match ${m.id.slice(0, 6)}`,
         tournamentId: tournament?.id ?? '',
         tournamentName: tournament?.name ?? '',
         liceId: m.lice_id,
@@ -746,7 +761,7 @@ export class AssignmentBoardService {
   private async listTournaments(eventId: string): Promise<TournamentRow[]> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, name')
+      .select('id, name, weapon')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
