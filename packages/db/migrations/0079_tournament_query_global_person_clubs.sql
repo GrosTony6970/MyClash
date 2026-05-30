@@ -31,7 +31,6 @@ SELECT
   p.hema_ratings_id,
   COALESCE(f.country_code, c_local.country_code, c_global.country_code) AS country_code,
   t.weapon,
-  t.category,
   r.status,
   r.seed,
   r.bib_number,
