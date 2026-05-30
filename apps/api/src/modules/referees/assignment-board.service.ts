@@ -30,6 +30,19 @@ export const REFEREE_ASSIGNMENT_ROLES: RefereeRole[] = [
 ];
 
 /**
+ * Empty engine result. Passed to `buildBoard()` whenever we want a
+ * persisted-only view — the per-slot merge falls back to `persisted`
+ * when `previewAssignment` is missing, so a fully-empty preview
+ * yields a board with no proposed chips at all.
+ */
+const EMPTY_PREVIEW: AssignmentResult = {
+  assignments: [],
+  missing: [],
+  warnings: [],
+  swapSuggestions: [],
+};
+
+/**
  * `role` here is a `referee_skills.id` string — used to be the legacy
  * `RefereeRole` enum, loosened in R2 of the staffing overhaul so the
  * board can carry custom skills introduced via the Staffing tab.
@@ -114,6 +127,13 @@ export interface AssignmentBoardPool {
       displayName: string;
       status: string;
       autoAssigned: boolean;
+      /**
+       * True when the chip came from the auto-assign engine but is
+       * not yet persisted — i.e. it lives only in the current
+       * preview. Frontend renders these with a dashed "Proposed"
+       * style so the operator can tell what's saved at a glance.
+       */
+      isProposal: boolean;
     } | null;
     missingReasons: string[];
     candidates: {
@@ -257,7 +277,24 @@ export class AssignmentBoardService {
     private readonly staffing: StaffingService,
   ) {}
 
+  /**
+   * Persisted-only board. The auto-assign engine is NOT run here —
+   * proposals only appear after the operator explicitly clicks
+   * "Preview auto assign", which routes through `previewBoard()`.
+   * This is the on-mount entry point for the Assignments tab.
+   */
   async getBoard(eventId: string): Promise<AssignmentBoard> {
+    const context = await this.loadContext(eventId);
+    return this.buildBoard(context, EMPTY_PREVIEW);
+  }
+
+  /**
+   * Same shape as `getBoard()` but with the auto-assign engine
+   * proposals overlaid. Slots that get a chip from the engine (with
+   * no matching persisted row) carry `assignment.isProposal: true`
+   * so the UI can render them distinctly.
+   */
+  async previewBoard(eventId: string): Promise<AssignmentBoard> {
     const context = await this.loadContext(eventId);
     const preview = await this.previewFromContext(context);
     return this.buildBoard(context, preview);
@@ -1126,6 +1163,10 @@ export class AssignmentBoardService {
                     displayName: assignedCandidate.displayName,
                     status: persisted?.status ?? 'preview',
                     autoAssigned: persisted?.auto_assigned ?? true,
+                    // Proposal = engine output with no matching
+                    // persisted row. The UI uses this to render
+                    // dashed chips with a "Proposed" badge.
+                    isProposal: !persisted,
                   }
                 : null,
             missingReasons: missingByPoolSlot.get(`${pool.id}:${slot.index}`) ?? [],

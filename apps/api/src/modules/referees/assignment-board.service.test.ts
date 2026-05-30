@@ -201,6 +201,45 @@ describe('AssignmentBoardService', () => {
     expect(board.swapSuggestions).toEqual([]);
   });
 
+  it('getBoard does NOT run the auto-assign engine — no proposal chips appear', async () => {
+    // Regression guard: prior to this change getBoard() called
+    // previewFromContext() on every load, so the operator saw a
+    // board pre-filled with engine proposals before clicking
+    // anything. Now it must be persisted-only — no fixture row,
+    // no chip.
+    queueBoardReads();
+
+    const board = await service.getBoard('event-1');
+
+    const allSlots = board.pools.flatMap((pool) => pool.roleSlots);
+    expect(allSlots.length).toBeGreaterThan(0);
+    for (const slot of allSlots) {
+      // No persisted assignment was queued, so every slot must be
+      // empty. Any non-null assignment here would mean the engine
+      // ran and produced a proposal — the very behaviour we're
+      // fixing.
+      expect(slot.assignment).toBeNull();
+    }
+  });
+
+  it('previewBoard runs the engine and surfaces proposals as isProposal: true', async () => {
+    queueBoardReads();
+
+    const board = await service.previewBoard('event-1');
+
+    const proposalAssignments = board.pools
+      .flatMap((pool) => pool.roleSlots)
+      .map((slot) => slot.assignment)
+      .filter((assignment): assignment is NonNullable<typeof assignment> => assignment !== null);
+
+    expect(proposalAssignments.length).toBeGreaterThan(0);
+    for (const assignment of proposalAssignments) {
+      // Engine produced this chip; no persisted row exists in the
+      // fixture, so isProposal must be true.
+      expect(assignment.isProposal).toBe(true);
+    }
+  });
+
   it('rejects a manual assignment when the referee is fighting in that pool', async () => {
     queueBoardReads();
 

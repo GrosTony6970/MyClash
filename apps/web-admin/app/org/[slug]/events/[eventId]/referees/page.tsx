@@ -95,6 +95,12 @@ interface AssignmentBoardRoleSlot {
     displayName: string;
     status: string;
     autoAssigned: boolean;
+    /**
+     * True when the chip is from the engine but not yet persisted —
+     * the operator hasn't clicked Apply. Renders with the dashed
+     * "Proposed" style.
+     */
+    isProposal: boolean;
   } | null;
   missingReasons: string[];
   candidates: {
@@ -569,8 +575,20 @@ function AssignmentsTab({
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [locking, setLocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True iff at least one slot's chip is from the engine but not
+  // yet saved. Drives the visibility of Apply + Clear preview.
+  const hasProposals = useMemo(() => {
+    if (!board) return false;
+    for (const pool of [...board.pools, ...board.unscheduledPools]) {
+      for (const slot of pool.roleSlots) {
+        if (slot.assignment?.isProposal) return true;
+      }
+    }
+    return false;
+  }, [board]);
   const [picker, setPicker] = useState<{
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
@@ -605,6 +623,36 @@ function AssignmentsTab({
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
+  /**
+   * Run the auto-assign engine and overlay its proposals on the
+   * current board. Until the operator clicks this, the board only
+   * shows persisted assignments — no engine work happens on mount.
+   */
+  async function previewAutoAssign() {
+    setPreviewing(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/events/${eventId}/referee-assignment-board/preview`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.previewFailed'));
+      }
+      setBoard((await res.json()) as AssignmentBoard);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.refereesPage.previewFailed'));
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  /** Discard the on-screen proposals by reloading the persisted board. */
+  async function clearPreview() {
+    await loadBoard();
+  }
+
   async function applyPreview() {
     setRunning(true);
     setError(null);
@@ -617,6 +665,8 @@ function AssignmentsTab({
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
       }
+      // After Apply, re-fetch the persisted-only board so the
+      // dashed proposal chips become solid persisted chips.
       await loadBoard();
     } catch (err) {
       setError(
@@ -893,6 +943,7 @@ function AssignmentsTab({
                                     assignmentChipClasses({
                                       hasAssignment: !!slot.assignment,
                                       isError: slot.missingReasons.length > 0 && !slot.assignment,
+                                      isProposal: slot.assignment?.isProposal ?? false,
                                       skillColor: skillColorById.get(slot.role) ?? null,
                                     }),
                                   ].join(' ')}
@@ -906,6 +957,11 @@ function AssignmentsTab({
                                     {slot.assignment?.displayName ??
                                       t('organizer.refereesPage.unassigned')}
                                   </span>
+                                  {slot.assignment?.isProposal && (
+                                    <span className="mt-0.5 inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                                      {t('organizer.refereesPage.proposedTag')}
+                                    </span>
+                                  )}
                                   {slot.missingReasons.length > 0 && (
                                     <span className="block text-xs opacity-80">
                                       {slot.missingReasons
@@ -948,22 +1004,36 @@ function AssignmentsTab({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => void loadBoard()}
-          disabled={loading || running}
-          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+          onClick={() => void previewAutoAssign()}
+          disabled={loading || running || previewing || isReadOnly || board?.locked}
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
         >
-          {t('organizer.refereesPage.previewAssignments')}
+          {previewing
+            ? t('organizer.refereesPage.previewingState')
+            : t('organizer.refereesPage.previewAutoAssign')}
         </button>
-        <button
-          type="button"
-          onClick={() => void applyPreview()}
-          disabled={isReadOnly || running || board?.locked}
-          className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
-        >
-          {running
-            ? t('organizer.refereesPage.applying')
-            : t('organizer.refereesPage.applyAssignments')}
-        </button>
+        {hasProposals && (
+          <>
+            <button
+              type="button"
+              onClick={() => void applyPreview()}
+              disabled={isReadOnly || running || board?.locked}
+              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+            >
+              {running
+                ? t('organizer.refereesPage.applying')
+                : t('organizer.refereesPage.applyAutoAssign')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void clearPreview()}
+              disabled={running || previewing}
+              className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+            >
+              {t('organizer.refereesPage.clearPreview')}
+            </button>
+          </>
+        )}
         {board?.locked ? (
           <button
             type="button"

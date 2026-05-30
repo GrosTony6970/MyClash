@@ -37,4 +37,30 @@ describe('assignmentChipClasses', () => {
     expect(result).toContain('bg-white');
     expect(result).toContain('text-gray-600');
   });
+
+  it('renders a dashed indigo style when the chip is a non-persisted proposal', () => {
+    const result = assignmentChipClasses({
+      hasAssignment: true,
+      isError: false,
+      isProposal: true,
+      skillColor: 'orange',
+    });
+    expect(result).toContain('border-dashed');
+    expect(result).toContain('border-indigo-400');
+    expect(result).toContain('bg-indigo-50');
+    // Proposal styling beats the skill tint — operator must see at a
+    // glance that nothing's saved yet, regardless of role colour.
+    expect(result).not.toContain('bg-orange-50');
+  });
+
+  it('error styling beats the proposal styling — broken state always wins', () => {
+    const result = assignmentChipClasses({
+      hasAssignment: true,
+      isError: true,
+      isProposal: true,
+      skillColor: 'orange',
+    });
+    expect(result).toContain('bg-red-50');
+    expect(result).not.toContain('border-dashed');
+  });
 });

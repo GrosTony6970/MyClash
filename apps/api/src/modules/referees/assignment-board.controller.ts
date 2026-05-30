@@ -39,10 +39,24 @@ export class AssignmentBoardController {
   constructor(private readonly assignments: AssignmentBoardService) {}
 
   @Get('events/:eventId/referee-assignment-board')
-  @ApiOperation({ summary: 'Read the referee assignment board for generated pools' })
+  @ApiOperation({
+    summary:
+      'Read the referee assignment board (persisted assignments only — no auto-assign engine run)',
+  })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async getBoard(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.assignments.getBoard(eventId);
+  }
+
+  @Post('events/:eventId/referee-assignment-board/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Run the auto-assign engine and return the board with proposals overlaid (isProposal: true on engine chips)',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async previewBoard(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.assignments.previewBoard(eventId);
   }
 
   @Get('tournaments/:tournamentId/pool-match-role-config')
