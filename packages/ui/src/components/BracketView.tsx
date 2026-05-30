@@ -2,6 +2,7 @@ import * as React from 'react';
 import { formatRoundCode } from '@myclash/types';
 import { MatchCard } from './bracket/MatchCard';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
+import { computeBracketEdges } from './bracket/compute-bracket-edges';
 import type { BracketConfig, BracketSlotData, ColorToken, PodiumData } from './bracket/types';
 
 export type { BracketSlotData, BracketConfig, PodiumData };
@@ -177,18 +178,11 @@ function SingleElimLayout({
   }, [roundNumbers, playInLabel, roundLabels]);
 
   const edges = React.useMemo<ConnectorEdge[]>(() => {
-    const out: ConnectorEdge[] = [];
-    for (let i = 0; i < roundNumbers.length - 1; i++) {
-      const r = roundNumbers[i]!;
-      const next = roundNumbers[i + 1]!;
-      const fromSlots = byRound.get(r) ?? [];
-      const toSlots = byRound.get(next) ?? [];
-      for (const fs of fromSlots) {
-        const targetIdx = Math.floor(fs.position / 2);
-        const ts = toSlots[targetIdx];
-        if (ts) out.push({ from: fs.id, to: ts.id, kind: 'winner' });
-      }
-    }
+    const out: ConnectorEdge[] = [
+      // Within-lane winner pairing — single source of truth shared
+      // with the double-elim layout via computeBracketEdges.
+      ...computeBracketEdges(slots, roundNumbers),
+    ];
     if (bronzeMatch) {
       const mainRounds = roundNumbers.filter((r) => r > 0);
       const sfRound = mainRounds[mainRounds.length - 2];
@@ -200,7 +194,7 @@ function SingleElimLayout({
       }
     }
     return out;
-  }, [byRound, roundNumbers, bronzeMatch]);
+  }, [slots, byRound, roundNumbers, bronzeMatch]);
 
   const totalMatches = (byRound.get(roundNumbers[0] ?? 0) ?? []).length;
   const minColumnHeight = Math.max(totalMatches * SLOT_VERTICAL_PITCH_PX, 200);
@@ -310,28 +304,14 @@ function DoubleElimLayout({
   const gfSlots = slots.filter((s) => s.round >= gfRound);
 
   const edges = React.useMemo<ConnectorEdge[]>(() => {
-    const out: ConnectorEdge[] = [];
-    function addRoundEdges(roundSlots: BracketSlotData[]): void {
-      const byRound = new Map<number, BracketSlotData[]>();
-      for (const s of roundSlots) {
-        const arr = byRound.get(s.round) ?? [];
-        arr.push(s);
-        byRound.set(s.round, arr);
-      }
-      for (const arr of byRound.values()) arr.sort((a, b) => a.position - b.position);
-      const rs = Array.from(byRound.keys()).sort((a, b) => a - b);
-      for (let i = 0; i < rs.length - 1; i++) {
-        const from = byRound.get(rs[i]!) ?? [];
-        const to = byRound.get(rs[i + 1]!) ?? [];
-        for (const fs of from) {
-          const target = to[Math.floor(fs.position / 2)];
-          if (target) out.push({ from: fs.id, to: target.id, kind: 'winner' });
-        }
-      }
-    }
-    addRoundEdges(wbSlots);
-    addRoundEdges(lbSlots);
-    return out;
+    // Within-lane edges per bracket. Cross-lane WB→LB drops aren't
+    // drawn today (separate feature).
+    const wbRoundNumbers = Array.from(new Set(wbSlots.map((s) => s.round))).sort((a, b) => a - b);
+    const lbRoundNumbers = Array.from(new Set(lbSlots.map((s) => s.round))).sort((a, b) => a - b);
+    return [
+      ...computeBracketEdges(wbSlots, wbRoundNumbers),
+      ...computeBracketEdges(lbSlots, lbRoundNumbers),
+    ];
   }, [wbSlots, lbSlots]);
 
   return (
