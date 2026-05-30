@@ -2176,6 +2176,8 @@ export const en = {
         category: 'Category',
         ruleset: 'Ruleset',
         penaltyRuleset: 'Penalty ruleset',
+        recommended: 'Recommended',
+        penaltyRulesetBlankHint: 'No ruleset selected — built-in FFAMHE v2026 default will apply.',
         nameRequired: 'Name is required.',
         publishOnFinish: 'Publish on finish',
         finish: 'Finish',
@@ -5435,6 +5437,9 @@ export const fr = {
         category: 'Categorie',
         ruleset: 'Reglement',
         penaltyRuleset: 'Reglement de penalites',
+        recommended: 'Recommande',
+        penaltyRulesetBlankHint:
+          'Aucun reglement choisi — le defaut integre FFAMHE v2026 sera applique.',
         nameRequired: 'Le nom est obligatoire.',
         publishOnFinish: 'Publier a la fin',
         finish: 'Terminer',

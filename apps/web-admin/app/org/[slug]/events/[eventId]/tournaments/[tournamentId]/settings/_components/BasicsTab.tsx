@@ -160,7 +160,13 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
         </select>
       </Field>
 
-      <Field label={t('organizer.tournaments.settings.penaltyRuleset')}>
+      <label className="block">
+        <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          {t('organizer.tournaments.settings.penaltyRuleset')}
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+            {t('organizer.tournaments.wizard.recommended')}
+          </span>
+        </span>
         <select
           value={data.penaltyRulesetId ?? ''}
           onChange={(e) => setData({ ...data, penaltyRulesetId: e.target.value || null })}
@@ -173,7 +179,12 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
             </option>
           ))}
         </select>
-      </Field>
+        {!data.penaltyRulesetId && (
+          <p className="mt-1 text-xs text-amber-700">
+            {t('organizer.tournaments.wizard.penaltyRulesetBlankHint')}
+          </p>
+        )}
+      </label>
 
       {/* Slice 4: capacity caps. Leaving either field blank means "no cap".
        *  When the participant cap is reached, the registrations create

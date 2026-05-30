@@ -189,8 +189,11 @@ export function Step1Basics({
       </label>
 
       <label className="block">
-        <span className="block text-xs font-medium text-slate-600 mb-1">
+        <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600">
           {t('organizer.tournaments.wizard.penaltyRuleset')}
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+            {t('organizer.tournaments.wizard.recommended')}
+          </span>
         </span>
         <select
           value={penaltyRulesetId}
@@ -204,6 +207,11 @@ export function Step1Basics({
             </option>
           ))}
         </select>
+        {!penaltyRulesetId && (
+          <p className="mt-1 text-xs text-amber-700">
+            {t('organizer.tournaments.wizard.penaltyRulesetBlankHint')}
+          </p>
+        )}
       </label>
 
       <div className="flex justify-end">
