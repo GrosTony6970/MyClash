@@ -461,4 +461,95 @@ describe('ReviewQueueService', () => {
       entity_id: 'req-1',
     });
   });
+
+  // ── countPending — drives the sidebar badge + bell pill ────────────────────
+
+  it('countPending sums head-only counts across all six review sources', async () => {
+    // The bell polls this every 60s; the implementation must use
+    // Supabase's head-count form (.select('id', { count, head: true })
+    // .eq('status', …)) so no row data is transferred. Mock returns a
+    // distinct count per table; assert the sum.
+    const countByTable: Record<string, number> = {
+      deletion_requests: 3,
+      exchange_edit_requests: 2,
+      club_review_requests: 1,
+      ruleset_submissions: 0,
+      league_tournament_links: 4,
+      league_membership_requests: 1,
+    };
+
+    const fromMock = vi.fn((table: string) => {
+      const count = countByTable[table] ?? 0;
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ count, error: null, data: null }),
+        }),
+      };
+    });
+
+    const supabase = { service: { from: fromMock } };
+    service = new ReviewQueueService(
+      supabase as never,
+      makeMockEventsService() as never,
+      makeMockExchangeEditService() as never,
+      makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
+    );
+
+    const total = await service.countPending();
+
+    expect(total).toBe(11);
+    // All six sources were polled.
+    const calledTables = fromMock.mock.calls.map(([t]) => t);
+    expect(calledTables).toEqual(
+      expect.arrayContaining([
+        'deletion_requests',
+        'exchange_edit_requests',
+        'club_review_requests',
+        'ruleset_submissions',
+        'league_tournament_links',
+        'league_membership_requests',
+      ]),
+    );
+  });
+
+  it('countPending tolerates a failing source — contributes 0, surviving counts still surface', async () => {
+    // Partial fresh deploy: one table errors. Bell must still surface
+    // the surviving counts rather than 500-ing the whole endpoint.
+    const fromMock = vi.fn((table: string) => {
+      if (table === 'club_review_requests') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi
+              .fn()
+              .mockResolvedValue({
+                count: null,
+                error: { message: 'relation missing' },
+                data: null,
+              }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ count: 2, error: null, data: null }),
+        }),
+      };
+    });
+
+    const supabase = { service: { from: fromMock } };
+    service = new ReviewQueueService(
+      supabase as never,
+      makeMockEventsService() as never,
+      makeMockExchangeEditService() as never,
+      makeMockRulesetsService() as never,
+      makeMockLeaguesService() as never,
+      makeMockMembershipRequestsService() as never,
+    );
+
+    const total = await service.countPending();
+    // Five working sources × 2 + one failing source × 0 = 10.
+    expect(total).toBe(10);
+  });
 });

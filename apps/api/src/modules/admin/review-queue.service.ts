@@ -221,6 +221,48 @@ export class ReviewQueueService {
     }
   }
 
+  // ── countPending ─────────────────────────────────────────────────────────────
+
+  /**
+   * Total pending items across the six review-queue sources. Drives the
+   * sidebar badge + the header notification-bell pill — both poll this
+   * via /admin/notifications/summary on a 60 s cadence so the call must
+   * stay cheap: each source uses Supabase's `head: true, count: 'exact'`
+   * so no row data is returned.
+   *
+   * Tolerant to a missing source: any table that errors out (e.g. a
+   * partial fresh deploy where league migrations haven't landed yet)
+   * contributes 0, logged via `this.logger.warn`, so the bell still
+   * surfaces the surviving counts.
+   */
+  async countPending(): Promise<number> {
+    const sources: Array<{ table: string; status: string }> = [
+      { table: 'deletion_requests', status: 'pending' },
+      { table: 'exchange_edit_requests', status: 'pending' },
+      { table: 'club_review_requests', status: 'pending' },
+      { table: 'ruleset_submissions', status: 'pending' },
+      // league_tournament_links + league_membership_requests use 'requested'
+      // as the wire word for pending — match listAll's translation.
+      { table: 'league_tournament_links', status: 'requested' },
+      { table: 'league_membership_requests', status: 'requested' },
+    ];
+
+    const counts = await Promise.all(
+      sources.map(async ({ table, status }) => {
+        const { count, error } = await this.supabase.service
+          .from(table)
+          .select('id', { count: 'exact', head: true })
+          .eq('status', status);
+        if (error) {
+          this.logger.warn(`countPending: ${table} failed — ${error.message}; contributing 0.`);
+          return 0;
+        }
+        return count ?? 0;
+      }),
+    );
+    return counts.reduce((a, b) => a + b, 0);
+  }
+
   // ── Private: fetch helpers ────────────────────────────────────────────────────
 
   private async fetchDeletions(statusFilter: string): Promise<ReviewQueueItem[]> {

@@ -6,6 +6,10 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import {
+  useNotificationsSummary,
+  type NotificationsSummary,
+} from '../hooks/useNotificationsSummary';
 
 interface NavItem {
   href: string;
@@ -93,10 +97,15 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(open, drawerRef);
+
+  // Polls /admin/notifications/summary every 60 s once super-admin is
+  // confirmed. Drives the sidebar Review-Queue badge + the header bell.
+  const notifications = useNotificationsSummary(apiUrl, isSuperAdmin);
 
   // Escape closes the mobile drawer.
   useEffect(() => {
@@ -127,7 +136,9 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
         };
         if (data.type !== 'claimed' || !data.admin?.isSuperAdmin) {
           window.location.replace('/login');
+          return;
         }
+        setIsSuperAdmin(true);
       })
       .catch((err: unknown) => {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -164,13 +175,18 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-1">
             {section.items.map((item) => {
               const active = isActive(pathname, item.href);
+              // The Review-Queue entry gets a numeric pill on top of
+              // its standard badge when count > 0. Other entries keep
+              // their plain abbreviation pill.
+              const count =
+                item.href === '/admin/review-queue' ? (notifications?.reviewQueue ?? 0) : 0;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={[
-                    'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+                    'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
                     active
                       ? 'bg-red-800 text-white shadow-sm'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white',
@@ -188,6 +204,17 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
                     {item.badge}
                   </span>
                   <span>{t(item.labelKey)}</span>
+                  {count > 0 && (
+                    <span
+                      className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                      aria-label={t('admin.notifications.pendingCount').replace(
+                        '{count}',
+                        String(count),
+                      )}
+                    >
+                      {count > 9 ? t('admin.notifications.count9Plus') : String(count)}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -273,9 +300,12 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-red-700" aria-hidden="true" />
-            {t('admin.shell.status')}
+          <div className="flex items-center gap-3">
+            <NotificationBell summary={notifications} t={t} />
+            <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 sm:flex">
+              <span className="h-2 w-2 rounded-full bg-red-700" aria-hidden="true" />
+              {t('admin.shell.status')}
+            </div>
           </div>
         </div>
       </header>
@@ -321,6 +351,170 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
       <div id="main-content" className="min-h-screen pt-16 lg:pl-72">
         {children}
       </div>
+    </div>
+  );
+}
+
+// ── NotificationBell ────────────────────────────────────────────────────────
+
+/**
+ * Header bell with a red total-pill + dropdown listing each pending
+ * source. Click outside or press Escape to close. "Mark seen" is
+ * local-only — it just hides the dropdown rows until the next poll;
+ * a server-side per-user ack flag is a separate sprint (documented in
+ * the dropdown footer hint).
+ */
+function NotificationBell({
+  summary,
+  t,
+}: {
+  summary: NotificationsSummary | null;
+  t: (key: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dismissedUntil, setDismissedUntil] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click + Escape.
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  const reviewQueue = summary?.reviewQueue ?? 0;
+  const broadcastFailures = summary?.broadcastFailures ?? 0;
+  const aiFindings = summary?.aiFindings ?? 0;
+  const aiScanCrashes = summary?.aiScanCrashes ?? 0;
+  const total = summary?.total ?? 0;
+  const showBadge = total > 0 && Date.now() > dismissedUntil;
+  const displayCount = total > 9 ? t('admin.notifications.count9Plus') : String(total);
+
+  type Row = { count: number; labelKey: string; href: string | null };
+  const rows: Row[] = [
+    {
+      count: reviewQueue,
+      labelKey: 'admin.notifications.source.reviewQueue',
+      href: '/admin/review-queue',
+    },
+    {
+      count: broadcastFailures,
+      labelKey: 'admin.notifications.source.broadcastFailures',
+      href: null, // no dedicated admin page yet — count-only
+    },
+    {
+      count: aiFindings,
+      labelKey: 'admin.notifications.source.aiFindings',
+      href: '/admin/data-quality',
+    },
+    {
+      count: aiScanCrashes,
+      labelKey: 'admin.notifications.source.aiScanCrashes',
+      href: '/admin/data-quality',
+    },
+  ].filter((r) => r.count > 0);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t('admin.notifications.bellAriaLabel')}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition-colors hover:border-slate-400"
+      >
+        {/* Inline bell glyph — keeps the shell self-contained, no
+            new icon dep. */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-5 w-5"
+          aria-hidden="true"
+        >
+          <path d="M18 16v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
+          <path d="M10 21a2 2 0 0 0 4 0" />
+        </svg>
+        {showBadge && (
+          <span className="absolute -right-1 -top-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+            {displayCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 z-40 mt-2 w-80 rounded-md border border-slate-200 bg-white shadow-lg"
+        >
+          <div className="border-b border-slate-100 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t('admin.notifications.dropdownTitle')}
+          </div>
+          {rows.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-slate-500">
+              {t('admin.notifications.allClear')} ✓
+            </div>
+          ) : (
+            <ul className="py-1">
+              {rows.map((row) => {
+                const content = (
+                  <div className="flex items-center justify-between px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                    <span>{t(row.labelKey)}</span>
+                    <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+                      {row.count}
+                    </span>
+                  </div>
+                );
+                return (
+                  <li key={row.labelKey}>
+                    {row.href ? (
+                      <Link href={row.href} onClick={() => setOpen(false)}>
+                        {content}
+                      </Link>
+                    ) : (
+                      content
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
+            <button
+              type="button"
+              onClick={() => {
+                // Local-only dismiss for ~5 minutes; the next poll
+                // re-surfaces anything still pending.
+                setDismissedUntil(Date.now() + 5 * 60_000);
+                setOpen(false);
+              }}
+              title={t('admin.notifications.markSeenHint')}
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+            >
+              {t('admin.notifications.markSeen')}
+            </button>
+            <span className="text-[10px] text-slate-400">
+              {t('admin.notifications.markSeenHint')}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

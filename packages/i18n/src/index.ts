@@ -1416,6 +1416,21 @@ export const en = {
         referee_unlinked: 'Unlinked referee',
       },
     },
+    notifications: {
+      bellAriaLabel: 'Notifications',
+      dropdownTitle: 'Notifications',
+      pendingCount: '{count} pending',
+      count9Plus: '9+',
+      allClear: 'All clear',
+      markSeen: 'Mark seen',
+      markSeenHint: 'Local only; resets on next refresh.',
+      source: {
+        reviewQueue: 'Review queue',
+        broadcastFailures: 'Broadcast failures',
+        aiFindings: 'AI findings (high / critical)',
+        aiScanCrashes: 'AI scan crashes',
+      },
+    },
     reviewQueue: {
       navTitle: 'Review queue',
       pageTitle: 'Review queue',
@@ -4693,6 +4708,21 @@ export const fr = {
         global_person_duplicate: 'Doublon de personne globale',
         club_duplicate: 'Doublon de club',
         referee_unlinked: 'Arbitre non lie',
+      },
+    },
+    notifications: {
+      bellAriaLabel: 'Notifications',
+      dropdownTitle: 'Notifications',
+      pendingCount: '{count} en attente',
+      count9Plus: '9+',
+      allClear: 'Tout est calme',
+      markSeen: 'Marquer comme vu',
+      markSeenHint: 'Local uniquement; reapparait au prochain rafraichissement.',
+      source: {
+        reviewQueue: 'File de revue',
+        broadcastFailures: 'Envois echoues',
+        aiFindings: 'Anomalies IA (haute / critique)',
+        aiScanCrashes: 'Scans IA en echec',
       },
     },
     reviewQueue: {

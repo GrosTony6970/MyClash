@@ -5,14 +5,17 @@ import { LeaguesModule } from '../leagues/leagues.module';
 import { AdminRulesetsService } from './admin-rulesets.service';
 import { ExchangeEditRequestsAdminService } from './exchange-edit-requests.service';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { NotificationsSummaryController } from './notifications-summary.controller';
+import { NotificationsSummaryService } from './notifications-summary.service';
 import { ReviewQueueController } from './review-queue.controller';
 import { ReviewQueueService } from './review-queue.service';
 
 @Module({
   imports: [MatchesModule, EventsModule, LeaguesModule],
-  controllers: [ReviewQueueController],
+  controllers: [ReviewQueueController, NotificationsSummaryController],
   providers: [
     ReviewQueueService,
+    NotificationsSummaryService,
     AdminRulesetsService,
     ExchangeEditRequestsAdminService,
     SuperAdminGuard,
