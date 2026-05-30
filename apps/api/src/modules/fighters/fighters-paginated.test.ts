@@ -115,10 +115,11 @@ describe('FightersService.listMatchesPaginated', () => {
       phases: { tournament_id: 't-001' },
     };
 
+    // Post-0083: opponent name nests through persons.global_persons —
+    // matches the rewritten getOpponentSummary embed.
     const oppReg: Row = {
       id: oppRegId,
-      global_person_id: 'opp-gp-001',
-      global_persons: { display_name: 'Jean Dupont' },
+      persons: { global_persons: { display_name: 'Jean Dupont' } },
     };
 
     // Build a service with a hand-rolled stub

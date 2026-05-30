@@ -92,7 +92,11 @@ export class PhasesService {
     // Fetch registrations
     const { data: regs, error: regsError } = await this.supabase.service
       .from('registrations')
-      .select('id, seed, bib_number, persons(club_id), global_persons(hema_ratings_id)')
+      .select(
+        // Walk persons.global_person_id to reach global_persons —
+        // registrations.fighter_id was retired in 0083.
+        'id, seed, bib_number, persons(club_id, global_persons(hema_ratings_id))',
+      )
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
 
@@ -179,8 +183,10 @@ export class PhasesService {
           allRegs
             .map((reg) => {
               const r = reg as Record<string, unknown>;
-              const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
-              return fighter?.hema_ratings_id ?? null;
+              const person = r['persons'] as {
+                global_persons?: { hema_ratings_id: string | null } | null;
+              } | null;
+              return person?.global_persons?.hema_ratings_id ?? null;
             })
             .filter((id): id is string => Boolean(id)),
         ),
@@ -192,9 +198,11 @@ export class PhasesService {
 
       const fighters: Fighter[] = allRegs.map((reg, idx) => {
         const r = reg as Record<string, unknown>;
-        const person = r['persons'] as { club_id: string | null } | null;
-        const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
-        const hemaRatingsId = fighter?.hema_ratings_id ?? null;
+        const person = r['persons'] as {
+          club_id: string | null;
+          global_persons?: { hema_ratings_id: string | null } | null;
+        } | null;
+        const hemaRatingsId = person?.global_persons?.hema_ratings_id ?? null;
         return {
           registrationId: r['id'] as string,
           clubId: person?.club_id ?? null,
@@ -880,7 +888,9 @@ export class PhasesService {
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name)), global_persons(hema_ratings_id)))',
+        // 0083 retired registrations.fighter_id; identity flows via
+        // persons.global_person_id.
+        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name), global_persons(hema_ratings_id))))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
@@ -898,7 +908,7 @@ export class PhasesService {
           const registration = member['registrations'] as Record<string, unknown> | null;
           const person = registration?.['persons'] as Record<string, unknown> | null;
           const club = person?.['clubs'] as Record<string, unknown> | null;
-          const fighter = registration?.['global_persons'] as Record<string, unknown> | null;
+          const fighter = person?.['global_persons'] as Record<string, unknown> | null;
           const hemaRatingsId = (fighter?.['hema_ratings_id'] as string | null) ?? null;
           return {
             registrationId: member['registration_id'],
@@ -926,14 +936,16 @@ export class PhasesService {
     if (!weapon) return new Map<string, number>();
     const { data: regs } = await this.supabase.service
       .from('registrations')
-      .select('global_persons(hema_ratings_id)')
+      .select('persons(global_persons(hema_ratings_id))')
       .eq('tournament_id', tournamentId);
     const hemaIds = Array.from(
       new Set(
         ((regs ?? []) as Array<Record<string, unknown>>)
           .map((reg) => {
-            const fighter = reg['global_persons'] as { hema_ratings_id: string | null } | null;
-            return fighter?.hema_ratings_id ?? null;
+            const person = reg['persons'] as {
+              global_persons?: { hema_ratings_id: string | null } | null;
+            } | null;
+            return person?.global_persons?.hema_ratings_id ?? null;
           })
           .filter((id): id is string => Boolean(id)),
       ),
@@ -1494,7 +1506,11 @@ export class PhasesService {
     // 1. Fetch all confirmed registrations for the tournament
     const { data: regs, error: regErr } = await this.supabase.service
       .from('registrations')
-      .select('id, persons(given_name, family_name, clubs(name)), global_persons(hema_ratings_id)')
+      .select(
+        // 0083 retired registrations.fighter_id; identity nests
+        // through persons.global_person_id.
+        'id, persons(given_name, family_name, clubs(name), global_persons(hema_ratings_id))',
+      )
       .eq('tournament_id', tournamentId);
     if (regErr) throw new BadRequestException(regErr.message);
 
@@ -1517,7 +1533,7 @@ export class PhasesService {
       .map((reg) => {
         const person = reg['persons'] as Record<string, unknown> | null;
         const club = person?.['clubs'] as Record<string, unknown> | null;
-        const fighter = reg['global_persons'] as Record<string, unknown> | null;
+        const fighter = person?.['global_persons'] as Record<string, unknown> | null;
         const hemaRatingsId = (fighter?.['hema_ratings_id'] as string | null) ?? null;
         return {
           registrationId: reg['id'] as string,

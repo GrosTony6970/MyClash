@@ -399,10 +399,14 @@ export class FightersService {
     if (opponentRegIds.size > 0) {
       const { data: oppData } = await this.supabase.service
         .from('registrations')
-        .select('id, global_person_id, global_persons(display_name)')
+        // 0083 retired registrations.fighter_id (and there never was
+        // a registrations.global_person_id — the original projection
+        // was a copy-paste typo). Walk through persons.
+        .select('id, persons(global_persons(display_name))')
         .in('id', [...opponentRegIds]);
       for (const row of (oppData ?? []) as Row[]) {
-        const gp = row['global_persons'] as Row | null;
+        const person = row['persons'] as Row | null;
+        const gp = person?.['global_persons'] as Row | null;
         opponentNames.set(String(row['id']), String(gp?.['display_name'] ?? ''));
       }
     }

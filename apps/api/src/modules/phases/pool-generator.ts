@@ -72,10 +72,11 @@ export class PoolGeneratorService {
     const { data: regs, error } = await this.supabase.service
       .from('registrations')
       .select(
+        // 0083 retired registrations.fighter_id; identity nests
+        // through persons.global_person_id.
         `
         id, seed, bib_number,
-        persons(club_id),
-        global_persons(hema_ratings_id)
+        persons(club_id, global_persons(hema_ratings_id))
       `,
       )
       .eq('tournament_id', tournamentId)
@@ -125,8 +126,10 @@ export class PoolGeneratorService {
         regs
           .map((reg) => {
             const r = reg as Record<string, unknown>;
-            const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
-            return fighter?.hema_ratings_id ?? null;
+            const person = r['persons'] as {
+              global_persons?: { hema_ratings_id: string | null } | null;
+            } | null;
+            return person?.global_persons?.hema_ratings_id ?? null;
           })
           .filter((id): id is string => Boolean(id)),
       ),
@@ -138,9 +141,11 @@ export class PoolGeneratorService {
 
     const fighters: Fighter[] = regs.map((reg, idx) => {
       const r = reg as Record<string, unknown>;
-      const person = r['persons'] as { club_id: string | null } | null;
-      const fighter = r['global_persons'] as { hema_ratings_id: string | null } | null;
-      const hemaRatingsId = fighter?.hema_ratings_id ?? null;
+      const person = r['persons'] as {
+        club_id: string | null;
+        global_persons?: { hema_ratings_id: string | null } | null;
+      } | null;
+      const hemaRatingsId = person?.global_persons?.hema_ratings_id ?? null;
       return {
         registrationId: r['id'] as string,
         clubId: person?.club_id ?? null,

@@ -32,10 +32,12 @@ export class RegistrationsService {
     const { data, error } = await this.supabase.service
       .from('registrations')
       .select(
+        // Identity nests through persons after 0083 retired
+        // registrations.fighter_id. Walk persons.global_person_id
+        // to reach global_persons.
         `
         *,
-        persons(id, given_name, family_name, email, club_id),
-        global_persons(id, slug, display_name)
+        persons(id, given_name, family_name, email, club_id, global_persons(id, slug, display_name))
       `,
       )
       .eq('tournament_id', tournamentId)

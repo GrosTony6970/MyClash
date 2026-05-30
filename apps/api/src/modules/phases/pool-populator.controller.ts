@@ -73,7 +73,11 @@ export class PoolPopulatorController {
     // Fetch registrations
     const { data: regs } = await this.supabase.service
       .from('registrations')
-      .select('id, seed, bib_number, persons(club_id), global_persons(hema_ratings_id)')
+      .select(
+        // 0083 retired registrations.fighter_id; identity nests
+        // through persons.global_person_id.
+        'id, seed, bib_number, persons(club_id, global_persons(hema_ratings_id))',
+      )
       .eq('tournament_id', tournamentId ?? '')
       .in('status', ['registered', 'checked_in']);
 
@@ -97,8 +101,10 @@ export class PoolPopulatorController {
       new Set(
         regList
           .map((reg) => {
-            const fighter = reg['global_persons'] as { hema_ratings_id: string | null } | null;
-            return fighter?.hema_ratings_id ?? null;
+            const person = reg['persons'] as {
+              global_persons?: { hema_ratings_id: string | null } | null;
+            } | null;
+            return person?.global_persons?.hema_ratings_id ?? null;
           })
           .filter((id): id is string => Boolean(id)),
       ),
@@ -110,9 +116,11 @@ export class PoolPopulatorController {
 
     // Map to Fighter type
     const fighters: Fighter[] = regList.map((reg, idx) => {
-      const person = reg['persons'] as { club_id: string | null } | null;
-      const fighter = reg['global_persons'] as { hema_ratings_id: string | null } | null;
-      const hemaRatingsId = fighter?.hema_ratings_id ?? null;
+      const person = reg['persons'] as {
+        club_id: string | null;
+        global_persons?: { hema_ratings_id: string | null } | null;
+      } | null;
+      const hemaRatingsId = person?.global_persons?.hema_ratings_id ?? null;
       return {
         registrationId: reg['id'] as string,
         clubId: person?.club_id ?? null,
