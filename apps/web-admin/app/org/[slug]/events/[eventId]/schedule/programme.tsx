@@ -73,6 +73,8 @@ export function ProgrammePlanner({
   const [generating, setGenerating] = useState(false);
   const [generateResult, setGenerateResult] = useState<GenerateResult | null>(null);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
@@ -129,7 +131,12 @@ export function ProgrammePlanner({
         throw new Error(body.message ?? 'Failed to generate suggestion');
       }
       const suggestion = (await res.json()) as ProgrammeSuggestion;
-      setBlocks(suggestion.blocks);
+      // Auto-save: every suggestion overwrites whatever was in
+      // place before, so persist immediately. Operators no longer
+      // need a second click on "Save programme" to make a fresh
+      // suggestion survive a refresh.
+      const saved = await persistProgramme(suggestion.blocks);
+      setBlocks(saved);
       setWarnings(suggestion.warnings);
       setActiveDay(0);
     } catch (err) {
@@ -151,10 +158,14 @@ export function ProgrammePlanner({
     }
   }
 
-  async function persistProgramme(): Promise<ProgrammeBlock[]> {
+  async function persistProgramme(blocksOverride?: ProgrammeBlock[]): Promise<ProgrammeBlock[]> {
     // Backend DTO whitelists fields with forbidNonWhitelisted; drop
     // server-only fields (eventId, generatedAt) before sending.
-    const payloadBlocks = blocks.map((b) => ({
+    // Accepts an explicit blocks list so callers that just received
+    // a fresh suggestion can persist it without waiting for setBlocks
+    // to flush through React's render cycle.
+    const source = blocksOverride ?? blocks;
+    const payloadBlocks = source.map((b) => ({
       id: b.id,
       dayIndex: b.dayIndex,
       sortOrder: b.sortOrder,
@@ -189,6 +200,33 @@ export function ProgrammePlanner({
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // ── Reset ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Nuclear reset: drop every programme block AND clear every
+   * scheduled match time + lice assignment in the event. Tournaments,
+   * pools, brackets stay; only their schedule is erased.
+   */
+  async function resetSchedule() {
+    setResetting(true);
+    setConfirmReset(false);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/full`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to reset'));
+      setBlocks([]);
+      setWarnings([]);
+      setGenerateResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -464,8 +502,43 @@ export function ProgrammePlanner({
           >
             {generating ? 'Generating…' : 'Generate schedule →'}
           </button>
+          <button
+            onClick={() => setConfirmReset(true)}
+            disabled={resetting}
+            className="ml-auto rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+            title="Wipe the programme + clear every scheduled match"
+          >
+            {resetting ? 'Resetting…' : 'Reset schedule'}
+          </button>
         </div>
       </div>
+
+      {/* Confirm reset modal */}
+      {confirmReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-lg font-bold">Reset the schedule?</h2>
+            <p className="mb-4 text-sm text-gray-600">
+              This clears every programme block AND removes every match from the lice grid. The
+              tournaments, pools, and brackets themselves stay — only their schedule is erased.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void resetSchedule()}
+                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+              >
+                Reset everything
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm generate modal */}
       {confirmGenerate && (

@@ -1,9 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { buildRoundCode } from '../matches/round-code.helper';
 
 export interface ScheduleGridMatch {
   id: string;
   matchNumberLabel: string;
+  /**
+   * Canonical match code via formatRoundCode (LSW-P1-ML1-PA-M1 for
+   * pools, LSW-B-QF-M1 for brackets). Built per-row in the service
+   * so the sidebar + grid both read the same identifier the
+   * scoring app and exports already show.
+   */
+  roundCode: string;
   status: string;
   liceId: string | null;
   scheduledAt: string | null;
@@ -30,6 +38,8 @@ interface PhaseRow {
 interface TournamentRow {
   id: string;
   name: string;
+  weapon: string | null;
+  bracket_size: number | null;
 }
 
 interface MatchRow {
@@ -40,6 +50,7 @@ interface MatchRow {
   scheduled_at: string | null;
   phase_id: string | null;
   pool_id: string | null;
+  bracket_slot_id: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
 }
@@ -47,6 +58,12 @@ interface MatchRow {
 interface PoolRow {
   id: string;
   name: string;
+  sort_order: number | null;
+}
+
+interface BracketSlotRow {
+  id: string;
+  round: number | null;
 }
 
 interface RegistrationRow {
@@ -84,13 +101,13 @@ export class ScheduleGridService {
     // 1. Tournaments for this event.
     const { data: tournamentsData, error: tournamentsErr } = await this.supabase.service
       .from('tournaments')
-      .select('id, name')
+      .select('id, name, weapon, bracket_size')
       .eq('event_id', eventId);
     if (tournamentsErr) throw new BadRequestException(tournamentsErr.message);
     const tournaments = ((tournamentsData ?? []) as TournamentRow[]).filter((t) => Boolean(t.id));
     if (tournaments.length === 0) return [];
     const tournamentIds = tournaments.map((t) => t.id);
-    const tournamentNameById = new Map(tournaments.map((t) => [t.id, t.name]));
+    const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
 
     // 2. Phases under those tournaments — keeps both pool and bracket phases.
     const { data: phasesData, error: phasesErr } = await this.supabase.service
@@ -107,7 +124,7 @@ export class ScheduleGridService {
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, match_number_label, status, lice_id, scheduled_at, phase_id, pool_id, red_registration_id, blue_registration_id',
+        'id, match_number_label, status, lice_id, scheduled_at, phase_id, pool_id, bracket_slot_id, red_registration_id, blue_registration_id',
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -116,20 +133,36 @@ export class ScheduleGridService {
     const matches = (matchesData ?? []) as MatchRow[];
     if (matches.length === 0) return [];
 
-    // 3b. Pools batch lookup — only the pools referenced by these matches.
-    // Drives the per-pool colour tinting + the "select all pool" handle
-    // on the FE schedule grid.
+    // 3b. Pools batch lookup — sort_order feeds the canonical
+    // roundCode (LSW-P{sort_order+1}-…). Name drives the
+    // per-pool colour tint and the clear-pool handle.
     const poolIds = Array.from(
       new Set(matches.map((m) => m.pool_id).filter((id): id is string => Boolean(id))),
     );
-    const poolNameById = new Map<string, string>();
+    const poolById = new Map<string, PoolRow>();
     if (poolIds.length > 0) {
       const { data: poolsData } = await this.supabase.service
         .from('pools')
-        .select('id, name')
+        .select('id, name, sort_order')
         .in('id', poolIds);
       for (const p of (poolsData ?? []) as PoolRow[]) {
-        poolNameById.set(p.id, p.name);
+        poolById.set(p.id, p);
+      }
+    }
+
+    // 3c. Bracket slots batch lookup — feeds bracketRound into the
+    // canonical roundCode (LSW-B-QF-M1 etc.).
+    const bracketSlotIds = Array.from(
+      new Set(matches.map((m) => m.bracket_slot_id).filter((id): id is string => Boolean(id))),
+    );
+    const bracketRoundBySlotId = new Map<string, number | null>();
+    if (bracketSlotIds.length > 0) {
+      const { data: slotsData } = await this.supabase.service
+        .from('bracket_slots')
+        .select('id, round')
+        .in('id', bracketSlotIds);
+      for (const s of (slotsData ?? []) as BracketSlotRow[]) {
+        bracketRoundBySlotId.set(s.id, s.round);
       }
     }
 
@@ -170,12 +203,32 @@ export class ScheduleGridService {
 
     return matches.map((m): ScheduleGridMatch => {
       const phase = m.phase_id ? phaseById.get(m.phase_id) : null;
-      const tournamentName = phase ? (tournamentNameById.get(phase.tournament_id) ?? null) : null;
+      const tournament = phase ? (tournamentById.get(phase.tournament_id) ?? null) : null;
+      const tournamentName = tournament?.name ?? null;
       const red = m.red_registration_id ? personByRegId.get(m.red_registration_id) : null;
       const blue = m.blue_registration_id ? personByRegId.get(m.blue_registration_id) : null;
+      const pool = m.pool_id ? (poolById.get(m.pool_id) ?? null) : null;
+      const bracketRound = m.bracket_slot_id
+        ? (bracketRoundBySlotId.get(m.bracket_slot_id) ?? null)
+        : null;
+
+      // Pool sort_order is 0-indexed in the schema; the canonical
+      // code uses 1-indexed pool numbers (P1, P2, …).
+      const poolNumber = pool && typeof pool.sort_order === 'number' ? pool.sort_order + 1 : null;
+
+      const roundCode = buildRoundCode({
+        weapon: tournament?.weapon ?? null,
+        poolNumber,
+        bracketRound,
+        bracketSize: tournament?.bracket_size ?? null,
+        matchNumberLabel: m.match_number_label,
+        roundNumber: null,
+      });
+
       return {
         id: m.id,
         matchNumberLabel: m.match_number_label ?? '',
+        roundCode,
         status: m.status ?? 'scheduled',
         liceId: m.lice_id,
         scheduledAt: m.scheduled_at,
@@ -187,7 +240,7 @@ export class ScheduleGridService {
         durationMinutes: 5,
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,
-        poolName: m.pool_id ? (poolNameById.get(m.pool_id) ?? null) : null,
+        poolName: pool?.name ?? null,
       };
     });
   }

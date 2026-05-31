@@ -30,6 +30,10 @@ interface ProgrammeBlockRow {
 interface ScheduleMatch {
   id: string;
   matchNumberLabel: string;
+  /** Canonical match code (LSW-P1-ML1-PA-M1 for pools, LSW-B-QF-M1 for brackets).
+   *  Backend computes it via formatRoundCode; the sidebar + grid use it as the
+   *  display label, falling back to matchNumberLabel for legacy payloads. */
+  roundCode?: string;
   status: string;
   liceId: string | null;
   scheduledAt: string | null;
@@ -850,9 +854,9 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                       gridRow: `${slot + 2} / span ${span}`, // +1 for header row, +1 for 1-based
                       margin: '1px',
                     }}
-                    title={`${m.matchNumberLabel}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
+                    title={`${m.roundCode || m.matchNumberLabel}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
                   >
-                    <span className="truncate">{m.matchNumberLabel}</span>
+                    <span className="truncate">{m.roundCode || m.matchNumberLabel}</span>
                   </div>
                 );
               })}
@@ -994,7 +998,9 @@ function MatchChip({
       ].join(' ')}
     >
       <div className="flex items-center gap-1">
-        <p className="flex-1 font-medium text-gray-900 truncate">{match.matchNumberLabel}</p>
+        <p className="flex-1 font-medium text-gray-900 truncate">
+          {match.roundCode || match.matchNumberLabel}
+        </p>
         {isBracket && (
           <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] text-amber-800">
             Bracket

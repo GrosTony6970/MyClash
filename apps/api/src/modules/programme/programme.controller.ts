@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -54,5 +55,18 @@ export class ProgrammeController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   generate(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.programme.generate(eventId);
+  }
+
+  /** DELETE /api/v1/events/:eventId/programme/full */
+  @Delete('events/:eventId/programme/full')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Reset the schedule: delete every programme block AND null scheduled_at + lice_id on every match in the event',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  resetAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.programme.resetAll(eventId);
   }
 }

@@ -100,6 +100,62 @@ export class ProgrammeService {
     return (data ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
   }
 
+  // ── Reset everything ───────────────────────────────────────────────────────
+
+  /**
+   * Nuclear schedule reset. Drops every programme block AND clears
+   * `scheduled_at` / `lice_id` on every match across the event's
+   * tournaments. The tournaments / pools / brackets themselves stay
+   * — only their time + lice assignments are erased.
+   *
+   * Designed to back the operator's "Reset" button on the programme
+   * tab. Two sequential ops; if the matches update fails the
+   * programme has already been deleted, which is acceptable (the
+   * operator is asking to wipe state anyway).
+   */
+  async resetAll(eventId: string): Promise<{ programmeDeleted: number; matchesCleared: number }> {
+    // 1. Drop every programme block.
+    const { data: deletedBlocks, error: progErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .delete()
+      .eq('event_id', eventId)
+      .select('id');
+    if (progErr) throw new BadRequestException(progErr.message);
+
+    // 2. Resolve every match in the event's tournaments and null
+    //    out the schedule fields. PostgREST can't span the
+    //    tournaments → phases → matches join in a single UPDATE,
+    //    so fan-out: tournament_ids → phase_ids → match update.
+    const { data: tournaments, error: tErr } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId);
+    if (tErr) throw new BadRequestException(tErr.message);
+    const tournamentIds = (tournaments ?? []).map((t) => (t as { id: string }).id);
+
+    let matchesCleared = 0;
+    if (tournamentIds.length > 0) {
+      const { data: phases, error: phErr } = await this.supabase.service
+        .from('phases')
+        .select('id')
+        .in('tournament_id', tournamentIds);
+      if (phErr) throw new BadRequestException(phErr.message);
+      const phaseIds = (phases ?? []).map((p) => (p as { id: string }).id);
+
+      if (phaseIds.length > 0) {
+        const { data: cleared, error: mErr } = await this.supabase.service
+          .from('matches')
+          .update({ scheduled_at: null, lice_id: null })
+          .in('phase_id', phaseIds)
+          .select('id');
+        if (mErr) throw new BadRequestException(mErr.message);
+        matchesCleared = (cleared ?? []).length;
+      }
+    }
+
+    return { programmeDeleted: (deletedBlocks ?? []).length, matchesCleared };
+  }
+
   // ── Suggest ────────────────────────────────────────────────────────────────
 
   async suggest(eventId: string, dto: SuggestProgrammeDto): Promise<ProgrammeSuggestion> {

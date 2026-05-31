@@ -19,15 +19,18 @@ function makeChain(result: unknown) {
 }
 
 /**
- * Sets up the supabase `from()` mock for the 4 sequential table fetches the
- * service performs: tournaments → phases → matches → registrations → persons.
- * Pass `registrations: null` to skip the registrations/persons round-trip
- * (used when all matches have null registration IDs).
+ * Sets up the supabase `from()` mock for the sequential table fetches the
+ * service performs:
+ *   tournaments → phases → matches → [pools] → [bracket_slots] → registrations → persons
+ * Pools / bracket_slots are only queried when at least one match has a
+ * pool_id / bracket_slot_id, so the test must mirror that conditional.
  */
 function queueTables(opts: {
   tournaments: unknown;
   phases?: unknown;
   matches?: unknown;
+  pools?: unknown;
+  bracketSlots?: unknown;
   registrations?: unknown;
   persons?: unknown;
 }) {
@@ -37,6 +40,12 @@ function queueTables(opts: {
   }
   if (opts.matches !== undefined) {
     fromMock.mockReturnValueOnce(makeChain({ data: opts.matches, error: null }));
+  }
+  if (opts.pools !== undefined) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.pools, error: null }));
+  }
+  if (opts.bracketSlots !== undefined) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.bracketSlots, error: null }));
   }
   if (opts.registrations !== undefined) {
     fromMock.mockReturnValueOnce(makeChain({ data: opts.registrations, error: null }));
@@ -146,5 +155,32 @@ describe('ScheduleGridService', () => {
       matches: [],
     });
     await expect(service.listEventSchedule('event-1')).resolves.toEqual([]);
+  });
+
+  it('projects the canonical roundCode (LSW-P1-ML1-PA-M1) for a pool match', async () => {
+    queueTables({
+      tournaments: [{ id: 't1', name: 'Longsword Open', weapon: 'Longsword', bracket_size: 8 }],
+      phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1' }],
+      matches: [
+        {
+          id: 'm1',
+          match_number_label: 'L1-PA-M1',
+          status: 'scheduled',
+          lice_id: null,
+          scheduled_at: null,
+          phase_id: 'ph-pool',
+          pool_id: 'pool-1',
+          bracket_slot_id: null,
+          red_registration_id: null,
+          blue_registration_id: null,
+        },
+      ],
+      pools: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+    });
+
+    const result = await service.listEventSchedule('event-1');
+    expect(result).toHaveLength(1);
+    expect(result[0]!.roundCode).toBe('LSW-P1-ML1-PA-M1');
+    expect(result[0]!.poolName).toBe('Pool A');
   });
 });
