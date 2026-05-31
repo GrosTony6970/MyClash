@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { useToast } from '@myclash/ui';
+import { TournamentColorDot, useToast } from '@myclash/ui';
+import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -42,6 +43,9 @@ export function Step1Basics({
   const [rulesetCode, setRulesetCode] = useState('TF_v1');
   const [rulesetVersion, setRulesetVersion] = useState('1');
   const [penaltyRulesetId, setPenaltyRulesetId] = useState<string>('');
+  const [color, setColor] = useState<string>('');
+  const [maxParticipants, setMaxParticipants] = useState<string>('');
+  const [maxWaitlist, setMaxWaitlist] = useState<string>('');
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [penaltyRulesets, setPenaltyRulesets] = useState<PenaltyRuleset[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -70,6 +74,9 @@ export function Step1Basics({
           setRulesetCode(row.ruleset_code);
           setRulesetVersion(row.ruleset_version);
           setPenaltyRulesetId(row.penalty_ruleset_id ?? '');
+          setColor((row.color as string | null) ?? '');
+          setMaxParticipants(row.max_participants != null ? String(row.max_participants) : '');
+          setMaxWaitlist(row.max_waitlist != null ? String(row.max_waitlist) : '');
         });
     }
   }, [initialTournamentId]);
@@ -81,6 +88,9 @@ export function Step1Basics({
     }
     setSubmitting(true);
     try {
+      const parsedMaxParticipants = maxParticipants ? Number(maxParticipants) : null;
+      const parsedMaxWaitlist = maxWaitlist ? Number(maxWaitlist) : null;
+
       if (initialTournamentId) {
         // Resume flow — PATCH the existing draft
         await fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, {
@@ -93,6 +103,9 @@ export function Step1Basics({
             rulesetCode,
             rulesetVersion,
             penaltyRulesetId: penaltyRulesetId || null,
+            color: color || null,
+            maxParticipants: parsedMaxParticipants,
+            maxWaitlist: parsedMaxWaitlist,
           }),
         });
         onCreated(initialTournamentId);
@@ -109,6 +122,9 @@ export function Step1Basics({
             rulesetCode,
             rulesetVersion,
             penaltyRulesetId: penaltyRulesetId || undefined,
+            color: color || undefined,
+            maxParticipants: parsedMaxParticipants ?? undefined,
+            maxWaitlist: parsedMaxWaitlist ?? undefined,
           }),
         });
         if (!res.ok) throw new Error('Create failed');
@@ -213,6 +229,57 @@ export function Step1Basics({
           </p>
         )}
       </label>
+
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-slate-600">
+          {t('organizer.tournaments.settings.colorLabel')}
+        </legend>
+        <div className="flex items-center gap-2">
+          <TournamentColorDot color={color || null} size="md" />
+          <select
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">{t('organizer.tournaments.settings.colorNone')}</option>
+            {TOURNAMENT_COLORS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          {t('organizer.tournaments.settings.colorHelp')}
+        </p>
+      </fieldset>
+
+      {/* Capacity caps — labels mirror the settings BasicsTab so
+          the wizard and post-creation edit page look identical. */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="block text-xs font-medium text-slate-600 mb-1">Max participants</span>
+          <input
+            type="number"
+            min={1}
+            value={maxParticipants}
+            onChange={(e) => setMaxParticipants(e.target.value)}
+            placeholder="No cap"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-medium text-slate-600 mb-1">Max waitlist</span>
+          <input
+            type="number"
+            min={0}
+            value={maxWaitlist}
+            onChange={(e) => setMaxWaitlist(e.target.value)}
+            placeholder="No cap"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
+      </div>
 
       <div className="flex justify-end">
         <button

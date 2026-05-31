@@ -415,6 +415,23 @@ export class CreateTournamentDto {
   @IsString()
   @MaxLength(32)
   color?: string;
+
+  /**
+   * Capacity caps — surfaced in the create wizard alongside the
+   * other Step 1 basics. Null (or omitted) = no cap, matching the
+   * settings page semantics on UpdateTournamentDto.
+   */
+  @ApiProperty({ required: false, nullable: true, minimum: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  maxParticipants?: number | null;
+
+  @ApiProperty({ required: false, nullable: true, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxWaitlist?: number | null;
 }
 
 export class UpdateTournamentDto {

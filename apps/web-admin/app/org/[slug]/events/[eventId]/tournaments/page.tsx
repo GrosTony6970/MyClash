@@ -8,6 +8,8 @@ import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RequestDeletionModal } from '../_components/RequestDeletionModal';
+import { formatCountOfMax } from '../format-count-of-max';
+import { pillClassFor } from './_lib/pill-class-for';
 
 interface Tournament {
   id: string;
@@ -21,6 +23,10 @@ interface Tournament {
   scoring_config_json: Record<string, unknown> | null;
   ruleset_config: Record<string, unknown> | null;
   lock_config_json: Record<string, unknown> | null;
+  maxParticipants: number | null;
+  maxWaitlist: number | null;
+  /** Count of registered + checked_in registrations — drives the table's Registered column. */
+  registered: number;
 }
 
 interface TournamentForm {
@@ -64,6 +70,9 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
       !Array.isArray(row['lock_config_json'])
         ? (row['lock_config_json'] as Record<string, unknown>)
         : null,
+    maxParticipants: typeof row['max_participants'] === 'number' ? row['max_participants'] : null,
+    maxWaitlist: typeof row['max_waitlist'] === 'number' ? row['max_waitlist'] : null,
+    registered: typeof row['registered'] === 'number' ? row['registered'] : 0,
   };
 }
 
@@ -348,6 +357,9 @@ export default function EventTournamentsPage() {
                 <tr>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.tournament')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.weapon')}</th>
+                  <th className="px-4 py-3 text-right">
+                    {t('organizer.tournaments.table.registered')}
+                  </th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.status')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.actions')}</th>
                 </tr>
@@ -356,13 +368,21 @@ export default function EventTournamentsPage() {
                 {tournaments.map((tournament) => (
                   <tr key={tournament.id} className="align-top">
                     <td className="px-4 py-4">
-                      <p className="inline-flex items-center gap-1.5 font-semibold text-[#0f172a]">
+                      <span
+                        className={[
+                          'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold',
+                          pillClassFor(tournament.color),
+                        ].join(' ')}
+                      >
                         <TournamentColorDot color={tournament.color} />
                         {tournament.name}
-                      </p>
+                      </span>
                       <p className="mt-1 font-mono text-xs text-slate-400">/{tournament.slug}</p>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>
+                    <td className="px-4 py-4 text-right font-mono text-sm tabular-nums text-slate-700">
+                      {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
+                    </td>
                     <td className="px-4 py-4">
                       <span
                         className={[

@@ -990,4 +990,70 @@ describe('EventsService', () => {
       await expect(service.listEvents({})).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('listTournaments', () => {
+    it('decorates each tournament with registered = count of registered + checked_in', async () => {
+      // Drives the new "Registered" column on the admin tournament
+      // list. Mirrors the capacity-guard semantics in
+      // registrations.service.assertCapacity — 'withdrawn' /
+      // 'disqualified' / 'waitlist' don't count toward the cap.
+      const tournamentsChain = makeChain({
+        data: [
+          { id: 't-1', name: 'Longsword', max_participants: 12, max_waitlist: 5 },
+          { id: 't-2', name: 'Sabre', max_participants: null, max_waitlist: null },
+        ],
+        error: null,
+      });
+      tournamentsChain.order.mockResolvedValue({
+        data: [
+          { id: 't-1', name: 'Longsword', max_participants: 12, max_waitlist: 5 },
+          { id: 't-2', name: 'Sabre', max_participants: null, max_waitlist: null },
+        ],
+        error: null,
+      });
+
+      const registrationsChain = makeAwaitableChain({
+        data: [
+          { tournament_id: 't-1', status: 'registered' },
+          { tournament_id: 't-1', status: 'registered' },
+          { tournament_id: 't-1', status: 'checked_in' },
+          // withdrawn doesn't count
+        ],
+        error: null,
+      });
+
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'tournaments') return tournamentsChain;
+        if (table === 'registrations') return registrationsChain;
+        throw new Error(`unexpected table ${table}`);
+      });
+
+      const result = (await service.listTournaments('event-1')) as Array<{
+        id: string;
+        registered: number;
+        max_participants: number | null;
+      }>;
+
+      expect(result).toHaveLength(2);
+      expect(result[0]!.id).toBe('t-1');
+      expect(result[0]!.registered).toBe(3);
+      expect(result[0]!.max_participants).toBe(12);
+      expect(result[1]!.id).toBe('t-2');
+      expect(result[1]!.registered).toBe(0);
+      expect(result[1]!.max_participants).toBeNull();
+    });
+
+    it('returns [] without fanning out the registrations fetch when the event has no tournaments', async () => {
+      const tournamentsChain = makeChain({ data: [], error: null });
+      tournamentsChain.order.mockResolvedValue({ data: [], error: null });
+      fromMock.mockReturnValueOnce(tournamentsChain);
+
+      const result = await service.listTournaments('event-1');
+
+      expect(result).toEqual([]);
+      // registrations table must not be queried
+      expect(fromMock).toHaveBeenCalledTimes(1);
+      expect(fromMock).toHaveBeenCalledWith('tournaments');
+    });
+  });
 });

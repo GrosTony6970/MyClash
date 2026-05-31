@@ -713,7 +713,33 @@ export class EventsService {
       .order('sort_order', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const tournaments = (data ?? []) as Array<Record<string, unknown>>;
+    if (tournaments.length === 0) return [];
+
+    // Decorate each row with `registered`: the count of registrations
+    // whose status is 'registered' or 'checked_in' — matches the
+    // capacity-guard semantics in registrations.service.assertCapacity.
+    // One grouped fetch keeps this O(1) round-trips regardless of how
+    // many tournaments the event has.
+    const tournamentIds = tournaments
+      .map((t) => (t['id'] as string | undefined) ?? null)
+      .filter((id): id is string => Boolean(id));
+
+    const { data: regRows } = await this.supabase.service
+      .from('registrations')
+      .select('tournament_id, status')
+      .in('tournament_id', tournamentIds)
+      .in('status', ['registered', 'checked_in']);
+
+    const counts = new Map<string, number>();
+    for (const row of (regRows ?? []) as Array<{ tournament_id: string }>) {
+      counts.set(row.tournament_id, (counts.get(row.tournament_id) ?? 0) + 1);
+    }
+
+    return tournaments.map((t) => ({
+      ...t,
+      registered: counts.get((t['id'] as string) ?? '') ?? 0,
+    }));
   }
 
   /**
@@ -1078,6 +1104,11 @@ export class EventsService {
         ruleset_version: dto.rulesetVersion ?? '1',
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
         color: dto.color ?? null,
+        // Capacity caps from the wizard's Step 1 Basics. Null
+        // (or omitted) = no cap, same semantics as the settings
+        // page's UpdateTournamentDto path.
+        max_participants: dto.maxParticipants ?? null,
+        max_waitlist: dto.maxWaitlist ?? null,
         status: 'draft',
         ruleset_config: rulesetConfig,
       })

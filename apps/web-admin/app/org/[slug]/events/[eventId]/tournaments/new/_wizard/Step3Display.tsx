@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { TournamentColorDot, useToast } from '@myclash/ui';
+import { useToast } from '@myclash/ui';
 import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
 import {
   buildDisplayConfigFromRow,
@@ -17,26 +17,6 @@ const DEFAULTS: DisplayState = DISPLAY_DEFAULTS;
 
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white'];
 
-/** Full ColorToken palette from @myclash/ui — used for the tournament
- *  identity color (separate from sideColors). */
-const TOURNAMENT_COLORS = [
-  'red',
-  'blue',
-  'green',
-  'amber',
-  'violet',
-  'teal',
-  'orange',
-  'purple',
-  'yellow',
-  'gold',
-  'silver',
-  'bronze',
-  'slate',
-  'black',
-  'white',
-];
-
 export function Step3Display({
   tournamentId,
   onNext,
@@ -49,7 +29,6 @@ export function Step3Display({
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
-  const [tournamentColor, setTournamentColor] = useState<string>('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,7 +40,6 @@ export function Step3Display({
       .then((row) => {
         if (!row) return;
         setRulesetCode(row.ruleset_code);
-        setTournamentColor((row.color as string | null) ?? '');
         setLogoUrl((row.logo_url as string | null) ?? null);
         // Pluck-not-spread, same as Step 2 / Step 4. The column is
         // `scoring_config_json` (the `_json` suffix matters — Step 3
@@ -132,11 +110,12 @@ export function Step3Display({
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Tournament identity color (`color`) is now set in
+          // Step 1 Basics; this PATCH no longer overwrites it.
           scoringConfig: {
             display: { sideColors: data.sideColors },
             buttons: data.buttons,
           },
-          color: tournamentColor || null,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -247,30 +226,6 @@ export function Step3Display({
             </label>
           ))}
         </div>
-      </fieldset>
-
-      <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
-          {t('organizer.tournaments.settings.colorLabel')}
-        </legend>
-        <div className="flex items-center gap-2">
-          <TournamentColorDot color={tournamentColor || null} size="md" />
-          <select
-            value={tournamentColor}
-            onChange={(e) => setTournamentColor(e.target.value)}
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-          >
-            <option value="">{t('organizer.tournaments.settings.colorNone')}</option>
-            {TOURNAMENT_COLORS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-        <p className="text-[11px] text-slate-500">
-          {t('organizer.tournaments.settings.colorHelp')}
-        </p>
       </fieldset>
 
       <fieldset className="space-y-2">
