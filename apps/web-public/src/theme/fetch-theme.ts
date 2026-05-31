@@ -9,11 +9,13 @@
 import { DEFAULT_THEME, type EventTheme } from './types';
 
 interface ApiEvent {
+  // Migration 0084 retired themes.logo_url — the canonical column
+  // is events.logo_url, which arrives at the top level here.
+  logo_url?: string | null;
   theme?: {
     primary_color?: string | null;
     secondary_color?: string | null;
     accent_color?: string | null;
-    logo_url?: string | null;
     hero_image_url?: string | null;
     font_display?: string | null;
     font_body?: string | null;
@@ -33,13 +35,19 @@ export async function fetchEventTheme(eventSlug: string, apiUrl: string): Promis
 
     const event = (await res.json()) as ApiEvent;
     const t = event.theme;
-    if (!t) return DEFAULT_THEME;
+    const logoUrl = event.logo_url ?? null;
+
+    if (!t) {
+      // No theme row yet — still surface the event's logo so the
+      // header isn't unbranded on freshly-created events.
+      return { ...DEFAULT_THEME, logoUrl };
+    }
 
     return {
       primaryColor: t.primary_color ?? DEFAULT_THEME.primaryColor,
       secondaryColor: t.secondary_color ?? DEFAULT_THEME.secondaryColor,
       accentColor: t.accent_color ?? DEFAULT_THEME.accentColor,
-      logoUrl: t.logo_url ?? null,
+      logoUrl,
       heroImageUrl: t.hero_image_url ?? null,
       fontDisplay: t.font_display ?? DEFAULT_THEME.fontDisplay,
       fontBody: t.font_body ?? DEFAULT_THEME.fontBody,

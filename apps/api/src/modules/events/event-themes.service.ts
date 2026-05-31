@@ -2,14 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { UpsertEventThemeDto } from './dto/events.dto';
-
-const THEME_LOGO_BUCKET = 'event-assets';
-const THEME_LOGO_MAX_BYTES = 10 * 1024 * 1024;
-const ALLOWED_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+import { EventsService } from './events.service';
 
 interface EventRow {
   id: string;
   organization_id: string;
+  logo_url: string | null;
 }
 
 export interface ThemeLogoUpload {
@@ -23,10 +21,17 @@ export class EventThemesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly organizations: OrganizationsService,
+    // Logo writes delegate here so events.logo_url stays the
+    // canonical column. EventsService doesn't depend on this
+    // service back, so no forwardRef needed.
+    private readonly events: EventsService,
   ) {}
 
   async getTheme(eventId: string) {
-    await this.getEvent(eventId);
+    // events.logo_url is the canonical column; merge it into the
+    // theme response so existing clients keep seeing `logoUrl` at
+    // the top level even after 0084 dropped themes.logo_url.
+    const event = await this.getEvent(eventId);
     const { data, error } = await this.supabase.service
       .from('themes')
       .select('*')
@@ -34,12 +39,25 @@ export class EventThemesService {
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
-    return this.toThemeResponse(data);
+    return this.toThemeResponse(data, event.logo_url);
   }
 
   async upsertTheme(eventId: string, dto: UpsertEventThemeDto, userId: string) {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+
+    // logoUrl now lives on events.logo_url, not themes.logo_url
+    // (migration 0084). If the dto carries one, mirror it to the
+    // events row; theme upsert below skips it entirely.
+    let eventLogoUrl = event.logo_url;
+    if (dto.logoUrl !== undefined) {
+      eventLogoUrl = dto.logoUrl ?? null;
+      const { error: logoErr } = await this.supabase.service
+        .from('events')
+        .update({ logo_url: eventLogoUrl, updated_at: new Date().toISOString() })
+        .eq('id', eventId);
+      if (logoErr) throw new BadRequestException(logoErr.message);
+    }
 
     const values = this.toThemeRow(eventId, dto);
     const { data: existing, error: existingError } = await this.supabase.service
@@ -59,51 +77,27 @@ export class EventThemesService {
 
     const { data, error } = await query.select('*').single();
     if (error) throw new BadRequestException(error.message);
-    return this.toThemeResponse(data);
+    return this.toThemeResponse(data, eventLogoUrl);
   }
 
+  /**
+   * @deprecated Thin shim — delegates to the canonical
+   * `EventsService.uploadLogo` so the storage path AND the
+   * `events.logo_url` column are written together. Prefer
+   * `POST /api/v1/events/:eventId/logo` directly.
+   */
   async uploadLogo(
     eventId: string,
     file: ThemeLogoUpload,
     userId: string,
   ): Promise<{ url: string }> {
-    const event = await this.getEvent(eventId);
-    await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
-
-    if (!file.buffer.length) throw new BadRequestException('No logo file uploaded.');
-    if (file.buffer.length > THEME_LOGO_MAX_BYTES) {
-      throw new BadRequestException('Logo upload exceeds the 10 MB size limit.');
-    }
-    if (!ALLOWED_LOGO_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException('Logo upload must be a PNG, JPEG, or WebP image.');
-    }
-
-    await this.ensureBucket();
-    const extension = this.extensionFor(file.mimetype);
-    const safeBase = file.filename
-      .toLowerCase()
-      .replace(/\.[^.]+$/u, '')
-      .replace(/[^a-z0-9-]+/gu, '-')
-      .replace(/^-+|-+$/gu, '')
-      .slice(0, 60);
-    const path = `events/${eventId}/theme/logo-${Date.now()}-${safeBase || 'image'}.${extension}`;
-
-    const { error } = await this.supabase.service.storage
-      .from(THEME_LOGO_BUCKET)
-      .upload(path, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
-    if (error) throw new BadRequestException(error.message);
-
-    const { data } = this.supabase.service.storage.from(THEME_LOGO_BUCKET).getPublicUrl(path);
-    return { url: data.publicUrl };
+    return this.events.uploadLogo(eventId, userId, file);
   }
 
   private async getEvent(eventId: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, organization_id')
+      .select('id, organization_id, logo_url')
       .eq('id', eventId)
       .maybeSingle();
 
@@ -112,34 +106,14 @@ export class EventThemesService {
     return data as EventRow;
   }
 
-  private async ensureBucket(): Promise<void> {
-    const storage = this.supabase.service.storage;
-    const { data, error } = await storage.getBucket(THEME_LOGO_BUCKET);
-    if (data && !error) return;
-
-    const created = await storage.createBucket(THEME_LOGO_BUCKET, {
-      public: true,
-      fileSizeLimit: THEME_LOGO_MAX_BYTES,
-      allowedMimeTypes: Array.from(ALLOWED_LOGO_MIME_TYPES),
-    });
-    if (created.error && !/already exists/iu.test(created.error.message)) {
-      throw new BadRequestException(created.error.message);
-    }
-  }
-
-  private extensionFor(mimetype: string): 'png' | 'jpg' | 'webp' {
-    if (mimetype === 'image/png') return 'png';
-    if (mimetype === 'image/webp') return 'webp';
-    return 'jpg';
-  }
-
   private toThemeRow(eventId: string, dto: UpsertEventThemeDto): Record<string, unknown> {
+    // logo_url intentionally omitted — migration 0084 dropped it
+    // from this table. The canonical column is events.logo_url.
     return {
       event_id: eventId,
       primary_color: dto.primaryColor ?? '#c0392b',
       secondary_color: dto.secondaryColor ?? '#2c3e50',
       accent_color: dto.accentColor ?? '#f59e0b',
-      logo_url: dto.logoUrl ?? null,
       hero_image_url: dto.heroImageUrl ?? null,
       font_display: dto.fontDisplay ?? 'Cinzel',
       font_body: dto.fontBody ?? 'Inter',
@@ -147,8 +121,19 @@ export class EventThemesService {
     };
   }
 
-  private toThemeResponse(row: unknown) {
-    if (!row || typeof row !== 'object') return null;
+  /**
+   * Merge the theme row (colors/fonts/hero/css) with the event's
+   * canonical logo URL. Theme response still surfaces `logoUrl` at
+   * the top level so callers don't need to fan out a second fetch.
+   */
+  private toThemeResponse(row: unknown, eventLogoUrl: string | null) {
+    if (!row || typeof row !== 'object') {
+      // No theme row yet: return a stub carrying the event logo so
+      // callers can still render the logo without first creating a
+      // theme.
+      if (eventLogoUrl) return { logoUrl: eventLogoUrl };
+      return null;
+    }
     const data = row as Record<string, unknown>;
     return {
       id: data['id'],
@@ -156,7 +141,7 @@ export class EventThemesService {
       primaryColor: data['primary_color'],
       secondaryColor: data['secondary_color'],
       accentColor: data['accent_color'],
-      logoUrl: data['logo_url'],
+      logoUrl: eventLogoUrl,
       heroImageUrl: data['hero_image_url'],
       fontDisplay: data['font_display'],
       fontBody: data['font_body'],

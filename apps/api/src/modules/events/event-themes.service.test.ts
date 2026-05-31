@@ -1,24 +1,16 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventThemesService } from './event-themes.service';
 
 const fromMock = vi.fn();
 const assertOrgRole = vi.fn();
-const upload = vi.fn();
-const getPublicUrl = vi.fn();
-const createBucket = vi.fn();
-const getBucket = vi.fn();
+const uploadLogoOnEvents = vi.fn();
 
 const supabase = {
-  service: {
-    from: fromMock,
-    storage: {
-      from: vi.fn(() => ({ upload, getPublicUrl })),
-      getBucket,
-      createBucket,
-    },
-  },
+  service: { from: fromMock },
 };
+
+const eventsService = { uploadLogo: uploadLogoOnEvents };
 
 function chain(result: unknown) {
   const state = {
@@ -37,19 +29,32 @@ describe('EventThemesService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    getBucket.mockResolvedValue({ data: { id: 'event-assets' }, error: null });
-    getPublicUrl.mockReturnValue({
-      data: { publicUrl: 'https://app.example/storage/v1/logo.png' },
-    });
-    upload.mockResolvedValue({ data: { path: 'events/event-1/theme/logo.png' }, error: null });
-    service = new EventThemesService(supabase as never, { assertOrgRole } as never);
+    uploadLogoOnEvents.mockResolvedValue({ url: 'https://app.example/storage/v1/logo.png' });
+    service = new EventThemesService(
+      supabase as never,
+      { assertOrgRole } as never,
+      eventsService as never,
+    );
   });
 
-  it('upserts an existing event theme after organizer admin authorization', async () => {
+  // ── Theme upsert ───────────────────────────────────────────────────────────
+
+  it('upserts an existing event theme without writing logo_url to the themes table', async () => {
+    // Post-0084: logo_url lives on events, NOT themes. The theme
+    // upsert must drop logo_url from its payload and instead PATCH
+    // events.logo_url separately.
+    const eventsChain = chain({ data: null, error: null });
     const themeChain = chain({ data: { id: 'theme-1' }, error: null });
     fromMock.mockImplementation((table: string) => {
       if (table === 'events') {
-        return chain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null });
+        // First call: getEvent. Second call: update events.logo_url.
+        if (eventsChain.maybeSingle.mock.calls.length === 0) {
+          return chain({
+            data: { id: 'event-1', organization_id: 'org-1', logo_url: null },
+            error: null,
+          });
+        }
+        return eventsChain;
       }
       return themeChain;
     });
@@ -61,76 +66,33 @@ describe('EventThemesService', () => {
     );
 
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
-    expect(themeChain.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        primary_color: '#dc2626',
-        logo_url: 'https://example.com/logo.png',
-      }),
-    );
+    // themes update must NOT carry logo_url — that column is gone.
+    expect(themeChain.update).toHaveBeenCalledTimes(1);
+    const calls = themeChain.update.mock.calls as unknown as Array<[Record<string, unknown>]>;
+    const themeUpdatePayload = calls[0]![0];
+    expect(themeUpdatePayload).not.toHaveProperty('logo_url');
+    expect(themeUpdatePayload['primary_color']).toBe('#dc2626');
   });
 
-  it('rejects logo uploads over 10 MB', async () => {
-    fromMock.mockImplementation(() =>
-      chain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null }),
-    );
+  // ── Logo upload (shim) ─────────────────────────────────────────────────────
 
-    await expect(
-      service.uploadLogo(
-        'event-1',
-        {
-          buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
-          filename: 'logo.png',
-          mimetype: 'image/png',
-        },
-        'user-1',
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(upload).not.toHaveBeenCalled();
-  });
-
-  it('rejects unsupported logo file types', async () => {
-    fromMock.mockImplementation(() =>
-      chain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null }),
-    );
-
-    await expect(
-      service.uploadLogo(
-        'event-1',
-        { buffer: Buffer.from('svg'), filename: 'logo.svg', mimetype: 'image/svg+xml' },
-        'user-1',
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(upload).not.toHaveBeenCalled();
-  });
-
-  it('uploads valid logos to event-scoped storage after authorization', async () => {
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'events') {
-        return chain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null });
-      }
-      return chain({ data: null, error: null });
-    });
-
+  it('uploadLogo delegates to EventsService so events.logo_url is the writer of record', async () => {
     const result = await service.uploadLogo(
       'event-1',
       { buffer: Buffer.from('png'), filename: 'logo.png', mimetype: 'image/png' },
       'user-1',
     );
 
-    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
-    expect(upload).toHaveBeenCalledWith(
-      expect.stringMatching(/^events\/event-1\/theme\/logo-/u),
-      Buffer.from('png'),
-      expect.objectContaining({ contentType: 'image/png', upsert: true }),
+    expect(uploadLogoOnEvents).toHaveBeenCalledWith(
+      'event-1',
+      'user-1',
+      expect.objectContaining({ filename: 'logo.png', mimetype: 'image/png' }),
     );
     expect(result.url).toBe('https://app.example/storage/v1/logo.png');
   });
 
-  it('propagates real organization membership failures', async () => {
-    assertOrgRole.mockRejectedValueOnce(new ForbiddenException('not a member'));
-    fromMock.mockImplementation(() =>
-      chain({ data: { id: 'event-1', organization_id: 'org-1' }, error: null }),
-    );
+  it('uploadLogo propagates ForbiddenException from the canonical EventsService.uploadLogo', async () => {
+    uploadLogoOnEvents.mockRejectedValueOnce(new ForbiddenException('not a member'));
 
     await expect(
       service.uploadLogo(

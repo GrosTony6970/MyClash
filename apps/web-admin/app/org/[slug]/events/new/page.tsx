@@ -544,11 +544,14 @@ export default function NewEventPage() {
         ),
       );
 
-      let logoUrl = state.logoUrl.trim() || null;
+      const pastedLogoUrl = state.logoUrl.trim() || null;
       if (logoFile) {
+        // Canonical events-level endpoint: writes to storage AND
+        // events.logo_url. (Theme retired its own logo column in
+        // migration 0084.)
         const formData = new FormData();
         formData.append('file', logoFile);
-        const logoRes = await fetch(`${apiUrl}/api/v1/events/${event.id}/theme/logo`, {
+        const logoRes = await fetch(`${apiUrl}/api/v1/events/${event.id}/logo`, {
           method: 'POST',
           credentials: 'include',
           body: formData,
@@ -558,8 +561,16 @@ export default function NewEventPage() {
           router.push(`/org/${slug}/events/${event.id}/theme?logoUpload=failed`);
           return;
         }
-        const data = (await logoRes.json()) as { url: string };
-        logoUrl = data.url;
+      } else if (pastedLogoUrl) {
+        // Operator pasted a URL instead of uploading a file —
+        // mirror it onto events.logo_url via the theme upsert
+        // (which now routes logoUrl to the events column).
+        await fetch(`${apiUrl}/api/v1/events/${event.id}/theme`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ logoUrl: pastedLogoUrl }),
+        });
       }
 
       await fetch(`${apiUrl}/api/v1/events/${event.id}/theme`, {
@@ -568,7 +579,6 @@ export default function NewEventPage() {
         credentials: 'include',
         body: JSON.stringify({
           primaryColor: state.primaryColor,
-          logoUrl,
         }),
       });
 

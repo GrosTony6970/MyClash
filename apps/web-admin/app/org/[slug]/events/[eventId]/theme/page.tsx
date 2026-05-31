@@ -180,7 +180,11 @@ export default function ThemeEditorPage() {
       formData.append('file', file);
       formData.append('eventId', eventId);
 
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/theme/logo`, {
+      // Canonical events-level endpoint: writes the file to
+      // storage AND updates events.logo_url. Migration 0084 retired
+      // themes.logo_url so the previously-used /theme/logo route is
+      // now a thin shim around this one.
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/logo`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
