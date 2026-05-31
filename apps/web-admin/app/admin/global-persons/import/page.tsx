@@ -266,7 +266,11 @@ export default function GlobalPersonsImportPage() {
 
       {step === 'review' && preview && (
         <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+          {/* Sticky summary bar — keeps the row counts AND the
+              Cancel/Commit pair visible while the operator scrolls
+              the preview table. Long imports used to require
+              scrolling to the bottom of the table just to commit. */}
+          <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
             <div className="flex flex-wrap gap-4 text-slate-700">
               <span>
                 <strong>{preview.summary.total}</strong> rows
@@ -286,7 +290,7 @@ export default function GlobalPersonsImportPage() {
                 <strong>{decisionSummary.skip}</strong>
               </span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={skipAllInvalid}
@@ -300,6 +304,24 @@ export default function GlobalPersonsImportPage() {
                 className="text-xs border border-slate-300 px-2 py-1 rounded hover:bg-white"
               >
                 Skip all duplicates
+              </button>
+              <button
+                type="button"
+                onClick={reset}
+                disabled={busy}
+                className="text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCommit()}
+                disabled={busy}
+                className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
+              >
+                {busy
+                  ? 'Importing…'
+                  : `Commit (${decisionSummary.create_new + decisionSummary.overwrite})`}
               </button>
             </div>
           </div>
@@ -501,27 +523,6 @@ export default function GlobalPersonsImportPage() {
                 })}
               </tbody>
             </table>
-          </div>
-
-          <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={reset}
-              disabled={busy}
-              className="text-sm text-slate-500 hover:text-slate-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCommit()}
-              disabled={busy}
-              className="bg-red-800 hover:bg-red-900 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
-            >
-              {busy
-                ? 'Importing…'
-                : `Commit (${decisionSummary.create_new + decisionSummary.overwrite})`}
-            </button>
           </div>
         </div>
       )}
