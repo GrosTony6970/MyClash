@@ -7,7 +7,7 @@
  * Steps: Upload → Preview (with conflict cards) → Commit → Done
  */
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type {
@@ -18,6 +18,69 @@ import type {
 } from '@myclash/types';
 
 type Step = 'upload' | 'preview' | 'done';
+
+const TONES = {
+  green: {
+    chip: 'bg-green-100 text-green-700',
+    border: 'border-green-200',
+    text: 'text-green-700',
+  },
+  amber: {
+    chip: 'bg-amber-100 text-amber-700',
+    border: 'border-amber-200',
+    text: 'text-amber-700',
+  },
+  red: {
+    chip: 'bg-red-100 text-red-700',
+    border: 'border-red-200',
+    text: 'text-red-700',
+  },
+} as const;
+
+type SectionTone = keyof typeof TONES;
+
+/**
+ * Collapsible "what's in this bucket" section with a count chip
+ * in the header. Auto-opens when small (≤ 10 rows) so short
+ * imports show everything at a glance; collapses on big ones so
+ * the operator can scan headings first.
+ */
+function SectionAccordion({
+  title,
+  count,
+  tone,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  count: number;
+  tone: SectionTone;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (count === 0) return null;
+  const t = TONES[tone];
+  return (
+    <div className={`rounded-lg border ${t.border} bg-white`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 rounded-t-lg px-4 py-2.5 text-left text-sm hover:bg-slate-50"
+        aria-expanded={open}
+      >
+        <span className={`font-semibold ${t.text}`}>{title}</span>
+        <span className="flex items-center gap-2">
+          <span className={`rounded-full ${t.chip} px-2.5 py-0.5 text-xs font-bold`}>{count}</span>
+          <span className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
+            ⌄
+          </span>
+        </span>
+      </button>
+      {open && <div className="border-t border-slate-100 p-3">{children}</div>}
+    </div>
+  );
+}
 
 const CONFIDENCE_LABELS: Record<string, string> = {
   exact_abv: 'abbreviation match',
@@ -287,158 +350,210 @@ export default function CsvImportPage() {
       )}
 
       {/* ── Step: Preview ── */}
-      {step === 'preview' && preview && (
-        <div className="flex flex-col gap-5">
-          {/* Summary */}
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              {
-                label: 'To create',
-                value: preview.summary.toCreate,
-                color: 'text-green-700 bg-green-50 border-green-200',
-              },
-              {
-                label: 'To link',
-                value: preview.summary.toLink,
-                color: 'text-blue-700 bg-blue-50 border-blue-200',
-              },
-              {
-                label: 'Duplicates',
-                value: preview.summary.duplicates,
-                color: 'text-yellow-700 bg-yellow-50 border-yellow-200',
-              },
-              {
-                label: 'Invalid',
-                value: preview.summary.invalid,
-                color: 'text-red-700 bg-red-50 border-red-200',
-              },
-            ].map(({ label, value, color }) => (
-              <div key={label} className={`border rounded-lg p-3 text-center ${color}`}>
-                <p className="text-2xl font-bold">{value}</p>
-                <p className="text-xs font-medium">{label}</p>
-              </div>
-            ))}
-          </div>
+      {step === 'preview' &&
+        preview &&
+        (() => {
+          const invalidRows = preview.rows.filter((r) => r.status === 'invalid');
+          // Counts driven by current decisions so the bar + section
+          // chips react as the operator changes radios.
+          const willLink = conflictRows.filter(
+            (r) => (decisions[r.index] ?? r.defaultAction) === 'link',
+          ).length;
+          const willCreate =
+            cleanRows.length +
+            conflictRows.filter((r) => (decisions[r.index] ?? r.defaultAction) === 'create_new')
+              .length;
+          const notYetLinkedCount = conflictRows.filter(
+            (r) => (decisions[r.index] ?? r.defaultAction) !== 'link',
+          ).length;
+          const notYetCreateNewCount = conflictRows.filter(
+            (r) => (decisions[r.index] ?? r.defaultAction) !== 'create_new',
+          ).length;
 
-          {/* New clubs */}
-          {preview.newClubs.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-              <p className="font-medium text-blue-700 mb-1">
-                New clubs will be created (unverified):
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {preview.newClubs.map((c) => (
-                  <span key={c} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">
-                    {c}
+          function linkAllSuggested() {
+            setDecisions((prev) => {
+              const next = { ...prev };
+              for (const r of conflictRows) next[r.index] = 'link';
+              return next;
+            });
+          }
+          function createAllAsNew() {
+            setDecisions((prev) => {
+              const next = { ...prev };
+              for (const r of conflictRows) next[r.index] = 'create_new';
+              return next;
+            });
+          }
+
+          return (
+            <div className="flex flex-col gap-4">
+              {/* Sticky action bar — summary chips + bulk shortcuts +
+                  Cancel/Import. Stays pinned while the operator
+                  scrolls through the section bodies below. */}
+              <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/95 px-4 py-3 text-sm shadow-sm backdrop-blur">
+                <div className="flex flex-wrap items-center gap-3 text-slate-700">
+                  <span>
+                    <strong>{preview.rows.length}</strong> rows
                   </span>
-                ))}
+                  <span className="text-green-700">
+                    <strong>{willCreate}</strong> will create
+                  </span>
+                  <span className="text-blue-700">
+                    <strong>{willLink}</strong> will link
+                  </span>
+                  <span className="text-red-700">
+                    <strong>{invalidRows.length}</strong> invalid
+                  </span>
+                  {preview.newClubs.length > 0 && (
+                    <span className="text-blue-600">
+                      + {preview.newClubs.length} new club
+                      {preview.newClubs.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {conflictRows.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={linkAllSuggested}
+                        disabled={notYetLinkedCount === 0}
+                        className="rounded-md border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        Link all suggested{notYetLinkedCount > 0 ? ` (${notYetLinkedCount})` : ''}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={createAllAsNew}
+                        disabled={notYetCreateNewCount === 0}
+                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Create all as new
+                        {notYetCreateNewCount > 0 ? ` (${notYetCreateNewCount})` : ''}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStep('upload')}
+                    disabled={uploading}
+                    className="text-sm text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCommit()}
+                    disabled={uploading || willCreate + willLink === 0}
+                    className="rounded-lg bg-red-700 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:opacity-50"
+                  >
+                    {uploading ? 'Importing…' : `Import ${willCreate + willLink} persons`}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Conflict cards — require organizer decision */}
-          {conflictRows.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-amber-700">
-                  {conflictRows.length} row{conflictRows.length !== 1 ? 's' : ''} matched an
-                  existing global profile — review and choose:
-                </p>
-                {(() => {
-                  // Bulk-accept: link every match-bearing row to its
-                  // suggested global profile. Useful when re-importing a
-                  // big CSV that's already in the global pool — without
-                  // it the organiser would have to click through 178
-                  // individual cards.
-                  const notYetLinkedCount = conflictRows.filter(
-                    (r) => (decisions[r.index] ?? r.defaultAction) !== 'link',
-                  ).length;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDecisions((prev) => {
-                          const next = { ...prev };
-                          for (const r of conflictRows) next[r.index] = 'link';
-                          return next;
-                        })
-                      }
-                      disabled={notYetLinkedCount === 0}
-                      className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                    >
-                      Link all suggested
-                      {notYetLinkedCount > 0 ? ` (${notYetLinkedCount})` : ''}
-                    </button>
-                  );
-                })()}
-              </div>
-              <div className="flex flex-col gap-3">
-                {conflictRows.map((row) => (
-                  <ConflictCard
-                    key={row.index}
-                    row={row}
-                    decision={decisions[row.index] ?? row.defaultAction}
-                    onDecide={decide}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Clean rows summary */}
-          {cleanRows.length > 0 && (
-            <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
-              <span className="font-medium text-gray-700">{cleanRows.length}</span> rows will be
-              imported without conflict.
-              {cleanRows.some((r) => r.clubResolution?.confidence === 'medium') && (
-                <span className="ml-1 text-amber-600">
-                  (some clubs matched via fuzzy search — verify after import)
-                </span>
+              {/* Side-effect callout: new clubs that will be created. */}
+              {preview.newClubs.length > 0 && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm">
+                  <p className="mb-1 font-medium text-blue-700">
+                    New clubs will be created (unverified):
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {preview.newClubs.map((c) => (
+                      <span
+                        key={c}
+                        className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
-            </div>
-          )}
 
-          {/* Invalid rows */}
-          {preview.rows.filter((r) => r.status === 'invalid').length > 0 && (
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">
-                Invalid rows (will be skipped):
-              </p>
-              <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                {preview.rows
-                  .filter((r) => r.status === 'invalid')
-                  .map((r) => (
+              {/* Will create — clean rows (no global match). */}
+              <SectionAccordion
+                title="Will create"
+                count={cleanRows.length}
+                tone="green"
+                defaultOpen={cleanRows.length <= 10}
+              >
+                <div className="flex flex-col gap-1">
+                  {cleanRows.map((row) => (
+                    <div
+                      key={row.index}
+                      className="flex flex-wrap items-baseline justify-between gap-2 rounded border border-green-100 bg-green-50/50 px-3 py-1.5 text-xs"
+                    >
+                      <span>
+                        <span className="font-mono text-green-700">Row {row.index + 1}:</span>{' '}
+                        <span className="font-medium text-slate-800">
+                          {row.givenName} {row.familyName}
+                        </span>
+                        {row.email && <span className="ml-2 text-slate-500">{row.email}</span>}
+                      </span>
+                      {row.clubResolution && (
+                        <span className="text-slate-600">
+                          {row.clubResolution.resolvedName}
+                          {row.clubResolution.abbreviation && (
+                            <span className="ml-1 text-slate-400">
+                              ({row.clubResolution.abbreviation})
+                            </span>
+                          )}
+                          <span
+                            className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${CONFIDENCE_COLORS[row.clubResolution.confidence] ?? 'bg-gray-100 text-gray-600'}`}
+                          >
+                            {CONFIDENCE_LABELS[row.clubResolution.confidence] ??
+                              row.clubResolution.confidence}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </SectionAccordion>
+
+              {/* Duplicates — conflict rows; ConflictCard radios let
+                  the operator change link vs create_new per row. */}
+              <SectionAccordion
+                title="Duplicates (need a decision)"
+                count={conflictRows.length}
+                tone="amber"
+                defaultOpen={conflictRows.length <= 10}
+              >
+                <div className="flex flex-col gap-3">
+                  {conflictRows.map((row) => (
+                    <ConflictCard
+                      key={row.index}
+                      row={row}
+                      decision={decisions[row.index] ?? row.defaultAction}
+                      onDecide={decide}
+                    />
+                  ))}
+                </div>
+              </SectionAccordion>
+
+              {/* Invalid — auto-skipped on import. */}
+              <SectionAccordion
+                title="Invalid (will skip)"
+                count={invalidRows.length}
+                tone="red"
+                defaultOpen={invalidRows.length <= 10}
+              >
+                <div className="flex flex-col gap-1">
+                  {invalidRows.map((r) => (
                     <div
                       key={r.index}
-                      className="text-xs bg-red-50 border border-red-100 rounded px-3 py-1.5"
+                      className="rounded border border-red-100 bg-red-50 px-3 py-1.5 text-xs"
                     >
                       <span className="font-mono text-red-600">Row {r.index + 1}:</span>{' '}
                       {r.invalidReason}
                     </div>
                   ))}
-              </div>
+                </div>
+              </SectionAccordion>
             </div>
-          )}
-
-          <div className="flex justify-between items-center pt-2">
-            <button
-              onClick={() => setStep('upload')}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              ← Back
-            </button>
-            <button
-              onClick={() => void handleCommit()}
-              disabled={uploading || preview.summary.toCreate + preview.summary.toLink === 0}
-              className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors"
-            >
-              {uploading
-                ? 'Importing…'
-                : `Import ${preview.summary.toCreate + preview.summary.toLink} persons`}
-            </button>
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
       {/* ── Step: Done ── */}
       {step === 'done' && report && (
