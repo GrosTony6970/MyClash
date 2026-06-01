@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
@@ -77,7 +77,19 @@ function EventClubsSection({
   const [clubs, setClubs] = useState<EventClub[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClub, setSelectedClub] = useState<EventClub | null>(null);
+  // Set of club ids whose fighter list is unfolded inline below their
+  // row. Multiple clubs may stay open at once so the operator can
+  // compare rosters without re-clicking.
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(clubId: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clubId)) next.delete(clubId);
+      else next.add(clubId);
+      return next;
+    });
+  }
   const [form, setForm] = useState(emptyClubRequest);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -229,106 +241,119 @@ function EventClubsSection({
                 </td>
               </tr>
             )}
-            {clubs.map((club) => (
-              <tr key={club.id} className="border-t border-slate-100">
-                <td className="py-3 pr-4">
-                  <div className="font-semibold text-[#0f172a]">{club.name}</div>
-                  <div className="text-xs text-slate-500">{club.abbreviation ?? '-'}</div>
-                </td>
-                <td className="py-3 pr-4 text-slate-600">
-                  {[club.city, club.country_code].filter(Boolean).join(', ') || '-'}
-                </td>
-                <td className="py-3 pr-4">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      club.unverified === 'true'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}
-                  >
-                    {club.unverified === 'true'
-                      ? t('organizer.eventHub.clubs.unverified')
-                      : t('organizer.eventHub.clubs.verified')}
-                  </span>
-                </td>
-                <td className="py-3 pr-4 text-slate-700">{club.eventFighterCount}</td>
-                <td className="py-3">
-                  {club.eventFighterCount > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedClub(club)}
-                      className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#1d4ed8] hover:bg-blue-50"
-                    >
-                      {t('organizer.eventHub.clubs.viewFighters')}
-                    </button>
-                  ) : (
-                    <span className="text-xs text-slate-400">
-                      {t('organizer.eventHub.clubs.noEventFighters')}
-                    </span>
+            {clubs.map((club) => {
+              const expanded = expandedIds.has(club.id);
+              return (
+                <Fragment key={club.id}>
+                  <tr className="border-t border-slate-100">
+                    <td className="py-3 pr-4">
+                      <div className="font-semibold text-[#0f172a]">{club.name}</div>
+                      <div className="text-xs text-slate-500">{club.abbreviation ?? '-'}</div>
+                    </td>
+                    <td className="py-3 pr-4 text-slate-600">
+                      {[club.city, club.country_code].filter(Boolean).join(', ') || '-'}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          club.unverified === 'true'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}
+                      >
+                        {club.unverified === 'true'
+                          ? t('organizer.eventHub.clubs.unverified')
+                          : t('organizer.eventHub.clubs.verified')}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-4 text-slate-700">{club.eventFighterCount}</td>
+                    <td className="py-3">
+                      {club.eventFighterCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(club.id)}
+                          aria-expanded={expanded}
+                          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#1d4ed8] hover:bg-blue-50"
+                        >
+                          {expanded
+                            ? t('organizer.eventHub.clubs.hideFighters')
+                            : t('organizer.eventHub.clubs.viewFighters')}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {t('organizer.eventHub.clubs.noEventFighters')}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  {expanded && (
+                    <tr className="bg-slate-50">
+                      <td colSpan={5} className="px-3 pb-4">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="font-semibold text-[#0f172a]">
+                                {t('organizer.eventHub.clubs.fightersFor', { club: club.name })}
+                              </h3>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {t('organizer.eventHub.clubs.fightersCountSummary', {
+                                  inEvent: String(club.fighters.filter((f) => f.inEvent).length),
+                                  other: String(club.fighters.filter((f) => !f.inEvent).length),
+                                })}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(club.id)}
+                              className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+                            >
+                              {t('actions.close')}
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                            {club.fighters.map((fighter) => (
+                              <div
+                                key={fighter.id}
+                                className={[
+                                  'rounded-md border p-2 text-sm',
+                                  fighter.inEvent
+                                    ? 'border-emerald-200 bg-white'
+                                    : 'border-dashed border-slate-200 bg-slate-50/50',
+                                ].join(' ')}
+                              >
+                                <div className="flex items-center justify-between gap-1">
+                                  <span
+                                    className={[
+                                      'truncate font-semibold',
+                                      fighter.inEvent ? 'text-slate-900' : 'text-slate-500',
+                                    ].join(' ')}
+                                  >
+                                    {fighter.givenName} {fighter.familyName}
+                                  </span>
+                                  {fighter.inEvent && (
+                                    <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                      {t('organizer.eventHub.clubs.fighterInEvent')}
+                                    </span>
+                                  )}
+                                </div>
+                                {fighter.email && (
+                                  <div className="truncate text-[10px] text-slate-400">
+                                    {fighter.email}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </td>
-              </tr>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
-
-      {selectedClub && (
-        <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-[#0f172a]">
-                {t('organizer.eventHub.clubs.fightersFor', { club: selectedClub.name })}
-              </h3>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {t('organizer.eventHub.clubs.fightersCountSummary', {
-                  inEvent: String(selectedClub.fighters.filter((f) => f.inEvent).length),
-                  other: String(selectedClub.fighters.filter((f) => !f.inEvent).length),
-                })}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedClub(null)}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-900"
-            >
-              {t('actions.close')}
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {selectedClub.fighters.map((fighter) => (
-              <div
-                key={fighter.id}
-                className={[
-                  'rounded-md border p-2 text-sm',
-                  fighter.inEvent
-                    ? 'border-emerald-200 bg-white'
-                    : 'border-dashed border-slate-200 bg-slate-50/50',
-                ].join(' ')}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span
-                    className={[
-                      'truncate font-semibold',
-                      fighter.inEvent ? 'text-slate-900' : 'text-slate-500',
-                    ].join(' ')}
-                  >
-                    {fighter.givenName} {fighter.familyName}
-                  </span>
-                  {fighter.inEvent && (
-                    <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      {t('organizer.eventHub.clubs.fighterInEvent')}
-                    </span>
-                  )}
-                </div>
-                {fighter.email && (
-                  <div className="truncate text-[10px] text-slate-400">{fighter.email}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="border-t border-slate-100 px-5 py-5">
         <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
