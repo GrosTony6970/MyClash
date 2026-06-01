@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -16,6 +17,7 @@ import { formatRoundCode } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
 import { StaffingService, type ResolvedConfig } from './staffing.service';
+import { buildFightersByPool } from './fighter-pool-membership';
 
 /**
  * The three legacy skill IDs. R3 made the engine accept any skill_id, so
@@ -273,6 +275,8 @@ interface RefereeAssignmentRow {
 
 @Injectable()
 export class AssignmentBoardService {
+  private readonly logger = new Logger(AssignmentBoardService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly settings: SettingsService,
@@ -585,6 +589,23 @@ export class AssignmentBoardService {
     // detection as real pools.
     const bracketPools = await this.loadBracketAsPools(tournamentIds, tournamentById);
     const allPools = [...pools, ...bracketPools];
+
+    // Fighter source-of-truth: pool_members. listRegistrations above is
+    // status-filtered ('registered'|'checked_in'), which silently drops
+    // anyone whose registration row drifts to another state — leaving
+    // the engine's hard fighter-conflict filter unable to see them and
+    // letting them be auto-assigned as a referee on their own pool.
+    // Merge every (personId, registrationId) pair from pool.members so
+    // pool membership wins regardless of registration status.
+    for (const pool of allPools) {
+      for (const member of pool.members) {
+        const existing = fighterRegistrationIdsByPerson.get(member.personId) ?? [];
+        if (!existing.includes(member.registrationId)) {
+          existing.push(member.registrationId);
+          fighterRegistrationIdsByPerson.set(member.personId, existing);
+        }
+      }
+    }
 
     return {
       eventId,
@@ -1273,8 +1294,27 @@ export class AssignmentBoardService {
 
     if (rows.length === 0) return;
 
-    if (!replaceAutoAssigned && rows.length === 1) {
-      const row = rows[0]!;
+    // Defence in depth: drop any row where the person is a member of
+    // the pool they'd be reffing. The engine has its own filter, and
+    // applyManual throws upstream, but we guard the chokepoint so a
+    // future bypass (engine bug, manual SQL, etc.) can't reintroduce
+    // a fighter-as-own-referee row. A logger.warn surfaces hits.
+    const fightersByPool = buildFightersByPool(context.pools);
+    const filteredRows = rows.filter((row) => {
+      if (!row.pool_id) return true;
+      const members = fightersByPool.get(row.pool_id);
+      if (members?.has(row.person_id)) {
+        this.logger.warn(
+          `Dropped fighter-conflict referee assignment: person=${row.person_id} pool=${row.pool_id} role=${row.role}`,
+        );
+        return false;
+      }
+      return true;
+    });
+    if (filteredRows.length === 0) return;
+
+    if (!replaceAutoAssigned && filteredRows.length === 1) {
+      const row = filteredRows[0]!;
       // Single manual write: clear any existing assignment for the same
       // (scope, target, role) tuple before inserting the new one.
       if (row.scope_type === 'pool' && row.pool_id) {
@@ -1296,7 +1336,7 @@ export class AssignmentBoardService {
       }
     }
 
-    const { error } = await this.supabase.service.from('referee_assignments').insert(rows);
+    const { error } = await this.supabase.service.from('referee_assignments').insert(filteredRows);
     if (error) throw new BadRequestException(error.message);
   }
 
