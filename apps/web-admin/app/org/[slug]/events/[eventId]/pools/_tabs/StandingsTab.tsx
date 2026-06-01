@@ -59,7 +59,11 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   const [mode, setMode] = useState<Mode>('overall');
   const [overall, setOverall] = useState<OverallResponse | null>(null);
   const [byPool, setByPool] = useState<ByPoolResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Stale-while-revalidate: keep showing the cached payload while
+  // a refetch (poll / realtime event / manual button / mode switch)
+  // runs in the background. The full-page "Loading…" placeholder
+  // only shows when there's no cached data yet for the current mode.
+  const [revalidating, setRevalidating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -74,16 +78,18 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
+    setRevalidating(true);
     const url = `${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=${mode}`;
     void fetch(url, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (mode === 'overall') setOverall(data as OverallResponse);
         else setByPool(data as ByPoolResponse);
-        setLoading(false);
-      });
+      })
+      .finally(() => setRevalidating(false));
   }, [tournamentId, mode, refreshKey]);
+
+  const hasDataForMode = mode === 'overall' ? overall !== null : byPool !== null;
 
   useRealtimeWithFallback({
     channelName: `pool-standings-${tournamentId}-${mode}`,
@@ -159,6 +165,9 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {revalidating && hasDataForMode && (
+            <span className="text-xs italic text-slate-400">{t('common.refreshing')}</span>
+          )}
           <button
             type="button"
             onClick={refresh}
@@ -193,9 +202,9 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
         </div>
       </div>
 
-      {loading && <p className="text-sm text-slate-500">{t('common.loading')}</p>}
+      {!hasDataForMode && <p className="text-sm text-slate-500">{t('common.loading')}</p>}
 
-      {!loading &&
+      {hasDataForMode &&
         mode === 'overall' &&
         overall &&
         (overall.rows.length === 0 ? (
@@ -204,7 +213,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
           <StandingsTable columns={overall.columns} rows={overall.rows} />
         ))}
 
-      {!loading &&
+      {hasDataForMode &&
         mode === 'by-pool' &&
         byPool &&
         (byPool.pools.length === 0 ? (
