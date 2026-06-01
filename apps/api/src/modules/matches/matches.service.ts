@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
@@ -7,6 +13,7 @@ import { buildRoundCode } from './round-code.helper';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import type { BracketAdvanceService } from '../phases/bracket-advance.service';
+import type { PhasesService } from '../phases/phases.service';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
@@ -28,7 +35,37 @@ export class MatchesService {
     private readonly followNotifications: FollowNotificationSchedulerService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+    @Optional() private readonly phases?: PhasesService,
   ) {}
+
+  private readonly logger = new Logger(MatchesService.name);
+
+  /**
+   * After a pool match completes, fire-and-forget try to auto-populate
+   * the bracket. Gated by populateBracket itself: silent no-op if pools
+   * aren't all complete or any R1 match has already started. Best-effort
+   * — failures must not break the score write.
+   */
+  private async maybePopulateBracketAfterMatch(matchId: string) {
+    if (!this.phases) return;
+    try {
+      const { data } = await this.supabase.service
+        .from('matches')
+        .select('phases!inner(type, tournament_id)')
+        .eq('id', matchId)
+        .maybeSingle();
+      const phaseEmbed = (data as { phases?: unknown } | null)?.phases;
+      const phase = Array.isArray(phaseEmbed) ? phaseEmbed[0] : phaseEmbed;
+      const type = (phase as { type?: string } | null)?.type;
+      const tournamentId = (phase as { tournament_id?: string } | null)?.tournament_id;
+      if (type !== 'pool' || !tournamentId) return;
+      await this.phases.populateBracket(tournamentId, {}, 'system', { silentIfGateNotMet: true });
+    } catch (err) {
+      this.logger.warn(
+        `Auto-populate after pool match ${matchId} failed: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
 
   // ── Matches ──────────────────────────────────────────────────────────────────
 
@@ -196,6 +233,9 @@ export class MatchesService {
 
     if (dto.status === 'completed' && this.bracketAdvance) {
       void this.bracketAdvance.onMatchCompleted(matchId);
+    }
+    if (dto.status === 'completed') {
+      void this.maybePopulateBracketAfterMatch(matchId);
     }
 
     return data;

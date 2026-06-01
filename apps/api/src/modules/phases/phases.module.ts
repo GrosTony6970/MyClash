@@ -8,9 +8,10 @@ import { PoolPopulatorController } from './pool-populator.controller';
 import { RefereesModule } from '../referees/referees.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
 
 @Module({
-  imports: [RefereesModule, HemaRatingsModule, OrganizationsModule],
+  imports: [RefereesModule, HemaRatingsModule, OrganizationsModule, PoolStandingsModule],
   controllers: [
     PhasesController,
     ConflictCheckController,

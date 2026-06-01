@@ -172,6 +172,12 @@ export default function BracketPage() {
   // UI state
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Auto-populate bracket: seeds R1 from pool standings (or registration
+  // seed when no pool phase exists). Gated server-side on pool completion.
+  const [populating, setPopulating] = useState(false);
+  const [populateMode, setPopulateMode] = useState<'overall' | 'top-n-per-pool'>('overall');
+  const [populateTopN, setPopulateTopN] = useState<number | ''>('');
+  const [populateMessage, setPopulateMessage] = useState<string | null>(null);
   const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -390,6 +396,42 @@ export default function BracketPage() {
       setError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function populateBracket() {
+    if (!selectedTournament || populating) return;
+    setPopulating(true);
+    setError(null);
+    setPopulateMessage(null);
+    try {
+      const body: Record<string, unknown> = { seedingMode: populateMode };
+      if (populateMode === 'top-n-per-pool' && populateTopN !== '') {
+        body['topNPerPool'] = populateTopN;
+      }
+      const res = await fetch(
+        `${apiUrl}/api/v1/tournaments/${selectedTournament}/populate-bracket`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        },
+      );
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
+        const msg =
+          res.status === 409
+            ? t('organizer.bracket.autoPopulatePoolsNotFinished')
+            : (errBody?.message ?? 'Populate failed');
+        throw new Error(msg);
+      }
+      setPopulateMessage(t('organizer.bracket.autoPopulateSuccess'));
+      refreshBracket();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Populate failed');
+    } finally {
+      setPopulating(false);
     }
   }
 
@@ -928,6 +970,54 @@ export default function BracketPage() {
               >
                 Delete bracket
               </button>
+            </div>
+
+            {/* Auto-populate row: pick mode (overall / top-N per pool),
+                optional N, click to fan pool standings into R1. Server
+                gates on pool completion + R1-not-started. */}
+            <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4 text-sm">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">
+                  {t('organizer.bracket.autoPopulateButton')}
+                </span>
+                <select
+                  value={populateMode}
+                  onChange={(e) => setPopulateMode(e.target.value as 'overall' | 'top-n-per-pool')}
+                  disabled={populating}
+                  className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="overall">{t('organizer.bracket.autoPopulateModeOverall')}</option>
+                  <option value="top-n-per-pool">
+                    {t('organizer.bracket.autoPopulateModeTopNPerPool')}
+                  </option>
+                </select>
+              </label>
+              {populateMode === 'top-n-per-pool' && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-500">
+                    {t('organizer.bracket.autoPopulateTopNLabel')}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={populateTopN}
+                    onChange={(e) =>
+                      setPopulateTopN(e.target.value === '' ? '' : Number(e.target.value))
+                    }
+                    disabled={populating}
+                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  />
+                </label>
+              )}
+              <button
+                type="button"
+                onClick={() => void populateBracket()}
+                disabled={populating || !existingBracket}
+                className="rounded-lg bg-blue-700 hover:bg-blue-800 disabled:opacity-50 px-3 py-2 text-sm font-semibold text-white"
+              >
+                {populating ? '…' : t('organizer.bracket.autoPopulateButton')}
+              </button>
+              {populateMessage && <span className="text-xs text-green-700">{populateMessage}</span>}
             </div>
             {bracket.phaseType === 'double_elim' && (
               <p className="mt-3 text-xs text-gray-500">

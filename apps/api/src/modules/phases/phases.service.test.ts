@@ -296,9 +296,8 @@ describe('PhasesService', () => {
     it('throws BadRequestException when generated bracket would exceed 128 slots', async () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const seededRegsChain = makeAwaitableChain({ data: [], error: null });
 
-      fromMock.mockReturnValueOnce(phaseCheckChain).mockReturnValueOnce(seededRegsChain);
+      fromMock.mockReturnValueOnce(phaseCheckChain);
 
       await expect(
         service.generateBracket('tournament-1', { qualifyCount: 256 }, false),
@@ -312,10 +311,6 @@ describe('PhasesService', () => {
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-      const seededRegsChain = makeAwaitableChain({
-        data: eightRegs.map((reg, index) => ({ ...reg, seed: index + 1, bib_number: null })),
-        error: null,
-      });
 
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
@@ -351,7 +346,6 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(defaultChain) // bracket_slots insert — no-op
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
@@ -377,10 +371,6 @@ describe('PhasesService', () => {
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
       const regsChain = makeAwaitableChain({ data: sixRegs, error: null });
-      const seededRegsChain = makeAwaitableChain({
-        data: sixRegs.map((reg, index) => ({ ...reg, seed: index + 1, bib_number: null })),
-        error: null,
-      });
 
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
@@ -413,7 +403,6 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(defaultChain) // bracket_slots insert — no-op
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
@@ -425,7 +414,7 @@ describe('PhasesService', () => {
       expect((result as { byeCount: number }).byeCount).toBe(2); // 8-6=2 byes
     });
 
-    it('persists play-in metadata and creates initial scheduled matches', async () => {
+    it('persists play-in metadata in config_json and slot rows (matches are deferred to populate-bracket)', async () => {
       const regs = Array.from({ length: 18 }, (_, i) => ({
         id: `r${i + 1}`,
         seed: i + 1,
@@ -435,7 +424,7 @@ describe('PhasesService', () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
 
-      const seededRegsChain = makeAwaitableChain({ data: regs, error: null });
+      void regs; // explicit qualifyCount in DTO; registrations fetch no longer happens
 
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
@@ -448,8 +437,8 @@ describe('PhasesService', () => {
             round: 0,
             position: 1,
             source_b_type: 'seed',
-            registration_a_id: 'r15',
-            registration_b_id: 'r18',
+            registration_a_id: null,
+            registration_b_id: null,
           },
           {
             id: 'slot-playin-2',
@@ -457,13 +446,16 @@ describe('PhasesService', () => {
             round: 0,
             position: 2,
             source_b_type: 'seed',
-            registration_a_id: 'r16',
-            registration_b_id: 'r17',
+            registration_a_id: null,
+            registration_b_id: null,
           },
         ],
         error: null,
       });
-      const matchInsertChain = makeChain({ data: null, error: null });
+      // No matchInsertChain mock — generateBracket no longer creates match rows.
+      // R1 slots are empty post-fix, so createInitialBracketMatches early-returns.
+      // populateBracket is responsible for both seeding R1 AND creating the
+      // matching `matches` rows after pools finish.
 
       // Trailing reads from the post-write getTournamentBracket() delegation.
       const phaseReadChain = makeChain({ data: null, error: null });
@@ -492,10 +484,8 @@ describe('PhasesService', () => {
 
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(bracketSlotInsertChain)
-        .mockReturnValueOnce(matchInsertChain)
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
         .mockReturnValueOnce(slotsReadChain); // delegation read 2
 
@@ -516,11 +506,13 @@ describe('PhasesService', () => {
       );
       expect(bracketSlotInsertChain.insert).toHaveBeenCalledWith(
         expect.arrayContaining([
+          // R1 slots are now created EMPTY by generateBracket — populate-bracket
+          // seeds them from pool standings (or registrations) after pools finish.
           expect.objectContaining({
             round: 0,
             position: 1,
-            registration_a_id: 'r15',
-            registration_b_id: 'r18',
+            registration_a_id: null,
+            registration_b_id: null,
           }),
           expect.objectContaining({
             round: 1,
@@ -532,24 +524,8 @@ describe('PhasesService', () => {
           }),
         ]),
       );
-      expect(matchInsertChain.insert).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            phase_id: 'phase-new',
-            bracket_slot_id: 'slot-playin-1',
-            red_registration_id: 'r15',
-            blue_registration_id: 'r18',
-            status: 'scheduled',
-          }),
-          expect.objectContaining({
-            phase_id: 'phase-new',
-            bracket_slot_id: 'slot-playin-2',
-            red_registration_id: 'r16',
-            blue_registration_id: 'r17',
-            status: 'scheduled',
-          }),
-        ]),
-      );
+      // No matches are inserted at generation now — populateBracket creates
+      // them once R1 (and play-in) slots actually have registrations.
       expect(result).toMatchObject({
         bracketSize: 16,
         byeCount: 14,
@@ -578,10 +554,6 @@ describe('PhasesService', () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
       const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-      const seededRegsChain = makeAwaitableChain({
-        data: eightRegs.map((reg, idx) => ({ ...reg, seed: idx + 1, bib_number: null })),
-        error: null,
-      });
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
       const defaultChain = makeChain({ data: null, error: null });
@@ -606,7 +578,6 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(defaultChain) // bracket_slots insert
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
@@ -637,10 +608,6 @@ describe('PhasesService', () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
       const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-      const seededRegsChain = makeAwaitableChain({
-        data: eightRegs.map((reg, idx) => ({ ...reg, seed: idx + 1, bib_number: null })),
-        error: null,
-      });
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
 
@@ -654,8 +621,8 @@ describe('PhasesService', () => {
             position: 1,
             source_a_type: 'seed',
             source_b_type: 'seed',
-            registration_a_id: 'r0',
-            registration_b_id: 'r7',
+            registration_a_id: null,
+            registration_b_id: null,
           },
           {
             id: 'slot-bronze',
@@ -702,13 +669,15 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(seededRegsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(slotInsertChain) // bracket_slots insert returns rows
         .mockReturnValueOnce(phaseUpdateChain) // phases update (bronzeSlotId)
-        .mockReturnValueOnce(matchInsertChain) // initial matches insert
+        // No matchInsertChain — R1 slots are empty post-fix, so
+        // createInitialBracketMatches early-returns without inserting.
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
         .mockReturnValueOnce(slotsReadChain); // delegation read 2
+
+      void matchInsertChain; // declared above for clarity; no longer queued
 
       const result = await service.generateBracket('tournament-1', {}, false);
 

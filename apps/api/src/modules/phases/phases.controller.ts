@@ -26,6 +26,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { GenerateBracketDto, GeneratePoolsDto, UpdatePhaseVisibilityDto } from './dto/phases.dto';
 import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import { ReseedBracketDto } from './dto/reseed-bracket.dto';
+import { PopulateBracketDto } from './dto/populate-bracket.dto';
 import type { FastifyRequest } from 'fastify';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -280,6 +281,31 @@ export class PhasesController {
     @Query('force') force?: string,
   ) {
     return this.phases.generateBracket(tournamentId, dto, force === 'true');
+  }
+
+  /**
+   * POST /api/v1/tournaments/:tournamentId/populate-bracket
+   *
+   * Seed bracket R1 from the global cross-pool ranking (default) or
+   * cross-pool snake-fanned top-N per pool. Refuses with 409 if the
+   * pool phase exists but at least one pool is still in progress.
+   */
+  @Post('tournaments/:tournamentId/populate-bracket')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Populate bracket R1 from pool standings (or registration seed when no pool phase exists)',
+  })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Bracket populated' })
+  @ApiResponse({ status: 409, description: 'Pools have not finished yet' })
+  async populateBracket(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Body() dto: PopulateBracketDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.populateBracket(tournamentId, dto, userId);
   }
 
   @Get('tournaments/:tournamentId/bracket')

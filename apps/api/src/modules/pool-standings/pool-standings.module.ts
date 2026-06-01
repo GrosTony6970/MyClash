@@ -7,5 +7,6 @@ import { PoolStandingsService } from './pool-standings.service';
   imports: [SupabaseModule],
   controllers: [PoolStandingsController],
   providers: [PoolStandingsService],
+  exports: [PoolStandingsService],
 })
 export class PoolStandingsModule {}

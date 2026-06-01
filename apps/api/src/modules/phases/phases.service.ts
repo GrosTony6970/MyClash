@@ -31,10 +31,17 @@ import type {
 } from './dto/phases.dto';
 import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import type { ReseedBracketDto } from './dto/reseed-bracket.dto';
+import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 import type { BracketAdvanceService } from './bracket-advance.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
 import { poolMatchSortKey } from './pool-match-sort';
+import {
+  buildCrossPoolSnakeRanking,
+  buildR1SeedingPlan,
+  type RankedRegistration,
+} from './bracket-r1-seeding';
+import type { PoolStandingsService } from '../pool-standings/pool-standings.service';
 
 @Injectable()
 export class PhasesService {
@@ -50,6 +57,8 @@ export class PhasesService {
     private readonly bracketAdvance?: BracketAdvanceService,
     @Optional()
     private readonly settingsService?: SettingsService,
+    @Optional()
+    private readonly poolStandings?: PoolStandingsService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -393,21 +402,11 @@ export class PhasesService {
       throw new BadRequestException('Need at least 2 fighters to generate a bracket');
     }
 
-    // Load seeded registrations (sorted by seed / bib_number)
-    const { data: seededRegs } = await this.supabase.service
-      .from('registrations')
-      .select('id, seed, bib_number')
-      .eq('tournament_id', tournamentId)
-      .in('status', ['registered', 'checked_in', 'done'])
-      .order('seed', { ascending: true, nullsFirst: false });
-
-    const registrationsBySeed = new Map<number, string>();
-    ((seededRegs ?? []) as Array<{ id: string; seed: number | null; bib_number: number | null }>)
-      .slice(0, qualifyCount)
-      .forEach((reg, idx) => {
-        const seedNum = reg.seed ?? reg.bib_number ?? idx + 1;
-        registrationsBySeed.set(seedNum, reg.id);
-      });
+    // R1 registration seeding is intentionally NOT applied here.
+    // generateBracket creates the bracket STRUCTURE only; the
+    // operator triggers seeding via POST /populate-bracket once
+    // pools are finished (or, for no-pool tournaments, anytime).
+    // See populateBracket() below.
 
     // Generate bracket structure
     const bracketOptions = dto.bracketSize !== undefined ? { bracketSize: dto.bracketSize } : {};
@@ -438,23 +437,17 @@ export class PhasesService {
         grandFinalReset,
         seedingStrategy,
       };
-      slotInserts = bracket.slots.map((slot) => {
-        const regA =
-          slot.homeSeed != null ? (registrationsBySeed.get(slot.homeSeed) ?? null) : null;
-        const regB =
-          slot.awaySeed != null ? (registrationsBySeed.get(slot.awaySeed) ?? null) : null;
-        return {
-          phase_id: '__PHASE_ID__',
-          round: slot.round,
-          position: slot.position,
-          source_a_type: slot.sourceAType,
-          source_a_ref: slot.homeSource,
-          source_b_type: slot.sourceBType,
-          source_b_ref: slot.awaySource,
-          registration_a_id: regA,
-          registration_b_id: regB,
-        };
-      });
+      slotInserts = bracket.slots.map((slot) => ({
+        phase_id: '__PHASE_ID__',
+        round: slot.round,
+        position: slot.position,
+        source_a_type: slot.sourceAType,
+        source_a_ref: slot.homeSource,
+        source_b_type: slot.sourceBType,
+        source_b_ref: slot.awaySource,
+        registration_a_id: null,
+        registration_b_id: null,
+      }));
       totalSlots = bracket.slots.length;
       summaryRounds = bracket.wbRounds + bracket.lbRounds + 1;
     } else {
@@ -476,23 +469,17 @@ export class PhasesService {
         autoAdvance: true,
         seedingStrategy,
       };
-      slotInserts = bracket.slots.map((slot) => {
-        const regA =
-          slot.homeSeed != null ? (registrationsBySeed.get(slot.homeSeed) ?? null) : null;
-        const regB =
-          slot.awaySeed != null ? (registrationsBySeed.get(slot.awaySeed) ?? null) : null;
-        return {
-          phase_id: '__PHASE_ID__',
-          round: slot.round,
-          position: slot.position,
-          source_a_type: slot.sourceAType,
-          source_a_ref: slot.homeSource,
-          source_b_type: slot.sourceBType,
-          source_b_ref: slot.awaySource,
-          registration_a_id: regA,
-          registration_b_id: regB,
-        };
-      });
+      slotInserts = bracket.slots.map((slot) => ({
+        phase_id: '__PHASE_ID__',
+        round: slot.round,
+        position: slot.position,
+        source_a_type: slot.sourceAType,
+        source_a_ref: slot.homeSource,
+        source_b_type: slot.sourceBType,
+        source_b_ref: slot.awaySource,
+        registration_a_id: null,
+        registration_b_id: null,
+      }));
       totalSlots = bracket.slots.length;
       summaryRounds = (configJson['rounds'] as number) ?? 0;
     }
@@ -545,13 +532,11 @@ export class PhasesService {
 
     await this.createInitialBracketMatches(insertedSlots ?? []);
 
-    // Advance bye slots immediately
-    if (this.bracketAdvance) {
-      await this.bracketAdvance.advanceByeSlots(phaseId);
-    }
+    // Note: bye advancement moved to populateBracket — it only
+    // makes sense once R1 has registrations.
 
     this.logger.log(
-      `Generated ${phaseType} bracket (size ${(configJson['bracketSize'] as number) ?? qualifyCount}, ${(configJson['byeCount'] as number) ?? 0} byes) for tournament ${tournamentId}`,
+      `Generated ${phaseType} bracket structure (size ${(configJson['bracketSize'] as number) ?? qualifyCount}, ${(configJson['byeCount'] as number) ?? 0} byes) for tournament ${tournamentId} — call POST /populate-bracket to seed R1`,
     );
 
     // Read back the canonical bracket so the response shape matches the GET
@@ -874,6 +859,247 @@ export class PhasesService {
     });
 
     return { phaseId, strategy: dto.strategy, r1SlotCount: slots.length };
+  }
+
+  /**
+   * POST /api/v1/tournaments/:tournamentId/populate-bracket
+   *
+   * Populate bracket R1 from pool standings (or registration seed when
+   * no pool phase exists). Splits the seeding responsibility out of
+   * generateBracket so the operator can choose when fighters land in
+   * the bracket — typically AFTER all pool matches are complete.
+   *
+   * Auto-hook path: scoring services pass actorUserId='system' and
+   * options.silentIfGateNotMet=true so a no-op return is safe when
+   * pools aren't done yet OR a bracket R1 match has already started.
+   */
+  async populateBracket(
+    tournamentId: string,
+    dto: PopulateBracketDto,
+    actorUserId: string,
+    options?: { silentIfGateNotMet?: boolean },
+  ): Promise<{
+    phaseId: string;
+    seedingMode: 'overall' | 'top-n-per-pool';
+    slotsSeeded: number;
+    skipped?: string;
+  }> {
+    // 1. Bracket phase + auth context (joined via tournaments + events).
+    const { data: bracketPhase } = await this.supabase.service
+      .from('phases')
+      .select(
+        'id, type, config_json, tournament_id, tournaments!inner(event_id, events!inner(organization_id))',
+      )
+      .eq('tournament_id', tournamentId)
+      .in('type', ['single_elim', 'double_elim'])
+      .maybeSingle();
+    if (!bracketPhase) {
+      if (options?.silentIfGateNotMet) {
+        return { phaseId: '', seedingMode: 'overall', slotsSeeded: 0, skipped: 'no_bracket' };
+      }
+      throw new BadRequestException(
+        'No bracket phase exists for this tournament. Generate one first.',
+      );
+    }
+    const phaseRow = bracketPhase as Record<string, unknown>;
+    const phaseId = phaseRow['id'] as string;
+    const config = (phaseRow['config_json'] ?? {}) as Record<string, unknown>;
+    const tournamentEmbed = phaseRow['tournaments'] as Record<string, unknown>;
+    const eventEmbed = tournamentEmbed['events'] as Record<string, unknown>;
+    const organizationId = eventEmbed['organization_id'] as string;
+
+    // 2. Auth — non-system actors must be org admins.
+    if (actorUserId !== 'system') {
+      if (!this.orgs) throw new BadRequestException('Organizations service not wired');
+      await this.orgs.assertOrgRole(organizationId, actorUserId, 'admin');
+    }
+
+    // 3. Resolve seeding mode (DTO > persisted > default).
+    const persistedMode = config['populateSeedingMode'] as 'overall' | 'top-n-per-pool' | undefined;
+    const seedingMode: 'overall' | 'top-n-per-pool' = dto.seedingMode ?? persistedMode ?? 'overall';
+
+    // 4. R1 slots for this phase.
+    const { data: r1Slots } = await this.supabase.service
+      .from('bracket_slots')
+      .select('id, round, position')
+      .eq('phase_id', phaseId)
+      .eq('round', 1)
+      .order('position', { ascending: true });
+    const slots = ((r1Slots ?? []) as Array<{ id: string; round: number; position: number }>).map(
+      (s) => ({ id: s.id, position: s.position }),
+    );
+
+    // 5. Refuse if any R1 match has already started.
+    if (slots.length > 0) {
+      const slotIds = slots.map((s) => s.id);
+      const { data: blockingMatches } = await this.supabase.service
+        .from('matches')
+        .select('id, bracket_slot_id, status')
+        .in('bracket_slot_id', slotIds)
+        .not('status', 'eq', 'scheduled')
+        .not('status', 'eq', 'voided');
+      if ((blockingMatches ?? []).length > 0) {
+        if (options?.silentIfGateNotMet) {
+          return { phaseId, seedingMode, slotsSeeded: 0, skipped: 'r1_already_started' };
+        }
+        throw new ConflictException({
+          message: 'Cannot populate Round 1 — at least one match has already started.',
+          blockingMatchIds: (blockingMatches ?? []).map((m) => (m as { id: string }).id),
+        });
+      }
+    }
+
+    // 6. Resolve rankings: pool standings (gated on completion) or
+    //    registration seed fallback.
+    const { data: poolPhase } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+
+    let rankings: RankedRegistration[] = [];
+
+    if (poolPhase && this.poolStandings) {
+      // Need per-pool data to (a) check completion + (b) feed the
+      // snake builder for top-n-per-pool mode. We fetch by-pool
+      // regardless of mode for a single source of truth.
+      const byPoolResponse = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
+      const perPool = 'pools' in byPoolResponse ? byPoolResponse.pools : [];
+      const allComplete = perPool.every((p) => p.status === 'completed');
+      if (!allComplete) {
+        if (options?.silentIfGateNotMet) {
+          return { phaseId, seedingMode, slotsSeeded: 0, skipped: 'pools_not_finished' };
+        }
+        throw new ConflictException('Pools have not finished yet');
+      }
+
+      if (seedingMode === 'top-n-per-pool') {
+        const topN =
+          dto.topNPerPool ??
+          (perPool.length > 0 ? Math.floor((slots.length * 2) / perPool.length) : 0);
+        if (topN <= 0) {
+          throw new BadRequestException(
+            'topNPerPool must be >= 1 (or omit it to default to bracket_size / pool_count).',
+          );
+        }
+        rankings = buildCrossPoolSnakeRanking(
+          perPool.map((p) => ({
+            poolId: p.poolId,
+            rows: p.rows.map((r) => ({
+              rank: r.rank,
+              registrationId: r.registrationId,
+            })),
+          })),
+          topN,
+        );
+      } else {
+        const overallResponse = await this.poolStandings.getPoolStandings(tournamentId, 'overall');
+        const rows = 'rows' in overallResponse ? overallResponse.rows : [];
+        rankings = rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId }));
+      }
+    } else {
+      // No pool phase → registration seed fallback (mirrors the
+      // legacy generateBracket behaviour for straight-to-bracket
+      // tournaments).
+      const { data: seededRegs } = await this.supabase.service
+        .from('registrations')
+        .select('id, seed, bib_number')
+        .eq('tournament_id', tournamentId)
+        .in('status', ['registered', 'checked_in', 'done'])
+        .order('seed', { ascending: true, nullsFirst: false });
+      rankings = (
+        (seededRegs ?? []) as Array<{
+          id: string;
+          seed: number | null;
+          bib_number: number | null;
+        }>
+      ).map((reg, idx) => ({
+        rank: reg.seed ?? reg.bib_number ?? idx + 1,
+        registrationId: reg.id,
+      }));
+    }
+
+    // 7. Compute the plan + apply per-slot updates + match upsert.
+    const plan = buildR1SeedingPlan(rankings, slots);
+    let slotsSeeded = 0;
+    const slotPosById = new Map<string, number>(slots.map((s) => [s.id, s.position]));
+    for (const update of plan) {
+      const { error: slotErr } = await this.supabase.service
+        .from('bracket_slots')
+        .update({
+          registration_a_id: update.registrationAId,
+          registration_b_id: update.registrationBId,
+        })
+        .eq('id', update.slotId);
+      if (slotErr) throw new BadRequestException(slotErr.message);
+
+      // Match row: update existing scheduled match, or insert when both
+      // sides are known. Slots with a null side are byes and get handled
+      // by advanceByeSlots below — no match row needed yet.
+      if (update.registrationAId && update.registrationBId) {
+        const { data: existingMatch } = await this.supabase.service
+          .from('matches')
+          .select('id, status')
+          .eq('bracket_slot_id', update.slotId)
+          .maybeSingle();
+        if (existingMatch) {
+          await this.supabase.service
+            .from('matches')
+            .update({
+              red_registration_id: update.registrationAId,
+              blue_registration_id: update.registrationBId,
+            })
+            .eq('id', (existingMatch as { id: string }).id);
+        } else {
+          await this.supabase.service.from('matches').insert({
+            phase_id: phaseId,
+            bracket_slot_id: update.slotId,
+            red_registration_id: update.registrationAId,
+            blue_registration_id: update.registrationBId,
+            ruleset_code: 'TF_v1',
+            ruleset_version: '1.0.0',
+            status: 'scheduled',
+            red_score: 0,
+            blue_score: 0,
+            match_number_label: String(slotPosById.get(update.slotId) ?? ''),
+          });
+        }
+        slotsSeeded++;
+      }
+    }
+
+    // 8. Persist seeding mode + topN on the phase config so the
+    //    auto-hook can reapply with the operator's last choice.
+    config['populateSeedingMode'] = seedingMode;
+    if (seedingMode === 'top-n-per-pool' && dto.topNPerPool !== undefined) {
+      config['populateTopNPerPool'] = dto.topNPerPool;
+    }
+    await this.supabase.service.from('phases').update({ config_json: config }).eq('id', phaseId);
+
+    // 9. Advance bye slots so single-side R1 slots cascade.
+    if (this.bracketAdvance) {
+      await this.bracketAdvance.advanceByeSlots(phaseId);
+    }
+
+    // 10. Audit log.
+    await this.supabase.service.from('audit_log').insert({
+      actor_user_id: actorUserId,
+      action: 'phase.bracket_populated',
+      entity_type: 'phase',
+      entity_id: phaseId,
+      payload_json: {
+        seedingMode,
+        topNPerPool: dto.topNPerPool ?? null,
+        slotsSeeded,
+        rankingsCount: rankings.length,
+      },
+    });
+
+    this.logger.log(
+      `Populated bracket (phase=${phaseId}, mode=${seedingMode}, slotsSeeded=${slotsSeeded})`,
+    );
+    return { phaseId, seedingMode, slotsSeeded };
   }
 
   async listTournamentPools(tournamentId: string) {
