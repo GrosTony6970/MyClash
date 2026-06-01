@@ -144,6 +144,29 @@ export class PhasesController {
     return this.phases.setPoolLice(poolId, dto.liceId ?? null, userId);
   }
 
+  /** POST /api/v1/pools/:poolId/schedule/auto-distribute */
+  @Post('pools/:poolId/schedule/auto-distribute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Fan every match in a pool across the event lices in time slots starting at (startAtIso, startLiceId) (org admin+)',
+  })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async autoDistributePool(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Body()
+    dto: {
+      startAtIso: string;
+      startLiceId: string | null;
+      durationMinutes: number;
+      parallelLices: number;
+    },
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.autoDistributePool(poolId, dto, userId);
+  }
+
   /** PUT /api/v1/pools/:poolId/referee-role-assignments */
   @Put('pools/:poolId/referee-role-assignments')
   @HttpCode(HttpStatus.OK)

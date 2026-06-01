@@ -193,6 +193,15 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   redoStackRef.current = redoStack;
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
+  // Slice 4 of the polish pass: dropping a whole pool onto a cell.
+  // Carries the pool id + the count so we can fan-out via the
+  // /pools/:poolId/schedule/auto-distribute endpoint when the drop
+  // lands. Mutually exclusive with `dragMatch` — onDragStart on one
+  // path clears the other.
+  const dragPool = useRef<{ poolId: string; matchIds: string[] } | null>(null);
+  // Surfaced when auto-distribute fails so the operator sees the error
+  // instead of a silent no-op.
+  const [autoDistributeError, setAutoDistributeError] = useState<string | null>(null);
 
   // Slice C: inline "Add lice" form. Toggled by the toolbar button;
   // POSTs to /events/:id/lices then refetches the lice list so the
@@ -322,6 +331,13 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   }
 
   function handleDrop(liceId: string, slot: number) {
+    // Pool-block drop takes precedence — same cell, different payload.
+    if (dragPool.current) {
+      const payload = dragPool.current;
+      dragPool.current = null;
+      void handlePoolDrop(payload.poolId, liceId, slot);
+      return;
+    }
     const match = dragMatch.current;
     if (!match || !activeDay) return;
     const newScheduledAt = slotToTime(slot, activeDay);
@@ -344,6 +360,49 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     setConflicts(detectConflicts(updated));
     void saveMatchPosition(match.id, liceId, newScheduledAt);
     dragMatch.current = null;
+  }
+
+  /**
+   * Pool drop: fan every match in the pool across the event's lices
+   * starting at (slot, liceId). Defaults to 5-minute slots (matching
+   * the grid resolution) and fills every lice in the event from the
+   * drop target onward.
+   */
+  async function handlePoolDrop(poolId: string, startLiceId: string, slot: number) {
+    if (!activeDay) return;
+    setAutoDistributeError(null);
+    const startAtIso = slotToTime(slot, activeDay);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/schedule/auto-distribute`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startAtIso,
+          startLiceId,
+          durationMinutes: 5,
+          parallelLices: lices.length,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as {
+        updated: Array<{ matchId: string; liceId: string; scheduledAt: string }>;
+      };
+      // Apply optimistically against current matches.
+      const byMatchId = new Map(data.updated.map((u) => [u.matchId, u]));
+      const updated = matches.map((m) => {
+        const u = byMatchId.get(m.id);
+        if (!u) return m;
+        return { ...m, liceId: u.liceId, scheduledAt: u.scheduledAt };
+      });
+      setMatches(updated);
+      setConflicts(detectConflicts(updated));
+    } catch (err) {
+      setAutoDistributeError(err instanceof Error ? err.message : 'Auto-distribute failed');
+    }
   }
 
   function pushUndo(move: ScheduleMove) {
@@ -441,6 +500,59 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   }
 
   const unscheduled = useMemo(() => matches.filter((m) => !m.scheduledAt || !m.liceId), [matches]);
+
+  // Slice 4: group unscheduled pool matches so the operator can drag
+  // a whole pool onto a cell instead of placing fights one by one.
+  // Brackets are intentionally excluded — they need a different
+  // grouping (by round) which is a separate sprint.
+  type UnscheduledPool = {
+    poolId: string;
+    poolName: string;
+    tournamentName: string | null;
+    matchIds: string[];
+  };
+  const unscheduledPools = useMemo<UnscheduledPool[]>(() => {
+    const byPool = new Map<string, UnscheduledPool>();
+    for (const m of unscheduled) {
+      if (!m.poolId || !m.poolName) continue;
+      const existing = byPool.get(m.poolId);
+      if (!existing) {
+        byPool.set(m.poolId, {
+          poolId: m.poolId,
+          poolName: m.poolName,
+          tournamentName: m.tournamentName,
+          matchIds: [m.id],
+        });
+      } else {
+        existing.matchIds.push(m.id);
+      }
+    }
+    return Array.from(byPool.values()).sort((a, b) =>
+      `${a.tournamentName ?? ''}|${a.poolName}`.localeCompare(
+        `${b.tournamentName ?? ''}|${b.poolName}`,
+      ),
+    );
+  }, [unscheduled]);
+
+  // Set of match ids that belong to a fully-unscheduled pool; the
+  // sidebar hides those individual chips (the pool block takes their
+  // place). Once the operator places some of the pool's fights, the
+  // remaining ones reappear as individual chips since the pool no
+  // longer has all matches unscheduled.
+  const matchIdsCoveredByPoolBlock = useMemo(() => {
+    const ids = new Set<string>();
+    // A pool only earns a block when ALL its matches are unscheduled —
+    // otherwise the operator already started placing it manually and
+    // we'd be hiding chips they want to keep dragging.
+    for (const pool of unscheduledPools) {
+      const totalForPool = matches.filter((m) => m.poolId === pool.poolId).length;
+      if (totalForPool === pool.matchIds.length) {
+        for (const id of pool.matchIds) ids.add(id);
+      }
+    }
+    return ids;
+  }, [unscheduledPools, matches]);
+
   const scheduledOnActiveDay = useMemo(
     () =>
       matches.filter(
@@ -680,6 +792,20 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
         </div>
       )}
 
+      {autoDistributeError && (
+        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3">
+          <span className="font-bold text-red-700">Auto-distribute failed:</span>
+          <span className="text-red-600">{autoDistributeError}</span>
+          <button
+            type="button"
+            onClick={() => setAutoDistributeError(null)}
+            className="ml-auto text-red-700 hover:text-red-900 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {conflicts.length > 0 && (
         <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-6 text-sm">
           <p className="font-bold text-red-700 mb-1">
@@ -706,6 +832,11 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
             className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2 max-h-[60vh] overflow-y-auto"
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
+              // Dropping a pool block back onto the sidebar = no-op.
+              if (dragPool.current) {
+                dragPool.current = null;
+                return;
+              }
               const match = dragMatch.current;
               if (!match) return;
               if (match.liceId === null && match.scheduledAt === null) {
@@ -733,16 +864,48 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                 All matches placed on the grid.
               </p>
             ) : (
-              unscheduled.map((m) => (
-                <MatchChip
-                  key={m.id}
-                  match={m}
-                  saving={saving === m.id}
-                  onDragStart={() => {
-                    dragMatch.current = m;
-                  }}
-                />
-              ))
+              <>
+                {/* Slice 4: drag a whole pool onto a cell to fan its
+                    matches out across lices. Only fully-unscheduled
+                    pools render as blocks — the moment the operator
+                    places one fight manually, the rest fall back to
+                    individual chips. */}
+                {unscheduledPools
+                  .filter((p) => p.matchIds.every((id) => matchIdsCoveredByPoolBlock.has(id)))
+                  .map((pool) => (
+                    <div
+                      key={pool.poolId}
+                      draggable
+                      onDragStart={() => {
+                        dragPool.current = { poolId: pool.poolId, matchIds: pool.matchIds };
+                        dragMatch.current = null;
+                      }}
+                      onDragEnd={() => {
+                        dragPool.current = null;
+                      }}
+                      className="cursor-grab rounded-md border-2 border-dashed border-slate-400 bg-slate-100 px-2 py-1.5 text-xs hover:border-slate-500 hover:bg-slate-200"
+                      title={`Drag onto a cell to auto-distribute ${pool.matchIds.length} matches across lices`}
+                    >
+                      <div className="font-bold text-slate-800 truncate">{pool.poolName}</div>
+                      <div className="text-[10px] text-slate-600 truncate">
+                        {pool.tournamentName ?? ''} · {pool.matchIds.length} matches
+                      </div>
+                    </div>
+                  ))}
+                {unscheduled
+                  .filter((m) => !matchIdsCoveredByPoolBlock.has(m.id))
+                  .map((m) => (
+                    <MatchChip
+                      key={m.id}
+                      match={m}
+                      saving={saving === m.id}
+                      onDragStart={() => {
+                        dragMatch.current = m;
+                        dragPool.current = null;
+                      }}
+                    />
+                  ))}
+              </>
             )}
           </div>
         </div>
