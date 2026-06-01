@@ -34,6 +34,7 @@ import type { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import type { BracketAdvanceService } from './bracket-advance.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
+import { poolMatchSortKey } from './pool-match-sort';
 
 @Injectable()
 export class PhasesService {
@@ -1957,6 +1958,16 @@ export class PhasesService {
       const existing = matchesByPool.get(m.pool_id) ?? [];
       existing.push(m);
       matchesByPool.set(m.pool_id, existing);
+    }
+
+    // The view query orders by match_number_label as a string, which
+    // puts M10 ahead of M2 once a pool reaches double-digit fights.
+    // Re-sort each pool by the numeric M-suffix so the Matches tab
+    // renders LSW-P1-…-M1, M2, M3, …, M10, M11.
+    for (const arr of matchesByPool.values()) {
+      arr.sort(
+        (a, b) => poolMatchSortKey(a.match_number_label) - poolMatchSortKey(b.match_number_label),
+      );
     }
 
     return ((pools ?? []) as Array<{ id: string; name: string; sort_order: number }>).map(
