@@ -27,6 +27,7 @@ import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
+import { parseHashTab } from './parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -86,8 +87,16 @@ const TABS: Array<{ key: TabKey; labelKey: string }> = [
 
 function readHashTab(): TabKey {
   if (typeof window === 'undefined') return 'configure';
-  const hash = window.location.hash.replace('#', '');
-  return TABS.find((tab) => tab.key === hash)?.key ?? 'configure';
+  // Inner tabs (e.g. StandingsTab) layer their own state into the
+  // hash as `<tab>-<inner-state>` — read just the leading segment so
+  // `#standings-by-pool` stays on the Standings tab instead of
+  // falling through to the default and yanking the operator back.
+  return (
+    parseHashTab(
+      window.location.hash,
+      TABS.map((t) => t.key),
+    ) ?? 'configure'
+  );
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
