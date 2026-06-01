@@ -112,6 +112,10 @@ export default function PoolsPage() {
     Array<{ id: string; name: string; color?: string | null }>
   >([]);
   const [selectedTournament, setSelectedTournament] = useState<string>('');
+  // Derived: the row matching the active id, surfaced to the
+  // breadcrumb + picker so the tournament name follows the operator
+  // across every subtab without threading a new prop.
+  const selectedTournamentObj = tournaments.find((t) => t.id === selectedTournament) ?? null;
   const [pools, setPools] = useState<Pool[] | null>(null);
   const [poolPhaseId, setPoolPhaseId] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<'hidden' | 'published'>('hidden');
@@ -561,9 +565,18 @@ export default function PoolsPage() {
               {t('organizer.phaseVisibility.breadcrumbEvent')}
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">
+            <span className={selectedTournamentObj ? 'text-gray-500' : 'text-gray-900 font-medium'}>
               {t('organizer.phaseVisibility.breadcrumbPools')}
             </span>
+            {selectedTournamentObj && (
+              <>
+                <span>/</span>
+                <span className="inline-flex items-center gap-1.5 text-gray-900 font-medium">
+                  <TournamentColorDot color={selectedTournamentObj.color} />
+                  {selectedTournamentObj.name}
+                </span>
+              </>
+            )}
           </div>
           <h1 className="text-2xl font-bold">{t('organizer.phaseVisibility.poolsTitle')}</h1>
         </div>
@@ -581,35 +594,36 @@ export default function PoolsPage() {
         </Link>
       </div>
 
+      {/* Tournament selector — visible on every subtab so the operator
+          always knows which tournament their actions apply to. */}
+      {tournaments.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {tournaments.map((tour) => {
+            const active = selectedTournament === tour.id;
+            return (
+              <button
+                key={tour.id}
+                type="button"
+                onClick={() => setSelectedTournament(tour.id)}
+                className={[
+                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                  active
+                    ? 'bg-red-700 text-white border-red-700'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
+                ].join(' ')}
+              >
+                <TournamentColorDot color={tour.color} />
+                {tour.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {activeTab === 'configure' && (
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Left column: banners + pool grid ────────────────────────────── */}
           <div className="space-y-4">
-            {/* Tournament selector */}
-            {tournaments.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {tournaments.map((tour) => {
-                  const active = selectedTournament === tour.id;
-                  return (
-                    <button
-                      key={tour.id}
-                      type="button"
-                      onClick={() => setSelectedTournament(tour.id)}
-                      className={[
-                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
-                        active
-                          ? 'bg-red-700 text-white border-red-700'
-                          : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
-                      ].join(' ')}
-                    >
-                      <TournamentColorDot color={tour.color} />
-                      {tour.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {/* Visibility / publish banner */}
             {poolPhaseId && (
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">

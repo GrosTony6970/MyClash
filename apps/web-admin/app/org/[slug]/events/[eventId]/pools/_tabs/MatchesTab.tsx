@@ -481,12 +481,13 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                     <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="w-16 px-4 py-2">{t('organizer.pools.matches.round')}</th>
-                        {/*
-                      Score is rendered inline next to each fighter name in
-                      the Red/Blue columns below, with winner bold. The
-                      dedicated Score column was redundant.
-                    */}
                         <th className="px-4 py-2">{t('organizer.pools.matches.red')}</th>
+                        <th className="w-12 px-2 py-2 text-center">
+                          {t('organizer.pools.matches.scoreRed')}
+                        </th>
+                        <th className="w-12 px-2 py-2 text-center">
+                          {t('organizer.pools.matches.scoreBlue')}
+                        </th>
                         <th className="px-4 py-2">{t('organizer.pools.matches.blue')}</th>
                         <th className="w-32 px-4 py-2">{t('organizer.pools.matches.status')}</th>
                         <th className="w-32 px-4 py-2">{t('organizer.pools.matches.lice')}</th>
@@ -537,8 +538,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             className={[
                               'border-b border-slate-100 last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300',
                               scoringHref
-                                ? 'cursor-pointer hover:bg-slate-50'
+                                ? 'cursor-pointer hover:bg-slate-100'
                                 : 'cursor-not-allowed opacity-70',
+                              // Done rows recede; not-done-with-lice rows
+                              // stay vivid white so they pull the
+                              // operator's attention.
+                              isCompleted ? 'bg-slate-50 text-slate-600' : 'bg-white',
                             ].join(' ')}
                           >
                             <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-slate-500">
@@ -564,16 +569,33 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                     {m.red_club_abbrev}
                                   </span>
                                 )}
-                                {isCompleted && (
-                                  <span
-                                    className={`ml-auto font-mono text-sm ${
-                                      isRedWinner ? 'font-bold text-slate-900' : 'text-slate-600'
-                                    }`}
-                                  >
-                                    {redScore}
-                                  </span>
-                                )}
                               </span>
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-center font-mono text-sm">
+                              {isCompleted ? (
+                                <span
+                                  className={
+                                    isRedWinner ? 'font-bold text-slate-900' : 'text-slate-600'
+                                  }
+                                >
+                                  {redScore}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">-</span>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-center font-mono text-sm">
+                              {isCompleted ? (
+                                <span
+                                  className={
+                                    isBlueWinner ? 'font-bold text-slate-900' : 'text-slate-600'
+                                  }
+                                >
+                                  {blueScore}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">-</span>
+                              )}
                             </td>
                             <td className="px-4 py-2">
                               <span className="flex items-center gap-2">
@@ -593,15 +615,6 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                 {m.blue_club_abbrev && (
                                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
                                     {m.blue_club_abbrev}
-                                  </span>
-                                )}
-                                {isCompleted && (
-                                  <span
-                                    className={`ml-auto font-mono text-sm ${
-                                      isBlueWinner ? 'font-bold text-slate-900' : 'text-slate-600'
-                                    }`}
-                                  >
-                                    {blueScore}
                                   </span>
                                 )}
                               </span>
