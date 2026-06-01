@@ -7,6 +7,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { buildScoringHref } from './build-scoring-href';
+import { countPoolFighters } from './count-pool-fighters';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 // Cross-app deep link into the web-scoring ScoringPad. Set per env
@@ -387,6 +388,9 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
             <section key={pool.poolId} className="rounded-lg border border-slate-200 bg-white">
               <header className="border-b border-slate-200 px-4 py-3">
                 <h3 className="font-semibold text-slate-900">{pool.poolName}</h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {countPoolFighters(pool.matches)} fighters
+                </p>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {t('organizer.pools.matches.summary', {
                     done: String(done),

@@ -753,58 +753,58 @@ export default function PoolsPage() {
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => void handleDrop(pool.id)}
                   >
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      {renamingPoolId === pool.id ? (
-                        <div className="flex items-center gap-2 flex-1">
-                          <input
-                            value={renameDraft}
-                            onChange={(e) => setRenameDraft(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') void saveRename(pool.id);
-                              if (e.key === 'Escape') setRenamingPoolId(null);
-                            }}
-                            autoFocus
-                            className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                          />
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div className="flex flex-1 flex-col gap-0.5 min-w-0">
+                        {renamingPoolId === pool.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              value={renameDraft}
+                              onChange={(e) => setRenameDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') void saveRename(pool.id);
+                                if (e.key === 'Escape') setRenamingPoolId(null);
+                              }}
+                              autoFocus
+                              className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                            />
+                            <button
+                              type="button"
+                              disabled={renameBusy}
+                              onClick={() => void saveRename(pool.id)}
+                              className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRenamingPoolId(null)}
+                              className="rounded-md px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             type="button"
-                            disabled={renameBusy}
-                            onClick={() => void saveRename(pool.id)}
-                            className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                            onClick={() => void startRename(pool)}
+                            title="Rename pool"
+                            className="self-start font-bold text-gray-900 hover:text-red-700 hover:underline decoration-dotted"
                           >
-                            Save
+                            {pool.name}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setRenamingPoolId(null)}
-                            className="rounded-md px-3 py-1 text-xs text-gray-500 hover:text-gray-700"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void startRename(pool)}
-                          title="Rename pool"
-                          className="font-bold text-gray-900 hover:text-red-700 hover:underline decoration-dotted"
-                        >
-                          {pool.name}
-                        </button>
-                      )}
-                      <div className="flex items-center gap-2">
+                        )}
                         <span className="text-xs text-gray-400">
                           {pool.members.length} fighters
                         </span>
-                        <RowActionButton
-                          variant="danger"
-                          onClick={() => setPendingDeletePoolId(pool.id)}
-                          disabled={lifecycleBusy || renamingPoolId === pool.id}
-                          title="Delete this pool"
-                        >
-                          Delete
-                        </RowActionButton>
                       </div>
+                      <RowActionButton
+                        variant="danger"
+                        onClick={() => setPendingDeletePoolId(pool.id)}
+                        disabled={lifecycleBusy || renamingPoolId === pool.id}
+                        title="Delete this pool"
+                      >
+                        Delete
+                      </RowActionButton>
                     </div>
                     {/* Inline chip layout — fighters flow left-to-right and
                         wrap to the next line when the row is full. Same
