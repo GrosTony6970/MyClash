@@ -101,7 +101,7 @@ export class MatchesService {
     const { data, error } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id, phase_id',
+        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id, phase_id, phase_type',
       )
       .eq('match_id', matchId)
       .maybeSingle();
@@ -122,6 +122,7 @@ export class MatchesService {
       blue_club: string | null;
       tournament_id: string;
       phase_id: string | null;
+      phase_type: string | null;
     };
 
     // Fetch weapon from tournament (not in view).
@@ -181,6 +182,12 @@ export class MatchesService {
       blueName: row.blue_name ?? '',
       blueClub: row.blue_club ?? null,
       weapon: weapon ?? '',
+      // Surface tournamentId + phaseType so the cross-app scoring
+      // pad can fetch the right scoring config + drive phase-specific
+      // ScoringPad behaviour when deep-linking to a match directly
+      // (per-match route, no lice context).
+      tournamentId: row.tournament_id,
+      phaseType: row.phase_type ?? null,
     };
   }
 

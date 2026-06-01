@@ -23,7 +23,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
-import { buildScoringHref } from '../pools/_tabs/build-scoring-href';
+import { buildScoringHref, buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
 interface Tournament {
   id: string;
@@ -149,6 +149,67 @@ export default function BracketPage() {
   const [overrideModal, setOverrideModal] = useState<OverrideModalState | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [overrideError, setOverrideError] = useState<string | null>(null);
+
+  // Inline forfeit modal — opened from the WO chip on a bracket card.
+  // Posts to /matches/:id/forfeit so the operator doesn't have to leave
+  // the bracket page for the common "Red couldn't make it" case.
+  type ForfeitReason =
+    | 'voluntary'
+    | 'injury'
+    | 'black_card_1'
+    | 'black_card_2'
+    | 'conduct_violation';
+  const [forfeitModal, setForfeitModal] = useState<{
+    matchId: string;
+    redRegistrationId: string | null;
+    redName: string | null;
+    blueRegistrationId: string | null;
+    blueName: string | null;
+  } | null>(null);
+  const [forfeitSide, setForfeitSide] = useState<'red' | 'blue' | null>(null);
+  const [forfeitReason, setForfeitReason] = useState<ForfeitReason>('voluntary');
+  const [forfeitBusy, setForfeitBusy] = useState(false);
+  const [forfeitError, setForfeitError] = useState<string | null>(null);
+
+  function closeForfeitModal() {
+    setForfeitModal(null);
+    setForfeitSide(null);
+    setForfeitReason('voluntary');
+    setForfeitError(null);
+  }
+
+  async function submitForfeit() {
+    if (!forfeitModal || !forfeitSide) return;
+    const forfeitingRegistrationId =
+      forfeitSide === 'red' ? forfeitModal.redRegistrationId : forfeitModal.blueRegistrationId;
+    if (!forfeitingRegistrationId) {
+      setForfeitError('This side has no registration id yet.');
+      return;
+    }
+    setForfeitBusy(true);
+    setForfeitError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${forfeitModal.matchId}/forfeit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          forfeitingRegistrationId,
+          reason: forfeitReason,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      closeForfeitModal();
+      refreshBracket();
+    } catch (err) {
+      setForfeitError(err instanceof Error ? err.message : 'Forfeit failed');
+    } finally {
+      setForfeitBusy(false);
+    }
+  }
   /**
    * Registrations for the picker inside the override modal. Loaded once
    * per selected tournament so opening the modal is instant and we
@@ -1113,6 +1174,87 @@ export default function BracketPage() {
             filtered list; clicking a row sets that side to the
             registration id; "Clear" sends an explicit null so the
             backend wipes the assignment. */}
+        {forfeitModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              <h2 className="text-lg font-bold mb-1">Record forfeit</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                The selected side will be marked as forfeiting; the other side advances.
+              </p>
+
+              <div className="space-y-2 mb-4">
+                {(['red', 'blue'] as const).map((side) => {
+                  const name = side === 'red' ? forfeitModal.redName : forfeitModal.blueName;
+                  const regId =
+                    side === 'red'
+                      ? forfeitModal.redRegistrationId
+                      : forfeitModal.blueRegistrationId;
+                  const disabled = !regId;
+                  const active = forfeitSide === side;
+                  return (
+                    <button
+                      key={side}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setForfeitSide(side)}
+                      className={[
+                        'w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors',
+                        active
+                          ? 'border-red-600 bg-red-50 text-red-900'
+                          : 'border-gray-300 hover:border-gray-400',
+                        disabled ? 'opacity-50 cursor-not-allowed' : '',
+                      ].join(' ')}
+                    >
+                      <span className="font-semibold">
+                        {side === 'red' ? 'Red' : 'Blue'} forfeits
+                      </span>
+                      <span className="ml-2 text-gray-600">— {name ?? '?'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
+              <select
+                value={forfeitReason}
+                onChange={(e) => setForfeitReason(e.target.value as ForfeitReason)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-600"
+              >
+                <option value="voluntary">Voluntary</option>
+                <option value="injury">Injury</option>
+                <option value="black_card_1">Black card (single)</option>
+                <option value="black_card_2">Black card (two)</option>
+                <option value="conduct_violation">Conduct violation</option>
+              </select>
+
+              {forfeitError && (
+                <p className="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                  {forfeitError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeForfeitModal}
+                  disabled={forfeitBusy}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:border-gray-400 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitForfeit()}
+                  disabled={forfeitBusy || !forfeitSide}
+                  className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                >
+                  {forfeitBusy ? '…' : 'Confirm forfeit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {overrideModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
@@ -1324,25 +1466,33 @@ export default function BracketPage() {
                 weapon={tournamentWeapon}
                 bracketSize={bracket.bracketSize}
                 onMatchClick={(matchId, slotId, liceId) => {
-                  // Empty slot → override modal so the operator can place
-                  // fighters. Match exists → jump straight into the
-                  // operator scoring pad (cross-app). If the match has
-                  // no lice yet, fall back to the audit page so the
-                  // operator still has somewhere to land.
+                  // Empty slot → override modal so the operator can
+                  // place fighters. Match exists → jump straight into
+                  // the cross-app scoring pad: lice-scoped URL when a
+                  // lice is assigned, per-match URL otherwise. The
+                  // audit / forfeit page is no longer the fallback —
+                  // operators reach it via the WO chip on each card.
                   if (!matchId) {
                     setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
                     return;
                   }
-                  const scoringHref = buildScoringHref(scoringBaseUrl, liceId);
-                  if (scoringHref) {
-                    window.location.href = scoringHref;
-                  } else {
-                    router.push(`/org/${slug}/events/${eventId}/matches/${matchId}`);
-                  }
+                  const scoringHref =
+                    buildScoringHref(scoringBaseUrl, liceId) ??
+                    buildMatchScoringHref(scoringBaseUrl, matchId);
+                  if (scoringHref) window.location.href = scoringHref;
                 }}
                 onOverrideSlot={(slotId) =>
                   setOverrideModal({ slotId, regAId: undefined, regBId: undefined })
                 }
+                onForfeitClick={(matchId, slot) => {
+                  setForfeitModal({
+                    matchId,
+                    redRegistrationId: slot.redRegistrationId ?? null,
+                    redName: slot.redFighterName,
+                    blueRegistrationId: slot.blueRegistrationId ?? null,
+                    blueName: slot.blueFighterName,
+                  });
+                }}
                 playInLabel={t('organizer.phaseVisibility.playIns')}
               />
             </div>

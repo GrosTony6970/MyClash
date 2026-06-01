@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildScoringHref } from './build-scoring-href';
+import { buildScoringHref, buildMatchScoringHref } from './build-scoring-href';
 
 describe('buildScoringHref', () => {
   it('joins the scoring base URL with the lice path when both args are present', () => {
@@ -20,6 +20,27 @@ describe('buildScoringHref', () => {
     );
     expect(buildScoringHref('http://localhost:3002///', 'lice-2')).toBe(
       'http://localhost:3002/lices/lice-2',
+    );
+  });
+});
+
+describe('buildMatchScoringHref', () => {
+  it('joins the scoring base URL with the match path when both args are present', () => {
+    expect(buildMatchScoringHref('https://scoring.myclash.fr', 'match-1')).toBe(
+      'https://scoring.myclash.fr/matches/match-1',
+    );
+  });
+
+  it('returns null when the matchId is null', () => {
+    expect(buildMatchScoringHref('https://scoring.myclash.fr', null)).toBeNull();
+  });
+
+  it('strips trailing slashes from the base URL', () => {
+    expect(buildMatchScoringHref('https://scoring.myclash.fr/', 'match-1')).toBe(
+      'https://scoring.myclash.fr/matches/match-1',
+    );
+    expect(buildMatchScoringHref('http://localhost:3002///', 'match-2')).toBe(
+      'http://localhost:3002/matches/match-2',
     );
   });
 });

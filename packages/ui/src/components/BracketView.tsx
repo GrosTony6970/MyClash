@@ -21,6 +21,13 @@ export interface BracketViewProps {
   onMatchClick?: (matchId: string | null, slotId: string, liceId: string | null) => void;
   /** Called when the pencil override icon is clicked (admin only). */
   onOverrideSlot?: (slotId: string) => void;
+  /**
+   * Called when the WO (record-forfeit) chip is clicked. The bracket
+   * page opens an inline modal asking which side forfeits + reason,
+   * then POSTs to /matches/:id/forfeit. Only invoked when both sides
+   * are resolved and the match isn't completed.
+   */
+  onForfeitClick?: (matchId: string, slot: BracketSlotData) => void;
   /** Bracket configuration — drives double_elim layout. */
   bracketConfig?: BracketConfig;
   /** Side colors driven by the tournament's scoring_config.display.sideColors. */
@@ -51,6 +58,7 @@ export function BracketView({
   playInLabel,
   onMatchClick,
   onOverrideSlot,
+  onForfeitClick,
   bracketConfig,
   redColor = 'red',
   blueColor = 'blue',
@@ -89,6 +97,7 @@ export function BracketView({
         lbRounds={bracketConfig?.lbRounds ?? 0}
         onMatchClick={onMatchClick}
         onOverrideSlot={onOverrideSlot}
+        onForfeitClick={onForfeitClick}
         redColor={redColor}
         blueColor={blueColor}
         roundCodeFor={roundCodeFor}
@@ -103,6 +112,7 @@ export function BracketView({
       playInLabel={playInLabel}
       onMatchClick={onMatchClick}
       onOverrideSlot={onOverrideSlot}
+      onForfeitClick={onForfeitClick}
       redColor={redColor}
       blueColor={blueColor}
       bronzeMatch={bronzeMatch ?? null}
@@ -120,6 +130,7 @@ interface SingleElimLayoutProps {
   playInLabel?: string;
   onMatchClick?: BracketViewProps['onMatchClick'];
   onOverrideSlot?: BracketViewProps['onOverrideSlot'];
+  onForfeitClick?: BracketViewProps['onForfeitClick'];
   redColor: ColorToken;
   blueColor: ColorToken;
   bronzeMatch: BracketSlotData | null;
@@ -133,6 +144,7 @@ function SingleElimLayout({
   playInLabel = 'Play-ins',
   onMatchClick,
   onOverrideSlot,
+  onForfeitClick,
   redColor,
   blueColor,
   bronzeMatch,
@@ -231,6 +243,7 @@ function SingleElimLayout({
                       blueColor={blueColor}
                       onClick={onMatchClick}
                       onOverride={onOverrideSlot}
+                      onForfeitClick={onForfeitClick}
                       registerRef={registerRef}
                       isChampionshipMatch={isFinalRound}
                       roundCode={roundCodeFor(slot)}
@@ -247,6 +260,7 @@ function SingleElimLayout({
                         blueColor={blueColor}
                         onClick={onMatchClick}
                         onOverride={onOverrideSlot}
+                        onForfeitClick={onForfeitClick}
                         registerRef={registerRef}
                         isBronzeMatch={true}
                         roundCode={roundCodeFor(bronzeMatch)}
@@ -275,6 +289,7 @@ interface DoubleElimLayoutProps {
   lbRounds: number;
   onMatchClick?: BracketViewProps['onMatchClick'];
   onOverrideSlot?: BracketViewProps['onOverrideSlot'];
+  onForfeitClick?: BracketViewProps['onForfeitClick'];
   redColor: ColorToken;
   blueColor: ColorToken;
   roundCodeFor: (slot: BracketSlotData) => string | undefined;
@@ -286,6 +301,7 @@ function DoubleElimLayout({
   lbRounds,
   onMatchClick,
   onOverrideSlot,
+  onForfeitClick,
   redColor,
   blueColor,
   roundCodeFor,
@@ -329,6 +345,7 @@ function DoubleElimLayout({
               blueColor={blueColor}
               onClick={onMatchClick}
               onOverride={onOverrideSlot}
+              onForfeitClick={onForfeitClick}
               registerRef={registerRef}
               roundCode={roundCodeFor(slot)}
             />
@@ -347,6 +364,7 @@ function DoubleElimLayout({
                 blueColor={blueColor}
                 onClick={onMatchClick}
                 onOverride={onOverrideSlot}
+                onForfeitClick={onForfeitClick}
                 registerRef={registerRef}
                 roundCode={roundCodeFor(slot)}
               />
@@ -366,6 +384,7 @@ function DoubleElimLayout({
                 blueColor={blueColor}
                 onClick={onMatchClick}
                 onOverride={onOverrideSlot}
+                onForfeitClick={onForfeitClick}
                 registerRef={registerRef}
                 roundCode={roundCodeFor(slot)}
               />

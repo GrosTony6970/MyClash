@@ -1366,6 +1366,12 @@ export class PhasesService {
         status: match?.status ?? 'scheduled',
         matchId: match?.id ?? null,
         liceId: match?.lice_id ?? null,
+        // CamelCase aliases for the BracketSlotData shape on the FE
+        // (the inline forfeit modal needs both regIds without an
+        // extra fetch). Snake-case copies stay for backwards
+        // compatibility with consumers that already key on them.
+        redRegistrationId: s.registration_a_id,
+        blueRegistrationId: s.registration_b_id,
         source_a_type: s.source_a_type,
         source_a_ref: s.source_a_ref,
         source_b_type: s.source_b_type,

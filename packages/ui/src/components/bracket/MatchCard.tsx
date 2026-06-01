@@ -8,6 +8,14 @@ export interface MatchCardProps {
   blueColor?: ColorToken;
   onClick?: (matchId: string | null, slotId: string, liceId: string | null) => void;
   onOverride?: (slotId: string) => void;
+  /**
+   * Open the inline Record-forfeit modal for this match. Wired from the
+   * bracket page; the modal posts to /matches/:id/forfeit and the
+   * bracket refetches. Card only renders the WO chip when the callback
+   * is provided AND the match has both sides resolved AND isn't already
+   * completed.
+   */
+  onForfeitClick?: (matchId: string, slot: BracketSlotData) => void;
   /** Registers the card's outer element for connector geometry. */
   registerRef?: (slotId: string, el: HTMLDivElement | null) => void;
   /**
@@ -51,6 +59,7 @@ export function MatchCard({
   blueColor = 'blue',
   onClick,
   onOverride,
+  onForfeitClick,
   registerRef,
   isChampionshipMatch = false,
   isBronzeMatch = false,
@@ -175,6 +184,25 @@ export function MatchCard({
           ✎
         </button>
       )}
+
+      {onForfeitClick &&
+        slot.matchId &&
+        slot.redRegistrationId &&
+        slot.blueRegistrationId &&
+        !isCompleted && (
+          <button
+            type="button"
+            aria-label="Record forfeit"
+            title="Record forfeit"
+            onClick={(e) => {
+              e.stopPropagation();
+              onForfeitClick(slot.matchId!, slot);
+            }}
+            className="absolute -top-2 -left-2 flex h-5 items-center justify-center rounded-full border border-slate-300 bg-white px-1.5 text-[9px] font-bold text-slate-500 shadow-sm hover:text-slate-900"
+          >
+            WO
+          </button>
+        )}
     </div>
   );
 }

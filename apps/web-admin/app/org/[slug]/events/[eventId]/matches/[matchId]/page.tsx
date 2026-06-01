@@ -56,6 +56,27 @@ interface Match {
   locked_at?: string | null;
 }
 
+/**
+ * Header-only data fetched from /matches/:id/summary. The endpoint
+ * resolves the canonical roundCode (LSW-B-R16-M1) via the shared
+ * buildRoundCode helper, plus the fighter names already joined to
+ * the registration / persons rows, so the page header can read
+ * "Alice Smith vs Bob Jones" / "LSW-B-R16-M1" without any UUID.
+ */
+interface MatchSummary {
+  matchLabel: string;
+  roundCode: string;
+  status: string;
+  poolName: string;
+  redName: string;
+  redClub: string | null;
+  blueName: string;
+  blueClub: string | null;
+  weapon: string;
+  tournamentId: string;
+  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
+}
+
 interface AuditEntry {
   id: string;
   actorUserId: string;
@@ -101,6 +122,10 @@ export default function MatchDetailPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [match, setMatch] = useState<Match | null>(null);
+  // Canonical header data — roundCode (LSW-B-R16-M1) + fighter names
+  // come from /matches/:id/summary so we never have to show a raw
+  // UUID or the legacy matchNumberLabel as the page title.
+  const [summary, setSummary] = useState<MatchSummary | null>(null);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +152,10 @@ export default function MatchDetailPage() {
         credentials: 'include',
         signal: controller.signal,
       }),
+      fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
       fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, {
         credentials: 'include',
         signal: controller.signal,
@@ -136,9 +165,10 @@ export default function MatchDetailPage() {
         signal: controller.signal,
       }),
     ])
-      .then(async ([matchRes, exRes, auditRes]) => {
+      .then(async ([matchRes, summaryRes, exRes, auditRes]) => {
         setLoading(false);
         if (matchRes.ok) setMatch((await matchRes.json()) as Match);
+        if (summaryRes.ok) setSummary((await summaryRes.json()) as MatchSummary);
         if (exRes.ok) setExchanges((await exRes.json()) as Exchange[]);
         if (auditRes.ok) setAuditLog((await auditRes.json()) as AuditEntry[]);
       })
@@ -282,35 +312,41 @@ export default function MatchDetailPage() {
         </Link>
         <span>/</span>
         <span className="text-gray-900 font-medium">
-          Match {match?.matchNumberLabel ?? matchId}
+          {summary?.roundCode ?? match?.matchNumberLabel ?? 'Match'}
         </span>
       </div>
 
-      {/* Match header */}
-      {match && (
+      {/* Match header — fighters lead, canonical roundCode subtitle.
+          The UUID is no longer surfaced; if the data hasn't loaded
+          yet, the breadcrumb above shows the neutral "Match"
+          placeholder and this block stays hidden. */}
+      {(match || summary) && (
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">{match.matchNumberLabel}</h1>
-            <p className="text-gray-500 text-sm mt-0.5">{match.rulesetCode}</p>
-            {match.lockedAt && (
+            <h1 className="text-2xl font-bold">
+              {summary
+                ? `${summary.redName || '?'} vs ${summary.blueName || '?'}`
+                : `${match?.redFighterName ?? '?'} vs ${match?.blueFighterName ?? '?'}`}
+            </h1>
+            <p className="text-gray-500 text-sm mt-0.5 font-mono">
+              {summary?.roundCode ?? match?.matchNumberLabel ?? ''}
+            </p>
+            {match?.lockedAt && (
               <p className="mt-1 text-sm font-medium text-yellow-700">Locked for staff scoring</p>
             )}
           </div>
           <div className="text-right">
             <p className="text-3xl font-black tabular-nums">
-              <span className="text-red-600">{match.redScore}</span>
+              <span className="text-red-600">{match?.redScore ?? 0}</span>
               <span className="text-gray-400 mx-2">–</span>
-              <span className="text-blue-600">{match.blueScore}</span>
-            </p>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {match.redFighterName ?? '?'} vs {match.blueFighterName ?? '?'}
+              <span className="text-blue-600">{match?.blueScore ?? 0}</span>
             </p>
             <button
               type="button"
               onClick={() => void handleLockToggle()}
               className="mt-3 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-500"
             >
-              {match.lockedAt ? 'Unlock match' : 'Lock match'}
+              {match?.lockedAt ? 'Unlock match' : 'Lock match'}
             </button>
           </div>
         </div>

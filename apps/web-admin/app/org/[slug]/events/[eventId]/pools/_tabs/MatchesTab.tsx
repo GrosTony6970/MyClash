@@ -6,7 +6,7 @@ import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
-import { buildScoringHref } from './build-scoring-href';
+import { buildScoringHref, buildMatchScoringHref } from './build-scoring-href';
 import { countPoolFighters } from './count-pool-fighters';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -505,7 +505,15 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                     </thead>
                     <tbody>
                       {pool.matches.map((m) => {
-                        const scoringHref = buildScoringHref(scoringBaseUrl, m.lice_id);
+                        // Always-clickable: lice-scoped scoring URL when
+                        // a lice is assigned, per-match URL otherwise.
+                        // The previous "Assign a lice first" disabled
+                        // treatment is gone — the web-scoring
+                        // /matches/:matchId route renders the same UI
+                        // without needing a lice context.
+                        const scoringHref =
+                          buildScoringHref(scoringBaseUrl, m.lice_id) ??
+                          buildMatchScoringHref(scoringBaseUrl, m.id);
                         const auditHref = `/org/${slug}/events/${eventId}/matches/${m.id}`;
                         // Winner-bold rule: only completed matches with a
                         // clear differential elect a winner. Ties leave both
@@ -516,16 +524,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         const blueScore = m.blue_score ?? 0;
                         const isRedWinner = isCompleted && redScore > blueScore;
                         const isBlueWinner = isCompleted && blueScore > redScore;
-                        const rowLabel = scoringHref
-                          ? t('organizer.pool.match.openScoreboard')
-                          : t('organizer.pool.match.assignLiceFirst');
                         return (
                           <tr
                             key={m.id}
                             role="link"
                             tabIndex={0}
-                            aria-label={rowLabel}
-                            title={scoringHref ? undefined : rowLabel}
+                            aria-label={t('organizer.pool.match.openScoreboard')}
                             onClick={() => {
                               if (scoringHref) window.location.href = scoringHref;
                             }}
@@ -537,12 +541,10 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             }}
                             className={[
                               'border-b border-slate-100 last:border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-300',
-                              scoringHref
-                                ? 'cursor-pointer hover:bg-slate-100'
-                                : 'cursor-not-allowed opacity-70',
-                              // Done rows recede; not-done-with-lice rows
-                              // stay vivid white so they pull the
-                              // operator's attention.
+                              'cursor-pointer hover:bg-slate-100',
+                              // Done rows recede; not-done rows stay
+                              // vivid white so they pull the operator's
+                              // attention.
                               isCompleted ? 'bg-slate-50 text-slate-600' : 'bg-white',
                             ].join(' ')}
                           >
