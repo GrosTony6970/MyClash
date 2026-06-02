@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { useI18n } from '../../i18n/I18nProvider';
 
 interface Props {
-  active: 'scoring' | 'penalty';
+  active: 'scoring' | 'penalty' | 'league';
   /**
-   * URL prefix the two tabs link under. Defaults to `/admin/rulesets` for
-   * the super-admin pages; organizer pages pass `/org/{slug}/rulesets`.
+   * URL prefix the three tabs link under. Defaults to `/admin/rulesets`
+   * for the super-admin pages; organizer pages pass `/org/{slug}/rulesets`.
    */
   basePath?: string;
 }
 
 /**
- * Pill-style sub-nav rendered at the top of the Scoring + Penalty ruleset
- * pages so the operator can switch between the two tabs without going back
+ * Pill-style sub-nav rendered at the top of the Scoring + Penalty + League
+ * ruleset pages so the operator can switch between tabs without going back
  * through the side menu. Used by both the super-admin (/admin/rulesets/*)
  * and organizer (/org/[slug]/rulesets/*) surfaces via the `basePath` prop.
  */
@@ -30,6 +30,11 @@ export function RulesetsTopNav({ active, basePath = '/admin/rulesets' }: Props) 
       key: 'penalty' as const,
       href: `${basePath}/penalty`,
       label: t('admin.rulesets.tabPenalty'),
+    },
+    {
+      key: 'league' as const,
+      href: `${basePath}/league`,
+      label: t('admin.rulesets.tabLeague'),
     },
   ];
   return (
