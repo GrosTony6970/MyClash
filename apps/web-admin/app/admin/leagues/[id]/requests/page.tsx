@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -15,6 +16,7 @@ interface LeagueRow {
 }
 
 export default function LeagueRequestsStandalonePage() {
+  const { t } = useI18n();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
 
@@ -24,39 +26,47 @@ export default function LeagueRequestsStandalonePage() {
   useEffect(() => {
     void fetch(`${apiUrl}/api/v1/admin/leagues`, { credentials: 'include' })
       .then((r) => {
-        if (!r.ok) throw new Error('Could not load league');
+        if (!r.ok) throw new Error(t('admin.leagues.requestsPage.loadError'));
         return r.json() as Promise<LeagueRow[]>;
       })
       .then((rows) => {
         const found = rows.find((r) => r.id === leagueId);
         if (!found) {
-          setError('League not found');
+          setError(t('admin.leagues.requestsPage.notFound'));
           return;
         }
         setLeague(found);
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Load failed'));
-  }, [leagueId]);
+      .catch((err: unknown) =>
+        setError(
+          err instanceof Error ? err.message : t('admin.leagues.requestsPage.loadFailedFallback'),
+        ),
+      );
+  }, [leagueId, t]);
 
   return (
     <main id="main-content" className="mx-auto w-full max-w-4xl px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Leagues"
-        title={league ? `${league.name} — Requests` : 'League requests'}
-        subtitle="Accept or refuse tournament-attach and membership requests for this league."
+        eyebrow={t('admin.leagues.requestsPage.eyebrow')}
+        title={
+          league
+            ? t('admin.leagues.requestsPage.titleWithLeague', { name: league.name })
+            : t('admin.leagues.requestsPage.titleFallback')
+        }
+        subtitle={t('admin.leagues.requestsPage.subtitle')}
         actions={
           <div className="flex gap-2">
             <Link
               href={`/admin/leagues/${leagueId}/edit`}
               className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Edit league
+              {t('admin.leagues.requestsPage.editLink')}
             </Link>
             <Link
               href="/admin/leagues"
               className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              ← All leagues
+              {t('admin.leagues.requestsPage.allLink')}
             </Link>
           </div>
         }

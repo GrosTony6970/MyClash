@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useToast } from '@myclash/ui';
+import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -43,6 +44,7 @@ interface MembershipRequestRow {
 }
 
 export default function OrgLeaguesPage() {
+  const { t } = useI18n();
   const params = useParams<{ slug: string }>();
   const orgSlug = params.slug;
   const toast = useToast();
@@ -64,7 +66,7 @@ export default function OrgLeaguesPage() {
         `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
         { credentials: 'include' },
       );
-      if (!orgRes.ok) throw new Error('Could not load organization');
+      if (!orgRes.ok) throw new Error(t('organizer.leagues.orgLoadError'));
       const orgData = (await orgRes.json()) as Record<string, unknown>;
       const orgRow: OrgRow = {
         id: String(orgData['id']),
@@ -102,11 +104,11 @@ export default function OrgLeaguesPage() {
       setMemberOfLeagueIds(approvedLeagueIds);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load leagues');
+      setError(err instanceof Error ? err.message : t('organizer.leagues.leaguesLoadError'));
     } finally {
       setLoading(false);
     }
-  }, [orgSlug]);
+  }, [orgSlug, t]);
 
   useEffect(() => {
     void loadAll();
@@ -139,9 +141,9 @@ export default function OrgLeaguesPage() {
       });
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(err.message ?? 'Request failed');
+        throw new Error(err.message ?? t('organizer.leagues.joinFailedToast'));
       }
-      toast.success('Join request sent');
+      toast.success(t('organizer.leagues.joinSuccessToast'));
       setMessageDraft((prev) => {
         const next = { ...prev };
         delete next[leagueId];
@@ -149,7 +151,7 @@ export default function OrgLeaguesPage() {
       });
       await loadAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Request failed');
+      toast.error(err instanceof Error ? err.message : t('organizer.leagues.joinFailedToast'));
     } finally {
       setBusyLeagueId(null);
     }
@@ -165,12 +167,12 @@ export default function OrgLeaguesPage() {
       );
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(err.message ?? 'Withdraw failed');
+        throw new Error(err.message ?? t('organizer.leagues.withdrawFailedToast'));
       }
-      toast.success('Request withdrawn');
+      toast.success(t('organizer.leagues.withdrawSuccessToast'));
       await loadAll();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Withdraw failed');
+      toast.error(err instanceof Error ? err.message : t('organizer.leagues.withdrawFailedToast'));
     } finally {
       setBusyLeagueId(null);
     }
@@ -179,13 +181,15 @@ export default function OrgLeaguesPage() {
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Leagues</p>
-        <h1 className="text-2xl font-bold text-slate-900">
-          {org?.name ? `${org.name} — Leagues` : 'Leagues'}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Browse leagues and request to join. Approvals are handled by the league super-admin.
+        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+          {t('organizer.leagues.eyebrow')}
         </p>
+        <h1 className="text-2xl font-bold text-slate-900">
+          {org?.name
+            ? t('organizer.leagues.titleWithOrg', { name: org.name })
+            : t('organizer.leagues.titleFallback')}
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">{t('organizer.leagues.subtitle')}</p>
       </header>
 
       {error && (
@@ -198,7 +202,7 @@ export default function OrgLeaguesPage() {
       {pendingRequests.length > 0 && (
         <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-            Pending requests
+            {t('organizer.leagues.pendingHeading')}
           </h2>
           <ul className="space-y-2">
             {pendingRequests.map((r) => (
@@ -209,7 +213,9 @@ export default function OrgLeaguesPage() {
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">{r.leagues?.name ?? r.league_id}</p>
                   <p className="text-xs text-slate-500">
-                    Requested {new Date(r.requested_at).toLocaleDateString()}
+                    {t('organizer.leagues.requestedAt', {
+                      date: new Date(r.requested_at).toLocaleDateString(),
+                    })}
                     {r.message && <> · "{r.message}"</>}
                   </p>
                 </div>
@@ -219,7 +225,7 @@ export default function OrgLeaguesPage() {
                   disabled={busyLeagueId === r.id}
                   className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  Withdraw
+                  {t('organizer.leagues.withdrawButton')}
                 </button>
               </li>
             ))}
@@ -230,11 +236,11 @@ export default function OrgLeaguesPage() {
       {/* All leagues */}
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Available leagues
+          {t('organizer.leagues.availableHeading')}
         </h2>
-        {loading && <p className="text-sm text-slate-400">Loading…</p>}
+        {loading && <p className="text-sm text-slate-400">{t('organizer.leagues.loadingState')}</p>}
         {!loading && leagues.length === 0 && (
-          <p className="text-sm text-slate-500">No public leagues to display.</p>
+          <p className="text-sm text-slate-500">{t('organizer.leagues.emptyState')}</p>
         )}
         <ul className="divide-y divide-slate-100">
           {leagues.map((league) => {
@@ -256,11 +262,11 @@ export default function OrgLeaguesPage() {
                 <div className="flex shrink-0 items-center gap-2">
                   {alreadyMember ? (
                     <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      Member
+                      {t('organizer.leagues.memberBadge')}
                     </span>
                   ) : pending ? (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
-                      Pending review
+                      {t('organizer.leagues.pendingBadge')}
                     </span>
                   ) : (
                     <>
@@ -270,7 +276,7 @@ export default function OrgLeaguesPage() {
                         onChange={(e) =>
                           setMessageDraft((prev) => ({ ...prev, [league.id]: e.target.value }))
                         }
-                        placeholder="Optional message"
+                        placeholder={t('organizer.leagues.messagePlaceholder')}
                         className="w-44 rounded border border-slate-300 px-2 py-1 text-xs"
                       />
                       <button
@@ -279,7 +285,7 @@ export default function OrgLeaguesPage() {
                         disabled={busyLeagueId === league.id}
                         className="rounded-md bg-red-800 px-3 py-1 text-xs font-semibold text-white hover:bg-red-900 disabled:opacity-50"
                       >
-                        Request to join
+                        {t('organizer.leagues.requestToJoinButton')}
                       </button>
                     </>
                   )}
