@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 interface AuditLogEntry {
   id: string;
@@ -64,6 +65,7 @@ function payloadPreview(payload: unknown): string {
 }
 
 export default function AdminAuditLogPage() {
+  const { t } = useI18n();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [draftFilters, setDraftFilters] = useState<AuditFilters>(emptyFilters);
@@ -104,11 +106,11 @@ export default function AdminAuditLogPage() {
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 401 || res.status === 403) {
-          setError('Access denied. Super admin required.');
+          setError(t('admin.auditLog.accessDenied'));
           setLoading(false);
           return;
         }
-        if (!res.ok) throw new Error('Failed to load audit log');
+        if (!res.ok) throw new Error(t('admin.auditLog.loadError'));
         const data = (await res.json()) as AuditLogResponse;
         if (!cancelled) {
           setResponse(data);
@@ -118,7 +120,7 @@ export default function AdminAuditLogPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setError(err instanceof Error ? err.message : t('admin.auditLog.genericError'));
           setLoading(false);
         }
       });
@@ -127,7 +129,7 @@ export default function AdminAuditLogPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [apiUrl, queryString]);
+  }, [apiUrl, queryString, t]);
 
   function applyFilters() {
     setLoading(true);
@@ -146,16 +148,14 @@ export default function AdminAuditLogPage() {
     <main className="p-8">
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Audit Log</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Filter platform moderation, merge, and recovery actions.
-          </p>
+          <h1 className="text-2xl font-bold">{t('admin.auditLog.title')}</h1>
+          <p className="text-slate-500 text-sm mt-1">{t('admin.auditLog.subtitle')}</p>
         </div>
         <a
           href={exportHref}
           className="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
         >
-          Export CSV
+          {t('admin.auditLog.exportCsv')}
         </a>
       </div>
 
@@ -170,19 +170,19 @@ export default function AdminAuditLogPage() {
           <input
             value={draftFilters.actor}
             onChange={(event) => updateDraft('actor', event.target.value)}
-            placeholder="Actor user ID"
+            placeholder={t('admin.auditLog.filters.actorPlaceholder')}
             className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
           />
           <input
             value={draftFilters.action}
             onChange={(event) => updateDraft('action', event.target.value)}
-            placeholder="Action"
+            placeholder={t('admin.auditLog.filters.actionPlaceholder')}
             className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
           />
           <input
             value={draftFilters.entityType}
             onChange={(event) => updateDraft('entityType', event.target.value)}
-            placeholder="Entity type"
+            placeholder={t('admin.auditLog.filters.entityTypePlaceholder')}
             className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800/30"
           />
           <input
@@ -203,16 +203,16 @@ export default function AdminAuditLogPage() {
             onClick={applyFilters}
             className="bg-red-800 hover:bg-red-900 text-white font-semibold py-2 px-4 rounded-md text-sm"
           >
-            Apply filters
+            {t('admin.auditLog.filters.applyButton')}
           </button>
           <button
             onClick={clearFilters}
             className="border border-slate-300 hover:bg-slate-50 py-2 px-4 rounded-md text-sm"
           >
-            Clear
+            {t('admin.auditLog.filters.clearButton')}
           </button>
           <label className="ml-auto flex items-center gap-2 text-sm text-slate-600">
-            Rows
+            {t('admin.auditLog.filters.rowsLabel')}
             <select
               value={perPage}
               onChange={(event) => {
@@ -233,8 +233,12 @@ export default function AdminAuditLogPage() {
       <div className="mb-3 flex items-center justify-between text-sm text-slate-500">
         <span>
           {loading
-            ? 'Loading...'
-            : `${response.total} entries · page ${response.page} of ${response.totalPages}`}
+            ? t('admin.auditLog.pagination.loading')
+            : t('admin.auditLog.pagination.summary', {
+                total: response.total,
+                page: response.page,
+                totalPages: response.totalPages,
+              })}
         </span>
         <div className="flex gap-2">
           <button
@@ -245,7 +249,7 @@ export default function AdminAuditLogPage() {
             disabled={loading || response.page <= 1}
             className="border border-slate-300 rounded-md px-3 py-1.5 disabled:opacity-40 hover:bg-slate-50"
           >
-            Previous
+            {t('admin.auditLog.pagination.previous')}
           </button>
           <button
             onClick={() => {
@@ -255,23 +259,23 @@ export default function AdminAuditLogPage() {
             disabled={loading || response.page >= response.totalPages}
             className="border border-slate-300 rounded-md px-3 py-1.5 disabled:opacity-40 hover:bg-slate-50"
           >
-            Next
+            {t('admin.auditLog.pagination.next')}
           </button>
         </div>
       </div>
 
       {response.items.length === 0 && !loading ? (
-        <p className="text-slate-400 text-sm">No audit log entries match these filters.</p>
+        <p className="text-slate-400 text-sm">{t('admin.auditLog.empty')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-sm border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-500">
-                <th className="py-2 pr-4">Created</th>
-                <th className="py-2 pr-4">Actor</th>
-                <th className="py-2 pr-4">Action</th>
-                <th className="py-2 pr-4">Entity</th>
-                <th className="py-2">Payload</th>
+                <th className="py-2 pr-4">{t('admin.auditLog.columns.created')}</th>
+                <th className="py-2 pr-4">{t('admin.auditLog.columns.actor')}</th>
+                <th className="py-2 pr-4">{t('admin.auditLog.columns.action')}</th>
+                <th className="py-2 pr-4">{t('admin.auditLog.columns.entity')}</th>
+                <th className="py-2">{t('admin.auditLog.columns.payload')}</th>
               </tr>
             </thead>
             <tbody>
