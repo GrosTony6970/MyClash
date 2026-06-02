@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
+import { ConfirmDialog, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
@@ -646,6 +646,13 @@ function AssignmentsTab({
   // the lices table; fetch the list once and build an id → name map so
   // the pool rows can render the operator-typed label.
   const [liceNameById, setLiceNameById] = useState<Map<string, string>>(() => new Map());
+  // ConfirmDialog state — replaces the native window.confirm() prompts
+  // so the destructive flows use the app's styled dialog (matches the
+  // rest of admin).
+  const [pendingClearAll, setPendingClearAll] = useState(false);
+  const [pendingClearPool, setPendingClearPool] = useState<{ id: string; name: string } | null>(
+    null,
+  );
 
   async function loadBoard(signal?: AbortSignal) {
     setLoading(true);
@@ -843,7 +850,6 @@ function AssignmentsTab({
    * banner so the operator still sees the result.
    */
   async function clearAllAssignments() {
-    if (!window.confirm(t('organizer.refereesPage.clearAllConfirm'))) return;
     setRunning(true);
     setError(null);
     try {
@@ -863,9 +869,7 @@ function AssignmentsTab({
     }
   }
 
-  async function clearPoolAssignments(poolId: string, poolName: string) {
-    const message = t('organizer.refereesPage.clearPoolConfirm').replace('{poolName}', poolName);
-    if (!window.confirm(message)) return;
+  async function clearPoolAssignments(poolId: string) {
     setRunning(true);
     setError(null);
     try {
@@ -976,7 +980,9 @@ function AssignmentsTab({
                                 <p className="font-medium text-gray-900">{pool.name}</p>
                                 <button
                                   type="button"
-                                  onClick={() => void clearPoolAssignments(pool.id, pool.name)}
+                                  onClick={() =>
+                                    setPendingClearPool({ id: pool.id, name: pool.name })
+                                  }
                                   disabled={isReadOnly || running || board?.locked}
                                   aria-label={t('organizer.refereesPage.clearPool')}
                                   title={t('organizer.refereesPage.clearPool')}
@@ -1138,7 +1144,7 @@ function AssignmentsTab({
         )}
         <button
           type="button"
-          onClick={() => void clearAllAssignments()}
+          onClick={() => setPendingClearAll(true)}
           disabled={isReadOnly || running || board?.locked}
           className="border border-red-300 text-red-700 hover:border-red-400 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
         >
@@ -1241,6 +1247,46 @@ function AssignmentsTab({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingClearAll}
+        title={t('organizer.refereesPage.clearAllConfirmTitle')}
+        description={t('organizer.refereesPage.clearAllConfirm')}
+        confirmLabel={t('organizer.refereesPage.clearAllConfirmAction')}
+        cancelLabel={t('organizer.refereesPage.cancel')}
+        danger
+        busy={running}
+        onCancel={() => setPendingClearAll(false)}
+        onConfirm={() => {
+          setPendingClearAll(false);
+          void clearAllAssignments();
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingClearPool !== null}
+        title={t('organizer.refereesPage.clearPoolConfirmTitle')}
+        description={
+          pendingClearPool
+            ? t('organizer.refereesPage.clearPoolConfirm').replace(
+                '{poolName}',
+                pendingClearPool.name,
+              )
+            : ''
+        }
+        confirmLabel={t('organizer.refereesPage.clearPoolConfirmAction')}
+        cancelLabel={t('organizer.refereesPage.cancel')}
+        danger
+        busy={running}
+        onCancel={() => setPendingClearPool(null)}
+        onConfirm={() => {
+          if (pendingClearPool) {
+            const id = pendingClearPool.id;
+            setPendingClearPool(null);
+            void clearPoolAssignments(id);
+          }
+        }}
+      />
     </section>
   );
 }
@@ -1306,6 +1352,11 @@ export default function RefereesPage() {
   const [eventDays, setEventDays] = useState<Array<{ index: number; label: string }>>([]);
   const [qualIdMap, setQualIdMap] = useState<QualIdMap>(new Map());
   const [loading, setLoading] = useState(true);
+  // ConfirmDialog state for destructive skill delete (replaces native confirm).
+  const [pendingDeleteSkill, setPendingDeleteSkill] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   /**
    * id → human name lookup for resolving a slot's role (a skill id) back
    * to the operator-typed name. Fed into roleLabel() at every assignment
@@ -1611,7 +1662,6 @@ export default function RefereesPage() {
    * un-reference before retrying.
    */
   async function deleteSkill(skillId: string) {
-    if (!confirm(t('organizer.refereesPage.catalogDeleteConfirm'))) return;
     try {
       const res = await fetch(`${apiUrl}/api/v1/referee-skills/${skillId}`, {
         method: 'DELETE',
@@ -1874,7 +1924,7 @@ export default function RefereesPage() {
               },
             })
           }
-          onDeleteSkill={(skill) => void deleteSkill(skill.id)}
+          onDeleteSkill={(skill) => setPendingDeleteSkill({ id: skill.id, name: skill.name })}
           onUpsertQualification={(personId, skillId, rating) =>
             void upsertQualification(personId, skillId, rating)
           }
@@ -2293,6 +2343,30 @@ export default function RefereesPage() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteSkill !== null}
+        title={t('organizer.refereesPage.catalogDeleteConfirmTitle')}
+        description={
+          pendingDeleteSkill
+            ? t('organizer.refereesPage.catalogDeleteConfirm').replace(
+                '{name}',
+                pendingDeleteSkill.name,
+              )
+            : ''
+        }
+        confirmLabel={t('organizer.refereesPage.catalogDeleteConfirmAction')}
+        cancelLabel={t('organizer.refereesPage.cancel')}
+        danger
+        onCancel={() => setPendingDeleteSkill(null)}
+        onConfirm={() => {
+          if (pendingDeleteSkill) {
+            const id = pendingDeleteSkill.id;
+            setPendingDeleteSkill(null);
+            void deleteSkill(id);
+          }
+        }}
+      />
     </main>
   );
 }
