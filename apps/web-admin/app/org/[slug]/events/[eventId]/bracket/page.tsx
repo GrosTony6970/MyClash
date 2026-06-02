@@ -1478,7 +1478,7 @@ export default function BracketPage() {
                   }
                   const scoringHref =
                     buildScoringHref(scoringBaseUrl, liceId) ??
-                    buildMatchScoringHref(scoringBaseUrl, matchId);
+                    buildMatchScoringHref(scoringBaseUrl, matchId, window.location.href);
                   if (scoringHref) window.location.href = scoringHref;
                 }}
                 onOverrideSlot={(slotId) =>

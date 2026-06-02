@@ -5,6 +5,24 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { detectConflicts, type Conflict } from './conflict-detection';
+import { buildMatchScoringHref, buildScoringHref } from '../pools/_tabs/build-scoring-href';
+
+const scoringBaseUrl = process.env['NEXT_PUBLIC_SCORING_URL'] ?? 'http://localhost:3002';
+
+/**
+ * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
+ * chip) jumps the operator straight into the cross-app scoring
+ * pad. Plain click is reserved for drag-and-drop selection.
+ */
+function openMatchScoring(liceId: string | null, matchId: string): void {
+  if (liceId) {
+    const href = buildScoringHref(scoringBaseUrl, liceId);
+    if (href) window.location.href = href;
+    return;
+  }
+  const href = buildMatchScoringHref(scoringBaseUrl, matchId, window.location.href);
+  if (href) window.location.href = href;
+}
 
 interface Lice {
   id: string;
@@ -1001,6 +1019,11 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                     onDragStart={() => {
                       dragMatch.current = m;
                     }}
+                    onClick={(e) => {
+                      if (!(e.ctrlKey || e.metaKey)) return;
+                      e.preventDefault();
+                      openMatchScoring(m.liceId, m.id);
+                    }}
                     className={[
                       'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10 border',
                       hasConflict
@@ -1017,7 +1040,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                       gridRow: `${slot + 2} / span ${span}`, // +1 for header row, +1 for 1-based
                       margin: '1px',
                     }}
-                    title={`${m.roundCode || m.matchNumberLabel}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
+                    title={`${m.roundCode || m.matchNumberLabel} · Ctrl/⌘-click to open scoring${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
                   >
                     <span className="truncate">{m.roundCode || m.matchNumberLabel}</span>
                   </div>
@@ -1154,6 +1177,12 @@ function MatchChip({
     <div
       draggable
       onDragStart={onDragStart}
+      onClick={(e) => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        e.preventDefault();
+        openMatchScoring(match.liceId, match.id);
+      }}
+      title={`${match.roundCode || match.matchNumberLabel} · Ctrl/⌘-click to open scoring`}
       className={[
         'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-white hover:border-gray-400 transition-colors',
         isBracket ? 'border-amber-300' : 'border-gray-300',

@@ -29,10 +29,21 @@ export default function MatchScoringPage({ params }: Props) {
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
   );
+  // `?return=<url>` survives hard refresh / bookmark — the
+  // history-based back button doesn't. Read it on mount so the
+  // operator always has a way back to the admin page they came
+  // from.
+  const [returnUrl, setReturnUrl] = useState<string | null>(null);
 
   useEffect(() => {
     void params.then(({ matchId: id }) => setMatchId(id));
   }, [params]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    setReturnUrl(url.searchParams.get('return'));
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
@@ -126,7 +137,13 @@ export default function MatchScoringPage({ params }: Props) {
       </div>
 
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <button onClick={() => router.back()} className="text-gray-400 hover:text-white text-sm">
+        <button
+          onClick={() => {
+            if (returnUrl) window.location.href = returnUrl;
+            else router.back();
+          }}
+          className="text-gray-400 hover:text-white text-sm"
+        >
           ← {t('scoring.lice.backToLices')}
         </button>
         <h1 className="font-bold text-lg">{match?.roundCode || match?.matchNumberLabel || ''}</h1>

@@ -19,12 +19,20 @@ export function buildScoringHref(scoringBaseUrl: string, liceId: string | null):
  * ScoringPad, used as the deep-link fallback when the bracket /
  * pools tabs don't have a lice yet. Lands on `/matches/{matchId}`
  * which fetches the match by id without a lice context.
+ *
+ * `returnTo` is the admin URL the operator clicked from — the
+ * per-match scoring page surfaces it via `?return=` so its back
+ * button still works after a hard refresh (when `router.back()`
+ * alone would have nothing to return to).
  */
 export function buildMatchScoringHref(
   scoringBaseUrl: string,
   matchId: string | null,
+  returnTo?: string | null,
 ): string | null {
   if (!matchId) return null;
   const trimmed = scoringBaseUrl.replace(/\/+$/, '');
-  return `${trimmed}/matches/${matchId}`;
+  const base = `${trimmed}/matches/${matchId}`;
+  if (!returnTo) return base;
+  return `${base}?return=${encodeURIComponent(returnTo)}`;
 }

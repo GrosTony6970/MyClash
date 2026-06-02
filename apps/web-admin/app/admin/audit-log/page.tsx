@@ -10,6 +10,10 @@ interface AuditLogEntry {
   entity_id: string;
   payload_json: unknown;
   created_at: string;
+  /** Backend-resolved human label per entity_type. Null when the
+   *  underlying record was hard-deleted or the type isn't in the
+   *  resolver switch — the FE still shows the raw UUID below. */
+  entityLabel?: string | null;
 }
 
 interface AuditLogResponse {
@@ -289,7 +293,15 @@ export default function AdminAuditLogPage() {
                   </td>
                   <td className="py-2 pr-4">
                     <p className="font-medium">{entry.entity_type}</p>
-                    <p className="font-mono text-xs text-slate-500">{entry.entity_id}</p>
+                    {entry.entityLabel && (
+                      <p className="text-sm text-slate-700">{entry.entityLabel}</p>
+                    )}
+                    <p
+                      className="font-mono text-xs text-slate-400 max-w-[220px] truncate"
+                      title={entry.entity_id ?? ''}
+                    >
+                      {entry.entity_id}
+                    </p>
                   </td>
                   <td className="py-2">
                     <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-slate-600">

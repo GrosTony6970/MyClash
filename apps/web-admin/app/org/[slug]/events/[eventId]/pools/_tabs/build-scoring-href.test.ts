@@ -43,4 +43,21 @@ describe('buildMatchScoringHref', () => {
       'http://localhost:3002/matches/match-2',
     );
   });
+
+  it('appends an encoded ?return= when the caller passes one', () => {
+    expect(
+      buildMatchScoringHref('https://scoring.myclash.fr', 'match-1', '/org/foo/events/bar/bracket'),
+    ).toBe(
+      'https://scoring.myclash.fr/matches/match-1?return=%2Forg%2Ffoo%2Fevents%2Fbar%2Fbracket',
+    );
+  });
+
+  it('omits ?return= when null/undefined so bookmarks stay clean', () => {
+    expect(buildMatchScoringHref('https://scoring.myclash.fr', 'match-1', null)).toBe(
+      'https://scoring.myclash.fr/matches/match-1',
+    );
+    expect(buildMatchScoringHref('https://scoring.myclash.fr', 'match-1')).toBe(
+      'https://scoring.myclash.fr/matches/match-1',
+    );
+  });
 });

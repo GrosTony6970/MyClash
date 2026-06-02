@@ -10,6 +10,7 @@ type AwaitableChain = Promise<{ data: unknown; error: unknown; count?: number | 
   eq: ReturnType<typeof vi.fn>;
   gte: ReturnType<typeof vi.fn>;
   lte: ReturnType<typeof vi.fn>;
+  in: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
   range: ReturnType<typeof vi.fn>;
   limit: ReturnType<typeof vi.fn>;
@@ -21,7 +22,7 @@ function makeAwaitableChain(result: {
   count?: number | null;
 }): AwaitableChain {
   const chain = Promise.resolve(result) as AwaitableChain;
-  for (const method of ['select', 'eq', 'gte', 'lte', 'order', 'range', 'limit'] as const) {
+  for (const method of ['select', 'eq', 'gte', 'lte', 'in', 'order', 'range', 'limit'] as const) {
     (chain as unknown as Record<string, unknown>)[method] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -35,8 +36,8 @@ describe('AdminAuditLogService', () => {
     service = new AdminAuditLogService(mockSupabase as never);
   });
 
-  it('applies filters, clamps page size, and returns pagination metadata', async () => {
-    const chain = makeAwaitableChain({
+  it('applies filters, clamps page size, returns pagination metadata, and enriches entityLabel', async () => {
+    const auditChain = makeAwaitableChain({
       data: [
         {
           id: 'log-1',
@@ -51,7 +52,22 @@ describe('AdminAuditLogService', () => {
       error: null,
       count: 151,
     });
-    fromMock.mockReturnValue(chain);
+    const fighterChain = makeAwaitableChain({
+      data: [
+        {
+          id: 'fighter-1',
+          display_name: 'Alice Smith',
+          given_name: 'Alice',
+          family_name: 'Smith',
+        },
+      ],
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'audit_log') return auditChain;
+      if (table === 'global_persons') return fighterChain;
+      throw new Error(`Unexpected table: ${table}`);
+    });
 
     const result = await service.list({
       actor: 'actor-1',
@@ -64,17 +80,19 @@ describe('AdminAuditLogService', () => {
     });
 
     expect(fromMock).toHaveBeenCalledWith('audit_log');
-    expect(chain.select).toHaveBeenCalledWith(
+    expect(fromMock).toHaveBeenCalledWith('global_persons');
+    expect(auditChain.select).toHaveBeenCalledWith(
       'id, actor_user_id, action, entity_type, entity_id, payload_json, created_at',
       { count: 'exact' },
     );
-    expect(chain.eq).toHaveBeenCalledWith('actor_user_id', 'actor-1');
-    expect(chain.eq).toHaveBeenCalledWith('action', 'fighter.merge');
-    expect(chain.eq).toHaveBeenCalledWith('entity_type', 'fighter');
-    expect(chain.gte).toHaveBeenCalledWith('created_at', '2026-05-01');
-    expect(chain.lte).toHaveBeenCalledWith('created_at', '2026-05-03');
-    expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
-    expect(chain.range).toHaveBeenCalledWith(100, 199);
+    expect(auditChain.eq).toHaveBeenCalledWith('actor_user_id', 'actor-1');
+    expect(auditChain.eq).toHaveBeenCalledWith('action', 'fighter.merge');
+    expect(auditChain.eq).toHaveBeenCalledWith('entity_type', 'fighter');
+    expect(auditChain.gte).toHaveBeenCalledWith('created_at', '2026-05-01');
+    expect(auditChain.lte).toHaveBeenCalledWith('created_at', '2026-05-03');
+    expect(auditChain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(auditChain.range).toHaveBeenCalledWith(100, 199);
+    expect(fighterChain.in).toHaveBeenCalledWith('id', ['fighter-1']);
     expect(result).toEqual({
       items: [
         {
@@ -85,12 +103,60 @@ describe('AdminAuditLogService', () => {
           entity_id: 'fighter-1',
           payload_json: { reason: 'duplicate' },
           created_at: '2026-05-03T10:00:00.000Z',
+          entityLabel: 'Alice Smith',
         },
       ],
       total: 151,
       page: 2,
       perPage: 100,
       totalPages: 2,
+    });
+  });
+
+  it('resolves entityLabel per type and falls back to null for unknown types', async () => {
+    const auditChain = makeAwaitableChain({
+      data: [
+        {
+          id: 'log-evt',
+          actor_user_id: 'actor-1',
+          action: 'event.publish',
+          entity_type: 'event',
+          entity_id: 'event-1',
+          payload_json: null,
+          created_at: '2026-05-03T10:00:00.000Z',
+        },
+        {
+          id: 'log-mystery',
+          actor_user_id: 'actor-1',
+          action: 'something.happened',
+          entity_type: 'unmapped_type',
+          entity_id: 'unknown-1',
+          payload_json: null,
+          created_at: '2026-05-03T11:00:00.000Z',
+        },
+      ],
+      error: null,
+      count: 2,
+    });
+    const eventChain = makeAwaitableChain({
+      data: [{ id: 'event-1', name: 'Spring Open 2026' }],
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'audit_log') return auditChain;
+      if (table === 'events') return eventChain;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await service.list({});
+
+    expect(result.items[0]).toMatchObject({
+      entity_type: 'event',
+      entityLabel: 'Spring Open 2026',
+    });
+    expect(result.items[1]).toMatchObject({
+      entity_type: 'unmapped_type',
+      entityLabel: null,
     });
   });
 

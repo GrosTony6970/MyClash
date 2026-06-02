@@ -511,9 +511,27 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         // treatment is gone — the web-scoring
                         // /matches/:matchId route renders the same UI
                         // without needing a lice context.
+                        // Compute the no-returnTo href at render time for
+                        // the disabled-vs-clickable check + aria-label; the
+                        // actual navigation in the click handler below
+                        // re-builds the URL with `?return=<current-url>` so
+                        // the per-match scoring page's back button survives
+                        // a hard refresh.
                         const scoringHref =
                           buildScoringHref(scoringBaseUrl, m.lice_id) ??
                           buildMatchScoringHref(scoringBaseUrl, m.id);
+                        function openScoring() {
+                          if (m.lice_id) {
+                            window.location.href = buildScoringHref(scoringBaseUrl, m.lice_id)!;
+                            return;
+                          }
+                          const href = buildMatchScoringHref(
+                            scoringBaseUrl,
+                            m.id,
+                            window.location.href,
+                          );
+                          if (href) window.location.href = href;
+                        }
                         const auditHref = `/org/${slug}/events/${eventId}/matches/${m.id}`;
                         // Winner-bold rule: only completed matches with a
                         // clear differential elect a winner. Ties leave both
@@ -531,12 +549,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             tabIndex={0}
                             aria-label={t('organizer.pool.match.openScoreboard')}
                             onClick={() => {
-                              if (scoringHref) window.location.href = scoringHref;
+                              if (scoringHref) openScoring();
                             }}
                             onKeyDown={(e) => {
                               if ((e.key === 'Enter' || e.key === ' ') && scoringHref) {
                                 e.preventDefault();
-                                window.location.href = scoringHref;
+                                openScoring();
                               }
                             }}
                             className={[
