@@ -1,7 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { ScoringSystemForm } from '../scoring-system-form';
-
-export default function NewScoringSystemPage() {
-  return <ScoringSystemForm mode="create" />;
+export default function ScoringSystemsNewRedirect() {
+  redirect('/admin/rulesets/league/new');
 }

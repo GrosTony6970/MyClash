@@ -178,7 +178,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
         throw new Error(errBody.message ?? 'Save failed');
       }
       toast.success(mode === 'create' ? 'Scoring system created' : 'Scoring system updated');
-      router.push('/admin/leagues/scoring-systems');
+      router.push('/admin/rulesets/league');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Save failed';
       setError(msg);
@@ -205,7 +205,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
         }
         actions={
           <Link
-            href="/admin/leagues/scoring-systems"
+            href="/admin/rulesets/league"
             className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
             ← Back
@@ -368,7 +368,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
         {!isBuiltin && (
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <Link
-              href="/admin/leagues/scoring-systems"
+              href="/admin/rulesets/league"
               className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Cancel

@@ -629,7 +629,7 @@ export default function EditLeaguePage() {
               <option value="custom">Custom (per-league)</option>
             </select>
             <Link
-              href="/admin/leagues/scoring-systems"
+              href="/admin/rulesets/league"
               className="mt-1 inline-block text-[11px] font-medium text-red-700 hover:underline"
             >
               Manage scoring systems →
