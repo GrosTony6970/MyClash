@@ -682,7 +682,7 @@ export class EventsService {
 
     const pools =
       poolPhase && typeof poolPhase['id'] === 'string'
-        ? await this.getPublishedPools(poolPhase['id'])
+        ? await this.getPublishedPools(poolPhase['id'], eventId)
         : [];
     const bracket =
       bracketPhase && typeof bracketPhase['id'] === 'string'
@@ -1024,18 +1024,159 @@ export class EventsService {
     return (data ?? []) as Array<Record<string, unknown> & { id: string }>;
   }
 
-  private async getPublishedPools(phaseId: string) {
+  private async getPublishedPools(phaseId: string, eventId: string) {
+    // 1. Pools + members (joined via pool_members → registrations → persons → clubs).
     const { data, error } = await this.supabase.service
       .from('pools')
-      .select('id, name')
+      .select(
+        'id, name, pool_members(registration_id, seed, registrations(id, persons(id, given_name, family_name, clubs(id, name, abbreviation))))',
+      )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    return ((data ?? []) as Array<Record<string, unknown>>).map((pool) => ({
-      id: pool['id'],
-      name: pool['name'],
+
+    // Supabase types nested joins as arrays even when the FK is one-to-one;
+    // the pool-standings service uses the same `as unknown as` shape cast.
+    const poolRows = (data ?? []) as unknown as Array<{
+      id: string;
+      name: string;
+      pool_members: Array<{
+        registration_id: string;
+        seed: number | null;
+        registrations: {
+          id: string;
+          persons: {
+            id: string;
+            given_name: string | null;
+            family_name: string | null;
+            clubs: { id: string; name: string; abbreviation: string | null } | null;
+          } | null;
+        } | null;
+      }> | null;
+    }>;
+
+    const poolIds = poolRows.map((p) => p.id);
+
+    // 2. Referee assignments for these pools — projected as a public-safe
+    //    shape (display name + role + status; never auto_assigned or
+    //    conflicts_jsonb). The display name comes from the auth.users (if
+    //    claimed) or global_persons (if person-scoped) table.
+    const refereesByPool = await this.getPublishedRefereesByPool(eventId, poolIds);
+
+    // 3. Compose the public payload. `standings` stays empty here —
+    //    the public tournament page hydrates per-pool standings via
+    //    Realtime / a dedicated endpoint.
+    return poolRows.map((pool) => ({
+      id: pool.id,
+      name: pool.name,
+      members: (pool.pool_members ?? [])
+        .map((m) => {
+          const person = m.registrations?.persons;
+          const given = person?.given_name?.trim() ?? '';
+          const family = person?.family_name?.trim() ?? '';
+          const fighterName = `${given} ${family}`.trim() || '—';
+          return {
+            registrationId: m.registration_id,
+            fighterName,
+            clubName: person?.clubs?.name ?? null,
+            clubAbbreviation: person?.clubs?.abbreviation ?? null,
+            seed: m.seed ?? null,
+          };
+        })
+        .sort((a, b) => {
+          // Members sorted by seed (lowest first), with unseeded last.
+          const aSeed = a.seed ?? Number.POSITIVE_INFINITY;
+          const bSeed = b.seed ?? Number.POSITIVE_INFINITY;
+          return aSeed - bSeed;
+        }),
+      referees: refereesByPool.get(pool.id) ?? [],
       standings: [],
     }));
+  }
+
+  /**
+   * For each pool, return the confirmed + pending referee slots projected
+   * for public consumption. Never exposes auto_assigned / conflicts_jsonb /
+   * candidate suggestions — those are admin-only signals.
+   */
+  private async getPublishedRefereesByPool(
+    eventId: string,
+    poolIds: string[],
+  ): Promise<
+    Map<
+      string,
+      Array<{
+        role: string | null;
+        displayName: string;
+        status: string;
+      }>
+    >
+  > {
+    const byPool = new Map<
+      string,
+      Array<{ role: string | null; displayName: string; status: string }>
+    >();
+    if (poolIds.length === 0) return byPool;
+
+    const { data: assignments, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('pool_id, role, status, user_id, person_id')
+      .eq('event_id', eventId)
+      .eq('scope_type', 'pool')
+      .in('pool_id', poolIds)
+      .in('status', ['assigned', 'confirmed', 'pending']);
+    if (error) throw new BadRequestException(error.message);
+
+    const rows = (assignments ?? []) as Array<{
+      pool_id: string | null;
+      role: string | null;
+      status: string;
+      user_id: string | null;
+      person_id: string | null;
+    }>;
+    if (rows.length === 0) return byPool;
+
+    // Resolve display names: person_id → global_persons (given+family);
+    // user_id → global_persons via the linked auth user, falling back to
+    // auth admin email. Mirrors the resolveUserNames helper above but only
+    // for the subset of ids that show up in these assignments.
+    const personIds = Array.from(
+      new Set(rows.map((r) => r.person_id).filter((id): id is string => !!id)),
+    );
+    const userIds = Array.from(
+      new Set(rows.map((r) => r.user_id).filter((id): id is string => !!id)),
+    );
+
+    const personNameById = new Map<string, string>();
+    if (personIds.length > 0) {
+      const { data: personRows } = await this.supabase.service
+        .from('global_persons')
+        .select('id, given_name, family_name')
+        .in('id', personIds);
+      for (const p of (personRows ?? []) as Array<{
+        id: string;
+        given_name: string | null;
+        family_name: string | null;
+      }>) {
+        const name = `${(p.given_name ?? '').trim()} ${(p.family_name ?? '').trim()}`.trim();
+        if (name) personNameById.set(p.id, name);
+      }
+    }
+
+    const userNameById = userIds.length > 0 ? await this.resolveUserNames(userIds) : new Map();
+
+    for (const r of rows) {
+      if (!r.pool_id) continue;
+      const displayName = r.person_id
+        ? (personNameById.get(r.person_id) ?? '—')
+        : r.user_id
+          ? (userNameById.get(r.user_id) ?? '—')
+          : '—';
+      const list = byPool.get(r.pool_id) ?? [];
+      list.push({ role: r.role, displayName, status: r.status });
+      byPool.set(r.pool_id, list);
+    }
+    return byPool;
   }
 
   private async getPublishedBracket(phase: Record<string, unknown>) {

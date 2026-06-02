@@ -18,6 +18,8 @@ import { getApiUrl } from '@/lib/api-url';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { StandingsTable } from './StandingsTable';
 import { BracketView } from './BracketView';
+import { TournamentTabs, type TabKey } from './TournamentTabs';
+import { PoolsCompositionView, type PoolMember, type PoolReferee } from './PoolsCompositionView';
 
 interface Props {
   params: Promise<{ eventSlug: string; tournamentSlug: string }>;
@@ -28,7 +30,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const apiUrl = getApiUrl();
   const data = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
   if (!data) return { title: `${tournamentSlug} · MyClash` };
-  const fighterCount = data.pools.reduce((n, pool) => n + pool.standings.length, 0);
+  const fighterCount = data.pools.reduce(
+    (n, pool) => n + (pool.members?.length ?? pool.standings.length),
+    0,
+  );
   return {
     title: `${data.tournament.name} · MyClash`,
     description: `${fighterCount} fighters · ${data.tournament.rulesetCode}`,
@@ -54,6 +59,8 @@ export interface StandingRow {
 export interface Pool {
   id: string;
   name: string;
+  members: PoolMember[];
+  referees: PoolReferee[];
   standings: StandingRow[];
 }
 
@@ -201,80 +208,36 @@ export default async function TournamentPage({ params }: Props) {
   const { tournament, pools, bracketSlots, bracketSize, bracketRounds } = data;
   const podium = derivePodium(bracketSlots);
   const podiumDecided = !!(podium?.gold && podium.silver);
-  const fighterCount = pools.reduce((n, pool) => n + pool.standings.length, 0);
+  const fighterCount = pools.reduce(
+    (n, pool) => n + (pool.members?.length ?? pool.standings.length),
+    0,
+  );
   const tournamentColor = (tournament as { color?: string | null }).color ?? null;
+  const accentColor = colorTokenToHex(tournamentColor);
 
-  // Slice 4: section order adapts to tournament status so the most useful
-  // answer leads.
-  //   - completed → Podium first, then Bracket, then Pools.
-  //   - running   → Bracket first, then Pools, then Podium (if any).
-  //   - upcoming  → Pools first, then placeholders.
-  const sections: Array<'podium' | 'bracket' | 'pools'> =
+  const poolsTabVisible = pools.length > 0;
+  const standingsTabVisible = pools.length > 0;
+  const bracketTabVisible = bracketSlots.length > 0;
+  const podiumTabVisible = podiumDecided;
+
+  // Default tab adapts to status. Falls back to the first visible tab
+  // when the preferred default isn't available yet.
+  const visibleByKey: Record<TabKey, boolean> = {
+    pools: poolsTabVisible,
+    standings: standingsTabVisible,
+    bracket: bracketTabVisible,
+    podium: podiumTabVisible,
+  };
+  const preferredDefault: TabKey =
     tournament.status === 'completed'
-      ? ['podium', 'bracket', 'pools']
+      ? 'podium'
       : tournament.status === 'running'
-        ? ['bracket', 'pools', 'podium']
-        : ['pools', 'bracket', 'podium'];
-
-  const renderPools = () =>
-    pools.length > 0 ? (
-      <section key="pools" className="mb-8">
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-amber-400">
-          Pool standings
-        </h2>
-        <div className="flex flex-col gap-6">
-          {pools.map((pool) => (
-            <StandingsTable
-              key={pool.id}
-              poolId={pool.id}
-              poolName={pool.name}
-              initialStandings={pool.standings}
-              tournamentId={tournament.id}
-              apiUrl={apiUrl}
-            />
-          ))}
-        </div>
-      </section>
-    ) : (
-      <section
-        key="pools-placeholder"
-        className="mb-8 rounded-xl border border-dashed border-gray-800 p-6 text-center text-sm text-gray-500"
-      >
-        Pool rosters will be published before the event starts.
-      </section>
-    );
-
-  const renderBracket = () =>
-    bracketSlots.length > 0 ? (
-      <section key="bracket" className="mb-8">
-        <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-amber-400">Bracket</h2>
-        <p className="mb-2 text-xs text-gray-500 lg:hidden">
-          Scroll horizontally to see the full bracket.
-        </p>
-        <div className="overflow-x-auto">
-          <BracketView
-            slots={bracketSlots}
-            bracketSize={bracketSize}
-            rounds={bracketRounds}
-            eventSlug={eventSlug}
-          />
-        </div>
-      </section>
-    ) : (
-      <section
-        key="bracket-placeholder"
-        className="mb-8 rounded-xl border border-dashed border-gray-800 p-6 text-center text-sm text-gray-500"
-      >
-        The bracket will be published once pools are decided.
-      </section>
-    );
-
-  const renderPodium = () =>
-    podiumDecided && podium ? (
-      <section key="podium" className="mb-8 rounded-xl border border-gray-800 bg-gray-900 p-4">
-        <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
-      </section>
-    ) : null;
+        ? 'standings'
+        : 'pools';
+  const fallbackOrder: TabKey[] = ['pools', 'standings', 'bracket', 'podium'];
+  const defaultTab: TabKey = visibleByKey[preferredDefault]
+    ? preferredDefault
+    : (fallbackOrder.find((k) => visibleByKey[k]) ?? 'pools');
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col px-4 py-6">
@@ -282,17 +245,17 @@ export default async function TournamentPage({ params }: Props) {
       <div className="mb-6 flex items-start gap-4">
         <div
           className="mt-2 h-12 w-1.5 rounded-full"
-          style={{ backgroundColor: colorTokenToHex(tournamentColor) }}
+          style={{ backgroundColor: accentColor }}
           aria-hidden="true"
         />
         <div className="flex-1">
           <h1
-            className="text-2xl font-bold sm:text-3xl"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
+            className="font-display text-2xl font-bold sm:text-3xl"
+            style={{ color: 'var(--event-primary, #c0392b)' }}
           >
             {tournament.name}
           </h1>
-          <p className="mt-0.5 text-sm text-gray-400">
+          <p className="mt-0.5 text-sm text-slate-500">
             {tournament.weapon && `${tournament.weapon} · `}
             {tournament.rulesetCode}
             {fighterCount > 0 && ` · ${fighterCount} fighters`}
@@ -300,21 +263,85 @@ export default async function TournamentPage({ params }: Props) {
         </div>
       </div>
 
-      {sections.map((s) => {
-        if (s === 'podium') return renderPodium();
-        if (s === 'bracket') return renderBracket();
-        if (s === 'pools') return renderPools();
-        return null;
-      })}
-
-      {/* Empty state — only if we genuinely have nothing to show. */}
-      {pools.length === 0 && bracketSlots.length === 0 && !podiumDecided && (
+      {!poolsTabVisible && !standingsTabVisible && !bracketTabVisible && !podiumTabVisible ? (
         <div className="py-12 text-center">
           <p className="mb-3 text-4xl">⏳</p>
-          <p className="text-gray-400">
+          <p className="text-slate-500">
             Pools and bracket will appear here once the organizer generates them.
           </p>
         </div>
+      ) : (
+        <TournamentTabs
+          defaultTab={defaultTab}
+          tabs={[
+            {
+              key: 'pools',
+              label: 'Pools',
+              visible: poolsTabVisible,
+              panel: (
+                <PoolsCompositionView
+                  pools={pools.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    members: p.members ?? [],
+                    referees: p.referees ?? [],
+                  }))}
+                  accentColor={accentColor}
+                />
+              ),
+            },
+            {
+              key: 'standings',
+              label: 'Standings',
+              visible: standingsTabVisible,
+              panel: (
+                <div className="flex flex-col gap-6">
+                  {pools.map((pool) => (
+                    <StandingsTable
+                      key={pool.id}
+                      poolId={pool.id}
+                      poolName={pool.name}
+                      initialStandings={pool.standings}
+                      tournamentId={tournament.id}
+                      apiUrl={apiUrl}
+                    />
+                  ))}
+                </div>
+              ),
+            },
+            {
+              key: 'bracket',
+              label: 'Bracket',
+              visible: bracketTabVisible,
+              panel: (
+                <div>
+                  <p className="mb-2 text-xs text-slate-500 lg:hidden">
+                    Scroll horizontally to see the full bracket.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <BracketView
+                      slots={bracketSlots}
+                      bracketSize={bracketSize}
+                      rounds={bracketRounds}
+                      eventSlug={eventSlug}
+                    />
+                  </div>
+                </div>
+              ),
+            },
+            {
+              key: 'podium',
+              label: 'Podium',
+              visible: podiumTabVisible,
+              panel:
+                podium && podiumDecided ? (
+                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                    <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
+                  </div>
+                ) : null,
+            },
+          ]}
+        />
       )}
     </main>
   );
