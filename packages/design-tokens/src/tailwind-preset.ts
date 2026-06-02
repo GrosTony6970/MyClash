@@ -17,12 +17,19 @@ const preset = {
           red: colors.red,
           blue: colors.blue,
           gold: colors.gold,
+          green: colors.green,
           slate: colors.slate,
         },
         // Semantic shortcuts
         primary: colors.red,
         secondary: colors.blue,
         accent: colors.gold,
+        // Semantic palette aliases (Slice F.0 — vocabulary only,
+        // consumer migration deferred to a separate plan)
+        error: colors.red,
+        warning: colors.gold,
+        success: colors.green,
+        info: colors.blue,
       },
       fontFamily: {
         display: [typography.fontDisplay],

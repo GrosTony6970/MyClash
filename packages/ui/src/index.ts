@@ -62,6 +62,12 @@ export type { FoilMarkProps } from './components/FoilMark';
 export { AdminPageHeader } from './components/AdminPageHeader';
 export type { AdminPageHeaderProps } from './components/AdminPageHeader';
 
+export { MetricCard } from './components/MetricCard';
+export type { MetricCardProps } from './components/MetricCard';
+
+export { StatsGrid } from './components/StatsGrid';
+export type { StatsGridProps } from './components/StatsGrid';
+
 export { DataTable, DataTableHead, DataTableRow, DataTableCell } from './components/DataTable';
 export type { DataTableProps, DataTableRowProps, DataTableCellProps } from './components/DataTable';
 

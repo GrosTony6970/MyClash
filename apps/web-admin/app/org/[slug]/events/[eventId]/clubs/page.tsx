@@ -46,17 +46,17 @@ export default function EventClubsPage() {
   return (
     <main className="p-6 lg:p-8">
       <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
-        <Link href={`/org/${slug}`} className="hover:text-[#1d4ed8]">
+        <Link href={`/org/${slug}`} className="hover:text-blue-700">
           {slug}
         </Link>
         <span>/</span>
-        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-[#1d4ed8]">
+        <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-blue-700">
           {t('organizer.shell.nav.eventOverview')}
         </Link>
         <span>/</span>
-        <span className="font-medium text-[#0f172a]">{t('organizer.shell.nav.clubs')}</span>
+        <span className="font-medium text-slate-900">{t('organizer.shell.nav.clubs')}</span>
       </div>
-      <h1 className="mb-6 text-3xl font-bold text-[#0f172a]">{t('organizer.shell.nav.clubs')}</h1>
+      <h1 className="mb-6 text-3xl font-bold text-slate-900">{t('organizer.shell.nav.clubs')}</h1>
       <EventClubsSection apiUrl={apiUrl} eventId={eventId} isReadOnly={isReadOnly} />
     </main>
   );
@@ -180,7 +180,7 @@ function EventClubsSection({
                 onClick={() => setScope(item)}
                 className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
                   scope === item
-                    ? 'bg-white text-[#1d4ed8] shadow-sm'
+                    ? 'bg-white text-blue-700 shadow-sm'
                     : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
@@ -203,7 +203,7 @@ function EventClubsSection({
               type="button"
               onClick={() => void loadClubs(scope, query)}
               disabled={loading}
-              className="rounded-md bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {t('actions.search')}
             </button>
@@ -247,7 +247,7 @@ function EventClubsSection({
                 <Fragment key={club.id}>
                   <tr className="border-t border-slate-100">
                     <td className="py-3 pr-4">
-                      <div className="font-semibold text-[#0f172a]">{club.name}</div>
+                      <div className="font-semibold text-slate-900">{club.name}</div>
                       <div className="text-xs text-slate-500">{club.abbreviation ?? '-'}</div>
                     </td>
                     <td className="py-3 pr-4 text-slate-600">
@@ -273,7 +273,7 @@ function EventClubsSection({
                           type="button"
                           onClick={() => toggleExpanded(club.id)}
                           aria-expanded={expanded}
-                          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#1d4ed8] hover:bg-blue-50"
+                          className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
                         >
                           {expanded
                             ? t('organizer.eventHub.clubs.hideFighters')
@@ -292,7 +292,7 @@ function EventClubsSection({
                         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div>
-                              <h3 className="font-semibold text-[#0f172a]">
+                              <h3 className="font-semibold text-slate-900">
                                 {t('organizer.eventHub.clubs.fightersFor', { club: club.name })}
                               </h3>
                               <p className="mt-0.5 text-xs text-slate-500">
@@ -390,7 +390,7 @@ function EventClubsSection({
           onClick={() => void submitClubRequest()}
           disabled={submitting || !form.name.trim() || isReadOnly}
           title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-          className="mt-4 rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          className="mt-4 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
         >
           {submitting
             ? t('organizer.eventHub.clubs.submitting')

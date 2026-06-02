@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AdminPageHeader, FoilMark } from '@myclash/ui';
+import { AdminPageHeader, FoilMark, MetricCard, StatsGrid } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 
 type DashboardStats = {
@@ -189,8 +189,6 @@ export default function SuperAdminDashboardPage() {
       />
 
       <section className="mb-12">
-        <p className="mb-6 text-sm text-slate-600">{t('admin.dashboard.statsDescription')}</p>
-
         {loadingStats ? (
           <p className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
             {t('admin.dashboard.statsLoading')}
@@ -204,31 +202,26 @@ export default function SuperAdminDashboardPage() {
             {metricSections.map((section, sectionIdx) => (
               <div key={section.headingKey} className={sectionIdx === 0 ? '' : 'mt-10'}>
                 <div className="mb-4 flex items-center gap-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-800">
                     {t(section.headingKey)}
-                  </p>
+                  </h2>
                   <FoilMark className="text-slate-300" width={32} />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <StatsGrid cols={3}>
                   {section.cards.map((card, cardIdx) => (
-                    <div
+                    <MetricCard
                       key={card.label}
-                      className="metric-card rounded-md border border-slate-200 bg-white p-5"
+                      label={card.label}
+                      value={formatNumber(card.value)}
+                      detail={card.detail}
+                      className="metric-card"
                       style={{ animationDelay: `${(sectionIdx * 4 + cardIdx) * 60}ms` }}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        {card.label}
-                      </p>
-                      <p className="mt-3 font-display text-3xl font-medium tracking-tight text-slate-900">
-                        {formatNumber(card.value)}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">{card.detail}</p>
-                    </div>
+                    />
                   ))}
-                </div>
+                </StatsGrid>
               </div>
             ))}
-            <div className="mt-10 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+            <div className="mt-10 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               {t('admin.dashboard.statsRecent', {
                 days: stats.recent.days,
                 organizations: stats.recent.newOrganizations,

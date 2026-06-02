@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
+import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
@@ -199,22 +200,20 @@ export default function OrgDashboardPage() {
   ];
 
   return (
-    <main className="p-6 lg:p-8">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#1d4ed8]">
-            {t('organizer.shell.eyebrow')}
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-[#0f172a]">{orgName}</h1>
-          <p className="mt-1 font-mono text-sm text-slate-500">{slug}</p>
-        </div>
-        <Link
-          href={`/org/${slug}/events`}
-          className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
-        >
-          {t('organizer.dashboard.manageEvents')}
-        </Link>
-      </div>
+    <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
+      <AdminPageHeader
+        eyebrow={t('organizer.shell.eyebrow')}
+        title={orgName}
+        subtitle={<span className="font-mono text-slate-500">{slug}</span>}
+        actions={
+          <Link
+            href={`/org/${slug}/events`}
+            className="inline-flex w-fit items-center rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+          >
+            {t('organizer.dashboard.manageEvents')}
+          </Link>
+        }
+      />
 
       {error && (
         <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -224,30 +223,28 @@ export default function OrgDashboardPage() {
 
       {loading && (
         <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#1d4ed8]" />
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-red-700" />
           {t('organizer.dashboard.loadingStats')}
         </div>
       )}
 
-      <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {cards.map((card) => (
-          <article
-            key={card.label}
-            className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-              {card.label}
-            </p>
-            <p className="mt-4 text-3xl font-bold text-[#0f172a]">{card.value}</p>
-            <p className="mt-1 text-sm text-slate-500">{card.detail}</p>
-          </article>
-        ))}
+      <section className="mb-8">
+        <StatsGrid cols={3}>
+          {cards.map((card) => (
+            <MetricCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              detail={card.detail}
+            />
+          ))}
+        </StatsGrid>
       </section>
 
       {/* Branding card — rename + logo upload. Slug stays read-only so that
           existing bookmarks/URLs keep working. */}
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+      <section className="rounded-md border border-slate-200 bg-white p-5">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
           {t('organizer.dashboard.brand.title')}
         </h2>
         <p className="mt-1 text-sm text-slate-500">{t('organizer.dashboard.brand.description')}</p>
@@ -285,7 +282,7 @@ export default function OrgDashboardPage() {
               type="button"
               disabled={busy || !org}
               onClick={() => logoInput.current?.click()}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {t('organizer.events.uploadLogo')}
             </button>
@@ -326,7 +323,7 @@ export default function OrgDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setBrandColorDraft('')}
-                    className="text-xs font-normal text-slate-500 underline hover:text-slate-700"
+                    className="rounded text-xs font-normal text-slate-500 underline hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
                   >
                     {t('organizer.dashboard.brand.colorClear')}
                   </button>
@@ -347,7 +344,7 @@ export default function OrgDashboardPage() {
                       (org.brandColor ?? null)) ||
                   !nameDraft.trim()
                 }
-                className="rounded-md bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t('organizer.dashboard.brand.save')}
               </button>

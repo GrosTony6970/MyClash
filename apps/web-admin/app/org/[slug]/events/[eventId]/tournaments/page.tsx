@@ -271,19 +271,19 @@ export default function EventTournamentsPage() {
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Link href={`/org/${slug}`} className="hover:text-[#1d4ed8]">
+              <Link href={`/org/${slug}`} className="hover:text-blue-700">
                 {slug}
               </Link>
               <span>/</span>
-              <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-[#1d4ed8]">
+              <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-blue-700">
                 {eventName || t('organizer.shell.nav.eventOverview')}
               </Link>
               <span>/</span>
-              <span className="font-medium text-[#0f172a]">
+              <span className="font-medium text-slate-900">
                 {t('organizer.shell.nav.tournaments')}
               </span>
             </div>
-            <h1 className="mt-2 text-3xl font-bold text-[#0f172a]">
+            <h1 className="mt-2 text-3xl font-bold text-slate-900">
               {t('organizer.tournaments.title')}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
@@ -300,7 +300,7 @@ export default function EventTournamentsPage() {
           ) : (
             <Link
               href={`/org/${slug}/events/${eventId}/tournaments/new`}
-              className="inline-flex w-fit items-center rounded-md bg-[#dc2626] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+              className="inline-flex w-fit items-center rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
             >
               {t('organizer.tournaments.create')}
             </Link>
@@ -328,14 +328,14 @@ export default function EventTournamentsPage() {
       >
         {loading && (
           <div className="flex items-center gap-2 px-5 py-8 text-sm text-slate-500">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#1d4ed8]" />
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-red-700" />
             {t('organizer.tournaments.loading')}
           </div>
         )}
 
         {!loading && tournaments.length === 0 && (
           <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-[#0f172a]">
+            <h2 className="mb-3 text-2xl font-bold text-slate-900">
               {t('organizer.tournaments.emptyTitle')}
             </h2>
             <p className="mb-6 max-w-md text-sm text-slate-500">
@@ -343,7 +343,7 @@ export default function EventTournamentsPage() {
             </p>
             <Link
               href={`/org/${slug}/events/${eventId}/tournaments/new`}
-              className="rounded-md bg-[#dc2626] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+              className="rounded-md bg-red-700 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
             >
               {t('organizer.tournaments.create')}
             </Link>
@@ -509,7 +509,7 @@ export default function EventTournamentsPage() {
             onSubmit={(event) => void saveEdit(event)}
             className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-2xl"
           >
-            <h2 className="text-xl font-bold text-[#0f172a]">
+            <h2 className="text-xl font-bold text-slate-900">
               {t('organizer.tournaments.editTitle')}
             </h2>
             <p className="mt-1 font-mono text-xs text-slate-400">/{editing.slug}</p>
@@ -562,7 +562,7 @@ export default function EventTournamentsPage() {
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold text-[#0f172a]">
+            <h2 className="text-xl font-bold text-slate-900">
               {t('organizer.tournaments.deleteTitle')}
             </h2>
             <p className="mt-2 text-sm text-slate-600">

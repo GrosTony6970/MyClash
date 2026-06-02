@@ -274,12 +274,12 @@ export default function EventDetailPage() {
       <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Link href={`/org/${slug}`} className="hover:text-[#1d4ed8]">
+            <Link href={`/org/${slug}`} className="hover:text-blue-700">
               {t('organizer.eventHub.backToOrg')}
             </Link>
             <span>/</span>
             {event ? (
-              <span className="font-medium text-[#0f172a]">
+              <span className="font-medium text-slate-900">
                 {event.name?.trim() ? event.name : t('organizer.eventHub.untitledEvent')}
               </span>
             ) : (
@@ -290,7 +290,7 @@ export default function EventDetailPage() {
             )}
           </div>
           {event ? (
-            <h1 className="mt-3 text-3xl font-bold text-[#0f172a]">
+            <h1 className="mt-3 text-3xl font-bold text-slate-900">
               {event.name?.trim() ? event.name : t('organizer.eventHub.untitledEvent')}
             </h1>
           ) : (
@@ -426,15 +426,15 @@ export default function EventDetailPage() {
               {(stats?.tournaments ?? []).map((tournament) => {
                 const settingsHref = `/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings`;
                 const cellLinkClass =
-                  'block w-full text-slate-700 hover:text-[#1d4ed8] hover:underline';
+                  'block w-full text-slate-700 hover:text-blue-700 hover:underline';
                 const canToggleVisibility =
                   tournament.status === 'draft' || tournament.status === 'published';
                 return (
                   <tr key={tournament.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-semibold text-[#0f172a]">
+                    <td className="px-4 py-3 font-semibold text-slate-900">
                       <Link
                         href={settingsHref}
-                        className="inline-flex items-center gap-1.5 hover:text-[#1d4ed8] hover:underline"
+                        className="inline-flex items-center gap-1.5 hover:text-blue-700 hover:underline"
                       >
                         <TournamentColorDot color={tournament.color} />
                         {tournament.name}
@@ -477,7 +477,7 @@ export default function EventDetailPage() {
                           : '—'}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">
-                      <Link href={settingsHref} className="hover:text-[#1d4ed8] hover:underline">
+                      <Link href={settingsHref} className="hover:text-blue-700 hover:underline">
                         {tournament.rulesetCode ?? '—'}
                       </Link>
                     </td>
@@ -588,7 +588,7 @@ export default function EventDetailPage() {
                   onClick={() => void handleSaveCap()}
                   disabled={savingCap || isReadOnly}
                   title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
-                  className="rounded-md bg-[#dc2626] px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                  className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   {savingCap ? t('organizer.eventHub.saving') : t('organizer.eventHub.save')}
                 </button>
@@ -606,7 +606,7 @@ export default function EventDetailPage() {
                       </p>
                       <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="h-full rounded-full bg-[#dc2626] transition-all"
+                          className="h-full rounded-full bg-red-700 transition-all"
                           style={{
                             width: `${Math.min(100, (aiUsage.totalSpendEur / aiUsage.cap) * 100)}%`,
                           }}
@@ -639,7 +639,7 @@ export default function EventDetailPage() {
               {!isArchived && (
                 <Link
                   href={`/org/${slug}/events/${eventId}/archive`}
-                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-[#dc2626] hover:bg-red-100"
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
                 >
                   {t('organizer.archive.open')}
                 </Link>
@@ -648,7 +648,7 @@ export default function EventDetailPage() {
                 <button
                   type="button"
                   onClick={() => setShowDeletionModal(true)}
-                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-[#dc2626] hover:bg-red-100"
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
                 >
                   {t('organizer.deletionRequest.requestDeletion')}
                 </button>
@@ -675,7 +675,7 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-[#0f172a]">{value}</p>
+      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
       {detail ? <p className="mt-1 text-sm text-slate-500">{detail}</p> : null}
     </div>
   );

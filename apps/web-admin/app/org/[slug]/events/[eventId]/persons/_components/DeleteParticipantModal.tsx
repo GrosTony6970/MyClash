@@ -205,7 +205,7 @@ export function DeleteParticipantModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
-        <h2 className="text-xl font-bold text-[#0f172a]">{headerLabel}</h2>
+        <h2 className="text-xl font-bold text-slate-900">{headerLabel}</h2>
         <p className="mt-1 text-sm text-slate-500">
           {tournamentId
             ? 'Reviewing pool / bracket / match assignments inside the selected tournament. Started or completed matches block removal — those participants stay.'
