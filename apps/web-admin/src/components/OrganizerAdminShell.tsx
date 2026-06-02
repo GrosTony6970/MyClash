@@ -400,9 +400,6 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             <p className="truncate font-display text-lg font-medium tracking-wide">
               {orgName || t('organizer.shell.brand')}
             </p>
-            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-500">
-              {slug}
-            </p>
           </div>
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>

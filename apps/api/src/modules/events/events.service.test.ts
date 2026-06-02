@@ -613,6 +613,59 @@ describe('EventsService', () => {
     );
   });
 
+  it('listOrgEvents enriches rows with distinct participant_count per event', async () => {
+    // event-1 has 2 tournaments (t-1, t-2). Person p-1 registered to BOTH;
+    // p-2 only to t-1; p-3 to t-2. Distinct people = 3. Status filter
+    // matches the assertCapacity semantics — withdrawn rows ignored.
+    // event-2 has 1 tournament (t-3) with one registered person.
+    const eventsChain = makeAwaitableChain({
+      data: [
+        { id: 'event-1', name: 'FAL 2026' },
+        { id: 'event-2', name: 'Other event' },
+      ],
+      error: null,
+    });
+    // No creator ids on the events → resolveUserNames short-circuits
+    // without touching the global_persons table, so we only mock the
+    // events + tournaments + registrations chains.
+    const tournamentsChain = makeAwaitableChain({
+      data: [
+        { id: 't-1', event_id: 'event-1' },
+        { id: 't-2', event_id: 'event-1' },
+        { id: 't-3', event_id: 'event-2' },
+      ],
+      error: null,
+    });
+    const registrationsChain = makeAwaitableChain({
+      data: [
+        { tournament_id: 't-1', person_id: 'p-1' },
+        { tournament_id: 't-1', person_id: 'p-2' },
+        { tournament_id: 't-2', person_id: 'p-1' }, // dedup target
+        { tournament_id: 't-2', person_id: 'p-3' },
+        { tournament_id: 't-3', person_id: 'p-4' },
+      ],
+      error: null,
+    });
+    fromMock
+      .mockReturnValueOnce(eventsChain)
+      .mockReturnValueOnce(tournamentsChain)
+      .mockReturnValueOnce(registrationsChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const result = (await service.listOrgEvents('org-1', 'user-1')) as Array<{
+      id: string;
+      participant_count: number;
+    }>;
+
+    expect(result.find((r) => r.id === 'event-1')?.participant_count).toBe(3);
+    expect(result.find((r) => r.id === 'event-2')?.participant_count).toBe(1);
+    // The dedup case is the critical one — same person in two tournaments
+    // counts once, not twice.
+    expect(result.find((r) => r.id === 'event-1')?.participant_count).not.toBe(4);
+    // Registrations filtered to registered/checked_in only.
+    expect(registrationsChain.in).toHaveBeenCalledWith('status', ['registered', 'checked_in']);
+  });
+
   it('listOrgEvents enriches rows with creator name + tournament_count', async () => {
     // 1) events query — two events, one with a creator, one without.
     const eventsChain = makeAwaitableChain({

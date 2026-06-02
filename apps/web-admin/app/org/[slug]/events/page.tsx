@@ -37,6 +37,7 @@ interface OrgEvent {
   createdByUserName: string | null;
   logoUrl: string | null;
   tournamentCount: number;
+  participantCount: number;
 }
 
 interface EventForm {
@@ -83,6 +84,7 @@ function normalizeEvent(row: Record<string, unknown>): OrgEvent {
         ? String(row['logoUrl'] ?? row['logo_url'])
         : null,
     tournamentCount: Number(row['tournamentCount'] ?? row['tournament_count'] ?? 0),
+    participantCount: Number(row['participantCount'] ?? row['participant_count'] ?? 0),
   };
 }
 
@@ -181,6 +183,10 @@ export default function OrgEventsListPage() {
             return row.startDate;
           case 'endDate':
             return row.endDate;
+          case 'tournamentCount':
+            return row.tournamentCount;
+          case 'participantCount':
+            return row.participantCount;
           case 'visibility':
             return row.status === 'draft' ? 0 : 1;
           default:
@@ -459,6 +465,24 @@ export default function OrgEventsListPage() {
                       onToggle={toggleSort}
                     />
                   </th>
+                  <th className="px-4 py-3 text-right">
+                    <SortableHeader
+                      label={t('organizer.events.table.tournaments')}
+                      columnKey="tournamentCount"
+                      currentKey={sortKey}
+                      direction={sortKey === 'tournamentCount' ? sortDir : null}
+                      onToggle={toggleSort}
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    <SortableHeader
+                      label={t('organizer.events.table.participants')}
+                      columnKey="participantCount"
+                      currentKey={sortKey}
+                      direction={sortKey === 'participantCount' ? sortDir : null}
+                      onToggle={toggleSort}
+                    />
+                  </th>
                   <th className="px-4 py-3">
                     <SortableHeader
                       label={t('organizer.events.table.startDate')}
@@ -515,37 +539,69 @@ export default function OrgEventsListPage() {
                       >
                         {event.name}
                       </Link>
-                      <p className="mt-1 font-mono text-xs text-slate-400">/e/{event.slug}</p>
                       <p className="mt-1 text-xs text-slate-500">
                         {event.location ?? t('organizer.dashboard.noLocation')}
                       </p>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{formatDate(event.createdAt)}</td>
                     <td className="px-4 py-4 text-slate-600">{event.createdByUserName ?? '—'}</td>
+                    <td className="px-4 py-4 text-right font-mono tabular-nums text-slate-700">
+                      {event.tournamentCount}
+                    </td>
+                    <td className="px-4 py-4 text-right font-mono tabular-nums text-slate-700">
+                      {event.participantCount}
+                    </td>
                     <td className="px-4 py-4 text-slate-600">{formatDate(event.startDate)}</td>
                     <td className="px-4 py-4 text-slate-600">{formatDate(event.endDate)}</td>
                     <td className="px-4 py-4">
-                      <button
-                        type="button"
-                        onClick={() => void toggleVisibility(event)}
-                        disabled={
-                          busyId === event.id ||
-                          (event.status !== 'draft' && event.status !== 'published')
-                        }
-                        className={[
-                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-60',
-                          STATUS_COLORS[event.status] ?? STATUS_COLORS['draft']!,
-                        ].join(' ')}
-                        title={
-                          event.status === 'draft'
-                            ? t('organizer.events.setPublic')
-                            : event.status === 'published'
-                              ? t('organizer.events.setDraft')
-                              : (t(`organizer.events.statuses.${event.status}`) ?? event.status)
-                        }
-                      >
-                        {t(`organizer.events.statuses.${event.status}`) ?? event.status}
-                      </button>
+                      {event.status === 'draft' ? (
+                        <button
+                          type="button"
+                          onClick={() => void toggleVisibility(event)}
+                          disabled={busyId === event.id}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          title={t('organizer.events.setPublic')}
+                        >
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="h-3.5 w-3.5"
+                          >
+                            <path d="M3.105 3.105a.75.75 0 01.815-.16l13.5 5.25a.75.75 0 010 1.41l-13.5 5.25a.75.75 0 01-1-.927l1.4-4.673H9a.75.75 0 000-1.5H4.32l-1.4-4.673a.75.75 0 01.185-.977z" />
+                          </svg>
+                          {t('organizer.events.publishCta')}
+                        </button>
+                      ) : event.status === 'published' ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={[
+                              'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                              STATUS_COLORS['published']!,
+                            ].join(' ')}
+                          >
+                            {t('organizer.events.statuses.published') ?? 'published'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void toggleVisibility(event)}
+                            disabled={busyId === event.id}
+                            className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                            title={t('organizer.events.setDraft')}
+                          >
+                            {t('organizer.events.unpublish')}
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className={[
+                            'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                            STATUS_COLORS[event.status] ?? STATUS_COLORS['draft']!,
+                          ].join(' ')}
+                        >
+                          {t(`organizer.events.statuses.${event.status}`) ?? event.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
@@ -683,7 +739,7 @@ export default function OrgEventsListPage() {
                 />
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                {t('organizer.events.status')}
+                {t('organizer.events.visibility')}
                 <select
                   value={form.status}
                   onChange={(event) => setForm({ ...form, status: event.target.value })}

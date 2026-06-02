@@ -116,23 +116,53 @@ export class EventsService {
 
     const eventIds = rows.map((row) => row['id'] as string);
     const tournamentCountByEvent = new Map<string, number>();
+    const tournamentToEvent = new Map<string, string>();
     if (eventIds.length > 0) {
       const { data: tournRows, error: tournErr } = await this.supabase.service
         .from('tournaments')
-        .select('event_id')
+        .select('id, event_id')
         .in('event_id', eventIds);
       if (tournErr) throw new BadRequestException(tournErr.message);
-      for (const t of (tournRows ?? []) as Array<{ event_id: string }>) {
+      for (const t of (tournRows ?? []) as Array<{ id: string; event_id: string }>) {
         tournamentCountByEvent.set(t.event_id, (tournamentCountByEvent.get(t.event_id) ?? 0) + 1);
+        if (t.id) tournamentToEvent.set(t.id, t.event_id);
+      }
+    }
+
+    // Distinct-person count per event. Same person registered to two
+    // tournaments in the same event counts once. Filtered to
+    // registered/checked_in to match `assertCapacity` semantics — the
+    // events list should reflect "people who'll actually show up",
+    // not pending withdrawn rows.
+    const tournamentIds = Array.from(tournamentToEvent.keys());
+    const distinctPeopleByEvent = new Map<string, Set<string>>();
+    if (tournamentIds.length > 0) {
+      const { data: regRows, error: regErr } = await this.supabase.service
+        .from('registrations')
+        .select('tournament_id, person_id')
+        .in('tournament_id', tournamentIds)
+        .in('status', ['registered', 'checked_in']);
+      if (regErr) throw new BadRequestException(regErr.message);
+      for (const r of (regRows ?? []) as Array<{
+        tournament_id: string;
+        person_id: string | null;
+      }>) {
+        const evId = tournamentToEvent.get(r.tournament_id);
+        if (!evId || !r.person_id) continue;
+        const set = distinctPeopleByEvent.get(evId) ?? new Set<string>();
+        set.add(r.person_id);
+        distinctPeopleByEvent.set(evId, set);
       }
     }
 
     return rows.map((row) => {
       const creatorId = row['created_by_user_id'] as string | null;
+      const evId = row['id'] as string;
       return {
         ...row,
         created_by_user_name: creatorId ? (nameByUser.get(creatorId) ?? null) : null,
-        tournament_count: tournamentCountByEvent.get(row['id'] as string) ?? 0,
+        tournament_count: tournamentCountByEvent.get(evId) ?? 0,
+        participant_count: distinctPeopleByEvent.get(evId)?.size ?? 0,
       };
     });
   }

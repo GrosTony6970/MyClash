@@ -2099,6 +2099,8 @@ export const en = {
       archive: 'Archive',
       hardDelete: 'Hard delete',
       status: 'Status',
+      visibility: 'Visibility',
+      publishCta: 'Publish',
       statusHelp:
         'Change the status to mark the event as running, completed, or back to draft. Saved with the rest of the form.',
       statuses: {
@@ -2132,6 +2134,7 @@ export const en = {
         date: 'Date',
         status: 'Status',
         tournaments: 'Tournaments',
+        participants: 'Participants',
         actions: 'Actions',
         logo: 'Logo',
         created: 'Created',
@@ -5420,6 +5423,8 @@ export const fr = {
       archive: 'Archiver',
       hardDelete: 'Suppression definitive',
       status: 'Statut',
+      visibility: 'Visibilite',
+      publishCta: 'Publier',
       statusHelp:
         "Modifiez le statut pour passer l'evenement en cours, termine, ou le repasser en brouillon. Enregistre avec le reste du formulaire.",
       statuses: {
@@ -5453,6 +5458,7 @@ export const fr = {
         date: 'Date',
         status: 'Statut',
         tournaments: 'Tournois',
+        participants: 'Participants',
         actions: 'Actions',
         logo: 'Logo',
         created: 'Cree le',
