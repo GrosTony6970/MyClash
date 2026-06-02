@@ -16,7 +16,12 @@ interface DiagnosticsBoard {
     personId: string;
     qualifications: Array<{ role: string; rating: number | null }>;
   }>;
-  missingSlots?: Array<{ poolId: string; poolName: string; role: string }>;
+  missingSlots?: Array<{
+    poolId: string;
+    poolName: string;
+    role: string;
+    reasons?: string[];
+  }>;
 }
 
 type HealthStatus = 'healthy' | 'gaps' | 'shortage';
@@ -122,12 +127,21 @@ export function AssignmentDiagnosticsPanel({
           <p className={`mb-1 text-xs font-medium ${theme.sublabel}`}>
             {t('organizer.refereesPage.missingAssignments')}
           </p>
-          <ul className="space-y-0.5">
-            {missing.map((m) => (
-              <li key={`${m.poolId}:${m.role}`} className={`text-sm ${theme.item}`}>
-                {m.poolName} — {roleLabel ? roleLabel(m.role) : m.role}
-              </li>
-            ))}
+          <ul className="space-y-1">
+            {missing.map((m) => {
+              const primaryReason = m.reasons?.[0];
+              return (
+                <li key={`${m.poolId}:${m.role}`} className={`text-sm ${theme.item}`}>
+                  <span className="font-medium">{m.poolName}</span> —{' '}
+                  {roleLabel ? roleLabel(m.role) : m.role}
+                  {primaryReason && (
+                    <span className={`block text-xs ${theme.sublabel}`}>
+                      ↳ {formatUnassignedReason(primaryReason, t)}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
