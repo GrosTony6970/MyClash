@@ -17,7 +17,7 @@ import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { StandingsTable } from './StandingsTable';
-import { BracketView } from './BracketView';
+import { BracketLive } from './BracketLive';
 import { TournamentTabs, type TabKey } from './TournamentTabs';
 import { PoolsCompositionView, type PoolMember, type PoolReferee } from './PoolsCompositionView';
 
@@ -70,10 +70,14 @@ export interface BracketSlot {
   position: number;
   redFighterName: string | null;
   blueFighterName: string | null;
+  redClubAbbrev?: string | null;
+  blueClubAbbrev?: string | null;
   redScore: number | null;
   blueScore: number | null;
   status: string;
   matchId: string | null;
+  redRegistrationId?: string | null;
+  blueRegistrationId?: string | null;
 }
 
 interface Tournament {
@@ -89,6 +93,9 @@ interface TournamentData {
   pools: Pool[];
   bracketSlots: BracketSlot[];
   bracketSize: number;
+  mainBracketSize?: number;
+  byeCount?: number;
+  byeSeedCount?: number;
   playInMatchCount?: number;
   hasPlayInRound?: boolean;
   bracketRounds: number;
@@ -205,7 +212,18 @@ export default async function TournamentPage({ params }: Props) {
     );
   }
 
-  const { tournament, pools, bracketSlots, bracketSize, bracketRounds } = data;
+  const {
+    tournament,
+    pools,
+    bracketSlots,
+    bracketSize,
+    mainBracketSize,
+    byeCount,
+    byeSeedCount,
+    playInMatchCount,
+    hasPlayInRound,
+    bracketRounds,
+  } = data;
   const podium = derivePodium(bracketSlots);
   const podiumDecided = !!(podium?.gold && podium.silver);
   const fighterCount = pools.reduce(
@@ -314,19 +332,20 @@ export default async function TournamentPage({ params }: Props) {
               label: 'Bracket',
               visible: bracketTabVisible,
               panel: (
-                <div>
-                  <p className="mb-2 text-xs text-slate-500 lg:hidden">
-                    Scroll horizontally to see the full bracket.
-                  </p>
-                  <div className="overflow-x-auto">
-                    <BracketView
-                      slots={bracketSlots}
-                      bracketSize={bracketSize}
-                      rounds={bracketRounds}
-                      eventSlug={eventSlug}
-                    />
-                  </div>
-                </div>
+                <BracketLive
+                  eventSlug={eventSlug}
+                  tournamentSlug={tournamentSlug}
+                  apiUrl={apiUrl}
+                  initialSlots={bracketSlots}
+                  bracketSize={bracketSize}
+                  mainBracketSize={mainBracketSize}
+                  byeCount={byeCount}
+                  byeSeedCount={byeSeedCount}
+                  playInMatchCount={playInMatchCount}
+                  hasPlayInRound={hasPlayInRound}
+                  rounds={bracketRounds}
+                  weapon={tournament.weapon}
+                />
               ),
             },
             {
