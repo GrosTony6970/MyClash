@@ -55,6 +55,12 @@ function statusDot(status: string): string {
   return 'bg-slate-400';
 }
 
+function statusLabel(status: string): string {
+  if (status === 'confirmed') return 'Confirmed';
+  if (status === 'pending') return 'Pending';
+  return status;
+}
+
 export function PoolsCompositionView({ pools, accentColor }: Props) {
   if (pools.length === 0) {
     return (
@@ -94,7 +100,10 @@ export function PoolsCompositionView({ pools, accentColor }: Props) {
                     className="flex items-center justify-between gap-3 py-1.5 text-sm"
                   >
                     <span className="flex items-center gap-3 min-w-0">
-                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600">
+                      <span
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 font-mono text-xs text-slate-600"
+                        aria-label={m.seed !== null ? `Seed ${m.seed}` : 'Unseeded'}
+                      >
                         {m.seed ?? '—'}
                       </span>
                       <span className="truncate font-medium text-slate-900">{m.fighterName}</span>
@@ -126,6 +135,7 @@ export function PoolsCompositionView({ pools, accentColor }: Props) {
                         aria-hidden="true"
                         className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(r.status)}`}
                       />
+                      <span className="sr-only">{statusLabel(r.status)}.</span>
                       <span className="truncate text-slate-700">{r.displayName}</span>
                     </span>
                     <span className="text-xs uppercase tracking-wide text-slate-500">

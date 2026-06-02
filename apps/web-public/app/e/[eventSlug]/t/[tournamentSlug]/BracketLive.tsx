@@ -122,7 +122,12 @@ export function BracketLive({
   }));
 
   return (
-    <div className="overflow-x-auto pb-4">
+    <div
+      className="overflow-x-auto pb-4"
+      role="region"
+      aria-label="Tournament bracket"
+      aria-live="polite"
+    >
       <BracketView
         slots={adminShapeSlots}
         rounds={rounds}

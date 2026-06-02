@@ -129,6 +129,10 @@ export function TournamentTabs({ defaultTab, tabs }: Props) {
             hidden={!isActive}
             className="motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
           >
+            {/* SR-only heading so screen-reader-by-heading workflows
+                don't skip from the page H1 straight to the cards
+                inside each panel. */}
+            <h2 className="sr-only">{tab.label}</h2>
             {tab.panel}
           </section>
         );
