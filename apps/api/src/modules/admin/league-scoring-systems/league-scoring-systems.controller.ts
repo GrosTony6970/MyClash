@@ -80,4 +80,21 @@ export class LeagueScoringSystemsController {
   async restore(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     return this.service.restore(id, getActorId(req));
   }
+
+  @Get(':id/versions')
+  @ApiOperation({ summary: 'List version history for a scoring system' })
+  async listVersions(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.listVersions(id);
+  }
+
+  @Post(':id/versions/:versionId/rollback')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Rollback to a prior version (super admin)' })
+  async rollback(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.rollback(id, versionId, getActorId(req));
+  }
 }

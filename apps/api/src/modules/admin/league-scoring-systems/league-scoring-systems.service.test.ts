@@ -1,6 +1,11 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { LeagueScoringSystemsService } from './league-scoring-systems.service';
+import { LeagueScoringSystemsService, bumpPatch } from './league-scoring-systems.service';
 
 type Result = { data: unknown; error: { message: string } | null };
 
@@ -389,6 +394,191 @@ describe('LeagueScoringSystemsService', () => {
     await svc.list({ includeArchived: true });
     expect(captured.filterApplied).toBe(false);
   });
+
+  // ── Versioning behaviour (Slice F.2) ──────────────────────────────────────
+
+  describe('bumpPatch', () => {
+    it('bumps the patch component', () => {
+      expect(bumpPatch('1.0.0')).toBe('1.0.1');
+      expect(bumpPatch('2.3.4')).toBe('2.3.5');
+    });
+
+    it('falls back to 1.0.1 on malformed input', () => {
+      expect(bumpPatch('not-a-version')).toBe('1.0.1');
+      expect(bumpPatch('')).toBe('1.0.1');
+      expect(bumpPatch(null)).toBe('1.0.1');
+    });
+  });
+
+  it('update() bumps version and snapshots the new version', async () => {
+    const existing = {
+      id: 'sys-1',
+      code: 'foo',
+      name: 'Foo',
+      version: '1.0.0',
+      is_builtin: false,
+      points_by_rank: { '1': 10 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const { service, updated, versionInserts } = buildVersioningSupabase({
+      sourceRow: existing,
+      updateResult: {
+        ...existing,
+        version: '1.0.1',
+        name: 'Foo Updated',
+      },
+      versionsExistingProbe: { data: null, error: null },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const result = await svc.update('sys-1', { name: 'Foo Updated' }, 'user-1');
+    expect(result.version).toBe('1.0.1');
+    expect(updated[0]).toMatchObject({ version: '1.0.1', name: 'Foo Updated' });
+    expect(versionInserts[0]).toMatchObject({
+      league_scoring_system_id: 'sys-1',
+      version: '1.0.1',
+      name: 'Foo Updated',
+      published_by_user_id: 'user-1',
+    });
+  });
+
+  it('listVersions() returns the versions sorted newest-first', async () => {
+    const versions = [
+      {
+        id: 'v-2',
+        league_scoring_system_id: 'sys-1',
+        version: '1.0.1',
+        published_at: '2026-06-02T00:00:00Z',
+      },
+      {
+        id: 'v-1',
+        league_scoring_system_id: 'sys-1',
+        version: '1.0.0',
+        published_at: '2026-06-01T00:00:00Z',
+      },
+    ];
+    const service = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'league_scoring_system_versions') {
+            const chain: Record<string, unknown> = {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              order: vi.fn(() => ({
+                then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
+                  resolve({ data: versions, error: null }),
+              })),
+            };
+            return chain;
+          }
+          return {} as never;
+        }),
+      },
+    };
+    const svc = new LeagueScoringSystemsService(service as never);
+    const result = await svc.listVersions('sys-1');
+    expect(result).toHaveLength(2);
+    expect(result[0].version).toBe('1.0.1');
+    expect(result[1].version).toBe('1.0.0');
+  });
+
+  it('rollback() applies the target version values and bumps the current version', async () => {
+    const existing = {
+      id: 'sys-1',
+      code: 'foo',
+      name: 'Foo Current',
+      version: '1.0.2',
+      is_builtin: false,
+      points_by_rank: { '1': 10, '2': 5 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const target = {
+      id: 'v-1',
+      league_scoring_system_id: 'sys-1',
+      version: '1.0.0',
+      name: 'Foo Original',
+      points_by_rank: { '1': 16, '2': 13 },
+      tie_breakers: ['total_points', 'medal_count'],
+      description: 'Original',
+      published_at: '2026-05-01T00:00:00Z',
+      published_by_user_id: 'user-x',
+    };
+    const { service, updated, versionInserts } = buildRollbackSupabase({
+      sourceRow: existing,
+      targetVersion: target,
+      updateResult: {
+        ...existing,
+        version: '1.0.3',
+        name: 'Foo Original',
+        points_by_rank: { '1': 16, '2': 13 },
+        tie_breakers: ['total_points', 'medal_count'],
+        description: 'Original',
+      },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const result = await svc.rollback('sys-1', 'v-1', 'user-1');
+    expect(result.version).toBe('1.0.3');
+    expect(result.name).toBe('Foo Original');
+    expect(result.points_by_rank).toEqual({ '1': 16, '2': 13 });
+    expect(updated[0]).toMatchObject({
+      version: '1.0.3',
+      name: 'Foo Original',
+      points_by_rank: { '1': 16, '2': 13 },
+    });
+    expect(versionInserts[0]).toMatchObject({
+      league_scoring_system_id: 'sys-1',
+      version: '1.0.3',
+    });
+  });
+
+  it('rollback() rejects built-in rows', async () => {
+    const builtin = {
+      id: 'sys-builtin',
+      code: 'ffamhe_tf_2026',
+      name: 'FFAMHE',
+      version: '1.0.0',
+      is_builtin: true,
+      points_by_rank: { '1': 16 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const { service } = buildSupabase({
+      systemById: { data: builtin, error: null },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.rollback('sys-builtin', 'v-1', 'user-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rollback() rejects non-super-admin callers', async () => {
+    const { service } = makeNonSuperAdminSupabase();
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.rollback('sys-1', 'v-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rollback() throws when the target version does not exist', async () => {
+    const existing = {
+      id: 'sys-1',
+      code: 'foo',
+      name: 'Foo',
+      version: '1.0.0',
+      is_builtin: false,
+      points_by_rank: { '1': 10 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const { service } = buildRollbackSupabase({
+      sourceRow: existing,
+      targetVersion: null,
+      updateResult: existing,
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.rollback('sys-1', 'missing-version', 'user-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
 });
 
 // ── Clone-test helper: extends buildSupabase with code-existence lookup ─────
@@ -470,4 +660,150 @@ function buildCloneSupabase(opts: {
     }),
   };
   return { service: { service }, inserted, auditInserts };
+}
+
+// ── Versioning-test helper for update() flow ────────────────────────────────
+
+function buildVersioningSupabase(opts: {
+  sourceRow: Record<string, unknown> & { id: string };
+  updateResult: Record<string, unknown>;
+  versionsExistingProbe: Result;
+}) {
+  const updated: unknown[] = [];
+  const versionInserts: unknown[] = [];
+  const auditInserts: unknown[] = [];
+
+  // Track maybeSingle calls on league_scoring_systems to return source row
+  // on the first call (getById) and pass-through otherwise.
+  let systemsMaybeSingleCalls = 0;
+
+  const service = {
+    from: vi.fn((table: string) => {
+      if (table === 'platform_roles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+        };
+      }
+      if (table === 'league_scoring_systems') {
+        const chain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(() => {
+            systemsMaybeSingleCalls += 1;
+            if (systemsMaybeSingleCalls === 1) {
+              return Promise.resolve({ data: opts.sourceRow, error: null });
+            }
+            return Promise.resolve({ data: null, error: null });
+          }),
+          single: vi.fn().mockResolvedValue({ data: opts.updateResult, error: null }),
+          update: vi.fn((payload: unknown) => {
+            updated.push(payload);
+            return chain;
+          }),
+        };
+        return chain;
+      }
+      if (table === 'league_scoring_system_versions') {
+        const chain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue(opts.versionsExistingProbe),
+          insert: vi.fn((payload: unknown) => {
+            versionInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+        return chain;
+      }
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: unknown) => {
+            auditInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
+      return {} as never;
+    }),
+  };
+  return { service: { service }, updated, versionInserts, auditInserts };
+}
+
+// ── Versioning-test helper for rollback() flow ──────────────────────────────
+
+function buildRollbackSupabase(opts: {
+  sourceRow: Record<string, unknown> & { id: string; is_builtin: boolean };
+  targetVersion: Record<string, unknown> | null;
+  updateResult: Record<string, unknown>;
+}) {
+  const updated: unknown[] = [];
+  const versionInserts: unknown[] = [];
+  const auditInserts: unknown[] = [];
+
+  let systemsMaybeSingleCalls = 0;
+  let versionsMaybeSingleCalls = 0;
+
+  const service = {
+    from: vi.fn((table: string) => {
+      if (table === 'platform_roles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+        };
+      }
+      if (table === 'league_scoring_systems') {
+        const chain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(() => {
+            systemsMaybeSingleCalls += 1;
+            if (systemsMaybeSingleCalls === 1) {
+              return Promise.resolve({ data: opts.sourceRow, error: null });
+            }
+            return Promise.resolve({ data: null, error: null });
+          }),
+          single: vi.fn().mockResolvedValue({ data: opts.updateResult, error: null }),
+          update: vi.fn((payload: unknown) => {
+            updated.push(payload);
+            return chain;
+          }),
+        };
+        return chain;
+      }
+      if (table === 'league_scoring_system_versions') {
+        const chain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(() => {
+            versionsMaybeSingleCalls += 1;
+            // First call: target version lookup (in rollback)
+            if (versionsMaybeSingleCalls === 1) {
+              return Promise.resolve({ data: opts.targetVersion, error: null });
+            }
+            // Subsequent: snapshot probe (no existing snapshot for the new version)
+            return Promise.resolve({ data: null, error: null });
+          }),
+          insert: vi.fn((payload: unknown) => {
+            versionInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+        return chain;
+      }
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: unknown) => {
+            auditInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
+      return {} as never;
+    }),
+  };
+  return { service: { service }, updated, versionInserts, auditInserts };
 }

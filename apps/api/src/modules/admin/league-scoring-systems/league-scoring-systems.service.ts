@@ -21,6 +21,7 @@ export interface LeagueScoringSystemRow {
   id: string;
   code: string;
   name: string;
+  version: string;
   is_builtin: boolean;
   is_archived: boolean;
   points_by_rank: Record<string, number>;
@@ -29,6 +30,18 @@ export interface LeagueScoringSystemRow {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface LeagueScoringSystemVersionRow {
+  id: string;
+  league_scoring_system_id: string;
+  version: string;
+  name: string;
+  points_by_rank: Record<string, number>;
+  tie_breakers: string[];
+  description: string | null;
+  published_at: string;
+  published_by_user_id: string | null;
 }
 
 export interface CreateLeagueScoringSystemDto {
@@ -128,7 +141,11 @@ export class LeagueScoringSystemsService {
       throw new BadRequestException('Built-in scoring systems are read-only');
     }
 
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const nextVersion = bumpPatch(existing.version);
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      version: nextVersion,
+    };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.pointsByRank !== undefined) {
       updates['points_by_rank'] = this.validatePointsByRank(dto.pointsByRank);
@@ -146,12 +163,108 @@ export class LeagueScoringSystemsService {
       .single();
     if (error) throw new BadRequestException(error.message);
     const row = data as LeagueScoringSystemRow;
+
+    await this.snapshotVersion(row, userId);
+
     await this.writeAuditLog(userId, 'league.scoring_system.updated', row.id, {
       code: row.code,
       name: row.name,
-      changedFields: Object.keys(updates).filter((k) => k !== 'updated_at'),
+      from_version: existing.version,
+      to_version: row.version,
+      changedFields: Object.keys(updates).filter((k) => k !== 'updated_at' && k !== 'version'),
     });
     return row;
+  }
+
+  async listVersions(id: string): Promise<LeagueScoringSystemVersionRow[]> {
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_system_versions')
+      .select('*')
+      .eq('league_scoring_system_id', id)
+      .order('published_at', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as LeagueScoringSystemVersionRow[];
+  }
+
+  async rollback(id: string, versionId: string, userId: string): Promise<LeagueScoringSystemRow> {
+    await this.assertSuperAdmin(userId);
+    const existing = await this.getById(id);
+    if (existing.is_builtin) {
+      throw new BadRequestException('Built-in scoring systems cannot be rolled back');
+    }
+
+    const { data: targetData, error: targetError } = await this.supabase.service
+      .from('league_scoring_system_versions')
+      .select('*')
+      .eq('id', versionId)
+      .eq('league_scoring_system_id', id)
+      .maybeSingle();
+    if (targetError) throw new BadRequestException(targetError.message);
+    if (!targetData) {
+      throw new NotFoundException(`Version ${versionId} not found for scoring system ${id}`);
+    }
+    const target = targetData as LeagueScoringSystemVersionRow;
+
+    const nextVersion = bumpPatch(existing.version);
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_systems')
+      .update({
+        version: nextVersion,
+        name: target.name,
+        points_by_rank: target.points_by_rank,
+        tie_breakers: target.tie_breakers,
+        description: target.description,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    const row = data as LeagueScoringSystemRow;
+
+    await this.snapshotVersion(row, userId);
+
+    await this.writeAuditLog(userId, 'league.scoring_system.rolled_back', row.id, {
+      code: row.code,
+      name: row.name,
+      from_version: existing.version,
+      to_version: row.version,
+      restored_from_version: target.version,
+      restored_from_version_id: target.id,
+    });
+    return row;
+  }
+
+  /**
+   * Insert a snapshot of the current row state into the versions table.
+   * Uses ON CONFLICT DO NOTHING semantics by checking first — Supabase
+   * doesn't surface raw upsert(... onConflict ...) cleanly with composite
+   * unique constraints in this codebase's style, so a probe+insert pair
+   * is simpler and correct (concurrent edits on the same row are
+   * prevented by the version-bump being part of the same UPDATE).
+   */
+  private async snapshotVersion(row: LeagueScoringSystemRow, userId: string): Promise<void> {
+    const { data: existing, error: probeError } = await this.supabase.service
+      .from('league_scoring_system_versions')
+      .select('id')
+      .eq('league_scoring_system_id', row.id)
+      .eq('version', row.version)
+      .maybeSingle();
+    if (probeError) throw new BadRequestException(probeError.message);
+    if (existing) return;
+
+    const { error: insertError } = await this.supabase.service
+      .from('league_scoring_system_versions')
+      .insert({
+        league_scoring_system_id: row.id,
+        version: row.version,
+        name: row.name,
+        points_by_rank: row.points_by_rank,
+        tie_breakers: row.tie_breakers,
+        description: row.description,
+        published_by_user_id: userId,
+      });
+    if (insertError) throw new BadRequestException(insertError.message);
   }
 
   async clone(id: string, userId: string): Promise<LeagueScoringSystemRow> {
@@ -208,14 +321,13 @@ export class LeagueScoringSystemsService {
       throw new BadRequestException('Built-in scoring systems cannot be archived');
     }
 
-    // Refuse if any league still references this code. The leagues table
-    // stores the code string; we soft-archive but keep the row to preserve
-    // historical references — yet new picks of an archived system are
-    // hidden by the list() filter.
+    // Refuse if any league still references this code. After migration
+    // 0087, leagues.scoring_system is 'code@version' — match either the
+    // raw code (pre-migration tolerant) OR the 'code@%' prefix.
     const { count, error: countError } = await this.supabase.service
       .from('leagues')
       .select('id', { count: 'exact', head: true })
-      .eq('scoring_system', existing.code);
+      .or(`scoring_system.eq.${existing.code},scoring_system.like.${existing.code}@%`);
     if (countError) throw new BadRequestException(countError.message);
     if ((count ?? 0) > 0) {
       throw new ConflictException(
@@ -351,4 +463,20 @@ export class LeagueScoringSystemsService {
       );
     }
   }
+}
+
+/**
+ * Bump the patch component of a semver string (e.g. 1.0.0 → 1.0.1).
+ * Tolerant of inputs that don't parse cleanly — falls back to '1.0.1'
+ * so a malformed prior version never blocks an edit.
+ */
+export function bumpPatch(version: string | null | undefined): string {
+  const parts = String(version ?? '1.0.0').split('.');
+  const major = Number(parts[0]);
+  const minor = Number(parts[1]);
+  const patch = Number(parts[2]);
+  if (!Number.isInteger(major) || !Number.isInteger(minor) || !Number.isInteger(patch)) {
+    return '1.0.1';
+  }
+  return `${major}.${minor}.${patch + 1}`;
 }

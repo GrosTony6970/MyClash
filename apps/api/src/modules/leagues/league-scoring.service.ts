@@ -49,42 +49,64 @@ export class LeagueScoringService {
   }
 
   /**
-   * Hydrate a league scoring config by resolving its `scoringSystem` code
-   * against the `league_scoring_systems` registry (migration 0068). Returns
-   * a copy with `customPointsByRank` and `tieBreakers` filled in from the
-   * preset when applicable. Per-league `'custom'` configs are returned
-   * unchanged. Unknown / archived codes also pass through (caller falls
-   * back to the hard-coded table via `pointsForRank`).
+   * Hydrate a league scoring config by resolving its `scoringSystem`
+   * reference against the `league_scoring_systems` registry (migration
+   * 0068) and `league_scoring_system_versions` (migration 0087).
+   *
+   * `scoringSystem` may be:
+   *   - 'custom'                  → per-league inline config, no lookup
+   *   - 'code'                    → resolves to the registry's current row
+   *                                 (pre-0087 behaviour; backwards safe)
+   *   - 'code@version'            → resolves to the pinned version's
+   *                                 points_by_rank from the versions table;
+   *                                 falls back to the current row if the
+   *                                 version row doesn't exist (defensive)
+   *
+   * Per-league `'custom'` configs are returned unchanged. Unknown /
+   * archived codes also pass through (caller falls back to the
+   * hard-coded table via `pointsForRank`).
    */
   async resolveConfig(config: LeagueScoringConfig): Promise<LeagueScoringConfig> {
     if (config.scoringSystem === 'custom') return config;
     if (config.customPointsByRank) return config;
     if (!this.supabase) return config;
 
+    const { code, version } = parseScoringSystemReference(config.scoringSystem);
+
+    if (version) {
+      // First find the registry row by code (active only) so we have its id.
+      const { data: systemData, error: systemError } = await this.supabase.service
+        .from('league_scoring_systems')
+        .select('id, points_by_rank, tie_breakers')
+        .eq('code', code)
+        .eq('is_archived', false)
+        .maybeSingle();
+      if (systemError || !systemData) return config;
+
+      // Look up the pinned version's snapshot.
+      const { data: versionData, error: versionError } = await this.supabase.service
+        .from('league_scoring_system_versions')
+        .select('points_by_rank, tie_breakers')
+        .eq('league_scoring_system_id', (systemData as { id: string }).id)
+        .eq('version', version)
+        .maybeSingle();
+      if (!versionError && versionData) {
+        return applyResolved(config, versionData as ResolvedRow);
+      }
+      // Defensive fallback: pinned version row is missing — fall back to the
+      // current registry row so leagues never silently return zero points.
+      return applyResolved(config, systemData as ResolvedRow);
+    }
+
+    // No version pinned (legacy code-only reference). Resolve to current row.
     const { data, error } = await this.supabase.service
       .from('league_scoring_systems')
       .select('points_by_rank, tie_breakers')
-      .eq('code', config.scoringSystem)
+      .eq('code', code)
       .eq('is_archived', false)
       .maybeSingle();
     if (error || !data) return config;
-
-    const raw = (data as { points_by_rank?: Record<string, number> }).points_by_rank ?? {};
-    const pointsByRank: Record<number, number> = {};
-    for (const [k, v] of Object.entries(raw)) {
-      const rank = Number(k);
-      const pts = Number(v);
-      if (Number.isInteger(rank) && Number.isFinite(pts)) {
-        pointsByRank[rank] = Math.max(0, Math.round(pts));
-      }
-    }
-    const tieBreakersRaw = (data as { tie_breakers?: string[] }).tie_breakers;
-    const tieBreakers =
-      Array.isArray(tieBreakersRaw) && tieBreakersRaw.length > 0
-        ? (tieBreakersRaw as LeagueTieBreaker[])
-        : config.tieBreakers;
-
-    return { ...config, customPointsByRank: pointsByRank, tieBreakers };
+    return applyResolved(config, data as ResolvedRow);
   }
 
   groupKey(config: LeagueScoringConfig, contribution: TournamentContributionInput): string {
@@ -237,4 +259,49 @@ function medalForRank(rank: number): LeagueTournamentContribution['medal'] {
   if (rank === 2) return 'silver';
   if (rank === 3) return 'bronze';
   return null;
+}
+
+/**
+ * Parse a scoring-system reference into its code + optional version
+ * components. Post-migration 0087, leagues store 'code@version'
+ * (e.g. 'ffamhe_tf_2026@1.0.0'). Pre-migration values were just 'code'.
+ * Tolerant of both: pre-migration leagues resolve to the current
+ * registry row; pinned leagues resolve to their snapshot.
+ */
+export function parseScoringSystemReference(reference: string): {
+  code: string;
+  version: string | null;
+} {
+  if (typeof reference !== 'string' || reference.length === 0) {
+    return { code: reference, version: null };
+  }
+  const at = reference.indexOf('@');
+  if (at < 0) return { code: reference, version: null };
+  const code = reference.slice(0, at);
+  const version = reference.slice(at + 1);
+  return { code, version: version.length > 0 ? version : null };
+}
+
+type ResolvedRow = {
+  points_by_rank?: Record<string, number>;
+  tie_breakers?: string[];
+};
+
+function applyResolved(config: LeagueScoringConfig, row: ResolvedRow): LeagueScoringConfig {
+  const raw = row.points_by_rank ?? {};
+  const pointsByRank: Record<number, number> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const rank = Number(k);
+    const pts = Number(v);
+    if (Number.isInteger(rank) && Number.isFinite(pts)) {
+      pointsByRank[rank] = Math.max(0, Math.round(pts));
+    }
+  }
+  const tieBreakersRaw = row.tie_breakers;
+  const tieBreakers =
+    Array.isArray(tieBreakersRaw) && tieBreakersRaw.length > 0
+      ? (tieBreakersRaw as LeagueTieBreaker[])
+      : config.tieBreakers;
+
+  return { ...config, customPointsByRank: pointsByRank, tieBreakers };
 }

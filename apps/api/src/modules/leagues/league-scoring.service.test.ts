@@ -155,6 +155,97 @@ describe('LeagueScoringService', () => {
       const resolved = await svc.resolveConfig(cfg);
       expect(resolved.customPointsByRank).toBeUndefined();
     });
+
+    it('resolves a pinned code@version to the snapshot, not the current row', async () => {
+      // Registry row holds the LATEST values (1.0.1: edited to 30/20/10).
+      // The 1.0.0 snapshot in the versions table holds the ORIGINAL values
+      // (16/13/11). A league pinned to 'ffamhe_tf_2026@1.0.0' must keep
+      // resolving against the 1.0.0 snapshot even after edits roll the
+      // registry forward.
+      const registryRow = {
+        id: 'sys-ffamhe',
+        points_by_rank: { '1': 30, '2': 20, '3': 10 },
+        tie_breakers: ['total_points'],
+      };
+      const versionRow = {
+        points_by_rank: { '1': 16, '2': 13, '3': 11 },
+        tie_breakers: ['total_points', 'medal_count', 'double_hit_average'],
+      };
+
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'league_scoring_systems') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: registryRow, error: null }),
+              };
+            }
+            if (table === 'league_scoring_system_versions') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: versionRow, error: null }),
+              };
+            }
+            return {} as never;
+          }),
+        },
+      };
+      const svc = new LeagueScoringService(supabase as never);
+
+      const resolved = await svc.resolveConfig({
+        scoringSystem: 'ffamhe_tf_2026@1.0.0',
+        rankingDimensions: 'weapon',
+        tieBreakers: ['total_points'],
+      });
+
+      // Resolved points are the 1.0.0 SNAPSHOT, NOT the current registry row.
+      expect(resolved.customPointsByRank).toEqual({ 1: 16, 2: 13, 3: 11 });
+      expect(resolved.tieBreakers).toEqual(['total_points', 'medal_count', 'double_hit_average']);
+    });
+
+    it('falls back to the current registry row when the pinned version snapshot is missing', async () => {
+      // Defensive: a league references @9.9.9 but no such snapshot exists.
+      // The resolver must NOT return zero points; instead use the current row.
+      const registryRow = {
+        id: 'sys-ffamhe',
+        points_by_rank: { '1': 30, '2': 20, '3': 10 },
+        tie_breakers: ['total_points'],
+      };
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'league_scoring_systems') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: registryRow, error: null }),
+              };
+            }
+            if (table === 'league_scoring_system_versions') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              };
+            }
+            return {} as never;
+          }),
+        },
+      };
+      const svc = new LeagueScoringService(supabase as never);
+
+      const resolved = await svc.resolveConfig({
+        scoringSystem: 'ffamhe_tf_2026@9.9.9',
+        rankingDimensions: 'weapon',
+        tieBreakers: ['total_points'],
+      });
+
+      // Fallback to current registry row.
+      expect(resolved.customPointsByRank).toEqual({ 1: 30, 2: 20, 3: 10 });
+    });
   });
 
   it('throws actionable validation errors for missing global Fighter IDs', () => {
