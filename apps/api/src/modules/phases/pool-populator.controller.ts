@@ -70,13 +70,16 @@ export class PoolPopulatorController {
     // Load settings (with tournament override if available)
     const poolSettings = await this.settings.getSettings(eventId, tournamentId);
 
-    // Fetch registrations
+    // Fetch registrations.
+    // 0083 retired registrations.fighter_id; identity nests through
+    // persons.global_person_id. We also project given_name +
+    // family_name + the joined club name/abbreviation so the FE
+    // populator can render fighter cards with human labels instead
+    // of raw registration UUIDs.
     const { data: regs } = await this.supabase.service
       .from('registrations')
       .select(
-        // 0083 retired registrations.fighter_id; identity nests
-        // through persons.global_person_id.
-        'id, seed, bib_number, persons(club_id, global_persons(hema_ratings_id))',
+        'id, seed, bib_number, persons(club_id, given_name, family_name, clubs(name, abbreviation), global_persons(hema_ratings_id))',
       )
       .eq('tournament_id', tournamentId ?? '')
       .in('status', ['registered', 'checked_in']);
@@ -114,7 +117,9 @@ export class PoolPopulatorController {
       tournament?.weapon,
     );
 
-    // Map to Fighter type
+    // Map to Fighter type (rulesets shape — used by the assignment
+    // algorithm; can't be extended without changing the shared
+    // package).
     const fighters: Fighter[] = regList.map((reg, idx) => {
       const person = reg['persons'] as {
         club_id: string | null;
@@ -128,6 +133,26 @@ export class PoolPopulatorController {
         seed: (reg['seed'] as number | null) ?? (reg['bib_number'] as number | null) ?? idx + 1,
       };
     });
+
+    // Side-table: registrationId → human labels. Kept separate from
+    // the rulesets Fighter shape so the algorithm input stays
+    // unchanged; merged back into the per-pool fighter payload
+    // before the response.
+    const humanLabelsByReg = new Map<string, { displayName: string; clubAbbrev: string | null }>();
+    for (const reg of regList) {
+      const person = reg['persons'] as {
+        given_name: string | null;
+        family_name: string | null;
+        clubs: { name: string | null; abbreviation: string | null } | null;
+      } | null;
+      const displayName =
+        `${person?.given_name?.trim() ?? ''} ${person?.family_name?.trim() ?? ''}`.trim() || '—';
+      const club = person?.clubs ?? null;
+      humanLabelsByReg.set(reg['id'] as string, {
+        displayName,
+        clubAbbrev: club?.abbreviation ?? club?.name ?? null,
+      });
+    }
 
     const strictness: 'soft' | 'strict' =
       poolSettings.schoolSeparationStrictness === 'hard' ? 'strict' : 'soft';
@@ -157,12 +182,25 @@ export class PoolPopulatorController {
       poolMap.set(a.poolIndex, existing);
     }
 
-    const pools = Array.from({ length: poolCount }, (_, i) => ({
-      poolIndex: i,
-      name: `Pool ${String.fromCharCode(65 + i)}`,
-      fighters: poolMap.get(i) ?? [],
-      matchCount: bergerSchedule((poolMap.get(i) ?? []).length).length,
-    }));
+    const pools = Array.from({ length: poolCount }, (_, i) => {
+      const poolFighters = poolMap.get(i) ?? [];
+      return {
+        poolIndex: i,
+        name: `Pool ${String.fromCharCode(65 + i)}`,
+        // Merge human labels onto each fighter so the FE populator
+        // renders display name + club abbrev on the draggable card
+        // instead of the registration UUID.
+        fighters: poolFighters.map((f) => {
+          const labels = humanLabelsByReg.get(f.registrationId);
+          return {
+            ...f,
+            displayName: labels?.displayName ?? '—',
+            clubAbbrev: labels?.clubAbbrev ?? null,
+          };
+        }),
+        matchCount: bergerSchedule(poolFighters.length).length,
+      };
+    });
 
     // Constraint violations summary
     const violations: string[] = [];

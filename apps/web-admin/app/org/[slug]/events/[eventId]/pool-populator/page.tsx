@@ -22,6 +22,10 @@ interface Fighter {
   clubId: string | null;
   skillRating: number | null;
   seed: number;
+  /** Human-readable name projected by the populator API (given + family). */
+  displayName?: string;
+  /** Club abbreviation if set on `clubs.abbreviation`, else `clubs.name`. */
+  clubAbbrev?: string | null;
 }
 
 interface Pool {
@@ -386,8 +390,13 @@ export default function PoolPopulatorPage() {
                             : ''
                         }
                       >
-                        <span className="font-medium truncate">{f.registrationId}</span>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate font-medium">{f.displayName ?? '—'}</span>
+                          {f.clubAbbrev && (
+                            <span className="truncate text-xs text-gray-500">{f.clubAbbrev}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-shrink-0 items-center gap-2">
                           {sameClub.has(f.registrationId) && (
                             <span className="text-xs text-orange-500">⚠ club</span>
                           )}

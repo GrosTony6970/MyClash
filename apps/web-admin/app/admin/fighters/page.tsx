@@ -124,8 +124,7 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
             </div>
             <div>
               <h2 className="text-lg font-semibold">{fighter.display_name}</h2>
-              <p className="text-xs font-mono text-slate-500">{fighter.id}</p>
-              <p className="text-sm text-slate-500 mt-1">{fighter.slug}</p>
+              <p className="font-mono text-xs text-slate-500">{fighter.slug}</p>
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-3 mt-5 text-sm">
@@ -1033,7 +1032,7 @@ export default function AdminFightersPage() {
                       <tr key={fighter.id} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="py-2 pr-4">
                           <p className="font-medium">{fighter.display_name}</p>
-                          <p className="font-mono text-xs text-slate-500">{fighter.id}</p>
+                          <p className="font-mono text-xs text-slate-500">{fighter.slug}</p>
                         </td>
                         <td className="py-2 pr-4 text-slate-500">
                           {fighter.hema_ratings_id ?? '-'}

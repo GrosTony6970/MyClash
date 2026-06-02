@@ -445,7 +445,6 @@ export default function AdminUsersPage() {
                   />
                 </th>
                 <th className="px-4 py-3">{t('admin.users.table.organizations')}</th>
-                <th className="px-4 py-3">{t('admin.users.table.userId')}</th>
                 <th className="px-4 py-3">
                   <SortableHeader
                     label={t('admin.users.table.created')}
@@ -505,7 +504,6 @@ export default function AdminUsersPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{user.id}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {formatDate(user.created_at, t('admin.users.missingDate'))}
                     </td>

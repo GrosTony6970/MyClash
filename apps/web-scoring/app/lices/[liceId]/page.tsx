@@ -15,6 +15,7 @@ export default function LiceMatchPage({ params }: Props) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [liceId, setLiceId] = useState<string | null>(null);
+  const [liceName, setLiceName] = useState<string | null>(null);
   const [currentMatch, setCurrentMatch] = useState<MatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -55,10 +56,12 @@ export default function LiceMatchPage({ params }: Props) {
         const payload = (await res.json()) as {
           current: MatchInfo | null;
           event?: { slug?: string };
+          liceName?: string;
         };
         setCurrentMatch(
           payload.current ? { ...payload.current, eventSlug: payload.event?.slug } : null,
         );
+        if (typeof payload.liceName === 'string') setLiceName(payload.liceName);
       } catch {
         // Offline — show last cached state
       } finally {
@@ -98,7 +101,9 @@ export default function LiceMatchPage({ params }: Props) {
         >
           ← {t('scoring.lice.backToLices')}
         </button>
-        <h1 className="font-bold text-lg">{t('scoring.lice.title', { liceId })}</h1>
+        <h1 className="font-bold text-lg">
+          {t('scoring.lice.title', { liceName: liceName ?? '—' })}
+        </h1>
         <div className="w-16" />
       </header>
 

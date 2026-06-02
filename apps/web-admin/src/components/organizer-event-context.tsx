@@ -49,6 +49,12 @@ interface OrganizerEventContextValue {
   orgName: string | null;
   orgLogoUrl: string | null;
   events: OrgEventSummary[];
+  /**
+   * Non-null when the most recent events-list fetch failed. The shell
+   * surfaces this inline in the picker so a 403/500/offline run isn't
+   * silently rendered as "no events".
+   */
+  eventsError: string | null;
   selectedEventId: string | null;
   currentEvent: OrgEventSummary | null;
   selectEvent: (id: string) => void;
@@ -58,6 +64,12 @@ interface OrganizerEventContextValue {
    * the stale name / logo until the next provider mount (logout/login).
    */
   refetchOrg: () => Promise<void>;
+  /**
+   * Re-fetch the org's events list. Call this after creating, renaming,
+   * or deleting an event so the picker reflects the change without a
+   * hard refresh. Mirrors the refetchOrg pattern.
+   */
+  refetchEvents: () => Promise<void>;
 }
 
 const OrganizerEventContext = createContext<OrganizerEventContextValue | null>(null);
@@ -90,6 +102,7 @@ export function OrganizerEventContextProvider({
   const [orgName, setOrgName] = useState<string | null>(null);
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null);
   const [events, setEvents] = useState<OrgEventSummary[]>([]);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventIdState] = useState<string | null>(null);
 
   // Resolve orgId + orgName + orgLogoUrl from slug. Mirrors the lookup the
@@ -134,21 +147,44 @@ export function OrganizerEventContextProvider({
   // Fetch the org's events for the switcher + auto-pick logic. We always
   // want the list available so the inline switcher can show options on
   // any route, not just event-scoped ones.
+  //
+  // Exposed as `refetchEvents` so write-side pages (create, delete,
+  // rename) can invalidate the snapshot without remounting the
+  // provider — without this hook a freshly-created event stayed
+  // invisible in the picker until the next hard refresh / login.
+  //
+  // Non-200s and network errors now surface via `eventsError` instead
+  // of being silently swallowed. The shell renders the error inline so
+  // the next 403/500 is debuggable rather than ambiguous-empty.
+  const refetchEvents = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      if (!orgId) return;
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/events`, {
+          credentials: 'include',
+          ...(signal ? { signal } : {}),
+        });
+        if (!res.ok) {
+          setEventsError(`${res.status} ${res.statusText || 'request failed'}`);
+          return;
+        }
+        const data = (await res.json()) as OrgEventSummary[];
+        setEvents(data ?? []);
+        setEventsError(null);
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setEventsError(err instanceof Error ? err.message : 'Failed to load events');
+      }
+    },
+    [orgId],
+  );
+
   useEffect(() => {
     if (!orgId) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/organizations/${orgId}/events`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as OrgEventSummary[];
-        setEvents(data ?? []);
-      })
-      .catch(() => undefined);
+    void refetchEvents(controller.signal);
     return () => controller.abort();
-  }, [orgId]);
+  }, [orgId, refetchEvents]);
 
   // Resolve selectedEventId following the priority chain:
   //   URL eventId → localStorage → auto-pick from events.
@@ -207,6 +243,10 @@ export function OrganizerEventContextProvider({
     await refetchOrg();
   }, [refetchOrg]);
 
+  const refetchEventsPublic = useCallback(async () => {
+    await refetchEvents();
+  }, [refetchEvents]);
+
   const value = useMemo<OrganizerEventContextValue>(
     () => ({
       orgId,
@@ -214,10 +254,12 @@ export function OrganizerEventContextProvider({
       orgName,
       orgLogoUrl,
       events,
+      eventsError,
       selectedEventId,
       currentEvent,
       selectEvent,
       refetchOrg: refetchOrgPublic,
+      refetchEvents: refetchEventsPublic,
     }),
     [
       orgId,
@@ -225,10 +267,12 @@ export function OrganizerEventContextProvider({
       orgName,
       orgLogoUrl,
       events,
+      eventsError,
       selectedEventId,
       currentEvent,
       selectEvent,
       refetchOrgPublic,
+      refetchEventsPublic,
     ],
   );
 

@@ -80,6 +80,12 @@ interface MatchSummary {
 interface AuditEntry {
   id: string;
   actorUserId: string;
+  /**
+   * Optional human-readable name resolved server-side (global_persons →
+   * given+family, or auth.users → display_name/email). When present
+   * the FE renders this in place of the raw UUID.
+   */
+  actorDisplayName?: string | null;
   action: string;
   entityType: string;
   entityId: string;
@@ -516,7 +522,10 @@ export default function MatchDetailPage() {
                     </span>
                   </div>
                   <p className="text-gray-500">
-                    by <span className="font-mono">{entry.actorUserId}</span>
+                    by{' '}
+                    <span className="font-medium text-gray-700">
+                      {entry.actorDisplayName ?? '—'}
+                    </span>
                   </p>
                   {entry.payloadJson && Object.keys(entry.payloadJson).length > 0 && (
                     <div className="mt-1 text-gray-400">

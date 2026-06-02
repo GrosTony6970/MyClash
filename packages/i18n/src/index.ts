@@ -473,7 +473,7 @@ export const en = {
       online: 'ONLINE',
       offlineQueued: 'OFFLINE - exchanges queued locally',
       backToLices: 'Lices',
-      title: 'Lice {liceId}',
+      title: 'Lice {liceName}',
       red: 'Red',
       blue: 'Blue',
       rulesetVersion: '{code} v{version}',
@@ -2021,6 +2021,7 @@ export const en = {
         label: 'Switch event',
         openLabel: 'Switch event',
         noEvents: 'No events yet',
+        loadFailed: 'Failed to load events',
         manageAll: 'Manage all events…',
       },
       scoringRulesetsAuthoringSoon:
@@ -2350,6 +2351,8 @@ export const en = {
     },
     eventHub: {
       backToOrg: 'Organization',
+      loadingEvent: 'Loading event…',
+      untitledEvent: 'Untitled event',
       aiBudget: 'AI Budget',
       spendCap: 'Spend cap (EUR)',
       noCap: 'No cap',
@@ -3773,7 +3776,7 @@ export const fr = {
       online: 'EN LIGNE',
       offlineQueued: 'HORS LIGNE - echanges en attente locale',
       backToLices: 'Lices',
-      title: 'Lice {liceId}',
+      title: 'Lice {liceName}',
       red: 'Rouge',
       blue: 'Bleu',
       rulesetVersion: '{code} v{version}',
@@ -5340,6 +5343,7 @@ export const fr = {
         label: 'Changer d evenement',
         openLabel: 'Changer d evenement',
         noEvents: 'Aucun evenement',
+        loadFailed: 'Echec du chargement des evenements',
         manageAll: 'Gerer tous les evenements...',
       },
       nav: {
@@ -5670,6 +5674,8 @@ export const fr = {
     },
     eventHub: {
       backToOrg: 'Organisation',
+      loadingEvent: 'Chargement de l evenement...',
+      untitledEvent: 'Evenement sans nom',
       aiBudget: 'Budget IA',
       spendCap: 'Plafond de depense (EUR)',
       noCap: 'Aucun plafond',

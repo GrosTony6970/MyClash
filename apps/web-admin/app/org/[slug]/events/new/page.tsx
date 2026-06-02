@@ -396,7 +396,7 @@ export default function NewEventPage() {
   // Mark the freshly-created event as selected before navigating so the
   // shell's event switcher and any localStorage-backed defaults reflect it
   // immediately, instead of waiting for the next page's URL-effect to run.
-  const { selectEvent } = useOrganizerSelectedEvent();
+  const { selectEvent, refetchEvents } = useOrganizerSelectedEvent();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { locale, t } = useI18n();
 
@@ -521,6 +521,7 @@ export default function NewEventPage() {
         });
         if (!logoRes.ok) {
           selectEvent(event.id);
+          await refetchEvents();
           router.push(`/org/${slug}/events/${event.id}/theme?logoUpload=failed`);
           return;
         }
@@ -541,6 +542,11 @@ export default function NewEventPage() {
       // here now; the Branding page handles logo + hero post-create.
 
       selectEvent(event.id);
+      // Refresh the picker so the newly-created event shows up in
+      // the sidebar dropdown without a hard page refresh. Awaiting
+      // here so the picker is populated by the time router.push
+      // resolves on the destination page.
+      await refetchEvents();
       router.push(`/org/${slug}/events/${event.id}`);
     } catch (err) {
       dispatch({

@@ -49,6 +49,17 @@ export interface AffectedAssignment {
   id: string;
   poolId: string | null;
   matchId: string | null;
+  /**
+   * Human label for the pool the assignment is scoped to. Populated
+   * for pool-scoped assignments so the conflict dialog can show
+   * "Déclarant · Pool A" instead of the raw assignment UUID.
+   */
+  poolName?: string | null;
+  /**
+   * Human label for the match the assignment is scoped to (e.g.
+   * the canonical `match_number_label` like `LSW-QF-M1`).
+   */
+  matchLabel?: string | null;
   role: string | null;
   reason: 'slot_out_of_range' | 'role_not_allowed';
 }
@@ -509,16 +520,31 @@ export class StaffingService {
 
     // 2. Pools + matches under these phases.
     const [{ data: pools }, { data: matches }] = await Promise.all([
-      this.supabase.service.from('pools').select('id, phase_id').in('phase_id', phaseIds),
-      this.supabase.service.from('matches').select('id, phase_id').in('phase_id', phaseIds),
+      this.supabase.service.from('pools').select('id, phase_id, name').in('phase_id', phaseIds),
+      this.supabase.service
+        .from('matches')
+        .select('id, phase_id, match_number_label')
+        .in('phase_id', phaseIds),
     ]);
     const poolPhase = new Map<string, string>();
-    for (const r of (pools ?? []) as Array<{ id: string; phase_id: string }>) {
+    const poolNameById = new Map<string, string>();
+    for (const r of (pools ?? []) as Array<{
+      id: string;
+      phase_id: string;
+      name: string | null;
+    }>) {
       poolPhase.set(r.id, r.phase_id);
+      if (r.name) poolNameById.set(r.id, r.name);
     }
     const matchPhase = new Map<string, string>();
-    for (const r of (matches ?? []) as Array<{ id: string; phase_id: string }>) {
+    const matchLabelById = new Map<string, string>();
+    for (const r of (matches ?? []) as Array<{
+      id: string;
+      phase_id: string;
+      match_number_label: string | null;
+    }>) {
       matchPhase.set(r.id, r.phase_id);
+      if (r.match_number_label) matchLabelById.set(r.id, r.match_number_label);
     }
 
     // 3. Existing referee_assignments referencing those pools/matches.
@@ -535,7 +561,7 @@ export class StaffingService {
       .or(orParts.join(','));
     if (aErr) throw new BadRequestException(aErr.message);
 
-    return classifyAssignmentsAgainstPayload(
+    const classified = classifyAssignmentsAgainstPayload(
       (assignments ?? []) as Array<{
         id: string;
         pool_id: string | null;
@@ -556,6 +582,16 @@ export class StaffingService {
         return null;
       },
     );
+
+    // Enrich with human labels so the conflict dialog can show
+    // "Déclarant · Pool A" / "Assesseur · LSW-QF-M1" rather than the
+    // bare assignment UUID. Helper stays decoupled from the
+    // resolution layer.
+    return classified.map((c) => ({
+      ...c,
+      poolName: c.poolId ? (poolNameById.get(c.poolId) ?? null) : null,
+      matchLabel: c.matchId ? (matchLabelById.get(c.matchId) ?? null) : null,
+    }));
   }
 
   /**

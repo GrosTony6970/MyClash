@@ -73,7 +73,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
 
   // Event context — provides selectedEventId (URL > localStorage > auto-pick),
   // the full event list for the switcher, and orgName for the brand block.
-  const { orgName, orgLogoUrl, events, selectedEventId, currentEvent, selectEvent } =
+  const { orgName, orgLogoUrl, events, eventsError, selectedEventId, currentEvent, selectEvent } =
     useOrganizerSelectedEvent();
 
   const [open, setOpen] = useState(false);
@@ -257,9 +257,15 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                     className="absolute left-2 right-2 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-800 py-1 shadow-xl"
                   >
                     {events.length === 0 ? (
-                      <p className="px-3 py-2 text-sm italic text-slate-400">
-                        {t('organizer.shell.eventSwitcher.noEvents')}
-                      </p>
+                      eventsError ? (
+                        <p role="alert" className="px-3 py-2 text-xs font-medium text-red-300">
+                          {t('organizer.shell.eventSwitcher.loadFailed')} ({eventsError})
+                        </p>
+                      ) : (
+                        <p className="px-3 py-2 text-sm italic text-slate-400">
+                          {t('organizer.shell.eventSwitcher.noEvents')}
+                        </p>
+                      )
                     ) : (
                       events.map((ev) => (
                         <button

@@ -51,6 +51,8 @@ interface AffectedAssignment {
   id: string;
   poolId: string | null;
   matchId: string | null;
+  poolName?: string | null;
+  matchLabel?: string | null;
   role: string | null;
   reason: 'slot_out_of_range' | 'role_not_allowed';
 }
@@ -536,8 +538,13 @@ function DestructiveConfirmDialog({
               key={a.id}
               className="flex justify-between gap-2 border-b border-gray-100 py-1 last:border-0"
             >
-              <span className="font-mono">{a.id}</span>
-              <span>{a.role ?? '—'}</span>
+              <span className="font-semibold">
+                {a.role ?? '—'}
+                <span className="font-normal text-gray-500">
+                  {' · '}
+                  {a.poolName ?? a.matchLabel ?? '—'}
+                </span>
+              </span>
               <span className="text-gray-400">{a.reason}</span>
             </li>
           ))}

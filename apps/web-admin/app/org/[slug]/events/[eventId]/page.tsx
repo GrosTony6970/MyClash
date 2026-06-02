@@ -278,9 +278,27 @@ export default function EventDetailPage() {
               {t('organizer.eventHub.backToOrg')}
             </Link>
             <span>/</span>
-            <span className="font-medium text-[#0f172a]">{event?.name ?? eventId}</span>
+            {event ? (
+              <span className="font-medium text-[#0f172a]">
+                {event.name?.trim() ? event.name : t('organizer.eventHub.untitledEvent')}
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="inline-block h-4 w-32 animate-pulse rounded bg-stone-200"
+              />
+            )}
           </div>
-          <h1 className="mt-3 text-3xl font-bold text-[#0f172a]">{event?.name ?? eventId}</h1>
+          {event ? (
+            <h1 className="mt-3 text-3xl font-bold text-[#0f172a]">
+              {event.name?.trim() ? event.name : t('organizer.eventHub.untitledEvent')}
+            </h1>
+          ) : (
+            <span
+              aria-label={t('organizer.eventHub.loadingEvent')}
+              className="mt-3 inline-block h-8 w-64 animate-pulse rounded-md bg-stone-200"
+            />
+          )}
           {event && (
             <p className="mt-1 text-sm text-slate-500">
               {event.location ? `${event.location} - ` : ''}
@@ -289,9 +307,11 @@ export default function EventDetailPage() {
             </p>
           )}
         </div>
-        <span className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          {event?.status ?? 'event'}
-        </span>
+        {event?.status && (
+          <span className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            {event.status}
+          </span>
+        )}
       </div>
 
       {statsError && (

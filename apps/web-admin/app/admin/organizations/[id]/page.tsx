@@ -771,9 +771,6 @@ export default function AdminOrgDetailPage({ params }: Props) {
                           <span className="mt-1 block text-sm text-slate-600">
                             {row.email || t('admin.users.noEmail')}
                           </span>
-                          <span className="mt-1 block font-mono text-xs text-slate-500">
-                            {row.id}
-                          </span>
                         </button>
                       );
                     })
@@ -808,9 +805,6 @@ export default function AdminOrgDetailPage({ params }: Props) {
                               </span>
                               <span className="mt-1 block text-sm text-slate-600">
                                 {account.email || t('admin.users.noEmail')}
-                              </span>
-                              <span className="mt-1 block font-mono text-xs text-slate-500">
-                                {account.id}
                               </span>
                             </button>
                           );
