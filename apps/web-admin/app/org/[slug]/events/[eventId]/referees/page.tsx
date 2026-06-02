@@ -962,6 +962,9 @@ function AssignmentsTab({
                           <th className="px-3 py-2 font-medium">
                             {t('organizer.refereesPage.liceColumn')}
                           </th>
+                          {/* Clear-pool icon column header — kept empty
+                              since the icon itself carries an aria-label. */}
+                          <th className="w-8 px-2 py-2" />
                           {headerSlots.map((slot) => (
                             <th
                               key={`${slot.slotIndex}:${slot.role}`}
@@ -976,32 +979,7 @@ function AssignmentsTab({
                         {kindPools.map((pool) => (
                           <tr key={pool.id} className="border-b border-gray-100 last:border-0">
                             <td className="px-3 py-3 align-top">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className="font-medium text-gray-900">{pool.name}</p>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPendingClearPool({ id: pool.id, name: pool.name })
-                                  }
-                                  disabled={isReadOnly || running || board?.locked}
-                                  aria-label={t('organizer.refereesPage.clearPool')}
-                                  title={t('organizer.refereesPage.clearPool')}
-                                  className="text-gray-400 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                  <svg
-                                    aria-hidden="true"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    className="h-4 w-4"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M8.75 1A1.75 1.75 0 0 0 7 2.75V3.5H3.75a.75.75 0 0 0 0 1.5h.59l.812 11.366A2.25 2.25 0 0 0 7.398 18.5h5.204a2.25 2.25 0 0 0 2.245-2.134L15.66 5h.59a.75.75 0 0 0 0-1.5H13V2.75A1.75 1.75 0 0 0 11.25 1h-2.5zM8.5 2.75A.25.25 0 0 1 8.75 2.5h2.5a.25.25 0 0 1 .25.25V3.5h-3V2.75zM7.75 8a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5A.75.75 0 0 1 7.75 8zm5 0a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5a.75.75 0 0 1 .75-.75z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                </button>
-                              </div>
+                              <p className="font-medium text-gray-900">{pool.name}</p>
                               <p className="mt-1 text-sm leading-relaxed text-gray-600">
                                 {pool.members.map((member) => member.personName).join(', ')}
                               </p>
@@ -1013,6 +991,31 @@ function AssignmentsTab({
                             </td>
                             <td className="px-3 py-3 align-top text-xs text-gray-600">
                               {pool.liceId ? (liceNameById.get(pool.liceId) ?? '—') : '—'}
+                            </td>
+                            <td className="w-8 px-2 py-3 align-top">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPendingClearPool({ id: pool.id, name: pool.name })
+                                }
+                                disabled={isReadOnly || running || board?.locked}
+                                aria-label={t('organizer.refereesPage.clearPool')}
+                                title={t('organizer.refereesPage.clearPool')}
+                                className="text-gray-400 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                  className="h-4 w-4"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M8.75 1A1.75 1.75 0 0 0 7 2.75V3.5H3.75a.75.75 0 0 0 0 1.5h.59l.812 11.366A2.25 2.25 0 0 0 7.398 18.5h5.204a2.25 2.25 0 0 0 2.245-2.134L15.66 5h.59a.75.75 0 0 0 0-1.5H13V2.75A1.75 1.75 0 0 0 11.25 1h-2.5zM8.5 2.75A.25.25 0 0 1 8.75 2.5h2.5a.25.25 0 0 1 .25.25V3.5h-3V2.75zM7.75 8a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5A.75.75 0 0 1 7.75 8zm5 0a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5a.75.75 0 0 1 .75-.75z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </button>
                             </td>
                             {pool.roleSlots.map((slot) => (
                               <td
