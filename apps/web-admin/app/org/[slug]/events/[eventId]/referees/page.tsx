@@ -514,6 +514,21 @@ function formatTime(value: string | null) {
   );
 }
 
+/**
+ * Map a backend blocked-candidate reason code to a user-friendly i18n
+ * string. Known codes are emitted by assignment-board.service.ts ~L1183:
+ *   - 'missing_qualification' → not qualified for this role
+ *   - 'fighter_referee_overlap' → competing in this pool
+ * Unknown codes fall through verbatim so a new server reason still
+ * shows something the operator can grep on.
+ */
+function formatBlockedReason(code: string): string {
+  if (code === 'missing_qualification' || code === 'fighter_referee_overlap') {
+    return t(`organizer.refereesPage.blockedReasons.${code}`);
+  }
+  return code;
+}
+
 function CandidateGroup({
   title,
   candidates,
@@ -530,24 +545,57 @@ function CandidateGroup({
     <div>
       <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{title}</p>
       <div className="space-y-2">
-        {candidates.map((candidate) => (
-          <button
-            type="button"
-            key={candidate.personId}
-            disabled={disabled}
-            onClick={() => onSelect?.(candidate)}
-            className="w-full rounded border border-gray-200 px-3 py-2 text-left text-sm hover:border-gray-300 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-          >
-            <span className="block font-medium">{candidate.displayName}</span>
-            {candidate.clubLabel && <span className="block text-xs">{candidate.clubLabel}</span>}
-            {(candidate.reasons?.length ?? 0) > 0 && (
-              <span className="block text-xs">{candidate.reasons?.join(', ')}</span>
-            )}
-            {(candidate.warnings?.length ?? 0) > 0 && (
-              <span className="block text-xs">{candidate.warnings?.join(', ')}</span>
-            )}
-          </button>
-        ))}
+        {candidates.map((candidate) => {
+          const reasonsRaw = candidate.reasons ?? [];
+          const formattedReasons = reasonsRaw.map(formatBlockedReason);
+          const tooltip =
+            disabled && formattedReasons.length > 0 ? formattedReasons.join(', ') : undefined;
+          return (
+            <button
+              type="button"
+              key={candidate.personId}
+              disabled={disabled}
+              onClick={() => onSelect?.(candidate)}
+              title={tooltip}
+              className={[
+                'w-full rounded border px-3 py-2 text-left text-sm transition-colors',
+                disabled
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                  : 'border-gray-200 hover:border-gray-300',
+              ].join(' ')}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span
+                  className={[
+                    'block font-medium',
+                    disabled ? 'line-through decoration-gray-400 decoration-1' : '',
+                  ].join(' ')}
+                >
+                  {candidate.displayName}
+                </span>
+                {disabled && (
+                  <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600">
+                    {t('organizer.refereesPage.unavailableBadge')}
+                  </span>
+                )}
+              </div>
+              {candidate.clubLabel && <span className="block text-xs">{candidate.clubLabel}</span>}
+              {formattedReasons.length > 0 && (
+                <span
+                  className={[
+                    'mt-0.5 block text-xs italic',
+                    disabled ? 'text-gray-500' : 'text-gray-600',
+                  ].join(' ')}
+                >
+                  {formattedReasons.join(', ')}
+                </span>
+              )}
+              {(candidate.warnings?.length ?? 0) > 0 && (
+                <span className="block text-xs">{candidate.warnings?.join(', ')}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

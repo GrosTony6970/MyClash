@@ -3539,6 +3539,11 @@ export const en = {
       poolColumn: 'Pool',
       scheduleColumn: 'Schedule',
       liceColumn: 'Lice',
+      unavailableBadge: 'Unavailable',
+      blockedReasons: {
+        missing_qualification: 'Not qualified for this role',
+        fighter_referee_overlap: 'Competing in this pool',
+      },
       unassigned: 'Unassigned',
       previewAssignments: 'Preview auto-assign',
       previewAutoAssign: 'Preview auto assign',
@@ -7262,6 +7267,11 @@ export const fr = {
       poolColumn: 'Poule',
       scheduleColumn: 'Planning',
       liceColumn: 'Lice',
+      unavailableBadge: 'Indisponible',
+      blockedReasons: {
+        missing_qualification: 'Non qualifie pour ce role',
+        fighter_referee_overlap: 'Combattant dans cette poule',
+      },
       unassigned: 'Non affecte',
       previewAssignments: "Previsualiser l'affectation auto",
       previewAutoAssign: 'Lancer le calcul',
