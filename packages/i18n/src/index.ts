@@ -2277,7 +2277,7 @@ export const en = {
       steps: {
         basics: 'Basics',
         lices: 'Lices',
-        theme: 'Theme',
+        theme: 'Branding',
         review: 'Review',
       },
       done: 'done',
@@ -2445,7 +2445,7 @@ export const en = {
         refereeAssignments: 'Referee Assignments',
         compensation: 'Compensation',
         workshops: 'Workshops',
-        theme: 'Theme',
+        theme: 'Branding',
         staff: 'Event Staff',
         notifications: 'Notifications',
         aiAssistant: 'AI Assistant',
@@ -5596,7 +5596,7 @@ export const fr = {
       steps: {
         basics: 'Bases',
         lices: 'Lices',
-        theme: 'Theme',
+        theme: 'Identite visuelle',
         review: 'Validation',
       },
       done: 'termine',
@@ -5770,7 +5770,7 @@ export const fr = {
         staff: 'Staff evenement',
         notifications: 'Notifications',
         aiAssistant: 'Assistant IA',
-        theme: 'ThÃƒÂ¨me',
+        theme: 'Identite visuelle',
       },
     },
     aiAssistant: {

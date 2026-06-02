@@ -4,7 +4,6 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@myclash/ui';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
-import { ColorSwatchPicker } from '../../../../../src/components/ColorSwatchPicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
 
@@ -17,7 +16,6 @@ interface WizardState {
   location: string;
   liceCount: number;
   liceNames: string[];
-  primaryColor: string;
   logoUrl: string;
   submitting: boolean;
   error: string | null;
@@ -58,7 +56,6 @@ const INITIAL: WizardState = {
   location: '',
   liceCount: 2,
   liceNames: ['Lice 1', 'Lice 2'],
-  primaryColor: '#c0392b',
   logoUrl: '',
   submitting: false,
   error: null,
@@ -294,34 +291,6 @@ function Step3({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <span className="mb-1 block text-sm font-medium text-gray-700">
-          {t('organizer.newEvent.primaryColor')}
-        </span>
-        <div className="flex items-start gap-3">
-          <ColorSwatchPicker
-            value={state.primaryColor}
-            onChange={(hex) => dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: hex })}
-            ariaLabel={t('organizer.newEvent.primaryColor')}
-          />
-          <input
-            type="text"
-            value={state.primaryColor}
-            aria-label={t('organizer.newEvent.colorHex')}
-            onChange={(event) =>
-              dispatch({ type: 'SET_FIELD', field: 'primaryColor', value: event.target.value })
-            }
-            className="w-28 rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-          />
-          <div
-            className="flex h-10 flex-1 items-center justify-center rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: state.primaryColor }}
-          >
-            {t('organizer.newEvent.preview')}
-          </div>
-        </div>
-      </div>
-
-      <div>
         <label htmlFor="wizard-logo-url" className="mb-1 block text-sm font-medium text-gray-700">
           {t('organizer.newEvent.logoUrl')}
         </label>
@@ -400,28 +369,22 @@ function Step4({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
-          {t('organizer.newEvent.reviewTheme')}
-        </p>
-        <div className="flex items-center gap-2">
-          <div
-            className="h-6 w-6 rounded border border-gray-300"
-            style={{ backgroundColor: state.primaryColor }}
-          />
-          <span className="font-mono text-xs">{state.primaryColor}</span>
-          {logoPreviewUrl && (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={logoPreviewUrl}
-                alt={t('organizer.newEvent.logoPreviewAlt')}
-                className="ml-auto h-8 w-8 rounded bg-white object-contain"
-              />
-            </>
-          )}
+      {logoPreviewUrl && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
+            {t('organizer.newEvent.reviewTheme')}
+          </p>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoPreviewUrl}
+              alt={t('organizer.newEvent.logoPreviewAlt')}
+              className="h-10 w-10 rounded bg-white object-contain"
+            />
+            <span className="text-xs text-gray-500">{t('organizer.newEvent.logoUpload')}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -573,14 +536,9 @@ export default function NewEventPage() {
         });
       }
 
-      await fetch(`${apiUrl}/api/v1/events/${event.id}/theme`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          primaryColor: state.primaryColor,
-        }),
-      });
+      // Per-event color overrides retired in migration 0086 — the
+      // primary color used to write to themes.primary_color. No-op
+      // here now; the Branding page handles logo + hero post-create.
 
       selectEvent(event.id);
       router.push(`/org/${slug}/events/${event.id}`);

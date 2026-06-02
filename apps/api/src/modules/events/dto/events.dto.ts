@@ -108,21 +108,10 @@ export class UpdateEventDto {
 }
 
 export class UpsertEventThemeDto {
-  @ApiProperty({ required: false, example: '#dc2626' })
-  @IsOptional()
-  @IsHexColor()
-  primaryColor?: string | null;
-
-  @ApiProperty({ required: false, example: '#0f172a' })
-  @IsOptional()
-  @IsHexColor()
-  secondaryColor?: string | null;
-
-  @ApiProperty({ required: false, example: '#f59e0b' })
-  @IsOptional()
-  @IsHexColor()
-  accentColor?: string | null;
-
+  // logoUrl + heroImageUrl are the only per-event identity affordances
+  // that remain. Per-event color overrides + font pickers + custom CSS
+  // were retired in migration 0086 — the unified MyClash design is now
+  // governed by @myclash/design-tokens across both apps.
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -132,23 +121,6 @@ export class UpsertEventThemeDto {
   @IsOptional()
   @IsString()
   heroImageUrl?: string | null;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  fontDisplay?: string | null;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  fontBody?: string | null;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  customCss?: string | null;
 }
 
 export class EventQueryDto {

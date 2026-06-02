@@ -108,29 +108,22 @@ export class EventThemesService {
 
   private toThemeRow(eventId: string, dto: UpsertEventThemeDto): Record<string, unknown> {
     // logo_url intentionally omitted — migration 0084 dropped it
-    // from this table. The canonical column is events.logo_url.
+    // from this table; the canonical column is events.logo_url.
+    // Color overrides + font pickers + custom_css retired in 0086 —
+    // unified MyClash design from @myclash/design-tokens applies.
     return {
       event_id: eventId,
-      primary_color: dto.primaryColor ?? '#c0392b',
-      secondary_color: dto.secondaryColor ?? '#2c3e50',
-      accent_color: dto.accentColor ?? '#f59e0b',
       hero_image_url: dto.heroImageUrl ?? null,
-      font_display: dto.fontDisplay ?? 'Cinzel',
-      font_body: dto.fontBody ?? 'Inter',
-      custom_css: dto.customCss ?? null,
     };
   }
 
   /**
-   * Merge the theme row (colors/fonts/hero/css) with the event's
-   * canonical logo URL. Theme response still surfaces `logoUrl` at
-   * the top level so callers don't need to fan out a second fetch.
+   * Merge the (now-thin) theme row with the event's canonical logo
+   * URL. Theme response surfaces `logoUrl` at the top level so
+   * callers don't need to fan out a second fetch.
    */
   private toThemeResponse(row: unknown, eventLogoUrl: string | null) {
     if (!row || typeof row !== 'object') {
-      // No theme row yet: return a stub carrying the event logo so
-      // callers can still render the logo without first creating a
-      // theme.
       if (eventLogoUrl) return { logoUrl: eventLogoUrl };
       return null;
     }
@@ -138,14 +131,8 @@ export class EventThemesService {
     return {
       id: data['id'],
       eventId: data['event_id'],
-      primaryColor: data['primary_color'],
-      secondaryColor: data['secondary_color'],
-      accentColor: data['accent_color'],
       logoUrl: eventLogoUrl,
       heroImageUrl: data['hero_image_url'],
-      fontDisplay: data['font_display'],
-      fontBody: data['font_body'],
-      customCss: data['custom_css'],
     };
   }
 }

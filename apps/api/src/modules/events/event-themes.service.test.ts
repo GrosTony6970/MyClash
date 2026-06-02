@@ -61,17 +61,26 @@ describe('EventThemesService', () => {
 
     await service.upsertTheme(
       'event-1',
-      { primaryColor: '#dc2626', logoUrl: 'https://example.com/logo.png' },
+      { heroImageUrl: 'https://example.com/hero.jpg', logoUrl: 'https://example.com/logo.png' },
       'user-1',
     );
 
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
-    // themes update must NOT carry logo_url — that column is gone.
+    // themes update must NOT carry logo_url — that column is gone (0084).
+    // It also must NOT carry the retired color / font / custom_css fields
+    // (0086): per-event color overrides are deprecated in favour of the
+    // unified MyClash design.
     expect(themeChain.update).toHaveBeenCalledTimes(1);
     const calls = themeChain.update.mock.calls as unknown as Array<[Record<string, unknown>]>;
     const themeUpdatePayload = calls[0]![0];
     expect(themeUpdatePayload).not.toHaveProperty('logo_url');
-    expect(themeUpdatePayload['primary_color']).toBe('#dc2626');
+    expect(themeUpdatePayload).not.toHaveProperty('primary_color');
+    expect(themeUpdatePayload).not.toHaveProperty('secondary_color');
+    expect(themeUpdatePayload).not.toHaveProperty('accent_color');
+    expect(themeUpdatePayload).not.toHaveProperty('font_display');
+    expect(themeUpdatePayload).not.toHaveProperty('font_body');
+    expect(themeUpdatePayload).not.toHaveProperty('custom_css');
+    expect(themeUpdatePayload['hero_image_url']).toBe('https://example.com/hero.jpg');
   });
 
   // ── Logo upload (shim) ─────────────────────────────────────────────────────

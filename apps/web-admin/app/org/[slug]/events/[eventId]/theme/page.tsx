@@ -1,75 +1,61 @@
-/* eslint-disable myclash/no-literal-string -- legacy theme editor predates i18n; upload wiring keeps existing copy for now */
+/* eslint-disable myclash/no-literal-string -- branding editor predates i18n */
 'use client';
 
 /**
- * Theme editor — T-702
- * Route: /org/[slug]/events/[eventId]/theme
+ * Branding editor (renamed from "Theme" in Slice 4).
+ * Route: /org/[slug]/events/[eventId]/theme  — kept for URL stability.
  *
- * AC:
- *   ✓ Color pickers; live preview shows theme applied
- *   ✓ Logo upload to Supabase Storage
- *   ✓ Save persists theme; preview matches public site exactly
+ * Only two affordances remain after the public-redesign scope-down:
+ *   - Event logo upload (writes events.logo_url via the canonical
+ *     /events/:id/logo endpoint)
+ *   - Hero image URL (kept on themes.hero_image_url for now)
+ *
+ * Per-event colors / font pickers / custom CSS were retired in
+ * migration 0086 because none of them actually flowed through to the
+ * public app — the unified MyClash design from @myclash/design-tokens
+ * governs both apps.
  */
 
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@myclash/ui';
-import { ColorSwatchPicker } from '../../../../../../src/components/ColorSwatchPicker';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ThemeState {
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  fontDisplay: string;
-  fontBody: string;
+interface BrandingState {
   logoUrl: string;
   heroImageUrl: string;
-  customCss: string;
 }
 
-type ThemeAction =
-  | { type: 'SET'; field: keyof ThemeState; value: string }
-  | { type: 'LOAD'; theme: ThemeState };
+type BrandingAction =
+  | { type: 'SET'; field: keyof BrandingState; value: string }
+  | { type: 'LOAD'; branding: BrandingState };
 
-const DEFAULTS: ThemeState = {
-  primaryColor: '#c0392b',
-  secondaryColor: '#2c3e50',
-  accentColor: '#f59e0b',
-  fontDisplay: 'Cinzel',
-  fontBody: 'Inter',
+const DEFAULTS: BrandingState = {
   logoUrl: '',
   heroImageUrl: '',
-  customCss: '',
 };
 
-function reducer(state: ThemeState, action: ThemeAction): ThemeState {
+function reducer(state: BrandingState, action: BrandingAction): BrandingState {
   switch (action.type) {
     case 'SET':
       return { ...state, [action.field]: action.value };
     case 'LOAD':
-      return action.theme;
+      return action.branding;
     default:
       return state;
   }
 }
 
-const FONT_DISPLAY_OPTIONS = ['Cinzel', 'Playfair Display', 'IM Fell English', 'MedievalSharp'];
-const FONT_BODY_OPTIONS = ['Inter', 'Lato', 'Open Sans', 'Roboto', 'Source Sans 3'];
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
-export default function ThemeEditorPage() {
+export default function BrandingEditorPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const searchParams = useSearchParams();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
-  const [theme, dispatch] = useReducer(reducer, DEFAULTS);
+  const [branding, dispatch] = useReducer(reducer, DEFAULTS);
   const [eventName, setEventName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,11 +64,8 @@ export default function ThemeEditorPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Load existing theme ────────────────────────────────────────────────────
-
   useEffect(() => {
     const controller = new AbortController();
-
     Promise.all([
       fetch(`${apiUrl}/api/v1/events/${eventId}`, {
         credentials: 'include',
@@ -95,23 +78,20 @@ export default function ThemeEditorPage() {
     ])
       .then(async ([eventRes, themeRes]) => {
         if (eventRes.ok) {
-          const ev = (await eventRes.json()) as { name: string };
+          const ev = (await eventRes.json()) as { name: string; logo_url?: string | null };
           setEventName(ev.name);
+          if (typeof ev.logo_url === 'string') {
+            dispatch({ type: 'SET', field: 'logoUrl', value: ev.logo_url });
+          }
         }
         if (themeRes.ok) {
-          const evTheme = (await themeRes.json()) as Partial<ThemeState> | null;
+          const evTheme = (await themeRes.json()) as Partial<BrandingState> | null;
           if (evTheme) {
             dispatch({
               type: 'LOAD',
-              theme: {
-                primaryColor: evTheme.primaryColor ?? DEFAULTS.primaryColor,
-                secondaryColor: evTheme.secondaryColor ?? DEFAULTS.secondaryColor,
-                accentColor: evTheme.accentColor ?? DEFAULTS.accentColor,
-                fontDisplay: evTheme.fontDisplay ?? DEFAULTS.fontDisplay,
-                fontBody: evTheme.fontBody ?? DEFAULTS.fontBody,
+              branding: {
                 logoUrl: evTheme.logoUrl ?? '',
                 heroImageUrl: evTheme.heroImageUrl ?? '',
-                customCss: evTheme.customCss ?? '',
               },
             });
           }
@@ -121,39 +101,27 @@ export default function ThemeEditorPage() {
         if (err instanceof Error && err.name === 'AbortError') return;
       })
       .finally(() => setLoading(false));
-
     return () => controller.abort();
   }, [eventId, apiUrl]);
-
-  // ── Save ───────────────────────────────────────────────────────────────────
 
   async function handleSave() {
     setSaving(true);
     setError(null);
     setSaved(false);
-
     try {
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/theme`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          primaryColor: theme.primaryColor,
-          secondaryColor: theme.secondaryColor,
-          accentColor: theme.accentColor,
-          fontDisplay: theme.fontDisplay,
-          fontBody: theme.fontBody,
-          logoUrl: theme.logoUrl || null,
-          heroImageUrl: theme.heroImageUrl || null,
-          customCss: theme.customCss || null,
+          logoUrl: branding.logoUrl || null,
+          heroImageUrl: branding.heroImageUrl || null,
         }),
       });
-
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Failed to save theme');
+        throw new Error(body.message ?? 'Failed to save branding');
       }
-
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -162,8 +130,6 @@ export default function ThemeEditorPage() {
       setSaving(false);
     }
   }
-
-  // ── Logo upload ────────────────────────────────────────────────────────────
 
   async function handleLogoUpload(file: File) {
     if (!ALLOWED_LOGO_TYPES.has(file.type)) {
@@ -179,17 +145,14 @@ export default function ThemeEditorPage() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('eventId', eventId);
-
-      // Canonical events-level endpoint: writes the file to
-      // storage AND updates events.logo_url. Migration 0084 retired
-      // themes.logo_url so the previously-used /theme/logo route is
-      // now a thin shim around this one.
+      // Canonical endpoint: writes the file to storage AND sets
+      // events.logo_url. Migration 0084 retired the themes.logo_url
+      // column so the previously-used /theme/logo route is a shim.
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/logo`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
       });
-
       if (!res.ok) throw new Error('Upload failed');
       const data = (await res.json()) as { url: string };
       dispatch({ type: 'SET', field: 'logoUrl', value: data.url });
@@ -203,31 +166,34 @@ export default function ThemeEditorPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="w-8 h-8 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-red-700" />
       </main>
     );
   }
 
   return (
-    <main className="p-8 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <main className="max-w-3xl p-8">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+          <div className="mb-1 flex items-center gap-2 text-sm text-slate-500">
+            <Link href={`/org/${slug}`} className="hover:text-slate-700">
               {slug}
             </Link>
             <span>/</span>
-            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-slate-700">
               {eventName}
             </Link>
             <span>/</span>
-            <span className="text-gray-900 font-medium">Theme</span>
+            <span className="font-medium text-slate-900">Branding</span>
           </div>
-          <h1 className="text-2xl font-bold">Theme editor</h1>
+          <h1 className="font-display text-2xl font-bold text-slate-900">Branding</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Per-event identity affordances. Page colors + typography come from the unified MyClash
+            design tokens and apply across both the organiser and public apps.
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          {saved && <span className="text-sm text-green-600 font-medium">✓ Saved</span>}
+          {saved && <span className="text-sm font-medium text-emerald-700">✓ Saved</span>}
           <Button
             type="button"
             variant="next"
@@ -235,110 +201,46 @@ export default function ThemeEditorPage() {
             disabled={saving}
             loading={saving}
           >
-            {saving ? 'Saving…' : 'Save theme'}
+            {saving ? 'Saving…' : 'Save branding'}
           </Button>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-6 text-sm">
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {searchParams.get('logoUpload') === 'failed' && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 mb-6 text-sm">
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Logo upload failed during event creation. Upload it again here.
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-8">
-        {/* ── Editor panel ── */}
-        <div className="flex flex-col gap-6">
-          {/* Colors */}
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Colors</h2>
-            <div className="flex flex-col gap-3">
-              {(
-                [
-                  { field: 'primaryColor', label: 'Primary' },
-                  { field: 'secondaryColor', label: 'Secondary' },
-                  { field: 'accentColor', label: 'Accent' },
-                ] as const
-              ).map(({ field, label }) => (
-                <div key={field} className="flex items-start gap-3">
-                  <label className="text-sm text-gray-700 w-24 pt-1">{label}</label>
-                  <ColorSwatchPicker
-                    value={theme[field]}
-                    onChange={(hex) => dispatch({ type: 'SET', field, value: hex })}
-                    ariaLabel={label}
-                  />
-                  <input
-                    type="text"
-                    value={theme[field]}
-                    onChange={(e) => dispatch({ type: 'SET', field, value: e.target.value })}
-                    className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
-                  />
+      <div className="flex flex-col gap-8">
+        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+            Event logo
+          </h2>
+          <div className="flex items-start gap-5">
+            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
+              {branding.logoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={branding.logoUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase text-slate-300">
+                  {(eventName || '?').slice(0, 2)}
                 </div>
-              ))}
+              )}
             </div>
-          </section>
-
-          {/* Typography */}
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-              Typography
-            </h2>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-700 w-24">Display</label>
-                <select
-                  value={theme.fontDisplay}
-                  onChange={(e) =>
-                    dispatch({ type: 'SET', field: 'fontDisplay', value: e.target.value })
-                  }
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                >
-                  {FONT_DISPLAY_OPTIONS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-700 w-24">Body</label>
-                <select
-                  value={theme.fontBody}
-                  onChange={(e) =>
-                    dispatch({ type: 'SET', field: 'fontBody', value: e.target.value })
-                  }
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                >
-                  {FONT_BODY_OPTIONS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </section>
-
-          {/* Logo */}
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Logo</h2>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="url"
-                  value={theme.logoUrl}
-                  onChange={(e) =>
-                    dispatch({ type: 'SET', field: 'logoUrl', value: e.target.value })
-                  }
-                  placeholder="https://… or upload below"
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                />
-              </div>
+            <div className="flex flex-1 flex-col gap-2">
+              <input
+                type="url"
+                value={branding.logoUrl}
+                onChange={(e) => dispatch({ type: 'SET', field: 'logoUrl', value: e.target.value })}
+                placeholder="https://… or upload below"
+                className="rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+              />
               <div className="flex items-center gap-2">
                 <input
                   ref={logoInputRef}
@@ -360,126 +262,30 @@ export default function ThemeEditorPage() {
                 >
                   {uploadingLogo ? 'Uploading…' : 'Upload image'}
                 </Button>
-                <p className="text-xs text-gray-400">PNG, JPEG, or WebP up to 10 MB</p>
+                <p className="text-xs text-slate-500">PNG, JPEG, or WebP up to 10 MB</p>
               </div>
-            </div>
-          </section>
-
-          {/* Hero image */}
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-              Hero image URL
-            </h2>
-            <input
-              type="url"
-              value={theme.heroImageUrl}
-              onChange={(e) =>
-                dispatch({ type: 'SET', field: 'heroImageUrl', value: e.target.value })
-              }
-              placeholder="https://…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-            />
-          </section>
-
-          {/* Custom CSS */}
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-              Custom CSS
-            </h2>
-            <textarea
-              value={theme.customCss}
-              onChange={(e) => dispatch({ type: 'SET', field: 'customCss', value: e.target.value })}
-              rows={5}
-              placeholder=".my-class { color: var(--color-primary); }"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-600 resize-y"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Injected into the public event pages. Script tags are stripped.
-            </p>
-          </section>
-        </div>
-
-        {/* ── Live preview panel ── */}
-        <div className="sticky top-8">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">
-            Live preview
-          </h2>
-          <div
-            className="border border-gray-200 rounded-xl overflow-hidden shadow-sm"
-            style={
-              {
-                '--event-primary': theme.primaryColor,
-                '--event-secondary': theme.secondaryColor,
-                '--event-accent': theme.accentColor,
-                '--font-display': `'${theme.fontDisplay}', Georgia, serif`,
-                '--font-body': `'${theme.fontBody}', system-ui, sans-serif`,
-              } as React.CSSProperties
-            }
-          >
-            {/* Mock event header */}
-            <div className="px-6 py-5" style={{ backgroundColor: theme.primaryColor }}>
-              <div className="flex items-center gap-3">
-                {theme.logoUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={theme.logoUrl}
-                    alt="Logo"
-                    className="w-10 h-10 rounded object-contain bg-white/20 p-1"
-                  />
-                )}
-                <div>
-                  <h3
-                    className="text-xl font-bold text-white"
-                    style={{ fontFamily: `'${theme.fontDisplay}', Georgia, serif` }}
-                  >
-                    {eventName || 'Event Name'}
-                  </h3>
-                  <p
-                    className="text-white/70 text-sm"
-                    style={{ fontFamily: `'${theme.fontBody}', system-ui, sans-serif` }}
-                  >
-                    Lyon, France · 15–16 Nov 2027
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Mock content */}
-            <div className="bg-white px-6 py-4">
-              <div className="flex gap-3 mb-4">
-                {['Longsword', 'Messer', 'Sword & Buckler'].map((t) => (
-                  <span
-                    key={t}
-                    className="text-xs px-3 py-1 rounded-full font-medium text-white"
-                    style={{ backgroundColor: theme.secondaryColor }}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-
-              <div className="border border-gray-100 rounded-lg p-3 mb-3">
-                <p className="text-xs text-gray-400 mb-1">Next match</p>
-                <p
-                  className="font-semibold text-gray-900"
-                  style={{ fontFamily: `'${theme.fontBody}', system-ui, sans-serif` }}
-                >
-                  Jean Dupont vs Marc Martin
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">Pool A · 11:15 · Lice 1</p>
-              </div>
-
-              <button
-                className="w-full py-2 rounded-lg text-white text-sm font-semibold"
-                style={{ backgroundColor: theme.accentColor }}
-              >
-                View schedule
-              </button>
             </div>
           </div>
+        </section>
 
-          <p className="text-xs text-gray-400 mt-2 text-center">Preview updates live as you edit</p>
-        </div>
+        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+            Hero image
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Shown at the top of <code className="font-mono">/e/&lt;slug&gt;/home</code>. Use a wide
+            landscape image (≥ 1600px wide).
+          </p>
+          <input
+            type="url"
+            value={branding.heroImageUrl}
+            onChange={(e) =>
+              dispatch({ type: 'SET', field: 'heroImageUrl', value: e.target.value })
+            }
+            placeholder="https://…"
+            className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+          />
+        </section>
       </div>
     </main>
   );

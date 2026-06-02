@@ -1,26 +1,18 @@
 /**
- * Theme types for per-event theming (T-602).
+ * Per-event identity used by /e/[eventSlug]/* layouts.
+ *
+ * Slice 4 of the public redesign retired per-event color overrides +
+ * custom font + custom CSS. The only fields that still flow from the
+ * theme editor to the public site are the logo (now sourced from
+ * events.logo_url) and the hero image (themes.hero_image_url).
  */
 
 export interface EventTheme {
-  primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
   logoUrl: string | null;
   heroImageUrl: string | null;
-  fontDisplay: string;
-  fontBody: string;
-  customCss: string | null;
 }
 
-/** Default theme — used when event has no custom theme. */
 export const DEFAULT_THEME: EventTheme = {
-  primaryColor: '#c0392b',
-  secondaryColor: '#2c3e50',
-  accentColor: '#f59e0b',
   logoUrl: null,
   heroImageUrl: null,
-  fontDisplay: 'Cinzel',
-  fontBody: 'Inter',
-  customCss: null,
 };

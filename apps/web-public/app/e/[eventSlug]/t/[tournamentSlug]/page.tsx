@@ -269,7 +269,7 @@ export default async function TournamentPage({ params }: Props) {
         <div className="flex-1">
           <h1
             className="font-display text-2xl font-bold sm:text-3xl"
-            style={{ color: 'var(--event-primary, #c0392b)' }}
+            style={{ color: accentColor }}
           >
             {tournament.name}
           </h1>
