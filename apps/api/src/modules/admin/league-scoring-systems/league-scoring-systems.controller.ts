@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -35,9 +36,9 @@ export class LeagueScoringSystemsController {
   // the league editor (used by org/league admins, not only super admins)
   // can populate the scoring-system dropdown. Writes remain super-admin only.
   @Get()
-  @ApiOperation({ summary: 'List non-archived league scoring systems' })
-  async list() {
-    return this.service.list();
+  @ApiOperation({ summary: 'List league scoring systems (optionally including archived)' })
+  async list(@Query('includeArchived') includeArchived?: string) {
+    return this.service.list({ includeArchived: includeArchived === 'true' });
   }
 
   @Post()
@@ -64,5 +65,19 @@ export class LeagueScoringSystemsController {
   @ApiOperation({ summary: 'Archive a league scoring system preset (super admin)' })
   async archive(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     await this.service.archive(id, getActorId(req));
+  }
+
+  @Post(':id/clone')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Clone a league scoring system preset (super admin)' })
+  async clone(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.clone(id, getActorId(req));
+  }
+
+  @Post(':id/restore')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Restore an archived league scoring system (super admin)' })
+  async restore(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.restore(id, getActorId(req));
   }
 }

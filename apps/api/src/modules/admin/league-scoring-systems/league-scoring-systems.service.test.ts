@@ -216,4 +216,258 @@ describe('LeagueScoringSystemsService', () => {
       BadRequestException,
     );
   });
+
+  // ── Clone behaviour (Slice A) ─────────────────────────────────────────────
+
+  it('clones the built-in into an editable variant', async () => {
+    const ffamhe = {
+      id: 'sys-builtin',
+      code: 'ffamhe_tf_2026',
+      name: 'FFAMHE TF 2026',
+      is_builtin: true,
+      points_by_rank: { '1': 16, '2': 13 },
+      tie_breakers: ['total_points', 'medal_count'],
+      description: 'Official FFAMHE.',
+    };
+    const { service, inserted, auditInserts } = buildCloneSupabase({
+      source: ffamhe,
+      existingCodes: new Set<string>(),
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const cloned = await svc.clone('sys-builtin', 'user-1');
+    expect(cloned.code).toBe('ffamhe_tf_2026_copy');
+    expect(cloned.name).toBe('FFAMHE TF 2026 (copy)');
+    expect(cloned.is_builtin).toBe(false);
+    expect(cloned.is_archived).toBe(false);
+    expect(cloned.points_by_rank).toEqual({ '1': 16, '2': 13 });
+    expect(cloned.tie_breakers).toEqual(['total_points', 'medal_count']);
+    expect(inserted[0]).toMatchObject({
+      code: 'ffamhe_tf_2026_copy',
+      name: 'FFAMHE TF 2026 (copy)',
+      is_builtin: false,
+      is_archived: false,
+      created_by_user_id: 'user-1',
+    });
+    expect(auditInserts[0]).toMatchObject({
+      action: 'league.scoring_system.cloned',
+      entity_id: cloned.id,
+      payload_json: expect.objectContaining({ source_code: 'ffamhe_tf_2026' }),
+    });
+  });
+
+  it('clones a non-builtin row', async () => {
+    const source = {
+      id: 'sys-custom',
+      code: 'wma_cup_2025',
+      name: 'WMA Cup 2025',
+      is_builtin: false,
+      points_by_rank: { '1': 20, '2': 15 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const { service } = buildCloneSupabase({ source, existingCodes: new Set() });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const cloned = await svc.clone('sys-custom', 'user-1');
+    expect(cloned.code).toBe('wma_cup_2025_copy');
+    expect(cloned.is_builtin).toBe(false);
+  });
+
+  it('suffixes the cloned code when the base copy already exists', async () => {
+    const source = {
+      id: 'sys-1',
+      code: 'foo',
+      name: 'Foo',
+      is_builtin: false,
+      points_by_rank: { '1': 10 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const { service } = buildCloneSupabase({
+      source,
+      existingCodes: new Set(['foo_copy', 'foo_copy_2']),
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const cloned = await svc.clone('sys-1', 'user-1');
+    expect(cloned.code).toBe('foo_copy_3');
+  });
+
+  it('rejects non-super-admin callers on clone', async () => {
+    const { service } = makeNonSuperAdminSupabase();
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.clone('sys-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // ── Restore behaviour (Slice A) ───────────────────────────────────────────
+
+  it('restores an archived row', async () => {
+    const { service, updated, auditInserts } = buildSupabase({
+      systemById: {
+        data: {
+          id: 'sys-2',
+          code: 'foo',
+          name: 'Foo',
+          is_builtin: false,
+          is_archived: true,
+        },
+        error: null,
+      },
+      updateResult: {
+        data: { id: 'sys-2', code: 'foo', name: 'Foo', is_archived: false },
+        error: null,
+      },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const row = await svc.restore('sys-2', 'user-1');
+    expect(row.is_archived).toBe(false);
+    expect(updated[0]).toMatchObject({ is_archived: false });
+    expect(auditInserts[0]).toMatchObject({
+      action: 'league.scoring_system.restored',
+      entity_id: 'sys-2',
+    });
+  });
+
+  it('rejects non-super-admin callers on restore', async () => {
+    const { service } = makeNonSuperAdminSupabase();
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.restore('sys-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  // ── includeArchived listing (Slice A) ─────────────────────────────────────
+
+  it('list({ includeArchived: false }) filters archived rows', async () => {
+    const captured: { filterApplied: boolean } = { filterApplied: false };
+    const service = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'league_scoring_systems') {
+            const eqMock = vi.fn(() => {
+              captured.filterApplied = true;
+              return chain;
+            });
+            const orderMock = vi.fn().mockReturnThis();
+            const chain: Record<string, unknown> = {
+              eq: eqMock,
+              order: orderMock,
+              then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
+                resolve({ data: [], error: null }),
+            };
+            return { select: vi.fn().mockReturnValue(chain) };
+          }
+          return {} as never;
+        }),
+      },
+    };
+    const svc = new LeagueScoringSystemsService(service as never);
+    await svc.list({ includeArchived: false });
+    expect(captured.filterApplied).toBe(true);
+  });
+
+  it('list({ includeArchived: true }) skips the archived filter', async () => {
+    const captured: { filterApplied: boolean } = { filterApplied: false };
+    const service = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'league_scoring_systems') {
+            const eqMock = vi.fn(() => {
+              captured.filterApplied = true;
+              return chain;
+            });
+            const orderMock = vi.fn().mockReturnThis();
+            const chain: Record<string, unknown> = {
+              eq: eqMock,
+              order: orderMock,
+              then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
+                resolve({ data: [], error: null }),
+            };
+            return { select: vi.fn().mockReturnValue(chain) };
+          }
+          return {} as never;
+        }),
+      },
+    };
+    const svc = new LeagueScoringSystemsService(service as never);
+    await svc.list({ includeArchived: true });
+    expect(captured.filterApplied).toBe(false);
+  });
 });
+
+// ── Clone-test helper: extends buildSupabase with code-existence lookup ─────
+
+function buildCloneSupabase(opts: {
+  source: {
+    id: string;
+    code: string;
+    name: string;
+    is_builtin: boolean;
+    points_by_rank: Record<string, number>;
+    tie_breakers: string[];
+    description: string | null;
+  };
+  existingCodes: Set<string>;
+}) {
+  const inserted: unknown[] = [];
+  const auditInserts: unknown[] = [];
+
+  // Track how many maybeSingle() calls have been made on league_scoring_systems
+  // so we can return the source row first (getById), then code-lookup results.
+  let maybeSingleCallCount = 0;
+  let pendingCodeLookup: string | null = null;
+
+  const service = {
+    from: vi.fn((table: string) => {
+      if (table === 'platform_roles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+        };
+      }
+      if (table === 'league_scoring_systems') {
+        const eqMock = vi.fn((column: string, value: unknown) => {
+          if (column === 'code') {
+            pendingCodeLookup = String(value);
+          }
+          return chain;
+        });
+        const chain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          eq: eqMock,
+          maybeSingle: vi.fn(() => {
+            maybeSingleCallCount += 1;
+            // First call: getById(id) returns the source row
+            if (maybeSingleCallCount === 1) {
+              return Promise.resolve({ data: opts.source, error: null });
+            }
+            // Subsequent calls: code-existence lookup
+            const code = pendingCodeLookup ?? '';
+            const exists = opts.existingCodes.has(code);
+            return Promise.resolve({ data: exists ? { id: 'taken' } : null, error: null });
+          }),
+          single: vi.fn((): Promise<Result> => {
+            const inserts = inserted as Array<Record<string, unknown>>;
+            const last = inserts[inserts.length - 1] ?? {};
+            return Promise.resolve({
+              data: { id: 'cloned-id', ...last },
+              error: null,
+            });
+          }),
+          insert: vi.fn((payload: unknown) => {
+            inserted.push(payload);
+            return chain;
+          }),
+        };
+        return chain;
+      }
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: unknown) => {
+            auditInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
+      return {} as never;
+    }),
+  };
+  return { service: { service }, inserted, auditInserts };
+}

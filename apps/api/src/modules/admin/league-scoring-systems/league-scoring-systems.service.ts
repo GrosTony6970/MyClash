@@ -61,11 +61,11 @@ export class LeagueScoringSystemsService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  async list(): Promise<LeagueScoringSystemRow[]> {
-    const { data, error } = await this.supabase.service
-      .from('league_scoring_systems')
-      .select('*')
-      .eq('is_archived', false)
+  async list(opts?: { includeArchived?: boolean }): Promise<LeagueScoringSystemRow[]> {
+    const includeArchived = opts?.includeArchived === true;
+    const base = this.supabase.service.from('league_scoring_systems').select('*');
+    const filtered = includeArchived ? base : base.eq('is_archived', false);
+    const { data, error } = await filtered
       .order('is_builtin', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -154,6 +154,53 @@ export class LeagueScoringSystemsService {
     return row;
   }
 
+  async clone(id: string, userId: string): Promise<LeagueScoringSystemRow> {
+    await this.assertSuperAdmin(userId);
+    const source = await this.getById(id);
+    const code = await this.allocateCloneCode(source.code);
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_systems')
+      .insert({
+        code,
+        name: `${source.name} (copy)`,
+        is_builtin: false,
+        is_archived: false,
+        points_by_rank: source.points_by_rank,
+        tie_breakers: source.tie_breakers,
+        description: source.description,
+        created_by_user_id: userId,
+      })
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    const row = data as LeagueScoringSystemRow;
+    await this.writeAuditLog(userId, 'league.scoring_system.cloned', row.id, {
+      code: row.code,
+      name: row.name,
+      source_id: source.id,
+      source_code: source.code,
+    });
+    return row;
+  }
+
+  async restore(id: string, userId: string): Promise<LeagueScoringSystemRow> {
+    await this.assertSuperAdmin(userId);
+    const existing = await this.getById(id);
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_systems')
+      .update({ is_archived: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    const row = data as LeagueScoringSystemRow;
+    await this.writeAuditLog(userId, 'league.scoring_system.restored', row.id, {
+      code: existing.code,
+      name: existing.name,
+    });
+    return row;
+  }
+
   async archive(id: string, userId: string): Promise<void> {
     await this.assertSuperAdmin(userId);
     const existing = await this.getById(id);
@@ -209,6 +256,22 @@ export class LeagueScoringSystemsService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new ForbiddenException('Super admin access required');
+  }
+
+  private async allocateCloneCode(sourceCode: string): Promise<string> {
+    const base = `${sourceCode}_copy`;
+    let candidate = base;
+    for (let suffix = 2; suffix < 1000; suffix++) {
+      const { data, error } = await this.supabase.service
+        .from('league_scoring_systems')
+        .select('id')
+        .eq('code', candidate)
+        .maybeSingle();
+      if (error) throw new BadRequestException(error.message);
+      if (!data) return candidate;
+      candidate = `${base}_${suffix}`;
+    }
+    throw new ConflictException(`Could not allocate clone code for "${sourceCode}"`);
   }
 
   private validateCode(code: string): string {
