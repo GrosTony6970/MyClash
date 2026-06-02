@@ -12,6 +12,7 @@ import {
   StatusBadge,
   type StatusBadgeVariant,
 } from '@myclash/ui';
+import { useI18n } from '../../../src/i18n/I18nProvider';
 
 /**
  * /admin/design-system — the canonical visual contract for admin.myclash.fr.
@@ -22,20 +23,24 @@ import {
  * card should fail review against what you see here.
  */
 export default function DesignSystemPage() {
+  const { t } = useI18n();
   return (
     <main id="main-content" className="mx-auto max-w-6xl px-6 py-12 lg:px-8">
       <AdminPageHeader
-        eyebrow="Tournament Manual"
-        title="Design system"
-        subtitle="Living reference for admin.myclash.fr — typography, colour, and the shared component layer. The aesthetic is editorial-precise with a quiet martial undercurrent."
+        eyebrow={t('admin.designSystem.page.eyebrow')}
+        title={t('admin.designSystem.page.title')}
+        subtitle={t('admin.designSystem.page.subtitle')}
       />
 
       {/* ── Typography ─────────────────────────────────────────────────── */}
-      <Section eyebrow="01 — Type" title="Typography">
+      <Section
+        eyebrow={t('admin.designSystem.sections.typeEyebrow')}
+        title={t('admin.designSystem.sections.typeTitle')}
+      >
         <div className="grid gap-8 md:grid-cols-3">
           <Specimen
             label="font-display"
-            usage="Fraunces · headings, ruleset & league names"
+            usage={t('admin.designSystem.typography.displayUsage')}
             sample={
               <p className="font-display text-3xl font-medium leading-tight text-slate-900">
                 Lyon AMHE
@@ -44,16 +49,16 @@ export default function DesignSystemPage() {
           />
           <Specimen
             label="font-body"
-            usage="Geist · every body text"
+            usage={t('admin.designSystem.typography.bodyUsage')}
             sample={
               <p className="text-base text-slate-700">
-                Approve reviewed ruleset metadata. Runtime code is never executed here.
+                {t('admin.designSystem.typography.bodySample')}
               </p>
             }
           />
           <Specimen
             label="font-mono"
-            usage="JetBrains Mono · codes, slugs, UUIDs"
+            usage={t('admin.designSystem.typography.monoUsage')}
             sample={
               <p className="font-mono text-sm text-slate-500">
                 TF_v1@1.0.0
@@ -66,59 +71,69 @@ export default function DesignSystemPage() {
       </Section>
 
       {/* ── Colour ─────────────────────────────────────────────────────── */}
-      <Section eyebrow="02 — Colour" title="Palette & semantics">
+      <Section
+        eyebrow={t('admin.designSystem.sections.colourEyebrow')}
+        title={t('admin.designSystem.sections.colourTitle')}
+      >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Swatch
             name="bg-stone-50"
             hex="#FAFAF9"
             className="bg-stone-50 border border-slate-200"
-            caption="Surface"
+            caption={t('admin.designSystem.swatches.surface')}
           />
           <Swatch
             name="text-slate-900"
             hex="#0F172A"
             className="bg-slate-900"
-            caption="Ink — primary"
+            caption={t('admin.designSystem.swatches.inkPrimary')}
           />
           <Swatch
             name="border-slate-200"
             hex="#E2E8F0"
             className="bg-slate-200"
-            caption="Hairlines"
+            caption={t('admin.designSystem.swatches.hairlines')}
           />
           <Swatch
             name="text-slate-500"
             hex="#64748B"
             className="bg-slate-500"
-            caption="Muted text"
+            caption={t('admin.designSystem.swatches.mutedText')}
           />
-          <Swatch name="bg-red-800" hex="#991B1B" className="bg-red-800" caption="Primary CTA" />
+          <Swatch
+            name="bg-red-800"
+            hex="#991B1B"
+            className="bg-red-800"
+            caption={t('admin.designSystem.swatches.primaryCta')}
+          />
           <Swatch
             name="bg-amber-50"
             hex="#FFFBEB"
             className="bg-amber-50 border border-amber-200"
-            caption="Default marker"
+            caption={t('admin.designSystem.swatches.defaultMarker')}
           />
           <Swatch
             name="bg-indigo-50"
             hex="#EEF2FF"
             className="bg-indigo-50 border border-indigo-200"
-            caption="System rows"
+            caption={t('admin.designSystem.swatches.systemRows')}
           />
           <Swatch
             name="bg-green-50"
             hex="#F0FDF4"
             className="bg-green-50 border border-green-200"
-            caption="Active / published"
+            caption={t('admin.designSystem.swatches.activePublished')}
           />
         </div>
       </Section>
 
       {/* ── Foil mark ──────────────────────────────────────────────────── */}
-      <Section eyebrow="03 — Signature" title="Foil mark">
+      <Section
+        eyebrow={t('admin.designSystem.sections.signatureEyebrow')}
+        title={t('admin.designSystem.sections.signatureTitle')}
+      >
         <p className="mb-4 max-w-2xl text-sm text-slate-600">
-          A small fencing-foil glyph that recurs in page headers, empty states, and section
-          dividers. Quiet, recognisable, one-colour.
+          {t('admin.designSystem.sections.signatureDescription')}
         </p>
         <div className="flex flex-wrap items-center gap-8 rounded-lg border border-slate-200 bg-white px-6 py-8">
           <FoilMark className="text-slate-300" />
@@ -129,16 +144,19 @@ export default function DesignSystemPage() {
       </Section>
 
       {/* ── AdminPageHeader ────────────────────────────────────────────── */}
-      <Section eyebrow="04 — Header" title="AdminPageHeader">
+      <Section
+        eyebrow={t('admin.designSystem.sections.headerEyebrow')}
+        title={t('admin.designSystem.sections.headerTitle')}
+      >
         <div className="rounded-lg border border-slate-200 bg-white px-6 pb-6 pt-2">
           <AdminPageHeader
-            eyebrow="Organisations"
+            eyebrow={t('admin.designSystem.headerDemo.eyebrow')}
             title="Lyon AMHE — Cercle des Arts Martiaux"
-            subtitle="Approve, suspend, inspect, and recover organiser workspaces. Member orgs and tournament links flow through here."
+            subtitle={t('admin.designSystem.headerDemo.subtitle')}
             actions={
               <>
-                <Button variant="back">Reassign owner</Button>
-                <Button variant="primary">+ Add member</Button>
+                <Button variant="back">{t('admin.designSystem.headerDemo.reassign')}</Button>
+                <Button variant="primary">{t('admin.designSystem.headerDemo.addMember')}</Button>
               </>
             }
           />
@@ -146,7 +164,10 @@ export default function DesignSystemPage() {
       </Section>
 
       {/* ── StatusBadge ────────────────────────────────────────────────── */}
-      <Section eyebrow="05 — State" title="StatusBadge">
+      <Section
+        eyebrow={t('admin.designSystem.sections.stateEyebrow')}
+        title={t('admin.designSystem.sections.stateTitle')}
+      >
         <div className="flex flex-wrap gap-3">
           {(
             [
@@ -172,20 +193,25 @@ export default function DesignSystemPage() {
       </Section>
 
       {/* ── DataTable ──────────────────────────────────────────────────── */}
-      <Section eyebrow="06 — Tables" title="DataTable">
+      <Section
+        eyebrow={t('admin.designSystem.sections.tablesEyebrow')}
+        title={t('admin.designSystem.sections.tablesTitle')}
+      >
         <DataTable>
           <DataTableHead>
-            <DataTableCell as="th">Name</DataTableCell>
-            <DataTableCell as="th">Code @ version</DataTableCell>
-            <DataTableCell as="th">Status</DataTableCell>
-            <DataTableCell as="th">Source</DataTableCell>
+            <DataTableCell as="th">{t('admin.designSystem.tableDemo.colName')}</DataTableCell>
+            <DataTableCell as="th">
+              {t('admin.designSystem.tableDemo.colCodeVersion')}
+            </DataTableCell>
+            <DataTableCell as="th">{t('admin.designSystem.tableDemo.colStatus')}</DataTableCell>
+            <DataTableCell as="th">{t('admin.designSystem.tableDemo.colSource')}</DataTableCell>
           </DataTableHead>
           <tbody>
             <DataTableRow>
               <DataTableCell>
                 <p className="font-display text-base text-slate-900">TF v1 (Tournoi de Frappe)</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Default tournament-de-frappe ruleset.
+                  {t('admin.designSystem.tableDemo.tfV1Description')}
                 </p>
               </DataTableCell>
               <DataTableCell mono>TF_v1@1.0.0</DataTableCell>
@@ -199,7 +225,9 @@ export default function DesignSystemPage() {
             <DataTableRow>
               <DataTableCell>
                 <p className="font-display text-base text-slate-900">Lyon Open 2026</p>
-                <p className="mt-0.5 text-xs text-slate-500">Custom ruleset by Lyon AMHE.</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {t('admin.designSystem.tableDemo.lyonOpenDescription')}
+                </p>
               </DataTableCell>
               <DataTableCell mono>custom_lyon-open-2026@1.0.0</DataTableCell>
               <DataTableCell>
@@ -214,29 +242,50 @@ export default function DesignSystemPage() {
       </Section>
 
       {/* ── Buttons ────────────────────────────────────────────────────── */}
-      <Section eyebrow="07 — Action" title="Button">
+      <Section
+        eyebrow={t('admin.designSystem.sections.actionEyebrow')}
+        title={t('admin.designSystem.sections.actionTitle')}
+      >
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="primary">Save changes</Button>
-          <Button variant="back">Cancel</Button>
-          <Button variant="danger">Delete</Button>
-          <Button variant="secondary">Magic link</Button>
-          <Button variant="cancel">Dismiss</Button>
+          <Button variant="primary">{t('admin.designSystem.buttonsDemo.save')}</Button>
+          <Button variant="back">{t('admin.designSystem.buttonsDemo.cancel')}</Button>
+          <Button variant="danger">{t('admin.designSystem.buttonsDemo.delete')}</Button>
+          <Button variant="secondary">{t('admin.designSystem.buttonsDemo.magicLink')}</Button>
+          <Button variant="cancel">{t('admin.designSystem.buttonsDemo.dismiss')}</Button>
           <Button variant="primary" disabled>
-            Disabled
+            {t('admin.designSystem.buttonsDemo.disabled')}
           </Button>
           <Button variant="primary" loading>
-            Loading
+            {t('admin.designSystem.buttonsDemo.loading')}
           </Button>
         </div>
       </Section>
 
       {/* ── FormField ──────────────────────────────────────────────────── */}
-      <Section eyebrow="08 — Input" title="FormField">
+      <Section
+        eyebrow={t('admin.designSystem.sections.inputEyebrow')}
+        title={t('admin.designSystem.sections.inputTitle')}
+      >
         <div className="grid gap-5 md:grid-cols-2">
-          <FormField label="Organisation name" placeholder="Lyon AMHE" required />
-          <FormField label="Slug" placeholder="lyon-amhe" hint="Auto-generated from the name." />
-          <FormField label="Description" multiline placeholder="One line about the org…" />
-          <FormField label="Country" error="A valid country is required.">
+          <FormField
+            label={t('admin.designSystem.formDemo.orgNameLabel')}
+            placeholder="Lyon AMHE"
+            required
+          />
+          <FormField
+            label={t('admin.designSystem.formDemo.slugLabel')}
+            placeholder="lyon-amhe"
+            hint={t('admin.designSystem.formDemo.slugHint')}
+          />
+          <FormField
+            label={t('admin.designSystem.formDemo.descriptionLabel')}
+            multiline
+            placeholder={t('admin.designSystem.formDemo.descriptionPlaceholder')}
+          />
+          <FormField
+            label={t('admin.designSystem.formDemo.countryLabel')}
+            error={t('admin.designSystem.formDemo.countryError')}
+          >
             <select className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
               <option>France</option>
               <option>Belgique</option>
