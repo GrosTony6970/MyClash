@@ -55,7 +55,7 @@ export class OrganizationsService {
   async getBySlug(slug: string) {
     const { data, error } = await this.supabase.service
       .from('organizations')
-      .select('id, name, slug, status, logo_url')
+      .select('id, name, slug, status, logo_url, brand_color')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -168,6 +168,7 @@ export class OrganizationsService {
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.contactEmail !== undefined) updates['contact_email'] = dto.contactEmail;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;
+    if (dto.brandColor !== undefined) updates['brand_color'] = dto.brandColor;
 
     const { data, error } = await this.supabase.service
       .from('organizations')

@@ -56,7 +56,7 @@ export class EventsService {
   async listEvents(query: EventQueryDto) {
     let q = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug, logo_url)')
+      .select('*, organizations(name, slug, logo_url, brand_color)')
       .order('start_date', { ascending: false });
 
     if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
@@ -186,7 +186,7 @@ export class EventsService {
   async getEventBySlug(slug: string) {
     const query = this.supabase.service
       .from('events')
-      .select('*, organizations(name, slug, logo_url), themes(*), lices(*)');
+      .select('*, organizations(name, slug, logo_url, brand_color), themes(*), lices(*)');
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(slug);
     const { data, error } = await (

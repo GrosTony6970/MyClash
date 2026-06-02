@@ -60,8 +60,6 @@ async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventI
     if (!res.ok) return null;
     const raw = (await res.json()) as Record<string, unknown>;
     const org = raw['organizations'] as { name?: string; logo_url?: string } | null;
-    // Backend returns snake_case (logo_url) from the events table. Coerce
-    // to the camelCase shape this component reads.
     return {
       id: String(raw['id'] ?? ''),
       name: String(raw['name'] ?? ''),
@@ -124,9 +122,6 @@ async function fetchHighlights(eventSlug: string, apiUrl: string): Promise<Highl
   }
 }
 
-/** Map the tournaments.color token (admin app sets this) onto a CSS hex
- *  so the stripe on each tournament card carries the operator's chosen
- *  colour. Falls back to neutral gray for unknown tokens. */
 function colorTokenToHex(token: string | null | undefined): string {
   switch (token) {
     case 'red':
@@ -187,14 +182,10 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl">
-      {/* Slice A: in-page back link. The shared SiteHeader has the
-          logo as a link to `/`, but operators on phones want an
-          explicit affordance. Sits above everything. */}
       <EventBackLink />
 
-      {/* Event intro */}
       {event && (
-        <section className="flex flex-col gap-4 border-y border-neutral-800 py-6 sm:flex-row sm:items-start sm:py-8">
+        <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:py-8">
           {(event.logoUrl || event.organizationLogoUrl) && (
             <div className="flex items-center gap-2">
               {event.logoUrl && (
@@ -202,7 +193,7 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                 <img
                   src={event.logoUrl}
                   alt=""
-                  className="h-20 w-20 rounded-xl border border-neutral-800 object-cover"
+                  className="h-20 w-20 rounded-xl border border-stone-200 bg-white object-cover"
                 />
               )}
               {event.organizationLogoUrl && (
@@ -210,35 +201,32 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                 <img
                   src={event.organizationLogoUrl}
                   alt=""
-                  className="h-12 w-12 rounded-full border border-neutral-800 object-contain"
+                  className="h-12 w-12 rounded-full border border-stone-200 bg-white object-contain"
                 />
               )}
             </div>
           )}
           <div className="flex-1">
-            <h1 className="mb-1 font-display text-3xl font-bold text-neutral-100 sm:text-4xl">
+            <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
               {event.name}
             </h1>
             {event.organizationName && (
-              <p className="text-sm text-neutral-400">{event.organizationName}</p>
+              <p className="text-sm font-semibold text-slate-700">{event.organizationName}</p>
             )}
-            {event.location && <p className="text-sm text-neutral-500">{event.location}</p>}
-            <p className="mt-0.5 text-sm text-neutral-500">
+            {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+            <p className="mt-0.5 text-sm text-slate-500">
               {formatDateRange(event.startDate, event.endDate)}
             </p>
 
-            {/* Status badge */}
             {event.status === 'running' && (
-              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
+              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
                 Live now
               </span>
             )}
 
-            {/* Editorial / landing markdown */}
             {event.publicLandingMd && (
-              <div className="prose prose-invert prose-sm mt-4 max-w-none text-sm leading-relaxed text-neutral-300">
-                {/* Render as plain text — full markdown rendering is T-606+ */}
+              <div className="prose prose-sm mt-4 max-w-none text-sm leading-relaxed text-slate-700">
                 <p>{event.publicLandingMd}</p>
               </div>
             )}
@@ -246,12 +234,11 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
         </section>
       )}
 
-      {/* Slice 2: participants summary chip — links to the new participants page. */}
       {participantsCount > 0 && (
         <section>
           <Link
             href={`/e/${eventSlug}/participants`}
-            className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            className="inline-flex items-center gap-2 rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/40"
           >
             <span>👥</span>
             <span>View {participantsCount} participants</span>
@@ -259,10 +246,9 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
         </section>
       )}
 
-      {/* Slice 2: tournaments grid — one card per tournament with colour stripe. */}
       {tournaments.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
             Tournaments
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -270,27 +256,22 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={t.id}
                 href={`/e/${eventSlug}/t/${encodeURIComponent(t.slug)}`}
-                className="group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 p-4 pl-5 transition-colors hover:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                className="group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 pl-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
               >
-                {/* Per-tournament accent stripe — organiser-set colour
-                    moves to a thin left edge so the card body stays
-                    neutral. */}
                 <span
                   aria-hidden="true"
                   className="absolute left-0 top-0 h-full w-1"
                   style={{ backgroundColor: colorTokenToHex(t.color) }}
                 />
                 <div>
-                  <p className="text-base font-bold text-neutral-100">{t.name}</p>
+                  <p className="font-display text-base font-semibold text-slate-900">{t.name}</p>
                   {t.ruleset_code && (
-                    <p className="mt-0.5 text-xs text-neutral-500">{t.ruleset_code}</p>
+                    <p className="mt-0.5 font-mono text-xs text-slate-500">{t.ruleset_code}</p>
                   )}
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-400">Pools · Bracket · Podium</span>
-                  <span className="font-semibold text-emerald-400 group-hover:text-emerald-300">
-                    →
-                  </span>
+                  <span className="text-slate-500">Pools · Bracket · Podium</span>
+                  <span className="font-semibold text-red-700 group-hover:text-red-800">→</span>
                 </div>
               </Link>
             ))}
@@ -298,11 +279,10 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
         </section>
       )}
 
-      {/* Live matches — hidden for completed events. */}
       {!isCompleted && live.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-300">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
+          <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-700">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
             Live now
           </h2>
           <div className="flex flex-col gap-3">
@@ -310,24 +290,24 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-emerald-500/30 bg-neutral-900 p-4 transition-colors hover:border-emerald-400/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                className="block rounded-xl border border-emerald-300 bg-white p-4 shadow-sm transition-colors hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
               >
-                <p className="mb-2 text-xs text-neutral-400">
+                <p className="mb-2 text-xs text-slate-500">
                   {m.tournamentName} · {m.matchNumberLabel}
                   {m.liceName && ` · ${m.liceName}`}
                 </p>
                 <div className="flex items-center justify-between">
-                  <p className="font-bold text-neutral-100">{m.redFighterName ?? '?'}</p>
-                  <p className="text-2xl font-black tabular-nums text-neutral-100">
-                    <span className={m.redScore > m.blueScore ? 'text-emerald-400' : undefined}>
+                  <p className="font-bold text-slate-900">{m.redFighterName ?? '?'}</p>
+                  <p className="text-2xl font-black tabular-nums text-slate-900">
+                    <span className={m.redScore > m.blueScore ? 'text-emerald-700' : undefined}>
                       {m.redScore}
                     </span>
-                    <span className="mx-1.5 text-neutral-600">–</span>
-                    <span className={m.blueScore > m.redScore ? 'text-emerald-400' : undefined}>
+                    <span className="mx-1.5 text-slate-400">–</span>
+                    <span className={m.blueScore > m.redScore ? 'text-emerald-700' : undefined}>
                       {m.blueScore}
                     </span>
                   </p>
-                  <p className="font-bold text-neutral-100">{m.blueFighterName ?? '?'}</p>
+                  <p className="font-bold text-slate-900">{m.blueFighterName ?? '?'}</p>
                 </div>
               </Link>
             ))}
@@ -335,10 +315,9 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
         </section>
       )}
 
-      {/* Schedule highlights — also hidden for completed events. */}
       {!isCompleted && upcoming.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-400">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
             Schedule highlights
           </h2>
           <div className="flex flex-col gap-2">
@@ -346,19 +325,19 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={m.id}
                 href={`/e/${eventSlug}/match/${m.id}`}
-                className="block rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 transition-colors hover:border-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                className="block rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-red-500/40"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-neutral-100">
+                    <p className="text-sm font-medium text-slate-900">
                       {m.redFighterName ?? '?'} vs {m.blueFighterName ?? '?'}
                     </p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-slate-500">
                       {m.tournamentName} · {m.matchNumberLabel}
                     </p>
                   </div>
                   {m.scheduledAt && (
-                    <span className="rounded-md bg-neutral-800 px-2 py-1 text-xs font-mono text-neutral-300">
+                    <span className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs text-slate-700">
                       {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -373,17 +352,16 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
         </section>
       )}
 
-      {/* CTA: onboarding for upcoming/running events, results for completed. */}
-      <section className="border-t border-neutral-800 pt-6">
+      <section className="border-t border-stone-200 pt-6">
         {isCompleted ? (
           <>
-            <p className="mb-3 text-sm text-neutral-400">
+            <p className="mb-3 text-sm text-slate-600">
               This event is over. Browse the per-tournament results below.
             </p>
             {tournaments[0] && (
               <Link
                 href={`/e/${eventSlug}/t/${encodeURIComponent(tournaments[0].slug)}`}
-                className="inline-block rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
               >
                 View results →
               </Link>
@@ -391,12 +369,12 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
           </>
         ) : (
           <>
-            <p className="mb-3 text-sm text-neutral-400">
+            <p className="mb-3 text-sm text-slate-600">
               Are you a participant? Find yourself in the list to get a personalised view.
             </p>
             <Link
               href={`/e/${eventSlug}/onboarding`}
-              className="inline-block rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              className="inline-block rounded-md bg-red-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/40"
             >
               I&apos;m a participant →
             </Link>

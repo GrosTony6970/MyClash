@@ -100,7 +100,7 @@ export default async function ParticipantsPage({
                 <img
                   src={event.logoUrl}
                   alt=""
-                  className="h-16 w-16 rounded-xl border border-neutral-800 object-cover"
+                  className="h-16 w-16 rounded-xl border border-stone-200 object-cover"
                 />
               )}
               {event.organizationLogoUrl && (
@@ -108,24 +108,26 @@ export default async function ParticipantsPage({
                 <img
                   src={event.organizationLogoUrl}
                   alt=""
-                  className="h-10 w-10 rounded-full border border-neutral-800 object-contain"
+                  className="h-10 w-10 rounded-full border border-stone-200 object-contain"
                 />
               )}
             </div>
           )}
           <div className="flex-1">
-            <p className="text-xs uppercase tracking-wider text-neutral-500">Participants</p>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">{event.name}</h1>
+            <p className="text-xs uppercase tracking-wider text-slate-500">Participants</p>
+            <h1 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
+              {event.name}
+            </h1>
             {event.organizationName && (
-              <p className="text-sm text-neutral-300">{event.organizationName}</p>
+              <p className="text-sm text-slate-700">{event.organizationName}</p>
             )}
-            {event.location && <p className="text-sm text-neutral-400">{event.location}</p>}
-            <p className="text-sm text-neutral-500">
+            {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+            <p className="text-sm text-slate-500">
               {formatDateRange(event.startDate, event.endDate)}
             </p>
             <Link
               href={`/e/${eventSlug}/home`}
-              className="mt-2 inline-block text-sm text-emerald-400 hover:text-emerald-300"
+              className="mt-2 inline-block text-sm font-semibold text-red-700 hover:text-red-800"
             >
               ← Back to event home
             </Link>

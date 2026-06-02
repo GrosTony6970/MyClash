@@ -51,6 +51,19 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(500)
   logoUrl?: string | null;
+
+  @ApiProperty({
+    required: false,
+    description:
+      "Organization brand colour as a hex string (e.g. '#c0392b'). " +
+      'Rendered as the left-edge accent stripe on each event card on the public landing.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^#[0-9a-fA-F]{6}$/u, {
+    message: 'brandColor must be a 6-digit hex color like #c0392b',
+  })
+  brandColor?: string | null;
 }
 
 export class AddMemberDto {

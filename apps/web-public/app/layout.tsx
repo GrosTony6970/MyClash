@@ -1,10 +1,34 @@
 import type { Metadata } from 'next';
+import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { getApiUrl } from '@/lib/api-url';
 import { defaultLocale, t } from '@myclash/i18n';
 import { MaintenanceBanner } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { SiteHeader } from './_components/SiteHeader';
 import '../src/styles/globals.css';
+
+// Tournament Manual aesthetic — same font stack as apps/web-admin.
+// Fraunces (variable serif, page H1), Geist (body), JetBrains Mono (codes).
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-fraunces',
+  display: 'swap',
+  axes: ['opsz'],
+});
+
+const geist = Geist({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-geist',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-jetbrains',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: t('metadata.publicTitle'),
@@ -21,8 +45,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang={defaultLocale}>
-      <body>
+    <html
+      lang={defaultLocale}
+      className={`${fraunces.variable} ${geist.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="bg-stone-50 font-body text-slate-900 antialiased">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-black focus:rounded focus:shadow-lg focus:text-sm focus:font-semibold"

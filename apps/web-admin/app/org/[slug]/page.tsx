@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
+import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
 
 interface DashboardStats {
   eventsTotal: number;
@@ -19,6 +20,7 @@ interface OrgRow {
   name: string;
   slug: string;
   logoUrl: string | null;
+  brandColor: string | null;
 }
 
 const EMPTY_STATS: DashboardStats = {
@@ -44,6 +46,7 @@ export default function OrgDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string>('');
+  const [brandColorDraft, setBrandColorDraft] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const logoInput = useRef<HTMLInputElement | null>(null);
@@ -65,9 +68,14 @@ export default function OrgDashboardPage() {
             typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
               ? String(raw['logo_url'] ?? raw['logoUrl'])
               : null,
+          brandColor:
+            typeof (raw['brand_color'] ?? raw['brandColor']) === 'string'
+              ? String(raw['brand_color'] ?? raw['brandColor'])
+              : null,
         };
         setOrg(orgRow);
         setNameDraft(orgRow.name);
+        setBrandColorDraft(orgRow.brandColor ?? '');
         return fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/dashboard-stats`, {
           credentials: 'include',
           ...(signal ? { signal } : {}),
@@ -95,16 +103,23 @@ export default function OrgDashboardPage() {
     ev.preventDefault();
     if (!org) return;
     const trimmed = nameDraft.trim();
-    if (!trimmed || trimmed === org.name) return;
+    const nextBrandColor = brandColorDraft.trim() === '' ? null : brandColorDraft.trim();
+    const prevBrandColor = org.brandColor ?? null;
+    const nameChanged = trimmed.length > 0 && trimmed !== org.name;
+    const brandColorChanged = nextBrandColor !== prevBrandColor;
+    if (!nameChanged && !brandColorChanged) return;
     setBusy(true);
     setNotice(null);
     setError(null);
     try {
+      const body: Record<string, unknown> = {};
+      if (nameChanged) body['name'] = trimmed;
+      if (brandColorChanged) body['brandColor'] = nextBrandColor;
       const res = await fetch(`${apiUrl}/api/v1/organizations/${org.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -299,10 +314,39 @@ export default function OrgDashboardPage() {
                 {t('organizer.dashboard.brand.slugReadOnly')}
               </span>
             </label>
+            <div className="grid gap-2 text-sm font-semibold text-slate-700">
+              <span>{t('organizer.dashboard.brand.colorLabel')}</span>
+              <div className="flex items-center gap-3">
+                <ColorSwatchPicker
+                  value={brandColorDraft || '#64748b'}
+                  onChange={(hex) => setBrandColorDraft(hex)}
+                  ariaLabel={t('organizer.dashboard.brand.colorAriaLabel')}
+                />
+                {brandColorDraft && (
+                  <button
+                    type="button"
+                    onClick={() => setBrandColorDraft('')}
+                    className="text-xs font-normal text-slate-500 underline hover:text-slate-700"
+                  >
+                    {t('organizer.dashboard.brand.colorClear')}
+                  </button>
+                )}
+              </div>
+              <span className="text-xs font-normal text-slate-400">
+                {t('organizer.dashboard.brand.colorHelp')}
+              </span>
+            </div>
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={busy || !org || nameDraft.trim() === org.name || !nameDraft.trim()}
+                disabled={
+                  busy ||
+                  !org ||
+                  (nameDraft.trim() === org.name &&
+                    (brandColorDraft.trim() === '' ? null : brandColorDraft.trim()) ===
+                      (org.brandColor ?? null)) ||
+                  !nameDraft.trim()
+                }
                 className="rounded-md bg-[#1d4ed8] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t('organizer.dashboard.brand.save')}

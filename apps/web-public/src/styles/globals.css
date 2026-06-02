@@ -5,3 +5,18 @@
  * TournamentColorDot, etc.) make it into the generated CSS.
  */
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+/*
+ * Tournament Manual aesthetic — font tokens wired to next/font CSS variables
+ * exposed on <html> by app/layout.tsx. Matches apps/web-admin so the two
+ * surfaces speak the same typographic language.
+ *
+ * - font-display → Fraunces (variable serif, page H1, ruleset names)
+ * - font-body    → Geist (every regular text element)
+ * - font-mono    → JetBrains Mono (codes, slugs, UUIDs, formula tokens)
+ */
+@theme {
+  --font-display: var(--font-fraunces), 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
+  --font-body: var(--font-geist), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
+}

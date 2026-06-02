@@ -81,16 +81,13 @@ export default async function HomePage() {
   const { events, unavailable } = await fetchPublicEvents();
 
   return (
-    <main
-      id="main-content"
-      className="min-h-screen bg-neutral-950 px-4 py-6 text-neutral-50 sm:px-6"
-    >
+    <main id="main-content" className="min-h-screen bg-stone-50 px-4 py-6 text-slate-900 sm:px-6">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
-        <section className="border-y border-neutral-800 py-5">
-          <p className="max-w-2xl text-lg font-semibold text-neutral-100">
+        <section className="border-y border-stone-200 py-5">
+          <p className="max-w-2xl font-display text-2xl font-semibold text-slate-900">
             {t('publicApp.home.title')}
           </p>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
             {t('publicApp.home.subtitle')}
           </p>
         </section>
@@ -98,11 +95,11 @@ export default async function HomePage() {
         {events.length > 0 ? (
           <EventsListSections events={events} />
         ) : (
-          <section className="rounded-lg border border-neutral-800 bg-neutral-900 p-5">
-            <h2 className="text-lg font-semibold">
+          <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+            <h2 className="font-display text-lg font-semibold text-slate-900">
               {unavailable ? t('publicApp.home.unavailableTitle') : t('publicApp.home.emptyTitle')}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-neutral-400">
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               {unavailable
                 ? t('publicApp.home.unavailableDescription')
                 : t('publicApp.home.emptyDescription')}

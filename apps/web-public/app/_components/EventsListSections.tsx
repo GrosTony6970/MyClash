@@ -21,8 +21,11 @@ interface PublicEvent {
     name?: string | null;
     slug?: string | null;
     logo_url?: string | null;
+    brand_color?: string | null;
   } | null;
 }
+
+const DEFAULT_ORG_ACCENT = '#dc2626';
 
 function eventHref(event: PublicEvent): string {
   return `/e/${encodeURIComponent(event.slug ?? event.id ?? '')}/home`;
@@ -33,6 +36,10 @@ function tournamentCountLabel(n: number | null | undefined): string {
   return count === 1
     ? t('publicApp.home.tournamentCountSingular').replace('{count}', '1')
     : t('publicApp.home.tournamentCountPlural').replace('{count}', String(count));
+}
+
+function orgAccent(event: PublicEvent): string {
+  return event.organizations?.brand_color || DEFAULT_ORG_ACCENT;
 }
 
 export function EventsListSections({ events }: { events: PublicEvent[] }) {
@@ -48,7 +55,7 @@ export function EventsListSections({ events }: { events: PublicEvent[] }) {
         <label
           id="public-events-search-label"
           htmlFor="public-events-search"
-          className="text-xs font-semibold uppercase tracking-wider text-neutral-500"
+          className="text-xs font-semibold uppercase tracking-wider text-slate-500"
         >
           {t('publicApp.home.searchLabel')}
         </label>
@@ -58,7 +65,7 @@ export function EventsListSections({ events }: { events: PublicEvent[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('publicApp.home.searchPlaceholder')}
-          className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 sm:max-w-md"
+          className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 sm:max-w-md"
         />
       </section>
 
@@ -69,20 +76,11 @@ export function EventsListSections({ events }: { events: PublicEvent[] }) {
   );
 }
 
-/**
- * Empty-state placeholder shown when a section has zero events. Uses
- * the trimmed search query to choose between a generic message and a
- * "no matches" message, so the operator can see at a glance whether
- * the search is hiding everything or there genuinely aren't any
- * events. Replaces the previous `return null` guards on each
- * section, which made the page reflow whenever the search shrank a
- * section to zero.
- */
 function EmptySectionMessage({ sectionKey, query }: { sectionKey: SectionKey; query: string }) {
   const trimmed = query.trim();
   const message = t(emptySectionMessageKey(sectionKey, trimmed)).replace('{query}', trimmed);
   return (
-    <p className="rounded-lg border border-dashed border-neutral-800 bg-neutral-900/50 p-6 text-center text-sm text-neutral-500">
+    <p className="rounded-lg border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
       {message}
     </p>
   );
@@ -91,60 +89,58 @@ function EmptySectionMessage({ sectionKey, query }: { sectionKey: SectionKey; qu
 function SectionHeader({ id, title, count }: { id: string; title: string; count: number }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 id={id} className="text-base font-semibold text-neutral-200 sm:text-lg">
+      <h2 id={id} className="font-display text-lg font-semibold text-slate-900 sm:text-xl">
         {title}
       </h2>
-      <span className="text-xs text-neutral-500">{count}</span>
+      <span className="text-xs text-slate-500">{count}</span>
     </div>
   );
 }
 
-function LogoStack({
-  eventLogo,
-  orgLogo,
-  alt,
-}: {
-  eventLogo: string | null | undefined;
-  orgLogo: string | null | undefined;
-  alt: string;
-}) {
-  if (!eventLogo && !orgLogo) return null;
+function OrganiserEyebrow({ event }: { event: PublicEvent }) {
+  const orgName = event.organizations?.name;
+  const orgLogo = event.organizations?.logo_url;
+  const dateRange = formatDateRange(event);
+  if (!orgName && !orgLogo && !dateRange) return null;
   return (
-    <div className="flex shrink-0 items-center gap-1">
-      {/* Operator-uploaded logos live on Supabase storage URLs that we
-       *  can't pre-declare in next.config; using plain <img> avoids the
-       *  remotePatterns whitelist requirement. The brand logo in the
-       *  SiteHeader stays as next/image. */}
-      {eventLogo && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={eventLogo}
-          alt={alt}
-          width={40}
-          height={40}
-          className="h-10 w-10 rounded border border-neutral-800 bg-neutral-900 object-contain"
-        />
-      )}
+    <div className="flex items-center gap-2 text-xs text-slate-600">
       {orgLogo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={orgLogo}
           alt=""
-          width={32}
-          height={32}
-          className="h-8 w-8 rounded-full border border-neutral-800 bg-neutral-900 object-contain"
+          width={20}
+          height={20}
+          className="h-5 w-5 rounded-full border border-stone-200 bg-white object-contain"
         />
       )}
+      {orgName && <span className="font-semibold text-slate-700">{orgName}</span>}
+      {orgName && dateRange && <span aria-hidden="true">·</span>}
+      {dateRange && <span>{dateRange}</span>}
     </div>
+  );
+}
+
+function EventLogo({ src, alt }: { src: string | null | undefined; alt: string }) {
+  if (!src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      width={40}
+      height={40}
+      className="h-10 w-10 shrink-0 rounded border border-stone-200 bg-white object-contain"
+    />
   );
 }
 
 function LiveTag() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-300">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
       <span
         aria-hidden="true"
-        className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse"
+        className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse"
       />
       {t('publicApp.home.liveTag')}
     </span>
@@ -153,7 +149,7 @@ function LiveTag() {
 
 function PublishedTag() {
   return (
-    <span className="inline-flex items-center rounded-full border border-sky-300/40 bg-sky-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-sky-200">
+    <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-blue-700">
       {t('publicApp.home.publishedTag')}
     </span>
   );
@@ -161,7 +157,7 @@ function PublishedTag() {
 
 function PastTag() {
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-500/40 bg-slate-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
+    <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
       {t('publicApp.home.pastTag')}
     </span>
   );
@@ -183,35 +179,29 @@ function LiveSection({ events, query }: { events: PublicEvent[]; query: string }
             <Link
               key={event.slug ?? event.id}
               href={eventHref(event)}
-              className="group flex min-h-44 flex-col justify-between rounded-lg border border-emerald-500/30 bg-neutral-900 p-4 transition-colors hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              style={{ borderLeftColor: orgAccent(event) }}
+              className="group flex min-h-44 flex-col justify-between rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
             >
               <div className="flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-3">
-                  <LogoStack
-                    eventLogo={event.logo_url}
-                    orgLogo={event.organizations?.logo_url}
-                    alt={event.name ?? ''}
-                  />
+                <OrganiserEyebrow event={event} />
+                <div className="flex items-start gap-3">
+                  <EventLogo src={event.logo_url} alt={event.name ?? ''} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-lg font-semibold leading-tight text-slate-900">
+                      {event.name ?? t('publicApp.home.unknownEvent')}
+                    </p>
+                    {event.location && (
+                      <p className="mt-1 text-sm text-slate-500">{event.location}</p>
+                    )}
+                  </div>
                   <LiveTag />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-white">
-                    {event.name ?? t('publicApp.home.unknownEvent')}
-                  </p>
-                  {event.organizations?.name && (
-                    <p className="mt-1 text-sm text-neutral-400">{event.organizations.name}</p>
-                  )}
-                  {event.location && (
-                    <p className="mt-1 text-sm text-neutral-500">{event.location}</p>
-                  )}
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-neutral-400">{formatDateRange(event)}</span>
-                <span className="text-neutral-500">
+                <span className="text-slate-500">
                   {tournamentCountLabel(event.tournament_count)}
                 </span>
-                <span className="font-semibold text-emerald-400 group-hover:text-emerald-300">
+                <span className="font-semibold text-red-700 group-hover:text-red-800">
                   {t('publicApp.home.openEvent')}
                 </span>
               </div>
@@ -237,7 +227,7 @@ function EventRow({ event, variant }: TableRowProps) {
         return (
           <span
             className={
-              resultsReady ? 'font-semibold text-emerald-400' : 'text-xs text-neutral-500 italic'
+              resultsReady ? 'font-semibold text-red-700' : 'text-xs italic text-slate-500'
             }
           >
             {resultsReady ? t('publicApp.home.resultsReady') : t('publicApp.home.resultsPending')}
@@ -245,47 +235,32 @@ function EventRow({ event, variant }: TableRowProps) {
         );
       })()
     ) : (
-      <span className="text-sm text-neutral-400">
-        {tournamentCountLabel(event.tournament_count)}
-      </span>
+      <span className="text-sm text-slate-500">{tournamentCountLabel(event.tournament_count)}</span>
     );
 
   return (
     <Link
       href={eventHref(event)}
-      className="group flex flex-col gap-3 rounded-lg border border-neutral-800 bg-neutral-900 p-4 transition-colors hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4"
+      style={{ borderLeftColor: orgAccent(event) }}
+      className="group flex flex-col gap-3 rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
     >
-      <div className="flex items-start gap-3 md:contents">
-        <div className="md:row-auto">
-          <LogoStack
-            eventLogo={event.logo_url}
-            orgLogo={event.organizations?.logo_url}
-            alt={event.name ?? ''}
-          />
-        </div>
-        <div className="flex-1 md:row-auto">
-          <p className="text-base font-bold text-white">
+      <OrganiserEyebrow event={event} />
+      <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_2fr_1fr_auto_auto] md:items-center md:gap-4">
+        <EventLogo src={event.logo_url} alt={event.name ?? ''} />
+        <div className="min-w-0">
+          <p className="font-display text-base font-semibold leading-tight text-slate-900">
             {event.name ?? t('publicApp.home.unknownEvent')}
           </p>
-          {event.organizations?.name && (
-            <p className="mt-0.5 text-xs text-neutral-400">{event.organizations.name}</p>
-          )}
         </div>
+        <p className="text-sm text-slate-500">
+          <span className="font-medium text-slate-600 md:hidden">
+            {t('publicApp.home.colLocation')} ·{' '}
+          </span>
+          {event.location ?? '—'}
+        </p>
+        <div>{trailing}</div>
+        <div>{tag}</div>
       </div>
-      <p className="text-sm text-neutral-400 md:text-sm">
-        <span className="font-medium text-neutral-500 md:hidden">
-          {t('publicApp.home.colLocation')} ·{' '}
-        </span>
-        {event.location ?? '—'}
-      </p>
-      <p className="text-sm text-neutral-400">
-        <span className="font-medium text-neutral-500 md:hidden">
-          {t('publicApp.home.colDate')} ·{' '}
-        </span>
-        {formatDateRange(event) ?? '—'}
-      </p>
-      <div>{trailing}</div>
-      <div>{tag}</div>
     </Link>
   );
 }
@@ -294,14 +269,13 @@ function EventTableHeader({ variant }: { variant: 'published' | 'past' }) {
   return (
     <div
       role="row"
-      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-neutral-800 md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-neutral-500"
+      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-stone-200 md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500"
     >
       <span role="columnheader" aria-label={t('publicApp.home.colLogo')}>
         {' '}
       </span>
       <span role="columnheader">{t('publicApp.home.colEvent')}</span>
       <span role="columnheader">{t('publicApp.home.colLocation')}</span>
-      <span role="columnheader">{t('publicApp.home.colDate')}</span>
       <span role="columnheader">
         {variant === 'past' ? t('publicApp.home.colResults') : t('publicApp.home.colTournaments')}
       </span>
@@ -325,7 +299,7 @@ function UpcomingSection({ events, query }: { events: PublicEvent[]; query: stri
       ) : (
         <div role="table" aria-labelledby="public-events-published-title">
           <EventTableHeader variant="published" />
-          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-neutral-800">
+          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
             {events.map((event) => (
               <EventRow key={event.slug ?? event.id} event={event} variant="published" />
             ))}
@@ -353,7 +327,7 @@ function PastSection({ events, query }: { events: PublicEvent[]; query: string }
           className="max-h-[60vh] overflow-y-auto"
         >
           <EventTableHeader variant="past" />
-          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-neutral-800">
+          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
             {events.map((event) => (
               <EventRow key={event.slug ?? event.id} event={event} variant="past" />
             ))}

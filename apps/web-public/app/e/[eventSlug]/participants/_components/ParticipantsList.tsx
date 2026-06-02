@@ -15,7 +15,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="sticky top-0 z-10 -mx-4 bg-neutral-950/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-neutral-950/80 sm:mx-0 sm:rounded-md">
+      <div className="sticky top-0 z-10 -mx-4 bg-stone-50/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-stone-50/80 sm:mx-0 sm:rounded-md">
         <label htmlFor="participants-search" className="sr-only">
           Search participants
         </label>
@@ -25,13 +25,13 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or club…"
-          className="w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 sm:max-w-md"
+          className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 sm:max-w-md"
           aria-label="Search participants by name or club"
         />
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-800 p-6 text-center text-sm text-neutral-500">
+        <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
           {query.trim() === ''
             ? 'No participants registered yet.'
             : 'No participant matches that search.'}
@@ -43,16 +43,16 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
             {visible.map((p) => (
               <li
                 key={p.personId}
-                className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
               >
                 <Link
                   href={`/e/${eventSlug}/people/${p.personId}`}
-                  className="text-base font-semibold text-white hover:text-emerald-300"
+                  className="text-base font-semibold text-slate-900 hover:text-red-700"
                 >
                   {p.displayName}
                 </Link>
                 {(p.clubName || p.clubAbbrev) && (
-                  <p className="mt-1 text-xs text-neutral-400">
+                  <p className="mt-1 text-xs text-slate-500">
                     {p.clubAbbrev ? `${p.clubAbbrev} · ${p.clubName ?? ''}` : p.clubName}
                   </p>
                 )}
@@ -65,8 +65,8 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                           className={[
                             'inline-block rounded-full border px-2 py-0.5 text-xs',
                             t.registrationState === 'active'
-                              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
-                              : 'border-neutral-700 bg-neutral-800 text-neutral-400 opacity-60',
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                              : 'border-stone-300 bg-stone-100 text-slate-500 opacity-60',
                           ].join(' ')}
                         >
                           {t.name}
@@ -86,7 +86,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
           <div className="hidden md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                <tr className="border-b border-stone-200 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                   <th scope="col" className="py-2 pr-4">
                     Name
                   </th>
@@ -100,18 +100,18 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
               </thead>
               <tbody>
                 {visible.map((p) => (
-                  <tr key={p.personId} className="border-b border-neutral-900">
+                  <tr key={p.personId} className="border-b border-stone-100">
                     <th scope="row" className="py-3 pr-4 text-left">
                       <Link
                         href={`/e/${eventSlug}/people/${p.personId}`}
-                        className="font-semibold text-white hover:text-emerald-300"
+                        className="font-semibold text-slate-900 hover:text-red-700"
                       >
                         {p.displayName}
                       </Link>
                     </th>
-                    <td className="py-3 pr-4 text-neutral-400">
+                    <td className="py-3 pr-4 text-slate-600">
                       {p.clubAbbrev && (
-                        <span className="mr-1 rounded bg-neutral-800 px-1.5 py-px text-[10px] text-neutral-300">
+                        <span className="mr-1 rounded bg-stone-100 px-1.5 py-px font-mono text-[10px] text-slate-700">
                           {p.clubAbbrev}
                         </span>
                       )}
@@ -119,7 +119,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                     </td>
                     <td className="py-3 pr-4">
                       {p.tournaments.length === 0 ? (
-                        <span className="text-neutral-600">—</span>
+                        <span className="text-slate-400">—</span>
                       ) : (
                         <ul className="flex flex-wrap gap-1">
                           {p.tournaments.map((t) => (
@@ -129,8 +129,8 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                                 className={[
                                   'inline-block rounded-full border px-2 py-0.5 text-xs',
                                   t.registrationState === 'active'
-                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
-                                    : 'border-neutral-700 bg-neutral-800 text-neutral-400 opacity-60',
+                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                    : 'border-stone-300 bg-stone-100 text-slate-500 opacity-60',
                                 ].join(' ')}
                               >
                                 {t.name}
@@ -151,7 +151,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
         </>
       )}
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs text-slate-500">
         {visible.length} of {participants.length} participants
       </p>
     </div>

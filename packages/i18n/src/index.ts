@@ -2044,10 +2044,15 @@ export const en = {
       brand: {
         title: 'Branding',
         description:
-          'Rename your organization or upload a logo. The slug stays unchanged so existing URLs keep working.',
+          'Rename your organization, upload a logo, or pick a brand color. The slug stays unchanged so existing URLs keep working.',
         nameLabel: 'Organization name',
         slugLabel: 'Slug',
         slugReadOnly: 'Slug is permanent. Contact a super-admin if you need to change it.',
+        colorLabel: 'Brand color',
+        colorAriaLabel: 'Organization brand color',
+        colorClear: 'Reset',
+        colorHelp:
+          'Used as the left-edge accent stripe on each of your event cards on the public landing page.',
         save: 'Save changes',
         saved: 'Organization updated.',
         saveError: 'Could not update organization.',
@@ -5356,10 +5361,15 @@ export const fr = {
       brand: {
         title: 'Identite visuelle',
         description:
-          'Renommez votre organisation ou televersez un logo. Le slug reste inchange pour que les URL existantes continuent de fonctionner.',
+          'Renommez votre organisation, televersez un logo ou choisissez une couleur. Le slug reste inchange pour que les URL existantes continuent de fonctionner.',
         nameLabel: 'Nom de l organisation',
         slugLabel: 'Slug',
         slugReadOnly: 'Le slug est permanent. Contactez un super-admin pour le modifier.',
+        colorLabel: 'Couleur de marque',
+        colorAriaLabel: 'Couleur de marque de l organisation',
+        colorClear: 'Reinitialiser',
+        colorHelp:
+          'Utilisee comme bande d accent sur le bord gauche de chaque carte d evenement sur la page d accueil publique.',
         save: 'Enregistrer',
         saved: 'Organisation mise a jour.',
         saveError: "Impossible de mettre a jour l'organisation.",

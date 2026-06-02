@@ -924,7 +924,12 @@ describe('EventsService', () => {
           status: 'published',
           start_date: '2026-06-01',
           end_date: '2026-06-02',
-          organizations: { name: 'Lyon AMHE', slug: 'lyon-amhe', logo_url: 'https://cdn/lyon.png' },
+          organizations: {
+            name: 'Lyon AMHE',
+            slug: 'lyon-amhe',
+            logo_url: 'https://cdn/lyon.png',
+            brand_color: '#c0392b',
+          },
         },
         {
           id: 'event-pub-2',
@@ -932,7 +937,12 @@ describe('EventsService', () => {
           status: 'completed',
           start_date: '2025-12-01',
           end_date: '2025-12-02',
-          organizations: { name: 'Paris HEMA', slug: 'paris-hema', logo_url: null },
+          organizations: {
+            name: 'Paris HEMA',
+            slug: 'paris-hema',
+            logo_url: null,
+            brand_color: null,
+          },
         },
       ];
       const tournaments = [
@@ -950,9 +960,12 @@ describe('EventsService', () => {
         tournament_count: number;
       }>;
 
-      // Public landing page relies on the joined organization name/slug/logo_url;
-      // dropping any of these breaks the card subtitle / logo on app.myclash.fr/.
-      expect(eventsChain.select).toHaveBeenCalledWith('*, organizations(name, slug, logo_url)');
+      // Public landing page relies on the joined organization
+      // name/slug/logo_url/brand_color; dropping any of these breaks the card
+      // subtitle / logo / per-card accent stripe on app.myclash.fr/.
+      expect(eventsChain.select).toHaveBeenCalledWith(
+        '*, organizations(name, slug, logo_url, brand_color)',
+      );
       // Default status filter when no `status` arg is given.
       expect(eventsChain.in).toHaveBeenCalledWith('status', ['published', 'running', 'completed']);
       // Newest events first so the freshly-published event lands at the
