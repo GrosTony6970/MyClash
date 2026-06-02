@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { optionalClientEnv, requireClientEnv } from './client-env';
 
 // Next.js's bundled types declare `process.env.NODE_ENV` as read-only.
@@ -6,55 +6,72 @@ import { optionalClientEnv, requireClientEnv } from './client-env';
 // so the test can set it.
 const env = process.env as Record<string, string | undefined>;
 
-const KEY = 'NEXT_PUBLIC_TEST_CLIENT_ENV';
-
 describe('requireClientEnv', () => {
-  const originalEnv = env[KEY];
   const originalNodeEnv = env['NODE_ENV'];
 
   afterEach(() => {
-    if (originalEnv === undefined) delete env[KEY];
-    else env[KEY] = originalEnv;
     if (originalNodeEnv === undefined) delete env['NODE_ENV'];
     else env['NODE_ENV'] = originalNodeEnv;
   });
 
   it('returns the env value when set, regardless of NODE_ENV', () => {
-    env[KEY] = 'https://scoring.example';
     env['NODE_ENV'] = 'production';
-    expect(requireClientEnv(KEY, 'fallback')).toBe('https://scoring.example');
+    expect(requireClientEnv('https://scoring.example', 'NEXT_PUBLIC_TEST_VAR', 'fallback')).toBe(
+      'https://scoring.example',
+    );
   });
 
   it('returns the dev fallback when unset and NODE_ENV is not production', () => {
-    delete env[KEY];
     env['NODE_ENV'] = 'development';
-    expect(requireClientEnv(KEY, 'http://localhost:3002')).toBe('http://localhost:3002');
+    expect(requireClientEnv(undefined, 'NEXT_PUBLIC_TEST_VAR', 'http://localhost:3002')).toBe(
+      'http://localhost:3002',
+    );
   });
 
-  it('throws with the var name + Dockerfile hint when unset in production', () => {
-    delete env[KEY];
+  it('treats an empty-string value as missing', () => {
+    env['NODE_ENV'] = 'development';
+    expect(requireClientEnv('', 'NEXT_PUBLIC_TEST_VAR', 'http://localhost:3002')).toBe(
+      'http://localhost:3002',
+    );
+  });
+
+  it('logs a console.error with the var name + Dockerfile hint AND returns the dev fallback when unset in production', () => {
+    // Throwing inside a client component nukes the whole route via
+    // the React error boundary with no diagnostic visible to the
+    // user (operator hit this on /pools and /bracket on 2026-06-02).
+    // The right behaviour is: log loudly so operators see the
+    // diagnostic in the browser console / Sentry, AND keep the page
+    // running with the dev fallback so every other feature still
+    // works — only the cross-app scoring link is broken.
     env['NODE_ENV'] = 'production';
-    expect(() => requireClientEnv(KEY, 'fallback')).toThrow(/NEXT_PUBLIC_TEST_CLIENT_ENV/);
-    expect(() => requireClientEnv(KEY, 'fallback')).toThrow(/Dockerfile/);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const result = requireClientEnv(
+        undefined,
+        'NEXT_PUBLIC_TEST_CLIENT_ENV',
+        'http://localhost:3002',
+      );
+      expect(result).toBe('http://localhost:3002');
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const message = String(consoleError.mock.calls[0]?.[0] ?? '');
+      expect(message).toMatch(/NEXT_PUBLIC_TEST_CLIENT_ENV/);
+      expect(message).toMatch(/Dockerfile/);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
 
 describe('optionalClientEnv', () => {
-  const originalEnv = env[KEY];
-
-  afterEach(() => {
-    if (originalEnv === undefined) delete env[KEY];
-    else env[KEY] = originalEnv;
+  it('returns undefined when unset', () => {
+    expect(optionalClientEnv(undefined)).toBeUndefined();
   });
 
-  it('returns undefined when unset, regardless of NODE_ENV', () => {
-    delete env[KEY];
-    env['NODE_ENV'] = 'production';
-    expect(optionalClientEnv(KEY)).toBeUndefined();
+  it('returns undefined for an empty string', () => {
+    expect(optionalClientEnv('')).toBeUndefined();
   });
 
   it('returns the value when set', () => {
-    env[KEY] = 'foo';
-    expect(optionalClientEnv(KEY)).toBe('foo');
+    expect(optionalClientEnv('foo')).toBe('foo');
   });
 });

@@ -8,9 +8,13 @@ import { detectConflicts, type Conflict } from './conflict-detection';
 import { buildMatchScoringHref, buildScoringHref } from '../pools/_tabs/build-scoring-href';
 import { requireClientEnv } from '../../../../../../src/config/client-env';
 
-// requireClientEnv throws in prod when missing so a forgotten
-// Dockerfile ARG can't ship as a silent localhost fallback.
-const scoringBaseUrl = requireClientEnv('NEXT_PUBLIC_SCORING_URL', 'http://localhost:3002');
+// Pass `process.env.NEXT_PUBLIC_SCORING_URL` directly so Next.js
+// inlines the value at build time — see requireClientEnv's docs.
+const scoringBaseUrl = requireClientEnv(
+  process.env['NEXT_PUBLIC_SCORING_URL'],
+  'NEXT_PUBLIC_SCORING_URL',
+  'http://localhost:3002',
+);
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled

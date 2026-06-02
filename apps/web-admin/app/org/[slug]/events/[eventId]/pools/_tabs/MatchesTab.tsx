@@ -15,7 +15,15 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 // in infra/docker-compose.*.yml; the helper throws in prod when
 // missing so a forgotten Dockerfile ARG can't ship as a silent
 // localhost fallback. The literal below is the dev fallback.
-const scoringBaseUrl = requireClientEnv('NEXT_PUBLIC_SCORING_URL', 'http://localhost:3002');
+// Pass `process.env.NEXT_PUBLIC_SCORING_URL` as the first arg (direct
+// literal access) so Next.js inlines the value at build time. A
+// dynamic `process.env[name]` lookup would NOT be inlined and would
+// silently degrade to undefined in the prod browser bundle.
+const scoringBaseUrl = requireClientEnv(
+  process.env['NEXT_PUBLIC_SCORING_URL'],
+  'NEXT_PUBLIC_SCORING_URL',
+  'http://localhost:3002',
+);
 
 interface RefereeAssignment {
   role: string;

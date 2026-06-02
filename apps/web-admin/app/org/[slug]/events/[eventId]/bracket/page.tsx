@@ -112,7 +112,13 @@ export default function BracketPage() {
   // the pool Matches tab reads. requireClientEnv throws in prod when
   // missing so a forgotten Dockerfile ARG can't ship as a silent
   // localhost fallback. The literal below is the dev fallback.
-  const scoringBaseUrl = requireClientEnv('NEXT_PUBLIC_SCORING_URL', 'http://localhost:3002');
+  // Pass `process.env.NEXT_PUBLIC_SCORING_URL` directly so Next.js
+  // inlines the value at build time — see requireClientEnv's docs.
+  const scoringBaseUrl = requireClientEnv(
+    process.env['NEXT_PUBLIC_SCORING_URL'],
+    'NEXT_PUBLIC_SCORING_URL',
+    'http://localhost:3002',
+  );
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
 
