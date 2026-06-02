@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ScoringSystemPreview } from '../../../rulesets/league/_components/ScoringSystemPreview';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
@@ -92,10 +93,39 @@ interface ScoringSystemOption {
   id: string;
   code: string;
   name: string;
+  version: string;
   is_builtin: boolean;
   points_by_rank: Record<string, number>;
   tie_breakers: string[];
   description: string | null;
+}
+
+interface ScoringSystemVersionRow {
+  id: string;
+  league_scoring_system_id: string;
+  version: string;
+  name: string;
+  points_by_rank: Record<string, number>;
+  tie_breakers: string[];
+  description: string | null;
+  published_at: string;
+}
+
+/**
+ * Parse a stored scoring-system reference ('code' or 'code@version')
+ * into its parts. Post-migration 0087 stored values are 'code@version';
+ * the legacy code-only form remains supported.
+ */
+function parseScoringRef(stored: string | null | undefined): {
+  code: string;
+  version: string | null;
+} {
+  if (!stored) return { code: 'ffamhe_tf_2026', version: null };
+  const at = stored.indexOf('@');
+  if (at < 0) return { code: stored, version: null };
+  const code = stored.slice(0, at);
+  const version = stored.slice(at + 1);
+  return { code, version: version.length > 0 ? version : null };
 }
 
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -130,8 +160,12 @@ export default function EditLeaguePage() {
   // any preset code from the `league_scoring_systems` registry (migration
   // 0068). The literal 'custom' branch shows the inline rank→points grid.
   const [scoringSystem, setScoringSystem] = useState<string>('ffamhe_tf_2026');
+  const [scoringSystemVersion, setScoringSystemVersion] = useState<string | null>(null);
   const [customPoints, setCustomPoints] = useState<Record<number, number>>(FFAMHE_POINTS);
   const [scoringSystemOptions, setScoringSystemOptions] = useState<ScoringSystemOption[]>([]);
+  const [versionsByCode, setVersionsByCode] = useState<Record<string, ScoringSystemVersionRow[]>>(
+    {},
+  );
 
   // Add forms
   const [userSearch, setUserSearch] = useState('');
@@ -159,11 +193,27 @@ export default function EditLeaguePage() {
     setStatus(found.status);
     setPublicVisibility(found.public_visibility);
     setRankingDimensions(found.scoring_config?.rankingDimensions ?? 'weapon');
-    setScoringSystem(found.scoring_system ?? 'ffamhe_tf_2026');
+    const parsed = parseScoringRef(found.scoring_system);
+    setScoringSystem(parsed.code);
+    setScoringSystemVersion(parsed.version);
     if (found.scoring_config?.customPointsByRank) {
       setCustomPoints(found.scoring_config.customPointsByRank);
     }
   }, [leagueId]);
+
+  const loadVersionsForSystem = useCallback(async (systemId: string, code: string) => {
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/admin/league-scoring-systems/${systemId}/versions`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) return;
+      const rows = (await res.json()) as ScoringSystemVersionRow[];
+      setVersionsByCode((prev) => ({ ...prev, [code]: rows }));
+    } catch {
+      // Silent — version dropdown just stays empty.
+    }
+  }, []);
 
   const loadScoringSystems = useCallback(async () => {
     const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, {
@@ -173,6 +223,17 @@ export default function EditLeaguePage() {
     const rows = (await res.json()) as ScoringSystemOption[];
     setScoringSystemOptions(rows);
   }, []);
+
+  // Whenever the selected scoring-system code changes, load its version
+  // history so the version dropdown can offer the available snapshots.
+  // Cached per-code so switching back doesn't refetch.
+  useEffect(() => {
+    if (scoringSystem === 'custom') return;
+    if (versionsByCode[scoringSystem]) return;
+    const opt = scoringSystemOptions.find((o) => o.code === scoringSystem);
+    if (!opt) return;
+    void loadVersionsForSystem(opt.id, scoringSystem);
+  }, [scoringSystem, scoringSystemOptions, versionsByCode, loadVersionsForSystem]);
 
   const loadAssignments = useCallback(async () => {
     const [usersRes, orgsRes, linksRes, groupsRes] = await Promise.all([
@@ -320,8 +381,18 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
+      // Encode the scoring-system reference as 'code@version' when a
+      // version is pinned. Migration 0087 made this the canonical format
+      // so leagues stay frozen at the version they explicitly selected
+      // even if a super-admin edits the source scoring system.
+      const scoringSystemRef =
+        scoringSystem === 'custom'
+          ? 'custom'
+          : scoringSystemVersion
+            ? `${scoringSystem}@${scoringSystemVersion}`
+            : scoringSystem;
       const scoringConfig: Record<string, unknown> = {
-        scoringSystem,
+        scoringSystem: scoringSystemRef,
         rankingDimensions,
         tieBreakers: league?.scoring_config?.tieBreakers ?? [],
       };
@@ -614,7 +685,20 @@ export default function EditLeaguePage() {
             Scoring system
             <select
               value={scoringSystem}
-              onChange={(e) => setScoringSystem(e.target.value)}
+              onChange={(e) => {
+                const nextCode = e.target.value;
+                setScoringSystem(nextCode);
+                // Reset version to the latest known version of the new code
+                // so the league pins to the freshly-published values by
+                // default. The user can switch to an older version via the
+                // version dropdown if they want immutability against
+                // future edits.
+                const opt = scoringSystemOptions.find((o) => o.code === nextCode);
+                setScoringSystemVersion(opt?.version ?? null);
+                if (opt && !versionsByCode[nextCode]) {
+                  void loadVersionsForSystem(opt.id, nextCode);
+                }
+              }}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               {scoringSystemOptions.length === 0 && (
@@ -635,6 +719,26 @@ export default function EditLeaguePage() {
               Manage scoring systems →
             </Link>
           </label>
+          {scoringSystem !== 'custom' && (
+            <label className="text-xs font-medium text-slate-600">
+              Version
+              <select
+                value={scoringSystemVersion ?? ''}
+                onChange={(e) => setScoringSystemVersion(e.target.value || null)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">(latest)</option>
+                {(versionsByCode[scoringSystem] ?? []).map((v) => (
+                  <option key={v.id} value={v.version}>
+                    v{v.version} · {new Date(v.published_at).toLocaleDateString()}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-[11px] text-slate-400">
+                Pinned versions stay frozen even if the source system is edited later.
+              </span>
+            </label>
+          )}
           <label className="text-xs font-medium text-slate-600">
             Status
             <select
@@ -665,6 +769,43 @@ export default function EditLeaguePage() {
             />
           </label>
         </div>
+
+        {scoringSystem !== 'custom' &&
+          (() => {
+            // Resolve which snapshot to show: pinned version → that version's
+            // values; latest → the current registry row's values.
+            const opt = scoringSystemOptions.find((o) => o.code === scoringSystem);
+            if (!opt) return null;
+            const snapshot = scoringSystemVersion
+              ? (versionsByCode[scoringSystem] ?? []).find(
+                  (v) => v.version === scoringSystemVersion,
+                )
+              : undefined;
+            const data = snapshot ?? {
+              version: opt.version,
+              name: opt.name,
+              description: opt.description,
+              points_by_rank: opt.points_by_rank,
+              tie_breakers: opt.tie_breakers,
+            };
+            return (
+              <details className="mt-4" open>
+                <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                  Preview points + tie-breakers
+                </summary>
+                <div className="mt-2">
+                  <ScoringSystemPreview
+                    name={data.name}
+                    code={opt.code}
+                    version={data.version}
+                    description={data.description}
+                    pointsByRank={data.points_by_rank}
+                    tieBreakers={data.tie_breakers}
+                  />
+                </div>
+              </details>
+            );
+          })()}
 
         {scoringSystem === 'custom' && (
           <div className="mt-4">
