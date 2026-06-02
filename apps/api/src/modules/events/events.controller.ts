@@ -309,6 +309,38 @@ export class EventsController {
     });
   }
 
+  /** POST /api/v1/events/:id/hero — per-event hero image stored on themes.hero_image_url. */
+  @Post('events/:id/hero')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @ApiOperation({ summary: 'Upload event hero image (org admin+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uploadEventHero(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    const data = await (
+      req as FastifyRequest & {
+        file: () => Promise<
+          | {
+              filename: string;
+              mimetype: string;
+              toBuffer: () => Promise<Buffer>;
+            }
+          | undefined
+        >;
+      }
+    ).file();
+    const buffer = data ? await data.toBuffer() : Buffer.alloc(0);
+    return this.events.uploadHero(id, userId, {
+      buffer,
+      filename: data?.filename ?? '',
+      mimetype: data?.mimetype ?? '',
+    });
+  }
+
   // ── Tournaments ───────────────────────────────────────────────────────────────
 
   /** GET /api/v1/events/:eventId/tournaments */

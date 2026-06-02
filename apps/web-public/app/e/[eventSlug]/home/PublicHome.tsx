@@ -17,6 +17,7 @@ interface EventInfo {
   publicLandingMd: string | null;
   status: string;
   logoUrl: string | null;
+  heroImageUrl: string | null;
   organizationName: string | null;
   organizationLogoUrl: string | null;
 }
@@ -60,6 +61,14 @@ async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventI
     if (!res.ok) return null;
     const raw = (await res.json()) as Record<string, unknown>;
     const org = raw['organizations'] as { name?: string; logo_url?: string } | null;
+    // Supabase projects `themes(*)` either as a single object or as
+    // an array depending on the joined cardinality; handle both.
+    const themesRaw = raw['themes'] as
+      | { hero_image_url?: string | null }
+      | Array<{ hero_image_url?: string | null }>
+      | null
+      | undefined;
+    const theme = Array.isArray(themesRaw) ? (themesRaw[0] ?? null) : (themesRaw ?? null);
     return {
       id: String(raw['id'] ?? ''),
       name: String(raw['name'] ?? ''),
@@ -75,6 +84,7 @@ async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventI
         typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
           ? String(raw['logo_url'] ?? raw['logoUrl'])
           : null,
+      heroImageUrl: typeof theme?.hero_image_url === 'string' ? theme.hero_image_url : null,
       organizationName: typeof org?.name === 'string' ? org.name : null,
       organizationLogoUrl: typeof org?.logo_url === 'string' ? org.logo_url : null,
     };
@@ -183,6 +193,21 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl">
       <EventBackLink />
+
+      {event?.heroImageUrl && (
+        <section
+          aria-label="Event hero"
+          className="relative -mx-4 aspect-[24/10] overflow-hidden rounded-none sm:aspect-[3/1] sm:rounded-xl"
+        >
+          {/* Decorative banner — event name is in the H1 below, so
+              alt="" is correct here. eslint-disable for plain <img>:
+              the storage host isn't whitelisted in next.config.ts
+              remotePatterns yet; promoting to next/image is a
+              separate change. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={event.heroImageUrl} alt="" className="h-full w-full object-cover" />
+        </section>
+      )}
 
       {event && (
         <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:py-8">

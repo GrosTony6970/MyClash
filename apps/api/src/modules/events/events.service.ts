@@ -35,6 +35,12 @@ const EVENT_LOGO_BUCKET = 'event-assets';
 const EVENT_LOGO_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EVENT_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
+// Hero shares the bucket + MIME allowlist with logos; cap matches
+// the logo limit so high-resolution camera JPEGs upload without a
+// re-encode step.
+const EVENT_HERO_MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_EVENT_HERO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
 export interface EventLogoUpload {
   buffer: Buffer;
   filename: string;
@@ -1606,6 +1612,81 @@ export class EventsService {
       .update({ logo_url: url, updated_at: new Date().toISOString() })
       .eq('id', eventId);
     if (updateError) throw new BadRequestException(updateError.message);
+
+    return { url };
+  }
+
+  /**
+   * Upload a per-event hero image. Mirrors `uploadLogo` but the
+   * destination column is `themes.hero_image_url` (not
+   * `events.hero_image_url` — that column was dropped in migration
+   * 0086 as part of the public-redesign theme scope-down).
+   *
+   * Storage path uses a `hero-` prefix so it sits next to the
+   * event's logo under the same `events/<id>/` folder without
+   * clobbering it.
+   */
+  async uploadHero(
+    eventId: string,
+    userId: string,
+    file: EventLogoUpload,
+  ): Promise<{ url: string }> {
+    const event = await this.getEventById(eventId);
+    await this.orgs.assertOrgRole(
+      (event as { organization_id: string }).organization_id,
+      userId,
+      'admin',
+    );
+
+    if (!file.buffer.length) throw new BadRequestException('No hero file uploaded.');
+    if (file.buffer.length > EVENT_HERO_MAX_BYTES) {
+      throw new BadRequestException('Hero upload exceeds the 10 MB size limit.');
+    }
+    if (!ALLOWED_EVENT_HERO_MIME_TYPES.has(file.mimetype)) {
+      throw new BadRequestException('Hero upload must be a PNG, JPEG, or WebP image.');
+    }
+
+    await this.ensureLogoBucket();
+    const extension =
+      file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+    const safeBase = file.filename
+      .toLowerCase()
+      .replace(/\.[^.]+$/u, '')
+      .replace(/[^a-z0-9-]+/gu, '-')
+      .replace(/^-+|-+$/gu, '')
+      .slice(0, 60);
+    const path = `events/${eventId}/hero-${Date.now()}-${safeBase || 'image'}.${extension}`;
+
+    const { error } = await this.supabase.service.storage
+      .from(EVENT_LOGO_BUCKET)
+      .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const { data } = this.supabase.service.storage.from(EVENT_LOGO_BUCKET).getPublicUrl(path);
+    const url = data.publicUrl;
+
+    // Upsert themes.hero_image_url. The themes row may or may not
+    // exist for a freshly-created event; mirror the existing-row
+    // check pattern from EventThemesService.upsertTheme so we
+    // INSERT on first save and UPDATE thereafter.
+    const { data: existing } = await this.supabase.service
+      .from('themes')
+      .select('id')
+      .eq('event_id', eventId)
+      .maybeSingle();
+
+    if (existing) {
+      const { error: updateError } = await this.supabase.service
+        .from('themes')
+        .update({ hero_image_url: url })
+        .eq('id', (existing as { id: string }).id);
+      if (updateError) throw new BadRequestException(updateError.message);
+    } else {
+      const { error: insertError } = await this.supabase.service
+        .from('themes')
+        .insert({ event_id: eventId, hero_image_url: url });
+      if (insertError) throw new BadRequestException(insertError.message);
+    }
 
     return { url };
   }

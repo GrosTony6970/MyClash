@@ -799,6 +799,134 @@ describe('EventsService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  // ── uploadHero ──────────────────────────────────────────────────────
+  // The hero image is stored on `themes.hero_image_url` (NOT
+  // `events.hero_image_url`) — so unlike uploadLogo the post-write
+  // path is an upsert into the themes table, not a direct events
+  // update. Locking these tracer bullets keeps the contract clear:
+  // bucket path uses the `hero-` prefix, themes upsert carries
+  // `hero_image_url`, MIME + size guards reject the same payloads
+  // uploadLogo does, and the org-admin role gate fires before the
+  // buffer is read.
+
+  it('uploadHero writes themes.hero_image_url and returns the public URL', async () => {
+    // 1) getEventById
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    // 2) themes existing-row check — returns null so we INSERT
+    const themesSelectChain = makeChain({ data: null, error: null });
+    themesSelectChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+    // 3) themes insert — used to capture the payload
+    const themesInsertResult = Promise.resolve({ data: null, error: null });
+    const themesInsertChain = {
+      insert: vi.fn().mockReturnValue(themesInsertResult),
+    };
+    fromMock
+      .mockReturnValueOnce(eventChain)
+      .mockReturnValueOnce(themesSelectChain)
+      .mockReturnValueOnce(themesInsertChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const storage = {
+      getBucket: vi.fn().mockResolvedValue({ data: { name: 'event-assets' }, error: null }),
+      createBucket: vi.fn(),
+      from: vi.fn().mockReturnValue({
+        upload: vi.fn().mockResolvedValue({ error: null }),
+        getPublicUrl: vi
+          .fn()
+          .mockReturnValue({ data: { publicUrl: 'https://cdn.test/events/event-1/hero.png' } }),
+      }),
+    };
+    service = new EventsService(
+      { service: { from: fromMock, storage } } as never,
+      { assertOrgRole } as never,
+      {} as never,
+    );
+
+    const result = await service.uploadHero('event-1', 'user-1', {
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      filename: 'hero.png',
+      mimetype: 'image/png',
+    });
+
+    expect(result).toEqual({ url: 'https://cdn.test/events/event-1/hero.png' });
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    expect(storage.from).toHaveBeenCalledWith('event-assets');
+    // Storage path uses the hero- prefix so it sits next to logos
+    // under events/<id>/ without clobbering them.
+    const storageUploadMock = storage.from.mock.results[0]?.value.upload as ReturnType<
+      typeof vi.fn
+    >;
+    const uploadedPath = storageUploadMock.mock.calls[0]?.[0] as string;
+    expect(uploadedPath).toMatch(/^events\/event-1\/hero-\d+-hero\.png$/);
+    // The themes upsert carries hero_image_url — NOT logo_url
+    // (which migration 0084 moved to events.logo_url).
+    expect(themesInsertChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_id: 'event-1',
+        hero_image_url: 'https://cdn.test/events/event-1/hero.png',
+      }),
+    );
+  });
+
+  it('uploadHero rejects non-image mimetypes', async () => {
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(eventChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(
+      service.uploadHero('event-1', 'user-1', {
+        buffer: Buffer.from('hello'),
+        filename: 'hero.pdf',
+        mimetype: 'application/pdf',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('uploadHero rejects payloads exceeding the 10 MB size limit', async () => {
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(eventChain);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
+
+    await expect(
+      service.uploadHero('event-1', 'user-1', {
+        buffer: oversized,
+        filename: 'huge.jpg',
+        mimetype: 'image/jpeg',
+      }),
+    ).rejects.toThrow(/10 MB size limit/i);
+  });
+
+  it('uploadHero requires org admin role', async () => {
+    const eventChain = makeChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(eventChain);
+    assertOrgRole.mockRejectedValue(new ForbiddenException('Requires admin role or higher'));
+
+    await expect(
+      service.uploadHero('event-1', 'user-1', {
+        buffer: Buffer.from([0x89]),
+        filename: 'hero.png',
+        mimetype: 'image/png',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    // Role check fires BEFORE the bucket / size / MIME guards so a
+    // non-admin caller never has their file inspected.
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+  });
+
   // ── Public listEvents — drives /api/v1/events used by the public site root.
   // Locks the SELECT shape + status filter that the public landing page
   // depends on. The "unavailable" banner at app.myclash.fr/ only renders
