@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
+import { useI18n } from '../../i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -55,6 +56,7 @@ interface Props {
 type Tab = 'tournament_attaches' | 'membership_requests';
 
 export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Props) {
+  const { t } = useI18n();
   const [tab, setTab] = useState<Tab>('tournament_attaches');
 
   const [tournamentRows, setTournamentRows] = useState<LeagueTournamentRequest[]>([]);
@@ -78,7 +80,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
           credentials: 'include',
         }),
       ]);
-      if (!tRes.ok) throw new Error('Could not load tournament requests');
+      if (!tRes.ok) throw new Error(t('admin.leagues.requestsPanel.loadTournamentError'));
       const tData = (await tRes.json()) as LeagueTournamentRequest[];
       setTournamentRows(tData);
       if (mRes.ok) {
@@ -89,11 +91,13 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load requests');
+      setError(
+        err instanceof Error ? err.message : t('admin.leagues.requestsPanel.loadGenericError'),
+      );
     } finally {
       setLoading(false);
     }
-  }, [leagueId]);
+  }, [leagueId, t]);
 
   useEffect(() => {
     void reload();
@@ -114,14 +118,35 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       });
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(err.message ?? `${status} failed`);
+        throw new Error(
+          err.message ??
+            t(
+              status === 'approved'
+                ? 'admin.leagues.requestsPanel.approvedFailed'
+                : 'admin.leagues.requestsPanel.rejectedFailed',
+            ),
+        );
       }
-      toast.success(status === 'approved' ? 'Request approved' : 'Request rejected');
+      toast.success(
+        t(
+          status === 'approved'
+            ? 'admin.leagues.requestsPanel.approvedToast'
+            : 'admin.leagues.requestsPanel.rejectedToast',
+        ),
+      );
       setRejectingId(null);
       setRejectReason('');
       await reload();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `${status} failed`);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t(
+              status === 'approved'
+                ? 'admin.leagues.requestsPanel.approvedFailed'
+                : 'admin.leagues.requestsPanel.rejectedFailed',
+            ),
+      );
     } finally {
       setBusyId(null);
     }
@@ -142,14 +167,35 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       });
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(err.message ?? `${status} failed`);
+        throw new Error(
+          err.message ??
+            t(
+              status === 'approved'
+                ? 'admin.leagues.requestsPanel.approvedFailed'
+                : 'admin.leagues.requestsPanel.rejectedFailed',
+            ),
+        );
       }
-      toast.success(status === 'approved' ? 'Join request approved' : 'Join request rejected');
+      toast.success(
+        t(
+          status === 'approved'
+            ? 'admin.leagues.requestsPanel.membershipApprovedToast'
+            : 'admin.leagues.requestsPanel.membershipRejectedToast',
+        ),
+      );
       setRejectingId(null);
       setRejectReason('');
       await reload();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `${status} failed`);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t(
+              status === 'approved'
+                ? 'admin.leagues.requestsPanel.approvedFailed'
+                : 'admin.leagues.requestsPanel.rejectedFailed',
+            ),
+      );
     } finally {
       setBusyId(null);
     }
@@ -163,17 +209,17 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
     <section className={wrapClass}>
       <header className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{title ?? 'Pending requests'}</h2>
-          <p className="text-xs text-slate-500">
-            Tournament attaches and org-join requests. Accept or refuse to advance the workflow.
-          </p>
+          <h2 className="text-lg font-semibold text-slate-900">
+            {title ?? t('admin.leagues.requestsPanel.defaultTitle')}
+          </h2>
+          <p className="text-xs text-slate-500">{t('admin.leagues.requestsPanel.subtitle')}</p>
         </div>
         <button
           type="button"
           onClick={() => void reload()}
           className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
         >
-          Refresh
+          {t('admin.leagues.requestsPanel.refreshButton')}
         </button>
       </header>
 
@@ -188,7 +234,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
               : 'border-transparent text-slate-500 hover:text-slate-700',
           ].join(' ')}
         >
-          Tournament attaches{' '}
+          {t('admin.leagues.requestsPanel.tabTournament')}{' '}
           <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
             {tournamentRows.length}
           </span>
@@ -203,7 +249,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
               : 'border-transparent text-slate-500 hover:text-slate-700',
           ].join(' ')}
         >
-          Org join requests{' '}
+          {t('admin.leagues.requestsPanel.tabMembership')}{' '}
           <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
             {membershipRows.length}
           </span>
@@ -218,9 +264,15 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
 
       {tab === 'tournament_attaches' ? (
         <>
-          {loading && <p className="py-4 text-sm text-slate-400">Loading…</p>}
+          {loading && (
+            <p className="py-4 text-sm text-slate-400">
+              {t('admin.leagues.requestsPanel.loadingState')}
+            </p>
+          )}
           {!loading && tournamentRows.length === 0 && (
-            <p className="py-4 text-sm text-slate-500">No pending tournament-attach requests.</p>
+            <p className="py-4 text-sm text-slate-500">
+              {t('admin.leagues.requestsPanel.emptyTournament')}
+            </p>
           )}
           <ul className="space-y-2">
             {tournamentRows.map((row) => {
@@ -236,7 +288,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-slate-900">
-                        {tournament?.name ?? 'Tournament'}
+                        {tournament?.name ?? t('admin.leagues.requestsPanel.tournamentFallback')}
                         {tournament?.weapon && (
                           <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-mono text-slate-600">
                             {tournament.weapon}
@@ -244,8 +296,13 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         )}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {event?.name ?? 'Event'}
-                        {org?.name && <> · requested by {org.name}</>}
+                        {event?.name ?? t('admin.leagues.requestsPanel.eventFallback')}
+                        {org?.name && (
+                          <>
+                            {' · '}
+                            {t('admin.leagues.requestsPanel.requestedBy', { name: org.name })}
+                          </>
+                        )}
                       </p>
                       {row.note && (
                         <p className="mt-1 text-xs italic text-slate-600">"{row.note}"</p>
@@ -258,7 +315,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         disabled={busyId === row.id || isRejecting}
                         className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                       >
-                        Accept
+                        {t('admin.leagues.requestsPanel.acceptButton')}
                       </button>
                       <button
                         type="button"
@@ -269,7 +326,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         disabled={busyId === row.id || isRejecting}
                         className="rounded-md border border-red-700 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                       >
-                        Refuse
+                        {t('admin.leagues.requestsPanel.refuseButton')}
                       </button>
                     </div>
                   </div>
@@ -292,9 +349,15 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
         </>
       ) : (
         <>
-          {loading && <p className="py-4 text-sm text-slate-400">Loading…</p>}
+          {loading && (
+            <p className="py-4 text-sm text-slate-400">
+              {t('admin.leagues.requestsPanel.loadingState')}
+            </p>
+          )}
           {!loading && membershipRows.length === 0 && (
-            <p className="py-4 text-sm text-slate-500">No pending join requests.</p>
+            <p className="py-4 text-sm text-slate-500">
+              {t('admin.leagues.requestsPanel.emptyMembership')}
+            </p>
           )}
           <ul className="space-y-2">
             {membershipRows.map((row) => {
@@ -307,13 +370,15 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-slate-900">
-                        {row.organizations?.name ?? 'Organization'}
+                        {row.organizations?.name ?? t('admin.leagues.requestsPanel.orgFallback')}
                         <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-mono text-slate-600">
                           {row.requested_role}
                         </span>
                       </p>
                       <p className="text-xs text-slate-500">
-                        Submitted {new Date(row.requested_at).toLocaleString()}
+                        {t('admin.leagues.requestsPanel.submittedAt', {
+                          date: new Date(row.requested_at).toLocaleString(),
+                        })}
                       </p>
                       {row.message && (
                         <p className="mt-1 text-xs italic text-slate-600">"{row.message}"</p>
@@ -326,7 +391,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         disabled={busyId === row.id || isRejecting}
                         className="rounded-md bg-emerald-700 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                       >
-                        Accept
+                        {t('admin.leagues.requestsPanel.acceptButton')}
                       </button>
                       <button
                         type="button"
@@ -337,7 +402,7 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
                         disabled={busyId === row.id || isRejecting}
                         className="rounded-md border border-red-700 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                       >
-                        Refuse
+                        {t('admin.leagues.requestsPanel.refuseButton')}
                       </button>
                     </div>
                   </div>
@@ -372,13 +437,14 @@ interface RejectInlineProps {
 }
 
 function RejectInline({ busy, reason, setReason, onConfirm, onCancel }: RejectInlineProps) {
+  const { t } = useI18n();
   return (
     <div className="mt-2 flex items-center gap-2">
       <input
         type="text"
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="Reason (optional)"
+        placeholder={t('admin.leagues.requestsPanel.reasonPlaceholder')}
         className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs"
         autoFocus
       />
@@ -388,14 +454,14 @@ function RejectInline({ busy, reason, setReason, onConfirm, onCancel }: RejectIn
         disabled={busy}
         className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
       >
-        Confirm refuse
+        {t('admin.leagues.requestsPanel.confirmRefuseButton')}
       </button>
       <button
         type="button"
         onClick={onCancel}
         className="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
       >
-        Cancel
+        {t('admin.leagues.requestsPanel.cancelButton')}
       </button>
     </div>
   );

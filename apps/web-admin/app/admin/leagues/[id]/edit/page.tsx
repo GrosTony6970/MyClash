@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
+import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -132,6 +133,7 @@ const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
 export default function EditLeaguePage() {
+  const { t } = useI18n();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
   const searchParams = useSearchParams();
@@ -182,10 +184,10 @@ export default function EditLeaguePage() {
 
   const loadLeague = useCallback(async () => {
     const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, { credentials: 'include' });
-    if (!res.ok) throw new Error('Could not load league');
+    if (!res.ok) throw new Error(t('admin.leagues.editPage.loadError'));
     const data = (await res.json()) as League[];
     const found = data.find((l) => l.id === leagueId);
-    if (!found) throw new Error('League not found');
+    if (!found) throw new Error(t('admin.leagues.editPage.notFound'));
     setLeague(found);
     setName(found.name);
     setSeasonYear(String(found.season_year));
@@ -199,7 +201,7 @@ export default function EditLeaguePage() {
     if (found.scoring_config?.customPointsByRank) {
       setCustomPoints(found.scoring_config.customPointsByRank);
     }
-  }, [leagueId]);
+  }, [leagueId, t]);
 
   const loadVersionsForSystem = useCallback(async (systemId: string, code: string) => {
     try {
@@ -269,19 +271,19 @@ export default function EditLeaguePage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Create group failed');
+        throw new Error(body.message ?? t('admin.leagues.editPage.groups.createError'));
       }
       setNewGroupName('');
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Create group failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.groups.createError'));
     } finally {
       setBusy(false);
     }
   }
 
   async function deleteGroup(groupId: string) {
-    if (!window.confirm('Delete this group? Tournaments will become unassigned.')) return;
+    if (!window.confirm(t('admin.leagues.editPage.groups.deleteConfirm'))) return;
     setBusy(true);
     try {
       await fetch(`${apiUrl}/api/v1/admin/league-groups/${groupId}`, {
@@ -311,7 +313,7 @@ export default function EditLeaguePage() {
 
   useEffect(() => {
     void loadLeague().catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : 'Could not load league');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.loadError'));
     });
     void loadAssignments().catch(() => undefined);
     void loadScoringSystems().catch(() => undefined);
@@ -323,18 +325,18 @@ export default function EditLeaguePage() {
       credentials: 'include',
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error('Could not load organizations');
+        if (!r.ok) throw new Error(t('admin.leagues.editPage.orgsLoadError'));
         return (await r.json()) as OrgOption[] | { organizations: OrgOption[] };
       })
       .then((data) => setAllOrgs(Array.isArray(data) ? data : (data.organizations ?? [])))
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Could not load organizations');
+        setError(err instanceof Error ? err.message : t('admin.leagues.editPage.orgsLoadError'));
       });
     void fetch(`${apiUrl}/api/v1/events?status=all`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: EventOption[]) => setAllEvents(data ?? []))
       .catch(() => undefined);
-  }, [loadLeague, loadAssignments, loadScoringSystems]);
+  }, [loadLeague, loadAssignments, loadScoringSystems, t]);
 
   const filteredUsers = useMemo(() => {
     const taken = new Set(userRoles.map((r) => r.userId));
@@ -413,12 +415,12 @@ export default function EditLeaguePage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Save failed');
+        throw new Error(body.message ?? t('admin.leagues.editPage.basics.saveError'));
       }
-      flashSaved('Saved');
+      flashSaved(t('admin.leagues.editPage.savedFlash'));
       await loadLeague();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.basics.saveError'));
     } finally {
       setBusy(false);
     }
@@ -426,11 +428,11 @@ export default function EditLeaguePage() {
 
   async function uploadLogo(file: File) {
     if (!ALLOWED_LOGO_TYPES.has(file.type)) {
-      setError('Logo must be PNG, JPEG, or WebP.');
+      setError(t('admin.leagues.editPage.logo.wrongTypeError'));
       return;
     }
     if (file.size > MAX_LOGO_BYTES) {
-      setError('Logo must be 10 MB or smaller.');
+      setError(t('admin.leagues.editPage.logo.tooLargeError'));
       return;
     }
     setBusy(true);
@@ -445,19 +447,19 @@ export default function EditLeaguePage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Logo upload failed');
+        throw new Error(body.message ?? t('admin.leagues.editPage.logo.uploadError'));
       }
-      flashSaved('Logo uploaded');
+      flashSaved(t('admin.leagues.editPage.logo.uploadFlash'));
       await loadLeague();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Logo upload failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.logo.uploadError'));
     } finally {
       setBusy(false);
     }
   }
 
   async function removeLogo() {
-    if (!window.confirm('Remove logo?')) return;
+    if (!window.confirm(t('admin.leagues.editPage.logo.removeConfirm'))) return;
     setBusy(true);
     setError(null);
     try {
@@ -465,11 +467,11 @@ export default function EditLeaguePage() {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Remove failed');
-      flashSaved('Logo removed');
+      if (!res.ok) throw new Error(t('admin.leagues.editPage.logo.removeError'));
+      flashSaved(t('admin.leagues.editPage.logo.removeFlash'));
       await loadLeague();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Remove failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.logo.removeError'));
     } finally {
       setBusy(false);
     }
@@ -487,18 +489,18 @@ export default function EditLeaguePage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Add failed');
+        throw new Error(body.message ?? t('admin.leagues.editPage.owners.addError'));
       }
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Add failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.owners.addError'));
     } finally {
       setBusy(false);
     }
   }
 
   async function removeOwner(userIdSel: string) {
-    if (!window.confirm('Detach this account from the league?')) return;
+    if (!window.confirm(t('admin.leagues.editPage.owners.detachConfirm'))) return;
     setBusy(true);
     setError(null);
     try {
@@ -506,10 +508,10 @@ export default function EditLeaguePage() {
         `${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles/${userIdSel}`,
         { method: 'DELETE', credentials: 'include' },
       );
-      if (!res.ok) throw new Error('Detach failed');
+      if (!res.ok) throw new Error(t('admin.leagues.editPage.owners.detachError'));
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Detach failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.owners.detachError'));
     } finally {
       setBusy(false);
     }
@@ -527,18 +529,18 @@ export default function EditLeaguePage() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Add failed');
+        throw new Error(body.message ?? t('admin.leagues.editPage.orgs.addError'));
       }
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Add failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.orgs.addError'));
     } finally {
       setBusy(false);
     }
   }
 
   async function removeOrg(orgId: string) {
-    if (!window.confirm('Detach this organisation from the league?')) return;
+    if (!window.confirm(t('admin.leagues.editPage.orgs.detachConfirm'))) return;
     setBusy(true);
     setError(null);
     try {
@@ -546,10 +548,10 @@ export default function EditLeaguePage() {
         `${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles/${orgId}`,
         { method: 'DELETE', credentials: 'include' },
       );
-      if (!res.ok) throw new Error('Detach failed');
+      if (!res.ok) throw new Error(t('admin.leagues.editPage.orgs.detachError'));
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Detach failed');
+      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.orgs.detachError'));
     } finally {
       setBusy(false);
     }
@@ -571,18 +573,20 @@ export default function EditLeaguePage() {
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Add failed');
+        throw new Error(body.message ?? t('admin.leagues.editPage.tournaments.addError'));
       }
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Add failed');
+      setError(
+        err instanceof Error ? err.message : t('admin.leagues.editPage.tournaments.addError'),
+      );
     } finally {
       setBusy(false);
     }
   }
 
   async function removeTournamentLink(linkId: string) {
-    if (!window.confirm('Detach this tournament from the league?')) return;
+    if (!window.confirm(t('admin.leagues.editPage.tournaments.detachConfirm'))) return;
     setBusy(true);
     setError(null);
     try {
@@ -592,10 +596,12 @@ export default function EditLeaguePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'removed' }),
       });
-      if (!res.ok) throw new Error('Detach failed');
+      if (!res.ok) throw new Error(t('admin.leagues.editPage.tournaments.detachError'));
       await loadAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Detach failed');
+      setError(
+        err instanceof Error ? err.message : t('admin.leagues.editPage.tournaments.detachError'),
+      );
     } finally {
       setBusy(false);
     }
@@ -609,7 +615,7 @@ export default function EditLeaguePage() {
             {error}
           </div>
         ) : (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <p className="text-sm text-slate-500">{t('admin.leagues.editPage.loadingState')}</p>
         )}
       </main>
     );
@@ -619,14 +625,14 @@ export default function EditLeaguePage() {
     <main className="p-8 max-w-4xl">
       <div className="mb-2 text-sm">
         <Link href="/admin/leagues" className="text-slate-500 hover:underline">
-          Back to leagues
+          {t('admin.leagues.editPage.backLink')}
         </Link>
       </div>
-      <h1 className="text-2xl font-bold mb-6">Edit league</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('admin.leagues.editPage.pageTitle')}</h1>
 
       {justCreated && (
         <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
-          League created. You can now adjust everything below.
+          {t('admin.leagues.editPage.createdBanner')}
         </div>
       )}
       {savedFlash && (
@@ -643,11 +649,11 @@ export default function EditLeaguePage() {
       {/* Basics */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Basics
+          {t('admin.leagues.editPage.basics.heading')}
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-medium text-slate-600">
-            Name
+            {t('admin.leagues.editPage.basics.nameLabel')}
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -655,7 +661,7 @@ export default function EditLeaguePage() {
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
-            Year (read-only)
+            {t('admin.leagues.editPage.basics.yearLabel')}
             <input
               value={seasonYear}
               readOnly
@@ -663,7 +669,7 @@ export default function EditLeaguePage() {
             />
           </label>
           <label className="text-xs font-medium text-slate-600 sm:col-span-2">
-            Slug (read-only)
+            {t('admin.leagues.editPage.basics.slugLabel')}
             <input
               value={league.slug}
               readOnly
@@ -671,18 +677,20 @@ export default function EditLeaguePage() {
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
-            Category
+            {t('admin.leagues.editPage.basics.categoryLabel')}
             <select
               value={rankingDimensions}
               onChange={(e) => setRankingDimensions(e.target.value as 'weapon' | 'weapon_category')}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="weapon">Weapon</option>
-              <option value="weapon_category">Weapon + Category</option>
+              <option value="weapon">{t('admin.leagues.editPage.basics.categoryWeapon')}</option>
+              <option value="weapon_category">
+                {t('admin.leagues.editPage.basics.categoryWeaponPlusCategory')}
+              </option>
             </select>
           </label>
           <label className="text-xs font-medium text-slate-600">
-            Scoring system
+            {t('admin.leagues.editPage.basics.scoringSystemLabel')}
             <select
               value={scoringSystem}
               onChange={(e) => {
@@ -707,27 +715,27 @@ export default function EditLeaguePage() {
               {scoringSystemOptions.map((opt) => (
                 <option key={opt.id} value={opt.code}>
                   {opt.name}
-                  {opt.is_builtin ? ' (built-in)' : ''}
+                  {opt.is_builtin ? t('admin.leagues.editPage.basics.builtinSuffix') : ''}
                 </option>
               ))}
-              <option value="custom">Custom (per-league)</option>
+              <option value="custom">{t('admin.leagues.editPage.basics.customOption')}</option>
             </select>
             <Link
               href="/admin/rulesets/league"
               className="mt-1 inline-block text-[11px] font-medium text-red-700 hover:underline"
             >
-              Manage scoring systems →
+              {t('admin.leagues.editPage.basics.manageScoringSystemsLink')}
             </Link>
           </label>
           {scoringSystem !== 'custom' && (
             <label className="text-xs font-medium text-slate-600">
-              Version
+              {t('admin.leagues.editPage.basics.versionLabel')}
               <select
                 value={scoringSystemVersion ?? ''}
                 onChange={(e) => setScoringSystemVersion(e.target.value || null)}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="">(latest)</option>
+                <option value="">{t('admin.leagues.editPage.basics.versionLatestOption')}</option>
                 {(versionsByCode[scoringSystem] ?? []).map((v) => (
                   <option key={v.id} value={v.version}>
                     v{v.version} · {new Date(v.published_at).toLocaleDateString()}
@@ -735,20 +743,22 @@ export default function EditLeaguePage() {
                 ))}
               </select>
               <span className="mt-1 block text-[11px] text-slate-400">
-                Pinned versions stay frozen even if the source system is edited later.
+                {t('admin.leagues.editPage.basics.versionHelp')}
               </span>
             </label>
           )}
           <label className="text-xs font-medium text-slate-600">
-            Status
+            {t('admin.leagues.editPage.basics.statusLabel')}
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
+              <option value="draft">{t('admin.leagues.editPage.basics.statusDraft')}</option>
+              <option value="published">
+                {t('admin.leagues.editPage.basics.statusPublished')}
+              </option>
+              <option value="archived">{t('admin.leagues.editPage.basics.statusArchived')}</option>
             </select>
           </label>
           <label className="flex items-end gap-2 text-xs font-medium text-slate-600">
@@ -757,10 +767,10 @@ export default function EditLeaguePage() {
               checked={publicVisibility}
               onChange={(e) => setPublicVisibility(e.target.checked)}
             />
-            Public visibility
+            {t('admin.leagues.editPage.basics.publicVisibilityLabel')}
           </label>
           <label className="text-xs font-medium text-slate-600 sm:col-span-2">
-            Description
+            {t('admin.leagues.editPage.basics.descriptionLabel')}
             <textarea
               rows={3}
               value={description}
@@ -791,7 +801,7 @@ export default function EditLeaguePage() {
             return (
               <details className="mt-4" open>
                 <summary className="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
-                  Preview points + tie-breakers
+                  {t('admin.leagues.editPage.basics.previewSummary')}
                 </summary>
                 <div className="mt-2">
                   <ScoringSystemPreview
@@ -809,11 +819,13 @@ export default function EditLeaguePage() {
 
         {scoringSystem === 'custom' && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-600 mb-2">Points by rank</p>
+            <p className="text-xs font-medium text-slate-600 mb-2">
+              {t('admin.leagues.editPage.basics.pointsByRankLabel')}
+            </p>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
               {Object.entries(customPoints).map(([rank, points]) => (
                 <label key={rank} className="text-[11px] text-slate-500">
-                  Rank {rank}
+                  {t('admin.leagues.editPage.basics.rankLabel', { rank })}
                   <input
                     type="number"
                     value={points}
@@ -837,13 +849,15 @@ export default function EditLeaguePage() {
           disabled={busy}
           className="mt-4 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
         >
-          Save basics
+          {t('admin.leagues.editPage.basics.saveButton')}
         </button>
       </section>
 
       {/* Logo */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">Logo</h2>
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+          {t('admin.leagues.editPage.logo.heading')}
+        </h2>
         <div className="flex items-center gap-4">
           {league.logo_url ? (
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -868,7 +882,9 @@ export default function EditLeaguePage() {
               disabled={busy}
               className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
             />
-            <p className="mt-1 text-[11px] text-slate-500">PNG, JPEG, or WebP. Maximum 10 MB.</p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {t('admin.leagues.editPage.logo.helperText')}
+            </p>
             {league.logo_url && (
               <button
                 type="button"
@@ -876,7 +892,7 @@ export default function EditLeaguePage() {
                 disabled={busy}
                 className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
               >
-                Remove logo
+                {t('admin.leagues.editPage.logo.removeButton')}
               </button>
             )}
           </div>
@@ -886,17 +902,19 @@ export default function EditLeaguePage() {
       {/* Owner accounts */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Owner platform accounts
+          {t('admin.leagues.editPage.owners.heading')}
         </h2>
         {userRoles.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">No accounts linked yet.</p>
+          <p className="text-sm text-slate-500 italic">
+            {t('admin.leagues.editPage.owners.empty')}
+          </p>
         ) : (
           <ul className="mb-4 divide-y divide-slate-100">
             {userRoles.map((r) => (
               <li key={r.userId} className="flex items-start justify-between gap-3 py-2">
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="font-medium text-slate-900">
-                    {r.displayName || '(no name)'}
+                    {r.displayName || t('admin.leagues.editPage.owners.nameFallback')}
                     <span className="ml-2 text-xs font-normal text-slate-400">{r.role}</span>
                   </p>
                   <p className="text-xs text-slate-500">{r.email}</p>
@@ -919,7 +937,7 @@ export default function EditLeaguePage() {
                   disabled={busy}
                   className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                 >
-                  Detach
+                  {t('admin.leagues.editPage.owners.detachButton')}
                 </button>
               </li>
             ))}
@@ -930,7 +948,7 @@ export default function EditLeaguePage() {
             type="search"
             value={userSearch}
             onChange={(e) => setUserSearch(e.target.value)}
-            placeholder="Search accounts to add…"
+            placeholder={t('admin.leagues.editPage.owners.searchPlaceholder')}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           {filteredUsers.length > 0 && (
@@ -943,7 +961,9 @@ export default function EditLeaguePage() {
                   disabled={busy}
                   className="block w-full text-left border-b border-slate-100 px-3 py-2 text-sm hover:bg-blue-50 disabled:opacity-50 last:border-0"
                 >
-                  <span className="font-medium">{u.display_name || '(no name)'}</span>
+                  <span className="font-medium">
+                    {u.display_name || t('admin.leagues.editPage.owners.nameFallback')}
+                  </span>
                   <span className="ml-2 text-xs text-slate-500">{u.email}</span>
                 </button>
               ))}
@@ -955,10 +975,10 @@ export default function EditLeaguePage() {
       {/* Orgs */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Member organisations
+          {t('admin.leagues.editPage.orgs.heading')}
         </h2>
         {orgRoles.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">No orgs linked yet.</p>
+          <p className="text-sm text-slate-500 italic">{t('admin.leagues.editPage.orgs.empty')}</p>
         ) : (
           <ul className="mb-4 divide-y divide-slate-100">
             {orgRoles.map((r) => (
@@ -978,7 +998,7 @@ export default function EditLeaguePage() {
                     disabled={busy}
                     className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
-                    Detach
+                    {t('admin.leagues.editPage.orgs.detachButton')}
                   </button>
                 </div>
               </li>
@@ -987,7 +1007,9 @@ export default function EditLeaguePage() {
         )}
         {availableOrgs.length > 0 && (
           <div className="border-t border-slate-100 pt-4">
-            <p className="text-xs font-medium text-slate-600 mb-2">Add organisation</p>
+            <p className="text-xs font-medium text-slate-600 mb-2">
+              {t('admin.leagues.editPage.orgs.addHeading')}
+            </p>
             <div className="grid gap-1 sm:grid-cols-2 max-h-40 overflow-y-auto">
               {availableOrgs.map((o) => (
                 <button
@@ -1008,14 +1030,15 @@ export default function EditLeaguePage() {
       {/* Groups */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Groups
+          {t('admin.leagues.editPage.groups.heading')}
         </h2>
         <p className="mb-3 text-xs text-slate-500">
-          Operator-defined buckets used to group tournaments inside this league (replaces the
-          per-tournament Category in the league context).
+          {t('admin.leagues.editPage.groups.description')}
         </p>
         {groups.length === 0 ? (
-          <p className="mb-3 text-sm italic text-slate-500">No groups yet.</p>
+          <p className="mb-3 text-sm italic text-slate-500">
+            {t('admin.leagues.editPage.groups.empty')}
+          </p>
         ) : (
           <ul className="mb-3 divide-y divide-slate-100">
             {groups.map((g) => (
@@ -1027,7 +1050,7 @@ export default function EditLeaguePage() {
                   disabled={busy}
                   className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                 >
-                  Delete
+                  {t('admin.leagues.editPage.groups.deleteButton')}
                 </button>
               </li>
             ))}
@@ -1038,7 +1061,7 @@ export default function EditLeaguePage() {
             type="text"
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
-            placeholder="New group name"
+            placeholder={t('admin.leagues.editPage.groups.newNamePlaceholder')}
             className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
           />
           <button
@@ -1047,7 +1070,7 @@ export default function EditLeaguePage() {
             disabled={busy || !newGroupName.trim()}
             className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            Add group
+            {t('admin.leagues.editPage.groups.addButton')}
           </button>
         </div>
       </section>
@@ -1055,17 +1078,19 @@ export default function EditLeaguePage() {
       {/* Tournaments */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
-          Linked tournaments
+          {t('admin.leagues.editPage.tournaments.heading')}
         </h2>
         {tournamentLinks.length === 0 ? (
-          <p className="text-sm text-slate-500 italic">No tournaments linked yet.</p>
+          <p className="text-sm text-slate-500 italic">
+            {t('admin.leagues.editPage.tournaments.empty')}
+          </p>
         ) : (
           <ul className="mb-4 divide-y divide-slate-100">
             {tournamentLinks.map((link) => (
               <li key={link.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">
-                    {link.tournaments?.name ?? '(unnamed)'}
+                    {link.tournaments?.name ?? t('admin.leagues.editPage.tournaments.nameFallback')}
                   </p>
                   <p className="text-xs text-slate-500">
                     {link.tournaments?.events?.name ?? ''}{' '}
@@ -1082,7 +1107,9 @@ export default function EditLeaguePage() {
                       disabled={busy}
                       className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs"
                     >
-                      <option value="">— no group —</option>
+                      <option value="">
+                        {t('admin.leagues.editPage.tournaments.noGroupOption')}
+                      </option>
                       {groups.map((g) => (
                         <option key={g.id} value={g.id}>
                           {g.name}
@@ -1099,7 +1126,7 @@ export default function EditLeaguePage() {
                     disabled={busy}
                     className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
-                    Detach
+                    {t('admin.leagues.editPage.tournaments.detachButton')}
                   </button>
                 </div>
               </li>
@@ -1108,12 +1135,14 @@ export default function EditLeaguePage() {
         )}
 
         <div className="border-t border-slate-100 pt-4">
-          <p className="text-xs font-medium text-slate-600 mb-2">Add a tournament</p>
+          <p className="text-xs font-medium text-slate-600 mb-2">
+            {t('admin.leagues.editPage.tournaments.addHeading')}
+          </p>
           <input
             type="search"
             value={eventQuery}
             onChange={(e) => setEventQuery(e.target.value)}
-            placeholder="Search events…"
+            placeholder={t('admin.leagues.editPage.tournaments.eventSearchPlaceholder')}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
           {filteredEvents.length > 0 && (
@@ -1136,40 +1165,49 @@ export default function EditLeaguePage() {
                   {expandedEventId === ev.id && (
                     <div className="border-t border-slate-100 bg-slate-50 px-3 py-2">
                       {(tournamentsByEvent[ev.id] ?? []).length === 0 ? (
-                        <p className="text-xs text-slate-500 italic">No tournaments.</p>
+                        <p className="text-xs text-slate-500 italic">
+                          {t('admin.leagues.editPage.tournaments.noTournaments')}
+                        </p>
                       ) : (
                         <ul className="space-y-1">
-                          {(tournamentsByEvent[ev.id] ?? []).map((t) => {
-                            const already = tournamentLinks.some((l) => l.tournaments?.id === t.id);
+                          {(tournamentsByEvent[ev.id] ?? []).map((tour) => {
+                            const already = tournamentLinks.some(
+                              (l) => l.tournaments?.id === tour.id,
+                            );
                             return (
                               <li
-                                key={t.id}
+                                key={tour.id}
                                 className="flex items-center justify-between gap-2 text-xs"
                               >
                                 <span className="flex items-center gap-1.5">
-                                  <span>{t.name ?? '(unnamed)'}</span>
-                                  {t.weapon && <span className="text-slate-400">· {t.weapon}</span>}
-                                  {t.status && (
+                                  <span>
+                                    {tour.name ??
+                                      t('admin.leagues.editPage.tournaments.nameFallback')}
+                                  </span>
+                                  {tour.weapon && (
+                                    <span className="text-slate-400">· {tour.weapon}</span>
+                                  )}
+                                  {tour.status && (
                                     <span
                                       className={[
                                         'rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase',
-                                        t.status === 'published'
+                                        tour.status === 'published'
                                           ? 'bg-green-100 text-green-700'
-                                          : t.status === 'draft'
+                                          : tour.status === 'draft'
                                             ? 'bg-amber-100 text-amber-700'
-                                            : t.status === 'completed'
+                                            : tour.status === 'completed'
                                               ? 'bg-slate-100 text-slate-600'
                                               : 'bg-slate-100 text-slate-500',
                                       ].join(' ')}
                                     >
-                                      {t.status}
+                                      {tour.status}
                                     </span>
                                   )}
                                 </span>
                                 <button
                                   type="button"
                                   disabled={already || busy}
-                                  onClick={() => void addTournamentLink(t.id)}
+                                  onClick={() => void addTournamentLink(tour.id)}
                                   className={[
                                     'rounded px-2 py-0.5 font-semibold',
                                     already
@@ -1177,7 +1215,9 @@ export default function EditLeaguePage() {
                                       : 'bg-blue-100 text-blue-700 hover:bg-blue-200',
                                   ].join(' ')}
                                 >
-                                  {already ? 'Linked' : 'Add'}
+                                  {already
+                                    ? t('admin.leagues.editPage.tournaments.linkedButton')
+                                    : t('admin.leagues.editPage.tournaments.addButton')}
                                 </button>
                               </li>
                             );
