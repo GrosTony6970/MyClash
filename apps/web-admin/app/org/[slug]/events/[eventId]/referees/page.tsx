@@ -593,6 +593,11 @@ function AssignmentsTab({
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
   } | null>(null);
+  // pool.liceId is already populated by the assignment-board backend
+  // (derived from matches[0].lice_id). The lice's human name lives on
+  // the lices table; fetch the list once and build an id → name map so
+  // the pool rows can render the operator-typed label.
+  const [liceNameById, setLiceNameById] = useState<Map<string, string>>(() => new Map());
 
   async function loadBoard(signal?: AbortSignal) {
     setLoading(true);
@@ -620,6 +625,26 @@ function AssignmentsTab({
   useEffect(() => {
     const controller = new AbortController();
     void loadBoard(controller.signal);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  // Fetch the lice list once for id → name resolution in the table.
+  // Quietly tolerates errors — the column just shows "—" if the
+  // endpoint is unavailable.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const lices = (await res.json()) as Array<{ id: string; name: string }>;
+        const map = new Map<string, string>();
+        for (const l of lices) map.set(l.id, l.name);
+        setLiceNameById(map);
+      })
+      .catch(() => undefined);
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -882,6 +907,9 @@ function AssignmentsTab({
                           <th className="px-3 py-2 font-medium">
                             {t('organizer.refereesPage.scheduleColumn')}
                           </th>
+                          <th className="px-3 py-2 font-medium">
+                            {t('organizer.refereesPage.liceColumn')}
+                          </th>
                           {headerSlots.map((slot) => (
                             <th
                               key={`${slot.slotIndex}:${slot.role}`}
@@ -928,6 +956,9 @@ function AssignmentsTab({
                               {unscheduled
                                 ? t('organizer.refereesPage.unscheduled')
                                 : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
+                            </td>
+                            <td className="px-3 py-3 align-top text-xs text-gray-600">
+                              {pool.liceId ? (liceNameById.get(pool.liceId) ?? '—') : '—'}
                             </td>
                             {pool.roleSlots.map((slot) => (
                               <td
