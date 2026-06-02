@@ -8,9 +8,93 @@ source "$SCRIPT_DIR/lib/log.sh"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
+# ── Argv ────────────────────────────────────────────────────────
+ERRORS_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --errors|-e) ERRORS_ONLY=1 ;;
+    --help|-h)
+      cat <<'USAGE'
+Usage: status.sh [--errors|-e] [--help|-h]
+
+Reports container health, last deploy, API/DB/Redis status, and
+recent service logs.
+
+Options:
+  --errors, -e   Show only error / warn lines in the recent-logs
+                 sections. Default: show full tail with errors
+                 highlighted in red.
+  --help, -h     Print this help and exit.
+USAGE
+      exit 0
+      ;;
+    *)
+      err "Unknown argument: $arg"
+      err "Run 'status.sh --help' for usage."
+      exit 64
+      ;;
+  esac
+done
+
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 
 COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod.yml)
+
+# ── Log viewer helpers ──────────────────────────────────────────
+# Drop request-log noise: the verbose Nest middleware lines that
+# embed full sentry-trace + baggage headers (each ~3 KB), plus
+# Docker healthcheck internal /health pings (already covered by
+# the dedicated API /health probe further down).
+filter_log_noise() {
+  grep -vE '"event":"http_request"|GET /health |"url":"/health"' || true
+}
+
+# Highlight problem lines in-place: pino level 40+ JSON entries,
+# any line containing 'error/fatal/warn' (case-insensitive). The
+# `|$` clause matches end-of-line so non-matching lines pass
+# through uncoloured. Falls back to `cat` so the helper never
+# drops lines, even on dumb terminals.
+highlight_log_errors() {
+  GREP_COLOR='1;31' grep --color=always -E \
+    '"level":(40|50|60)|[Ee][Rr][Rr][Oo][Rr]|[Ww][Aa][Rr][Nn]|[Ff][Aa][Tt][Aa][Ll]|$' \
+    || cat
+}
+
+# Errors-only mode: keep only lines that match the same patterns
+# as the highlighter. No fallback — empty output IS the signal
+# "all green in this service."
+errors_only_filter() {
+  grep -E \
+    '"level":(40|50|60)|[Ee][Rr][Rr][Oo][Rr]|[Ww][Aa][Rr][Nn]|[Ff][Aa][Tt][Aa][Ll]' \
+    || true
+}
+
+# Emit one log section. Pulls 200 raw lines from the service so
+# the post-filter tail still has enough content for busy
+# services (each request emits 2 lines once the Nest middleware
+# is filtered out). In --errors mode the tail-N cap is skipped:
+# we want every matching warn/error in the recent window.
+tail_service_log() {
+  local svc="$1"
+  local tail_lines="$2"
+  local title="$3"
+  if [[ "$ERRORS_ONLY" == "1" ]]; then
+    hdr "$title (errors / warnings only)"
+  else
+    hdr "$title"
+  fi
+  local raw
+  raw=$("${COMPOSE[@]}" logs --tail=200 "$svc" 2>/dev/null || true)
+  if [[ -z "$raw" ]]; then
+    warn "No $svc logs"
+    return
+  fi
+  if [[ "$ERRORS_ONLY" == "1" ]]; then
+    echo "$raw" | filter_log_noise | errors_only_filter
+  else
+    echo "$raw" | filter_log_noise | tail -n "$tail_lines" | highlight_log_errors
+  fi
+}
 
 # ── Containers ───────────────────────────────────────────────────
 hdr "Docker Compose"
@@ -174,11 +258,14 @@ if [[ -d backups ]]; then
 fi
 
 # ── Recent logs ──────────────────────────────────────────────────
-hdr "Recent api logs (last 30 lines)"
-"${COMPOSE[@]}" logs --tail=30 api 2>/dev/null || warn "No api logs"
-
-hdr "Recent traefik logs (last 20 lines)"
-"${COMPOSE[@]}" logs --tail=20 traefik 2>/dev/null || warn "No traefik logs"
+# Pass --errors / -e to trim every section to error/warn lines only.
+tail_service_log api 30 "Recent api logs (last 30 lines, noise-filtered)"
+tail_service_log traefik 20 "Recent traefik logs (last 20 lines, noise-filtered)"
+tail_service_log worker 20 "Recent worker logs (BullMQ jobs)"
+tail_service_log web-admin 15 "Recent web-admin logs"
+tail_service_log web-public 15 "Recent web-public logs"
+tail_service_log web-scoring 15 "Recent web-scoring logs"
+tail_service_log supabase-auth 15 "Recent supabase-auth logs"
 
 echo
 ok "Status check complete"
