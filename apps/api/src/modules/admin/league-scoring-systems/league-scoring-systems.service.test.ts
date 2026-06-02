@@ -478,8 +478,8 @@ describe('LeagueScoringSystemsService', () => {
     const svc = new LeagueScoringSystemsService(service as never);
     const result = await svc.listVersions('sys-1');
     expect(result).toHaveLength(2);
-    expect(result[0].version).toBe('1.0.1');
-    expect(result[1].version).toBe('1.0.0');
+    expect(result[0]?.version).toBe('1.0.1');
+    expect(result[1]?.version).toBe('1.0.0');
   });
 
   it('rollback() applies the target version values and bumps the current version', async () => {

@@ -132,6 +132,15 @@ export interface PoolSlot {
    */
   slotDefinitions?: SlotDefinition[];
   /**
+   * Pool roster — personIds of every fighter registered for this pool.
+   * Catches fighter-as-referee conflicts even before per-match
+   * red/blue registration fields are wired up (e.g. pre-bracket
+   * generation). Optional for backwards compatibility with pre-fix
+   * callers and tests; when undefined the engine falls back to the
+   * per-match registration check only.
+   */
+  memberPersonIds?: string[];
+  /**
    * R4 metadata flag — marks bracket "pools" (synthesised as one-match
    * pools per bracket match) that represent medal-set matches. The
    * engine doesn't dispatch on this; it surfaces back through
@@ -506,8 +515,19 @@ function assignSlot(
     return { assigned: null, warnings, rejectionReasons };
   }
 
-  // Filter: HARD constraint — fighter cannot referee pool whose time overlaps their match
+  // Filter: HARD constraint — fighter cannot referee pool whose time
+  // overlaps their match. Checked in two layers:
+  //   1. pool.memberPersonIds — the pool's roster. Catches fighters
+  //      even before per-match red/blue registration fields are wired
+  //      (e.g. pre-bracket generation; matches[] may be empty).
+  //   2. pool.matches[].red/blueRegistrationId — exact per-match
+  //      registration match. Still needed for the cross-pool case
+  //      where a fighter's match record references a registration ID
+  //      tied to them but the membership table hasn't caught up.
   const noFighterOverlap = notAlreadyAssigned.filter(({ candidate }) => {
+    if (pool.memberPersonIds?.includes(candidate.personId)) {
+      return false;
+    }
     for (const match of pool.matches) {
       const isFighter =
         candidate.fighterRegistrationIds.includes(match.redRegistrationId) ||

@@ -731,3 +731,136 @@ describe('R3: custom slot configs', () => {
     expect(result.missing).toHaveLength(0);
   });
 });
+
+// ── Pool-member fighter constraint (the Charles Biron bug) ───────────────────
+//
+// The hard "no fighter-as-referee on this pool" constraint used to only
+// check pool.matches[].red/blueRegistrationId. That misses the case where
+// someone is in pool.members but their match record either doesn't exist
+// yet (bracket not generated) or doesn't carry their registration ID in
+// the red/blue fields. The pool.memberPersonIds list closes the gap.
+
+describe('Pool-member fighter constraint', () => {
+  it('blocks a fighter listed only in pool.memberPersonIds (no match yet)', () => {
+    // Charles Biron is in Pool 1's roster but no matches scheduled yet.
+    const charles = makeCandidate('charles', 'Charles Biron', ['arbitre_table']);
+    const otherTableRef = makeCandidate('t-other', 'Other Table', ['arbitre_table']);
+    const declarant = makeCandidate('d', 'Declarant', ['arbitre_declarant']);
+    const assesseur = makeCandidate('a', 'Assesseur', ['arbitre_assesseur']);
+
+    const pool: PoolSlot = {
+      poolId: 'p1',
+      poolName: 'Pool 1',
+      matches: [], // No matches generated yet — empty.
+      earliestStart: null,
+      latestEnd: null,
+      memberPersonIds: ['charles'], // But Charles is in the roster.
+    };
+
+    const result = assignRefereesWithPools([pool], [charles, otherTableRef, declarant, assesseur], {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    const charlesAssigned = result.assignments.find(
+      (a) => a.personId === 'charles' && a.poolId === 'p1',
+    );
+    expect(charlesAssigned).toBeUndefined();
+  });
+
+  it('still blocks a fighter listed in BOTH memberPersonIds AND a match (regression)', () => {
+    // Pre-existing match-based check must still fire.
+    const aliceRegId = 'reg-alice';
+    const pool: PoolSlot = {
+      poolId: 'p1',
+      poolName: 'Pool 1',
+      matches: [
+        {
+          id: 'm1',
+          scheduledAt: null,
+          durationMinutes: 5,
+          redRegistrationId: aliceRegId,
+          blueRegistrationId: 'reg-bob',
+        },
+      ],
+      earliestStart: null,
+      latestEnd: null,
+      memberPersonIds: ['alice'],
+    };
+
+    const alice = makeCandidate('alice', 'Alice', ['arbitre_table'], [aliceRegId]);
+    const otherTableRef = makeCandidate('t-other', 'Other Table', ['arbitre_table']);
+
+    const result = assignRefereesWithPools(
+      [pool],
+      [
+        alice,
+        otherTableRef,
+        makeCandidate('d', 'Declarant', ['arbitre_declarant']),
+        makeCandidate('a', 'Assesseur', ['arbitre_assesseur']),
+      ],
+      { ...DEFAULT_SETTINGS, enforceRefereeNoBackToBack: false },
+    );
+
+    const aliceAssigned = result.assignments.find((a) => a.personId === 'alice');
+    expect(aliceAssigned).toBeUndefined();
+  });
+
+  it('does not over-block: a non-fighter candidate is still assignable', () => {
+    // Dave is NOT in pool.memberPersonIds and NOT a fighter — must get assigned.
+    const pool: PoolSlot = {
+      poolId: 'p1',
+      poolName: 'Pool 1',
+      matches: [],
+      earliestStart: null,
+      latestEnd: null,
+      memberPersonIds: ['someone-else'], // Roster doesn't include Dave.
+    };
+
+    const dave = makeCandidate('dave', 'Dave', ['arbitre_table']);
+    const declarant = makeCandidate('d', 'Declarant', ['arbitre_declarant']);
+    const assesseur = makeCandidate('a', 'Assesseur', ['arbitre_assesseur']);
+
+    const result = assignRefereesWithPools([pool], [dave, declarant, assesseur], {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    const daveAssigned = result.assignments.find((a) => a.personId === 'dave' && a.poolId === 'p1');
+    expect(daveAssigned).toBeDefined();
+    expect(daveAssigned?.role).toBe('arbitre_table');
+  });
+
+  it('reports all_qualified_are_fighters_in_this_pool when every Table candidate is a roster member', () => {
+    // Three table refs, all of them in pool.memberPersonIds. The Table slot
+    // should be reported as missing with the fighter-conflict reason —
+    // which the health panel (Commit 2) renders as a user-facing message.
+    const pool: PoolSlot = {
+      poolId: 'p1',
+      poolName: 'Pool 1',
+      matches: [],
+      earliestStart: null,
+      latestEnd: null,
+      memberPersonIds: ['t1', 't2', 't3'],
+    };
+
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('t1', 'Table 1', ['arbitre_table']),
+      makeCandidate('t2', 'Table 2', ['arbitre_table']),
+      makeCandidate('t3', 'Table 3', ['arbitre_table']),
+      makeCandidate('d', 'Declarant', ['arbitre_declarant']),
+      makeCandidate('a', 'Assesseur', ['arbitre_assesseur']),
+    ];
+
+    const result = assignRefereesWithPools([pool], candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    const tableMissing = result.missing.find(
+      (m) => m.poolId === 'p1' && m.role === 'arbitre_table',
+    );
+    expect(tableMissing).toBeDefined();
+    expect(tableMissing?.rejectionReasons).toContain('all_qualified_are_fighters_in_this_pool');
+  });
+});

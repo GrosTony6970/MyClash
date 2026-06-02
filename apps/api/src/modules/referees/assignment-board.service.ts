@@ -1046,6 +1046,12 @@ export class AssignmentBoardService {
           redRegistrationId: match.redRegistrationId ?? '',
           blueRegistrationId: match.blueRegistrationId ?? '',
         })),
+        // Pool roster — closes the gap where a fighter is registered
+        // for the pool but their match's red/blue registration ID isn't
+        // wired up yet (pre-bracket-generation, dropped registrations,
+        // etc.). The engine's hard fighter-conflict filter checks this
+        // alongside the per-match registration list.
+        memberPersonIds: pool.members.map((m) => m.personId),
         ...(slotDefinitions ? { slotDefinitions } : {}),
         ...(kind === 'finals' ? { isFinals: true } : {}),
       };
