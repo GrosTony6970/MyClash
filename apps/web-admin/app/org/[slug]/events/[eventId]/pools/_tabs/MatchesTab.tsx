@@ -8,12 +8,14 @@ import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { buildScoringHref, buildMatchScoringHref } from './build-scoring-href';
 import { countPoolFighters } from './count-pool-fighters';
+import { requireClientEnv } from '../../../../../../../src/config/client-env';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 // Cross-app deep link into the web-scoring ScoringPad. Set per env
-// in infra/docker-compose.*.yml. Local dev fallback matches the
-// `next dev --port 3002` in apps/web-scoring/package.json.
-const scoringBaseUrl = process.env['NEXT_PUBLIC_SCORING_URL'] ?? 'http://localhost:3002';
+// in infra/docker-compose.*.yml; the helper throws in prod when
+// missing so a forgotten Dockerfile ARG can't ship as a silent
+// localhost fallback. The literal below is the dev fallback.
+const scoringBaseUrl = requireClientEnv('NEXT_PUBLIC_SCORING_URL', 'http://localhost:3002');
 
 interface RefereeAssignment {
   role: string;
@@ -399,78 +401,6 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                 </p>
               </header>
 
-              {/*
-                Pool-wide assignment strip. One picker per field; picking
-                a value bulk-applies to every match in this pool via the
-                pool-scoped endpoints. `(mixed)` is shown when the
-                pool's matches already have different values — picking
-                resets them all to the chosen value.
-              */}
-              {pool.matches.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
-                  <span className="font-semibold uppercase tracking-wide text-slate-500">
-                    {t('organizer.pools.matches.applyToAll')}
-                  </span>
-                  <label className="flex items-center gap-1.5">
-                    <span className="text-slate-600">{t('organizer.pools.matches.lice')}</span>
-                    <select
-                      value={(() => {
-                        const v = poolLiceCommonValue(pool);
-                        return v === 'mixed' ? '__mixed__' : v;
-                      })()}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (raw === '__mixed__') return;
-                        void applyPoolLice(pool.poolId, raw || null);
-                      }}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
-                    >
-                      {poolLiceCommonValue(pool) === 'mixed' && (
-                        <option value="__mixed__">{t('organizer.pools.matches.mixed')}</option>
-                      )}
-                      <option value="">{t('common.none')}</option>
-                      {lices.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {roleConfig.map((role) => {
-                    const common = poolRoleCommonValue(pool, role.id);
-                    const qualifiedSet = qualifiedRefereesByRole.get(role.id);
-                    const options =
-                      qualifiedSet && qualifiedSet.size > 0
-                        ? referees.filter((r) => qualifiedSet.has(r.id))
-                        : referees;
-                    return (
-                      <label key={role.id} className="flex items-center gap-1.5">
-                        <span className="text-slate-600">{role.displayName}</span>
-                        <select
-                          value={common === 'mixed' ? '__mixed__' : common}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === '__mixed__') return;
-                            void applyPoolReferee(pool.poolId, role.id, raw || null);
-                          }}
-                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
-                        >
-                          {common === 'mixed' && (
-                            <option value="__mixed__">{t('organizer.pools.matches.mixed')}</option>
-                          )}
-                          <option value="">{t('common.none')}</option>
-                          {options.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {refereeLabel(r)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-
               {pool.matches.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-400">
                   {t('organizer.pools.matches.empty')}
@@ -478,7 +408,82 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
+                    {/*
+                      Pool-wide assignment row (top of <thead>) — one picker
+                      per applicable column so each "Apply to all" control
+                      sits directly above the column it bulk-applies to.
+                      `(mixed)` is shown when the pool's matches already
+                      have different values; picking resets them all.
+                    */}
                     <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr className="border-b border-slate-100 bg-white text-xs normal-case tracking-normal text-slate-500">
+                        <th
+                          colSpan={6}
+                          className="px-4 py-2 text-right font-semibold uppercase tracking-wide text-slate-500"
+                        >
+                          {t('organizer.pools.matches.applyToAll')}
+                        </th>
+                        <th className="w-32 px-4 py-2">
+                          <select
+                            value={(() => {
+                              const v = poolLiceCommonValue(pool);
+                              return v === 'mixed' ? '__mixed__' : v;
+                            })()}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '__mixed__') return;
+                              void applyPoolLice(pool.poolId, raw || null);
+                            }}
+                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                          >
+                            {poolLiceCommonValue(pool) === 'mixed' && (
+                              <option value="__mixed__">
+                                {t('organizer.pools.matches.mixed')}
+                              </option>
+                            )}
+                            <option value="">{t('common.none')}</option>
+                            {lices.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.name}
+                              </option>
+                            ))}
+                          </select>
+                        </th>
+                        {roleConfig.map((role) => {
+                          const common = poolRoleCommonValue(pool, role.id);
+                          const qualifiedSet = qualifiedRefereesByRole.get(role.id);
+                          const options =
+                            qualifiedSet && qualifiedSet.size > 0
+                              ? referees.filter((r) => qualifiedSet.has(r.id))
+                              : referees;
+                          return (
+                            <th key={role.id} className="w-32 px-4 py-2">
+                              <select
+                                value={common === 'mixed' ? '__mixed__' : common}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  if (raw === '__mixed__') return;
+                                  void applyPoolReferee(pool.poolId, role.id, raw || null);
+                                }}
+                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                              >
+                                {common === 'mixed' && (
+                                  <option value="__mixed__">
+                                    {t('organizer.pools.matches.mixed')}
+                                  </option>
+                                )}
+                                <option value="">{t('common.none')}</option>
+                                {options.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {refereeLabel(r)}
+                                  </option>
+                                ))}
+                              </select>
+                            </th>
+                          );
+                        })}
+                        <th className="w-10 px-4 py-2" />
+                      </tr>
                       <tr>
                         <th className="w-16 px-4 py-2">{t('organizer.pools.matches.round')}</th>
                         <th className="px-4 py-2">{t('organizer.pools.matches.red')}</th>
