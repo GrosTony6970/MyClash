@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   BracketView,
@@ -50,6 +50,15 @@ interface BracketResult {
   bronzeSlotId?: string | null;
   totalSlots: number;
   slots: BracketSlotData[];
+  /**
+   * `true` when every pool of this tournament reports
+   * `status === 'completed'`, OR when the tournament has no pool
+   * phase at all (straight-to-bracket). Mirrors the server-side
+   * gate `populateBracket` enforces, so the auto-populate button
+   * can disable + warn before the click instead of catching a 409
+   * after.
+   */
+  poolsCompleted?: boolean;
 }
 
 interface OverrideModalState {
@@ -107,6 +116,7 @@ export default function BracketPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   // Cross-app deep link into the web-scoring ScoringPad — same env var
   // the pool Matches tab reads. requireClientEnv throws in prod when
@@ -137,7 +147,11 @@ export default function BracketPage() {
   }
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<string>('');
+  // Seed the selection from `?tournamentId=...` so refresh + shared
+  // links land on the same bracket. We fall back to the first
+  // tournament below once the tournaments fetch settles.
+  const initialTournamentId = searchParams.get('tournamentId') ?? '';
+  const [selectedTournament, setSelectedTournament] = useState<string>(initialTournamentId);
   const [bracket, setBracket] = useState<BracketResult | null>(null);
   const [bracketPhaseId, setBracketPhaseId] = useState<string | null>(null);
   const [existingBracket, setExistingBracket] = useState(false);
@@ -265,11 +279,36 @@ export default function BracketPage() {
         if (!res.ok) return;
         const tournaments = (await res.json()) as Tournament[];
         setTournaments(tournaments);
-        if (tournaments.length > 0) setTimeout(() => setSelectedTournament(tournaments[0]!.id), 0);
+        if (tournaments.length === 0) return;
+        // Default to the first tournament only when the URL doesn't
+        // already carry a valid tournamentId — preserves deep-links
+        // and the shared-link experience.
+        const urlTournamentId = searchParams.get('tournamentId') ?? '';
+        const targetId = tournaments.some((t) => t.id === urlTournamentId)
+          ? urlTournamentId
+          : tournaments[0]!.id;
+        setTimeout(() => setSelectedTournament(targetId), 0);
       })
       .catch(() => undefined);
     return () => controller.abort();
+    // searchParams is captured at initial load only — subsequent URL
+    // changes from this page (via the selector below) shouldn't refire
+    // the fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, apiUrl]);
+
+  // Mirror the in-memory selection back to the URL so refresh + share
+  // both land on the same tournament. router.replace keeps the page in
+  // history without pushing a new entry per dropdown change. The
+  // `#bracket` hash is preserved verbatim.
+  useEffect(() => {
+    if (!selectedTournament) return;
+    if (typeof window === 'undefined') return;
+    if (searchParams.get('tournamentId') === selectedTournament) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('tournamentId', selectedTournament);
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+  }, [selectedTournament, searchParams, router]);
 
   // ── Load tournament side colors ─────────────────────────────────────────────
 
@@ -967,50 +1006,70 @@ export default function BracketPage() {
 
             {/* Auto-populate row: pick mode (overall / top-N per pool),
                 optional N, click to fan pool standings into R1. Server
-                gates on pool completion + R1-not-started. */}
-            <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-gray-500">
-                  {t('organizer.bracket.autoPopulateButton')}
-                </span>
-                <select
-                  value={populateMode}
-                  onChange={(e) => setPopulateMode(e.target.value as 'overall' | 'top-n-per-pool')}
-                  disabled={populating}
-                  className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                >
-                  <option value="overall">{t('organizer.bracket.autoPopulateModeOverall')}</option>
-                  <option value="top-n-per-pool">
-                    {t('organizer.bracket.autoPopulateModeTopNPerPool')}
-                  </option>
-                </select>
-              </label>
-              {populateMode === 'top-n-per-pool' && (
+                gates on pool completion + R1-not-started; we mirror the
+                pool-completion gate client-side so the warning surfaces
+                before the click. */}
+            <div className="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 text-sm">
+              {bracket.poolsCompleted === false && (
+                <p className="text-xs font-medium text-amber-700">
+                  ⚠ {t('organizer.bracket.autoPopulatePoolsNotFinished')}
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-gray-500">
-                    {t('organizer.bracket.autoPopulateTopNLabel')}
+                    {t('organizer.bracket.autoPopulateButton')}
                   </span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={populateTopN}
+                  <select
+                    value={populateMode}
                     onChange={(e) =>
-                      setPopulateTopN(e.target.value === '' ? '' : Number(e.target.value))
+                      setPopulateMode(e.target.value as 'overall' | 'top-n-per-pool')
                     }
                     disabled={populating}
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                  />
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  >
+                    <option value="overall">
+                      {t('organizer.bracket.autoPopulateModeOverall')}
+                    </option>
+                    <option value="top-n-per-pool">
+                      {t('organizer.bracket.autoPopulateModeTopNPerPool')}
+                    </option>
+                  </select>
                 </label>
-              )}
-              <button
-                type="button"
-                onClick={() => void populateBracket()}
-                disabled={populating || !existingBracket}
-                className="rounded-lg bg-blue-700 hover:bg-blue-800 disabled:opacity-50 px-3 py-2 text-sm font-semibold text-white"
-              >
-                {populating ? '…' : t('organizer.bracket.autoPopulateButton')}
-              </button>
-              {populateMessage && <span className="text-xs text-green-700">{populateMessage}</span>}
+                {populateMode === 'top-n-per-pool' && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-500">
+                      {t('organizer.bracket.autoPopulateTopNLabel')}
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={populateTopN}
+                      onChange={(e) =>
+                        setPopulateTopN(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      disabled={populating}
+                      className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void populateBracket()}
+                  disabled={populating || !existingBracket || bracket.poolsCompleted === false}
+                  title={
+                    bracket.poolsCompleted === false
+                      ? t('organizer.bracket.autoPopulatePoolsNotFinished')
+                      : undefined
+                  }
+                  className="rounded-lg bg-blue-700 hover:bg-blue-800 disabled:opacity-50 px-3 py-2 text-sm font-semibold text-white"
+                >
+                  {populating ? '…' : t('organizer.bracket.autoPopulateButton')}
+                </button>
+                {populateMessage && (
+                  <span className="text-xs text-green-700">{populateMessage}</span>
+                )}
+              </div>
             </div>
             {bracket.phaseType === 'double_elim' && (
               <p className="mt-3 text-xs text-gray-500">

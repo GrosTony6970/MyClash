@@ -1397,6 +1397,15 @@ export class PhasesService {
       seedingStrategy?: string;
       bronzeSlotId?: string;
     };
+    // Surface the same "pools done" gate the populateBracket
+    // endpoint uses ([phases.service.ts:populateBracket]), so the FE
+    // can warn the operator before the click instead of catching a
+    // 409 after. Straight-to-bracket tournaments (no pool phase) and
+    // setups without the standings service wired report `true` —
+    // populate falls through to the registration-seed fallback in
+    // those cases.
+    const poolsCompleted = await this.computePoolsCompletedForBracket(tournamentId);
+
     return {
       phaseId,
       phaseType,
@@ -1417,7 +1426,37 @@ export class PhasesService {
       bronzeSlotId: config.bronzeSlotId ?? null,
       totalSlots: enrichedSlots.length,
       slots: enrichedSlots,
+      poolsCompleted,
     };
+  }
+
+  /**
+   * `true` when every pool of this tournament reports
+   * `status === 'completed'` — the same condition `populateBracket`
+   * enforces server-side. `true` also when the tournament has no
+   * pool phase at all (straight-to-bracket: there's nothing to gate)
+   * or when the pool-standings service isn't wired (defensive — UI
+   * just doesn't block the click).
+   */
+  private async computePoolsCompletedForBracket(tournamentId: string): Promise<boolean> {
+    const { data: poolPhase } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+    if (!poolPhase) return true;
+    if (!this.poolStandings) return true;
+    try {
+      const byPool = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
+      const perPool = 'pools' in byPool ? byPool.pools : [];
+      if (perPool.length === 0) return false;
+      return perPool.every((p) => p.status === 'completed');
+    } catch {
+      // Same fallback as the missing-service path — the gate is
+      // ultimately re-checked by the populate endpoint.
+      return true;
+    }
   }
 
   private async getPhaseForVisibility(phaseId: string): Promise<Record<string, unknown>> {
