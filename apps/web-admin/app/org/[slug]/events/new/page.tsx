@@ -7,6 +7,16 @@ import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
 
+interface CatalogueVenue {
+  id: string;
+  name: string;
+  address: string | null;
+  hosts_tournament: boolean;
+  hosts_workshop: boolean;
+}
+
+type VenueMode = 'existing' | 'new';
+
 interface WizardState {
   step: 1 | 2 | 3 | 4;
   name: string;
@@ -14,8 +24,14 @@ interface WizardState {
   startDate: string;
   endDate: string;
   location: string;
-  liceCount: number;
+  venueMode: VenueMode;
+  selectedVenueId: string | null;
+  newVenueName: string;
+  newVenueAddress: string;
+  newVenueHostsTournament: boolean;
+  newVenueHostsWorkshop: boolean;
   liceNames: string[];
+  areaNames: string[];
   logoUrl: string;
   submitting: boolean;
   error: string | null;
@@ -24,7 +40,12 @@ interface WizardState {
 type Action =
   | { type: 'SET_FIELD'; field: keyof WizardState; value: unknown }
   | { type: 'SET_LICE_NAME'; index: number; value: string }
-  | { type: 'SET_LICE_COUNT'; count: number }
+  | { type: 'ADD_LICE' }
+  | { type: 'REMOVE_LICE'; index: number }
+  | { type: 'SET_AREA_NAME'; index: number; value: string }
+  | { type: 'ADD_AREA' }
+  | { type: 'REMOVE_AREA'; index: number }
+  | { type: 'SET_VENUE_MODE'; mode: VenueMode }
   | { type: 'NEXT' }
   | { type: 'BACK' }
   | { type: 'SUBMIT_START' }
@@ -43,10 +64,6 @@ function slugify(name: string): string {
     .slice(0, 60);
 }
 
-function defaultLiceNames(count: number): string[] {
-  return Array.from({ length: count }, (_, i) => `Lice ${i + 1}`);
-}
-
 const INITIAL: WizardState = {
   step: 1,
   name: '',
@@ -54,8 +71,14 @@ const INITIAL: WizardState = {
   startDate: '',
   endDate: '',
   location: '',
-  liceCount: 2,
+  venueMode: 'new',
+  selectedVenueId: null,
+  newVenueName: '',
+  newVenueAddress: '',
+  newVenueHostsTournament: true,
+  newVenueHostsWorkshop: false,
   liceNames: ['Lice 1', 'Lice 2'],
+  areaNames: [],
   logoUrl: '',
   submitting: false,
   error: null,
@@ -77,13 +100,35 @@ function reducer(state: WizardState, action: Action): WizardState {
       names[action.index] = action.value;
       return { ...state, liceNames: names };
     }
-    case 'SET_LICE_COUNT': {
-      const count = Math.max(1, Math.min(10, action.count));
-      const names = defaultLiceNames(count).map(
-        (fallback, index) => state.liceNames[index] ?? fallback,
-      );
-      return { ...state, liceCount: count, liceNames: names };
+    case 'ADD_LICE': {
+      if (state.liceNames.length >= 12) return state;
+      const next = `Lice ${state.liceNames.length + 1}`;
+      return { ...state, liceNames: [...state.liceNames, next] };
     }
+    case 'REMOVE_LICE': {
+      const names = state.liceNames.filter((_, idx) => idx !== action.index);
+      return { ...state, liceNames: names };
+    }
+    case 'SET_AREA_NAME': {
+      const names = [...state.areaNames];
+      names[action.index] = action.value;
+      return { ...state, areaNames: names };
+    }
+    case 'ADD_AREA': {
+      if (state.areaNames.length >= 12) return state;
+      const next = `Area ${state.areaNames.length + 1}`;
+      return { ...state, areaNames: [...state.areaNames, next] };
+    }
+    case 'REMOVE_AREA': {
+      const names = state.areaNames.filter((_, idx) => idx !== action.index);
+      return { ...state, areaNames: names };
+    }
+    case 'SET_VENUE_MODE':
+      return {
+        ...state,
+        venueMode: action.mode,
+        selectedVenueId: action.mode === 'existing' ? state.selectedVenueId : null,
+      };
     case 'NEXT':
       return { ...state, step: Math.min(4, state.step + 1) as WizardState['step'] };
     case 'BACK':
@@ -108,10 +153,35 @@ function validateStep1(s: WizardState, t: (key: string) => string): string | nul
   return null;
 }
 
-function validateStep2(s: WizardState, t: (key: string) => string): string | null {
-  if (s.liceCount < 1) return t('organizer.newEvent.validation.licesRequired');
-  if (s.liceNames.some((name) => !name.trim())) {
-    return t('organizer.newEvent.validation.licesNamesRequired');
+function validateStep2(
+  s: WizardState,
+  catalogue: CatalogueVenue[],
+  t: (key: string) => string,
+): string | null {
+  const picked =
+    s.venueMode === 'existing' ? (catalogue.find((v) => v.id === s.selectedVenueId) ?? null) : null;
+  const hostsTournament =
+    s.venueMode === 'new' ? s.newVenueHostsTournament : (picked?.hosts_tournament ?? false);
+  const hostsWorkshop =
+    s.venueMode === 'new' ? s.newVenueHostsWorkshop : (picked?.hosts_workshop ?? false);
+
+  if (s.venueMode === 'existing' && !picked) {
+    return t('organizer.newEvent.validation.venueRequired');
+  }
+  if (s.venueMode === 'new') {
+    if (!s.newVenueName.trim()) return t('organizer.newEvent.validation.venueNameRequired');
+    if (!hostsTournament && !hostsWorkshop) {
+      return t('organizer.newEvent.validation.venueCapabilityRequired');
+    }
+  }
+  if (hostsTournament) {
+    if (s.liceNames.length < 1) return t('organizer.newEvent.validation.licesRequired');
+    if (s.liceNames.some((name) => !name.trim())) {
+      return t('organizer.newEvent.validation.licesNamesRequired');
+    }
+  }
+  if (hostsWorkshop && s.areaNames.some((name) => !name.trim())) {
+    return t('organizer.newEvent.validation.areaNamesRequired');
   }
   return null;
 }
@@ -224,53 +294,273 @@ function Step2({
   state,
   dispatch,
   t,
+  catalogue,
+  catalogueLoading,
 }: {
   state: WizardState;
   dispatch: React.Dispatch<Action>;
   t: Translator;
+  catalogue: CatalogueVenue[];
+  catalogueLoading: boolean;
 }) {
+  const pickedVenue =
+    state.venueMode === 'existing'
+      ? (catalogue.find((v) => v.id === state.selectedVenueId) ?? null)
+      : null;
+  const hostsTournament =
+    state.venueMode === 'new'
+      ? state.newVenueHostsTournament
+      : (pickedVenue?.hosts_tournament ?? false);
+  const hostsWorkshop =
+    state.venueMode === 'new'
+      ? state.newVenueHostsWorkshop
+      : (pickedVenue?.hosts_workshop ?? false);
+
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <p className="mb-1 block text-sm font-medium text-gray-700">
-          {t('organizer.newEvent.licesCount')}
-        </p>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_LICE_COUNT', count: state.liceCount - 1 })}
-            className="h-8 w-8 rounded-lg border border-gray-300 font-bold text-gray-600 hover:bg-gray-50"
-          >
-            -
-          </button>
-          <span className="w-8 text-center text-lg font-bold">{state.liceCount}</span>
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'SET_LICE_COUNT', count: state.liceCount + 1 })}
-            className="h-8 w-8 rounded-lg border border-gray-300 font-bold text-gray-600 hover:bg-gray-50"
-          >
-            +
-          </button>
-        </div>
+      <div role="tablist" className="flex gap-1 rounded-lg bg-gray-100 p-1 text-sm font-medium">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={state.venueMode === 'existing'}
+          onClick={() => dispatch({ type: 'SET_VENUE_MODE', mode: 'existing' })}
+          className={[
+            'flex-1 rounded-md px-3 py-1.5 transition-colors',
+            state.venueMode === 'existing'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700',
+          ].join(' ')}
+        >
+          {t('organizer.newEvent.venuePickExisting')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={state.venueMode === 'new'}
+          onClick={() => dispatch({ type: 'SET_VENUE_MODE', mode: 'new' })}
+          className={[
+            'flex-1 rounded-md px-3 py-1.5 transition-colors',
+            state.venueMode === 'new'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700',
+          ].join(' ')}
+        >
+          {t('organizer.newEvent.venueCreateNew')}
+        </button>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-gray-700">{t('organizer.newEvent.licesNames')}</p>
-        {state.liceNames.slice(0, state.liceCount).map((name, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <span className="w-6 text-right text-xs text-gray-400">{index + 1}.</span>
-            <input
-              type="text"
-              value={name}
-              aria-label={t('organizer.newEvent.liceName', { number: index + 1 })}
+      {state.venueMode === 'existing' ? (
+        <div className="flex flex-col gap-2">
+          <label htmlFor="wizard-venue-select" className="text-sm font-medium text-gray-700">
+            {t('organizer.newEvent.venuePickLabel')}
+          </label>
+          {catalogueLoading ? (
+            <p className="text-xs text-gray-500">{t('organizer.newEvent.venueLoading')}</p>
+          ) : catalogue.length === 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              {t('organizer.newEvent.venueCatalogueEmpty')}
+            </div>
+          ) : (
+            <select
+              id="wizard-venue-select"
+              value={state.selectedVenueId ?? ''}
               onChange={(event) =>
-                dispatch({ type: 'SET_LICE_NAME', index, value: event.target.value })
+                dispatch({
+                  type: 'SET_FIELD',
+                  field: 'selectedVenueId',
+                  value: event.target.value || null,
+                })
               }
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            >
+              <option value="">{t('organizer.newEvent.venuePickPlaceholder')}</option>
+              {catalogue.map((venue) => (
+                <option key={venue.id} value={venue.id}>
+                  {venue.name}
+                  {venue.address ? ` — ${venue.address}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          {pickedVenue && (
+            <div className="flex flex-wrap gap-1.5 text-xs">
+              {pickedVenue.hosts_tournament && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">
+                  {t('organizer.venues.tournamentBadge')}
+                </span>
+              )}
+              {pickedVenue.hosts_workshop && (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700">
+                  {t('organizer.venues.workshopBadge')}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div>
+            <label
+              htmlFor="wizard-venue-name"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              {t('organizer.newEvent.venueName')}
+            </label>
+            <input
+              id="wizard-venue-name"
+              type="text"
+              value={state.newVenueName}
+              onChange={(event) =>
+                dispatch({ type: 'SET_FIELD', field: 'newVenueName', value: event.target.value })
+              }
+              placeholder={t('organizer.newEvent.venueNamePlaceholder')}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             />
           </div>
-        ))}
-      </div>
+
+          <div>
+            <label
+              htmlFor="wizard-venue-address"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              {t('organizer.newEvent.venueAddress')}
+            </label>
+            <input
+              id="wizard-venue-address"
+              type="text"
+              value={state.newVenueAddress}
+              onChange={(event) =>
+                dispatch({
+                  type: 'SET_FIELD',
+                  field: 'newVenueAddress',
+                  value: event.target.value,
+                })
+              }
+              placeholder={t('organizer.newEvent.venueAddressPlaceholder')}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+            />
+          </div>
+
+          <fieldset className="flex flex-wrap gap-4">
+            <legend className="mb-1 text-sm font-medium text-gray-700">
+              {t('organizer.newEvent.venueCapabilities')}
+            </legend>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={state.newVenueHostsTournament}
+                onChange={(event) =>
+                  dispatch({
+                    type: 'SET_FIELD',
+                    field: 'newVenueHostsTournament',
+                    value: event.target.checked,
+                  })
+                }
+                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
+              />
+              {t('organizer.venues.hostsTournament')}
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={state.newVenueHostsWorkshop}
+                onChange={(event) =>
+                  dispatch({
+                    type: 'SET_FIELD',
+                    field: 'newVenueHostsWorkshop',
+                    value: event.target.checked,
+                  })
+                }
+                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-600"
+              />
+              {t('organizer.venues.hostsWorkshop')}
+            </label>
+          </fieldset>
+        </div>
+      )}
+
+      {hostsTournament && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-700">
+              {t('organizer.newEvent.licesNames')}
+            </p>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'ADD_LICE' })}
+              disabled={state.liceNames.length >= 12}
+              className="text-xs font-semibold text-red-700 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t('organizer.newEvent.liceAdd')}
+            </button>
+          </div>
+          {state.liceNames.length === 0 ? (
+            <p className="text-xs text-gray-500">{t('organizer.newEvent.licesEmptyHint')}</p>
+          ) : (
+            state.liceNames.map((name, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <span className="w-6 text-right text-xs text-gray-400">{index + 1}.</span>
+                <input
+                  type="text"
+                  value={name}
+                  aria-label={t('organizer.newEvent.liceName', { number: index + 1 })}
+                  onChange={(event) =>
+                    dispatch({ type: 'SET_LICE_NAME', index, value: event.target.value })
+                  }
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'REMOVE_LICE', index })}
+                  aria-label={t('organizer.newEvent.liceRemove')}
+                  className="h-8 w-8 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+                >
+                  ×
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {hostsWorkshop && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-700">{t('organizer.newEvent.areaNames')}</p>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'ADD_AREA' })}
+              disabled={state.areaNames.length >= 12}
+              className="text-xs font-semibold text-red-700 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t('organizer.newEvent.areaAdd')}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">{t('organizer.newEvent.areaHint')}</p>
+          {state.areaNames.map((name, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <span className="w-6 text-right text-xs text-gray-400">{index + 1}.</span>
+              <input
+                type="text"
+                value={name}
+                aria-label={t('organizer.newEvent.areaName', { number: index + 1 })}
+                onChange={(event) =>
+                  dispatch({ type: 'SET_AREA_NAME', index, value: event.target.value })
+                }
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+              />
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'REMOVE_AREA', index })}
+                aria-label={t('organizer.newEvent.areaRemove')}
+                className="h-8 w-8 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -334,11 +624,30 @@ function Step4({
   state,
   t,
   logoPreviewUrl,
+  catalogue,
 }: {
   state: WizardState;
   t: Translator;
   logoPreviewUrl: string | null;
+  catalogue: CatalogueVenue[];
 }) {
+  const pickedVenue =
+    state.venueMode === 'existing'
+      ? (catalogue.find((v) => v.id === state.selectedVenueId) ?? null)
+      : null;
+  const venueLabel =
+    state.venueMode === 'existing' ? (pickedVenue?.name ?? '') : state.newVenueName;
+  const venueAddress =
+    state.venueMode === 'existing' ? (pickedVenue?.address ?? '') : state.newVenueAddress;
+  const venueHostsTournament =
+    state.venueMode === 'existing'
+      ? (pickedVenue?.hosts_tournament ?? false)
+      : state.newVenueHostsTournament;
+  const venueHostsWorkshop =
+    state.venueMode === 'existing'
+      ? (pickedVenue?.hosts_workshop ?? false)
+      : state.newVenueHostsWorkshop;
+
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -355,18 +664,58 @@ function Step4({
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">
-          {t('organizer.newEvent.reviewLices', { count: state.liceCount })}
+          {state.venueMode === 'existing'
+            ? t('organizer.newEvent.reviewVenueExisting')
+            : t('organizer.newEvent.reviewVenueNew')}
         </p>
-        <div className="flex flex-wrap gap-1.5">
-          {state.liceNames.slice(0, state.liceCount).map((name, index) => (
-            <span
-              key={index}
-              className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs"
-            >
-              {name}
+        <p className="font-semibold text-gray-900">{venueLabel}</p>
+        {venueAddress && <p className="mt-0.5 text-xs text-gray-500">{venueAddress}</p>}
+        <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+          {venueHostsTournament && (
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">
+              {t('organizer.venues.tournamentBadge')}
             </span>
-          ))}
+          )}
+          {venueHostsWorkshop && (
+            <span className="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700">
+              {t('organizer.venues.workshopBadge')}
+            </span>
+          )}
         </div>
+        {venueHostsTournament && state.liceNames.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+              {t('organizer.newEvent.reviewLices', { count: state.liceNames.length })}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {state.liceNames.map((name, index) => (
+                <span
+                  key={index}
+                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {venueHostsWorkshop && state.areaNames.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+              {t('organizer.newEvent.reviewAreas', { count: state.areaNames.length })}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {state.areaNames.map((name, index) => (
+                <span
+                  key={index}
+                  className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {logoPreviewUrl && (
@@ -405,6 +754,42 @@ export default function NewEventPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const logoPreviewRef = useRef<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [catalogue, setCatalogue] = useState<CatalogueVenue[]>([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const orgRes = await fetch(
+          `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+          { credentials: 'include' },
+        );
+        if (!orgRes.ok) return;
+        const org = (await orgRes.json()) as { id: string };
+        if (cancelled) return;
+        setOrgId(org.id);
+        const venuesRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/venues`, {
+          credentials: 'include',
+        });
+        if (!venuesRes.ok) return;
+        const venues = (await venuesRes.json()) as CatalogueVenue[];
+        if (cancelled) return;
+        setCatalogue(venues);
+        // If the org has no venues yet, force the operator into create-new
+        // mode so the empty-state banner makes sense.
+        if (venues.length === 0) {
+          dispatch({ type: 'SET_VENUE_MODE', mode: 'new' });
+        }
+      } finally {
+        if (!cancelled) setCatalogueLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, slug]);
   const stepLabels = [
     t('organizer.newEvent.steps.basics'),
     t('organizer.newEvent.steps.lices'),
@@ -457,7 +842,7 @@ export default function NewEventPage() {
   function handleNext() {
     let err: string | null = null;
     if (state.step === 1) err = validateStep1(state, t);
-    if (state.step === 2) err = validateStep2(state, t);
+    if (state.step === 2) err = validateStep2(state, catalogue, t);
     if (state.step === 3) err = null;
     if (err) {
       setStepError(err);
@@ -471,14 +856,21 @@ export default function NewEventPage() {
     dispatch({ type: 'SUBMIT_START' });
 
     try {
-      const orgRes = await fetch(
-        `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
-        { credentials: 'include' },
-      );
-      if (!orgRes.ok) throw new Error(t('organizer.newEvent.validation.organizationNotFound'));
-      const org = (await orgRes.json()) as { id: string };
+      // Reuse the org id we loaded on mount; refetch defensively in case
+      // the venues effect failed (network / 5xx) but the operator still
+      // managed to fill the wizard.
+      let resolvedOrgId = orgId;
+      if (!resolvedOrgId) {
+        const orgRes = await fetch(
+          `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+          { credentials: 'include' },
+        );
+        if (!orgRes.ok) throw new Error(t('organizer.newEvent.validation.organizationNotFound'));
+        const org = (await orgRes.json()) as { id: string };
+        resolvedOrgId = org.id;
+      }
 
-      const eventRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/events`, {
+      const eventRes = await fetch(`${apiUrl}/api/v1/organizations/${resolvedOrgId}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -496,16 +888,72 @@ export default function NewEventPage() {
       }
       const event = (await eventRes.json()) as { id: string };
 
-      await Promise.all(
-        state.liceNames.slice(0, state.liceCount).map((name, index) =>
-          fetch(`${apiUrl}/api/v1/events/${event.id}/lices`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ name: name.trim(), sortOrder: index }),
+      // Materialise the venue. Mode 'new' creates a fresh venue in the
+      // org catalogue; mode 'existing' simply reuses the picked id.
+      let venueId: string | null = null;
+      let venueHostsTournament = false;
+      let venueHostsWorkshop = false;
+      if (state.venueMode === 'existing' && state.selectedVenueId) {
+        const picked = catalogue.find((v) => v.id === state.selectedVenueId);
+        if (picked) {
+          venueId = picked.id;
+          venueHostsTournament = picked.hosts_tournament;
+          venueHostsWorkshop = picked.hosts_workshop;
+        }
+      } else if (state.venueMode === 'new') {
+        const venueRes = await fetch(`${apiUrl}/api/v1/organizations/${resolvedOrgId}/venues`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: state.newVenueName.trim(),
+            address: state.newVenueAddress.trim() || undefined,
+            hostsTournament: state.newVenueHostsTournament,
+            hostsWorkshop: state.newVenueHostsWorkshop,
           }),
-        ),
-      );
+        });
+        if (!venueRes.ok) {
+          const body = (await venueRes.json()) as { message?: string };
+          throw new Error(body.message ?? t('organizer.newEvent.validation.venueCreateFailed'));
+        }
+        const created = (await venueRes.json()) as { id: string };
+        venueId = created.id;
+        venueHostsTournament = state.newVenueHostsTournament;
+        venueHostsWorkshop = state.newVenueHostsWorkshop;
+      }
+
+      // Lice rows linked to the venue (tournament-capable venues only).
+      if (venueHostsTournament && state.liceNames.length > 0) {
+        await Promise.all(
+          state.liceNames.map((name, index) =>
+            fetch(`${apiUrl}/api/v1/events/${event.id}/lices`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                name: name.trim(),
+                sortOrder: index,
+                venueId: venueId ?? undefined,
+              }),
+            }),
+          ),
+        );
+      }
+
+      // Areas attached to the venue (workshop-capable + only when the
+      // operator defined named areas; a single implicit area = no rows).
+      if (venueHostsWorkshop && venueId && state.areaNames.length > 0) {
+        await Promise.all(
+          state.areaNames.map((name, index) =>
+            fetch(`${apiUrl}/api/v1/venues/${venueId}/areas`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ name: name.trim(), sortOrder: index }),
+            }),
+          ),
+        );
+      }
 
       const pastedLogoUrl = state.logoUrl.trim() || null;
       if (logoFile) {
@@ -614,7 +1062,15 @@ export default function NewEventPage() {
 
       <div className="mb-6">
         {state.step === 1 && <Step1 state={state} dispatch={dispatch} t={t} locale={locale} />}
-        {state.step === 2 && <Step2 state={state} dispatch={dispatch} t={t} />}
+        {state.step === 2 && (
+          <Step2
+            state={state}
+            dispatch={dispatch}
+            t={t}
+            catalogue={catalogue}
+            catalogueLoading={catalogueLoading}
+          />
+        )}
         {state.step === 3 && (
           <Step3
             state={state}
@@ -624,7 +1080,9 @@ export default function NewEventPage() {
             onLogoChange={handleLogoChange}
           />
         )}
-        {state.step === 4 && <Step4 state={state} t={t} logoPreviewUrl={logoPreviewUrl} />}
+        {state.step === 4 && (
+          <Step4 state={state} t={t} logoPreviewUrl={logoPreviewUrl} catalogue={catalogue} />
+        )}
       </div>
 
       {(stepError ?? state.error) && (
