@@ -482,6 +482,10 @@ export const en = {
       externalDisplay: 'External display',
       softClockLocked: 'Soft clock limit reached',
     },
+    match: {
+      unavailableTitle: 'Match unavailable',
+      unavailableBody: 'This match could not be loaded — it may have been deleted or rescheduled.',
+    },
     corrections: {
       title: 'Match corrections',
       onlineOnly: 'Online required',
@@ -4186,6 +4190,11 @@ export const fr = {
       noMatchDescription: 'En attente de l attribution d un assaut a cette lice.',
       externalDisplay: 'Affichage externe',
       softClockLocked: 'Limite douce du chrono atteinte',
+    },
+    match: {
+      unavailableTitle: 'Assaut indisponible',
+      unavailableBody:
+        'Cet assaut n a pas pu etre charge — il a peut-etre ete supprime ou reprogramme.',
     },
     corrections: {
       title: 'Corrections du match',

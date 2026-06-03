@@ -5,7 +5,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { detectConflicts, type Conflict } from './conflict-detection';
-import { buildMatchScoringHref, buildScoringHref } from '../pools/_tabs/build-scoring-href';
+import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { requireClientEnv } from '../../../../../../src/config/client-env';
 
 // Pass `process.env.NEXT_PUBLIC_SCORING_URL` directly so Next.js
@@ -19,14 +19,11 @@ const scoringBaseUrl = requireClientEnv(
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
  * chip) jumps the operator straight into the cross-app scoring
- * pad. Plain click is reserved for drag-and-drop selection.
+ * pad for **that specific match**. Plain click is reserved for
+ * drag-and-drop selection. The match-direct route works without a
+ * lice context, so no liceId branching is needed.
  */
-function openMatchScoring(liceId: string | null, matchId: string): void {
-  if (liceId) {
-    const href = buildScoringHref(scoringBaseUrl, liceId);
-    if (href) window.location.href = href;
-    return;
-  }
+function openMatchScoring(matchId: string): void {
   const href = buildMatchScoringHref(scoringBaseUrl, matchId, window.location.href);
   if (href) window.location.href = href;
 }
@@ -1088,7 +1085,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                     onClick={(e) => {
                       if (!(e.ctrlKey || e.metaKey)) return;
                       e.preventDefault();
-                      openMatchScoring(m.liceId, m.id);
+                      openMatchScoring(m.id);
                     }}
                     className={[
                       'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10 border',
@@ -1258,7 +1255,7 @@ function MatchChip({
       onClick={(e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();
-        openMatchScoring(match.liceId, match.id);
+        openMatchScoring(match.id);
       }}
       title={`${match.roundCode || match.matchNumberLabel} · Ctrl/⌘-click to open scoring`}
       className={[

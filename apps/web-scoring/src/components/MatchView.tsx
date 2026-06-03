@@ -414,13 +414,29 @@ function CorrectionTools({
   );
 }
 
-export function NoMatchView() {
+/**
+ * Empty / error state shown when no match data is available.
+ *
+ * `mode` distinguishes the two surfaces that render this view:
+ *  - `'lice'` (default, used by `/lices/:liceId`): the lice has no
+ *    active match yet — operator is waiting for the organizer to
+ *    assign one. Wait-cursor visual + lice copy.
+ *  - `'match'` (used by `/matches/:matchId`): the deep-linked match
+ *    couldn't be loaded — it's gone or the id is wrong. The lice
+ *    copy would be misleading here (this surface is lice-agnostic),
+ *    so we swap to a match-context message.
+ */
+export function NoMatchView({ mode = 'lice' }: { mode?: 'lice' | 'match' }) {
   const { t } = useI18n();
+  const titleKey =
+    mode === 'match' ? 'scoring.match.unavailableTitle' : 'scoring.lice.noMatchTitle';
+  const bodyKey =
+    mode === 'match' ? 'scoring.match.unavailableBody' : 'scoring.lice.noMatchDescription';
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-      <div className="text-5xl mb-4">⏳</div>
-      <h2 className="text-xl font-bold mb-2">{t('scoring.lice.noMatchTitle')}</h2>
-      <p className="text-gray-400 text-sm">{t('scoring.lice.noMatchDescription')}</p>
+      <div className="text-5xl mb-4">{mode === 'match' ? '🔍' : '⏳'}</div>
+      <h2 className="text-xl font-bold mb-2">{t(titleKey)}</h2>
+      <p className="text-gray-400 text-sm">{t(bodyKey)}</p>
     </div>
   );
 }

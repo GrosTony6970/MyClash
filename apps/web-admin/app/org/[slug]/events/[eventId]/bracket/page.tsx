@@ -23,7 +23,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
-import { buildScoringHref, buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { requireClientEnv } from '../../../../../../src/config/client-env';
 
 interface Tournament {
@@ -1473,20 +1473,24 @@ export default function BracketPage() {
                 bronzeMatch={bronzeMatch}
                 weapon={tournamentWeapon}
                 bracketSize={bracket.bracketSize}
-                onMatchClick={(matchId, slotId, liceId) => {
+                onMatchClick={(matchId, slotId) => {
                   // Empty slot → override modal so the operator can
                   // place fighters. Match exists → jump straight into
-                  // the cross-app scoring pad: lice-scoped URL when a
-                  // lice is assigned, per-match URL otherwise. The
-                  // audit / forfeit page is no longer the fallback —
-                  // operators reach it via the WO chip on each card.
+                  // the match-direct scoring pad. The match-direct route
+                  // works without a lice context, so no liceId branching
+                  // is needed — the operator always lands on the
+                  // specific match they clicked. The audit / forfeit
+                  // page is no longer the fallback — operators reach it
+                  // via the WO chip on each card.
                   if (!matchId) {
                     setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
                     return;
                   }
-                  const scoringHref =
-                    buildScoringHref(scoringBaseUrl, liceId) ??
-                    buildMatchScoringHref(scoringBaseUrl, matchId, window.location.href);
+                  const scoringHref = buildMatchScoringHref(
+                    scoringBaseUrl,
+                    matchId,
+                    window.location.href,
+                  );
                   if (scoringHref) window.location.href = scoringHref;
                 }}
                 onOverrideSlot={(slotId) =>

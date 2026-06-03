@@ -6,7 +6,7 @@ import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
-import { buildScoringHref, buildMatchScoringHref } from './build-scoring-href';
+import { buildMatchScoringHref } from './build-scoring-href';
 import { countPoolFighters } from './count-pool-fighters';
 import { requireClientEnv } from '../../../../../../../src/config/client-env';
 
@@ -518,19 +518,16 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         // /matches/:matchId route renders the same UI
                         // without needing a lice context.
                         // Compute the no-returnTo href at render time for
-                        // the disabled-vs-clickable check + aria-label; the
-                        // actual navigation in the click handler below
-                        // re-builds the URL with `?return=<current-url>` so
-                        // the per-match scoring page's back button survives
-                        // a hard refresh.
-                        const scoringHref =
-                          buildScoringHref(scoringBaseUrl, m.lice_id) ??
-                          buildMatchScoringHref(scoringBaseUrl, m.id);
+                        // the aria-label; the actual navigation in the
+                        // click handler below re-builds the URL with
+                        // `?return=<current-url>` so the per-match scoring
+                        // page's back button survives a hard refresh.
+                        // Always routes to the match-direct page so the
+                        // operator lands on the specific match they clicked
+                        // (the lice-queue route would show the lice's top
+                        // match, which is rarely the same one).
+                        const scoringHref = buildMatchScoringHref(scoringBaseUrl, m.id);
                         function openScoring() {
-                          if (m.lice_id) {
-                            window.location.href = buildScoringHref(scoringBaseUrl, m.lice_id)!;
-                            return;
-                          }
                           const href = buildMatchScoringHref(
                             scoringBaseUrl,
                             m.id,

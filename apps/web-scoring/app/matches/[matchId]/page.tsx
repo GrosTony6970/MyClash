@@ -64,7 +64,10 @@ export default function MatchScoringPage({ params }: Props) {
           fetch(`${apiUrl}/api/v1/matches/${matchId}`, { credentials: 'include' }),
           fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, { credentials: 'include' }),
         ]);
-        if (!rawRes.ok || !summaryRes.ok) {
+        // Hard requirement: the raw row must exist. If it doesn't,
+        // the match is gone (deleted / wrong id) — fall through to
+        // the unavailable state below.
+        if (!rawRes.ok) {
           setMatch(null);
           return;
         }
@@ -80,18 +83,26 @@ export default function MatchScoringPage({ params }: Props) {
           blue_score: number | null;
           locked_at: string | null;
         };
-        const summary = (await summaryRes.json()) as {
-          roundCode: string;
-          redName: string;
-          blueName: string;
-          weapon: string;
-          tournamentId: string;
-          phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
-        };
+        // Soft requirement: summary is labels only (roundCode,
+        // fighter names, weapon, tournamentId). The most common 404
+        // here is a placeholder bracket slot with TBD fighters that
+        // vw_tournament_query_matches refuses to project. Render the
+        // scoreboard with blank labels rather than blocking the whole
+        // page on a name lookup — the operator just wants the pad.
+        const summary = summaryRes.ok
+          ? ((await summaryRes.json()) as {
+              roundCode: string;
+              redName: string;
+              blueName: string;
+              weapon: string;
+              tournamentId: string;
+              phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | null;
+            })
+          : null;
         setMatch({
           id: raw.id,
           matchNumberLabel: raw.match_number_label ?? '',
-          roundCode: summary.roundCode,
+          roundCode: summary?.roundCode ?? '',
           status: raw.status,
           rulesetCode: raw.ruleset_code,
           rulesetVersion: raw.ruleset_version,
@@ -99,11 +110,11 @@ export default function MatchScoringPage({ params }: Props) {
           blueRegistrationId: raw.blue_registration_id,
           redScore: raw.red_score ?? 0,
           blueScore: raw.blue_score ?? 0,
-          redFighterName: summary.redName,
-          blueFighterName: summary.blueName,
-          weapon: summary.weapon,
-          tournamentId: summary.tournamentId,
-          phaseType: summary.phaseType,
+          redFighterName: summary?.redName ?? '',
+          blueFighterName: summary?.blueName ?? '',
+          weapon: summary?.weapon ?? '',
+          tournamentId: summary?.tournamentId,
+          phaseType: summary?.phaseType ?? null,
           lockedAt: raw.locked_at,
         });
       } catch {
@@ -158,7 +169,7 @@ export default function MatchScoringPage({ params }: Props) {
           onRefresh={() => setRefreshKey((key) => key + 1)}
         />
       ) : (
-        <NoMatchView />
+        <NoMatchView mode="match" />
       )}
     </main>
   );

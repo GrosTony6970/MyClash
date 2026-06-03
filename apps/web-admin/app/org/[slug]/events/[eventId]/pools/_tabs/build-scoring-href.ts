@@ -1,12 +1,15 @@
 /**
- * Build the cross-app URL into the web-scoring app's ScoringPad for a
- * given match's lice. The match row stores `lice_id` already (drives
- * the inline Lice picker); we just need the scoring app's origin to
- * land on `/lices/{liceId}`.
+ * Build the cross-app URL into the web-scoring app's lice-queue
+ * page (`/lices/{liceId}`). The lice page shows the lice's current
+ * top-of-queue match plus its upcoming queue — the right surface
+ * for an operator stationed at a strip all day.
  *
- * Returns `null` when the match has no lice assigned — the caller
- * disables the row click in that case so the operator picks a lice
- * first.
+ * NOT used for "I clicked a specific match" navigation — that goes
+ * through `buildMatchScoringHref` so the operator lands on the
+ * exact match they clicked, regardless of which match the lice
+ * happens to have at the top of its queue.
+ *
+ * Returns `null` when no liceId is provided.
  */
 export function buildScoringHref(scoringBaseUrl: string, liceId: string | null): string | null {
   if (!liceId) return null;
@@ -16,9 +19,10 @@ export function buildScoringHref(scoringBaseUrl: string, liceId: string | null):
 
 /**
  * Build the cross-app URL into the web-scoring app's per-match
- * ScoringPad, used as the deep-link fallback when the bracket /
- * pools tabs don't have a lice yet. Lands on `/matches/{matchId}`
- * which fetches the match by id without a lice context.
+ * ScoringPad. **Primary** deep-link from any specific match click in
+ * the admin (bracket, pools, schedule grid) — lands on
+ * `/matches/{matchId}` which fetches the match by id without a lice
+ * context, so the operator always sees the exact match they clicked.
  *
  * `returnTo` is the admin URL the operator clicked from — the
  * per-match scoring page surfaces it via `?return=` so its back
