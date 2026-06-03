@@ -48,6 +48,28 @@ interface HighlightMatch {
   tournamentName: string | null;
 }
 
+interface PublicVenue {
+  id: string;
+  name: string;
+  address: string | null;
+  hosts_tournament: boolean;
+  hosts_workshop: boolean;
+  venue_areas: Array<{ id: string; name: string }> | null;
+}
+
+async function fetchVenues(eventSlug: string, apiUrl: string): Promise<PublicVenue[]> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/slug/${encodeURIComponent(eventSlug)}/venues`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return [];
+    return (await res.json()) as PublicVenue[];
+  } catch {
+    return [];
+  }
+}
+
 interface Props {
   eventSlug: string;
   apiUrl: string;
@@ -180,10 +202,11 @@ function formatDateRange(start: string, end: string): string {
 
 export async function PublicHome({ eventSlug, apiUrl }: Props) {
   const event = await fetchEventInfo(eventSlug, apiUrl);
-  const [highlights, tournaments, participantsCount] = await Promise.all([
+  const [highlights, tournaments, participantsCount, venues] = await Promise.all([
     fetchHighlights(eventSlug, apiUrl),
     fetchTournaments(event?.id ?? '', apiUrl),
     fetchParticipantsCount(eventSlug, apiUrl),
+    fetchVenues(eventSlug, apiUrl),
   ]);
 
   const isCompleted = event?.status === 'completed';
@@ -300,6 +323,64 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                 </div>
               </Link>
             ))}
+          </div>
+        </section>
+      )}
+
+      {venues.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+            Venues
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {venues.map((v) => {
+              const mapsHref = v.address
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.address)}`
+                : null;
+              return (
+                <article
+                  key={v.id}
+                  className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-display text-base font-semibold text-slate-900">
+                        {v.name}
+                      </p>
+                      {v.address && <p className="mt-0.5 text-xs text-slate-500">{v.address}</p>}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {v.hosts_tournament && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                          Tournament
+                        </span>
+                      )}
+                      {v.hosts_workshop && (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                          Workshop
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {v.venue_areas && v.venue_areas.length > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {v.venue_areas.length} area{v.venue_areas.length === 1 ? '' : 's'}:{' '}
+                      {v.venue_areas.map((a) => a.name).join(' · ')}
+                    </p>
+                  )}
+                  {mapsHref && (
+                    <a
+                      href={mapsHref}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-xs font-semibold text-red-700 hover:text-red-800"
+                    >
+                      Open in Google Maps →
+                    </a>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

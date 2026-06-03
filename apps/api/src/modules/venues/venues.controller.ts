@@ -149,4 +149,15 @@ export class VenuesController {
   async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.venues.listForEvent(eventId);
   }
+
+  // ── Public slug-based variant for the public event page ────────────────────
+
+  @Get('events/slug/:eventSlug/venues')
+  @ApiOperation({
+    summary: 'Public venues for an event by slug (no auth).',
+  })
+  @ApiParam({ name: 'eventSlug', type: 'string' })
+  async listForEventSlug(@Param('eventSlug') eventSlug: string) {
+    return this.venues.listForEventSlug(eventSlug);
+  }
 }

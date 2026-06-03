@@ -209,6 +209,21 @@ export class VenuesService {
     return data ?? [];
   }
 
+  /**
+   * Public slug variant of listForEvent. Resolves event_slug → event_id
+   * then delegates. Used by the public event page's Venues section.
+   */
+  async listForEventSlug(eventSlug: string) {
+    const { data: event, error } = await this.supabase.service
+      .from('events')
+      .select('id')
+      .eq('slug', eventSlug)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!event) throw new NotFoundException(`Event ${eventSlug} not found`);
+    return this.listForEvent(String((event as Row)['id']));
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private async assertCanManageVenue(venueId: string, userId: string): Promise<string> {
