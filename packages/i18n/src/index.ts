@@ -3168,6 +3168,12 @@ export const en = {
       autoPopulateTopNLabel: 'Top N',
       autoPopulatePoolsNotFinished: 'Pools have not finished yet',
       autoPopulateSuccess: 'Bracket populated from pool standings',
+      autoPopulateSuccessFromSeed: 'Bracket populated from registration seed (no pool data)',
+      autoPopulateNoPoolsTitle: 'Auto-populate without pool data?',
+      autoPopulateNoPoolsBody:
+        'This tournament has no pool phase. The bracket will be seeded from registration order. Continue?',
+      autoPopulateNoPoolsConfirm: 'Seed from registrations',
+      autoPopulateNoPoolsCancel: 'Cancel',
     },
     phaseVisibility: {
       breadcrumbEvent: 'Event',
@@ -7012,6 +7018,13 @@ export const fr = {
       autoPopulateTopNLabel: 'Top N',
       autoPopulatePoolsNotFinished: 'Les poules ne sont pas encore terminees',
       autoPopulateSuccess: 'Tableau rempli a partir du classement des poules',
+      autoPopulateSuccessFromSeed:
+        "Tableau rempli a partir de l'ordre d'inscription (aucune donnee de poule)",
+      autoPopulateNoPoolsTitle: 'Remplir le tableau sans donnees de poule ?',
+      autoPopulateNoPoolsBody:
+        "Ce tournoi n'a pas de phase de poules. Le tableau sera classe selon l'ordre d'inscription. Continuer ?",
+      autoPopulateNoPoolsConfirm: 'Classer par inscriptions',
+      autoPopulateNoPoolsCancel: 'Annuler',
     },
     phaseVisibility: {
       breadcrumbEvent: 'Evenement',

@@ -59,6 +59,15 @@ interface BracketResult {
    * after.
    */
   poolsCompleted?: boolean;
+  /**
+   * Whether this tournament has a pool phase configured at all.
+   * When false, populateBracket falls through to the
+   * registration-seed branch — the FE shows a confirm dialog
+   * before that click so the operator doesn't accidentally seed
+   * from the registration list when they expected pools to drive
+   * the bracket.
+   */
+  hasPoolPhase?: boolean;
 }
 
 interface OverrideModalState {
@@ -260,6 +269,12 @@ export default function BracketPage() {
   const [populateMode, setPopulateMode] = useState<'overall' | 'top-n-per-pool'>('overall');
   const [populateTopN, setPopulateTopN] = useState<number | ''>('');
   const [populateMessage, setPopulateMessage] = useState<string | null>(null);
+  // Confirm dialog state for the "no pool phase → registration seed
+  // fallback" path. The BE happily seeds from registration order in
+  // this case, but the operator might have expected pool standings to
+  // drive the bracket; pop a confirm before submitting so they don't
+  // mis-seed silently.
+  const [showSeedFallbackConfirm, setShowSeedFallbackConfirm] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -521,13 +536,30 @@ export default function BracketPage() {
       );
       if (!res.ok) {
         const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
+        // On 409, prefer the BE's actual message — the API now emits
+        // two distinct refusals ("Pools have not finished yet" vs
+        // "No pool data available — generate pools and play matches
+        // first.") and the operator needs to know which one fired.
+        // Fall back to the canned i18n string only when the BE didn't
+        // attach a message.
         const msg =
           res.status === 409
-            ? t('organizer.bracket.autoPopulatePoolsNotFinished')
+            ? (errBody?.message ?? t('organizer.bracket.autoPopulatePoolsNotFinished'))
             : (errBody?.message ?? 'Populate failed');
         throw new Error(msg);
       }
-      setPopulateMessage(t('organizer.bracket.autoPopulateSuccess'));
+      // The BE returns `source: 'pool-standings' | 'registration-seed'`.
+      // Branch the success toast so straight-to-bracket tournaments
+      // (source=registration-seed) get an honest message instead of
+      // the misleading "from pool standings" text.
+      const result = (await res.json().catch(() => ({}))) as {
+        source?: 'pool-standings' | 'registration-seed';
+      };
+      const successKey =
+        result.source === 'registration-seed'
+          ? 'organizer.bracket.autoPopulateSuccessFromSeed'
+          : 'organizer.bracket.autoPopulateSuccess';
+      setPopulateMessage(t(successKey));
       refreshBracket();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Populate failed');
@@ -1067,7 +1099,18 @@ export default function BracketPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => void populateBracket()}
+                  onClick={() => {
+                    // Straight-to-bracket tournaments (no pool phase)
+                    // will fall through to the registration-seed
+                    // branch server-side. Show a confirm dialog first
+                    // so the operator doesn't mis-seed without knowing
+                    // that's what's about to happen.
+                    if (bracket.hasPoolPhase === false) {
+                      setShowSeedFallbackConfirm(true);
+                      return;
+                    }
+                    void populateBracket();
+                  }}
                   disabled={populating || !existingBracket || bracket.poolsCompleted === false}
                   title={
                     bracket.poolsCompleted === false
@@ -1096,6 +1139,40 @@ export default function BracketPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
             {error}
+          </div>
+        )}
+
+        {/* Auto-populate "no pool phase → registration seed" confirm */}
+        {showSeedFallbackConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center">
+              <p className="text-4xl mb-3">⚠️</p>
+              <h2 className="text-lg font-bold mb-2">
+                {t('organizer.bracket.autoPopulateNoPoolsTitle')}
+              </h2>
+              <p className="text-gray-600 text-sm mb-5">
+                {t('organizer.bracket.autoPopulateNoPoolsBody')}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowSeedFallbackConfirm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  {t('organizer.bracket.autoPopulateNoPoolsCancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSeedFallbackConfirm(false);
+                    void populateBracket();
+                  }}
+                  className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg text-sm"
+                >
+                  {t('organizer.bracket.autoPopulateNoPoolsConfirm')}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
