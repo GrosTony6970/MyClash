@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { LeaguesService } from './leagues.service';
 
@@ -421,5 +426,240 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
 
     // No membership write fired
     expect(orgRoleUpserts).toHaveLength(0);
+  });
+});
+
+// ── Event-side leagues views (slice A of the leagues UX overhaul) ────────────
+
+function makeAwaitableChain(result: { data: unknown; error: { message: string } | null }) {
+  const promise = Promise.resolve(result);
+  const chain = Object.assign(promise, {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    neq: vi.fn(),
+    is: vi.fn(),
+    order: vi.fn(),
+    update: vi.fn(),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+    single: vi.fn().mockResolvedValue(result),
+  });
+  for (const key of ['select', 'eq', 'in', 'neq', 'is', 'order', 'update']) {
+    (chain as unknown as Record<string, ReturnType<typeof vi.fn>>)[key] = vi
+      .fn()
+      .mockReturnValue(chain);
+  }
+  return chain;
+}
+
+describe('LeaguesService.listEventLeagueAttachments', () => {
+  it("returns the event's non-removed league tournament links", async () => {
+    const linksData = [
+      {
+        id: 'link-1',
+        league_id: 'league-1',
+        tournament_id: 'tournament-1',
+        status: 'approved',
+        group_id: 'group-1',
+        leagues: { id: 'league-1', name: 'HEMA 2026', season_year: 2026 },
+        league_groups: { id: 'group-1', name: 'Open' },
+        tournaments: { id: 'tournament-1', name: 'Longsword Open', event_id: 'event-1' },
+      },
+    ];
+    const eventChain = makeAwaitableChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    const linksChain = makeAwaitableChain({ data: linksData, error: null });
+    const supabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'events') return eventChain;
+          if (table === 'league_tournament_links') return linksChain;
+          return makeAwaitableChain({ data: null, error: null });
+        }),
+      },
+    };
+    const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+
+    const result = await service.listEventLeagueAttachments('event-1', 'user-1');
+
+    expect(result).toEqual(linksData);
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
+    // The query must filter on event + exclude removed rows.
+    expect(linksChain.eq).toHaveBeenCalledWith('tournaments.event_id', 'event-1');
+    expect(linksChain.neq).toHaveBeenCalledWith('status', 'removed');
+  });
+
+  it("throws ForbiddenException when the caller is not an editor of the event's org", async () => {
+    const eventChain = makeAwaitableChain({
+      data: { id: 'event-1', organization_id: 'org-1' },
+      error: null,
+    });
+    const supabase = {
+      service: {
+        from: vi.fn(() => eventChain),
+      },
+    };
+    const assertOrgRole = vi.fn().mockRejectedValue(new ForbiddenException('nope'));
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+
+    await expect(service.listEventLeagueAttachments('event-1', 'user-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});
+
+describe('LeaguesService.selfDetachTournamentLink', () => {
+  it('flips the link to status="removed" when the link belongs to an event in the caller\'s org', async () => {
+    const linkRow = {
+      id: 'link-1',
+      league_id: 'league-1',
+      tournament_id: 'tournament-1',
+      tournaments: {
+        id: 'tournament-1',
+        event_id: 'event-1',
+        events: { organization_id: 'org-1' },
+      },
+    };
+    const updates: Array<Record<string, unknown>> = [];
+    const linkChain = makeAwaitableChain({ data: linkRow, error: null });
+    const updateChain = makeAwaitableChain({ data: null, error: null });
+    updateChain.update = vi.fn((payload: Record<string, unknown>) => {
+      updates.push(payload);
+      return updateChain;
+    });
+
+    const supabase = {
+      service: {
+        from: vi.fn((table: string) => {
+          if (table === 'league_tournament_links') {
+            // First call: select (linkChain). Second call (after assert): update.
+            // We return linkChain first then updateChain by tracking calls.
+            const callCount = (supabase.service.from as ReturnType<typeof vi.fn>).mock.calls.filter(
+              (c) => c[0] === 'league_tournament_links',
+            ).length;
+            return callCount === 1 ? linkChain : updateChain;
+          }
+          return makeAwaitableChain({ data: null, error: null });
+        }),
+      },
+    };
+
+    const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+    const service = new LeaguesService(supabase as never, { assertOrgRole } as never, {} as never);
+
+    await service.selfDetachTournamentLink('event-1', 'link-1', 'user-1');
+
+    expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'editor');
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({ status: 'removed', reviewed_by_user_id: 'user-1' });
+  });
+
+  it("throws NotFoundException when the link's tournament does not belong to the given event", async () => {
+    const linkRow = {
+      id: 'link-1',
+      tournaments: {
+        id: 'tournament-1',
+        event_id: 'event-OTHER',
+        events: { organization_id: 'org-1' },
+      },
+    };
+    const linkChain = makeAwaitableChain({ data: linkRow, error: null });
+    const supabase = {
+      service: {
+        from: vi.fn(() => linkChain),
+      },
+    };
+    const service = new LeaguesService(
+      supabase as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      {} as never,
+    );
+
+    await expect(
+      service.selfDetachTournamentLink('event-1', 'link-1', 'user-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('LeaguesService.listLeagueMemberEvents', () => {
+  it('returns distinct events whose tournaments have an approved link to the league', async () => {
+    const linksData = [
+      {
+        status: 'approved',
+        tournaments: {
+          event_id: 'event-A',
+          events: {
+            id: 'event-A',
+            name: 'Spring Cup',
+            slug: 'spring-cup',
+            start_date: '2026-03-14',
+            end_date: '2026-03-15',
+            organizations: { id: 'org-A', name: 'HEMA Lyon' },
+          },
+        },
+      },
+      {
+        // Second tournament from the same event — must dedupe to one event card.
+        status: 'approved',
+        tournaments: {
+          event_id: 'event-A',
+          events: {
+            id: 'event-A',
+            name: 'Spring Cup',
+            slug: 'spring-cup',
+            start_date: '2026-03-14',
+            end_date: '2026-03-15',
+            organizations: { id: 'org-A', name: 'HEMA Lyon' },
+          },
+        },
+      },
+      {
+        status: 'approved',
+        tournaments: {
+          event_id: 'event-B',
+          events: {
+            id: 'event-B',
+            name: 'Open Bordeaux',
+            slug: 'open-bordeaux',
+            start_date: '2026-04-18',
+            end_date: '2026-04-19',
+            organizations: { id: 'org-B', name: 'HEMA Bordeaux' },
+          },
+        },
+      },
+    ];
+    const linksChain = makeAwaitableChain({ data: linksData, error: null });
+    const supabase = { service: { from: vi.fn(() => linksChain) } };
+    const service = new LeaguesService(
+      supabase as never,
+      { assertOrgRole: vi.fn() } as never,
+      {} as never,
+    );
+
+    const result = await service.listLeagueMemberEvents('league-1');
+
+    expect(result).toEqual([
+      {
+        id: 'event-A',
+        name: 'Spring Cup',
+        slug: 'spring-cup',
+        startDate: '2026-03-14',
+        endDate: '2026-03-15',
+        organization: { id: 'org-A', name: 'HEMA Lyon' },
+      },
+      {
+        id: 'event-B',
+        name: 'Open Bordeaux',
+        slug: 'open-bordeaux',
+        startDate: '2026-04-18',
+        endDate: '2026-04-19',
+        organization: { id: 'org-B', name: 'HEMA Bordeaux' },
+      },
+    ]);
+    expect(linksChain.eq).toHaveBeenCalledWith('league_id', 'league-1');
+    expect(linksChain.eq).toHaveBeenCalledWith('status', 'approved');
   });
 });

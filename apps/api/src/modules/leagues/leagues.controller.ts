@@ -341,6 +341,47 @@ export class LeaguesController {
     );
   }
 
+  // ── Event-side leagues views (organizer surface) ──────────────────────
+
+  @Get('events/:eventId/league-attachments')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'List non-removed league-tournament links for an event. Powers the organizer Requests + Memberships tabs.',
+  })
+  async listEventLeagueAttachments(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listEventLeagueAttachments(eventId, userId);
+  }
+
+  @Patch('admin/events/:eventId/league-tournament-links/:linkId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Operator self-detach: withdraw a pending request or leave an approved attachment. Flips link to status=removed.',
+  })
+  async selfDetachTournamentLink(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('linkId', ParseUUIDPipe) linkId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.leagues.selfDetachTournamentLink(eventId, linkId, userId);
+  }
+
+  @Get('leagues/:leagueId/member-events')
+  @ApiOperation({
+    summary:
+      'Public: list events whose tournaments have an approved link to the league (Memberships tab sibling list).',
+  })
+  async listLeagueMemberEvents(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
+    return this.leagues.listLeagueMemberEvents(leagueId);
+  }
+
   // ── Groups ────────────────────────────────────────────────────────────
 
   @Get('leagues/:leagueId/groups')

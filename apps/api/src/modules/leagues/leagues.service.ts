@@ -688,6 +688,140 @@ export class LeaguesService {
     }
   }
 
+  // ── Event-side leagues views (organizer surface) ──────────────────────────
+
+  /**
+   * Resolve the event's owning org and assert the caller has at least
+   * the editor role there. Mirrors the staff module's
+   * `assertCanManageEventStaff` pattern — we reuse the canonical
+   * org-role hierarchy from OrganizationsService rather than rolling
+   * a new one.
+   */
+  private async assertCanManageEvent(eventId: string, userId: string): Promise<string> {
+    const { data: event, error } = await this.supabase.service
+      .from('events')
+      .select('id, organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+    const organizationId = String((event as Row)['organization_id']);
+    await this.orgs.assertOrgRole(organizationId, userId, 'editor');
+    return organizationId;
+  }
+
+  /**
+   * Lists every non-removed tournament-attach link for an event,
+   * with league + group + tournament joined inline so the organizer-
+   * side `/events/:id/leagues` page can render both the "Requests"
+   * tab (any status) and the "Memberships" tab (status='approved'
+   * filtered client-side) off a single fetch.
+   */
+  async listEventLeagueAttachments(eventId: string, userId: string) {
+    await this.assertCanManageEvent(eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('league_tournament_links')
+      .select(
+        '*, leagues(id, name, slug, season_year, scoring_system, scoring_config), league_groups(id, name), tournaments!inner(id, name, event_id)',
+      )
+      .eq('tournaments.event_id', eventId)
+      .neq('status', 'removed')
+      .order('created_at', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  /**
+   * Operator self-detach. Flips the link to status='removed' so the
+   * organizer can withdraw a pending request or leave an approved
+   * attachment without going through the league admin. Auth: the
+   * link's tournament must belong to the `:eventId` in the URL AND
+   * the caller must be at least editor on the event's org.
+   *
+   * Defence in depth: we resolve the link's tournament → event →
+   * org via a single PostgREST join, then assert both that the
+   * tournament's event matches the URL's `:eventId` (prevents id
+   * substitution) and that the caller can manage that event.
+   */
+  async selfDetachTournamentLink(eventId: string, linkId: string, userId: string): Promise<void> {
+    const { data: link, error } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('id, tournaments!inner(id, event_id, events(organization_id))')
+      .eq('id', linkId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!link) throw new NotFoundException(`Link ${linkId} not found`);
+
+    const tournament = (link as Row)['tournaments'] as Row | null;
+    const linkEventId = tournament ? String(tournament['event_id']) : '';
+    if (linkEventId !== eventId) {
+      throw new NotFoundException(`Link ${linkId} does not belong to event ${eventId}`);
+    }
+    const eventRow = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
+    const organizationId = eventRow ? String(eventRow['organization_id']) : '';
+    await this.orgs.assertOrgRole(organizationId, userId, 'editor');
+
+    const { error: updateErr } = await this.supabase.service
+      .from('league_tournament_links')
+      .update({
+        status: 'removed',
+        reviewed_by_user_id: userId,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', linkId);
+    if (updateErr) throw new BadRequestException(updateErr.message);
+  }
+
+  /**
+   * Public listing of every distinct event whose tournaments have an
+   * approved link to the league. Powers the "Other events in this
+   * league" section of the organizer's Memberships tab — already
+   * discoverable via league pages elsewhere, so no auth gate.
+   */
+  async listLeagueMemberEvents(leagueId: string) {
+    const { data, error } = await this.supabase.service
+      .from('league_tournament_links')
+      .select(
+        'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, organizations(id, name)))',
+      )
+      .eq('league_id', leagueId)
+      .eq('status', 'approved');
+    if (error) throw new BadRequestException(error.message);
+
+    const byEventId = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        slug: string;
+        startDate: string;
+        endDate: string | null;
+        organization: { id: string; name: string };
+      }
+    >();
+    for (const row of (data ?? []) as Row[]) {
+      const tournament = row['tournaments'] as Row | null;
+      const event = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
+      if (!event) continue;
+      const eventId = String(event['id']);
+      if (byEventId.has(eventId)) continue;
+      const org = (event['organizations'] as Row | null) ?? null;
+      byEventId.set(eventId, {
+        id: eventId,
+        name: String(event['name'] ?? ''),
+        slug: String(event['slug'] ?? ''),
+        startDate: String(event['start_date'] ?? ''),
+        endDate: (event['end_date'] as string | null) ?? null,
+        organization: {
+          id: org ? String(org['id'] ?? '') : '',
+          name: org ? String(org['name'] ?? '') : '',
+        },
+      });
+    }
+    return Array.from(byEventId.values());
+  }
+
   async addTournamentLink(
     leagueId: string,
     tournamentId: string,
