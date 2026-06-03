@@ -29,7 +29,18 @@ interface Workshop {
     endTime: string;
     location: string | null;
     capacity: number;
+    venue_id?: string | null;
+    area_id?: string | null;
+    venues?: { id: string; name: string } | null;
+    venue_areas?: { id: string; name: string } | null;
   }>;
+}
+
+interface EventVenue {
+  id: string;
+  name: string;
+  hosts_workshop: boolean;
+  venue_areas: Array<{ id: string; name: string }> | null;
 }
 
 interface GlobalPersonResult {
@@ -82,6 +93,75 @@ export default function WorkshopsAdminPage() {
   const [linkingEnrollmentId, setLinkingEnrollmentId] = useState<string | null>(null);
   const [gpSearch, setGpSearch] = useState('');
   const [gpResults, setGpResults] = useState<GlobalPersonResult[]>([]);
+
+  // Session create modal
+  const [sessionFormWorkshopId, setSessionFormWorkshopId] = useState<string | null>(null);
+  const [sessionForm, setSessionForm] = useState({
+    startTime: '',
+    endTime: '',
+    location: '',
+    venueId: '' as string,
+    areaId: '' as string,
+  });
+  const [sessionSaving, setSessionSaving] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  // Event venues for the session form's Venue + Area pickers. Only
+  // workshop-capable venues are eligible.
+  const [venues, setVenues] = useState<EventVenue[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, { credentials: 'include' })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as EventVenue[];
+        if (!cancelled) setVenues(data.filter((v) => v.hosts_workshop));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, eventId, refreshKey]);
+
+  function openSessionForm(workshopId: string) {
+    setSessionFormWorkshopId(workshopId);
+    setSessionForm({ startTime: '', endTime: '', location: '', venueId: '', areaId: '' });
+    setSessionError(null);
+  }
+
+  async function handleCreateSession() {
+    if (!sessionFormWorkshopId) return;
+    if (!sessionForm.startTime || !sessionForm.endTime) {
+      setSessionError('Start and end time are required');
+      return;
+    }
+    setSessionSaving(true);
+    setSessionError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/workshops/${sessionFormWorkshopId}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          startTime: new Date(sessionForm.startTime).toISOString(),
+          endTime: new Date(sessionForm.endTime).toISOString(),
+          location: sessionForm.location.trim() || undefined,
+          venueId: sessionForm.venueId || undefined,
+          areaId: sessionForm.areaId || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json()) as { message?: string };
+        throw new Error(body.message ?? 'Create session failed');
+      }
+      setSessionFormWorkshopId(null);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : 'Create session failed');
+    } finally {
+      setSessionSaving(false);
+    }
+  }
 
   // ── Fetch workshops ────────────────────────────────────────────────────────────
 
@@ -275,9 +355,16 @@ export default function WorkshopsAdminPage() {
               </div>
 
               {/* Sessions */}
-              {w.workshopSessions.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  {w.workshopSessions.map((s) => (
+              <div className="flex flex-col gap-2">
+                {w.workshopSessions.map((s) => {
+                  const venueLabel = s.venues?.name ?? null;
+                  const areaLabel = s.venue_areas?.name ?? null;
+                  const venueArea = venueLabel
+                    ? areaLabel
+                      ? `${venueLabel} · ${areaLabel}`
+                      : venueLabel
+                    : null;
+                  return (
                     <div
                       key={s.id}
                       className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm"
@@ -295,7 +382,8 @@ export default function WorkshopsAdminPage() {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
-                          {s.location && ` · ${s.location}`}
+                          {venueArea && ` · ${venueArea}`}
+                          {!venueArea && s.location && ` · ${s.location}`}
                         </span>
                       </div>
                       <button
@@ -305,9 +393,16 @@ export default function WorkshopsAdminPage() {
                         Roster
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => openSessionForm(w.id)}
+                  className="self-start text-xs font-semibold text-red-700 hover:text-red-800"
+                >
+                  + Add session
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -445,6 +540,113 @@ export default function WorkshopsAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Session create modal */}
+      {sessionFormWorkshopId &&
+        (() => {
+          const pickedVenue = venues.find((v) => v.id === sessionForm.venueId) ?? null;
+          const areas = pickedVenue?.venue_areas ?? [];
+          return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+                <h2 className="text-lg font-bold mb-4">New session</h2>
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Start *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={sessionForm.startTime}
+                        onChange={(e) =>
+                          setSessionForm((f) => ({ ...f, startTime: e.target.value }))
+                        }
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">End *</label>
+                      <input
+                        type="datetime-local"
+                        value={sessionForm.endTime}
+                        onChange={(e) => setSessionForm((f) => ({ ...f, endTime: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Venue</label>
+                    <select
+                      value={sessionForm.venueId}
+                      onChange={(e) =>
+                        setSessionForm((f) => ({ ...f, venueId: e.target.value, areaId: '' }))
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    >
+                      <option value="">No venue</option>
+                      {venues.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                    {venues.length === 0 && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        No workshop-capable venues for this event yet. Add one from the Venues tab.
+                      </p>
+                    )}
+                  </div>
+                  {pickedVenue && areas.length >= 2 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Area</label>
+                      <select
+                        value={sessionForm.areaId}
+                        onChange={(e) => setSessionForm((f) => ({ ...f, areaId: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                      >
+                        <option value="">Whole venue</option>
+                        {areas.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Location label (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={sessionForm.location}
+                      placeholder="Door A, mat 2…"
+                      onChange={(e) => setSessionForm((f) => ({ ...f, location: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  </div>
+                </div>
+                {sessionError && <p className="text-sm text-red-600 mt-2">{sessionError}</p>}
+                <div className="flex justify-end gap-2 mt-4">
+                  <button
+                    onClick={() => setSessionFormWorkshopId(null)}
+                    className="text-sm text-gray-500 px-4 py-2"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleCreateSession()}
+                    disabled={sessionSaving}
+                    className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm"
+                  >
+                    {sessionSaving ? 'Creating…' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Roster modal */}
       {rosterSession && (

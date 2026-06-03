@@ -67,12 +67,15 @@ export class WorkshopsService {
   // ── List workshops for event ──────────────────────────────────────────────────
 
   async listWorkshops(eventId: string) {
+    // Project the joined venue + area so the workshop admin page can
+    // render `Venue · Area` on each session row without a second
+    // round-trip. Same idea as lices.list joining venues(id, name).
     const { data, error } = await this.supabase.service
       .from('workshops')
       .select(
         `
         *,
-        workshop_sessions ( id, start_time, end_time, location, capacity ),
+        workshop_sessions ( id, start_time, end_time, location, capacity, venue_id, area_id, venues(id, name), venue_areas(id, name) ),
         workshop_instructors ( persons ( id, given_name, family_name ) )
       `,
       )
