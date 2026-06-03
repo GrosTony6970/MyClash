@@ -74,11 +74,10 @@ export class LeagueScoringSystemsService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  async list(opts?: { includeArchived?: boolean }): Promise<LeagueScoringSystemRow[]> {
-    const includeArchived = opts?.includeArchived === true;
-    const base = this.supabase.service.from('league_scoring_systems').select('*');
-    const filtered = includeArchived ? base : base.eq('is_archived', false);
-    const { data, error } = await filtered
+  async list(): Promise<LeagueScoringSystemRow[]> {
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_systems')
+      .select('*')
       .order('is_builtin', { ascending: false })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -137,9 +136,6 @@ export class LeagueScoringSystemsService {
   ): Promise<LeagueScoringSystemRow> {
     await this.assertSuperAdmin(userId);
     const existing = await this.getById(id);
-    if (existing.is_builtin) {
-      throw new BadRequestException('Built-in scoring systems are read-only');
-    }
 
     const nextVersion = bumpPatch(existing.version);
     const updates: Record<string, unknown> = {
@@ -189,9 +185,6 @@ export class LeagueScoringSystemsService {
   async rollback(id: string, versionId: string, userId: string): Promise<LeagueScoringSystemRow> {
     await this.assertSuperAdmin(userId);
     const existing = await this.getById(id);
-    if (existing.is_builtin) {
-      throw new BadRequestException('Built-in scoring systems cannot be rolled back');
-    }
 
     const { data: targetData, error: targetError } = await this.supabase.service
       .from('league_scoring_system_versions')
@@ -296,30 +289,9 @@ export class LeagueScoringSystemsService {
     return row;
   }
 
-  async restore(id: string, userId: string): Promise<LeagueScoringSystemRow> {
+  async delete(id: string, userId: string): Promise<void> {
     await this.assertSuperAdmin(userId);
     const existing = await this.getById(id);
-    const { data, error } = await this.supabase.service
-      .from('league_scoring_systems')
-      .update({ is_archived: false, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('*')
-      .single();
-    if (error) throw new BadRequestException(error.message);
-    const row = data as LeagueScoringSystemRow;
-    await this.writeAuditLog(userId, 'league.scoring_system.restored', row.id, {
-      code: existing.code,
-      name: existing.name,
-    });
-    return row;
-  }
-
-  async archive(id: string, userId: string): Promise<void> {
-    await this.assertSuperAdmin(userId);
-    const existing = await this.getById(id);
-    if (existing.is_builtin) {
-      throw new BadRequestException('Built-in scoring systems cannot be archived');
-    }
 
     // Refuse if any league still references this code. After migration
     // 0087, leagues.scoring_system is 'code@version' — match either the
@@ -331,17 +303,19 @@ export class LeagueScoringSystemsService {
     if (countError) throw new BadRequestException(countError.message);
     if ((count ?? 0) > 0) {
       throw new ConflictException(
-        `Cannot archive: ${count} league(s) still use the "${existing.code}" scoring system.`,
+        `Cannot delete: ${count} league(s) still use the "${existing.code}" scoring system.`,
       );
     }
 
+    // Hard delete. league_scoring_system_versions cascades via FK
+    // ON DELETE CASCADE (migration 0087).
     const { error } = await this.supabase.service
       .from('league_scoring_systems')
-      .update({ is_archived: true, updated_at: new Date().toISOString() })
+      .delete()
       .eq('id', id);
     if (error) throw new BadRequestException(error.message);
 
-    await this.writeAuditLog(userId, 'league.scoring_system.archived', id, {
+    await this.writeAuditLog(userId, 'league.scoring_system.deleted', id, {
       code: existing.code,
       name: existing.name,
     });

@@ -18,7 +18,6 @@ function buildSupabase(handlers: {
 }) {
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
-  const archived: unknown[] = [];
   const auditInserts: unknown[] = [];
 
   const service = {
@@ -74,7 +73,7 @@ function buildSupabase(handlers: {
                 error: null,
               },
             );
-            // .update(...).eq(...).select(...).single() OR .update(...).eq(...) (archive)
+            // .update(...).eq(...).select(...).single()
             const chain: Record<string, unknown> = {
               eq: eqMock,
               select: selectMock,
@@ -83,7 +82,6 @@ function buildSupabase(handlers: {
             };
             eqMock.mockReturnValue(chain);
             selectMock.mockReturnValue(chain);
-            archived.push(payload);
             return chain;
           }),
         } as never;
@@ -99,7 +97,7 @@ function buildSupabase(handlers: {
       return {} as never;
     }),
   };
-  return { service: { service }, inserted, updated, archived, auditInserts };
+  return { service: { service }, inserted, updated, auditInserts };
 }
 
 function makeNonSuperAdminSupabase() {
@@ -209,17 +207,26 @@ describe('LeagueScoringSystemsService', () => {
     ]);
   });
 
-  it('refuses to update a built-in row', async () => {
-    const { service } = buildSupabase({
-      systemById: {
-        data: { id: 'sys-1', is_builtin: true, code: 'ffamhe_tf_2026' },
-        error: null,
-      },
+  it('super-admin can update a built-in row (the is_builtin lock was lifted)', async () => {
+    const builtin = {
+      id: 'sys-1',
+      code: 'ffamhe_tf_2026',
+      name: 'FFAMHE TF 2026',
+      version: '1.0.0',
+      is_builtin: true,
+      points_by_rank: { '1': 16, '2': 13 },
+      tie_breakers: ['total_points'],
+      description: null,
+    };
+    const { service, updated } = buildVersioningSupabase({
+      sourceRow: builtin,
+      updateResult: { ...builtin, version: '1.0.1', name: 'FFAMHE TF 2026 Patched' },
+      versionsExistingProbe: { data: null, error: null },
     });
     const svc = new LeagueScoringSystemsService(service as never);
-    await expect(svc.update('sys-1', { name: 'Renamed' }, 'user-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const result = await svc.update('sys-1', { name: 'FFAMHE TF 2026 Patched' }, 'user-1');
+    expect(result.version).toBe('1.0.1');
+    expect(updated[0]).toMatchObject({ version: '1.0.1', name: 'FFAMHE TF 2026 Patched' });
   });
 
   // ── Clone behaviour (Slice A) ─────────────────────────────────────────────
@@ -302,97 +309,70 @@ describe('LeagueScoringSystemsService', () => {
     await expect(svc.clone('sys-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  // ── Restore behaviour (Slice A) ───────────────────────────────────────────
+  // ── Delete behaviour (replaces former archive/restore) ───────────────────
 
-  it('restores an archived row', async () => {
-    const { service, updated, auditInserts } = buildSupabase({
-      systemById: {
-        data: {
-          id: 'sys-2',
-          code: 'foo',
-          name: 'Foo',
-          is_builtin: false,
-          is_archived: true,
-        },
-        error: null,
-      },
-      updateResult: {
-        data: { id: 'sys-2', code: 'foo', name: 'Foo', is_archived: false },
-        error: null,
-      },
+  it('delete() hard-deletes the row when no leagues use the code', async () => {
+    const sourceRow = {
+      id: 'sys-2',
+      code: 'foo',
+      name: 'Foo',
+      is_builtin: false,
+    };
+    const { service, deleted, auditInserts } = buildDeleteSupabase({
+      systemById: { data: sourceRow, error: null },
+      leaguesUsingCount: 0,
     });
     const svc = new LeagueScoringSystemsService(service as never);
-    const row = await svc.restore('sys-2', 'user-1');
-    expect(row.is_archived).toBe(false);
-    expect(updated[0]).toMatchObject({ is_archived: false });
+    await svc.delete('sys-2', 'user-1');
+    expect(deleted).toEqual([{ table: 'league_scoring_systems', id: 'sys-2' }]);
     expect(auditInserts[0]).toMatchObject({
-      action: 'league.scoring_system.restored',
+      action: 'league.scoring_system.deleted',
       entity_id: 'sys-2',
+      payload_json: expect.objectContaining({ code: 'foo' }),
     });
   });
 
-  it('rejects non-super-admin callers on restore', async () => {
+  it('delete() refuses with ConflictException when leagues still use the code', async () => {
+    const sourceRow = {
+      id: 'sys-1',
+      code: 'wma_cup_2025',
+      name: 'WMA Cup 2025',
+      is_builtin: false,
+    };
+    const { service, deleted } = buildDeleteSupabase({
+      systemById: { data: sourceRow, error: null },
+      leaguesUsingCount: 2,
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.delete('sys-1', 'user-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(deleted).toEqual([]); // no DELETE issued
+  });
+
+  it('delete() works on built-in rows (lock lifted)', async () => {
+    const sourceRow = {
+      id: 'sys-builtin',
+      code: 'ffamhe_tf_2026',
+      name: 'FFAMHE TF 2026',
+      is_builtin: true,
+    };
+    const { service, deleted, auditInserts } = buildDeleteSupabase({
+      systemById: { data: sourceRow, error: null },
+      leaguesUsingCount: 0,
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    await svc.delete('sys-builtin', 'user-1');
+    expect(deleted).toEqual([{ table: 'league_scoring_systems', id: 'sys-builtin' }]);
+    expect(auditInserts[0]).toMatchObject({
+      action: 'league.scoring_system.deleted',
+      entity_id: 'sys-builtin',
+      payload_json: expect.objectContaining({ code: 'ffamhe_tf_2026' }),
+    });
+  });
+
+  it('delete() rejects non-super-admin callers', async () => {
     const { service } = makeNonSuperAdminSupabase();
     const svc = new LeagueScoringSystemsService(service as never);
-    await expect(svc.restore('sys-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  // ── includeArchived listing (Slice A) ─────────────────────────────────────
-
-  it('list({ includeArchived: false }) filters archived rows', async () => {
-    const captured: { filterApplied: boolean } = { filterApplied: false };
-    const service = {
-      service: {
-        from: vi.fn((table: string) => {
-          if (table === 'league_scoring_systems') {
-            const eqMock = vi.fn(() => {
-              captured.filterApplied = true;
-              return chain;
-            });
-            const orderMock = vi.fn().mockReturnThis();
-            const chain: Record<string, unknown> = {
-              eq: eqMock,
-              order: orderMock,
-              then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
-                resolve({ data: [], error: null }),
-            };
-            return { select: vi.fn().mockReturnValue(chain) };
-          }
-          return {} as never;
-        }),
-      },
-    };
-    const svc = new LeagueScoringSystemsService(service as never);
-    await svc.list({ includeArchived: false });
-    expect(captured.filterApplied).toBe(true);
-  });
-
-  it('list({ includeArchived: true }) skips the archived filter', async () => {
-    const captured: { filterApplied: boolean } = { filterApplied: false };
-    const service = {
-      service: {
-        from: vi.fn((table: string) => {
-          if (table === 'league_scoring_systems') {
-            const eqMock = vi.fn(() => {
-              captured.filterApplied = true;
-              return chain;
-            });
-            const orderMock = vi.fn().mockReturnThis();
-            const chain: Record<string, unknown> = {
-              eq: eqMock,
-              order: orderMock,
-              then: (resolve: (v: { data: unknown[]; error: null }) => void) =>
-                resolve({ data: [], error: null }),
-            };
-            return { select: vi.fn().mockReturnValue(chain) };
-          }
-          return {} as never;
-        }),
-      },
-    };
-    const svc = new LeagueScoringSystemsService(service as never);
-    await svc.list({ includeArchived: true });
-    expect(captured.filterApplied).toBe(false);
+    await expect(svc.delete('sys-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   // ── Versioning behaviour (Slice F.2) ──────────────────────────────────────
@@ -532,24 +512,40 @@ describe('LeagueScoringSystemsService', () => {
     });
   });
 
-  it('rollback() rejects built-in rows', async () => {
+  it('rollback() accepts built-in rows (lock lifted)', async () => {
     const builtin = {
       id: 'sys-builtin',
       code: 'ffamhe_tf_2026',
       name: 'FFAMHE',
-      version: '1.0.0',
+      version: '1.0.1',
       is_builtin: true,
       points_by_rank: { '1': 16 },
       tie_breakers: ['total_points'],
       description: null,
     };
-    const { service } = buildSupabase({
-      systemById: { data: builtin, error: null },
+    const target = {
+      id: 'v-1',
+      league_scoring_system_id: 'sys-builtin',
+      version: '1.0.0',
+      name: 'FFAMHE original',
+      points_by_rank: { '1': 16 },
+      tie_breakers: ['total_points'],
+      description: null,
+      published_at: '2026-05-01T00:00:00Z',
+      published_by_user_id: null,
+    };
+    const { service } = buildRollbackSupabase({
+      sourceRow: builtin,
+      targetVersion: target,
+      updateResult: {
+        ...builtin,
+        version: '1.0.2',
+        name: 'FFAMHE original',
+      },
     });
     const svc = new LeagueScoringSystemsService(service as never);
-    await expect(svc.rollback('sys-builtin', 'v-1', 'user-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    const result = await svc.rollback('sys-builtin', 'v-1', 'user-1');
+    expect(result.version).toBe('1.0.2');
   });
 
   it('rollback() rejects non-super-admin callers', async () => {
@@ -806,4 +802,59 @@ function buildRollbackSupabase(opts: {
     }),
   };
   return { service: { service }, updated, versionInserts, auditInserts };
+}
+
+// ── Delete-test helper: source row + leagues-using count + DELETE capture ───
+
+function buildDeleteSupabase(opts: { systemById: Result; leaguesUsingCount: number }) {
+  const deleted: { table: string; id: string }[] = [];
+  const auditInserts: unknown[] = [];
+
+  const service = {
+    from: vi.fn((table: string) => {
+      if (table === 'platform_roles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+        };
+      }
+      if (table === 'leagues') {
+        // .from('leagues').select('id', { count, head }).or(...) — the
+        // chain resolves with { count, error } when awaited.
+        const chain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          or: vi.fn(() => ({
+            then: (resolve: (v: { count: number; error: null }) => void) =>
+              resolve({ count: opts.leaguesUsingCount, error: null }),
+          })),
+        };
+        return chain;
+      }
+      if (table === 'league_scoring_systems') {
+        // getById uses .select('*').eq('id', id).maybeSingle().
+        // delete() uses .delete().eq('id', id) — capture the id.
+        const eqOnDelete = vi.fn((_col: string, id: string) => {
+          deleted.push({ table: 'league_scoring_systems', id });
+          return Promise.resolve({ error: null });
+        });
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue(opts.systemById),
+          delete: vi.fn().mockReturnValue({ eq: eqOnDelete }),
+        };
+      }
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: unknown) => {
+            auditInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
+      return {} as never;
+    }),
+  };
+  return { service: { service }, deleted, auditInserts };
 }
