@@ -46,7 +46,7 @@ INSERT INTO penalty_rulesets (
   first_black_card_forfeit, second_black_card_forfeit
 ) VALUES (
   'ffamhe_tf_2026',
-  '2026',
+  '1.0.0',
   'Penalty - Tournois fédéraux FFAMHE',
   TRUE,
   TRUE,
@@ -68,7 +68,7 @@ DELETE FROM penalty_ruleset_entries
 WHERE ruleset_id = (
   SELECT id FROM penalty_rulesets
   WHERE code = 'ffamhe_tf_2026'
-    AND version = '2026'
+    AND version = '1.0.0'
     AND owner_organization_id IS NULL
 );
 
@@ -116,6 +116,6 @@ FROM (VALUES
 CROSS JOIN (
   SELECT id AS ruleset_id FROM penalty_rulesets
   WHERE code = 'ffamhe_tf_2026'
-    AND version = '2026'
+    AND version = '1.0.0'
     AND owner_organization_id IS NULL
 ) r;

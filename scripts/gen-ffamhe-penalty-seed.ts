@@ -29,7 +29,7 @@ const hash = createHash('sha256').update(csv).digest('hex');
 
 const parsed = parsePenaltyRulesetCsv(csv, {
   code: 'ffamhe_tf_2026',
-  version: '2026',
+  version: '1.0.0',
   name: 'Penalty - Tournois fédéraux FFAMHE',
   accumulationScope: 'match',
   builtIn: true,

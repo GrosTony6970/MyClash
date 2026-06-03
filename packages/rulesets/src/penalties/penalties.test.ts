@@ -37,7 +37,7 @@ describe('penalty rulesets', () => {
     const parsed = parsePenaltyRulesetCsv(csv, {
       code: 'ffamhe_tf_2026',
       name: 'Penalty - Tournois fédéraux FFAMHE',
-      version: '2026',
+      version: '1.0.0',
       accumulationScope: 'match',
       builtIn: true,
     });
