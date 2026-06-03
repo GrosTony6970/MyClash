@@ -16,3 +16,4 @@ export * from './staff';
 export * from './workshops';
 export * from './referees';
 export * from './leagues';
+export * from './venues';

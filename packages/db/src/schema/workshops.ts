@@ -3,7 +3,7 @@
  * Workshops are scoped to an Event (not a Tournament).
  */
 import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { lices, events } from './events';
+import { events } from './events';
 import { fighters } from './fighters';
 
 // ── Workshops ─────────────────────────────────────────────────────────────────
@@ -46,6 +46,11 @@ export const workshopInstructors = pgTable('workshop_instructors', {
 });
 
 // ── Workshop sessions ─────────────────────────────────────────────────────────
+//
+// `venue_id` + `area_id` (added in migration 0088) replace the
+// legacy `lice_id` column (dropped in the same migration). FKs are
+// declared in the migration; here we keep plain UUID columns to
+// avoid a circular import with venues.ts.
 export const workshopSessions = pgTable('workshop_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   workshopId: uuid('workshop_id')
@@ -54,7 +59,8 @@ export const workshopSessions = pgTable('workshop_sessions', {
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
   locationLabel: text('location_label'),
-  liceId: uuid('lice_id').references(() => lices.id, { onDelete: 'set null' }),
+  venueId: uuid('venue_id'),
+  areaId: uuid('area_id'),
   notes: text('notes'),
   status: text('status').notNull().default('scheduled'),
   // scheduled | running | completed | cancelled

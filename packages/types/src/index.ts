@@ -9,3 +9,4 @@ export * from './programme';
 export * from './persons';
 export * from './round-code';
 export * from './scoring-config';
+export * from './venue';

@@ -44,11 +44,17 @@ export const themes = pgTable('themes', {
 });
 
 // ── Lices (pistes / fighting arenas) ─────────────────────────────────────────
+//
+// `venue_id` (added in migration 0088) is declared as a plain UUID
+// column here to avoid a circular import between events.ts and
+// venues.ts. The FK constraint lives in the migration; Drizzle still
+// sees a uuid column for type generation and queries.
 export const lices = pgTable('lices', {
   id: uuid('id').primaryKey().defaultRandom(),
   eventId: uuid('event_id')
     .notNull()
     .references(() => events.id, { onDelete: 'cascade' }),
+  venueId: uuid('venue_id'),
   name: text('name').notNull(),
   locationLabel: text('location_label'),
   colorHex: text('color_hex'),
