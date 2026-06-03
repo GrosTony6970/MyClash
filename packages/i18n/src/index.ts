@@ -2381,16 +2381,6 @@ export const en = {
     },
   },
   organizer: {
-    eventVenues: {
-      title: 'Venues for this event',
-      description:
-        "Venues this event uses, derived from your tournament's lices and your workshop sessions. Manage the catalogue itself from the org-level Venues page.",
-      manageCatalogue: 'Open catalogue',
-      lices: 'Lices in this venue',
-      empty: 'No venues attached to this event yet.',
-      emptyHint:
-        'Once you assign a lice or a workshop session to a venue, it will show up here. Create venues from the org-level catalogue first.',
-    },
     venues: {
       title: 'Venues',
       description:
@@ -2941,7 +2931,6 @@ export const en = {
         referees: 'Referees',
         refereeAssignments: 'Referee Assignments',
         compensation: 'Compensation',
-        venues: 'Venues',
         workshops: 'Workshops',
         theme: 'Branding',
         staff: 'Event Staff',
@@ -6224,16 +6213,6 @@ export const fr = {
     },
   },
   organizer: {
-    eventVenues: {
-      title: 'Lieux de cet evenement',
-      description:
-        'Lieux utilises par cet evenement, derives des lices des tournois et des sessions d ateliers. Gerez le catalogue depuis la page Lieux au niveau de l organisation.',
-      manageCatalogue: 'Ouvrir le catalogue',
-      lices: 'Lices dans ce lieu',
-      empty: 'Aucun lieu attache a cet evenement pour le moment.',
-      emptyHint:
-        'Des qu une lice ou une session d atelier est associee a un lieu, il apparaitra ici. Commencez par creer des lieux dans le catalogue de l organisation.',
-    },
     venues: {
       title: 'Lieux',
       description:
@@ -6790,7 +6769,6 @@ export const fr = {
         referees: 'Arbitres',
         refereeAssignments: "Affectations d'arbitres",
         compensation: 'Compensation',
-        venues: 'Lieux',
         workshops: 'Stages',
         staff: 'Staff evenement',
         notifications: 'Notifications',
