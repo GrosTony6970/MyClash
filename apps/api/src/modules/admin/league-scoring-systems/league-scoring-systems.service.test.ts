@@ -575,6 +575,66 @@ describe('LeagueScoringSystemsService', () => {
       NotFoundException,
     );
   });
+
+  // ── setDefault behaviour (slice 3) ────────────────────────────────────────
+
+  it('setDefault() flips the target row to is_default=true', async () => {
+    const target = {
+      id: 'sys-target',
+      code: 'foo',
+      name: 'Foo',
+      is_builtin: false,
+      is_default: false,
+    };
+    const { service, updates, auditInserts } = buildSetDefaultSupabase({
+      systemById: { data: target, error: null },
+      updateResult: { ...target, is_default: true },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const row = await svc.setDefault('sys-target', 'user-1');
+    expect(row.is_default).toBe(true);
+    // First UPDATE clears every prior default; second UPDATE sets the new one.
+    expect(updates).toEqual([
+      expect.objectContaining({
+        kind: 'clear-prior',
+        payload: expect.objectContaining({ is_default: false }),
+      }),
+      expect.objectContaining({
+        kind: 'set-new',
+        id: 'sys-target',
+        payload: expect.objectContaining({ is_default: true }),
+      }),
+    ]);
+    expect(auditInserts[0]).toMatchObject({
+      action: 'league.scoring_system.default_set',
+      entity_id: 'sys-target',
+      payload_json: expect.objectContaining({ code: 'foo' }),
+    });
+  });
+
+  it('setDefault() works on built-in rows (lock lifted, matches slice 2 decisions)', async () => {
+    const target = {
+      id: 'sys-builtin',
+      code: 'ffamhe_tf_2026',
+      name: 'FFAMHE TF 2026',
+      is_builtin: true,
+      is_default: false,
+    };
+    const { service, updates } = buildSetDefaultSupabase({
+      systemById: { data: target, error: null },
+      updateResult: { ...target, is_default: true },
+    });
+    const svc = new LeagueScoringSystemsService(service as never);
+    const row = await svc.setDefault('sys-builtin', 'user-1');
+    expect(row.is_default).toBe(true);
+    expect(updates).toHaveLength(2);
+  });
+
+  it('setDefault() rejects non-super-admin callers', async () => {
+    const { service } = makeNonSuperAdminSupabase();
+    const svc = new LeagueScoringSystemsService(service as never);
+    await expect(svc.setDefault('sys-1', 'user-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });
 
 // ── Clone-test helper: extends buildSupabase with code-existence lookup ─────
@@ -857,4 +917,66 @@ function buildDeleteSupabase(opts: { systemById: Result; leaguesUsingCount: numb
     }),
   };
   return { service: { service }, deleted, auditInserts };
+}
+
+// ── setDefault-test helper: source row + two-UPDATE capture ─────────────────
+
+function buildSetDefaultSupabase(opts: {
+  systemById: Result;
+  updateResult: Record<string, unknown>;
+}) {
+  const updates: Array<{ kind: 'clear-prior' | 'set-new'; id?: string; payload: unknown }> = [];
+  const auditInserts: unknown[] = [];
+  let systemsUpdateCalls = 0;
+
+  const service = {
+    from: vi.fn((table: string) => {
+      if (table === 'platform_roles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+        };
+      }
+      if (table === 'league_scoring_systems') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue(opts.systemById),
+          single: vi.fn().mockResolvedValue({ data: opts.updateResult, error: null }),
+          update: vi.fn((payload: unknown) => {
+            systemsUpdateCalls += 1;
+            // 1st UPDATE = .update(...).eq('is_default', true) → resolves with { error: null }.
+            // 2nd UPDATE = .update(...).eq('id', target).select('*').single() → resolves with row.
+            if (systemsUpdateCalls === 1) {
+              updates.push({ kind: 'clear-prior', payload });
+              const eqMock = vi.fn(() => Promise.resolve({ error: null }));
+              return { eq: eqMock };
+            }
+            updates.push({ kind: 'set-new', id: 'sys-target', payload });
+            // Capture the id from the eq() call
+            const eqMock = vi.fn((_col: string, id: string) => {
+              const last = updates[updates.length - 1];
+              if (last) last.id = id;
+              return {
+                select: vi.fn().mockReturnThis(),
+                single: vi.fn().mockResolvedValue({ data: opts.updateResult, error: null }),
+              };
+            });
+            return { eq: eqMock };
+          }),
+        };
+      }
+      if (table === 'audit_log') {
+        return {
+          insert: vi.fn((payload: unknown) => {
+            auditInserts.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          }),
+        };
+      }
+      return {} as never;
+    }),
+  };
+  return { service: { service }, updates, auditInserts };
 }

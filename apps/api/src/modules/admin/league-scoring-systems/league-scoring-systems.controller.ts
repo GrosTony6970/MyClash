@@ -73,6 +73,16 @@ export class LeagueScoringSystemsController {
     return this.service.clone(id, getActorId(req));
   }
 
+  @Patch(':id/set-default')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({
+    summary:
+      'Mark a league scoring system as the catalogue default (auto-clears the prior default).',
+  })
+  async setDefault(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.service.setDefault(id, getActorId(req));
+  }
+
   @Get(':id/versions')
   @ApiOperation({ summary: 'List version history for a scoring system' })
   async listVersions(@Param('id', ParseUUIDPipe) id: string) {

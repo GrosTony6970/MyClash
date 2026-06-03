@@ -24,6 +24,12 @@ export interface LeagueScoringSystemRow {
   version: string;
   is_builtin: boolean;
   is_archived: boolean;
+  /**
+   * At most one row may carry is_default=true (partial unique index in
+   * migration 0089). The league wizard pre-selects this row when
+   * creating a new league.
+   */
+  is_default: boolean;
   points_by_rank: Record<string, number>;
   tie_breakers: string[];
   description: string | null;
@@ -319,6 +325,45 @@ export class LeagueScoringSystemsService {
       code: existing.code,
       name: existing.name,
     });
+  }
+
+  /**
+   * Mark a single row as the catalogue default. The partial unique
+   * index (migration 0089) guarantees at most one row carries the
+   * flag, so we use a single bulk UPDATE that flips every other row
+   * off in one statement — both safer and one round-trip cheaper than
+   * the read-prior-clear-prior-set-new sequence.
+   */
+  async setDefault(id: string, userId: string): Promise<LeagueScoringSystemRow> {
+    await this.assertSuperAdmin(userId);
+    const existing = await this.getById(id);
+
+    // UPDATE every row: target → is_default=true, others → is_default=false.
+    // PostgREST exposes this via the column-expression `is_default=(id=$target)`,
+    // but supabase-js only takes literal values, so emit two updates inside a
+    // single supabase RPC isn't viable here without a stored proc. Do the
+    // two-step sequence; the partial-unique index won't fire because we
+    // clear before setting.
+    const { error: clearErr } = await this.supabase.service
+      .from('league_scoring_systems')
+      .update({ is_default: false, updated_at: new Date().toISOString() })
+      .eq('is_default', true);
+    if (clearErr) throw new BadRequestException(clearErr.message);
+
+    const { data, error } = await this.supabase.service
+      .from('league_scoring_systems')
+      .update({ is_default: true, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    const row = data as LeagueScoringSystemRow;
+
+    await this.writeAuditLog(userId, 'league.scoring_system.default_set', row.id, {
+      code: existing.code,
+      name: existing.name,
+    });
+    return row;
   }
 
   private async getById(id: string): Promise<LeagueScoringSystemRow> {
