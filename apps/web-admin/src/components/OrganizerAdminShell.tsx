@@ -27,6 +27,11 @@ const orgNavItems = [
     labelKey: 'organizer.shell.nav.compensationSettings',
     badge: 'C',
   },
+  // Venues are org-level — operators manage the catalogue from this
+  // entry. The event sidebar no longer surfaces venues; the
+  // workshop + session venue pickers consume the org catalogue
+  // directly.
+  { href: 'venues', labelKey: 'organizer.shell.nav.venues', badge: 'V' },
 ] as const;
 
 const eventNavItems = [
@@ -39,7 +44,6 @@ const eventNavItems = [
   { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
   { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
   { href: 'compensation', labelKey: 'organizer.eventHub.sections.compensation', badge: 'C' },
-  { href: 'venues', labelKey: 'organizer.eventHub.sections.venues', badge: 'V' },
   { href: 'workshops', labelKey: 'organizer.eventHub.sections.workshops', badge: 'W' },
   { href: 'staff', labelKey: 'organizer.eventHub.sections.staff', badge: 'ST' },
   { href: 'notifications', labelKey: 'organizer.eventHub.sections.notifications', badge: 'N' },
