@@ -7,6 +7,7 @@ import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
+import { LogoCropperModal } from './_components/LogoCropperModal';
 
 interface DashboardStats {
   eventsTotal: number;
@@ -50,6 +51,9 @@ export default function OrgDashboardPage() {
   const [brandColorDraft, setBrandColorDraft] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // File freshly picked from the input — when set, the cropper
+  // modal opens. Cleared once the operator saves or cancels.
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
   const logoInput = useRef<HTMLInputElement | null>(null);
   const orgName = org?.name ?? slug;
 
@@ -260,7 +264,7 @@ export default function OrgDashboardPage() {
             <div className="h-32 w-32 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
               {org?.logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={org.logoUrl} alt="" className="h-full w-full object-cover" />
+                <img src={org.logoUrl} alt="" className="h-full w-full object-contain p-1" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase tracking-wider text-slate-400">
                   {orgName.slice(0, 2)}
@@ -274,7 +278,22 @@ export default function OrgDashboardPage() {
               className="hidden"
               onChange={(ev: ChangeEvent<HTMLInputElement>) => {
                 const file = ev.target.files?.[0];
-                if (file) void uploadLogo(file);
+                // Validate up front so a bad file doesn't open the
+                // cropper. Once it opens, the operator's only escape
+                // is Cancel — surfacing the size / type error here
+                // mirrors the previous flow.
+                if (!file) return;
+                if (file.size > 10 * 1024 * 1024) {
+                  setError(t('organizer.events.logoTooLarge'));
+                  ev.target.value = '';
+                  return;
+                }
+                if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+                  setError(t('organizer.events.logoWrongType'));
+                  ev.target.value = '';
+                  return;
+                }
+                setPendingLogoFile(file);
                 ev.target.value = '';
               }}
             />
@@ -311,27 +330,30 @@ export default function OrgDashboardPage() {
                 {t('organizer.dashboard.brand.slugReadOnly')}
               </span>
             </label>
-            <div className="grid gap-2 text-sm font-semibold text-slate-700">
-              <span>{t('organizer.dashboard.brand.colorLabel')}</span>
-              <div className="flex items-center gap-3">
-                <ColorSwatchPicker
-                  value={brandColorDraft || '#64748b'}
-                  onChange={(hex) => setBrandColorDraft(hex)}
-                  ariaLabel={t('organizer.dashboard.brand.colorAriaLabel')}
-                />
-                {brandColorDraft && (
-                  <button
-                    type="button"
-                    onClick={() => setBrandColorDraft('')}
-                    className="rounded text-xs font-normal text-slate-500 underline hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
-                  >
-                    {t('organizer.dashboard.brand.colorClear')}
-                  </button>
-                )}
+            <div className="grid gap-4 md:grid-cols-2 md:gap-6">
+              <div className="grid gap-2 text-sm font-semibold text-slate-700">
+                <span>{t('organizer.dashboard.brand.colorLabel')}</span>
+                <div className="flex items-center gap-3">
+                  <ColorSwatchPicker
+                    value={brandColorDraft || '#64748b'}
+                    onChange={(hex) => setBrandColorDraft(hex)}
+                    ariaLabel={t('organizer.dashboard.brand.colorAriaLabel')}
+                  />
+                  {brandColorDraft && (
+                    <button
+                      type="button"
+                      onClick={() => setBrandColorDraft('')}
+                      className="rounded text-xs font-normal text-slate-500 underline hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                    >
+                      {t('organizer.dashboard.brand.colorClear')}
+                    </button>
+                  )}
+                </div>
+                <span className="text-xs font-normal text-slate-400">
+                  {t('organizer.dashboard.brand.colorHelp')}
+                </span>
               </div>
-              <span className="text-xs font-normal text-slate-400">
-                {t('organizer.dashboard.brand.colorHelp')}
-              </span>
+              <BrandColorPreview color={brandColorDraft} orgName={orgName} />
             </div>
             <div className="flex justify-end">
               <button
@@ -352,6 +374,62 @@ export default function OrgDashboardPage() {
           </form>
         </div>
       </section>
+
+      {pendingLogoFile && (
+        <LogoCropperModal
+          file={pendingLogoFile}
+          onCancel={() => setPendingLogoFile(null)}
+          onSave={async (blob) => {
+            // Bake the crop into a File so the existing uploadLogo
+            // happy path (validation + FormData + toast + refetch)
+            // doesn't need to fork. The blob is always a baked PNG,
+            // already under the size cap unless the source was huge.
+            const cropped = new File([blob], 'logo.png', { type: 'image/png' });
+            setPendingLogoFile(null);
+            await uploadLogo(cropped);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Live preview of the brand colour applied to its canonical surface
+ * — the public event-card accent stripe at
+ * apps/web-public/app/_components/EventsListSections.tsx:182. When
+ * the operator picks a swatch the left border + "Live" pill update
+ * immediately; when the colour is cleared we fall back to the same
+ * `#dc2626` default the public page uses, so the preview is
+ * pixel-faithful for both states.
+ */
+function BrandColorPreview({ color, orgName }: { color: string; orgName: string }) {
+  const { t } = useI18n();
+  const accent = color || '#dc2626';
+  return (
+    <div className="grid gap-2 text-sm font-semibold text-slate-700">
+      <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        {t('organizer.dashboard.brand.previewLabel')}
+      </span>
+      <div
+        className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+        style={{ borderLeftWidth: '4px', borderLeftColor: accent }}
+      >
+        <div className="mb-2 inline-flex items-center gap-2">
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white"
+            style={{ backgroundColor: accent }}
+          >
+            {t('organizer.dashboard.brand.previewLivePill')}
+          </span>
+        </div>
+        <p className="text-base font-semibold text-stone-900">
+          {t('organizer.dashboard.brand.previewEventTitle')}
+        </p>
+        <p className="text-xs font-normal text-stone-500">
+          {orgName} · {t('organizer.dashboard.brand.previewEventDate')}
+        </p>
+      </div>
+    </div>
   );
 }
