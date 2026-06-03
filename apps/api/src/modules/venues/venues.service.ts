@@ -1,0 +1,260 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { SupabaseService } from '../supabase/supabase.service';
+import { OrganizationsService } from '../organizations/organizations.service';
+import type {
+  CreateVenueAreaDto,
+  CreateVenueDto,
+  UpdateVenueAreaDto,
+  UpdateVenueDto,
+} from './dto/venues.dto';
+
+type Row = Record<string, unknown>;
+
+/**
+ * Venues — org-level catalogue of physical locations reusable
+ * across many events. CRUD is org-admin gated. Deletion refuses
+ * while any lice or workshop_session still references the venue;
+ * the operator must detach those first.
+ */
+@Injectable()
+export class VenuesService {
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+  ) {}
+
+  // ── Venues ──────────────────────────────────────────────────────────────────
+
+  async listForOrg(organizationId: string) {
+    const { data, error } = await this.supabase.service
+      .from('venues')
+      .select('*, venue_areas(id, name, sort_order)')
+      .eq('organization_id', organizationId)
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  async get(venueId: string) {
+    const { data, error } = await this.supabase.service
+      .from('venues')
+      .select('*, venue_areas(id, name, sort_order)')
+      .eq('id', venueId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Venue ${venueId} not found`);
+    return data;
+  }
+
+  async create(organizationId: string, dto: CreateVenueDto, userId: string) {
+    await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    const { data, error } = await this.supabase.service
+      .from('venues')
+      .insert({
+        organization_id: organizationId,
+        name: dto.name.trim(),
+        address: dto.address?.trim() ?? null,
+        hosts_tournament: dto.hostsTournament ?? true,
+        hosts_workshop: dto.hostsWorkshop ?? true,
+        sort_order: dto.sortOrder ?? 0,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message.includes('duplicate'))
+        throw new ConflictException(`Venue name "${dto.name}" already exists in this organization`);
+      throw new BadRequestException(error.message);
+    }
+    return data;
+  }
+
+  async update(venueId: string, dto: UpdateVenueDto, userId: string) {
+    const orgId = await this.assertCanManageVenue(venueId, userId);
+    const updates: Row = { updated_at: new Date().toISOString() };
+    if (dto.name !== undefined) updates['name'] = dto.name.trim();
+    if (dto.address !== undefined) updates['address'] = dto.address?.trim() ?? null;
+    if (dto.hostsTournament !== undefined) updates['hosts_tournament'] = dto.hostsTournament;
+    if (dto.hostsWorkshop !== undefined) updates['hosts_workshop'] = dto.hostsWorkshop;
+    if (dto.sortOrder !== undefined) updates['sort_order'] = dto.sortOrder;
+
+    const { data, error } = await this.supabase.service
+      .from('venues')
+      .update(updates)
+      .eq('id', venueId)
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message.includes('duplicate'))
+        throw new ConflictException(`Venue name already exists in this organization`);
+      throw new BadRequestException(error.message);
+    }
+    // organizationId from the assert step is the canonical owner; not
+    // returned but available for audit consumers.
+    void orgId;
+    return data;
+  }
+
+  async delete(venueId: string, userId: string): Promise<void> {
+    await this.assertCanManageVenue(venueId, userId);
+
+    // Refuse if anything still points at this venue. Operators must
+    // detach lices / workshop sessions first; mass-delete would
+    // otherwise silently orphan whole tournament setups.
+    const inUse = await this.isVenueInUse(venueId);
+    if (inUse) {
+      throw new ConflictException(
+        `Venue is still referenced by ${inUse.detail}. Detach those first or delete them, then retry.`,
+      );
+    }
+
+    const { error } = await this.supabase.service.from('venues').delete().eq('id', venueId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  // ── Venue areas ─────────────────────────────────────────────────────────────
+
+  async createArea(venueId: string, dto: CreateVenueAreaDto, userId: string) {
+    await this.assertCanManageVenue(venueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('venue_areas')
+      .insert({
+        venue_id: venueId,
+        name: dto.name.trim(),
+        sort_order: dto.sortOrder ?? 0,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message.includes('duplicate'))
+        throw new ConflictException(`Area name "${dto.name}" already exists in this venue`);
+      throw new BadRequestException(error.message);
+    }
+    return data;
+  }
+
+  async updateArea(areaId: string, dto: UpdateVenueAreaDto, userId: string) {
+    const venueId = await this.assertCanManageArea(areaId, userId);
+    const updates: Row = {};
+    if (dto.name !== undefined) updates['name'] = dto.name.trim();
+    if (dto.sortOrder !== undefined) updates['sort_order'] = dto.sortOrder;
+
+    const { data, error } = await this.supabase.service
+      .from('venue_areas')
+      .update(updates)
+      .eq('id', areaId)
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message.includes('duplicate'))
+        throw new ConflictException(`Area name already exists in this venue`);
+      throw new BadRequestException(error.message);
+    }
+    void venueId;
+    return data;
+  }
+
+  async deleteArea(areaId: string, userId: string): Promise<void> {
+    await this.assertCanManageArea(areaId, userId);
+    const { error } = await this.supabase.service.from('venue_areas').delete().eq('id', areaId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  // ── Event-scoped derived listing ────────────────────────────────────────────
+
+  /**
+   * Distinct venues this event references via its lices or its
+   * workshop sessions. Powers the event-scoped Venue tab. Public —
+   * no auth required because the underlying primitives (lices,
+   * workshop_sessions) already have public list endpoints.
+   */
+  async listForEvent(eventId: string) {
+    // Lices for this event → venue ids (non-null).
+    const { data: liceRows, error: liceErr } = await this.supabase.service
+      .from('lices')
+      .select('venue_id')
+      .eq('event_id', eventId)
+      .not('venue_id', 'is', null);
+    if (liceErr) throw new BadRequestException(liceErr.message);
+
+    // Workshop sessions for this event → venue ids. PostgREST can
+    // span workshops to filter on event_id via an inner embed.
+    const { data: sessionRows, error: sessionErr } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('venue_id, workshops!inner(event_id)')
+      .eq('workshops.event_id', eventId)
+      .not('venue_id', 'is', null);
+    if (sessionErr) throw new BadRequestException(sessionErr.message);
+
+    const ids = new Set<string>();
+    for (const r of (liceRows ?? []) as Array<{ venue_id: string | null }>) {
+      if (r.venue_id) ids.add(r.venue_id);
+    }
+    for (const r of (sessionRows ?? []) as Array<{ venue_id: string | null }>) {
+      if (r.venue_id) ids.add(r.venue_id);
+    }
+    if (ids.size === 0) return [];
+
+    const { data, error } = await this.supabase.service
+      .from('venues')
+      .select('*, venue_areas(id, name, sort_order)')
+      .in('id', [...ids])
+      .order('name', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  private async assertCanManageVenue(venueId: string, userId: string): Promise<string> {
+    const { data: venue, error } = await this.supabase.service
+      .from('venues')
+      .select('organization_id')
+      .eq('id', venueId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!venue) throw new NotFoundException(`Venue ${venueId} not found`);
+    const organizationId = String((venue as Row)['organization_id']);
+    await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    return organizationId;
+  }
+
+  private async assertCanManageArea(areaId: string, userId: string): Promise<string> {
+    const { data: area, error } = await this.supabase.service
+      .from('venue_areas')
+      .select('venue_id, venues!inner(organization_id)')
+      .eq('id', areaId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!area) throw new NotFoundException(`Area ${areaId} not found`);
+    const venueId = String((area as Row)['venue_id']);
+    const venue = (area as Row)['venues'] as Row | null;
+    const organizationId = venue ? String(venue['organization_id']) : '';
+    await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    return venueId;
+  }
+
+  private async isVenueInUse(venueId: string): Promise<{ detail: string } | null> {
+    const { count: liceCount, error: liceErr } = await this.supabase.service
+      .from('lices')
+      .select('id', { count: 'exact', head: true })
+      .eq('venue_id', venueId);
+    if (liceErr) throw new BadRequestException(liceErr.message);
+    const { count: sessionCount, error: sessionErr } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('venue_id', venueId);
+    if (sessionErr) throw new BadRequestException(sessionErr.message);
+
+    const parts: string[] = [];
+    if ((liceCount ?? 0) > 0) parts.push(`${liceCount} lice(s)`);
+    if ((sessionCount ?? 0) > 0) parts.push(`${sessionCount} workshop session(s)`);
+    if (parts.length === 0) return null;
+    return { detail: parts.join(' and ') };
+  }
+}

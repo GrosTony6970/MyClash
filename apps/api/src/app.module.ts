@@ -20,6 +20,7 @@ import { StaffModule } from './modules/staff/staff.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { WorkersModule } from './workers/workers.module';
 import { LicesModule } from './modules/lices/lices.module';
+import { VenuesModule } from './modules/venues/venues.module';
 import { LeaguesModule } from './modules/leagues/leagues.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MatchesModule } from './modules/matches/matches.module';
@@ -79,6 +80,7 @@ import { EventReadOnlyGuard } from './common/event-readonly/event-readonly.guard
     FightersModule,
     EventsModule,
     LicesModule,
+    VenuesModule,
     LeaguesModule,
     PenaltiesModule,
     RegistrationsModule,
