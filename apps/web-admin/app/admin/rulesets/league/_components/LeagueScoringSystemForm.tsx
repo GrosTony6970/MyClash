@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { AdminPageHeader, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
-import { ScoringSystemPreview } from './ScoringSystemPreview';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -50,7 +49,6 @@ export interface ScoringSystemFormValues {
   description: string;
   pointsByRank: Record<string, number>;
   tieBreakers: string[];
-  isBuiltin?: boolean;
 }
 
 interface Props {
@@ -114,8 +112,6 @@ export function ScoringSystemForm({ mode, initial }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isBuiltin = initial?.isBuiltin === true;
-
   function onNameChange(value: string) {
     setName(value);
     if (autoCode && mode === 'create') setCode(slugify(value));
@@ -157,18 +153,60 @@ export function ScoringSystemForm({ mode, initial }: Props) {
     });
   }
 
+  /**
+   * points_by_rank shape guards. Returns null when valid, or an
+   * already-translated error string for inline display. Two invariants:
+   *
+   * - **Monotonic non-increasing.** Higher ranks (rank 1, 2, …) must
+   *   earn at least as many points as lower ranks (rank N+1). This is
+   *   the fundamental "winning ranks above" rule.
+   * - **At least one positive value.** All-zero rulesets save silently
+   *   today and produce meaningless season rankings. Block.
+   */
+  function validatePoints(points: Record<string, number>): string | null {
+    const ranks = Object.keys(points)
+      .map(Number)
+      .filter((n) => Number.isInteger(n) && n > 0)
+      .sort((a, b) => a - b);
+    if (ranks.length === 0) return null;
+    let hasPositive = false;
+    for (let i = 0; i < ranks.length - 1; i++) {
+      const here = points[String(ranks[i])] ?? 0;
+      const next = points[String(ranks[i + 1])] ?? 0;
+      if (here < next) {
+        return t('admin.rulesets.shared.form.validation.pointsMonotonic', {
+          higher: ranks[i] as number,
+          lower: ranks[i + 1] as number,
+        });
+      }
+      if (here > 0) hasPositive = true;
+    }
+    const lastValue = points[String(ranks[ranks.length - 1])] ?? 0;
+    if (lastValue > 0) hasPositive = true;
+    if (!hasPositive) return t('admin.rulesets.shared.form.validation.pointsAtLeastOnePositive');
+    return null;
+  }
+
   async function submit() {
-    if (isBuiltin) return;
     setBusy(true);
     setError(null);
 
-    // Strip zero-only entries? Operator might want zeros explicit. Keep all.
+    // Sanitise first, then validate against the canonical shape. Operators
+    // may leave zeros explicit (some rank tables award 0 to deep seeds);
+    // we keep them.
     const sanitizedPoints: Record<string, number> = {};
     for (const [k, v] of Object.entries(pointsByRank)) {
       const rank = Number(k);
       if (Number.isInteger(rank) && rank > 0) {
         sanitizedPoints[String(rank)] = Math.max(0, Math.round(Number(v) || 0));
       }
+    }
+
+    const validationError = validatePoints(sanitizedPoints);
+    if (validationError) {
+      setError(validationError);
+      setBusy(false);
+      return;
     }
 
     try {
@@ -233,11 +271,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
             ? t('admin.rulesets.league.form.createTitle')
             : t('admin.rulesets.league.form.editTitle', { name: initial?.name ?? '' })
         }
-        subtitle={
-          isBuiltin
-            ? t('admin.rulesets.league.form.builtinSubtitle')
-            : t('admin.rulesets.league.form.editSubtitle')
-        }
+        subtitle={t('admin.rulesets.league.form.editSubtitle')}
         actions={
           <Link
             href="/admin/rulesets/league"
@@ -262,8 +296,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
               type="text"
               value={name}
               onChange={(e) => onNameChange(e.target.value)}
-              disabled={isBuiltin}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:bg-slate-50"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
             />
           </label>
           <label className="text-xs font-medium text-slate-600">
@@ -275,7 +308,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                 setAutoCode(false);
                 setCode(e.target.value);
               }}
-              disabled={isBuiltin || mode === 'edit'}
+              disabled={mode === 'edit'}
               placeholder={t('admin.rulesets.league.form.codePlaceholder')}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:bg-slate-50"
             />
@@ -289,8 +322,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              disabled={isBuiltin}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:bg-slate-50"
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
             />
           </label>
         </div>
@@ -300,22 +332,20 @@ export function ScoringSystemForm({ mode, initial }: Props) {
             <p className="text-sm font-semibold text-slate-700">
               {t('admin.rulesets.league.form.pointsByRankLabel')}
             </p>
-            {!isBuiltin && (
-              <button
-                type="button"
-                onClick={addRank}
-                className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
-              >
-                {t('admin.rulesets.league.form.addRankButton')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={addRank}
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+            >
+              {t('admin.rulesets.league.form.addRankButton')}
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
             {sortedRanks.map((rank) => (
               <div key={rank} className="rounded border border-slate-200 p-2">
                 <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-slate-500">
                   <span>{t('admin.rulesets.league.form.rankLabel', { rank })}</span>
-                  {!isBuiltin && sortedRanks.length > 1 && (
+                  {sortedRanks.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeRank(String(rank))}
@@ -336,8 +366,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                       [String(rank)]: Number(e.target.value),
                     }))
                   }
-                  disabled={isBuiltin}
-                  className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:bg-slate-50"
+                  className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
                 />
               </div>
             ))}
@@ -365,7 +394,6 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                       type="checkbox"
                       checked={enabled}
                       onChange={() => toggleTieBreaker(dim)}
-                      disabled={isBuiltin}
                       className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
                     />
                     <span>
@@ -377,7 +405,7 @@ export function ScoringSystemForm({ mode, initial }: Props) {
                       {t(`admin.rulesets.league.form.tieBreakerLabels.${dim}`)}
                     </span>
                   </label>
-                  {enabled && !isBuiltin && (
+                  {enabled && (
                     <div className="flex gap-1">
                       <button
                         type="button"
@@ -405,39 +433,27 @@ export function ScoringSystemForm({ mode, initial }: Props) {
           </ul>
         </div>
 
-        {!isBuiltin && (
-          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-            <Link
-              href="/admin/rulesets/league"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
-            >
-              {t('admin.rulesets.league.form.cancelButton')}
-            </Link>
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={busy}
-              className="rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-60"
-            >
-              {busy
-                ? t('admin.rulesets.league.form.savingButton')
-                : mode === 'create'
-                  ? t('admin.rulesets.league.form.createButton')
-                  : t('admin.rulesets.league.form.saveButton')}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {isBuiltin && initial && (
-        <div className="mt-6">
-          <ScoringSystemPreview
-            pointsByRank={initial.pointsByRank}
-            tieBreakers={initial.tieBreakers}
-            description={initial.description}
-          />
+        <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+          <Link
+            href="/admin/rulesets/league"
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+          >
+            {t('admin.rulesets.league.form.cancelButton')}
+          </Link>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={busy}
+            className="rounded-md bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-60"
+          >
+            {busy
+              ? t('admin.rulesets.league.form.savingButton')
+              : mode === 'create'
+                ? t('admin.rulesets.league.form.createButton')
+                : t('admin.rulesets.league.form.saveButton')}
+          </button>
         </div>
-      )}
+      </div>
     </main>
   );
 }

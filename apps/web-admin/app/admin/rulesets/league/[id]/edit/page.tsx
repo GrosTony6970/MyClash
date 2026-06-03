@@ -16,7 +16,6 @@ interface ScoringSystemRow {
   code: string;
   name: string;
   version?: string;
-  is_builtin: boolean;
   points_by_rank: Record<string, number>;
   tie_breakers: string[];
   description: string | null;
@@ -52,7 +51,6 @@ export default function EditScoringSystemPage() {
           description: found.description ?? '',
           pointsByRank: found.points_by_rank,
           tieBreakers: found.tie_breakers,
-          isBuiltin: found.is_builtin,
         });
       })
       .catch((err: unknown) =>
@@ -79,11 +77,9 @@ export default function EditScoringSystemPage() {
   return (
     <>
       <ScoringSystemForm mode="edit" initial={initial} />
-      {!row.is_builtin && (
-        <div className="mx-auto w-full max-w-3xl px-6 pb-12 lg:px-8">
-          <VersionHistory systemId={row.id} currentVersion={row.version ?? null} />
-        </div>
-      )}
+      <div className="mx-auto w-full max-w-3xl px-6 pb-12 lg:px-8">
+        <VersionHistory systemId={row.id} currentVersion={row.version ?? null} />
+      </div>
     </>
   );
 }
