@@ -2404,6 +2404,8 @@ export const en = {
       hosts: 'Hosts',
       tournamentBadge: 'Tournament',
       workshopBadge: 'Workshop',
+      hostsTournament: 'Tournament',
+      hostsWorkshop: 'Workshop',
       areas: 'Areas',
       areasSection: 'Areas',
       areasHelp:
@@ -6237,6 +6239,8 @@ export const fr = {
       hosts: 'Accueille',
       tournamentBadge: 'Tournoi',
       workshopBadge: 'Atelier',
+      hostsTournament: 'Tournoi',
+      hostsWorkshop: 'Atelier',
       areas: 'Zones',
       areasSection: 'Zones',
       areasHelp:
