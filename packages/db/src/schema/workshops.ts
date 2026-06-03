@@ -7,6 +7,10 @@ import { events } from './events';
 import { fighters } from './fighters';
 
 // ── Workshops ─────────────────────────────────────────────────────────────────
+// `venue_id` (added in migration 0090) is the workshop's default
+// venue. Sessions inherit it via the FE pre-fill at create time; the
+// FK constraint lives in the migration to avoid a circular import
+// with venues.ts.
 export const workshops = pgTable('workshops', {
   id: uuid('id').primaryKey().defaultRandom(),
   eventId: uuid('event_id')
@@ -27,6 +31,7 @@ export const workshops = pgTable('workshops', {
   status: text('status').notNull().default('draft'),
   // draft | published | cancelled
   sortOrder: integer('sort_order').notNull().default(0),
+  venueId: uuid('venue_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
