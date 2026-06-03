@@ -24,6 +24,14 @@ export interface CreateWorkshopDto {
   language?: string;
   capacity: number;
   locationLabel?: string;
+  /**
+   * Default venue for this workshop. Sessions of this workshop
+   * pre-fill their own venue_id from this column at create time;
+   * the operator can still override per session. Must belong to the
+   * same org as the workshop's event — the service rejects cross-org
+   * references.
+   */
+  venueId?: string | null;
 }
 
 export interface UpdateWorkshopDto {
@@ -34,6 +42,11 @@ export interface UpdateWorkshopDto {
   language?: string;
   capacity?: number;
   locationLabel?: string;
+  /**
+   * Repoint the workshop's default venue. Send `null` to clear it
+   * (subsequent sessions will not pre-fill a venue).
+   */
+  venueId?: string | null;
 }
 
 export interface CreateSessionDto {
@@ -70,11 +83,15 @@ export class WorkshopsService {
     // Project the joined venue + area so the workshop admin page can
     // render `Venue · Area` on each session row without a second
     // round-trip. Same idea as lices.list joining venues(id, name).
+    // Workshop-level venue (id, name) is projected via `venues!workshops_venue_id_fkey`
+    // — Supabase picks the right FK by alias when more than one venue
+    // join exists in the projection.
     const { data, error } = await this.supabase.service
       .from('workshops')
       .select(
         `
         *,
+        venues ( id, name ),
         workshop_sessions ( id, start_time, end_time, location, capacity, venue_id, area_id, venues(id, name), venue_areas(id, name) ),
         workshop_instructors ( persons ( id, given_name, family_name ) )
       `,
@@ -94,6 +111,7 @@ export class WorkshopsService {
       .select(
         `
         *,
+        venues ( id, name ),
         workshop_sessions ( *, workshop_enrollments ( id, person_id, status, waitlist_position ) ),
         workshop_instructors ( persons ( id, given_name, family_name, clubs ( name ) ) )
       `,
@@ -119,6 +137,13 @@ export class WorkshopsService {
 
     if (existing) throw new ConflictException(`Workshop slug "${dto.slug}" already exists`);
 
+    // Cross-org guard: a workshop's default venue must belong to the
+    // same org as its event. Mirrors the session-level guard so the
+    // operator can't pick a sibling-org venue from the picker.
+    if (dto.venueId) {
+      await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
+    }
+
     const { data, error } = await this.supabase.service
       .from('workshops')
       .insert({
@@ -131,6 +156,7 @@ export class WorkshopsService {
         language: dto.language ?? 'fr',
         capacity: dto.capacity,
         location_label: dto.locationLabel ?? null,
+        venue_id: dto.venueId ?? null,
       })
       .select('*')
       .single();
@@ -143,6 +169,22 @@ export class WorkshopsService {
   // ── Update workshop ───────────────────────────────────────────────────────────
 
   async updateWorkshop(workshopId: string, dto: UpdateWorkshopDto) {
+    // Repointing the workshop's default venue needs the same cross-org
+    // guard the create path enforces — look up the workshop's event_id
+    // first, then check the new venue's org matches.
+    if (dto.venueId) {
+      const { data: workshopRow } = await this.supabase.service
+        .from('workshops')
+        .select('event_id')
+        .eq('id', workshopId)
+        .maybeSingle();
+      if (!workshopRow) throw new NotFoundException(`Workshop ${workshopId} not found`);
+      await this.assertVenueBelongsToEventsOrg(
+        dto.venueId,
+        String((workshopRow as Record<string, unknown>)['event_id']),
+      );
+    }
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.description !== undefined) updates['description'] = dto.description;
@@ -151,6 +193,7 @@ export class WorkshopsService {
     if (dto.language !== undefined) updates['language'] = dto.language;
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
     if (dto.locationLabel !== undefined) updates['location_label'] = dto.locationLabel;
+    if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
 
     const { data, error } = await this.supabase.service
       .from('workshops')

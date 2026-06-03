@@ -40,6 +40,7 @@ class CreateWorkshopBody implements CreateWorkshopDto {
   @IsOptional() @IsString() language?: string;
   @IsInt() @Min(1) capacity!: number;
   @IsOptional() @IsString() locationLabel?: string;
+  @IsOptional() @IsUUID() venueId?: string | null;
 }
 
 class UpdateWorkshopBody implements UpdateWorkshopDto {
@@ -50,6 +51,7 @@ class UpdateWorkshopBody implements UpdateWorkshopDto {
   @IsOptional() @IsString() language?: string;
   @IsOptional() @IsInt() @Min(1) capacity?: number;
   @IsOptional() @IsString() locationLabel?: string;
+  @IsOptional() @IsUUID() venueId?: string | null;
 }
 
 class CreateSessionBody implements CreateSessionDto {
