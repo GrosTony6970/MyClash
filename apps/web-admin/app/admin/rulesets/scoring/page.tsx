@@ -332,7 +332,7 @@ export default function AdminRulesetsPage() {
         credentials: 'include',
       });
       if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.deleteAction'));
+        toast.success(t('admin.rulesets.shared.actions.delete'));
         setDeleteTarget(null);
         refreshCurated();
       } else {
@@ -403,7 +403,7 @@ export default function AdminRulesetsPage() {
                   <th className="px-4 py-3">{t('admin.rulesets.colSubmittedBy')}</th>
                   <th className="px-4 py-3">{t('admin.rulesets.colStatus')}</th>
                   <th className="px-4 py-3">{t('admin.rulesets.colCreated')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colActions')}</th>
+                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -496,13 +496,13 @@ export default function AdminRulesetsPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="px-4 py-3">{t('admin.rulesets.colName')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colCode')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colVersion')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colSource')}</th>
+                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
+                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
+                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
+                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.source')}</th>
                   <th className="px-4 py-3">{t('admin.rulesets.colStatus')}</th>
                   <th className="px-4 py-3">{t('admin.rulesets.colDefault')}</th>
-                  <th className="px-4 py-3">{t('admin.rulesets.colActions')}</th>
+                  <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -525,8 +525,8 @@ export default function AdminRulesetsPage() {
                         variant={row.is_system ? 'builtin' : 'custom'}
                         label={
                           row.is_system
-                            ? t('admin.rulesets.sourceSystem')
-                            : t('admin.rulesets.sourceCustom')
+                            ? t('admin.rulesets.shared.badges.builtin')
+                            : t('admin.rulesets.shared.badges.custom')
                         }
                       />
                     </td>
@@ -535,8 +535,8 @@ export default function AdminRulesetsPage() {
                         variant={row.status === 'published' ? 'published' : 'draft'}
                         label={
                           row.status === 'published'
-                            ? t('admin.rulesets.statusPublished')
-                            : t('admin.rulesets.statusDraft')
+                            ? t('admin.rulesets.shared.badges.published')
+                            : t('admin.rulesets.shared.badges.draft')
                         }
                       />
                     </td>
@@ -544,7 +544,7 @@ export default function AdminRulesetsPage() {
                       {row.is_default ? (
                         <RulesetBadge
                           variant="default"
-                          label={`★ ${t('admin.rulesets.defaultBadge')}`}
+                          label={t('admin.rulesets.shared.badges.default')}
                         />
                       ) : null}
                     </td>
@@ -562,7 +562,7 @@ export default function AdminRulesetsPage() {
                         >
                           {row.is_system
                             ? t('admin.rulesets.viewAction')
-                            : t('admin.rulesets.editAction')}
+                            : t('admin.rulesets.shared.actions.edit')}
                         </Link>
                         {/* R3: org-submitted rows show Approve/Reject actions. */}
                         {row.submitted_for_review_at && (
@@ -585,7 +585,7 @@ export default function AdminRulesetsPage() {
                           variant="neutral"
                           onClick={() => void performCuratedAction(row.id, 'clone')}
                         >
-                          {t('admin.rulesets.cloneAction')}
+                          {t('admin.rulesets.shared.actions.clone')}
                         </RowActionButton>
                         {!row.is_system && row.status !== 'published' ? (
                           <RowActionButton
@@ -613,7 +613,7 @@ export default function AdminRulesetsPage() {
                         ) : null}
                         {!row.is_system ? (
                           <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                            {t('admin.rulesets.deleteAction')}
+                            {t('admin.rulesets.shared.actions.delete')}
                           </RowActionButton>
                         ) : null}
                       </div>
@@ -655,9 +655,9 @@ export default function AdminRulesetsPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={t('admin.rulesets.deleteAction')}
-        description={t('admin.rulesets.confirmDelete')}
-        confirmLabel={t('admin.rulesets.deleteAction')}
+        title={t('admin.rulesets.shared.actions.delete')}
+        description={t('admin.rulesets.shared.confirmDelete')}
+        confirmLabel={t('admin.rulesets.shared.actions.delete')}
         danger
         busy={actionBusy}
         onCancel={() => setDeleteTarget(null)}

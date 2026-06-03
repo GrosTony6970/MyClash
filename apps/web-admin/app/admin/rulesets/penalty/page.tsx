@@ -84,7 +84,7 @@ export default function AdminPenaltyRulesetsPage() {
         credentials: 'include',
       });
       if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.deleteAction'));
+        toast.success(t('admin.rulesets.shared.actions.delete'));
         setDeleteTarget(null);
         refresh();
       } else {
@@ -176,12 +176,12 @@ export default function AdminPenaltyRulesetsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-3">{t('admin.rulesets.colName')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.colCode')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.colVersion')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.colSource')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.source')}</th>
                 <th className="px-4 py-3">{t('admin.penaltyRulesets.colScope')}</th>
-                <th className="px-4 py-3">{t('admin.rulesets.colActions')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -206,8 +206,8 @@ export default function AdminPenaltyRulesetsPage() {
                       variant={row.built_in ? 'builtin' : 'custom'}
                       label={
                         row.built_in
-                          ? t('admin.penaltyRulesets.sourceBuiltIn')
-                          : t('admin.penaltyRulesets.sourceCustom')
+                          ? t('admin.rulesets.shared.badges.builtin')
+                          : t('admin.rulesets.shared.badges.custom')
                       }
                     />
                   </td>
@@ -231,7 +231,7 @@ export default function AdminPenaltyRulesetsPage() {
                         href={`/admin/rulesets/penalty/${row.id}/edit`}
                         className={rowActionClasses('edit')}
                       >
-                        {t('admin.rulesets.editAction')}
+                        {t('admin.rulesets.shared.actions.edit')}
                       </Link>
                       {/* R3: org-submitted sharing requests show Approve / Reject actions. */}
                       {row.public_visibility_request_status === 'pending' && (
@@ -252,7 +252,7 @@ export default function AdminPenaltyRulesetsPage() {
                       )}
                       {!row.built_in && (
                         <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                          {t('admin.rulesets.deleteAction')}
+                          {t('admin.rulesets.shared.actions.delete')}
                         </RowActionButton>
                       )}
                     </div>
@@ -266,9 +266,9 @@ export default function AdminPenaltyRulesetsPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={t('admin.rulesets.deleteAction')}
-        description={t('admin.rulesets.confirmDelete')}
-        confirmLabel={t('admin.rulesets.deleteAction')}
+        title={t('admin.rulesets.shared.actions.delete')}
+        description={t('admin.rulesets.shared.confirmDelete')}
+        confirmLabel={t('admin.rulesets.shared.actions.delete')}
         cancelLabel={t('admin.rulesets.cancel')}
         danger
         busy={busy}

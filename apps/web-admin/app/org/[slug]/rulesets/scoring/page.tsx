@@ -120,7 +120,7 @@ export default function OrgScoringRulesetsPage() {
         { method: 'DELETE', credentials: 'include' },
       );
       if (res.ok || res.status === 204) {
-        toast.success(t('admin.rulesets.deleteAction'));
+        toast.success(t('admin.rulesets.shared.actions.delete'));
         setDeleteTarget(null);
         refresh();
       } else {
@@ -156,7 +156,7 @@ export default function OrgScoringRulesetsPage() {
   function rowSource(row: CustomRulesetRow): { label: string; className: string } {
     if (row.is_system)
       return {
-        label: t('admin.rulesets.sourceSystem'),
+        label: t('admin.rulesets.shared.badges.builtin'),
         className: 'bg-emerald-100 text-emerald-800',
       };
     if (row.owner_organization_id === orgId)
@@ -224,12 +224,12 @@ export default function OrgScoringRulesetsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-2">{t('admin.rulesets.colName')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colCode')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colVersion')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colSource')}</th>
+                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.name')}</th>
+                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.code')}</th>
+                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.version')}</th>
+                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.source')}</th>
                 <th className="px-4 py-2">{t('admin.rulesets.colSubmission')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colActions')}</th>
+                <th className="px-4 py-2">{t('admin.rulesets.shared.columns.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -282,7 +282,7 @@ export default function OrgScoringRulesetsPage() {
                             href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
                             className={rowActionClasses('edit')}
                           >
-                            {t('admin.rulesets.editAction')}
+                            {t('admin.rulesets.shared.actions.edit')}
                           </Link>
                         )}
                         {canSubmit && (
@@ -295,7 +295,7 @@ export default function OrgScoringRulesetsPage() {
                         )}
                         {isMine && (
                           <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
-                            {t('admin.rulesets.deleteAction')}
+                            {t('admin.rulesets.shared.actions.delete')}
                           </RowActionButton>
                         )}
                       </div>
@@ -310,9 +310,9 @@ export default function OrgScoringRulesetsPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={t('admin.rulesets.deleteAction')}
-        description={t('admin.rulesets.confirmDelete')}
-        confirmLabel={t('admin.rulesets.deleteAction')}
+        title={t('admin.rulesets.shared.actions.delete')}
+        description={t('admin.rulesets.shared.confirmDelete')}
+        confirmLabel={t('admin.rulesets.shared.actions.delete')}
         cancelLabel={t('admin.rulesets.cancel')}
         danger
         busy={busy}
