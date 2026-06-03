@@ -63,12 +63,6 @@ interface RoleConfig {
   displayName: string;
 }
 
-interface Qualification {
-  personId: string;
-  role: string;
-  active: boolean;
-}
-
 interface PoolWithMatches {
   poolId: string;
   poolName: string;
@@ -80,14 +74,19 @@ interface Lice {
   name: string;
 }
 
-// Shape returned by GET /api/v1/events/:eventId/persons — camelCase per
-// mapPerson() in apps/api/src/modules/persons/persons.service.ts. There
-// is no display_name on the Person type; we build the label from
-// givenName + familyName.
+// Shape returned by GET /api/v1/events/:eventId/referees — mirrors
+// EventRefereeRow in apps/api/src/modules/referees/qualifications.service.ts.
+// Post-0063, personId is global_persons.id — the canonical key matching
+// referee_qualifications.person_id, event_referees.person_id, and
+// referee_assignments.person_id (the persist target on
+// PUT /matches/:id/referee-role-assignments).
 interface Referee {
-  id: string;
-  givenName?: string | null;
-  familyName?: string | null;
+  personId: string;
+  displayName: string;
+  clubLabel: string | null;
+  /** Per-role qualifications. We rebuild the role-to-personId map locally
+   *  to filter dropdown options per slot's role. */
+  qualifications: Array<{ skillId: string; rating: number | null }>;
 }
 
 interface MatchesTabProps {
@@ -124,49 +123,45 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
         credentials: 'include',
       }).then((r) => (r.ok ? r.json() : [])),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/persons?is_referee=true`, {
+      // Post-0063: /events/:id/referees returns EventRefereeRow[] keyed
+      // on global_persons.id, with qualifications embedded. The old
+      // /persons?is_referee=true endpoint ignored the query param and
+      // returned event-scoped persons.id values that no longer matched
+      // the qualifications + referee_assignments identifier space.
+      fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
         credentials: 'include',
       }).then((r) => (r.ok ? r.json() : [])),
       fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-match-role-config`, {
         credentials: 'include',
       }).then((r) => (r.ok ? r.json() : { roles: [] })),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/referee-qualifications`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : [])),
-    ]).then(
-      ([
-        poolsData,
-        tournamentData,
-        licesData,
-        refereesData,
-        roleConfigData,
-        qualificationsData,
-      ]) => {
-        setPools(poolsData as PoolWithMatches[]);
-        const tournament = tournamentData as {
-          scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
-        } | null;
-        const sc = tournament?.scoring_config;
-        if (sc?.display?.sideColors) {
-          setRedColor((sc.display.sideColors.red as ColorToken) ?? 'red');
-          setBlueColor((sc.display.sideColors.blue as ColorToken) ?? 'blue');
+    ]).then(([poolsData, tournamentData, licesData, refereesData, roleConfigData]) => {
+      setPools(poolsData as PoolWithMatches[]);
+      const tournament = tournamentData as {
+        scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
+      } | null;
+      const sc = tournament?.scoring_config;
+      if (sc?.display?.sideColors) {
+        setRedColor((sc.display.sideColors.red as ColorToken) ?? 'red');
+        setBlueColor((sc.display.sideColors.blue as ColorToken) ?? 'blue');
+      }
+      setLices(licesData as Lice[]);
+      const refs = refereesData as Referee[];
+      setReferees(refs);
+      setRoleConfig((roleConfigData as { roles: RoleConfig[] }).roles ?? []);
+      // Build role → Set<personId> map for fast filtering when
+      // populating each role-column's dropdown options. Source of truth
+      // is the qualifications array embedded on each EventRefereeRow.
+      const qualByRole = new Map<string, Set<string>>();
+      for (const ref of refs) {
+        for (const q of ref.qualifications) {
+          const set = qualByRole.get(q.skillId) ?? new Set<string>();
+          set.add(ref.personId);
+          qualByRole.set(q.skillId, set);
         }
-        setLices(licesData as Lice[]);
-        setReferees(refereesData as Referee[]);
-        setRoleConfig((roleConfigData as { roles: RoleConfig[] }).roles ?? []);
-        // Build role → Set<personId> map for fast filtering when
-        // populating each role-column's dropdown options.
-        const qualByRole = new Map<string, Set<string>>();
-        for (const q of (qualificationsData as Qualification[]) ?? []) {
-          if (!q.active) continue;
-          const set = qualByRole.get(q.role) ?? new Set<string>();
-          set.add(q.personId);
-          qualByRole.set(q.role, set);
-        }
-        setQualifiedRefereesByRole(qualByRole);
-        setLoading(false);
-      },
-    );
+      }
+      setQualifiedRefereesByRole(qualByRole);
+      setLoading(false);
+    });
   }, [tournamentId, eventId, poolPhaseId, refreshKey]);
 
   // Surgical sync: pull (id, status, red_score, blue_score) only and
@@ -237,12 +232,10 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   }
 
   function refereeLabel(r: Referee): string {
-    const name = `${r.givenName ?? ''} ${r.familyName ?? ''}`.trim();
-    if (name) return name;
+    if (r.displayName) return r.displayName;
     // Anonymous fallback — keeps the picker readable when a person row
-    // has neither given_name nor family_name on file, instead of
-    // surfacing a raw UUID.
-    return `Anonymous (${r.id.slice(0, 6)})`;
+    // has no display name on file, instead of surfacing a raw UUID.
+    return `Anonymous (${r.personId.slice(0, 6)})`;
   }
 
   async function updateMatchRoleAssignment(
@@ -259,7 +252,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
           if (m.id !== matchId) return m;
           const others = m.referees.filter((a) => a.role !== role);
           if (refereeId === null) return { ...m, referees: others };
-          const ref = referees.find((r) => r.id === refereeId);
+          const ref = referees.find((r) => r.personId === refereeId);
           const refName = ref ? refereeLabel(ref) : refereeId;
           return {
             ...m,
@@ -312,7 +305,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   }
 
   async function applyPoolReferee(poolId: string, role: string, refereeId: string | null) {
-    const ref = refereeId ? referees.find((r) => r.id === refereeId) : null;
+    const ref = refereeId ? referees.find((r) => r.personId === refereeId) : null;
     const refName = ref ? refereeLabel(ref) : (refereeId ?? '');
     setPools((prev) =>
       prev.map((pool) => {
@@ -462,7 +455,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                           const qualifiedSet = qualifiedRefereesByRole.get(role.id);
                           const options =
                             qualifiedSet && qualifiedSet.size > 0
-                              ? referees.filter((r) => qualifiedSet.has(r.id))
+                              ? referees.filter((r) => qualifiedSet.has(r.personId))
                               : referees;
                           return (
                             <th key={role.id} className="w-32 px-4 py-2">
@@ -482,7 +475,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                 )}
                                 <option value="">{t('common.none')}</option>
                                 {options.map((r) => (
-                                  <option key={r.id} value={r.id}>
+                                  <option key={r.personId} value={r.personId}>
                                     {refereeLabel(r)}
                                   </option>
                                 ))}
@@ -683,7 +676,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                               // on "Unassigned" with no options.
                               const options =
                                 qualifiedSet && qualifiedSet.size > 0
-                                  ? referees.filter((r) => qualifiedSet.has(r.id))
+                                  ? referees.filter((r) => qualifiedSet.has(r.personId))
                                   : referees;
                               return (
                                 <td
@@ -704,7 +697,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                                   >
                                     <option value="">{t('common.none')}</option>
                                     {options.map((r) => (
-                                      <option key={r.id} value={r.id}>
+                                      <option key={r.personId} value={r.personId}>
                                         {refereeLabel(r)}
                                       </option>
                                     ))}
