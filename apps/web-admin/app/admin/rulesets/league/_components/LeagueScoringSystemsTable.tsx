@@ -1,10 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BulkActionBar, ConfirmDialog, RowActionButton, useSelection, useToast } from '@myclash/ui';
+import {
+  BulkActionBar,
+  ConfirmDialog,
+  RowActionButton,
+  rowActionClasses,
+  useSelection,
+  useToast,
+} from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { CreateRulesetCta } from '../../../../../src/components/rulesets/CreateRulesetCta';
+import { RulesetBadge } from '../../../../../src/components/rulesets/RulesetBadge';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -12,8 +20,10 @@ export interface LeagueScoringSystemRow {
   id: string;
   code: string;
   name: string;
+  version: string;
   is_builtin: boolean;
   is_archived: boolean;
+  is_default: boolean;
   points_by_rank: Record<string, number>;
   tie_breakers: string[];
   description: string | null;
@@ -32,29 +42,21 @@ interface Props {
 
 export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
   const { t } = useI18n();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const toast = useToast();
-
-  const initialShowArchived = !readOnly && searchParams.get('showArchived') === 'true';
-  const [showArchived, setShowArchived] = useState(initialShowArchived);
 
   const [rows, setRows] = useState<LeagueScoringSystemRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [pendingArchive, setPendingArchive] = useState<LeagueScoringSystemRow | null>(null);
-  const [pendingBulkArchive, setPendingBulkArchive] = useState<LeagueScoringSystemRow[] | null>(
-    null,
-  );
+  const [pendingDelete, setPendingDelete] = useState<LeagueScoringSystemRow | null>(null);
+  const [pendingBulkDelete, setPendingBulkDelete] = useState<LeagueScoringSystemRow[] | null>(null);
 
   const selection = useSelection();
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = showArchived ? '?includeArchived=true' : '';
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems${qs}`, {
+      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error(t('admin.rulesets.league.loadError'));
@@ -65,21 +67,11 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [showArchived, t]);
+  }, [t]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  function onToggleArchived(next: boolean) {
-    setShowArchived(next);
-    if (readOnly) return;
-    const params = new URLSearchParams(Array.from(searchParams.entries()));
-    if (next) params.set('showArchived', 'true');
-    else params.delete('showArchived');
-    const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '?');
-  }
 
   async function doClone(row: LeagueScoringSystemRow) {
     setBusyId(row.id);
@@ -101,53 +93,53 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
     }
   }
 
-  async function doRestore(row: LeagueScoringSystemRow) {
+  async function doSetDefault(row: LeagueScoringSystemRow) {
     setBusyId(row.id);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems/${row.id}/restore`, {
-        method: 'POST',
+      const res = await fetch(
+        `${apiUrl}/api/v1/admin/league-scoring-systems/${row.id}/set-default`,
+        { method: 'PATCH', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('admin.rulesets.shared.toast.defaultSet'));
+      }
+      toast.success(t('admin.rulesets.shared.toast.defaultSet'));
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('admin.rulesets.shared.toast.defaultSet'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setBusyId(pendingDelete.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems/${pendingDelete.id}`, {
+        method: 'DELETE',
         credentials: 'include',
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.league.restoreError'));
+        throw new Error(body.message ?? t('admin.rulesets.shared.toast.deleted'));
       }
-      toast.success(t('admin.rulesets.league.toast.restored', { name: row.name }));
+      toast.success(t('admin.rulesets.shared.toast.deleted'));
+      setPendingDelete(null);
       await reload();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.rulesets.league.restoreError'));
+      toast.error(err instanceof Error ? err.message : t('admin.rulesets.shared.toast.deleted'));
     } finally {
       setBusyId(null);
     }
   }
 
-  async function confirmArchive() {
-    if (!pendingArchive) return;
-    setBusyId(pendingArchive.id);
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/league-scoring-systems/${pendingArchive.id}`,
-        { method: 'DELETE', credentials: 'include' },
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.league.archiveError'));
-      }
-      toast.success(t('admin.rulesets.league.toast.archived', { name: pendingArchive.name }));
-      setPendingArchive(null);
-      await reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.rulesets.league.archiveError'));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function confirmBulkArchive() {
-    if (!pendingBulkArchive) return;
-    let archived = 0;
+  async function confirmBulkDelete() {
+    if (!pendingBulkDelete) return;
+    let deleted = 0;
     let failed = 0;
-    for (const row of pendingBulkArchive) {
+    for (const row of pendingBulkDelete) {
       try {
         const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems/${row.id}`, {
           method: 'DELETE',
@@ -156,23 +148,26 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
         if (!res.ok) {
           failed += 1;
           const body = (await res.json().catch(() => ({}))) as { message?: string };
-          toast.error(`${row.name}: ${body.message ?? t('admin.rulesets.league.archiveError')}`);
+          toast.error(`${row.name}: ${body.message ?? t('admin.rulesets.shared.toast.deleted')}`);
         } else {
-          archived += 1;
+          deleted += 1;
         }
       } catch {
         failed += 1;
-        toast.error(`${row.name}: ${t('admin.rulesets.league.archiveError')}`);
+        toast.error(`${row.name}: ${t('admin.rulesets.shared.toast.deleted')}`);
       }
     }
-    toast.success(t('admin.rulesets.league.toast.bulkArchived', { n: archived, failed }));
-    setPendingBulkArchive(null);
+    toast.success(t('admin.rulesets.league.toast.bulkDeleted', { n: deleted, failed }));
+    setPendingBulkDelete(null);
     selection.clear();
     await reload();
   }
 
-  const archivableRows = useMemo(() => rows.filter((r) => !r.is_builtin && !r.is_archived), [rows]);
-  const archivableIds = useMemo(() => archivableRows.map((r) => r.id), [archivableRows]);
+  // Built-ins were previously excluded; with slice 2's lift, super-admin
+  // can delete any row that isn't currently used by a league (the BE
+  // enforces the in-use guard on every DELETE).
+  const deletableRows = useMemo(() => rows, [rows]);
+  const deletableIds = useMemo(() => deletableRows.map((r) => r.id), [deletableRows]);
   const selectedRows = useMemo(() => rows.filter((r) => selection.has(r.id)), [rows, selection]);
 
   const showActionsCol = !readOnly;
@@ -183,23 +178,10 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
     <>
       {!readOnly && (
         <div className="mb-4 flex items-center justify-between">
-          <Link
+          <CreateRulesetCta
             href="/admin/rulesets/league/new"
-            className="inline-flex items-center rounded-md bg-red-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
-          >
-            {t('admin.rulesets.league.newButton')}
-          </Link>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-checked={showArchived}
-              checked={showArchived}
-              onChange={(e) => onToggleArchived(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-red-700 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
-            />
-            {t('admin.rulesets.league.showArchivedToggle')}
-          </label>
+            label={t('admin.rulesets.league.newButton')}
+          />
         </div>
       )}
 
@@ -209,30 +191,31 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="w-full min-w-[920px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               {showCheckboxCol && (
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
                     aria-label={t('admin.rulesets.league.bulk.selectAllAria')}
                     checked={
-                      archivableIds.length > 0 && archivableIds.every((id) => selection.has(id))
+                      deletableIds.length > 0 && deletableIds.every((id) => selection.has(id))
                     }
-                    onChange={() => selection.toggleAll(archivableIds)}
+                    onChange={() => selection.toggleAll(deletableIds)}
                     className="h-4 w-4 rounded border-slate-300 text-red-700 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
                   />
                 </th>
               )}
-              <th className="px-4 py-3">{t('admin.rulesets.league.columns.code')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.league.columns.name')}</th>
+              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.name')}</th>
+              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.code')}</th>
+              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.version')}</th>
+              <th className="px-4 py-3">{t('admin.rulesets.shared.columns.source')}</th>
               <th className="px-4 py-3">{t('admin.rulesets.league.columns.points')}</th>
               <th className="px-4 py-3">{t('admin.rulesets.league.columns.tieBreakers')}</th>
-              <th className="px-4 py-3">{t('admin.rulesets.league.columns.type')}</th>
               {showActionsCol && (
-                <th className="px-4 py-3">{t('admin.rulesets.league.columns.actions')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.shared.columns.actions')}</th>
               )}
             </tr>
           </thead>
@@ -252,29 +235,49 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
               </tr>
             )}
             {rows.map((row) => {
-              const isArchivable = !row.is_builtin && !row.is_archived;
-              const editable = !row.is_builtin && !row.is_archived;
+              const editable = !row.is_archived;
               return (
                 <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
                   {showCheckboxCol && (
                     <td className="w-10 px-4 py-3">
-                      {isArchivable && (
-                        <input
-                          type="checkbox"
-                          aria-label={t('admin.rulesets.league.bulk.selectRowAria')}
-                          checked={selection.has(row.id)}
-                          onChange={() => selection.toggle(row.id)}
-                          className="h-4 w-4 rounded border-slate-300 text-red-700 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
-                        />
-                      )}
+                      <input
+                        type="checkbox"
+                        aria-label={t('admin.rulesets.league.bulk.selectRowAria')}
+                        checked={selection.has(row.id)}
+                        onChange={() => selection.toggle(row.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-red-700 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                      />
                     </td>
                   )}
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.code}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{row.name}</p>
                     {row.description && (
                       <p className="mt-0.5 text-xs text-slate-500">{row.description}</p>
                     )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{row.code}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                      v{row.version}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <RulesetBadge
+                        variant={row.is_builtin ? 'builtin' : 'custom'}
+                        label={
+                          row.is_builtin
+                            ? t('admin.rulesets.shared.badges.builtin')
+                            : t('admin.rulesets.shared.badges.custom')
+                        }
+                      />
+                      {row.is_default && (
+                        <RulesetBadge
+                          variant="default"
+                          label={t('admin.rulesets.shared.badges.default')}
+                        />
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-slate-700">
                     {[1, 8, 16]
@@ -287,72 +290,40 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
                   <td className="px-4 py-3 text-xs text-slate-600">
                     {row.tie_breakers.length === 0 ? '—' : row.tie_breakers.join(' → ')}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {row.is_builtin ? (
-                        <>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                            {t('admin.rulesets.league.badges.builtin')}
-                          </span>
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                            {t('admin.rulesets.league.badges.default')}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                          {t('admin.rulesets.league.badges.custom')}
-                        </span>
-                      )}
-                      {row.is_archived && (
-                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                          {t('admin.rulesets.league.badges.archived')}
-                        </span>
-                      )}
-                    </div>
-                  </td>
                   {showActionsCol && (
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {editable && (
                           <Link
                             href={`/admin/rulesets/league/${row.id}/edit`}
-                            className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+                            className={rowActionClasses('edit')}
                           >
-                            {t('admin.rulesets.league.actions.edit')}
+                            {t('admin.rulesets.shared.actions.edit')}
                           </Link>
                         )}
-                        <button
-                          type="button"
+                        <RowActionButton
+                          variant="neutral"
                           onClick={() => void doClone(row)}
                           disabled={busyId === row.id}
-                          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
                         >
-                          {t('admin.rulesets.league.actions.clone')}
-                        </button>
-                        {row.is_archived && !row.is_builtin && (
-                          <button
-                            type="button"
-                            onClick={() => void doRestore(row)}
-                            disabled={busyId === row.id}
-                            className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
-                          >
-                            {t('admin.rulesets.league.actions.restore')}
-                          </button>
-                        )}
-                        {isArchivable && (
+                          {t('admin.rulesets.shared.actions.clone')}
+                        </RowActionButton>
+                        {!row.is_default && (
                           <RowActionButton
-                            variant="danger"
-                            onClick={() => setPendingArchive(row)}
+                            variant="neutral"
+                            onClick={() => void doSetDefault(row)}
                             disabled={busyId === row.id}
                           >
-                            {t('admin.rulesets.league.actions.archive')}
+                            {t('admin.rulesets.shared.actions.setDefault')}
                           </RowActionButton>
                         )}
-                        {row.is_builtin && (
-                          <span className="text-xs text-slate-400">
-                            {t('admin.rulesets.league.actions.readOnly')}
-                          </span>
-                        )}
+                        <RowActionButton
+                          variant="danger"
+                          onClick={() => setPendingDelete(row)}
+                          disabled={busyId === row.id}
+                        >
+                          {t('admin.rulesets.shared.actions.delete')}
+                        </RowActionButton>
                       </div>
                     </td>
                   )}
@@ -371,43 +342,43 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
         >
           <button
             type="button"
-            onClick={() => setPendingBulkArchive(selectedRows)}
+            onClick={() => setPendingBulkDelete(selectedRows)}
             className="inline-flex items-center rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
           >
-            {t('admin.rulesets.league.bulk.archiveSelected')}
+            {t('admin.rulesets.league.bulk.deleteSelected')}
           </button>
         </BulkActionBar>
       )}
 
       <ConfirmDialog
-        open={pendingArchive !== null}
-        title={t('admin.rulesets.league.confirm.archiveTitle')}
+        open={pendingDelete !== null}
+        title={t('admin.rulesets.shared.actions.delete')}
         description={
-          pendingArchive
-            ? t('admin.rulesets.league.confirm.archiveBody', { name: pendingArchive.name })
+          pendingDelete
+            ? t('admin.rulesets.league.confirm.deleteBody', { name: pendingDelete.name })
             : ''
         }
-        confirmLabel={t('admin.rulesets.league.confirm.archiveAction')}
+        confirmLabel={t('admin.rulesets.shared.actions.delete')}
         danger
-        busy={busyId === pendingArchive?.id}
-        onCancel={() => setPendingArchive(null)}
-        onConfirm={() => void confirmArchive()}
+        busy={busyId === pendingDelete?.id}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
       />
 
       <ConfirmDialog
-        open={pendingBulkArchive !== null}
+        open={pendingBulkDelete !== null}
         title={
-          pendingBulkArchive
-            ? t('admin.rulesets.league.confirm.bulkArchiveTitle', {
-                n: pendingBulkArchive.length,
+          pendingBulkDelete
+            ? t('admin.rulesets.league.confirm.bulkDeleteTitle', {
+                n: pendingBulkDelete.length,
               })
             : ''
         }
-        description={t('admin.rulesets.league.confirm.bulkArchiveBody')}
-        confirmLabel={t('admin.rulesets.league.confirm.bulkArchiveAction')}
+        description={t('admin.rulesets.league.confirm.bulkDeleteBody')}
+        confirmLabel={t('admin.rulesets.shared.actions.delete')}
         danger
-        onCancel={() => setPendingBulkArchive(null)}
-        onConfirm={() => void confirmBulkArchive()}
+        onCancel={() => setPendingBulkDelete(null)}
+        onConfirm={() => void confirmBulkDelete()}
       />
     </>
   );
