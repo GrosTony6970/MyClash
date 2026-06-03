@@ -22,6 +22,12 @@ export interface SchedulerMatch {
   blueRegistrationId: string;
   /** Estimated duration in minutes (default: 5) */
   estimatedDurationMinutes?: number;
+  /**
+   * Optional pool grouping. When `poolAffinity === 'strict'` (default),
+   * every match sharing a `poolId` lands on the same Lice. Bracket /
+   * finals matches typically leave this unset.
+   */
+  poolId?: string | null;
 }
 
 export interface SchedulerLice {
@@ -38,6 +44,13 @@ export interface SchedulerOptions {
   startTime?: string;
   /** Gap between matches on the same Lice in minutes (default: 2) */
   transitionMinutes?: number;
+  /**
+   * Pool→Lice grouping rule. `'strict'` (default) keeps every match
+   * sharing a `poolId` on the same Lice — fighters stay on one strip
+   * for their entire pool. `'off'` falls back to per-match greedy
+   * placement (the original bracket-friendly behaviour).
+   */
+  poolAffinity?: 'strict' | 'off';
 }
 
 export interface ScheduledMatch {
@@ -74,6 +87,7 @@ export function scheduleMatches(
   const defaultDuration = (options.defaultMatchDurationMinutes ?? 5) * 60_000; // ms
   const transition = (options.transitionMinutes ?? 2) * 60_000; // ms
   const startTime = options.startTime ? new Date(options.startTime).getTime() : Date.now();
+  const poolAffinity = options.poolAffinity ?? 'strict';
 
   // Track when each Lice is next free (ms timestamp)
   const liceNextFree: Record<string, number> = {};
@@ -87,49 +101,74 @@ export function scheduleMatches(
   const scheduledMatches: ScheduledMatch[] = [];
   const unscheduled: string[] = [];
 
-  for (const match of matches) {
-    const duration = (match.estimatedDurationMinutes ?? 0) * 60_000 || defaultDuration;
+  // Group input into "units" that must land on a single Lice together.
+  // With strict affinity, matches sharing a poolId form one unit;
+  // matches without a poolId stay as single-match units.
+  // With affinity off, every match is its own unit (legacy behaviour).
+  type Unit = { poolId: string | null; matches: SchedulerMatch[] };
+  const units: Unit[] = [];
 
-    // Find the earliest slot across all Lices
+  if (poolAffinity === 'strict') {
+    const byPool = new Map<string, SchedulerMatch[]>();
+    for (const m of matches) {
+      if (m.poolId) {
+        const arr = byPool.get(m.poolId) ?? [];
+        arr.push(m);
+        byPool.set(m.poolId, arr);
+      } else {
+        units.push({ poolId: null, matches: [m] });
+      }
+    }
+    for (const [poolId, ms] of byPool) {
+      units.push({ poolId, matches: ms });
+    }
+    // Biggest pools first so they claim their dedicated Lice; smaller
+    // pools (and unpooled bracket matches) fill the remaining gaps.
+    units.sort((a, b) => b.matches.length - a.matches.length);
+  } else {
+    for (const m of matches) units.push({ poolId: null, matches: [m] });
+  }
+
+  for (const unit of units) {
+    // Pick one Lice for the whole unit: whichever is free earliest.
     let bestLice: SchedulerLice | null = null;
     let bestStart = Infinity;
-
     for (const lice of lices) {
       const liceFree = liceNextFree[lice.id] ?? startTime;
-      const redFree = fighterNextFree[match.redRegistrationId] ?? startTime;
-      const blueFree = fighterNextFree[match.blueRegistrationId] ?? startTime;
-
-      // Earliest this match can start on this Lice
-      const earliestStart = Math.max(liceFree, redFree, blueFree);
-
-      if (earliestStart < bestStart) {
-        bestStart = earliestStart;
+      if (liceFree < bestStart) {
+        bestStart = liceFree;
         bestLice = lice;
       }
     }
-
     if (!bestLice) {
-      unscheduled.push(match.id);
+      for (const m of unit.matches) unscheduled.push(m.id);
       continue;
     }
 
-    const matchEnd = bestStart + duration;
+    // Schedule every match in this unit sequentially on the chosen Lice.
+    let cursor = bestStart;
+    for (const match of unit.matches) {
+      const duration = (match.estimatedDurationMinutes ?? 0) * 60_000 || defaultDuration;
+      const redFree = fighterNextFree[match.redRegistrationId] ?? startTime;
+      const blueFree = fighterNextFree[match.blueRegistrationId] ?? startTime;
+      // Respect fighter rest minimums — if a fighter isn't ready, the
+      // Lice sits idle until they are.
+      const start = Math.max(cursor, redFree, blueFree);
+      const end = start + duration;
 
-    // Schedule the match
-    scheduledMatches.push({
-      matchId: match.id,
-      liceId: bestLice.id,
-      liceName: bestLice.name,
-      scheduledAt: new Date(bestStart).toISOString(),
-      estimatedEndAt: new Date(matchEnd).toISOString(),
-    });
+      scheduledMatches.push({
+        matchId: match.id,
+        liceId: bestLice.id,
+        liceName: bestLice.name,
+        scheduledAt: new Date(start).toISOString(),
+        estimatedEndAt: new Date(end).toISOString(),
+      });
 
-    // Update Lice availability (add transition gap)
-    liceNextFree[bestLice.id] = matchEnd + transition;
-
-    // Update fighter availability (add rest period)
-    fighterNextFree[match.redRegistrationId] = matchEnd + minRest;
-    fighterNextFree[match.blueRegistrationId] = matchEnd + minRest;
+      cursor = end + transition;
+      fighterNextFree[match.redRegistrationId] = end + minRest;
+      fighterNextFree[match.blueRegistrationId] = end + minRest;
+    }
+    liceNextFree[bestLice.id] = cursor;
   }
 
   // Compute load balance

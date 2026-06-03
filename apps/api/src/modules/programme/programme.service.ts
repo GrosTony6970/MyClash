@@ -564,12 +564,16 @@ export class ProgrammeService {
             id: m.id,
             redRegistrationId: m.red_registration_id,
             blueRegistrationId: m.blue_registration_id,
+            poolId: m.pool_id,
           })),
           blockLices,
           {
             startTime: blockStartDt.toISOString(),
             defaultMatchDurationMinutes: block.matchDurationMinutes,
             transitionMinutes: block.matchGapSeconds / 60,
+            // Pool phase: keep every match of a pool on the same Lice.
+            // Bracket / finals phases: per-match greedy (no shared pool).
+            poolAffinity: block.competitionPhase === 'pool' ? 'strict' : 'off',
           },
         );
 
@@ -644,7 +648,14 @@ export class ProgrammeService {
   private async fetchCompetitionMatches(
     tournamentId: string,
     phase: string | null,
-  ): Promise<Array<{ id: string; red_registration_id: string; blue_registration_id: string }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      red_registration_id: string;
+      blue_registration_id: string;
+      pool_id: string | null;
+    }>
+  > {
     const { data: phasesData } = await this.supabase.service
       .from('phases')
       .select('id, type')
@@ -664,13 +675,15 @@ export class ProgrammeService {
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id')
+        .select('id, red_registration_id, blue_registration_id, pool_id')
         .in('pool_id', poolIds)
+        .order('pool_id', { ascending: true })
         .order('match_number_label', { ascending: true });
       return (matchesData ?? []) as Array<{
         id: string;
         red_registration_id: string;
         blue_registration_id: string;
+        pool_id: string | null;
       }>;
     } else {
       const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
@@ -678,13 +691,14 @@ export class ProgrammeService {
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id')
+        .select('id, red_registration_id, blue_registration_id, pool_id')
         .in('phase_id', bracketPhaseIds)
         .order('match_number_label', { ascending: true });
       return (matchesData ?? []) as Array<{
         id: string;
         red_registration_id: string;
         blue_registration_id: string;
+        pool_id: string | null;
       }>;
     }
   }

@@ -162,4 +162,119 @@ describe('scheduleMatches', () => {
     const totalLoad = Object.values(result.liceLoad).reduce((s, n) => s + n, 0);
     expect(totalLoad).toBe(4);
   });
+
+  // ── Pool affinity (slice 4) ────────────────────────────────────────────────
+
+  describe('pool affinity', () => {
+    it('keeps every match of a single pool on one Lice (strict mode)', () => {
+      const matches: SchedulerMatch[] = [
+        { id: 'a1', poolId: 'pool-A', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
+        { id: 'a2', poolId: 'pool-A', redRegistrationId: 'f3', blueRegistrationId: 'f4' },
+        { id: 'a3', poolId: 'pool-A', redRegistrationId: 'f1', blueRegistrationId: 'f3' },
+        { id: 'b1', poolId: 'pool-B', redRegistrationId: 'f5', blueRegistrationId: 'f6' },
+        { id: 'b2', poolId: 'pool-B', redRegistrationId: 'f7', blueRegistrationId: 'f8' },
+        { id: 'b3', poolId: 'pool-B', redRegistrationId: 'f5', blueRegistrationId: 'f7' },
+      ];
+      const lices = makeLices(2);
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        poolAffinity: 'strict',
+        minRestMinutes: 0,
+        defaultMatchDurationMinutes: 5,
+      });
+
+      // Each pool collapses to a single Lice.
+      const poolALices = new Set(
+        result.scheduledMatches
+          .filter((s) => ['a1', 'a2', 'a3'].includes(s.matchId))
+          .map((s) => s.liceId),
+      );
+      const poolBLices = new Set(
+        result.scheduledMatches
+          .filter((s) => ['b1', 'b2', 'b3'].includes(s.matchId))
+          .map((s) => s.liceId),
+      );
+
+      expect(poolALices.size).toBe(1);
+      expect(poolBLices.size).toBe(1);
+      // The two pools should land on different Lices to balance load.
+      expect(Array.from(poolALices)[0]).not.toBe(Array.from(poolBLices)[0]);
+    });
+
+    it('schedules the biggest pool first so smaller pools fit into the gaps', () => {
+      // Big pool: 5 matches. Small pool: 2 matches. 2 Lices.
+      // With biggest-first the big pool occupies its own Lice and the
+      // small pool fills the other Lice without contention.
+      const matches: SchedulerMatch[] = [
+        ...['s1', 's2'].map((id, i) => ({
+          id,
+          poolId: 'pool-small',
+          redRegistrationId: `s-f${i * 2 + 1}`,
+          blueRegistrationId: `s-f${i * 2 + 2}`,
+        })),
+        ...['l1', 'l2', 'l3', 'l4', 'l5'].map((id, i) => ({
+          id,
+          poolId: 'pool-large',
+          redRegistrationId: `l-f${i * 2 + 1}`,
+          blueRegistrationId: `l-f${i * 2 + 2}`,
+        })),
+      ];
+      const lices = makeLices(2);
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        poolAffinity: 'strict',
+        minRestMinutes: 0,
+        defaultMatchDurationMinutes: 5,
+      });
+
+      const largeLice = result.scheduledMatches.find((s) => s.matchId === 'l1')!.liceId;
+      const smallLice = result.scheduledMatches.find((s) => s.matchId === 's1')!.liceId;
+      // Different lices — large pool gets one to itself.
+      expect(largeLice).not.toBe(smallLice);
+      // Large pool placed first, so it starts at exactly the start time.
+      const l1Start = new Date(
+        result.scheduledMatches.find((s) => s.matchId === 'l1')!.scheduledAt,
+      ).getTime();
+      expect(l1Start).toBe(new Date(START).getTime());
+    });
+
+    it('falls back to per-match greedy when poolAffinity is "off" (bracket behaviour)', () => {
+      // Bracket matches have no shared poolId. Even with poolAffinity
+      // configured, each match should still get the earliest-available
+      // Lice independently.
+      const matches: SchedulerMatch[] = [
+        { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
+        { id: 'm2', redRegistrationId: 'f3', blueRegistrationId: 'f4' },
+        { id: 'm3', redRegistrationId: 'f5', blueRegistrationId: 'f6' },
+        { id: 'm4', redRegistrationId: 'f7', blueRegistrationId: 'f8' },
+      ];
+      const lices = makeLices(2);
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        poolAffinity: 'off',
+        minRestMinutes: 0,
+        defaultMatchDurationMinutes: 5,
+      });
+
+      // With no pool grouping, load should be balanced across the 2 Lices.
+      const loads = Object.values(result.liceLoad);
+      expect(loads.every((n) => n === 2)).toBe(true);
+    });
+
+    it('defaults to strict pool affinity (no opt-in required)', () => {
+      const matches: SchedulerMatch[] = [
+        { id: 'a1', poolId: 'pool-A', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
+        { id: 'a2', poolId: 'pool-A', redRegistrationId: 'f3', blueRegistrationId: 'f4' },
+      ];
+      const lices = makeLices(2);
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        minRestMinutes: 0,
+        defaultMatchDurationMinutes: 5,
+      });
+
+      const used = new Set(result.scheduledMatches.map((s) => s.liceId));
+      expect(used.size).toBe(1);
+    });
+  });
 });
