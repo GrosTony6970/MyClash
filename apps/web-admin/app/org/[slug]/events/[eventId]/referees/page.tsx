@@ -1877,7 +1877,7 @@ export default function RefereesPage() {
 
       <div className="mb-6 border-b border-gray-200">
         <nav className="-mb-px flex gap-6">
-          {(['referees', 'qualifications', 'staffing', 'assignments'] as RefereeWorkspaceTab[]).map(
+          {(['referees', 'assignments', 'qualifications', 'staffing'] as RefereeWorkspaceTab[]).map(
             (tab) => (
               <button
                 key={tab}
