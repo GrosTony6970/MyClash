@@ -165,6 +165,18 @@ export default function OrgDashboardPage() {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
       }
+      // The BE returns { url } pointing at the freshly-uploaded public
+      // storage path. Patch the local org state synchronously here so
+      // the 128×128 preview flips to the new logo in the same render
+      // pass — the loadOrg/refetchOrg chain below has historically lost
+      // races with useEffect cleanups (t-reference changes abort the
+      // in-flight fetch, the second .then never runs, setOrg never
+      // happens, preview stays on the initials fallback). Reading the
+      // response body directly bypasses that path entirely.
+      const body = (await res.json().catch(() => ({}))) as { url?: string };
+      if (typeof body.url === 'string') {
+        setOrg((prev) => (prev ? { ...prev, logoUrl: body.url ?? null } : prev));
+      }
       setNotice(t('organizer.events.logoUploadSuccess'));
       await loadOrg();
       await refetchOrg();
@@ -264,7 +276,12 @@ export default function OrgDashboardPage() {
             <div className="h-32 w-32 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
               {org?.logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={org.logoUrl} alt="" className="h-full w-full object-contain p-1" />
+                <img
+                  key={org.logoUrl}
+                  src={org.logoUrl}
+                  alt=""
+                  className="h-full w-full object-contain p-1"
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase tracking-wider text-slate-400">
                   {orgName.slice(0, 2)}
