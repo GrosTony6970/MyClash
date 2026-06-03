@@ -31,10 +31,27 @@ export interface ProgrammeSuggestion {
   warnings: BlockWarning[];
 }
 
+export interface BlockDiagnostic {
+  blockId: string;
+  blockLabel: string;
+  blockType: BlockType;
+  fetchedMatches: number;
+  scheduledMatches: number;
+  licesAvailable: number;
+}
+
 export interface GenerateResult {
   matchesScheduled: number;
   workshopSessionsCreated: number;
   warnings: BlockWarning[];
+  /**
+   * Per-block summary. Lets the operator see why a competition block
+   * produced zero scheduled matches (no draws yet, no lices for the
+   * event, block too narrow, etc.) instead of just seeing a `0`.
+   * Optional for backward compatibility on consumers that don't read
+   * it yet.
+   */
+  blockDiagnostics?: BlockDiagnostic[];
 }
 
 export interface SuggestConfig {

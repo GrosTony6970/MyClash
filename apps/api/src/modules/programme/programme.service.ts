@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type {
+  BlockDiagnostic,
   GenerateResult,
   ProgrammeBlock,
   ProgrammeSuggestion,
@@ -480,6 +481,19 @@ export class ProgrammeService {
       .order('sort_order', { ascending: true });
     const allLices = (licesData ?? []) as Array<{ id: string; name: string }>;
 
+    // Fail loud when the event has any competition block but no lices
+    // configured. Without this the per-block loop below silently
+    // `continue`s and the operator sees a green "Generated 0 matches"
+    // banner with no clue why the grid stays empty.
+    const hasCompetitionBlock = (blocksData ?? []).some(
+      (b) => (b as Record<string, unknown>)['block_type'] === 'competition',
+    );
+    if (hasCompetitionBlock && allLices.length === 0) {
+      throw new BadRequestException(
+        'Event has no lices configured. Add at least one lice in Event setup before generating the grid.',
+      );
+    }
+
     let matchesScheduled = 0;
     let workshopSessionsCreated = 0;
     const warnings: Array<{
@@ -488,6 +502,7 @@ export class ProgrammeService {
       suggestedEndTime: string;
       overflowMinutes: number;
     }> = [];
+    const blockDiagnostics: BlockDiagnostic[] = [];
 
     for (const rawBlock of blocksData ?? []) {
       const block = this.mapBlock(rawBlock as Record<string, unknown>);
@@ -508,10 +523,41 @@ export class ProgrammeService {
           block.competitionId,
           block.competitionPhase,
         );
-        if (matches.length === 0) continue;
-
         const blockLices = allLices.slice(0, block.liceCount);
-        if (blockLices.length === 0) continue;
+        if (matches.length === 0) {
+          // Most often: the operator added a Pools block before
+          // running the pool draw, so the `matches` table has no rows
+          // for this tournament yet. Surface it explicitly so they
+          // know which block to fix.
+          warnings.push({
+            blockId: block.id,
+            message: `No matches to schedule for "${block.label}" — has the draw been run?`,
+            suggestedEndTime: block.endTime,
+            overflowMinutes: 0,
+          });
+          blockDiagnostics.push({
+            blockId: block.id,
+            blockLabel: block.label,
+            blockType: block.blockType,
+            fetchedMatches: 0,
+            scheduledMatches: 0,
+            licesAvailable: blockLices.length,
+          });
+          continue;
+        }
+        if (blockLices.length === 0) {
+          // block.liceCount is 0 even though the event does have lices
+          // — invalid block, but logged so the operator sees it.
+          blockDiagnostics.push({
+            blockId: block.id,
+            blockLabel: block.label,
+            blockType: block.blockType,
+            fetchedMatches: matches.length,
+            scheduledMatches: 0,
+            licesAvailable: 0,
+          });
+          continue;
+        }
 
         const result = scheduleMatches(
           matches.map((m) => ({
@@ -550,6 +596,15 @@ export class ProgrammeService {
             .eq('id', sm.matchId);
         }
         matchesScheduled += result.scheduledMatches.length;
+
+        blockDiagnostics.push({
+          blockId: block.id,
+          blockLabel: block.label,
+          blockType: block.blockType,
+          fetchedMatches: matches.length,
+          scheduledMatches: result.scheduledMatches.length,
+          licesAvailable: blockLices.length,
+        });
       }
 
       if (block.blockType === 'workshop' && block.workshopId) {
@@ -581,7 +636,7 @@ export class ProgrammeService {
       .update({ generated_at: new Date().toISOString() })
       .eq('event_id', eventId);
 
-    return { matchesScheduled, workshopSessionsCreated, warnings };
+    return { matchesScheduled, workshopSessionsCreated, warnings, blockDiagnostics };
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

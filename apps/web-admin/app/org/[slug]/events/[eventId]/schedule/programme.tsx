@@ -246,7 +246,12 @@ export function ProgrammePlanner({
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to generate'));
       const result = (await res.json()) as GenerateResult;
       setGenerateResult(result);
-      setTimeout(() => onGenerateDone(), 1500);
+      // Only switch to the grid when matches actually landed there.
+      // When 0 matches got scheduled the operator needs to read the
+      // per-block diagnostics, not be teleported to an empty grid.
+      if (result.matchesScheduled > 0) {
+        setTimeout(() => onGenerateDone(), 1500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -419,9 +424,45 @@ export function ProgrammePlanner({
         )}
 
         {generateResult && (
-          <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm mb-4">
-            Generated {generateResult.matchesScheduled} matches and{' '}
-            {generateResult.workshopSessionsCreated} workshop sessions. Redirecting to grid…
+          <div
+            className={[
+              'rounded-lg px-4 py-3 text-sm mb-4 border',
+              generateResult.matchesScheduled > 0
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-amber-50 border-amber-200 text-amber-900',
+            ].join(' ')}
+          >
+            <div className="font-semibold">
+              Generated {generateResult.matchesScheduled} matches and{' '}
+              {generateResult.workshopSessionsCreated} workshop sessions.
+            </div>
+            {generateResult.matchesScheduled === 0 && (
+              <div className="mt-1">
+                Nothing landed on the grid. Per-block status below — fix the flagged blocks and try
+                again.
+              </div>
+            )}
+            {generateResult.blockDiagnostics && generateResult.blockDiagnostics.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-xs">
+                {generateResult.blockDiagnostics.map((d) => {
+                  const ok = d.scheduledMatches > 0;
+                  const empty = d.fetchedMatches === 0;
+                  const noLices = d.licesAvailable === 0;
+                  return (
+                    <li key={d.blockId}>
+                      <span className="font-mono">
+                        {ok ? '✓' : empty ? '∅' : noLices ? '⚠' : '×'}
+                      </span>{' '}
+                      <span className="font-medium">{d.blockLabel}</span>
+                      {' — '}
+                      {d.scheduledMatches}/{d.fetchedMatches} scheduled on {d.licesAvailable} lice
+                      {empty && ' · no matches in this competition — has the draw run?'}
+                      {noLices && !empty && ' · block requested 0 lices'}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         )}
 

@@ -228,6 +228,7 @@ describe('ProgrammeService', () => {
               id: 'match-1',
               red_registration_id: 'red-1',
               blue_registration_id: 'blue-1',
+              pool_id: 'pool-1',
             },
           ],
           error: null,
@@ -240,5 +241,145 @@ describe('ProgrammeService', () => {
 
     expect(result.matchesScheduled).toBe(1);
     expect(fromMock).toHaveBeenCalledWith('matches');
+  });
+
+  // ── Bug-fix coverage: missing-matches diagnostics ───────────────────────────
+
+  it('throws a clear error when the event has competition blocks but zero lices', async () => {
+    // The operator's symptom: "Generate" succeeds but the grid stays
+    // empty. Root cause: `allLices = []` → `blockLices = []` → every
+    // competition block silently skipped → matchesScheduled = 0 with
+    // no warning. The fix: fail loud so the operator goes to add a
+    // lice instead of staring at an empty grid.
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 2,
+        start_time: '10:00',
+        end_time: '11:00',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })); // ← no lices
+
+    await expect(service.generate('event-1')).rejects.toThrow(/lice/i);
+  });
+
+  it('returns per-block diagnostics so the operator can see what each block produced', async () => {
+    // Without this the operator only sees a success banner with a
+    // total count — they can't tell which block fetched zero matches
+    // (a missed draw, an empty pool) or which block ran out of lice
+    // capacity. The diagnostics surface that per-block context.
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Longsword — Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '10:00',
+        end_time: '10:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            {
+              id: 'match-1',
+              red_registration_id: 'red-1',
+              blue_registration_id: 'blue-1',
+              pool_id: 'pool-1',
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: null, error: null }))
+      .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+    const result = await service.generate('event-1');
+
+    expect(result.blockDiagnostics).toHaveLength(1);
+    expect(result.blockDiagnostics![0]).toMatchObject({
+      blockId: 'block-1',
+      blockLabel: 'Longsword — Pools',
+      blockType: 'competition',
+      fetchedMatches: 1,
+      scheduledMatches: 1,
+      licesAvailable: 1,
+    });
+  });
+
+  it('emits a "no matches to schedule" warning when a competition block fetches zero matches', async () => {
+    // Frequent operator gotcha: they configure a Pools block but
+    // haven't run the pool draw yet, so the `matches` table has no
+    // rows for that tournament. Today the generator silently `continue`s
+    // and the operator sees an empty grid with no clue why.
+    const blockRows = [
+      {
+        id: 'block-empty',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Sabre — Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 2,
+        start_time: '10:00',
+        end_time: '11:00',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // ← zero matches
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // event_programme_blocks update
+
+    const result = await service.generate('event-1');
+
+    expect(result.matchesScheduled).toBe(0);
+    expect(result.warnings.some((w) => /no matches/i.test(w.message))).toBe(true);
+    expect(result.blockDiagnostics!.find((d) => d.blockId === 'block-empty')).toMatchObject({
+      fetchedMatches: 0,
+      scheduledMatches: 0,
+    });
   });
 });
