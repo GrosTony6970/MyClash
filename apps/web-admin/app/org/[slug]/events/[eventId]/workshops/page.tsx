@@ -24,6 +24,11 @@ interface Workshop {
   category: string | null;
   level: string | null;
   capacity: number;
+  // Workshop-level default venue. Sessions inherit this when the
+  // operator opens a session create modal — they can still override
+  // via the session-level Venue picker.
+  venue_id?: string | null;
+  venues?: { id: string; name: string } | null;
   workshopSessions: Array<{
     id: string;
     startTime: string;
@@ -83,6 +88,7 @@ export default function WorkshopsAdminPage() {
     capacity: 20,
     durationMinutes: '' as string | number,
     description: '',
+    venueId: '' as string,
   });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -107,26 +113,50 @@ export default function WorkshopsAdminPage() {
   const [sessionSaving, setSessionSaving] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
-  // Event venues for the session form's Venue + Area pickers. Only
-  // workshop-capable venues are eligible.
+  // Org venues for the workshop + session venue pickers. Source is
+  // the org-level catalogue so a freshly-added org venue is pickable
+  // immediately, even before any session here uses it. Filtered to
+  // workshop-capable venues only.
   const [venues, setVenues] = useState<EventVenue[]>([]);
   useEffect(() => {
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as EventVenue[];
+    (async () => {
+      try {
+        const orgRes = await fetch(
+          `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+          { credentials: 'include' },
+        );
+        if (!orgRes.ok) return;
+        const org = (await orgRes.json()) as { id: string };
+        if (cancelled) return;
+        const venuesRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/venues`, {
+          credentials: 'include',
+        });
+        if (!venuesRes.ok) return;
+        const data = (await venuesRes.json()) as EventVenue[];
         if (!cancelled) setVenues(data.filter((v) => v.hosts_workshop));
-      })
-      .catch(() => undefined);
+      } catch {
+        /* swallow — picker shows empty + the warning hint */
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [apiUrl, eventId, refreshKey]);
+  }, [apiUrl, slug, refreshKey]);
 
   function openSessionForm(workshopId: string) {
     setSessionFormWorkshopId(workshopId);
-    setSessionForm({ startTime: '', endTime: '', location: '', venueId: '', areaId: '' });
+    // Pre-fill the venue picker with the workshop's default venue (if
+    // any). Operator can still override per session via the dropdown.
+    const workshop = workshops.find((w) => w.id === workshopId);
+    const defaultVenueId = workshop?.venue_id ?? '';
+    setSessionForm({
+      startTime: '',
+      endTime: '',
+      location: '',
+      venueId: defaultVenueId,
+      areaId: '',
+    });
     setSessionError(null);
   }
 
@@ -207,6 +237,7 @@ export default function WorkshopsAdminPage() {
           capacity: form.capacity,
           durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
           description: form.description.trim() || null,
+          venueId: form.venueId || undefined,
         }),
       });
 
@@ -225,6 +256,7 @@ export default function WorkshopsAdminPage() {
         capacity: 20,
         durationMinutes: '',
         description: '',
+        venueId: '',
       });
       setRefreshKey((k) => k + 1);
     } catch (err) {
@@ -506,6 +538,28 @@ export default function WorkshopsAdminPage() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Default venue
+                </label>
+                <select
+                  value={form.venueId}
+                  onChange={(e) => setForm((f) => ({ ...f, venueId: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                >
+                  <option value="">No default venue</option>
+                  {venues.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+                {venues.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    No workshop-capable venues in this org yet. Add one from /org/{slug}/venues.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
