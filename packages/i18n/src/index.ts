@@ -1125,6 +1125,40 @@ export const en = {
       },
     },
     rulesets: {
+      shared: {
+        columns: {
+          name: 'Name',
+          code: 'Code',
+          version: 'Version',
+          source: 'Source',
+          actions: 'Actions',
+        },
+        actions: {
+          edit: 'Edit',
+          clone: 'Clone',
+          delete: 'Delete',
+          setDefault: 'Set as default',
+        },
+        badges: {
+          builtin: 'Built-in',
+          custom: 'Custom',
+          default: '★ Default',
+          published: 'Published',
+          draft: 'Draft',
+        },
+        confirmDelete: 'This will permanently delete the ruleset. Continue?',
+        toast: {
+          deleted: 'Ruleset deleted',
+          defaultSet: 'Default updated',
+        },
+        form: {
+          validation: {
+            pointsMonotonic:
+              'Rank {higher} has fewer points than rank {lower}. Higher ranks must earn at least as many points.',
+            pointsAtLeastOnePositive: 'At least one rank must carry a positive point value.',
+          },
+        },
+      },
       title: 'Rulesets',
       description:
         'Curate the rulesets that drive tournament scoring, and review community-submitted metadata.',
@@ -4958,6 +4992,40 @@ export const fr = {
       },
     },
     rulesets: {
+      shared: {
+        columns: {
+          name: 'Nom',
+          code: 'Code',
+          version: 'Version',
+          source: 'Source',
+          actions: 'Actions',
+        },
+        actions: {
+          edit: 'Editer',
+          clone: 'Cloner',
+          delete: 'Supprimer',
+          setDefault: 'Definir par defaut',
+        },
+        badges: {
+          builtin: 'Officiel',
+          custom: 'Personnalise',
+          default: '★ Defaut',
+          published: 'Publie',
+          draft: 'Brouillon',
+        },
+        confirmDelete: 'Cela supprimera definitivement le bareme. Continuer ?',
+        toast: {
+          deleted: 'Bareme supprime',
+          defaultSet: 'Defaut mis a jour',
+        },
+        form: {
+          validation: {
+            pointsMonotonic:
+              'Le rang {higher} a moins de points que le rang {lower}. Les rangs superieurs doivent gagner au moins autant de points.',
+            pointsAtLeastOnePositive: 'Au moins un rang doit avoir une valeur de points positive.',
+          },
+        },
+      },
       title: 'Rulesets',
       description:
         'Gerer les rulesets utilises pour le scoring des tournois et examiner les metadonnees soumises par la communaute.',
