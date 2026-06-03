@@ -140,7 +140,6 @@ export default function BracketPage() {
   const [selectedTournament, setSelectedTournament] = useState<string>('');
   const [bracket, setBracket] = useState<BracketResult | null>(null);
   const [bracketPhaseId, setBracketPhaseId] = useState<string | null>(null);
-  const [visibility, setVisibility] = useState<'hidden' | 'published'>('hidden');
   const [existingBracket, setExistingBracket] = useState(false);
   const [redColor, setRedColor] = useState<ColorToken>('red');
   const [blueColor, setBlueColor] = useState<ColorToken>('blue');
@@ -247,12 +246,9 @@ export default function BracketPage() {
   const [populateMode, setPopulateMode] = useState<'overall' | 'top-n-per-pool'>('overall');
   const [populateTopN, setPopulateTopN] = useState<number | ''>('');
   const [populateMessage, setPopulateMessage] = useState<string | null>(null);
-  const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
-  const [notifyHref, setNotifyHref] = useState<string | null>(null);
   const [bracketRefreshKey, setBracketRefreshKey] = useState(0);
 
   const refreshBracket = useCallback(() => setBracketRefreshKey((k) => k + 1), []);
@@ -316,7 +312,6 @@ export default function BracketPage() {
         if (data && data.slots?.length > 0) {
           setBracket(data);
           setBracketPhaseId(data.phaseId);
-          setVisibility(data.visibility ?? 'hidden');
           setExistingBracket(true);
           if (data.phaseType === 'double_elim') setPhaseType('double_elim');
           setEditGrandFinalReset(Boolean(data.grandFinalReset));
@@ -457,8 +452,6 @@ export default function BracketPage() {
       const result = (await res.json()) as BracketResult;
       setBracket(result);
       setBracketPhaseId(result.phaseId);
-      setVisibility('hidden');
-      setNotifyHref(null);
       setExistingBracket(true);
       setEditGrandFinalReset(Boolean(result.grandFinalReset));
     } catch (err) {
@@ -520,8 +513,6 @@ export default function BracketPage() {
       // Drop client state and fall back to the empty state.
       setBracket(null);
       setBracketPhaseId(null);
-      setVisibility('hidden');
-      setNotifyHref(null);
       setExistingBracket(false);
       setShowDeleteConfirm(false);
     } catch (err) {
@@ -531,45 +522,21 @@ export default function BracketPage() {
     }
   }
 
-  async function updateVisibility(nextVisibility: 'hidden' | 'published', confirmStarted = false) {
-    if (!bracketPhaseId || visibilityBusy) return;
-    setVisibilityBusy(true);
-    setError(null);
-    setShowUnpublishConfirm(false);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/phases/${bracketPhaseId}/visibility`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ visibility: nextVisibility, confirmStarted }),
-      });
-      if (res.status === 409 && nextVisibility === 'hidden') {
-        setShowUnpublishConfirm(true);
-        return;
-      }
-      if (!res.ok) {
-        const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? t('organizer.phaseVisibility.updateError'));
-      }
-      setVisibility(nextVisibility);
-      if (nextVisibility === 'published') {
-        const query = new URLSearchParams({
-          targetType: 'fighters_and_referees',
-          severity: 'info',
-          tournamentId: selectedTournament,
-          title: t('organizer.phaseVisibility.bracketReadyTitle'),
-          body: t('organizer.phaseVisibility.bracketReadyBody'),
-        });
-        setNotifyHref(`/org/${slug}/events/${eventId}/notifications?${query.toString()}`);
-      } else {
-        setNotifyHref(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.phaseVisibility.updateError'));
-    } finally {
-      setVisibilityBusy(false);
-    }
-  }
+  // Phase visibility is no longer an operator toggle — tournament status
+  // is the canonical public gate. The "Notify participants" link is
+  // surfaced once a bracket exists; operators don't publish a phase
+  // separately to send a notification.
+  const notifyHref = useMemo(() => {
+    if (!bracketPhaseId || !selectedTournament) return null;
+    const query = new URLSearchParams({
+      targetType: 'fighters_and_referees',
+      severity: 'info',
+      tournamentId: selectedTournament,
+      title: t('organizer.phaseVisibility.bracketReadyTitle'),
+      body: t('organizer.phaseVisibility.bracketReadyBody'),
+    });
+    return `/org/${slug}/events/${eventId}/notifications?${query.toString()}`;
+  }, [bracketPhaseId, selectedTournament, slug, eventId]);
 
   async function submitOverride() {
     if (!overrideModal) return;
@@ -788,34 +755,6 @@ export default function BracketPage() {
       <div style={{ display: activeTab === 'bracket' ? 'block' : 'none' }}>
         {bracketPhaseId && (
           <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
-            <span
-              className={[
-                'rounded-full px-2.5 py-1 text-xs font-semibold',
-                visibility === 'published'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-600',
-              ].join(' ')}
-            >
-              {visibility === 'published'
-                ? t('organizer.phaseVisibility.published')
-                : t('organizer.phaseVisibility.hidden')}
-            </span>
-            <button
-              type="button"
-              disabled={visibilityBusy || visibility === 'published'}
-              onClick={() => void updateVisibility('published')}
-              className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
-            >
-              {t('organizer.phaseVisibility.publishBracket')}
-            </button>
-            <button
-              type="button"
-              disabled={visibilityBusy || visibility === 'hidden'}
-              onClick={() => void updateVisibility('hidden')}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
-            >
-              {t('organizer.phaseVisibility.unpublishBracket')}
-            </button>
             {notifyHref && (
               <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
                 {t('organizer.phaseVisibility.notifyParticipants')}
@@ -837,21 +776,6 @@ export default function BracketPage() {
                 Manual mode
               </span>
             )}
-          </div>
-        )}
-
-        {showUnpublishConfirm && (
-          <div className="mb-6 rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
-            <p className="font-semibold">
-              {t('organizer.phaseVisibility.unpublishStartedWarning')}
-            </p>
-            <button
-              type="button"
-              onClick={() => void updateVisibility('hidden', true)}
-              className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
-            >
-              {t('organizer.phaseVisibility.confirmUnpublish')}
-            </button>
           </div>
         )}
 

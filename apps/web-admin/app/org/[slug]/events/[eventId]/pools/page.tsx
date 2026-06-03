@@ -13,7 +13,7 @@
  *   ✓ Fighter/referee conflict detection (hard constraint)
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -118,7 +118,6 @@ export default function PoolsPage() {
   const selectedTournamentObj = tournaments.find((t) => t.id === selectedTournament) ?? null;
   const [pools, setPools] = useState<Pool[] | null>(null);
   const [poolPhaseId, setPoolPhaseId] = useState<string | null>(null);
-  const [visibility, setVisibility] = useState<'hidden' | 'published'>('hidden');
   const [conflicts, setConflicts] = useState<ConflictResult | null>(null);
 
   // Config
@@ -131,10 +130,7 @@ export default function PoolsPage() {
   // UI state
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [showForceConfirm, setShowForceConfirm] = useState(false);
-  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
-  const [notifyHref, setNotifyHref] = useState<string | null>(null);
   const [existingPhase, setExistingPhase] = useState(false);
   // Lifecycle (delete one, delete all, add empty)
   const [pendingDeletePoolId, setPendingDeletePoolId] = useState<string | null>(null);
@@ -210,7 +206,6 @@ export default function PoolsPage() {
       const nextPools = Array.isArray(data) ? data : data.pools;
       if (!Array.isArray(data)) {
         setPoolPhaseId(data.phaseId);
-        setVisibility(data.visibility);
       }
       setPools(nextPools);
       setExistingPhase(nextPools.length > 0);
@@ -277,8 +272,6 @@ export default function PoolsPage() {
       // truth for the full Pool[] shape (members included). Re-fetching here
       // avoids the "matchCount only" summary that the generate POST returns.
       await res.json().catch(() => undefined);
-      setVisibility('hidden');
-      setNotifyHref(null);
       setExistingPhase(true);
       await loadPools(selectedTournament);
 
@@ -380,45 +373,21 @@ export default function PoolsPage() {
     if (res.ok) setConflicts((await res.json()) as ConflictResult);
   }
 
-  async function updateVisibility(nextVisibility: 'hidden' | 'published', confirmStarted = false) {
-    if (!poolPhaseId || visibilityBusy) return;
-    setVisibilityBusy(true);
-    setError(null);
-    setShowUnpublishConfirm(false);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/phases/${poolPhaseId}/visibility`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ visibility: nextVisibility, confirmStarted }),
-      });
-      if (res.status === 409 && nextVisibility === 'hidden') {
-        setShowUnpublishConfirm(true);
-        return;
-      }
-      if (!res.ok) {
-        const body2 = (await res.json()) as { message?: string };
-        throw new Error(body2.message ?? t('organizer.phaseVisibility.updateError'));
-      }
-      setVisibility(nextVisibility);
-      if (nextVisibility === 'published') {
-        const query = new URLSearchParams({
-          targetType: 'fighters_and_referees',
-          severity: 'info',
-          tournamentId: selectedTournament,
-          title: t('organizer.phaseVisibility.poolsReadyTitle'),
-          body: t('organizer.phaseVisibility.poolsReadyBody'),
-        });
-        setNotifyHref(`/org/${slug}/events/${eventId}/notifications?${query.toString()}`);
-      } else {
-        setNotifyHref(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.phaseVisibility.updateError'));
-    } finally {
-      setVisibilityBusy(false);
-    }
-  }
+  // Phase visibility is no longer an operator toggle — tournament status
+  // is the canonical public gate (see events.service.getPublicTournamentStandings).
+  // The "Notify participants" link is always reachable below once a pool
+  // phase exists; operators don't need to publish anything separately.
+  const notifyHref = useMemo(() => {
+    if (!poolPhaseId || !selectedTournament) return null;
+    const query = new URLSearchParams({
+      targetType: 'fighters_and_referees',
+      severity: 'info',
+      tournamentId: selectedTournament,
+      title: t('organizer.phaseVisibility.poolsReadyTitle'),
+      body: t('organizer.phaseVisibility.poolsReadyBody'),
+    });
+    return `/org/${slug}/events/${eventId}/notifications?${query.toString()}`;
+  }, [poolPhaseId, selectedTournament, slug, eventId]);
 
   // ── Drag-drop pool member edit ──────────────────────────────────────────────
 
@@ -624,57 +593,14 @@ export default function PoolsPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Left column: banners + pool grid ────────────────────────────── */}
           <div className="space-y-4">
-            {/* Visibility / publish banner */}
-            {poolPhaseId && (
+            {/* Notify participants — surfaced once pools exist. Phase
+                visibility is no longer a separate toggle; the tournament's
+                own status gates public reveal. */}
+            {notifyHref && (
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
-                <span
-                  className={[
-                    'rounded-full px-2.5 py-1 text-xs font-semibold',
-                    visibility === 'published'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-gray-100 text-gray-600',
-                  ].join(' ')}
-                >
-                  {visibility === 'published'
-                    ? t('organizer.phaseVisibility.published')
-                    : t('organizer.phaseVisibility.hidden')}
-                </span>
-                <button
-                  type="button"
-                  disabled={visibilityBusy || visibility === 'published'}
-                  onClick={() => void updateVisibility('published')}
-                  className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:bg-gray-300"
-                >
-                  {t('organizer.phaseVisibility.publishPools')}
-                </button>
-                <button
-                  type="button"
-                  disabled={visibilityBusy || visibility === 'hidden'}
-                  onClick={() => void updateVisibility('hidden')}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:text-gray-300"
-                >
-                  {t('organizer.phaseVisibility.unpublishPools')}
-                </button>
-                {notifyHref && (
-                  <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
-                    {t('organizer.phaseVisibility.notifyParticipants')}
-                  </Link>
-                )}
-              </div>
-            )}
-
-            {showUnpublishConfirm && (
-              <div className="rounded-xl border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
-                <p className="font-semibold">
-                  {t('organizer.phaseVisibility.unpublishStartedWarning')}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void updateVisibility('hidden', true)}
-                  className="mt-3 rounded-lg bg-yellow-600 px-3 py-2 text-sm font-semibold text-white"
-                >
-                  {t('organizer.phaseVisibility.confirmUnpublish')}
-                </button>
+                <Link href={notifyHref} className="text-sm font-semibold text-red-700 underline">
+                  {t('organizer.phaseVisibility.notifyParticipants')}
+                </Link>
               </div>
             )}
 

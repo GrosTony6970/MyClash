@@ -705,11 +705,37 @@ export class EventsService {
     if (tournamentError) throw new BadRequestException(tournamentError.message);
     if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
 
+    // Tournament status is the canonical public gate. When the
+    // tournament hasn't been published yet, the public page shows
+    // nothing structural even if phases happen to exist. Once
+    // published / running / completed, every phase is visible —
+    // operators don't actually stage pool→bracket reveals per phase,
+    // so layering phase-visibility on top was a UX trap (operator
+    // publishes the tournament, public sees nothing, no clue why).
+    const tournamentStatus = (tournament as { status: string }).status;
+    const publicTournamentStatuses = ['published', 'running', 'completed'];
+    const tournamentHeader = {
+      id: tournament['id'],
+      name: tournament['name'],
+      weapon: tournament['weapon'],
+      rulesetCode: tournament['ruleset_code'],
+      status: tournament['status'],
+      logoUrl: (tournament['logo_url'] as string | null) ?? null,
+    };
+    if (!publicTournamentStatuses.includes(tournamentStatus)) {
+      return {
+        tournament: tournamentHeader,
+        pools: [],
+        bracketSlots: [],
+        bracketSize: 0,
+        bracketRounds: 0,
+      };
+    }
+
     const { data: phases, error: phasesError } = await this.supabase.service
       .from('phases')
       .select('id, type, visibility_status, config_json')
-      .eq('tournament_id', (tournament as { id: string }).id)
-      .eq('visibility_status', 'published');
+      .eq('tournament_id', (tournament as { id: string }).id);
     if (phasesError) throw new BadRequestException(phasesError.message);
 
     const phaseRows = (phases ?? []) as Array<Record<string, unknown>>;
@@ -726,14 +752,7 @@ export class EventsService {
         : { bracketSlots: [], bracketSize: 0, bracketRounds: 0 };
 
     return {
-      tournament: {
-        id: tournament['id'],
-        name: tournament['name'],
-        weapon: tournament['weapon'],
-        rulesetCode: tournament['ruleset_code'],
-        status: tournament['status'],
-        logoUrl: (tournament['logo_url'] as string | null) ?? null,
-      },
+      tournament: tournamentHeader,
       pools,
       ...bracket,
     };
@@ -1156,7 +1175,7 @@ export class EventsService {
 
     const { data: assignments, error } = await this.supabase.service
       .from('referee_assignments')
-      .select('pool_id, role, status, user_id, person_id')
+      .select('pool_id, role, status, person_id')
       .eq('event_id', eventId)
       .eq('scope_type', 'pool')
       .in('pool_id', poolIds)
@@ -1167,20 +1186,15 @@ export class EventsService {
       pool_id: string | null;
       role: string | null;
       status: string;
-      user_id: string | null;
       person_id: string | null;
     }>;
     if (rows.length === 0) return byPool;
 
-    // Resolve display names: person_id → global_persons (given+family);
-    // user_id → global_persons via the linked auth user, falling back to
-    // auth admin email. Mirrors the resolveUserNames helper above but only
-    // for the subset of ids that show up in these assignments.
+    // Resolve display names via global_persons (given+family). Post-0063
+    // `referee_assignments.person_id` is NOT NULL, so every row resolves
+    // through this single lookup — no Supabase-user-id fallback.
     const personIds = Array.from(
       new Set(rows.map((r) => r.person_id).filter((id): id is string => !!id)),
-    );
-    const userIds = Array.from(
-      new Set(rows.map((r) => r.user_id).filter((id): id is string => !!id)),
     );
 
     const personNameById = new Map<string, string>();
@@ -1199,15 +1213,9 @@ export class EventsService {
       }
     }
 
-    const userNameById = userIds.length > 0 ? await this.resolveUserNames(userIds) : new Map();
-
     for (const r of rows) {
       if (!r.pool_id) continue;
-      const displayName = r.person_id
-        ? (personNameById.get(r.person_id) ?? '—')
-        : r.user_id
-          ? (userNameById.get(r.user_id) ?? '—')
-          : '—';
+      const displayName = r.person_id ? (personNameById.get(r.person_id) ?? '—') : '—';
       const list = byPool.get(r.pool_id) ?? [];
       list.push({ role: r.role, displayName, status: r.status });
       byPool.set(r.pool_id, list);

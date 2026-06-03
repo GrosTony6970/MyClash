@@ -28,8 +28,9 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getApiUrl();
-  const data = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
-  if (!data) return { title: `${tournamentSlug} · MyClash` };
+  const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
+  if (outcome.kind !== 'ok') return { title: `${tournamentSlug} · MyClash` };
+  const { data } = outcome;
   const fighterCount = data.pools.reduce(
     (n, pool) => n + (pool.members?.length ?? pool.standings.length),
     0,
@@ -103,20 +104,44 @@ interface TournamentData {
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
+type FetchOutcome =
+  | { kind: 'ok'; data: TournamentData }
+  | { kind: 'not-found' }
+  | { kind: 'server-error'; status: number; message: string | null };
+
+/**
+ * Tri-state fetch — preserve the HTTP status so the page can distinguish
+ * "tournament URL is wrong" (404) from "backend choked" (400/5xx).
+ * The previous boolean collapse made every failure look like
+ * "Tournament not found" even when the standings endpoint had a real
+ * server-side bug (see post-0063 `user_id` regression: a stale column
+ * in a downstream PostgREST query returned 400, which the page
+ * rendered as "tournament missing").
+ */
 async function fetchTournamentData(
   eventSlug: string,
   tournamentSlug: string,
   apiUrl: string,
-): Promise<TournamentData | null> {
+): Promise<FetchOutcome> {
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
       { cache: 'no-store' },
     );
-    if (!res.ok) return null;
-    return (await res.json()) as TournamentData;
-  } catch {
-    return null;
+    if (res.ok) return { kind: 'ok', data: (await res.json()) as TournamentData };
+    if (res.status === 404) return { kind: 'not-found' };
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    return {
+      kind: 'server-error',
+      status: res.status,
+      message: body?.message ?? null,
+    };
+  } catch (err) {
+    return {
+      kind: 'server-error',
+      status: 0,
+      message: err instanceof Error ? err.message : null,
+    };
   }
 }
 
@@ -196,9 +221,9 @@ export default async function TournamentPage({ params }: Props) {
   const { eventSlug, tournamentSlug } = await params;
   const apiUrl = getApiUrl();
 
-  const data = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
+  const outcome = await fetchTournamentData(eventSlug, tournamentSlug, apiUrl);
 
-  if (!data) {
+  if (outcome.kind === 'not-found') {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center">
@@ -211,6 +236,33 @@ export default async function TournamentPage({ params }: Props) {
       </main>
     );
   }
+
+  if (outcome.kind === 'server-error') {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <div className="max-w-md text-center">
+          <p className="text-4xl mb-3">⚠️</p>
+          <h1 className="text-xl font-bold text-white mb-2">
+            This tournament couldn&apos;t be loaded
+          </h1>
+          <p className="text-gray-400 text-sm">
+            Please retry — if it keeps happening, let the organizer know.
+          </p>
+          {(outcome.message || outcome.status) && (
+            <details className="mt-4 text-left text-xs text-gray-500">
+              <summary className="cursor-pointer">Technical details</summary>
+              <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-gray-900 px-3 py-2 text-gray-400">
+                {outcome.status ? `HTTP ${outcome.status}\n` : ''}
+                {outcome.message ?? ''}
+              </pre>
+            </details>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  const { data } = outcome;
 
   const {
     tournament,

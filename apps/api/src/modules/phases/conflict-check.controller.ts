@@ -28,12 +28,32 @@ export class ConflictCheckController {
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async checkConflicts(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    // 1. Fetch all matches for this tournament with scheduled_at
-    const { data: matchRows } = await this.supabase.service
-      .from('matches')
-      .select('id, match_number_label, red_registration_id, blue_registration_id, scheduled_at')
-      .eq('tournament_id', tournamentId)
-      .neq('status', 'voided');
+    // 0. Resolve the tournament → event scope + phase ids. Neither
+    // `matches.tournament_id` nor `referee_assignments.tournament_id`
+    // exists in the schema (matches link to phases; phases link to
+    // tournaments; referee_assignments are event-scoped). Pre-resolving
+    // here keeps the downstream filters honest.
+    const { data: tournamentRow } = await this.supabase.service
+      .from('tournaments')
+      .select('event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const eventId = (tournamentRow as { event_id?: string } | null)?.event_id ?? null;
+
+    const { data: phaseRows } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId);
+    const phaseIds = ((phaseRows ?? []) as Array<{ id: string }>).map((p) => p.id);
+
+    // 1. Fetch all matches for this tournament's phases with scheduled_at.
+    const { data: matchRows } = phaseIds.length
+      ? await this.supabase.service
+          .from('matches')
+          .select('id, match_number_label, red_registration_id, blue_registration_id, scheduled_at')
+          .in('phase_id', phaseIds)
+          .neq('status', 'voided')
+      : { data: [] };
 
     const matches: ConflictScheduledMatch[] = (matchRows ?? []).map((m) => {
       const r = m as Record<string, unknown>;
@@ -46,19 +66,24 @@ export class ConflictCheckController {
         durationMinutes: 5,
       };
     });
+    const matchIds = matches.map((m) => m.id);
 
-    // 2. Fetch referee assignments for this tournament
+    // 2. Fetch referee assignments scoped to this tournament's matches.
     // Post-0063: referee_assignments.person_id → global_persons.
-    const { data: refRows } = await this.supabase.service
-      .from('referee_assignments')
-      .select(
-        `
+    const { data: refRows } =
+      eventId && matchIds.length
+        ? await this.supabase.service
+            .from('referee_assignments')
+            .select(
+              `
         match_id, role,
         global_persons ( id, given_name, family_name ),
         matches ( match_number_label, scheduled_at )
       `,
-      )
-      .eq('tournament_id', tournamentId);
+            )
+            .eq('event_id', eventId)
+            .in('match_id', matchIds)
+        : { data: [] };
 
     const refereeAssignments: ConflictRefereeAssignment[] = (refRows ?? []).map((r) => {
       const row = r as Record<string, unknown>;

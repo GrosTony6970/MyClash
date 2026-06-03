@@ -1250,4 +1250,159 @@ describe('EventsService', () => {
       expect(fromMock).toHaveBeenCalledWith('tournaments');
     });
   });
+
+  // ── Public tournament standings — pins post-0063 & visibility refactor ─────
+
+  describe('getPublicTournamentStandings', () => {
+    it('returns empty pools + bracket for a draft tournament, skipping the phases fetch', async () => {
+      const eventChain = makeChain({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      const tournamentChain = makeChain({
+        data: {
+          id: 'tournament-1',
+          name: 'Longsword Open',
+          weapon: 'longsword',
+          ruleset_code: 'TF_v1',
+          status: 'draft',
+          logo_url: null,
+        },
+        error: null,
+      });
+      fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(tournamentChain);
+
+      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+
+      expect(result).toMatchObject({
+        tournament: { name: 'Longsword Open', status: 'draft' },
+        pools: [],
+        bracketSlots: [],
+        bracketSize: 0,
+        bracketRounds: 0,
+      });
+      // Phases (and everything downstream) must not be queried when the
+      // tournament itself isn't public — tournament status is the gate.
+      expect(fromMock).not.toHaveBeenCalledWith('phases');
+      expect(fromMock).not.toHaveBeenCalledWith('pools');
+      expect(fromMock).not.toHaveBeenCalledWith('referee_assignments');
+    });
+
+    it('fetches phases without filtering on visibility_status when the tournament is published', async () => {
+      const eventChain = makeChain({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      const tournamentChain = makeChain({
+        data: {
+          id: 'tournament-1',
+          name: 'Longsword Open',
+          weapon: 'longsword',
+          ruleset_code: 'TF_v1',
+          status: 'published',
+          logo_url: null,
+        },
+        error: null,
+      });
+      // Phases: a single pool phase whose visibility_status is 'hidden'.
+      // Pre-refactor this would have been filtered out by `.eq('visibility_status', 'published')`
+      // and the standings would have come back empty. Post-refactor the
+      // tournament's status alone gates the public read, so the pool phase
+      // surfaces regardless.
+      const phasesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'phase-pool-1',
+            type: 'pool',
+            visibility_status: 'hidden',
+            config_json: {},
+          },
+        ],
+        error: null,
+      });
+      // Pools fetch — empty so we don't have to mock the deep registration
+      // embed; what matters here is the filter contract.
+      const poolsChain = makeAwaitableChain({ data: [], error: null });
+      // Referees fetch fires only when there are pools — pools is empty so
+      // referee_assignments shouldn't be queried at all in this test. We
+      // assert that below.
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phasesChain)
+        .mockReturnValueOnce(poolsChain);
+
+      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+
+      // The phases query must NOT filter on visibility_status. Earlier
+      // bug: `.eq('visibility_status', 'published')` kept hidden phases
+      // off the public page even when the tournament was published.
+      const visibilityFilterCall = phasesChain.eq.mock.calls.find(
+        (c) => c[0] === 'visibility_status',
+      );
+      expect(visibilityFilterCall).toBeUndefined();
+      expect(phasesChain.eq).toHaveBeenCalledWith('tournament_id', 'tournament-1');
+
+      // Tournament header carries through, and the response shape is the
+      // canonical empty-pools shape (not a 404 / not null).
+      expect(result.tournament.name).toBe('Longsword Open');
+      expect(result.pools).toEqual([]);
+
+      // poolIds === [] short-circuits the referee query — pins the
+      // public path against a regression that re-introduces the
+      // stale `user_id` column in the select.
+      expect(fromMock).not.toHaveBeenCalledWith('referee_assignments');
+    });
+
+    it('does not request referee_assignments.user_id (dropped by migration 0063)', async () => {
+      const eventChain = makeChain({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      const tournamentChain = makeChain({
+        data: {
+          id: 'tournament-1',
+          name: 'Longsword Open',
+          weapon: 'longsword',
+          ruleset_code: 'TF_v1',
+          status: 'published',
+          logo_url: null,
+        },
+        error: null,
+      });
+      const phasesChain = makeAwaitableChain({
+        data: [
+          { id: 'phase-pool-1', type: 'pool', visibility_status: 'published', config_json: {} },
+        ],
+        error: null,
+      });
+      // One pool with no members — keeps the test focused on the
+      // referee_assignments select shape.
+      const poolsChain = makeAwaitableChain({
+        data: [{ id: 'pool-1', name: 'Pool A', pool_members: [] }],
+        error: null,
+      });
+      const refereesChain = makeAwaitableChain({ data: [], error: null });
+
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phasesChain)
+        .mockReturnValueOnce(poolsChain)
+        .mockReturnValueOnce(refereesChain);
+
+      await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+
+      // The select string fed to the referee_assignments query MUST NOT
+      // include `user_id` — that column was dropped by migration 0063.
+      // Asking for it returns 400 from PostgREST and bricks the page.
+      const selectCalls = refereesChain.select.mock.calls;
+      expect(selectCalls.length).toBeGreaterThan(0);
+      for (const call of selectCalls) {
+        expect(String(call[0])).not.toMatch(/\buser_id\b/);
+      }
+      // Sanity: person_id is the canonical key post-0063.
+      expect(String(selectCalls[0]![0])).toMatch(/\bperson_id\b/);
+    });
+  });
 });
