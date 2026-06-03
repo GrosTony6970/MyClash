@@ -32,6 +32,42 @@ interface Lice {
   id: string;
   name: string;
   sortOrder: number;
+  /**
+   * Slice 8 of the venues feature: when a lice is attached to an
+   * org-level venue, the schedule grid groups consecutive same-venue
+   * lice columns under a single venue header row. Backend projects
+   * this via `venues(id, name)` on /events/:eventId/lices.
+   */
+  venues?: { id: string; name: string } | null;
+}
+
+interface VenueGroup {
+  venueId: string | null;
+  venueName: string | null;
+  startIndex: number;
+  span: number;
+}
+
+/**
+ * Group consecutive same-venue lice columns into header bands. Lice
+ * with no venue render under a "No venue" header at their position
+ * (we don't reorder — sortOrder still wins) so the operator's column
+ * layout stays predictable.
+ */
+function computeVenueGroups(lices: Lice[]): VenueGroup[] {
+  const groups: VenueGroup[] = [];
+  for (let i = 0; i < lices.length; i++) {
+    const lice = lices[i]!;
+    const id = lice.venues?.id ?? null;
+    const name = lice.venues?.name ?? null;
+    const previous = groups[groups.length - 1];
+    if (previous && previous.venueId === id) {
+      previous.span += 1;
+    } else {
+      groups.push({ venueId: id, venueName: name, startIndex: i, span: 1 });
+    }
+  }
+  return groups;
 }
 
 /**
@@ -167,7 +203,7 @@ function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boole
   return scheduledAtIso.slice(0, 10) === dayIso;
 }
 
-export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
+export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string }) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [lices, setLices] = useState<Lice[]>([]);
@@ -1005,19 +1041,68 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                 gridAutoRows: `${SLOT_HEIGHT_PX}px`,
               }}
             >
-              {/* Row 1: header — corner cell + lice name cells. Every cell is
-                  explicitly placed so the per-slot Fragment below can't be
-                  cascaded out of position by the absolutely-placed match
-                  cards (see Slice 1 of the schedule overhaul plan). */}
+              {/* Row 1: venue header band. Consecutive same-venue lice
+                  columns share one header cell; lices without a venue
+                  show "No venue". The cell is clickable when bound to a
+                  venue — opens the event's Venues tab so the operator
+                  can edit the venue inline. */}
               <div
-                className="sticky top-0 z-20 bg-white border-b border-gray-300"
-                style={{ gridColumn: 1, gridRow: 1 }}
+                className="sticky top-0 z-30 bg-white border-b border-gray-200"
+                style={{ gridColumn: 1, gridRow: 1, height: SLOT_HEIGHT_PX }}
+              />
+              {computeVenueGroups(lices).map((group, groupIndex) => {
+                const startCol = group.startIndex + 2;
+                if (group.venueId) {
+                  return (
+                    <a
+                      key={`${group.venueId}-${groupIndex}`}
+                      href={`/org/${slug}/events/${eventId}/venues`}
+                      className="sticky top-0 z-30 bg-blue-50 border-b border-blue-200 border-l border-l-gray-200 px-2 flex items-center text-xs font-semibold text-blue-800 hover:bg-blue-100 truncate"
+                      style={{
+                        gridColumn: `${startCol} / span ${group.span}`,
+                        gridRow: 1,
+                        height: SLOT_HEIGHT_PX,
+                      }}
+                      title={group.venueName ?? ''}
+                    >
+                      {group.venueName}
+                    </a>
+                  );
+                }
+                return (
+                  <div
+                    key={`no-venue-${groupIndex}`}
+                    className="sticky top-0 z-30 bg-gray-100 border-b border-gray-200 border-l border-l-gray-200 px-2 flex items-center text-xs italic text-gray-400 truncate"
+                    style={{
+                      gridColumn: `${startCol} / span ${group.span}`,
+                      gridRow: 1,
+                      height: SLOT_HEIGHT_PX,
+                    }}
+                  >
+                    No venue
+                  </div>
+                );
+              })}
+
+              {/* Row 2: lice header — corner cell + lice name cells. Every
+                  cell is explicitly placed so the per-slot Fragment below
+                  can't be cascaded out of position by the absolutely-placed
+                  match cards (see Slice 1 of the schedule overhaul plan). */}
+              <div
+                className="sticky bg-white border-b border-gray-300"
+                style={{ gridColumn: 1, gridRow: 2, top: SLOT_HEIGHT_PX, zIndex: 20 }}
               />
               {lices.map((lice, liceIndex) => (
                 <div
                   key={lice.id}
-                  className="sticky top-0 z-20 bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center"
-                  style={{ gridColumn: liceIndex + 2, gridRow: 1, height: SLOT_HEIGHT_PX * 2 }}
+                  className="sticky bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center"
+                  style={{
+                    gridColumn: liceIndex + 2,
+                    gridRow: 2,
+                    top: SLOT_HEIGHT_PX,
+                    zIndex: 20,
+                    height: SLOT_HEIGHT_PX * 2,
+                  }}
                 >
                   <span className="text-xs font-bold text-gray-700 truncate">{lice.name}</span>
                 </div>
@@ -1036,7 +1121,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                     className="sticky left-0 z-10 bg-white text-xs text-gray-400 pr-1 flex items-center justify-end select-none"
                     style={{
                       gridColumn: 1,
-                      gridRow: slot + 2,
+                      gridRow: slot + 3,
                       borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                     }}
                   >
@@ -1050,7 +1135,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                       className="bg-gray-50 border-l border-l-gray-200"
                       style={{
                         gridColumn: liceIndex + 2,
-                        gridRow: slot + 2,
+                        gridRow: slot + 3,
                         borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                       }}
                       onDragOver={(e) => e.preventDefault()}
@@ -1100,7 +1185,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                     ].join(' ')}
                     style={{
                       gridColumn: liceIndex + 2, // +1 for time-label col, +1 for 1-based
-                      gridRow: `${slot + 2} / span ${span}`, // +1 for header row, +1 for 1-based
+                      gridRow: `${slot + 3} / span ${span}`, // +1 for venue band, +1 for lice header, +1 for 1-based
                       margin: '1px',
                     }}
                     title={`${m.roundCode || m.matchNumberLabel} · Ctrl/⌘-click to open scoring${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
@@ -1129,7 +1214,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                     ].join(' ')}
                     style={{
                       gridColumn: group.minLiceIndex + 2,
-                      gridRow: group.minSlot + 2,
+                      gridRow: group.minSlot + 3,
                       zIndex: 12,
                       pointerEvents: 'auto',
                     }}
@@ -1168,7 +1253,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                   ].join(' ')}
                   style={{
                     gridColumn: '2 / -1',
-                    gridRow: `${b.startSlot + 2} / span ${b.span}`,
+                    gridRow: `${b.startSlot + 3} / span ${b.span}`,
                     zIndex: 8,
                     backgroundImage:
                       b.blockType === 'break'
@@ -1191,7 +1276,7 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                   className="pointer-events-none flex items-center"
                   style={{
                     gridColumn: '1 / -1',
-                    gridRow: nowSlot + 2,
+                    gridRow: nowSlot + 3,
                     zIndex: 15,
                   }}
                 >
