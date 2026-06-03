@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { nextSlugFromName } from './slug-from-name';
 
 interface Workshop {
   id: string;
@@ -424,12 +425,7 @@ export default function WorkshopsAdminPage() {
                     setForm((f) => ({
                       ...f,
                       name,
-                      slug:
-                        f.slug ||
-                        name
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, '-')
-                          .replace(/^-+|-+$/g, ''),
+                      slug: nextSlugFromName(f.slug, f.name, name),
                     }));
                   }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
