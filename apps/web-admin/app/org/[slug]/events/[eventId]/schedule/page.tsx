@@ -14,7 +14,17 @@ export default function SchedulePage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const { t } = useI18n();
-  const [tab, setTab] = useState<'programme' | 'grid'>('programme');
+
+  // Bumping these nonces tells the children to act:
+  //   - topSuggestNonce → planner re-runs `suggest()` (Generate schedule)
+  //   - gridRefreshKey  → grid remounts after a Generate Grid run so it
+  //                       re-fetches matches + programme blocks.
+  const [topSuggestNonce, setTopSuggestNonce] = useState(0);
+  const [gridRefreshKey, setGridRefreshKey] = useState(0);
+
+  const generateScheduleLabel = t('organizer.schedulePage.generateScheduleAction');
+  const generateScheduleHint = t('organizer.schedulePage.generateScheduleHint');
+  const generateGridLabel = t('organizer.schedulePage.generateGridAction');
 
   return (
     <main>
@@ -31,46 +41,46 @@ export default function SchedulePage() {
           <span>/</span>
           <span className="text-gray-900 font-medium">Schedule</span>
         </div>
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold">Schedule</h1>
-          <Link
-            href={`/org/${slug}/events/${eventId}/ai-assistant?type=schedule_grid`}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            {t('organizer.aiAssistant.suggest')}
-          </Link>
-        </div>
-
-        {/* Sub-tabs */}
-        <div className="flex gap-1 border-b border-gray-200 mb-6">
-          {(['programme', 'grid'] as const).map((t) => (
+          <div className="flex items-center gap-2">
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={[
-                'px-4 py-2 text-sm font-medium rounded-t-lg transition-colors',
-                tab === t
-                  ? 'bg-white border border-b-white border-gray-200 text-gray-900 -mb-px'
-                  : 'text-gray-500 hover:text-gray-700',
-              ].join(' ')}
+              type="button"
+              onClick={() => setTopSuggestNonce((n) => n + 1)}
+              title={generateScheduleHint}
+              className="rounded-lg bg-red-700 hover:bg-red-800 px-3 py-2 text-sm font-semibold text-white"
             >
-              {t === 'programme' ? 'Programme' : 'Grid'}
+              ✦ {generateScheduleLabel}
             </button>
-          ))}
+            <Link
+              href={`/org/${slug}/events/${eventId}/ai-assistant?type=schedule_grid`}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {t('organizer.aiAssistant.suggest')}
+            </Link>
+          </div>
         </div>
 
         <LiveNowBanner eventId={eventId} />
       </div>
 
-      {tab === 'programme' ? (
-        <div className="px-8 pb-8">
-          <ProgrammePlanner eventId={eventId} onGenerateDone={() => setTab('grid')} />
-        </div>
-      ) : (
-        <div className="px-4 pb-4">
-          <ScheduleGrid slug={slug} eventId={eventId} />
-        </div>
-      )}
+      {/* Merged layout: programme planner on top, live grid below.
+          The tabs split this surface in two and forced operators to
+          switch context just to see how a config change affected the
+          grid. Single scroll keeps both visible side-by-side. */}
+      <div className="px-8 pb-4">
+        <ProgrammePlanner
+          eventId={eventId}
+          topSuggestNonce={topSuggestNonce}
+          generateScheduleLabel={generateScheduleLabel}
+          generateGridLabel={generateGridLabel}
+          onGenerateDone={() => setGridRefreshKey((k) => k + 1)}
+        />
+      </div>
+
+      <div className="px-4 pb-8">
+        <ScheduleGrid key={gridRefreshKey} slug={slug} eventId={eventId} />
+      </div>
     </main>
   );
 }

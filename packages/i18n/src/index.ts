@@ -3172,6 +3172,11 @@ export const en = {
       refereesPickerRecommended: 'Recommended',
       refereesPickerBlocked: 'Blocked',
     },
+    schedulePage: {
+      generateScheduleAction: 'Generate schedule',
+      generateScheduleHint: 'Build the day plan: registration, pool sessions, brackets, breaks.',
+      generateGridAction: 'Generate Grid',
+    },
     bracketPage: {
       tabs: {
         bracket: 'Bracket',
@@ -6897,6 +6902,12 @@ export const fr = {
       refereesPick: 'Choisir',
       refereesPickerRecommended: 'Recommandes',
       refereesPickerBlocked: 'Bloques',
+    },
+    schedulePage: {
+      generateScheduleAction: 'Generer le programme',
+      generateScheduleHint:
+        'Construit le plan de la journee : accueil, sessions de poules, tableaux, pauses.',
+      generateGridAction: 'Generer la grille',
     },
     bracketPage: {
       tabs: {

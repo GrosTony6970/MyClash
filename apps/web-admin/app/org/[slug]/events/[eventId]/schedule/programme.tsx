@@ -57,9 +57,22 @@ const DEFAULT_CONFIG: SuggestConfig = {
 export function ProgrammePlanner({
   eventId,
   onGenerateDone,
+  topSuggestNonce,
+  generateScheduleLabel,
+  generateGridLabel,
 }: {
   eventId: string;
   onGenerateDone: () => void;
+  /**
+   * When this number changes, the planner runs `suggest()`. Lets the
+   * merged page expose a "Generate schedule" button in its top header
+   * without lifting the entire config state out of this component.
+   * Increment the nonce from the parent on click.
+   */
+  topSuggestNonce?: number;
+  /** Localised button labels — fall back to English defaults if unset. */
+  generateScheduleLabel?: string;
+  generateGridLabel?: string;
 }) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -108,6 +121,23 @@ export function ProgrammePlanner({
       })
       .catch(() => undefined);
   }, [eventId, apiUrl]);
+
+  // Top "Generate schedule" button lives in the page header; clicking
+  // it bumps `topSuggestNonce` and we re-run suggest here. Skip the
+  // initial render (nonce === undefined) so we don't generate on mount.
+  const firstNonceRef = useRef(true);
+  useEffect(() => {
+    if (topSuggestNonce === undefined) return;
+    if (firstNonceRef.current) {
+      firstNonceRef.current = false;
+      return;
+    }
+    void suggest();
+    // suggest is intentionally not a dependency — defining it inside the
+    // component changes identity on every render; we just want the nonce
+    // to drive a single call per click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topSuggestNonce]);
 
   // ── Auto-suggest ───────────────────────────────────────────────────────────
 
@@ -411,7 +441,7 @@ export function ProgrammePlanner({
           disabled={suggesting}
           className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
         >
-          {suggesting ? 'Generating…' : '✦ Auto-suggest'}
+          {suggesting ? 'Generating…' : `✦ ${generateScheduleLabel ?? 'Generate schedule'}`}
         </button>
       </aside>
 
@@ -489,7 +519,7 @@ export function ProgrammePlanner({
         {/* Block list */}
         {dayBlocks.length === 0 ? (
           <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-4 py-3 text-sm mb-4">
-            No blocks for this day. Use Auto-suggest or add blocks manually.
+            No blocks for this day. Use Generate schedule or add blocks manually.
           </div>
         ) : (
           <div className="flex flex-col gap-1.5 mb-2">
@@ -541,7 +571,7 @@ export function ProgrammePlanner({
             disabled={generating || blocks.length === 0}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
           >
-            {generating ? 'Generating…' : 'Generate schedule →'}
+            {generating ? 'Generating…' : `${generateGridLabel ?? 'Generate Grid'} →`}
           </button>
           <button
             onClick={() => setConfirmReset(true)}
