@@ -818,25 +818,37 @@ export default function BracketPage() {
           </div>
         )}
 
-        {/* Tournament selector */}
+        {/* Tournament selector — one tab per tournament. Active tab
+            highlights with the same red border treatment as the
+            Bracket/Referees tab strip above. `flex-wrap` lets many
+            tournaments wrap to multiple rows; the color dot mirrors
+            the schedule grid for at-a-glance recognition. */}
         {tournaments.length > 1 && (
-          <div className="mb-4 flex items-center gap-2">
-            <TournamentColorDot
-              color={tournaments.find((t) => t.id === selectedTournament)?.color}
-              size="md"
-            />
-            <select
-              value={selectedTournament}
-              onChange={(e) => setSelectedTournament(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-            >
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <nav
+            aria-label={t('organizer.bracketPage.tournamentTabsLabel')}
+            className="mb-4 flex flex-wrap gap-1 border-b border-slate-200"
+          >
+            {tournaments.map((tour) => {
+              const active = tour.id === selectedTournament;
+              return (
+                <button
+                  key={tour.id}
+                  type="button"
+                  onClick={() => setSelectedTournament(tour.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={[
+                    'inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                    active
+                      ? 'border-red-800 text-red-800'
+                      : 'border-transparent text-slate-600 hover:text-slate-900',
+                  ].join(' ')}
+                >
+                  <TournamentColorDot color={tour.color} size="sm" />
+                  <span>{tour.name}</span>
+                </button>
+              );
+            })}
+          </nav>
         )}
 
         {/* Generate config */}
