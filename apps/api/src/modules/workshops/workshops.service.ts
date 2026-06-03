@@ -42,6 +42,18 @@ export interface CreateSessionDto {
   location?: string;
   capacity?: number; // override workshop capacity for this session
   status?: string;
+  /**
+   * Org-level venue this session happens in. The venue must belong
+   * to the workshop's event's org — the service rejects cross-org
+   * references.
+   */
+  venueId?: string | null;
+  /**
+   * Optional area inside the venue. Required only when the operator
+   * has split the venue into 2+ areas; otherwise the session links
+   * to the venue directly.
+   */
+  areaId?: string | null;
 }
 
 @Injectable()
@@ -165,14 +177,24 @@ export class WorkshopsService {
   // ── Create session ────────────────────────────────────────────────────────────
 
   async createSession(workshopId: string, dto: CreateSessionDto) {
-    // Get workshop capacity as default
+    // Get workshop capacity + event_id as default + scope guard.
     const { data: workshop } = await this.supabase.service
       .from('workshops')
-      .select('capacity')
+      .select('capacity, event_id')
       .eq('id', workshopId)
       .maybeSingle();
 
     const capacity = dto.capacity ?? (workshop as { capacity: number } | null)?.capacity ?? 20;
+
+    if (dto.venueId) {
+      await this.assertVenueBelongsToEventsOrg(
+        dto.venueId,
+        String((workshop as { event_id?: string } | null)?.event_id ?? ''),
+      );
+    }
+    if (dto.areaId) {
+      await this.assertAreaBelongsToVenue(dto.areaId, dto.venueId ?? null);
+    }
 
     const { data, error } = await this.supabase.service
       .from('workshop_sessions')
@@ -182,6 +204,8 @@ export class WorkshopsService {
         end_time: dto.endTime,
         location: dto.location ?? null,
         capacity,
+        venue_id: dto.venueId ?? null,
+        area_id: dto.areaId ?? null,
       })
       .select('*')
       .single();
@@ -200,6 +224,8 @@ export class WorkshopsService {
     if (dto.location !== undefined) updates['location'] = dto.location;
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
     if (dto.status !== undefined) updates['status'] = dto.status;
+    if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
+    if (dto.areaId !== undefined) updates['area_id'] = dto.areaId;
 
     const { data, error } = await this.supabase.service
       .from('workshop_sessions')
@@ -233,5 +259,42 @@ export class WorkshopsService {
 
     if (error) throw new BadRequestException(error.message);
     return data ?? [];
+  }
+
+  // ── Cross-org guards ─────────────────────────────────────────────────────────
+
+  private async assertVenueBelongsToEventsOrg(venueId: string, eventId: string): Promise<void> {
+    const { data: venue } = await this.supabase.service
+      .from('venues')
+      .select('organization_id')
+      .eq('id', venueId)
+      .maybeSingle();
+    if (!venue) throw new BadRequestException(`Venue ${venueId} not found`);
+    const { data: event } = await this.supabase.service
+      .from('events')
+      .select('organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) throw new BadRequestException(`Event ${eventId} not found`);
+    if (
+      String((venue as Record<string, unknown>)['organization_id']) !==
+      String((event as Record<string, unknown>)['organization_id'])
+    ) {
+      throw new BadRequestException(
+        'Venue belongs to a different organization than the workshop event',
+      );
+    }
+  }
+
+  private async assertAreaBelongsToVenue(areaId: string, venueId: string | null): Promise<void> {
+    const { data: area } = await this.supabase.service
+      .from('venue_areas')
+      .select('venue_id')
+      .eq('id', areaId)
+      .maybeSingle();
+    if (!area) throw new BadRequestException(`Area ${areaId} not found`);
+    if (venueId && String((area as Record<string, unknown>)['venue_id']) !== venueId) {
+      throw new BadRequestException('Area does not belong to the selected venue');
+    }
   }
 }

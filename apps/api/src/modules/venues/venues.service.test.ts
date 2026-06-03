@@ -20,9 +20,13 @@ function chain(result: QueryResult) {
   return api;
 }
 
-function countChain(result: CountResult) {
+type CountChain = Promise<CountResult> & {
+  select: ReturnType<typeof vi.fn>;
+  eq: ReturnType<typeof vi.fn>;
+};
+function countChain(result: CountResult): CountChain {
   const promise = Promise.resolve(result);
-  const api = Object.assign(promise, {
+  const api: CountChain = Object.assign(promise, {
     select: vi.fn(() => api),
     eq: vi.fn(() => api),
   });

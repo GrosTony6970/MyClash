@@ -58,6 +58,8 @@ class CreateSessionBody implements CreateSessionDto {
   @IsOptional() @IsString() location?: string;
   @IsOptional() @IsInt() @Min(1) capacity?: number;
   @IsOptional() @IsIn(['scheduled', 'cancelled']) status?: string;
+  @IsOptional() @IsUUID() venueId?: string | null;
+  @IsOptional() @IsUUID() areaId?: string | null;
 }
 
 class AddInstructorBody {
