@@ -118,6 +118,27 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     slot: AssignmentBoardRoleSlot;
   } | null>(null);
   const [skills, setSkills] = useState<RefereeSkill[]>([]);
+  // Lice id → name map. Surfaces a human label on the timeline cards and
+  // the per-tournament PoolSlotCards. Silent fallback to nothing when the
+  // fetch fails — the consumer renders no extra label, never the UUID.
+  const [liceNameById, setLiceNameById] = useState<Map<string, string>>(() => new Map());
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const lices = (await res.json()) as Array<{ id: string; name: string }>;
+        const map = new Map<string, string>();
+        for (const l of lices) map.set(l.id, l.name);
+        setLiceNameById(map);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [apiUrl, eventId]);
 
   // Load the skills catalog so chips can tint by the skill's own colour
   // and the role label can render the human name instead of the raw id.
@@ -198,11 +219,11 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         tournamentName: p.tournamentName,
         scheduledStart: p.scheduledStart,
         scheduledEnd: p.scheduledEnd,
-        liceId: p.liceId,
+        liceName: p.liceId ? (liceNameById.get(p.liceId) ?? null) : null,
         filledSlotCount: p.roleSlots.filter((s) => s.assignment !== null).length,
         totalSlotCount: p.roleSlots.length,
       })),
-    [allBoardPools],
+    [allBoardPools, liceNameById],
   );
 
   /**
@@ -345,6 +366,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
             <PoolSlotCard
               key={pool.id}
               pool={pool}
+              liceName={pool.liceId ? (liceNameById.get(pool.liceId) ?? null) : null}
               isReadOnly={isReadOnly || board.locked}
               busy={busy}
               skillNameById={skillNameById}
@@ -385,6 +407,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 
 function PoolSlotCard({
   pool,
+  liceName,
   isReadOnly,
   busy,
   skillNameById,
@@ -393,6 +416,7 @@ function PoolSlotCard({
   onUnassign,
 }: {
   pool: AssignmentBoardPool;
+  liceName: string | null;
   isReadOnly: boolean;
   busy: boolean;
   skillNameById: Map<string, string>;
@@ -412,6 +436,11 @@ function PoolSlotCard({
           <p className="text-xs text-gray-500">
             {formatHHMM(pool.scheduledStart)}
             {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd)}`}
+          </p>
+        )}
+        {liceName && (
+          <p className="text-xs text-gray-500">
+            {t('organizer.poolsPage.refereesLiceLabel').replace('{lice}', liceName)}
           </p>
         )}
       </div>

@@ -28,7 +28,7 @@ export interface TimelinePool {
   tournamentName: string;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  liceId: string | null;
+  liceName: string | null;
   /** Filled slot count for the badge (`X/Y`). 0 when board not loaded yet. */
   filledSlotCount: number;
   totalSlotCount: number;
@@ -115,7 +115,7 @@ function PoolCard({ pool, highlighted }: { pool: TimelinePool; highlighted: bool
       <p className="font-semibold text-gray-900">{pool.name}</p>
       <p className="text-[10px] text-gray-500">{pool.tournamentName}</p>
       <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
-        {pool.liceId && <span className="text-gray-400">{pool.liceId}</span>}
+        {pool.liceName && <span className="text-gray-400">{pool.liceName}</span>}
         <span
           className={[
             'tabular-nums font-semibold',

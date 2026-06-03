@@ -3158,6 +3158,7 @@ export const en = {
       refereesTimelineTitle: 'Event pool timeline',
       refereesTimelineEmpty: 'No scheduled pools yet.',
       refereesTimelineUnscheduled: 'Unscheduled',
+      refereesLiceLabel: 'Lice {lice}',
       refereesConcurrentTitle: 'Pools running in parallel',
       refereesConcurrentBody:
         '{count} pool(s) from other tournaments overlap with yours. Refs already booked there are unavailable.',
@@ -6883,6 +6884,7 @@ export const fr = {
       refereesTimelineTitle: 'Timeline des poules de l evenement',
       refereesTimelineEmpty: 'Aucune poule planifiee pour le moment.',
       refereesTimelineUnscheduled: 'Non planifie',
+      refereesLiceLabel: 'Lice {lice}',
       refereesConcurrentTitle: 'Poules en parallele',
       refereesConcurrentBody:
         '{count} poule(s) d autres tournois chevauchent les votres. Les arbitres deja affectes la-bas sont indisponibles.',
