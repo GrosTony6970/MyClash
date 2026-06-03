@@ -6,24 +6,9 @@ import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
-import { buildMatchScoringHref } from './build-scoring-href';
 import { countPoolFighters } from './count-pool-fighters';
-import { requireClientEnv } from '../../../../../../../src/config/client-env';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-// Cross-app deep link into the web-scoring ScoringPad. Set per env
-// in infra/docker-compose.*.yml; the helper throws in prod when
-// missing so a forgotten Dockerfile ARG can't ship as a silent
-// localhost fallback. The literal below is the dev fallback.
-// Pass `process.env.NEXT_PUBLIC_SCORING_URL` as the first arg (direct
-// literal access) so Next.js inlines the value at build time. A
-// dynamic `process.env[name]` lookup would NOT be inlined and would
-// silently degrade to undefined in the prod browser bundle.
-const scoringBaseUrl = requireClientEnv(
-  process.env['NEXT_PUBLIC_SCORING_URL'],
-  'NEXT_PUBLIC_SCORING_URL',
-  'http://localhost:3002',
-);
 
 interface RefereeAssignment {
   role: string;
@@ -522,18 +507,19 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         // click handler below re-builds the URL with
                         // `?return=<current-url>` so the per-match scoring
                         // page's back button survives a hard refresh.
-                        // Always routes to the match-direct page so the
-                        // operator lands on the specific match they clicked
-                        // (the lice-queue route would show the lice's top
-                        // match, which is rarely the same one).
-                        const scoringHref = buildMatchScoringHref(scoringBaseUrl, m.id);
+                        // Open the admin-side scoreboard (same-origin via the
+                        // existing myclash-admin-api Traefik router). The
+                        // cross-origin scoring.myclash.fr path failed
+                        // because the scoring container's
+                        // NEXT_PUBLIC_API_URL_SCORING points at api.myclash.fr
+                        // which uses the untrusted dev cert — the browser
+                        // refused the match fetch and the page rendered the
+                        // "Match unavailable" fallback.
+                        const scoringHref = m.id
+                          ? `/org/${slug}/events/${eventId}/matches/${m.id}/scoreboard`
+                          : null;
                         function openScoring() {
-                          const href = buildMatchScoringHref(
-                            scoringBaseUrl,
-                            m.id,
-                            window.location.href,
-                          );
-                          if (href) window.location.href = href;
+                          if (scoringHref) window.location.href = scoringHref;
                         }
                         const auditHref = `/org/${slug}/events/${eventId}/matches/${m.id}`;
                         // Winner-bold rule: only completed matches with a

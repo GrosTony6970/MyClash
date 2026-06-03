@@ -23,8 +23,6 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
-import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
-import { requireClientEnv } from '../../../../../../src/config/client-env';
 
 interface Tournament {
   id: string;
@@ -127,17 +125,6 @@ export default function BracketPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  // Cross-app deep link into the web-scoring ScoringPad — same env var
-  // the pool Matches tab reads. requireClientEnv throws in prod when
-  // missing so a forgotten Dockerfile ARG can't ship as a silent
-  // localhost fallback. The literal below is the dev fallback.
-  // Pass `process.env.NEXT_PUBLIC_SCORING_URL` directly so Next.js
-  // inlines the value at build time — see requireClientEnv's docs.
-  const scoringBaseUrl = requireClientEnv(
-    process.env['NEXT_PUBLIC_SCORING_URL'],
-    'NEXT_PUBLIC_SCORING_URL',
-    'http://localhost:3002',
-  );
   const { t } = useI18n();
   const { isReadOnly } = useEventStatus(eventId);
 
@@ -1558,12 +1545,11 @@ export default function BracketPage() {
                     setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
                     return;
                   }
-                  const scoringHref = buildMatchScoringHref(
-                    scoringBaseUrl,
-                    matchId,
-                    window.location.href,
-                  );
-                  if (scoringHref) window.location.href = scoringHref;
+                  // Open the admin-side scoreboard (same-origin via the
+                  // myclash-admin-api Traefik router). The
+                  // scoring.myclash.fr cross-origin path hits the dev
+                  // cert and renders "Match unavailable".
+                  window.location.href = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
                 }}
                 onOverrideSlot={(slotId) =>
                   setOverrideModal({ slotId, regAId: undefined, regBId: undefined })

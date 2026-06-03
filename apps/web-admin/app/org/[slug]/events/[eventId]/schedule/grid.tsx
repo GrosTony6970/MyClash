@@ -5,27 +5,21 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { detectConflicts, type Conflict } from './conflict-detection';
-import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
-import { requireClientEnv } from '../../../../../../src/config/client-env';
-
-// Pass `process.env.NEXT_PUBLIC_SCORING_URL` directly so Next.js
-// inlines the value at build time — see requireClientEnv's docs.
-const scoringBaseUrl = requireClientEnv(
-  process.env['NEXT_PUBLIC_SCORING_URL'],
-  'NEXT_PUBLIC_SCORING_URL',
-  'http://localhost:3002',
-);
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
- * chip) jumps the operator straight into the cross-app scoring
- * pad for **that specific match**. Plain click is reserved for
- * drag-and-drop selection. The match-direct route works without a
- * lice context, so no liceId branching is needed.
+ * chip) opens the same-origin admin scoreboard for **that specific
+ * match**. Plain click is reserved for drag-and-drop selection. The
+ * scoreboard route works for both pool and bracket matches without
+ * needing lice/phase branching.
+ *
+ * Was previously jumping cross-origin to scoring.myclash.fr, which
+ * failed because the scoring container's NEXT_PUBLIC_API_URL_SCORING
+ * points at api.myclash.fr (dev cert). Same-origin via the admin's
+ * existing /api/v1 Traefik router avoids the problem entirely.
  */
-function openMatchScoring(matchId: string): void {
-  const href = buildMatchScoringHref(scoringBaseUrl, matchId, window.location.href);
-  if (href) window.location.href = href;
+function openMatchScoring(slug: string, eventId: string, matchId: string): void {
+  window.location.href = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
 }
 
 interface Lice {
@@ -1015,6 +1009,8 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                     <MatchChip
                       key={m.id}
                       match={m}
+                      slug={slug}
+                      eventId={eventId}
                       saving={saving === m.id}
                       onDragStart={() => {
                         dragMatch.current = m;
@@ -1170,7 +1166,7 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                     onClick={(e) => {
                       if (!(e.ctrlKey || e.metaKey)) return;
                       e.preventDefault();
-                      openMatchScoring(m.id);
+                      openMatchScoring(slug, eventId, m.id);
                     }}
                     className={[
                       'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10 border',
@@ -1325,10 +1321,14 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
 
 function MatchChip({
   match,
+  slug,
+  eventId,
   saving,
   onDragStart,
 }: {
   match: ScheduleMatch;
+  slug: string;
+  eventId: string;
   saving: boolean;
   onDragStart: () => void;
 }) {
@@ -1340,7 +1340,7 @@ function MatchChip({
       onClick={(e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();
-        openMatchScoring(match.id);
+        openMatchScoring(slug, eventId, match.id);
       }}
       title={`${match.roundCode || match.matchNumberLabel} · Ctrl/⌘-click to open scoring`}
       className={[

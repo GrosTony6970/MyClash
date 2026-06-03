@@ -28,6 +28,12 @@ export function buildScoringHref(scoringBaseUrl: string, liceId: string | null):
  * per-match scoring page surfaces it via `?return=` so its back
  * button still works after a hard refresh (when `router.back()`
  * alone would have nothing to return to).
+ *
+ * TODO: dormant. All admin match clicks now route to the same-origin
+ * admin scoreboard at
+ * `/org/<slug>/events/<eventId>/matches/<matchId>/scoreboard` because
+ * the cross-origin scoring.myclash.fr fetch fails the dev cert. This
+ * helper stays for a future explicit "Open in tablet PWA" affordance.
  */
 export function buildMatchScoringHref(
   scoringBaseUrl: string,
