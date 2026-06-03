@@ -119,3 +119,15 @@ export class SaveProgrammeDto {
   @Type(() => ProgrammeBlockDto)
   blocks: ProgrammeBlockDto[] = [];
 }
+
+/**
+ * Move a single programme block to a new start time on the same day.
+ * Cascade-shifts every match scheduled at or after the block's OLD
+ * start by the same Δ — keeps the visual ordering of the grid intact
+ * when the operator drags a fixed bar.
+ */
+export class MoveBlockDto {
+  @IsString()
+  @Matches(HH_MM)
+  newStartTime: string = '09:00';
+}

@@ -224,6 +224,12 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
   // lands. Mutually exclusive with `dragMatch` — onDragStart on one
   // path clears the other.
   const dragPool = useRef<{ poolId: string; matchIds: string[] } | null>(null);
+  // Schedule overhaul slice 5: dragging a fixed programme block
+  // (registration / break / referee meeting) on the grid moves the
+  // block AND cascade-shifts every later match on the same day.
+  // Mutually exclusive with dragMatch / dragPool.
+  const dragBlock = useRef<{ id: string; startTime: string } | null>(null);
+  const [movingBlockId, setMovingBlockId] = useState<string | null>(null);
   // Surfaced when auto-distribute fails so the operator sees the error
   // instead of a silent no-op.
   const [autoDistributeError, setAutoDistributeError] = useState<string | null>(null);
@@ -355,8 +361,61 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
     }
   }
 
+  async function refetchScheduleAndBlocks(): Promise<void> {
+    const [schedRes, programmeRes] = await Promise.all([
+      fetch(`${apiUrl}/api/v1/events/${eventId}/schedule`, { credentials: 'include' }),
+      fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' }),
+    ]);
+    if (schedRes.ok) {
+      const m = (await schedRes.json()) as ScheduleMatch[];
+      setMatches(m);
+      setConflicts(detectConflicts(m));
+    }
+    if (programmeRes.ok) {
+      const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
+      setProgrammeBlocks(blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'));
+    }
+  }
+
+  async function moveBlockTo(blockId: string, slot: number): Promise<void> {
+    setMovingBlockId(blockId);
+    try {
+      // The grid axis runs 08:00–20:00 in 5-min steps. Translate the
+      // drop slot back to HH:MM the backend expects.
+      const newStartMin = GRID_START_HOUR * 60 + slot * SLOT_MINUTES;
+      const hh = Math.floor(newStartMin / 60);
+      const mm = newStartMin % 60;
+      const newStartTime = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      const res = await fetch(
+        `${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}/move`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newStartTime }),
+        },
+      );
+      if (!res.ok) return;
+      // Cascade can touch many matches — refetch from source of truth
+      // instead of trying to mirror the shift client-side.
+      await refetchScheduleAndBlocks();
+    } finally {
+      setMovingBlockId(null);
+    }
+  }
+
   function handleDrop(liceId: string, slot: number) {
-    // Pool-block drop takes precedence — same cell, different payload.
+    // Programme-block drop: the operator dragged a fixed bar. Block
+    // drop takes precedence — the bar spans every lice column so any
+    // cell at the target row is a valid landing.
+    if (dragBlock.current) {
+      const payload = dragBlock.current;
+      dragBlock.current = null;
+      void moveBlockTo(payload.id, slot);
+      return;
+    }
+    // Pool-block drop takes precedence over the per-match path — same
+    // cell, different payload.
     if (dragPool.current) {
       const payload = dragPool.current;
       dragPool.current = null;
@@ -1083,20 +1142,32 @@ export function ScheduleGrid({ eventId }: { slug: string; eventId: string }) {
                 );
               })}
 
-              {/* Slice 7: non-fight programme blocks rendered as full-width
-                  bars across every lice column. Read-only for now — drag
-                  support stays a follow-up. Striped chrome distinguishes
-                  them from fight cards. */}
+              {/* Slice 7 + schedule overhaul slice 5: non-fight programme
+                  blocks rendered as full-width bars across every lice
+                  column. Now draggable — operator drops the bar on any
+                  cell in the target row and the backend cascade-shifts
+                  every later match on that day by the same Δ. Striped
+                  chrome distinguishes them from fight cards. */}
               {blocksOnActiveDay.map((b) => (
                 <div
                   key={b.id}
+                  draggable
+                  onDragStart={() => {
+                    dragBlock.current = { id: b.id, startTime: b.startTime };
+                    dragMatch.current = null;
+                    dragPool.current = null;
+                  }}
+                  onDragEnd={() => {
+                    dragBlock.current = null;
+                  }}
                   aria-label={b.label}
-                  title={`${b.startTime} – ${b.endTime} · ${b.label}`}
+                  title={`${b.startTime} – ${b.endTime} · ${b.label} · drag to move (cascade-shifts later matches)`}
                   className={[
-                    'pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide',
+                    'pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing',
                     b.blockType === 'break'
                       ? 'bg-slate-100 text-slate-600 border-y border-slate-300'
                       : 'bg-purple-50 text-purple-800 border-y border-purple-300',
+                    movingBlockId === b.id ? 'opacity-50' : '',
                   ].join(' ')}
                   style={{
                     gridColumn: '2 / -1',

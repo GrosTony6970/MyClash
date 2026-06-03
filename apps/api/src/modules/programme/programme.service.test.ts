@@ -99,6 +99,12 @@ describe('ProgrammeService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drain any queued `mockReturnValueOnce` values from a prior
+    // failed/early-exited test — clearAllMocks only resets call
+    // history, not the FIFO return queue, so a test that throws
+    // before consuming all its mocks would otherwise leak fixtures
+    // into the next test in file order.
+    fromMock.mockReset();
     service = new ProgrammeService(mockSupabase as never);
   });
 
@@ -336,6 +342,155 @@ describe('ProgrammeService', () => {
       fetchedMatches: 1,
       scheduledMatches: 1,
       licesAvailable: 1,
+    });
+  });
+
+  // ── Slice 5: drag a fixed block + cascade-shift later matches ──────────────
+
+  describe('moveBlock', () => {
+    function buildMoveMocks(opts: {
+      block: Record<string, unknown>;
+      eventStartDate: string;
+      tournamentIds?: string[];
+      phaseIds?: string[];
+      matches?: Array<{ id: string; scheduled_at: string | null }>;
+    }) {
+      const tournamentIds = opts.tournamentIds ?? ['tournament-1'];
+      const phaseIds = opts.phaseIds ?? ['phase-1'];
+      const matches = opts.matches ?? [];
+      const updates: Array<{ id: string; scheduled_at: string }> = [];
+
+      const matchesUpdateChain = (() => {
+        const result = { data: null, error: null };
+        const promise = Promise.resolve(result);
+        const chain = Object.assign(promise, {
+          select: vi.fn(),
+          eq: vi.fn(),
+          in: vi.fn(),
+          order: vi.fn(),
+          insert: vi.fn(),
+          update: vi.fn((payload: Record<string, unknown>) => {
+            // The service calls eq('id', matchId).update(payload) per
+            // match — capture both. We rebuild the chain so .eq() can
+            // resolve and complete the call.
+            (chain as unknown as Record<string, unknown>)['__pendingUpdate'] = payload;
+            return chain;
+          }),
+          delete: vi.fn(),
+          single: vi.fn().mockResolvedValue(result),
+        });
+        for (const key of ['select', 'in', 'order', 'insert', 'delete']) {
+          (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+        }
+        chain.eq = vi.fn((column: string, value: string) => {
+          if (column === 'id') {
+            const payload = (chain as unknown as Record<string, unknown>)['__pendingUpdate'] as
+              | { scheduled_at?: string }
+              | undefined;
+            if (payload && typeof payload.scheduled_at === 'string') {
+              updates.push({ id: value, scheduled_at: payload.scheduled_at });
+            }
+            (chain as unknown as Record<string, unknown>)['__pendingUpdate'] = undefined;
+          }
+          return chain;
+        });
+        return chain;
+      })();
+
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: opts.block, error: null })) // block fetch
+        .mockReturnValueOnce(makeChain({ data: { start_date: opts.eventStartDate }, error: null })) // event fetch
+        .mockReturnValueOnce(makeChain({ data: tournamentIds.map((id) => ({ id })), error: null })) // tournaments fetch
+        .mockReturnValueOnce(makeChain({ data: phaseIds.map((id) => ({ id })), error: null })) // phases fetch
+        .mockReturnValueOnce(makeChain({ data: matches, error: null })); // matches fetch
+
+      // Each match update consumes one fromMock call.
+      for (let i = 0; i < matches.length; i++) {
+        fromMock.mockReturnValueOnce(matchesUpdateChain);
+      }
+
+      // Finally the block update.
+      fromMock.mockReturnValueOnce(
+        makeChain({
+          data: { ...opts.block, start_time: '', end_time: '' },
+          error: null,
+        }),
+      );
+
+      return { updates };
+    }
+
+    it('shifts matches scheduled at-or-after the block forward by Δ when the block moves forward', async () => {
+      // Event date 2026-06-02. Block was 09:00 → 09:30. Operator drags
+      // it to 10:00. Δ = +60 min. Match at 09:15 should shift to 10:15.
+      // Match at 08:30 (before the block) stays put.
+      const { updates } = buildMoveMocks({
+        block: {
+          id: 'block-1',
+          event_id: 'event-1',
+          day_index: 0,
+          sort_order: 0,
+          block_type: 'admin',
+          label: 'Registration',
+          competition_id: null,
+          competition_phase: null,
+          workshop_id: null,
+          lice_count: 0,
+          start_time: '09:00',
+          end_time: '09:30',
+          match_gap_seconds: 0,
+          match_duration_minutes: 0,
+          generated_at: null,
+        },
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'match-before', scheduled_at: '2026-06-02T08:30:00.000Z' },
+          { id: 'match-after', scheduled_at: '2026-06-02T09:15:00.000Z' },
+          { id: 'match-other-day', scheduled_at: '2026-06-03T09:15:00.000Z' },
+          { id: 'match-unscheduled', scheduled_at: null },
+        ],
+      });
+
+      const result = await service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' });
+
+      // Only the at-or-after match on the same day should be shifted.
+      expect(updates).toEqual([{ id: 'match-after', scheduled_at: '2026-06-02T10:15:00.000Z' }]);
+      expect(result.shiftedMatches).toBe(1);
+      expect(result.deltaMinutes).toBe(60);
+    });
+
+    it('shifts later matches backward by Δ when the block moves backward', async () => {
+      // Block was at 14:00 → 14:30; operator drags it to 13:00. Δ = -60.
+      // Match at 14:45 shifts to 13:45. Match at 12:00 stays put.
+      const { updates } = buildMoveMocks({
+        block: {
+          id: 'block-2',
+          event_id: 'event-1',
+          day_index: 0,
+          sort_order: 1,
+          block_type: 'break',
+          label: 'Break',
+          competition_id: null,
+          competition_phase: null,
+          workshop_id: null,
+          lice_count: 0,
+          start_time: '14:00',
+          end_time: '14:30',
+          match_gap_seconds: 0,
+          match_duration_minutes: 0,
+          generated_at: null,
+        },
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'match-before', scheduled_at: '2026-06-02T12:00:00.000Z' },
+          { id: 'match-after', scheduled_at: '2026-06-02T14:45:00.000Z' },
+        ],
+      });
+
+      const result = await service.moveBlock('event-1', 'block-2', { newStartTime: '13:00' });
+
+      expect(updates).toEqual([{ id: 'match-after', scheduled_at: '2026-06-02T13:45:00.000Z' }]);
+      expect(result.deltaMinutes).toBe(-60);
     });
   });
 

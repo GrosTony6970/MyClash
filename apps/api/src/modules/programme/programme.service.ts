@@ -643,6 +643,118 @@ export class ProgrammeService {
     return { matchesScheduled, workshopSessionsCreated, warnings, blockDiagnostics };
   }
 
+  // ── Move a single fixed block (slice 5: drag in the grid) ──────────────────
+
+  /**
+   * Drag a programme block to a new start time on the same day and
+   * cascade-shift every match scheduled at or after the block's old
+   * start by the same Δ. Keeps the visual order of the grid intact:
+   * forward drags push later matches forward; backward drags pull
+   * them back. Other days are untouched.
+   */
+  async moveBlock(
+    eventId: string,
+    blockId: string,
+    dto: { newStartTime: string },
+  ): Promise<{
+    block: ProgrammeBlock;
+    deltaMinutes: number;
+    shiftedMatches: number;
+  }> {
+    const { data: blockRow, error: blockErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .select('*')
+      .eq('id', blockId)
+      .eq('event_id', eventId)
+      .single();
+    if (blockErr || !blockRow) {
+      throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
+    }
+    const block = this.mapBlock(blockRow as Record<string, unknown>);
+
+    const deltaMin = timeToMin(dto.newStartTime) - timeToMin(block.startTime);
+    if (deltaMin === 0) {
+      return { block, deltaMinutes: 0, shiftedMatches: 0 };
+    }
+
+    const newEndTime = minToTime(timeToMin(block.endTime) + deltaMin);
+
+    // Look up the event date so we can scope cascade shifts to the
+    // block's day. start_date + dayIndex → date for THIS block.
+    const { data: eventData } = await this.supabase.service
+      .from('events')
+      .select('start_date')
+      .eq('id', eventId)
+      .single();
+    if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
+
+    const startDate = new Date(
+      `${(eventData as Record<string, string>)['start_date']}T00:00:00.000Z`,
+    );
+    startDate.setUTCDate(startDate.getUTCDate() + block.dayIndex);
+    const blockDateIso = startDate.toISOString().slice(0, 10);
+
+    // Walk the matches we want to consider shifting: every match under
+    // every phase under every tournament of this event. PostgREST
+    // can't span the join in one UPDATE, so we fan out.
+    const { data: tournamentsData } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId);
+    const tournamentIds = ((tournamentsData ?? []) as Array<{ id: string }>).map((t) => t.id);
+
+    let shiftedMatches = 0;
+    if (tournamentIds.length > 0) {
+      const { data: phasesData } = await this.supabase.service
+        .from('phases')
+        .select('id')
+        .in('tournament_id', tournamentIds);
+      const phaseIds = ((phasesData ?? []) as Array<{ id: string }>).map((p) => p.id);
+
+      if (phaseIds.length > 0) {
+        const { data: matchesData } = await this.supabase.service
+          .from('matches')
+          .select('id, scheduled_at')
+          .in('phase_id', phaseIds);
+        const matches = (matchesData ?? []) as Array<{
+          id: string;
+          scheduled_at: string | null;
+        }>;
+
+        const oldStartMin = timeToMin(block.startTime);
+        for (const m of matches) {
+          if (!m.scheduled_at) continue;
+          // Same calendar day as the block?
+          if (m.scheduled_at.slice(0, 10) !== blockDateIso) continue;
+          // At or after the block's old startTime?
+          const matchDate = new Date(m.scheduled_at);
+          const matchMinOfDay = matchDate.getUTCHours() * 60 + matchDate.getUTCMinutes();
+          if (matchMinOfDay < oldStartMin) continue;
+
+          const shifted = new Date(matchDate.getTime() + deltaMin * 60_000);
+          await this.supabase.service
+            .from('matches')
+            .update({ scheduled_at: shifted.toISOString() })
+            .eq('id', m.id);
+          shiftedMatches++;
+        }
+      }
+    }
+
+    // Persist the block's new times.
+    const { data: updatedRow } = await this.supabase.service
+      .from('event_programme_blocks')
+      .update({ start_time: dto.newStartTime, end_time: newEndTime })
+      .eq('id', blockId)
+      .select('*')
+      .single();
+    const updatedBlock = updatedRow
+      ? this.mapBlock(updatedRow as Record<string, unknown>)
+      : { ...block, startTime: dto.newStartTime, endTime: newEndTime };
+
+    return { block: updatedBlock, deltaMinutes: deltaMin, shiftedMatches };
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private async fetchCompetitionMatches(
