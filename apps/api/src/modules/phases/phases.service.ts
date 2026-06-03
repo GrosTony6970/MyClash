@@ -883,6 +883,13 @@ export class PhasesService {
     seedingMode: 'overall' | 'top-n-per-pool';
     slotsSeeded: number;
     skipped?: string;
+    /**
+     * Which ranking source drove the bracket seeding. The FE branches
+     * the success toast on this so straight-to-bracket tournaments
+     * (no pool phase → registration-seed fallback) don't display the
+     * misleading "Bracket populated from pool standings" message.
+     */
+    source: 'pool-standings' | 'registration-seed';
   }> {
     // 1. Bracket phase + auth context (joined via tournaments + events).
     const { data: bracketPhase } = await this.supabase.service
@@ -895,7 +902,13 @@ export class PhasesService {
       .maybeSingle();
     if (!bracketPhase) {
       if (options?.silentIfGateNotMet) {
-        return { phaseId: '', seedingMode: 'overall', slotsSeeded: 0, skipped: 'no_bracket' };
+        return {
+          phaseId: '',
+          seedingMode: 'overall',
+          slotsSeeded: 0,
+          skipped: 'no_bracket',
+          source: 'pool-standings',
+        };
       }
       throw new BadRequestException(
         'No bracket phase exists for this tournament. Generate one first.',
@@ -940,7 +953,13 @@ export class PhasesService {
         .not('status', 'eq', 'voided');
       if ((blockingMatches ?? []).length > 0) {
         if (options?.silentIfGateNotMet) {
-          return { phaseId, seedingMode, slotsSeeded: 0, skipped: 'r1_already_started' };
+          return {
+            phaseId,
+            seedingMode,
+            slotsSeeded: 0,
+            skipped: 'r1_already_started',
+            source: 'pool-standings',
+          };
         }
         throw new ConflictException({
           message: 'Cannot populate Round 1 — at least one match has already started.',
@@ -959,6 +978,7 @@ export class PhasesService {
       .maybeSingle();
 
     let rankings: RankedRegistration[] = [];
+    let source: 'pool-standings' | 'registration-seed' = 'pool-standings';
 
     if (poolPhase && this.poolStandings) {
       // Need per-pool data to (a) check completion + (b) feed the
@@ -966,10 +986,36 @@ export class PhasesService {
       // regardless of mode for a single source of truth.
       const byPoolResponse = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
       const perPool = 'pools' in byPoolResponse ? byPoolResponse.pools : [];
+      // Empty perPool means "pool phase exists but no pools created
+      // yet" (or the standings query produced nothing). `.every()`
+      // returns true vacuously for an empty array, which silently
+      // bypassed the gate before this guard — operator would see a
+      // 200 with slotsSeeded:0 and a misleading "populated from pool
+      // standings" toast. Refuse explicitly so the FE surfaces a 409.
+      if (perPool.length === 0) {
+        if (options?.silentIfGateNotMet) {
+          return {
+            phaseId,
+            seedingMode,
+            slotsSeeded: 0,
+            skipped: 'no_pool_data',
+            source: 'pool-standings',
+          };
+        }
+        throw new ConflictException(
+          'No pool data available — generate pools and play matches first.',
+        );
+      }
       const allComplete = perPool.every((p) => p.status === 'completed');
       if (!allComplete) {
         if (options?.silentIfGateNotMet) {
-          return { phaseId, seedingMode, slotsSeeded: 0, skipped: 'pools_not_finished' };
+          return {
+            phaseId,
+            seedingMode,
+            slotsSeeded: 0,
+            skipped: 'pools_not_finished',
+            source: 'pool-standings',
+          };
         }
         throw new ConflictException('Pools have not finished yet');
       }
@@ -1001,7 +1047,10 @@ export class PhasesService {
     } else {
       // No pool phase → registration seed fallback (mirrors the
       // legacy generateBracket behaviour for straight-to-bracket
-      // tournaments).
+      // tournaments). FE branches the success toast on `source` so
+      // the operator sees an honest "from registration seed" message
+      // instead of the pool-standings text.
+      source = 'registration-seed';
       const { data: seededRegs } = await this.supabase.service
         .from('registrations')
         .select('id, seed, bib_number')
@@ -1097,9 +1146,9 @@ export class PhasesService {
     });
 
     this.logger.log(
-      `Populated bracket (phase=${phaseId}, mode=${seedingMode}, slotsSeeded=${slotsSeeded})`,
+      `Populated bracket (phase=${phaseId}, mode=${seedingMode}, slotsSeeded=${slotsSeeded}, source=${source})`,
     );
-    return { phaseId, seedingMode, slotsSeeded };
+    return { phaseId, seedingMode, slotsSeeded, source };
   }
 
   async listTournamentPools(tournamentId: string) {
@@ -1404,7 +1453,7 @@ export class PhasesService {
     // setups without the standings service wired report `true` —
     // populate falls through to the registration-seed fallback in
     // those cases.
-    const poolsCompleted = await this.computePoolsCompletedForBracket(tournamentId);
+    const { hasPoolPhase, poolsCompleted } = await this.computePoolGate(tournamentId);
 
     return {
       phaseId,
@@ -1426,36 +1475,54 @@ export class PhasesService {
       bronzeSlotId: config.bronzeSlotId ?? null,
       totalSlots: enrichedSlots.length,
       slots: enrichedSlots,
+      hasPoolPhase,
       poolsCompleted,
     };
   }
 
   /**
-   * `true` when every pool of this tournament reports
-   * `status === 'completed'` — the same condition `populateBracket`
-   * enforces server-side. `true` also when the tournament has no
-   * pool phase at all (straight-to-bracket: there's nothing to gate)
-   * or when the pool-standings service isn't wired (defensive — UI
-   * just doesn't block the click).
+   * Two orthogonal signals the bracket-summary read returns so the FE
+   * can choose between (a) gating the auto-populate button and (b)
+   * surfacing a confirm dialog before falling back to registration
+   * seeds:
+   *
+   * - `hasPoolPhase` — does a pool phase row exist for this tournament?
+   *   When false, populateBracket will go down the registration-seed
+   *   branch; the FE shows a confirm modal first so the operator
+   *   doesn't accidentally seed from the registration list when they
+   *   thought pools would drive the bracket.
+   * - `poolsCompleted` — when a pool phase exists, are ALL pools in
+   *   `status === 'completed'`? Mirrors the gate populateBracket
+   *   enforces server-side; the FE disables the button when this is
+   *   false. Empty perPool reads as not-completed (no pools = nothing
+   *   to be completed). When no pool phase exists at all, returns
+   *   `true` (no gate to enforce).
+   *
+   * Defensive: when `poolStandings` is not wired, return
+   * `{ hasPoolPhase, poolsCompleted: true }` — the populate endpoint
+   * re-checks the gate, so the FE just doesn't block the click.
    */
-  private async computePoolsCompletedForBracket(tournamentId: string): Promise<boolean> {
+  private async computePoolGate(
+    tournamentId: string,
+  ): Promise<{ hasPoolPhase: boolean; poolsCompleted: boolean }> {
     const { data: poolPhase } = await this.supabase.service
       .from('phases')
       .select('id')
       .eq('tournament_id', tournamentId)
       .eq('type', 'pool')
       .maybeSingle();
-    if (!poolPhase) return true;
-    if (!this.poolStandings) return true;
+    if (!poolPhase) return { hasPoolPhase: false, poolsCompleted: true };
+    if (!this.poolStandings) return { hasPoolPhase: true, poolsCompleted: true };
     try {
       const byPool = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
       const perPool = 'pools' in byPool ? byPool.pools : [];
-      if (perPool.length === 0) return false;
-      return perPool.every((p) => p.status === 'completed');
+      if (perPool.length === 0) return { hasPoolPhase: true, poolsCompleted: false };
+      return {
+        hasPoolPhase: true,
+        poolsCompleted: perPool.every((p) => p.status === 'completed'),
+      };
     } catch {
-      // Same fallback as the missing-service path — the gate is
-      // ultimately re-checked by the populate endpoint.
-      return true;
+      return { hasPoolPhase: true, poolsCompleted: true };
     }
   }
 

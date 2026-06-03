@@ -1892,4 +1892,149 @@ describe('PhasesService', () => {
       expect(insertSpy).not.toHaveBeenCalled();
     });
   });
+
+  // ── populateBracket — perPool guard + source field ─────────────────────────
+
+  describe('populateBracket — pool-gate honesty', () => {
+    function bracketPhaseChain() {
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'bracket-phase-1',
+          type: 'single_elim',
+          config_json: {},
+          tournament_id: 'tournament-1',
+          tournaments: { events: { organization_id: 'org-1' } },
+        },
+        error: null,
+      });
+      return chain;
+    }
+    function emptyR1SlotsChain() {
+      // r1Slots query — return empty so the blocking-matches lookup is
+      // skipped (`slots.length > 0` guard) and we reach the pool gate.
+      return makeAwaitableChain({ data: [], error: null });
+    }
+    function poolPhaseExistsChain() {
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: { id: 'pool-phase-1' }, error: null });
+      return chain;
+    }
+    function poolPhaseAbsentChain() {
+      const chain = makeChain({ data: null, error: null });
+      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      return chain;
+    }
+    function registrationsChain(
+      rows: Array<{ id: string; seed: number; bib_number: number | null }>,
+    ) {
+      return makeAwaitableChain({ data: rows, error: null });
+    }
+    function auditLogChain() {
+      const chain = makeChain({ data: null, error: null });
+      (chain.insert as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null, error: null });
+      return chain;
+    }
+    function makePoolStandingsMock(byPool: unknown, overall?: unknown) {
+      return {
+        getPoolStandings: vi
+          .fn()
+          .mockImplementation((_id: string, mode: 'by-pool' | 'overall') =>
+            Promise.resolve(mode === 'overall' && overall !== undefined ? overall : byPool),
+          ),
+      };
+    }
+
+    it('refuses with ConflictException when pool phase exists but no pool data', async () => {
+      const poolStandings = makePoolStandingsMock({ pools: [] });
+      const svc = new PhasesService(
+        mockSupabase as never,
+        undefined,
+        mockOrgs as never,
+        undefined,
+        undefined,
+        poolStandings as never,
+      );
+
+      fromMock
+        .mockReturnValueOnce(bracketPhaseChain())
+        .mockReturnValueOnce(emptyR1SlotsChain())
+        .mockReturnValueOnce(poolPhaseExistsChain());
+
+      await expect(svc.populateBracket('tournament-1', {}, 'system')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('returns source="registration-seed" for straight-to-bracket tournaments', async () => {
+      const svc = new PhasesService(
+        mockSupabase as never,
+        undefined,
+        mockOrgs as never,
+        undefined,
+        undefined,
+        undefined, // poolStandings not wired — registration-seed fallback still fires
+      );
+
+      fromMock
+        .mockReturnValueOnce(bracketPhaseChain())
+        .mockReturnValueOnce(emptyR1SlotsChain())
+        .mockReturnValueOnce(poolPhaseAbsentChain())
+        .mockReturnValueOnce(
+          registrationsChain([
+            { id: 'r1', seed: 1, bib_number: null },
+            { id: 'r2', seed: 2, bib_number: null },
+          ]),
+        )
+        .mockReturnValueOnce(auditLogChain());
+
+      const result = await svc.populateBracket('tournament-1', {}, 'system');
+      expect(result.source).toBe('registration-seed');
+    });
+
+    it('returns source="pool-standings" on the all-pools-complete happy path', async () => {
+      const poolStandings = makePoolStandingsMock(
+        {
+          pools: [
+            {
+              poolId: 'p1',
+              poolName: 'Pool 1',
+              status: 'completed',
+              rows: [{ rank: 1, registrationId: 'r1' }],
+            },
+            {
+              poolId: 'p2',
+              poolName: 'Pool 2',
+              status: 'completed',
+              rows: [{ rank: 1, registrationId: 'r2' }],
+            },
+          ],
+        },
+        {
+          rows: [
+            { rank: 1, registrationId: 'r1' },
+            { rank: 2, registrationId: 'r2' },
+          ],
+        },
+      );
+
+      const svc = new PhasesService(
+        mockSupabase as never,
+        undefined,
+        mockOrgs as never,
+        undefined,
+        undefined,
+        poolStandings as never,
+      );
+
+      fromMock
+        .mockReturnValueOnce(bracketPhaseChain())
+        .mockReturnValueOnce(emptyR1SlotsChain())
+        .mockReturnValueOnce(poolPhaseExistsChain())
+        .mockReturnValueOnce(auditLogChain());
+
+      const result = await svc.populateBracket('tournament-1', {}, 'system');
+      expect(result.source).toBe('pool-standings');
+    });
+  });
 });
