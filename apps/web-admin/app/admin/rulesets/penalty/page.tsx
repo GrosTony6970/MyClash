@@ -12,6 +12,8 @@ import {
 } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
+import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
+import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';
 
 interface PenaltyRulesetRow {
   id: string;
@@ -159,12 +161,10 @@ export default function AdminPenaltyRulesetsPage() {
         <h2 className="text-lg font-semibold text-slate-900">
           {t('admin.penaltyRulesets.curatedTitle')}
         </h2>
-        <Link
+        <CreateRulesetCta
           href="/admin/rulesets/penalty/new"
-          className="rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800"
-        >
-          {t('admin.penaltyRulesets.createButton')}
-        </Link>
+          label={t('admin.penaltyRulesets.createButton')}
+        />
       </div>
 
       {loading ? (
@@ -176,18 +176,18 @@ export default function AdminPenaltyRulesetsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-4 py-2">{t('admin.rulesets.colName')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colCode')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colVersion')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colSource')}</th>
-                <th className="px-4 py-2">{t('admin.penaltyRulesets.colScope')}</th>
-                <th className="px-4 py-2">{t('admin.rulesets.colActions')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.colName')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.colCode')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.colVersion')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.colSource')}</th>
+                <th className="px-4 py-3">{t('admin.penaltyRulesets.colScope')}</th>
+                <th className="px-4 py-3">{t('admin.rulesets.colActions')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">
                     <div className="font-semibold text-slate-800">{row.name}</div>
                     {row.description && (
                       <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">
@@ -195,32 +195,36 @@ export default function AdminPenaltyRulesetsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-2 font-mono text-xs text-slate-600">{row.code}</td>
-                  <td className="px-4 py-2 font-mono text-xs font-bold text-slate-700">
-                    {row.version}
+                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{row.code}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">
+                      v{row.version}
+                    </span>
                   </td>
-                  <td className="px-4 py-2">
-                    {row.built_in ? (
-                      <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                        {t('admin.penaltyRulesets.sourceBuiltIn')}
-                      </span>
-                    ) : (
-                      <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-slate-700">
-                        {t('admin.penaltyRulesets.sourceCustom')}
-                      </span>
-                    )}
+                  <td className="px-4 py-3">
+                    <RulesetBadge
+                      variant={row.built_in ? 'builtin' : 'custom'}
+                      label={
+                        row.built_in
+                          ? t('admin.penaltyRulesets.sourceBuiltIn')
+                          : t('admin.penaltyRulesets.sourceCustom')
+                      }
+                    />
                   </td>
-                  <td className="px-4 py-2 text-xs text-slate-600">
+                  <td className="px-4 py-3 text-xs text-slate-600">
                     {t(`admin.penaltyRulesets.scope.${row.accumulation_scope}`)}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
                       {row.public_visibility_request_status === 'pending' && (
                         <span
-                          className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800"
                           title={row.public_visibility_request_reason ?? undefined}
+                          className="inline-flex"
                         >
-                          {t('admin.rulesets.submissionPending')}
+                          <RulesetBadge
+                            variant="pendingReview"
+                            label={t('admin.rulesets.submissionPending')}
+                          />
                         </span>
                       )}
                       <Link
