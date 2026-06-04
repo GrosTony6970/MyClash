@@ -17,6 +17,9 @@ interface PublicEvent {
   status?: string | null;
   logo_url?: string | null;
   tournament_count?: number | null;
+  // Distinct leagues this event participates in via its tournaments'
+  // approved league_tournament_links. Projected by /api/v1/events.
+  leagues?: Array<{ id: string; name: string; slug: string }> | null;
   organizations?: {
     name?: string | null;
     slug?: string | null;
@@ -245,7 +248,7 @@ function EventRow({ event, variant }: TableRowProps) {
       className="group flex flex-col gap-3 rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
     >
       <OrganiserEyebrow event={event} />
-      <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_2fr_1fr_auto_auto] md:items-center md:gap-4">
+      <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4">
         <EventLogo src={event.logo_url} alt={event.name ?? ''} />
         <div className="min-w-0">
           <p className="font-display text-base font-semibold leading-tight text-slate-900">
@@ -258,6 +261,20 @@ function EventRow({ event, variant }: TableRowProps) {
           </span>
           {event.location ?? '—'}
         </p>
+        <p className="text-sm text-slate-500">
+          <span className="font-medium text-slate-600 md:hidden">
+            {t('publicApp.home.colLeague')} ·{' '}
+          </span>
+          {(() => {
+            const leagues = event.leagues ?? [];
+            if (leagues.length === 0) return '—';
+            // Comma-join the names. Multiple-league nested links inside
+            // an already-clickable row would be visually ambiguous, so
+            // render plain text and let the operator click into the
+            // event for the per-tournament league context.
+            return leagues.map((l) => l.name).join(', ');
+          })()}
+        </p>
         <div>{trailing}</div>
         <div>{tag}</div>
       </div>
@@ -269,13 +286,14 @@ function EventTableHeader({ variant }: { variant: 'published' | 'past' }) {
   return (
     <div
       role="row"
-      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-stone-200 md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500"
+      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-stone-200 md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500"
     >
       <span role="columnheader" aria-label={t('publicApp.home.colLogo')}>
         {' '}
       </span>
       <span role="columnheader">{t('publicApp.home.colEvent')}</span>
       <span role="columnheader">{t('publicApp.home.colLocation')}</span>
+      <span role="columnheader">{t('publicApp.home.colLeague')}</span>
       <span role="columnheader">
         {variant === 'past' ? t('publicApp.home.colResults') : t('publicApp.home.colTournaments')}
       </span>
@@ -297,7 +315,11 @@ function UpcomingSection({ events, query }: { events: PublicEvent[]; query: stri
       {events.length === 0 ? (
         <EmptySectionMessage sectionKey="upcoming" query={query} />
       ) : (
-        <div role="table" aria-labelledby="public-events-published-title">
+        <div
+          role="table"
+          aria-labelledby="public-events-published-title"
+          className="max-h-[60vh] overflow-y-auto"
+        >
           <EventTableHeader variant="published" />
           <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
             {events.map((event) => (

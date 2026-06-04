@@ -21,6 +21,9 @@ interface PublicEvent {
   status?: string | null;
   logo_url?: string | null;
   tournament_count?: number | null;
+  // Projected by /api/v1/events (Slice 1) so the Upcoming table can
+  // render a League column without a per-event roundtrip.
+  leagues?: Array<{ id: string; name: string; slug: string }> | null;
   organizations?: {
     name?: string | null;
     slug?: string | null;
