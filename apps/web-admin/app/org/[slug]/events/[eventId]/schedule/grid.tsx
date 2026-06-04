@@ -3,7 +3,7 @@
 /* eslint-disable myclash/no-literal-string */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { ConfirmDialog } from '@myclash/ui';
+import { ConfirmDialog, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
@@ -97,41 +97,17 @@ interface ScheduleMatch {
   redRegistrationId: string;
   blueRegistrationId: string;
   tournamentName: string | null;
+  /** Parent tournament's identity color (ColorToken string). Drives
+   *  the card tint so every card from the same tournament reads as
+   *  one family. Null falls back to the default token via the tint
+   *  helpers in @myclash/ui. */
+  tournamentColor: string | null;
   durationMinutes: number;
   phaseType: string | null;
   /** Populated for pool-type matches; drives the per-pool colour tint
    *  on the grid card. Null for bracket / finals matches. */
   poolId: string | null;
   poolName: string | null;
-}
-
-/**
- * Slice 5 of the schedule overhaul: stable per-pool palette. Hash the
- * `tournamentName + poolName` key into one of 8 pastel slots so the
- * same pool always renders with the same colour and pools across
- * tournaments don't collide visually.
- *
- * Returned classes are intentionally light (50/200) so the existing
- * conflict (red-200/400) and bracket (amber-100/300) styling still
- * reads through as the dominant signal.
- */
-const POOL_PALETTE: Array<{ bg: string; border: string; text: string }> = [
-  { bg: 'bg-rose-50', border: 'border-rose-300', text: 'text-rose-900' },
-  { bg: 'bg-sky-50', border: 'border-sky-300', text: 'text-sky-900' },
-  { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-900' },
-  { bg: 'bg-violet-50', border: 'border-violet-300', text: 'text-violet-900' },
-  { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-900' },
-  { bg: 'bg-teal-50', border: 'border-teal-300', text: 'text-teal-900' },
-  { bg: 'bg-fuchsia-50', border: 'border-fuchsia-300', text: 'text-fuchsia-900' },
-  { bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-900' },
-];
-
-function poolColourFor(tournamentName: string | null, poolName: string | null) {
-  if (!poolName) return null;
-  const key = `${tournamentName ?? ''}|${poolName}`;
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  return POOL_PALETTE[Math.abs(hash) % POOL_PALETTE.length]!;
 }
 
 const SLOT_MINUTES = 5;
@@ -722,6 +698,7 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
     poolId: string;
     poolName: string;
     tournamentName: string | null;
+    tournamentColor: string | null;
     minSlot: number;
     minLiceIndex: number;
     matchCount: number;
@@ -740,6 +717,7 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
           poolId: m.poolId,
           poolName: m.poolName,
           tournamentName: m.tournamentName,
+          tournamentColor: m.tournamentColor,
           minSlot: slot,
           minLiceIndex: liceIndex,
           matchCount: 1,
@@ -1237,12 +1215,11 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                 const hasConflict = conflicts.some(
                   (c) => c.matchA === m.matchNumberLabel || c.matchB === m.matchNumberLabel,
                 );
-                const isBracket = m.phaseType !== null && m.phaseType !== 'pool';
-                // Slice 5: per-pool colour. Falls back to the legacy
-                // blue palette for pool matches that somehow lack a
-                // poolName (defensive — backend now always projects it).
-                const poolPalette =
-                  !isBracket && m.poolName ? poolColourFor(m.tournamentName, m.poolName) : null;
+                // Card tints by the parent tournament's color so the
+                // grid reads as a horizontal flow of tournaments. The
+                // existing round code text (LSW-P1-…, LSW-B-QF-…)
+                // signals pool-vs-bracket; conflicts override with
+                // red-200 so they stay the dominant signal.
                 return (
                   <div
                     key={m.id}
@@ -1259,11 +1236,7 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                       'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10 border',
                       hasConflict
                         ? 'bg-red-200 border-red-400 text-red-800'
-                        : isBracket
-                          ? 'bg-amber-100 border-amber-300 text-amber-800'
-                          : poolPalette
-                            ? `${poolPalette.bg} ${poolPalette.border} ${poolPalette.text}`
-                            : 'bg-blue-100 border-blue-300 text-blue-800',
+                        : `${tintBgClassFor(m.tournamentColor)} ${tintBorderClassFor(m.tournamentColor)} ${tintTextClassFor(m.tournamentColor)}`,
                       saving === m.id ? 'opacity-50' : '',
                     ].join(' ')}
                     style={{
@@ -1282,7 +1255,6 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                   of each pool group on the active day. Clicking the
                   handle opens the confirm modal for clearing the pool. */}
               {poolGroupsOnActiveDay.map((group) => {
-                const palette = poolColourFor(group.tournamentName, group.poolName);
                 return (
                   <button
                     key={group.poolId}
@@ -1291,9 +1263,9 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                     title={`${group.poolName} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — click to clear the pool`}
                     className={[
                       'absolute -translate-y-full self-start rounded-t-md px-1.5 py-0.5 text-[10px] font-bold leading-none shadow-sm border border-b-0 hover:shadow-md transition-shadow',
-                      palette
-                        ? `${palette.bg} ${palette.border} ${palette.text}`
-                        : 'bg-blue-100 border-blue-300 text-blue-800',
+                      tintBgClassFor(group.tournamentColor),
+                      tintBorderClassFor(group.tournamentColor),
+                      tintTextClassFor(group.tournamentColor),
                     ].join(' ')}
                     style={{
                       gridColumn: group.minLiceIndex + 2,
