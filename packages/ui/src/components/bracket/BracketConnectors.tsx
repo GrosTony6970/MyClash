@@ -46,6 +46,19 @@ export function BracketConnectors({ cardRefs, edges, containerRef }: BracketConn
     return () => observer.disconnect();
   }, [cardRefs, containerRef, edges]);
 
+  // First-paint after mount: cardRefs are populated by the children's
+  // callback refs during commit, but this component has already
+  // computed its (empty) paths array using the still-empty Map.
+  // Force one additional render on the next animation frame so the
+  // paths are recomputed against the now-populated refs. Web-admin's
+  // tree happened to re-render this subtree on its own initial state
+  // updates; web-public's SSR-hydrated tree did not, so the bracket
+  // shipped without lines until the user resized the window.
+  React.useEffect(() => {
+    const id = requestAnimationFrame(() => force());
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const container = containerRef.current;
   if (!container) {
     return <svg className="pointer-events-none absolute inset-0" />;
