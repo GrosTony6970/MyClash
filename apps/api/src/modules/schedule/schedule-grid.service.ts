@@ -33,13 +33,19 @@ interface PhaseRow {
   id: string;
   type: string;
   tournament_id: string;
+  /**
+   * Bracket-type phases stash `bracketSize` (and `mainBracketSize` for
+   * double-elim) here at bracket-generation time — see
+   * phases.service.ts:412+. There is no `tournaments.bracket_size`
+   * column despite the name; the canonical source is this jsonb field.
+   */
+  config_json: Record<string, unknown> | null;
 }
 
 interface TournamentRow {
   id: string;
   name: string;
   weapon: string | null;
-  bracket_size: number | null;
 }
 
 interface MatchRow {
@@ -101,7 +107,7 @@ export class ScheduleGridService {
     // 1. Tournaments for this event.
     const { data: tournamentsData, error: tournamentsErr } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, bracket_size')
+      .select('id, name, weapon')
       .eq('event_id', eventId);
     if (tournamentsErr) throw new BadRequestException(tournamentsErr.message);
     const tournaments = ((tournamentsData ?? []) as TournamentRow[]).filter((t) => Boolean(t.id));
@@ -110,15 +116,24 @@ export class ScheduleGridService {
     const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
 
     // 2. Phases under those tournaments — keeps both pool and bracket phases.
+    // config_json carries each bracket phase's `bracketSize`, needed by
+    // buildRoundCode to resolve round labels (R16/QF/SF/F) instead of B{round}.
     const { data: phasesData, error: phasesErr } = await this.supabase.service
       .from('phases')
-      .select('id, type, tournament_id')
+      .select('id, type, tournament_id, config_json')
       .in('tournament_id', tournamentIds);
     if (phasesErr) throw new BadRequestException(phasesErr.message);
     const phases = ((phasesData ?? []) as PhaseRow[]).filter((p) => Boolean(p.id));
     if (phases.length === 0) return [];
     const phaseIds = phases.map((p) => p.id);
     const phaseById = new Map(phases.map((p) => [p.id, p]));
+    const bracketSizeByPhaseId = new Map<string, number | null>();
+    for (const p of phases) {
+      if (p.type === 'pool') continue;
+      const cfg = p.config_json ?? null;
+      const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
+      bracketSizeByPhaseId.set(p.id, typeof size === 'number' ? size : null);
+    }
 
     // 3. Matches under those phases — phase-agnostic (no `eq('type', ...)`).
     const { data: matchesData, error: matchesErr } = await this.supabase.service
@@ -216,11 +231,13 @@ export class ScheduleGridService {
       // code uses 1-indexed pool numbers (P1, P2, …).
       const poolNumber = pool && typeof pool.sort_order === 'number' ? pool.sort_order + 1 : null;
 
+      const bracketSize = phase ? (bracketSizeByPhaseId.get(phase.id) ?? null) : null;
+
       const roundCode = buildRoundCode({
         weapon: tournament?.weapon ?? null,
         poolNumber,
         bracketRound,
-        bracketSize: tournament?.bracket_size ?? null,
+        bracketSize,
         matchNumberLabel: m.match_number_label,
         roundNumber: null,
       });

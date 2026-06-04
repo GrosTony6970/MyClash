@@ -334,12 +334,7 @@ export class StaffService {
     const { data: matches, error } = await this.supabase.service
       .from('matches')
       .select(
-        // tournaments.bracket_size doesn't exist — see migrations/0001
-        // (tournaments table) and ALTERs since. The real source for bracket
-        // sizing is phases.config_json; round labels degrade to `B{round}`
-        // via bracketRoundLabel's null fallback until a follow-up restores
-        // the value from the right column.
-        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
+        'id,status,scheduled_at,match_number_label,red_score,blue_score,ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(sort_order),bracket_slots(round),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))',
       )
       .eq('lice_id', liceId)
       .in('status', ['running', 'paused', 'scheduled'])
@@ -373,7 +368,7 @@ export class StaffService {
         //     0081 simplified the schema so the global_persons club
         //     fallback is no longer needed — persons.club_id is
         //     populated eagerly at insert/link time.
-        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),phases(tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
+        '*,lices(id,name,events(id,slug,name,status)),red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name,club_id,clubs(name,logo_url))),phases(config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),pools(id,name,sort_order),bracket_slots(round)',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -595,6 +590,7 @@ export class StaffService {
     } | null;
     const phase = match['phases'] as {
       type?: string;
+      config_json?: Record<string, unknown> | null;
       tournaments?: {
         id?: string;
         name?: string;
@@ -608,12 +604,16 @@ export class StaffService {
     const bracketSlot = match['bracket_slots'] as { round?: number } | null;
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const phaseCfg = phase?.config_json ?? null;
+    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
+      | number
+      | undefined;
+    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
     const roundCode = buildRoundCode({
       weapon: tournament?.weapon ?? null,
       poolNumber,
       bracketRound,
-      // bracketSize would come from phases.config_json; pending follow-up.
-      bracketSize: null,
+      bracketSize,
       matchNumberLabel: (match['match_number_label'] as string | null | undefined) ?? null,
       roundNumber: null,
     });
@@ -661,6 +661,7 @@ export class StaffService {
     const blue = match['blue'] as { persons?: PersonEmbed } | null;
     const lices = match['lices'] as { id?: string; name?: string; events?: unknown } | null;
     const phases = match['phases'] as {
+      config_json?: Record<string, unknown> | null;
       tournaments?: {
         id?: string;
         name?: string;
@@ -696,9 +697,11 @@ export class StaffService {
     const blueClub = resolveClub(blue);
 
     const weapon = phases?.tournaments?.weapon ?? null;
-    // tournaments.bracket_size doesn't exist — see select-clause comment
-    // above. bracketRoundLabel falls back to `B{round}` when null.
-    const bracketSize: number | null = null;
+    const phaseCfg = phases?.config_json ?? null;
+    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
+      | number
+      | undefined;
+    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
     const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
     const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
     const matchNumberLabel = (match['match_number_label'] as string | null | undefined) ?? null;

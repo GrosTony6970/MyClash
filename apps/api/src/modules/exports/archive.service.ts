@@ -597,10 +597,6 @@ export class ArchiveService {
     tables: ArchiveTables,
   ): Map<string, string> {
     const weapon = (tournament['weapon'] as string | null | undefined) ?? null;
-    const bracketSize =
-      typeof tournament['bracket_size'] === 'number'
-        ? (tournament['bracket_size'] as number)
-        : null;
     const poolSortOrder = new Map<string, number>();
     for (const pool of tables.pools) {
       if (typeof pool['sort_order'] === 'number') {
@@ -613,11 +609,23 @@ export class ArchiveService {
         slotRound.set(slot['id'] as string, slot['round'] as number);
       }
     }
+    // bracketSize lives on phases.config_json (bracketSize, or
+    // mainBracketSize for double-elim); no tournaments.bracket_size
+    // column exists at the SQL level.
+    const bracketSizeByPhaseId = new Map<string, number | null>();
+    for (const phase of tables.phases) {
+      const phaseType = (phase['type'] as string | null | undefined) ?? null;
+      if (phaseType === 'pool') continue;
+      const cfg = (phase['config_json'] as Record<string, unknown> | null | undefined) ?? null;
+      const size = (cfg?.['bracketSize'] ?? cfg?.['mainBracketSize']) as number | undefined;
+      bracketSizeByPhaseId.set(phase['id'] as string, typeof size === 'number' ? size : null);
+    }
 
     const out = new Map<string, string>();
     for (const match of matches) {
       const poolId = match['pool_id'] as string | null;
       const bracketSlotId = match['bracket_slot_id'] as string | null;
+      const phaseId = match['phase_id'] as string | null;
       const poolNumber =
         poolId !== null && poolSortOrder.has(poolId)
           ? (poolSortOrder.get(poolId) as number) + 1
@@ -626,6 +634,7 @@ export class ArchiveService {
         bracketSlotId !== null && slotRound.has(bracketSlotId)
           ? (slotRound.get(bracketSlotId) as number)
           : null;
+      const bracketSize = phaseId !== null ? (bracketSizeByPhaseId.get(phaseId) ?? null) : null;
       out.set(
         match['id'] as string,
         formatRoundCode({

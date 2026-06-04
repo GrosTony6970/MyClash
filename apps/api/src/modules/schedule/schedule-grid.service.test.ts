@@ -159,8 +159,8 @@ describe('ScheduleGridService', () => {
 
   it('projects the canonical roundCode (LSW-P1-ML1-PA-M1) for a pool match', async () => {
     queueTables({
-      tournaments: [{ id: 't1', name: 'Longsword Open', weapon: 'Longsword', bracket_size: 8 }],
-      phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1' }],
+      tournaments: [{ id: 't1', name: 'Longsword Open', weapon: 'Longsword' }],
+      phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1', config_json: null }],
       matches: [
         {
           id: 'm1',
@@ -182,5 +182,74 @@ describe('ScheduleGridService', () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.roundCode).toBe('LSW-P1-ML1-PA-M1');
     expect(result[0]!.poolName).toBe('Pool A');
+  });
+
+  // bracket_size lives on phases.config_json (jsonb), NOT on tournaments —
+  // the column was never created at the SQL level. Without this lookup
+  // the bracket round label degrades to `B{round}` (e.g. LSW-B-B2-M1
+  // instead of LSW-B-SF-M1) which is how operators previously had to
+  // read bracket cards.
+  it('resolves bracketSize from phases.config_json for bracket matches', async () => {
+    queueTables({
+      tournaments: [{ id: 't1', name: 'Longsword Open', weapon: 'Longsword' }],
+      phases: [
+        { id: 'ph-br', type: 'single_elim', tournament_id: 't1', config_json: { bracketSize: 8 } },
+      ],
+      matches: [
+        {
+          id: 'm1',
+          match_number_label: '1',
+          status: 'scheduled',
+          lice_id: null,
+          scheduled_at: null,
+          phase_id: 'ph-br',
+          pool_id: null,
+          bracket_slot_id: 'slot-sf-1',
+          red_registration_id: null,
+          blue_registration_id: null,
+        },
+      ],
+      bracketSlots: [{ id: 'slot-sf-1', round: 2 }],
+    });
+
+    const result = await service.listEventSchedule('event-1');
+    expect(result).toHaveLength(1);
+    // bracketSize 8 + round 2 → semifinal (4 fighters remaining)
+    expect(result[0]!.roundCode).toBe('LSW-B-SF-M1');
+  });
+
+  // mainBracketSize is the double-elim losers-bracket fallback; the
+  // helper at matches.service.ts:148 reads either key.
+  it('falls back to mainBracketSize when bracketSize is missing', async () => {
+    queueTables({
+      tournaments: [{ id: 't1', name: 'Longsword Open', weapon: 'Longsword' }],
+      phases: [
+        {
+          id: 'ph-br',
+          type: 'double_elim',
+          tournament_id: 't1',
+          config_json: { mainBracketSize: 8 },
+        },
+      ],
+      matches: [
+        {
+          id: 'm1',
+          match_number_label: '1',
+          status: 'scheduled',
+          lice_id: null,
+          scheduled_at: null,
+          phase_id: 'ph-br',
+          pool_id: null,
+          bracket_slot_id: 'slot-f-1',
+          red_registration_id: null,
+          blue_registration_id: null,
+        },
+      ],
+      bracketSlots: [{ id: 'slot-f-1', round: 3 }],
+    });
+
+    const result = await service.listEventSchedule('event-1');
+    // mainBracketSize 8 + round 3 → final (2 fighters remaining)
+    expect(result[0]!.roundCode).toBe('LSW-B-F-M1');
   });
 });
