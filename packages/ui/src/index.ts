@@ -85,6 +85,9 @@ export type { HelpTooltipProps } from './components/HelpTooltip';
 export { ConfirmDialog } from './components/ConfirmDialog';
 export type { ConfirmDialogProps } from './components/ConfirmDialog';
 
+export { Drawer } from './components/Drawer';
+export type { DrawerProps } from './components/Drawer';
+
 export { PromptDialog } from './components/PromptDialog';
 export type { PromptDialogProps } from './components/PromptDialog';
 
