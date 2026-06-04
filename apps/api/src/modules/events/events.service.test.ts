@@ -1129,18 +1129,31 @@ describe('EventsService', () => {
         },
       ];
       const tournaments = [
-        { event_id: 'event-pub' },
-        { event_id: 'event-pub' },
-        { event_id: 'event-pub' },
-        { event_id: 'event-pub-2' },
+        { id: 't-1', event_id: 'event-pub' },
+        { id: 't-2', event_id: 'event-pub' },
+        { id: 't-3', event_id: 'event-pub' },
+        { id: 't-4', event_id: 'event-pub-2' },
+      ];
+      // Two tournaments on event-pub join the same league → dedupes to
+      // one. event-pub also joins a second distinct league via t-3.
+      // event-pub-2 has no league links → empty leagues array.
+      const linkRows = [
+        { tournament_id: 't-1', leagues: { id: 'L1', name: 'French Cup', slug: 'french-cup' } },
+        { tournament_id: 't-2', leagues: { id: 'L1', name: 'French Cup', slug: 'french-cup' } },
+        { tournament_id: 't-3', leagues: { id: 'L2', name: 'Regional', slug: 'regional' } },
       ];
       const eventsChain = makeAwaitableChain({ data: rows, error: null });
       const tournamentsChain = makeAwaitableChain({ data: tournaments, error: null });
-      fromMock.mockReturnValueOnce(eventsChain).mockReturnValueOnce(tournamentsChain);
+      const linksChain = makeAwaitableChain({ data: linkRows, error: null });
+      fromMock
+        .mockReturnValueOnce(eventsChain)
+        .mockReturnValueOnce(tournamentsChain)
+        .mockReturnValueOnce(linksChain);
 
       const result = (await service.listEvents({})) as Array<{
         id: string;
         tournament_count: number;
+        leagues: Array<{ id: string; name: string; slug: string }>;
       }>;
 
       // Public landing page relies on the joined organization
@@ -1157,6 +1170,14 @@ describe('EventsService', () => {
       // tournament_count is folded onto each row from the batched lookup.
       expect(result.find((r) => r.id === 'event-pub')?.tournament_count).toBe(3);
       expect(result.find((r) => r.id === 'event-pub-2')?.tournament_count).toBe(1);
+      // Linked-league list is folded on too. event-pub has two
+      // tournaments joining the same league (deduped) + a third
+      // joining a second league → 2 distinct leagues. event-pub-2
+      // has no league links → empty array. The public Upcoming
+      // table reads this directly to render the League column.
+      const pub = result.find((r) => r.id === 'event-pub');
+      expect(pub?.leagues.map((l) => l.id).sort()).toEqual(['L1', 'L2']);
+      expect(result.find((r) => r.id === 'event-pub-2')?.leagues).toEqual([]);
     });
 
     it('honours an explicit status filter when the caller passes one', async () => {

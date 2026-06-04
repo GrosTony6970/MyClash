@@ -86,21 +86,66 @@ export class EventsService {
     if (rows.length === 0) return rows;
 
     // Enrich with tournament_count so the public home page can show
-    // 'N tournaments' per row without a per-event roundtrip.
+    // 'N tournaments' per row without a per-event roundtrip. Also
+    // collect each tournament's id so we can resolve the per-event
+    // league list in one follow-up batch.
     const eventIds = rows.map((r) => r['id'] as string);
     const { data: tournRows, error: tournErr } = await this.supabase.service
       .from('tournaments')
-      .select('event_id')
+      .select('id, event_id')
       .in('event_id', eventIds);
     if (tournErr) throw new BadRequestException(tournErr.message);
     const countByEvent = new Map<string, number>();
-    for (const t of (tournRows ?? []) as Array<{ event_id: string }>) {
+    const eventByTournament = new Map<string, string>();
+    for (const t of (tournRows ?? []) as Array<{ id: string; event_id: string }>) {
       countByEvent.set(t.event_id, (countByEvent.get(t.event_id) ?? 0) + 1);
+      eventByTournament.set(t.id, t.event_id);
     }
-    return rows.map((row) => ({
-      ...row,
-      tournament_count: countByEvent.get(row['id'] as string) ?? 0,
-    }));
+
+    // Project the linked-league list onto each event row so the public
+    // Upcoming table can render a "League" cell without a per-event
+    // roundtrip. Goes via league_tournament_links (status='approved')
+    // → leagues. We dedupe per event so an event whose two tournaments
+    // join the same league shows the league once.
+    const tournamentIds = Array.from(eventByTournament.keys());
+    const leaguesByEvent = new Map<
+      string,
+      Map<string, { id: string; name: string; slug: string }>
+    >();
+    if (tournamentIds.length > 0) {
+      const { data: linkRows, error: linkErr } = await this.supabase.service
+        .from('league_tournament_links')
+        .select('tournament_id, leagues(id, name, slug)')
+        .eq('status', 'approved')
+        .in('tournament_id', tournamentIds);
+      if (linkErr) throw new BadRequestException(linkErr.message);
+      type LinkRow = {
+        tournament_id: string;
+        leagues:
+          | { id: string; name: string; slug: string }
+          | Array<{ id: string; name: string; slug: string }>
+          | null;
+      };
+      for (const link of (linkRows ?? []) as LinkRow[]) {
+        const eventId = eventByTournament.get(link.tournament_id);
+        if (!eventId) continue;
+        const embed = link.leagues;
+        const league = Array.isArray(embed) ? embed[0] : embed;
+        if (!league) continue;
+        if (!leaguesByEvent.has(eventId)) leaguesByEvent.set(eventId, new Map());
+        leaguesByEvent.get(eventId)!.set(league.id, league);
+      }
+    }
+
+    return rows.map((row) => {
+      const id = row['id'] as string;
+      const leagueMap = leaguesByEvent.get(id);
+      return {
+        ...row,
+        tournament_count: countByEvent.get(id) ?? 0,
+        leagues: leagueMap ? Array.from(leagueMap.values()) : [],
+      };
+    });
   }
 
   async listOrgEvents(orgId: string, userId: string) {
