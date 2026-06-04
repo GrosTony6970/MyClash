@@ -271,6 +271,11 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
   // block AND cascade-shifts every later match on the same day.
   // Mutually exclusive with dragMatch / dragPool.
   const dragBlock = useRef<{ id: string; startTime: string } | null>(null);
+  // Highlighted drop target while the operator drags. Drives the
+  // blue ring on the hovered cell plus a HH:MM · lice-name pill so
+  // the operator can aim the drop instead of guessing. Cleared on
+  // drop, on cell-leave, and on drag-cancel.
+  const [dragOverCell, setDragOverCell] = useState<{ liceId: string; slot: number } | null>(null);
   const [movingBlockId, setMovingBlockId] = useState<string | null>(null);
   // Surfaced when auto-distribute fails so the operator sees the error
   // instead of a silent no-op.
@@ -1181,19 +1186,45 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                   </div>
 
                   {/* Drop-target cells — one per lice, explicit column index */}
-                  {lices.map((lice, liceIndex) => (
-                    <div
-                      key={lice.id}
-                      className="bg-gray-50 border-l border-l-gray-200"
-                      style={{
-                        gridColumn: liceIndex + 2,
-                        gridRow: slot + 3,
-                        borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => handleDrop(lice.id, slot)}
-                    />
-                  ))}
+                  {lices.map((lice, liceIndex) => {
+                    const isHover = dragOverCell?.liceId === lice.id && dragOverCell?.slot === slot;
+                    return (
+                      <div
+                        key={lice.id}
+                        className={[
+                          'border-l border-l-gray-200 transition-colors relative',
+                          isHover ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' : 'bg-gray-50',
+                        ].join(' ')}
+                        style={{
+                          gridColumn: liceIndex + 2,
+                          gridRow: slot + 3,
+                          borderTop:
+                            slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (dragOverCell?.liceId !== lice.id || dragOverCell?.slot !== slot) {
+                            setDragOverCell({ liceId: lice.id, slot });
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverCell?.liceId === lice.id && dragOverCell?.slot === slot) {
+                            setDragOverCell(null);
+                          }
+                        }}
+                        onDrop={() => {
+                          setDragOverCell(null);
+                          handleDrop(lice.id, slot);
+                        }}
+                      >
+                        {isHover && (
+                          <span className="pointer-events-none absolute left-1 top-1 z-20 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow">
+                            {formatSlotTime(slot)} · {lice.name}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </Fragment>
               ))}
 
