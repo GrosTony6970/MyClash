@@ -70,6 +70,33 @@ interface PoolRow {
 interface BracketSlotRow {
   id: string;
   round: number | null;
+  source_a_type: string | null;
+  source_a_ref: string | null;
+  source_b_type: string | null;
+  source_b_ref: string | null;
+}
+
+interface BracketSlotSourceInfo {
+  round: number | null;
+  sourceAType: string | null;
+  sourceARef: string | null;
+  sourceBType: string | null;
+  sourceBRef: string | null;
+}
+
+/**
+ * Build a placeholder fighter label for a bracket slot whose
+ * registration hasn't been resolved yet. `source_a_ref` strings are
+ * already self-describing (e.g. 'winner of R1P1') so we just
+ * title-case the leading verb. Returns null when we have nothing
+ * meaningful to show — caller falls back to '?' in that case.
+ */
+export function formatBracketPlaceholder(type: string | null, ref: string | null): string | null {
+  if (!type || !ref) return null;
+  if (type === 'winner_of') return `Winner of ${ref.replace(/^winner of /i, '')}`;
+  if (type === 'loser_of') return `Loser of ${ref.replace(/^loser of /i, '')}`;
+  if (type === 'seed') return `Seed ${ref}`;
+  return ref;
 }
 
 interface RegistrationRow {
@@ -166,18 +193,26 @@ export class ScheduleGridService {
     }
 
     // 3c. Bracket slots batch lookup — feeds bracketRound into the
-    // canonical roundCode (LSW-B-QF-M1 etc.).
+    // canonical roundCode (LSW-B-QF-M1 etc.) and source_a/b into the
+    // "Winner of R1P1" placeholder labels for unfilled bracket
+    // cards (slot waiting on pool results / prior-round resolution).
     const bracketSlotIds = Array.from(
       new Set(matches.map((m) => m.bracket_slot_id).filter((id): id is string => Boolean(id))),
     );
-    const bracketRoundBySlotId = new Map<string, number | null>();
+    const bracketSourceBySlotId = new Map<string, BracketSlotSourceInfo>();
     if (bracketSlotIds.length > 0) {
       const { data: slotsData } = await this.supabase.service
         .from('bracket_slots')
-        .select('id, round')
+        .select('id, round, source_a_type, source_a_ref, source_b_type, source_b_ref')
         .in('id', bracketSlotIds);
       for (const s of (slotsData ?? []) as BracketSlotRow[]) {
-        bracketRoundBySlotId.set(s.id, s.round);
+        bracketSourceBySlotId.set(s.id, {
+          round: s.round,
+          sourceAType: s.source_a_type,
+          sourceARef: s.source_a_ref,
+          sourceBType: s.source_b_type,
+          sourceBRef: s.source_b_ref,
+        });
       }
     }
 
@@ -223,8 +258,8 @@ export class ScheduleGridService {
       const red = m.red_registration_id ? personByRegId.get(m.red_registration_id) : null;
       const blue = m.blue_registration_id ? personByRegId.get(m.blue_registration_id) : null;
       const pool = m.pool_id ? (poolById.get(m.pool_id) ?? null) : null;
-      const bracketRound = m.bracket_slot_id
-        ? (bracketRoundBySlotId.get(m.bracket_slot_id) ?? null)
+      const slotSource = m.bracket_slot_id
+        ? (bracketSourceBySlotId.get(m.bracket_slot_id) ?? null)
         : null;
 
       // Pool sort_order is 0-indexed in the schema; the canonical
@@ -236,11 +271,26 @@ export class ScheduleGridService {
       const roundCode = buildRoundCode({
         weapon: tournament?.weapon ?? null,
         poolNumber,
-        bracketRound,
+        bracketRound: slotSource?.round ?? null,
         bracketSize,
         matchNumberLabel: m.match_number_label,
         roundNumber: null,
       });
+
+      // Bracket slots waiting on prior-round / pool results carry
+      // their source intent (winner_of/loser_of/seed + ref). Surface
+      // it as the fighter label so the operator sees "Winner of
+      // R1P1" instead of a blank "?".
+      const redFighterName =
+        formatName(red) ??
+        (slotSource
+          ? formatBracketPlaceholder(slotSource.sourceAType, slotSource.sourceARef)
+          : null);
+      const blueFighterName =
+        formatName(blue) ??
+        (slotSource
+          ? formatBracketPlaceholder(slotSource.sourceBType, slotSource.sourceBRef)
+          : null);
 
       return {
         id: m.id,
@@ -249,8 +299,8 @@ export class ScheduleGridService {
         status: m.status ?? 'scheduled',
         liceId: m.lice_id,
         scheduledAt: m.scheduled_at,
-        redFighterName: formatName(red),
-        blueFighterName: formatName(blue),
+        redFighterName,
+        blueFighterName,
         redRegistrationId: m.red_registration_id ?? '',
         blueRegistrationId: m.blue_registration_id ?? '',
         tournamentName,

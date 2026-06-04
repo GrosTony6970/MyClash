@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ScheduleGridService } from './schedule-grid.service';
+import { ScheduleGridService, formatBracketPlaceholder } from './schedule-grid.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -54,6 +54,32 @@ function queueTables(opts: {
     fromMock.mockReturnValueOnce(makeChain({ data: opts.persons, error: null }));
   }
 }
+
+describe('formatBracketPlaceholder', () => {
+  it('title-cases winner_of refs and avoids double-prefixing pre-formatted ones', () => {
+    expect(formatBracketPlaceholder('winner_of', 'R1P1')).toBe('Winner of R1P1');
+    expect(formatBracketPlaceholder('winner_of', 'winner of R1P1')).toBe('Winner of R1P1');
+  });
+
+  it('title-cases loser_of refs', () => {
+    expect(formatBracketPlaceholder('loser_of', 'R4P2')).toBe('Loser of R4P2');
+    expect(formatBracketPlaceholder('loser_of', 'loser of R4P2')).toBe('Loser of R4P2');
+  });
+
+  it('prefixes seed sources with "Seed "', () => {
+    expect(formatBracketPlaceholder('seed', '3')).toBe('Seed 3');
+  });
+
+  it('returns the raw ref for unknown source types so the operator still sees something', () => {
+    expect(formatBracketPlaceholder('made_up', 'foo')).toBe('foo');
+  });
+
+  it('returns null when either side of the source pair is missing', () => {
+    expect(formatBracketPlaceholder(null, 'R1P1')).toBeNull();
+    expect(formatBracketPlaceholder('winner_of', null)).toBeNull();
+    expect(formatBracketPlaceholder(null, null)).toBeNull();
+  });
+});
 
 describe('ScheduleGridService', () => {
   let service: ScheduleGridService;
