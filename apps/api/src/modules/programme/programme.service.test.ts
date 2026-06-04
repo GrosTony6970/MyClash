@@ -12,15 +12,29 @@ function makeChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    gte: vi.fn(),
+    lt: vi.fn(),
     order: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
     upsert: vi.fn(),
     delete: vi.fn(),
     single: vi.fn().mockResolvedValue(result),
+    maybeSingle: vi.fn().mockResolvedValue(result),
   });
 
-  for (const key of ['select', 'eq', 'in', 'order', 'insert', 'update', 'upsert', 'delete']) {
+  for (const key of [
+    'select',
+    'eq',
+    'in',
+    'gte',
+    'lt',
+    'order',
+    'insert',
+    'update',
+    'upsert',
+    'delete',
+  ]) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
 
@@ -549,6 +563,149 @@ describe('ProgrammeService', () => {
 
       expect(updates).toEqual([{ id: 'match-after', scheduled_at: '2026-06-02T13:45:00.000Z' }]);
       expect(result.deltaMinutes).toBe(-60);
+    });
+  });
+
+  describe('deleteBlock', () => {
+    /**
+     * Capture the bounds + payload the matches `.update()` call sees so
+     * we can assert the right `[startIso, endIso)` window made it
+     * through to PostgREST.
+     */
+    function makeMatchesUpdateChain(updatedRows: Array<{ id: string }>) {
+      const captured: {
+        payload?: Record<string, unknown>;
+        gte?: { column: string; value: string };
+        lt?: { column: string; value: string };
+        phaseIds?: string[];
+      } = {};
+      const result = { data: updatedRows, error: null };
+      const promise = Promise.resolve(result);
+      // Loosely typed chain — Object.assign(promise, {...}) is awkward to
+      // type strictly because of the Promise<T> + Record<string, unknown>
+      // intersection, and the service only cares that each method
+      // returns the chain.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = promise;
+      chain.update = vi.fn((payload: Record<string, unknown>) => {
+        captured.payload = payload;
+        return chain;
+      });
+      chain.in = vi.fn((column: string, value: string[]) => {
+        if (column === 'phase_id') captured.phaseIds = value;
+        return chain;
+      });
+      chain.gte = vi.fn((column: string, value: string) => {
+        captured.gte = { column, value };
+        return chain;
+      });
+      chain.lt = vi.fn((column: string, value: string) => {
+        captured.lt = { column, value };
+        return chain;
+      });
+      chain.select = vi.fn(() => chain);
+      return { chain, captured };
+    }
+
+    it('unschedules matches inside the block window and deletes the block', async () => {
+      // Block: day 0 (2026-06-02), 10:00 → 11:00 window.
+      // Expect: matches.update with scheduled_at=null + lice_id=null,
+      // gte=2026-06-02T10:00:00Z, lt=2026-06-02T11:00:00Z,
+      // phase_id IN [phase-1], then the block row deletion.
+      const blockRow = {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        start_time: '10:00',
+        end_time: '11:00',
+      };
+      const { chain: matchesChain, captured } = makeMatchesUpdateChain([
+        { id: 'match-inside-1' },
+        { id: 'match-inside-2' },
+      ]);
+
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: blockRow, error: null })) // event_programme_blocks select
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null })) // events select
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null })) // tournaments select
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases select
+        .mockReturnValueOnce(matchesChain) // matches update.in.gte.lt.select
+        .mockReturnValueOnce(makeChain({ data: null, error: null })); // event_programme_blocks delete
+
+      const result = await service.deleteBlock('event-1', 'block-1');
+
+      expect(captured.payload).toEqual({ scheduled_at: null, lice_id: null });
+      expect(captured.phaseIds).toEqual(['phase-1']);
+      expect(captured.gte).toEqual({
+        column: 'scheduled_at',
+        value: '2026-06-02T10:00:00.000Z',
+      });
+      expect(captured.lt).toEqual({
+        column: 'scheduled_at',
+        value: '2026-06-02T11:00:00.000Z',
+      });
+      expect(result).toEqual({
+        deletedId: 'block-1',
+        unscheduledMatchIds: ['match-inside-1', 'match-inside-2'],
+      });
+    });
+
+    it('still deletes the block when the event has no tournaments', async () => {
+      const blockRow = {
+        id: 'block-2',
+        event_id: 'event-2',
+        day_index: 0,
+        start_time: '09:00',
+        end_time: '09:30',
+      };
+
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: blockRow, error: null })) // block select
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null })) // event select
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournaments select — empty
+        .mockReturnValueOnce(makeChain({ data: null, error: null })); // block delete
+
+      const result = await service.deleteBlock('event-2', 'block-2');
+
+      expect(result).toEqual({ deletedId: 'block-2', unscheduledMatchIds: [] });
+    });
+
+    it('throws NotFoundException when the block id does not belong to the event', async () => {
+      fromMock.mockReturnValueOnce(makeChain({ data: null, error: null })); // block select returns null
+
+      await expect(service.deleteBlock('event-1', 'missing-block')).rejects.toThrow(
+        /not found for event/i,
+      );
+    });
+
+    it('aborts the block delete when the matches unschedule update fails', async () => {
+      const blockRow = {
+        id: 'block-3',
+        event_id: 'event-3',
+        day_index: 0,
+        start_time: '12:00',
+        end_time: '13:00',
+      };
+      const failingMatchesChain = makeChain({
+        data: null,
+        error: { message: 'db went away' },
+      });
+      const blockDeleteChain = makeChain({ data: null, error: null });
+
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: blockRow, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null }))
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null }))
+        .mockReturnValueOnce(failingMatchesChain)
+        .mockReturnValueOnce(blockDeleteChain); // would fire if not aborted
+
+      await expect(service.deleteBlock('event-3', 'block-3')).rejects.toThrow(
+        /Failed to unschedule matches/i,
+      );
+      // The block delete chain was never consumed — fromMock should have
+      // exactly the queued calls used through the matches step (5 total).
+      expect(fromMock).toHaveBeenCalledTimes(5);
     });
   });
 

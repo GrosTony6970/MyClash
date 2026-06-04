@@ -75,6 +75,23 @@ export class ProgrammeController {
     return this.programme.moveBlock(eventId, blockId, dto);
   }
 
+  /** DELETE /api/v1/events/:eventId/programme/blocks/:blockId */
+  @Delete('events/:eventId/programme/blocks/:blockId')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Delete a single programme block. Matches scheduled INSIDE the block window on the same day are unscheduled (scheduled_at + lice_id → null) so they reappear in the Unscheduled sidebar.',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'blockId', type: 'string', format: 'uuid' })
+  deleteBlock(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('blockId', ParseUUIDPipe) blockId: string,
+  ) {
+    return this.programme.deleteBlock(eventId, blockId);
+  }
+
   /** DELETE /api/v1/events/:eventId/programme/full */
   @Delete('events/:eventId/programme/full')
   @HttpCode(HttpStatus.OK)

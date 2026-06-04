@@ -784,6 +784,101 @@ export class ProgrammeService {
     return { block: updatedBlock, deltaMinutes: deltaMin, shiftedMatches };
   }
 
+  /**
+   * Delete a single programme block. Matches scheduled INSIDE the
+   * block's time window on the same day are unscheduled
+   * (scheduled_at + lice_id → null) so they reappear in the
+   * Unscheduled sidebar — operator decides what to do next.
+   * Matches OUTSIDE the window are left in place; operator runs
+   * Generate Grid for a full reflow.
+   *
+   * Mirrors moveBlock's UTC date math (start_date + dayIndex) so
+   * the window calculation is consistent across both endpoints.
+   */
+  async deleteBlock(
+    eventId: string,
+    blockId: string,
+  ): Promise<{ deletedId: string; unscheduledMatchIds: string[] }> {
+    // 1. Load the block (event-scoped guard rejects cross-event ids).
+    const { data: blockRow, error: blockErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .select('id, event_id, day_index, start_time, end_time')
+      .eq('id', blockId)
+      .eq('event_id', eventId)
+      .maybeSingle();
+    if (blockErr) throw new BadRequestException(`Failed to load block: ${blockErr.message}`);
+    if (!blockRow) throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
+
+    // 2. Compute [startIso, endIso) for the block's day in UTC,
+    //    matching moveBlock's start_date + dayIndex math.
+    const { data: eventData, error: evErr } = await this.supabase.service
+      .from('events')
+      .select('start_date')
+      .eq('id', eventId)
+      .single();
+    if (evErr) throw new BadRequestException(`Failed to load event: ${evErr.message}`);
+    if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
+
+    const dayDate = new Date(
+      `${(eventData as Record<string, string>)['start_date']}T00:00:00.000Z`,
+    );
+    dayDate.setUTCDate(dayDate.getUTCDate() + (blockRow.day_index as number));
+    const [sh, sm] = (blockRow.start_time as string).split(':').map(Number);
+    const [eh, em] = (blockRow.end_time as string).split(':').map(Number);
+    const startIso = new Date(dayDate);
+    startIso.setUTCHours(sh ?? 0, sm ?? 0, 0, 0);
+    const endIso = new Date(dayDate);
+    endIso.setUTCHours(eh ?? 0, em ?? 0, 0, 0);
+
+    // 3. Unschedule matches whose scheduled_at falls inside the window.
+    //    Scope through tournaments → phases of THIS event so the update
+    //    can't touch other events. matches.scheduled_at + lice_id → null
+    //    pushes them back to the Unscheduled sidebar.
+    const { data: tournamentsData, error: tErr } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId);
+    if (tErr) throw new BadRequestException(tErr.message);
+    const tournamentIds = ((tournamentsData ?? []) as Array<{ id: string }>).map((t) => t.id);
+
+    let unscheduledMatchIds: string[] = [];
+    if (tournamentIds.length > 0) {
+      const { data: phasesData, error: phErr } = await this.supabase.service
+        .from('phases')
+        .select('id')
+        .in('tournament_id', tournamentIds);
+      if (phErr) throw new BadRequestException(phErr.message);
+      const phaseIds = ((phasesData ?? []) as Array<{ id: string }>).map((p) => p.id);
+
+      if (phaseIds.length > 0) {
+        const { data: updated, error: matchErr } = await this.supabase.service
+          .from('matches')
+          .update({ scheduled_at: null, lice_id: null })
+          .in('phase_id', phaseIds)
+          .gte('scheduled_at', startIso.toISOString())
+          .lt('scheduled_at', endIso.toISOString())
+          .select('id');
+        if (matchErr)
+          throw new BadRequestException(
+            `Failed to unschedule matches in block window: ${matchErr.message}`,
+          );
+        unscheduledMatchIds = ((updated ?? []) as Array<{ id: string }>).map((r) => r.id);
+      }
+    }
+
+    // 4. Delete the block row last — a matches-update failure above
+    //    throws before we touch the block, so partial state isn't
+    //    possible.
+    const { error: delErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .delete()
+      .eq('id', blockId)
+      .eq('event_id', eventId);
+    if (delErr) throw new BadRequestException(`Failed to delete block: ${delErr.message}`);
+
+    return { deletedId: blockId, unscheduledMatchIds };
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private async fetchCompetitionMatches(
