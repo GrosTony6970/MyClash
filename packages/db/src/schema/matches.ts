@@ -2,7 +2,16 @@
  * Matches, match events, and exchanges.
  * Exchange is the atomic scoring unit — the single source of truth for scores.
  */
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  type AnyPgColumn,
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { lices } from './events';
 import { persons } from './persons';
 import { bracketSlots, phases, pools, registrations, tournaments } from './tournaments';
@@ -72,7 +81,9 @@ export const matchForfeits = pgTable('match_forfeits', {
   opponentScore: integer('opponent_score'),
   canContinue: boolean('can_continue'),
   autoCreated: boolean('auto_created').notNull().default(false),
-  parentForfeitId: uuid('parent_forfeit_id'),
+  parentForfeitId: uuid('parent_forfeit_id').references((): AnyPgColumn => matchForfeits.id, {
+    onDelete: 'set null',
+  }),
   replacementRegistrationId: uuid('replacement_registration_id').references(
     () => registrations.id,
     {
