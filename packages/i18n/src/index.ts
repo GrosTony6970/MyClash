@@ -3483,6 +3483,15 @@ export const en = {
       addAsReferee: 'Also register as referee for this event',
       refereeColumn: 'Referee',
       refereeTag: 'Referee',
+      tournamentFullTitle: 'Tournament full',
+      tournamentFullDescription:
+        'The following tournament(s) reached their participant cap. Add to the waiting list instead?',
+      tournamentFullEntry: '{tournamentName} ({count} / {max}) — {personName}',
+      addToWaitingList: 'Add to waiting list',
+      addedToWaitingListSingular: 'Added to the waiting list.',
+      addedToWaitingListPlural: 'Added to {count} waiting lists.',
+      addToWaitingListPartial: 'Added to {ok} waiting list(s); {failed} could not be added.',
+      addToWaitingListAllFailed: 'Could not add to any waiting list.',
       refereeRegistrationFailed:
         'Could not register as referee. Try adding from the Referees page.',
       refereeNeedsClaimedAccount:
@@ -7361,6 +7370,16 @@ export const fr = {
       addAsReferee: 'Inscrire aussi comme arbitre pour cet evenement',
       refereeColumn: 'Arbitre',
       refereeTag: 'Arbitre',
+      tournamentFullTitle: 'Tournoi complet',
+      tournamentFullDescription:
+        'Le(s) tournoi(s) suivant(s) ont atteint leur capacite. Ajouter sur la liste d attente a la place ?',
+      tournamentFullEntry: '{tournamentName} ({count} / {max}) — {personName}',
+      addToWaitingList: 'Ajouter a la liste d attente',
+      addedToWaitingListSingular: 'Ajoute a la liste d attente.',
+      addedToWaitingListPlural: 'Ajoute a {count} listes d attente.',
+      addToWaitingListPartial:
+        'Ajoute a {ok} liste(s) d attente ; {failed} n ont pas pu etre ajoutes.',
+      addToWaitingListAllFailed: 'Aucun ajout a la liste d attente n a abouti.',
       refereeRegistrationFailed:
         "Impossible d'inscrire comme arbitre. Essayez depuis la page Arbitres.",
       refereeNeedsClaimedAccount:

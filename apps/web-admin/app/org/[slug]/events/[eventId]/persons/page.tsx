@@ -13,6 +13,8 @@ import {
 } from './_components/club-picker-rows';
 import { DeleteParticipantModal } from './_components/DeleteParticipantModal';
 import { WaitingListPanel } from './_components/WaitingListPanel';
+import { addToWaitingList, tryRegisterInTournament } from './_components/registration-helpers';
+import { formatCountOfMax } from '../format-count-of-max';
 import { useEventStatus } from '../_hooks/useEventStatus';
 
 interface Person {
@@ -125,6 +127,21 @@ export default function ParticipantsPage() {
   );
   const [bulkAssignTournamentId, setBulkAssignTournamentId] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  // Tournament-full → offer waiting-list. Each row is a (person,
+  // tournament) pair that came back 409 + reason='tournament_full'
+  // from POST /api/v1/tournaments/<id>/registrations. The dialog
+  // confirms once and fans the writes out via addToWaitingList.
+  type WaitlistRow = {
+    tournamentId: string;
+    tournamentName: string;
+    personId: string;
+    personName: string;
+    registeredCount: number;
+    maxParticipants: number;
+    body: Record<string, unknown>;
+  };
+  const [waitlistPrompt, setWaitlistPrompt] = useState<WaitlistRow[] | null>(null);
+  const [waitlistBusy, setWaitlistBusy] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD_FORM);
@@ -424,20 +441,32 @@ export default function ParticipantsPage() {
       }
 
       // Per-tournament registrations — capture failures so a network blip
-      // on one tournament doesn't silently lose the others.
+      // on one tournament doesn't silently lose the others. Full
+      // tournaments (409 + reason='tournament_full') route into the
+      // waiting-list confirm dialog rather than the generic "failed"
+      // toast so the operator can act on them with one click.
       const failedTournaments: string[] = [];
+      const fullPending: WaitlistRow[] = [];
+      const personName = `${addForm.givenName.trim()} ${addForm.familyName.trim()}`.trim();
       for (const tournamentId of selectedTournaments) {
-        const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+        const body = {
+          personId: person.id,
+          hemaRatingsId,
+          seed: addForm.seed ? parseInt(addForm.seed, 10) : undefined,
+        };
+        const outcome = await tryRegisterInTournament(apiUrl, tournamentId, body);
+        if (outcome.status === 'full') {
+          const tour = tournaments.find((x) => x.id === tournamentId);
+          fullPending.push({
+            tournamentId,
+            tournamentName: tour?.name ?? tournamentId,
             personId: person.id,
-            hemaRatingsId,
-            seed: addForm.seed ? parseInt(addForm.seed, 10) : undefined,
-          }),
-        });
-        if (!res.ok) {
+            personName,
+            registeredCount: outcome.registeredCount,
+            maxParticipants: outcome.maxParticipants,
+            body,
+          });
+        } else if (outcome.status === 'error') {
           const tour = tournaments.find((x) => x.id === tournamentId);
           failedTournaments.push(tour?.name ?? tournamentId);
         }
@@ -446,11 +475,10 @@ export default function ParticipantsPage() {
         toast.warning(
           `Created participant, but failed to register in: ${failedTournaments.join(', ')}.`,
         );
-      } else if (selectedTournaments.size > 0) {
-        toast.success(
-          `Added ${addForm.givenName.trim()} ${addForm.familyName.trim()} to ${selectedTournaments.size} tournament(s).`,
-        );
+      } else if (selectedTournaments.size > 0 && fullPending.length === 0) {
+        toast.success(`Added ${personName} to ${selectedTournaments.size} tournament(s).`);
       }
+      if (fullPending.length > 0) setWaitlistPrompt(fullPending);
       closeAddModal();
       refresh();
     } catch (err) {
@@ -518,18 +546,27 @@ export default function ParticipantsPage() {
         (id) => !editSelectedTournaments.has(id),
       );
       const failed: string[] = [];
+      const fullPending: WaitlistRow[] = [];
+      const editPersonName = `${editPerson.givenName} ${editPerson.familyName}`.trim();
 
       for (const tournamentId of toAdd) {
-        const r = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+        const body = {
+          personId: editPerson.id,
+          hemaRatingsId: editForm.hemaRatingsId.trim() || null,
+        };
+        const outcome = await tryRegisterInTournament(apiUrl, tournamentId, body);
+        if (outcome.status === 'full') {
+          const tour = tournaments.find((x) => x.id === tournamentId);
+          fullPending.push({
+            tournamentId,
+            tournamentName: tour?.name ?? tournamentId,
             personId: editPerson.id,
-            hemaRatingsId: editForm.hemaRatingsId.trim() || null,
-          }),
-        });
-        if (!r.ok) {
+            personName: editPersonName,
+            registeredCount: outcome.registeredCount,
+            maxParticipants: outcome.maxParticipants,
+            body,
+          });
+        } else if (outcome.status === 'error') {
           const tour = tournaments.find((x) => x.id === tournamentId);
           failed.push(tour?.name ?? tournamentId);
         }
@@ -552,9 +589,10 @@ export default function ParticipantsPage() {
         toast.warning(
           `Saved profile, but failed to update tournament assignments for: ${failed.join(', ')}.`,
         );
-      } else if (toAdd.length > 0 || toRemove.length > 0) {
+      } else if ((toAdd.length > 0 || toRemove.length > 0) && fullPending.length === 0) {
         toast.success('Profile and tournament assignments updated.');
       }
+      if (fullPending.length > 0) setWaitlistPrompt(fullPending);
 
       // Post-0063: referee endpoints key on global_persons.id, NOT the
       // event-scoped persons.id. refereePersonIds holds global ids too.
@@ -627,17 +665,71 @@ export default function ParticipantsPage() {
   async function handleBulkAssign(tournamentId: string) {
     if (selected.size === 0 || !tournamentId) return;
     setBulkLoading(true);
+    const tour = tournaments.find((x) => x.id === tournamentId);
+    const tournamentName = tour?.name ?? tournamentId;
+    const fullPending: WaitlistRow[] = [];
+    const erroredNames: string[] = [];
     for (const personId of selected) {
-      await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ personId }),
-      });
+      const person = persons.find((p) => p.id === personId);
+      const personName = person
+        ? `${person.givenName} ${person.familyName}`.trim()
+        : personId.slice(0, 8);
+      const body = { personId };
+      const outcome = await tryRegisterInTournament(apiUrl, tournamentId, body);
+      if (outcome.status === 'full') {
+        fullPending.push({
+          tournamentId,
+          tournamentName,
+          personId,
+          personName,
+          registeredCount: outcome.registeredCount,
+          maxParticipants: outcome.maxParticipants,
+          body,
+        });
+      } else if (outcome.status === 'error') {
+        erroredNames.push(personName);
+      }
     }
+    if (erroredNames.length > 0) {
+      toast.warning(`Could not register: ${erroredNames.join(', ')}.`);
+    }
+    if (fullPending.length > 0) setWaitlistPrompt(fullPending);
     setSelected(new Set());
     setBulkLoading(false);
     setBulkAssignTournamentId('');
+    refresh();
+  }
+
+  /**
+   * Operator confirmed the offer-waiting-list dialog. Fan out a
+   * waitlist POST per row; toast a summary; close the dialog. Errors
+   * keep the row on the dialog so the operator can retry, but the
+   * MVP just toasts a partial-failure summary and closes.
+   */
+  async function confirmWaitlist() {
+    const rows = waitlistPrompt;
+    if (!rows || rows.length === 0) return;
+    setWaitlistBusy(true);
+    let ok = 0;
+    let failed = 0;
+    for (const row of rows) {
+      const result = await addToWaitingList(apiUrl, row.tournamentId, row.body);
+      if (result.ok) ok += 1;
+      else failed += 1;
+    }
+    if (ok > 0 && failed === 0) {
+      toast.success(
+        ok === 1
+          ? t('organizer.persons.addedToWaitingListSingular')
+          : t('organizer.persons.addedToWaitingListPlural', { count: ok }),
+      );
+    } else if (ok > 0 && failed > 0) {
+      toast.warning(t('organizer.persons.addToWaitingListPartial', { ok, failed }));
+    } else {
+      toast.error(t('organizer.persons.addToWaitingListAllFailed'));
+    }
+    setWaitlistPrompt(null);
+    setWaitlistBusy(false);
     refresh();
   }
 
@@ -1689,6 +1781,36 @@ export default function ParticipantsPage() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={waitlistPrompt !== null && waitlistPrompt.length > 0}
+        title={t('organizer.persons.tournamentFullTitle')}
+        description={
+          waitlistPrompt && waitlistPrompt.length > 0 ? (
+            <div>
+              <p>{t('organizer.persons.tournamentFullDescription')}</p>
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
+                {waitlistPrompt.map((row, idx) => (
+                  <li key={`${row.tournamentId}-${row.personId}-${idx}`}>
+                    {t('organizer.persons.tournamentFullEntry', {
+                      tournamentName: row.tournamentName,
+                      count: row.registeredCount,
+                      max: row.maxParticipants,
+                      personName: row.personName,
+                    })}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            ''
+          )
+        }
+        confirmLabel={t('organizer.persons.addToWaitingList')}
+        busy={waitlistBusy}
+        onConfirm={() => void confirmWaitlist()}
+        onCancel={() => setWaitlistPrompt(null)}
+      />
     </main>
   );
 }
