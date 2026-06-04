@@ -593,16 +593,16 @@ export class ProgrammeService {
           }
         }
 
-        // Bulk UPSERT in one round-trip (was a sequential for-loop of N
-        // UPDATEs — ~120 round-trips on a typical event). The .upsert
-        // with onConflict: 'id' acts as an UPDATE because the id was
-        // selected from the matches table 30 lines above, so insertion
-        // is impossible by upstream contract. matchesScheduled now
-        // reflects ACTUAL persisted rows (was: scheduler's optimistic
-        // intent), so a partial DB failure can no longer surface as a
-        // stale "Generated N matches" banner.
+        // Bulk UPSERT in one round-trip (was a sequential for-loop of
+        // N UPDATEs). We always carry phase_id because PostgREST emits
+        // `INSERT … ON CONFLICT DO UPDATE` and PostgreSQL validates
+        // the candidate INSERT row's NOT NULL constraints BEFORE the
+        // conflict resolver fires — `matches.phase_id` is NOT NULL, so
+        // omitting it crashes the round-trip even for rows that exist.
+        const phaseByMatchId = new Map(matches.map((m) => [m.id, m.phase_id]));
         const matchesPayload = result.scheduledMatches.map((sm) => ({
           id: sm.matchId,
+          phase_id: phaseByMatchId.get(sm.matchId),
           scheduled_at: sm.scheduledAt,
           lice_id: sm.liceId,
         }));
@@ -795,6 +795,7 @@ export class ProgrammeService {
       red_registration_id: string;
       blue_registration_id: string;
       pool_id: string | null;
+      phase_id: string;
     }>
   > {
     const { data: phasesData } = await this.supabase.service
@@ -816,7 +817,7 @@ export class ProgrammeService {
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id, pool_id')
+        .select('id, red_registration_id, blue_registration_id, pool_id, phase_id')
         .in('pool_id', poolIds)
         .order('pool_id', { ascending: true })
         .order('match_number_label', { ascending: true });
@@ -825,6 +826,7 @@ export class ProgrammeService {
         red_registration_id: string;
         blue_registration_id: string;
         pool_id: string | null;
+        phase_id: string;
       }>;
     } else {
       const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
@@ -832,7 +834,7 @@ export class ProgrammeService {
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id, pool_id')
+        .select('id, red_registration_id, blue_registration_id, pool_id, phase_id')
         .in('phase_id', bracketPhaseIds)
         .order('match_number_label', { ascending: true });
       return (matchesData ?? []) as Array<{
@@ -840,6 +842,7 @@ export class ProgrammeService {
         red_registration_id: string;
         blue_registration_id: string;
         pool_id: string | null;
+        phase_id: string;
       }>;
     }
   }
