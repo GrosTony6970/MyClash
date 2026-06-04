@@ -205,6 +205,12 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
   const [days, setDays] = useState<string[]>([]);
   const [activeDay, setActiveDay] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  // When any of the schedule-page bootstrap fetches errors out (or
+  // returns a non-2xx body), surface it as a banner above the grid.
+  // Before this, a 400 like the dead `tournaments.bracket_size`
+  // SELECT was silently swallowed — the grid just stayed empty and
+  // the operator had to dig into DevTools to find the cause.
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   // Slice 7: non-fight programme blocks (registration, gear check,
@@ -334,42 +340,64 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
     ])
       .then(async ([licesRes, schedRes, eventRes, programmeRes]) => {
         setLoading(false);
-        if (licesRes.ok) {
-          const l = (await licesRes.json()) as Lice[];
-          setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
+        // Surface the first non-OK response as a banner. Each
+        // endpoint reports the upstream message (NestJS exception
+        // body) so the operator sees the actual DB / auth / schema
+        // error instead of staring at an empty grid.
+        async function bodyMessage(res: Response): Promise<string> {
+          try {
+            const body = (await res.json()) as { message?: string };
+            return body.message ?? `${res.status} ${res.statusText}`;
+          } catch {
+            return `${res.status} ${res.statusText}`;
+          }
         }
-        if (schedRes.ok) {
-          const m = (await schedRes.json()) as ScheduleMatch[];
-          setMatches(m);
-          setConflicts(detectConflicts(m));
+        if (!licesRes.ok) {
+          setFetchError(`Lices: ${await bodyMessage(licesRes)}`);
+          return;
         }
-        if (eventRes.ok) {
-          // GET /api/v1/events/:id resolves to `getEventBySlug` which returns
-          // the raw Supabase row — snake_case fields. Don't paper over it
-          // with `startDate` aliases unless the API mapping is unified.
-          const ev = (await eventRes.json()) as {
-            start_date: string;
-            end_date?: string | null;
-          };
-          const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
-          setDays(eventDays);
-          if (eventDays[0]) setActiveDay(eventDays[0]);
+        if (!schedRes.ok) {
+          setFetchError(`Schedule: ${await bodyMessage(schedRes)}`);
+          return;
         }
-        if (programmeRes.ok) {
-          // Slice 7: fetch every programme block; we keep the admin /
-          // break entries to render as full-width bars on the grid
-          // (registration, gear check, referee meeting, breaks).
-          // Competition / workshop blocks are skipped — fights and
-          // workshops are already rendered by the matches projection.
-          const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
-          setProgrammeBlocks(
-            blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'),
-          );
+        if (!eventRes.ok) {
+          setFetchError(`Event: ${await bodyMessage(eventRes)}`);
+          return;
         }
+        if (!programmeRes.ok) {
+          setFetchError(`Programme: ${await bodyMessage(programmeRes)}`);
+          return;
+        }
+        setFetchError(null);
+        const l = (await licesRes.json()) as Lice[];
+        setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
+        const m = (await schedRes.json()) as ScheduleMatch[];
+        setMatches(m);
+        setConflicts(detectConflicts(m));
+        // GET /api/v1/events/:id resolves to `getEventBySlug` which returns
+        // the raw Supabase row — snake_case fields. Don't paper over it
+        // with `startDate` aliases unless the API mapping is unified.
+        const ev = (await eventRes.json()) as {
+          start_date: string;
+          end_date?: string | null;
+        };
+        const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
+        setDays(eventDays);
+        if (eventDays[0]) setActiveDay(eventDays[0]);
+        // Slice 7: fetch every programme block; we keep the admin /
+        // break entries to render as full-width bars on the grid
+        // (registration, gear check, referee meeting, breaks).
+        // Competition / workshop blocks are skipped — fights and
+        // workshops are already rendered by the matches projection.
+        const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
+        setProgrammeBlocks(
+          blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'),
+        );
       })
       .catch((err: unknown) => {
         setLoading(false);
         if (err instanceof Error && err.name === 'AbortError') return;
+        setFetchError(err instanceof Error ? err.message : 'Schedule failed to load');
       });
     return () => controller.abort();
   }, [eventId, apiUrl]);
@@ -900,6 +928,23 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
             Cancel
           </button>
           {addLiceError && <span className="text-red-700">{addLiceError}</span>}
+        </div>
+      )}
+
+      {fetchError && (
+        <div
+          role="alert"
+          className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3"
+        >
+          <span className="font-bold text-red-700">Schedule failed to load:</span>
+          <span className="text-red-600">{fetchError}</span>
+          <button
+            type="button"
+            onClick={() => setFetchError(null)}
+            className="ml-auto text-red-700 hover:text-red-900 font-bold"
+          >
+            ✕
+          </button>
         </div>
       )}
 
