@@ -664,6 +664,104 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
   });
 });
 
+describe('LeaguesService.listManageable count enrichment', () => {
+  it('projects group/tournament/event/fighter counts onto each league row', async () => {
+    // Super-admin path: leagues SELECT returns two rows, the enrichment
+    // helper batches three follow-up SELECTs and aggregates the counts
+    // in TS. Verifies distinct-event derivation across array + singular
+    // embed shapes (PostgREST returns one or the other depending on FK
+    // multiplicity).
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'platform_roles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+          };
+        }
+        if (table === 'leagues') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [
+                { id: 'L1', name: 'A', season_year: 2026 },
+                { id: 'L2', name: 'B', season_year: 2025 },
+              ],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'league_groups') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({
+              data: [{ league_id: 'L1' }, { league_id: 'L1' }, { league_id: 'L2' }],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'league_tournament_links') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({
+              data: [
+                { league_id: 'L1', tournaments: { event_id: 'E1' } },
+                { league_id: 'L1', tournaments: { event_id: 'E1' } }, // duplicate event
+                { league_id: 'L1', tournaments: { event_id: 'E2' } },
+                { league_id: 'L2', tournaments: { event_id: 'E3' } },
+              ],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'league_rankings') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({
+              data: [
+                { league_id: 'L1', fighter_id: 'F1' },
+                { league_id: 'L1', fighter_id: 'F2' },
+                { league_id: 'L1', fighter_id: 'F1' }, // duplicate fighter
+                { league_id: 'L2', fighter_id: 'F3' },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      { assertOrgRole: vi.fn() } as never,
+      {} as never,
+    );
+
+    const result = (await service.listManageable('admin-user')) as Array<Record<string, unknown>>;
+
+    const l1 = result.find((r) => r['id'] === 'L1');
+    const l2 = result.find((r) => r['id'] === 'L2');
+    expect(l1).toMatchObject({
+      group_count: 2,
+      tournament_count: 3,
+      event_count: 2, // E1 + E2, deduped
+      fighter_count: 2, // F1 + F2, deduped
+    });
+    expect(l2).toMatchObject({
+      group_count: 1,
+      tournament_count: 1,
+      event_count: 1,
+      fighter_count: 1,
+    });
+  });
+});
+
 describe('LeaguesService.addTournamentLink', () => {
   it('writes both requested_by_user_id and reviewed_by_user_id so the NOT NULL constraint passes', async () => {
     // Regression for the operator-hit 400:

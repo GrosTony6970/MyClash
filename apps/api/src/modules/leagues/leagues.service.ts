@@ -92,7 +92,7 @@ export class LeaguesService {
         .select('*')
         .order('season_year', { ascending: false });
       if (error) throw new BadRequestException(error.message);
-      return data ?? [];
+      return this.enrichLeaguesWithCounts((data ?? []) as Row[]);
     }
 
     const [userRoles, orgMemberships] = await Promise.all([
@@ -119,7 +119,80 @@ export class LeaguesService {
       .in('id', [...leagueIds])
       .order('season_year', { ascending: false });
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    return this.enrichLeaguesWithCounts((data ?? []) as Row[]);
+  }
+
+  /**
+   * Project four per-league counts onto each row so the Ranking tab
+   * can render its summary table in a single round-trip:
+   *   - group_count       → league_groups rows for this league
+   *   - tournament_count  → approved tournament-link rows
+   *   - event_count       → distinct event ids the approved tournaments
+   *                         belong to
+   *   - fighter_count     → distinct fighter ids that appear in
+   *                         league_rankings
+   * Three parallel batch SELECTs; aggregation happens in TS to avoid
+   * PostgREST aggregation quirks.
+   */
+  private async enrichLeaguesWithCounts(leagues: Row[]): Promise<Row[]> {
+    if (leagues.length === 0) return leagues;
+    const leagueIds = leagues.map((l) => String(l['id']));
+    const [groupsRes, linksRes, rankingsRes] = await Promise.all([
+      this.supabase.service.from('league_groups').select('league_id').in('league_id', leagueIds),
+      this.supabase.service
+        .from('league_tournament_links')
+        .select('league_id, tournaments(event_id)')
+        .in('league_id', leagueIds)
+        .eq('status', 'approved'),
+      this.supabase.service
+        .from('league_rankings')
+        .select('league_id, fighter_id')
+        .in('league_id', leagueIds),
+    ]);
+
+    type LinkRow = {
+      league_id: string;
+      tournaments?: { event_id: string | null } | { event_id: string | null }[] | null;
+    };
+
+    const groupCount = new Map<string, number>();
+    for (const row of (groupsRes.data ?? []) as Row[]) {
+      const id = String(row['league_id']);
+      groupCount.set(id, (groupCount.get(id) ?? 0) + 1);
+    }
+    const tournamentCount = new Map<string, number>();
+    const eventsPerLeague = new Map<string, Set<string>>();
+    for (const row of (linksRes.data ?? []) as LinkRow[]) {
+      const id = row.league_id;
+      tournamentCount.set(id, (tournamentCount.get(id) ?? 0) + 1);
+      const embed = row.tournaments;
+      const eventId = Array.isArray(embed) ? embed[0]?.event_id : embed?.event_id;
+      if (eventId) {
+        if (!eventsPerLeague.has(id)) eventsPerLeague.set(id, new Set());
+        eventsPerLeague.get(id)!.add(eventId);
+      }
+    }
+    const fightersPerLeague = new Map<string, Set<string>>();
+    for (const row of (rankingsRes.data ?? []) as Array<{
+      league_id: string;
+      fighter_id: string;
+    }>) {
+      if (!fightersPerLeague.has(row.league_id)) {
+        fightersPerLeague.set(row.league_id, new Set());
+      }
+      fightersPerLeague.get(row.league_id)!.add(row.fighter_id);
+    }
+
+    return leagues.map((row) => {
+      const id = String(row['id']);
+      return {
+        ...row,
+        group_count: groupCount.get(id) ?? 0,
+        tournament_count: tournamentCount.get(id) ?? 0,
+        event_count: eventsPerLeague.get(id)?.size ?? 0,
+        fighter_count: fightersPerLeague.get(id)?.size ?? 0,
+      };
+    });
   }
 
   async create(dto: CreateLeagueDto, userId: string) {
