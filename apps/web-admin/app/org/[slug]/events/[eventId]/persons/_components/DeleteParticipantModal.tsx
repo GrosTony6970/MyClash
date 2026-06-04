@@ -66,6 +66,17 @@ export interface ScopedRegistration {
   tournamentId: string;
 }
 
+/** A row that didn't get deleted, with the reason the operator needs
+ *  to see. Reasons come from two places:
+ *  1. Client-side: rows pre-flagged as having a blocking match by the
+ *     assignments probe.
+ *  2. Server-side: the BE's response body `message` when the
+ *     force-delete POST (or whole-event DELETE) returns non-2xx. */
+export interface SkippedRow {
+  name: string;
+  reason: string;
+}
+
 interface Props {
   apiUrl: string;
   eventId: string;
@@ -78,7 +89,7 @@ interface Props {
    *  each personId in scope. */
   registrationsInScope: ScopedRegistration[];
   onClose: () => void;
-  onDeleted: (summary: { succeeded: string[]; skipped: string[] }) => void;
+  onDeleted: (summary: { succeeded: string[]; skipped: SkippedRow[] }) => void;
 }
 
 interface Row {
@@ -161,7 +172,12 @@ export function DeleteParticipantModal({
     if (counts.clean === 0) return;
     setBusy(true);
     const succeeded: string[] = [];
-    const skipped: string[] = counts.blockedRows.map((r) => r.displayName);
+    // Blocked rows skipped pre-flight because the assignments probe
+    // already found a running/completed/forfeit match for them.
+    const skipped: SkippedRow[] = counts.blockedRows.map((r) => ({
+      name: r.displayName,
+      reason: 'Has an active or completed match',
+    }));
     for (const row of counts.cleanRows) {
       try {
         if (tournamentId) {
@@ -174,18 +190,22 @@ export function DeleteParticipantModal({
               `${apiUrl}/api/v1/registrations/${reg.registrationId}/force-delete`,
               { method: 'POST', credentials: 'include' },
             );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) throw new Error(await extractBackendReason(res));
           }
         } else {
           const res = await fetch(
             `${apiUrl}/api/v1/persons/${row.personId}?force=true&eventId=${eventId}`,
             { method: 'DELETE', credentials: 'include' },
           );
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) throw new Error(await extractBackendReason(res));
         }
         succeeded.push(row.displayName);
-      } catch {
-        skipped.push(row.displayName);
+      } catch (err) {
+        skipped.push({
+          name: row.displayName,
+          reason:
+            err instanceof Error && err.message ? err.message : 'Server rejected the deletion',
+        });
       }
     }
     setBusy(false);
@@ -248,6 +268,19 @@ export function DeleteParticipantModal({
       </div>
     </div>
   );
+}
+
+/**
+ * Pull the BE's human-readable error reason out of a non-ok response.
+ * MyClash's ApiExceptionFilter serialises NestJS exceptions to
+ * `{ statusCode, code, message, details, … }`, so reading `message`
+ * surfaces the original `throw new BadRequestException('…')` /
+ * `ConflictException('…')` string. Falls back to `HTTP <status>` if
+ * the body isn't JSON or the message is missing.
+ */
+async function extractBackendReason(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { message?: string } | null;
+  return body?.message?.trim() || `HTTP ${res.status}`;
 }
 
 function PersonAssignmentCard({ row }: { row: Row }) {

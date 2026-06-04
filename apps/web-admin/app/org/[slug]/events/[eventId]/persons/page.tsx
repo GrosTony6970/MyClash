@@ -1263,14 +1263,13 @@ export default function ParticipantsPage() {
               onDeleted={({ succeeded, skipped }) => {
                 setDeleteModal(null);
                 setSelected(new Set());
+                const skippedDetails = skipped.map((s) => `${s.name}: ${s.reason}`).join(' · ');
                 if (succeeded.length > 0 && skipped.length === 0) {
                   toast.success(`Removed ${succeeded.length} participant(s).`);
                 } else if (succeeded.length > 0 && skipped.length > 0) {
-                  toast.warning(
-                    `Removed ${succeeded.length}; skipped ${skipped.length} (${skipped.join(', ')}).`,
-                  );
+                  toast.warning(`Removed ${succeeded.length} · Skipped: ${skippedDetails}`);
                 } else if (succeeded.length === 0 && skipped.length > 0) {
-                  toast.warning(`Skipped all ${skipped.length} (${skipped.join(', ')}).`);
+                  toast.warning(`Skipped: ${skippedDetails}`);
                 }
                 refresh();
               }}
