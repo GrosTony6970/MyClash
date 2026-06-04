@@ -1246,9 +1246,10 @@ describe('PhasesService', () => {
           return chain;
         }
         if (tableName === 'tournaments') {
-          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
-          chain.single.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
+          const chain = makeChain({ data: tournamentRow, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
+          chain.single.mockResolvedValue({ data: tournamentRow, error: null });
           return chain;
         }
         if (tableName === 'pools') {
@@ -1312,8 +1313,9 @@ describe('PhasesService', () => {
           return chain;
         }
         if (tableName === 'tournaments') {
-          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
+          const chain = makeChain({ data: tournamentRow, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
           return chain;
         }
         if (tableName === 'pools') {
@@ -1356,10 +1358,11 @@ describe('PhasesService', () => {
           return chain;
         }
         if (tableName === 'referee_assignments') {
-          // Per-match assignments. The service joins persons for the
-          // display name; mock the embedded shape Supabase returns.
-          // The widened fetch ends in `.in('scope_type', [...])`, so
-          // that's where the await resolves.
+          // Per-match assignments. The service joins global_persons for
+          // the display name (post-0063: referee_assignments.person_id
+          // → global_persons.id). The fetch is now scoped by event_id
+          // (via .eq) and scope_type (via .in), so the await resolves
+          // at .in('scope_type', [...]).
           const chain = makeChain({ data: null, error: null });
           chain.in.mockResolvedValue({
             data: [
@@ -1368,14 +1371,18 @@ describe('PhasesService', () => {
                 pool_id: null,
                 role: 'arbitre_declarant',
                 person_id: 'person-1',
-                persons: { display_name: 'Alice', given_name: 'Alice', family_name: 'Smith' },
+                global_persons: {
+                  display_name: 'Alice',
+                  given_name: 'Alice',
+                  family_name: 'Smith',
+                },
               },
               {
                 match_id: 'm-1',
                 pool_id: null,
                 role: 'arbitre_assesseur',
                 person_id: 'person-2',
-                persons: { display_name: null, given_name: 'Bob', family_name: 'Jones' },
+                global_persons: { display_name: null, given_name: 'Bob', family_name: 'Jones' },
               },
             ],
             error: null,
@@ -1410,8 +1417,9 @@ describe('PhasesService', () => {
           return chain;
         }
         if (tableName === 'tournaments') {
-          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
+          const chain = makeChain({ data: tournamentRow, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
           return chain;
         }
         if (tableName === 'pools') {
@@ -1498,7 +1506,11 @@ describe('PhasesService', () => {
                 pool_id: 'pool-1',
                 role: 'arbitre_declarant',
                 person_id: 'person-7',
-                persons: { display_name: 'Joe Referee', given_name: 'Joe', family_name: 'Referee' },
+                global_persons: {
+                  display_name: 'Joe Referee',
+                  given_name: 'Joe',
+                  family_name: 'Referee',
+                },
               },
             ],
             error: null,
@@ -1532,8 +1544,9 @@ describe('PhasesService', () => {
           return chain;
         }
         if (tableName === 'tournaments') {
-          const chain = makeChain({ data: { weapon: 'longsword' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { weapon: 'longsword' }, error: null });
+          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
+          const chain = makeChain({ data: tournamentRow, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
           return chain;
         }
         if (tableName === 'pools') {
@@ -1602,7 +1615,11 @@ describe('PhasesService', () => {
                 pool_id: 'pool-1',
                 role: 'arbitre_declarant',
                 person_id: 'person-7',
-                persons: { display_name: 'Joe Default', given_name: 'Joe', family_name: 'Default' },
+                global_persons: {
+                  display_name: 'Joe Default',
+                  given_name: 'Joe',
+                  family_name: 'Default',
+                },
               },
               // Per-match override — m-2 gets Lea as Déclarant instead
               {
@@ -1610,7 +1627,7 @@ describe('PhasesService', () => {
                 pool_id: null,
                 role: 'arbitre_declarant',
                 person_id: 'person-9',
-                persons: {
+                global_persons: {
                   display_name: 'Lea Override',
                   given_name: 'Lea',
                   family_name: 'Override',
@@ -1645,6 +1662,107 @@ describe('PhasesService', () => {
       });
       // The override replaces the role — should not see both at once.
       expect(m2.referees.filter((r) => r.role === 'arbitre_declarant')).toHaveLength(1);
+    });
+
+    // Pins the post-0063 embed name. The Drizzle FK on
+    // referee_assignments.person_id lands on global_persons(id), NOT
+    // on the per-event persons table — PostgREST will silently 400
+    // any SELECT that uses the legacy `persons(...)` embed (the bug
+    // this commit fixes). If a future migration renames the embed
+    // again, this tracer pops up first.
+    it('reads the referee display name from the global_persons embed (post-0063)', async () => {
+      let refereeSelectCall = '';
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+          return chain;
+        }
+        if (tableName === 'tournaments') {
+          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
+          const chain = makeChain({ data: tournamentRow, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
+          return chain;
+        }
+        if (tableName === 'pools') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: 'pool-1',
+                lice_id: null,
+                lice_name: null,
+                lice_number: null,
+                red_registration_id: 'r-1',
+                blue_registration_id: 'r-2',
+                red_name: 'Red',
+                blue_name: 'Blue',
+                red_club: null,
+                blue_club: null,
+                red_score: null,
+                blue_score: null,
+                status: 'pending',
+                match_number_label: 'L1-PA-M1',
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'matches') {
+          const chain = makeChain({ data: [], error: null });
+          chain.eq.mockResolvedValue({ data: [], error: null });
+          return chain;
+        }
+        if (tableName === 'referee_assignments') {
+          const chain = makeChain({ data: null, error: null });
+          // Capture the select string so we can assert the embed name.
+          chain.select = vi.fn((columns: string) => {
+            refereeSelectCall = columns;
+            return chain;
+          });
+          chain.in.mockResolvedValue({
+            data: [
+              {
+                match_id: 'm-1',
+                pool_id: null,
+                role: 'arbitre_assesseur',
+                person_id: 'gp-1',
+                global_persons: {
+                  display_name: null,
+                  given_name: 'Joe',
+                  family_name: 'Referee',
+                },
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+      const match = result[0]!.matches[0] as {
+        referees: Array<{ role: string; refereeId: string; refereeName: string }>;
+      };
+
+      expect(refereeSelectCall).toContain('global_persons');
+      expect(refereeSelectCall).not.toMatch(/(?:^|,\s*)persons\s*\(/);
+      expect(match.referees).toContainEqual({
+        role: 'arbitre_assesseur',
+        refereeId: 'gp-1',
+        refereeName: 'Joe Referee',
+      });
     });
   });
 

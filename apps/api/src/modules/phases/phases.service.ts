@@ -2158,12 +2158,17 @@ export class PhasesService {
     // 1b. Tournament weapon — needed by buildRoundCode so the FE
     // renders the same canonical code (LSW-P1-ML1-PA-M1) that the
     // scoreboard ships from getMatchSummary.
+    // event_id is read alongside the weapon so the referee_assignments
+    // fetch below can scope by event (post-0063 the FK lives on
+    // referee_assignments.event_id → events.id and the table is shared
+    // across every tournament in the deploy).
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
-      .select('weapon')
+      .select('event_id, weapon')
       .eq('id', tournamentId)
       .maybeSingle();
     const weapon = (tournament as { weapon: string | null } | null)?.weapon ?? null;
+    const eventId = (tournament as { event_id: string | null } | null)?.event_id ?? null;
 
     // 2. Get pools ordered by sort_order
     const { data: pools } = await this.supabase.service
@@ -2201,7 +2206,12 @@ export class PhasesService {
     // The pool tab renders one column per role with the referee's NAME
     // — distinct from the legacy matches.referee_id single field which
     // PATCH /matches/:id still writes.
-    type PersonEmbed = {
+    //
+    // Post-0063: referee_assignments.person_id → global_persons(id).
+    // The legacy `persons(...)` embed silently 400'd because there is
+    // no FK from referee_assignments to the per-event persons table;
+    // matching shape is at conflict-check.controller.ts:80.
+    type GlobalPersonEmbed = {
       display_name: string | null;
       given_name: string | null;
       family_name: string | null;
@@ -2222,40 +2232,43 @@ export class PhasesService {
       person_id: string;
       // PostgREST returns embedded relations as either a single row or
       // an array depending on the resolved FK cardinality; tolerate both.
-      persons: PersonEmbed | PersonEmbed[] | null;
+      global_persons: GlobalPersonEmbed | GlobalPersonEmbed[] | null;
     };
     type RoleAssignment = { refereeId: string; refereeName: string };
 
     const matchIds = ((viewMatches ?? []) as Array<{ match_id: string }>).map((m) => m.match_id);
     const poolDefaults = new Map<string, Map<string, RoleAssignment>>();
     const perMatchAssignments = new Map<string, Map<string, RoleAssignment>>();
-    if (matchIds.length > 0) {
-      const { data: assignmentRows } = await this.supabase.service
+    let assignmentRows: RefereeAssignmentRow[] = [];
+    if (matchIds.length > 0 && eventId) {
+      const { data, error: assignErr } = await this.supabase.service
         .from('referee_assignments')
         .select(
-          'match_id, pool_id, role, person_id, persons(display_name, given_name, family_name)',
+          'match_id, pool_id, role, person_id, global_persons(display_name, given_name, family_name)',
         )
+        .eq('event_id', eventId)
         .in('scope_type', ['pool', 'match']);
-      for (const row of (assignmentRows ?? []) as unknown as RefereeAssignmentRow[]) {
-        const person: PersonEmbed | null = Array.isArray(row.persons)
-          ? (row.persons[0] ?? null)
-          : row.persons;
-        const display =
-          person?.display_name ??
-          [person?.given_name, person?.family_name].filter(Boolean).join(' ');
-        const entry: RoleAssignment = {
-          refereeId: row.person_id,
-          refereeName: display || row.person_id,
-        };
-        if (row.match_id) {
-          const byRole = perMatchAssignments.get(row.match_id) ?? new Map<string, RoleAssignment>();
-          byRole.set(row.role, entry);
-          perMatchAssignments.set(row.match_id, byRole);
-        } else if (row.pool_id) {
-          const byRole = poolDefaults.get(row.pool_id) ?? new Map<string, RoleAssignment>();
-          byRole.set(row.role, entry);
-          poolDefaults.set(row.pool_id, byRole);
-        }
+      if (assignErr) throw new BadRequestException(assignErr.message);
+      assignmentRows = (data ?? []) as unknown as RefereeAssignmentRow[];
+    }
+    for (const row of assignmentRows) {
+      const person: GlobalPersonEmbed | null = Array.isArray(row.global_persons)
+        ? (row.global_persons[0] ?? null)
+        : row.global_persons;
+      const display =
+        person?.display_name ?? [person?.given_name, person?.family_name].filter(Boolean).join(' ');
+      const entry: RoleAssignment = {
+        refereeId: row.person_id,
+        refereeName: display || row.person_id,
+      };
+      if (row.match_id) {
+        const byRole = perMatchAssignments.get(row.match_id) ?? new Map<string, RoleAssignment>();
+        byRole.set(row.role, entry);
+        perMatchAssignments.set(row.match_id, byRole);
+      } else if (row.pool_id) {
+        const byRole = poolDefaults.get(row.pool_id) ?? new Map<string, RoleAssignment>();
+        byRole.set(row.role, entry);
+        poolDefaults.set(row.pool_id, byRole);
       }
     }
 
