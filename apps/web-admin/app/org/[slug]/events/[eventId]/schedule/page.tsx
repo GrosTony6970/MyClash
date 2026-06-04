@@ -2,9 +2,10 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { Drawer } from '@myclash/ui';
 import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
 import { LiveNowBanner } from './live-now-banner';
@@ -22,9 +23,30 @@ export default function SchedulePage() {
   const [topSuggestNonce, setTopSuggestNonce] = useState(0);
   const [gridRefreshKey, setGridRefreshKey] = useState(0);
 
+  // The Programme Planner now lives inside a slide-over Drawer that
+  // the operator opens via the `⚙ Configure schedule` button. The
+  // grid takes the full page; this matches the operator's actual
+  // workflow (setup once, drag-place 90% of the time).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Hash deep-link: `/schedule#configure` auto-opens the drawer so
+  // operators can share "go here to set this up" URLs. We sync once
+  // on mount + listen for hashchange (matches the TournamentTabs
+  // pattern used on the public side).
+  useEffect(() => {
+    function syncFromHash() {
+      if (typeof window === 'undefined') return;
+      if (window.location.hash === '#configure') setDrawerOpen(true);
+    }
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, []);
+
   const generateScheduleLabel = t('organizer.schedulePage.generateScheduleAction');
   const generateScheduleHint = t('organizer.schedulePage.generateScheduleHint');
   const generateGridLabel = t('organizer.schedulePage.generateGridAction');
+  const configureLabel = t('organizer.schedulePage.configureAction');
 
   return (
     <main>
@@ -46,7 +68,17 @@ export default function SchedulePage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setTopSuggestNonce((n) => n + 1)}
+              onClick={() => setDrawerOpen(true)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              ⚙ {configureLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDrawerOpen(true);
+                setTopSuggestNonce((n) => n + 1);
+              }}
               title={generateScheduleHint}
               className="rounded-lg bg-red-700 hover:bg-red-800 px-3 py-2 text-sm font-semibold text-white"
             >
@@ -64,23 +96,25 @@ export default function SchedulePage() {
         <LiveNowBanner eventId={eventId} />
       </div>
 
-      {/* Merged layout: programme planner on top, live grid below.
-          The tabs split this surface in two and forced operators to
-          switch context just to see how a config change affected the
-          grid. Single scroll keeps both visible side-by-side. */}
-      <div className="px-8 pb-4">
+      {/* Grid is the workspace — full page width. Programme Planner
+          lives in the slide-over drawer below; it doesn't compete
+          for vertical real estate anymore. */}
+      <div className="px-4 pb-8">
+        <ScheduleGrid key={gridRefreshKey} slug={slug} eventId={eventId} />
+      </div>
+
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={configureLabel}>
         <ProgrammePlanner
           eventId={eventId}
           topSuggestNonce={topSuggestNonce}
           generateScheduleLabel={generateScheduleLabel}
           generateGridLabel={generateGridLabel}
-          onGenerateDone={() => setGridRefreshKey((k) => k + 1)}
+          onGenerateDone={() => {
+            setGridRefreshKey((k) => k + 1);
+            setDrawerOpen(false);
+          }}
         />
-      </div>
-
-      <div className="px-4 pb-8">
-        <ScheduleGrid key={gridRefreshKey} slug={slug} eventId={eventId} />
-      </div>
+      </Drawer>
     </main>
   );
 }

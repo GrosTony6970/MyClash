@@ -3295,6 +3295,7 @@ export const en = {
       generateScheduleAction: 'Generate schedule',
       generateScheduleHint: 'Build the day plan: registration, pool sessions, brackets, breaks.',
       generateGridAction: 'Generate Grid',
+      configureAction: 'Configure schedule',
     },
     bracketPage: {
       tabs: {
@@ -7151,6 +7152,7 @@ export const fr = {
       generateScheduleHint:
         'Construit le plan de la journee : accueil, sessions de poules, tableaux, pauses.',
       generateGridAction: 'Generer la grille',
+      configureAction: 'Configurer le programme',
     },
     bracketPage: {
       tabs: {
