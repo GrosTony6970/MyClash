@@ -1,6 +1,14 @@
 /**
  * Referee qualifications, assignments, skill catalog, and per-event availability.
  * Covers: referee_qualifications, referee_assignments, referee_skills, event_referees.
+ *
+ * Post-migration 0063: the canonical key on all three referee tables
+ * is `person_id` (→ global_persons.id). The legacy `user_id` column
+ * was dropped; callers that start from a Supabase auth user_id
+ * resolve to person_id once via global_persons.claimed_by_user_id
+ * and pass person_id throughout. The Drizzle export `fighters`
+ * points at the `global_persons` table (it carries the renamed
+ * table name from the original fighters→global_persons migration).
  */
 import {
   boolean,
@@ -13,6 +21,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { events, lices } from './events';
+import { fighters } from './fighters';
 import { matches } from './matches';
 import { pools } from './tournaments';
 
@@ -20,7 +29,9 @@ import { pools } from './tournaments';
 // Event-scoped: an organizer rates referees for their specific event.
 export const refereeQualifications = pgTable('referee_qualifications', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  personId: uuid('person_id')
+    .notNull()
+    .references(() => fighters.id, { onDelete: 'cascade' }),
   eventId: uuid('event_id')
     .notNull()
     .references(() => events.id, { onDelete: 'cascade' }),
@@ -32,7 +43,8 @@ export const refereeQualifications = pgTable('referee_qualifications', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
-// UNIQUE(user_id, event_id, role) enforced via migration SQL
+// UNIQUE(person_id, event_id, role) enforced via migration 0063 (index
+// `referee_quals_person_event_role_idx`).
 
 // ── Referee assignments ───────────────────────────────────────────────────────
 export const refereeAssignments = pgTable('referee_assignments', {
@@ -40,7 +52,9 @@ export const refereeAssignments = pgTable('referee_assignments', {
   eventId: uuid('event_id')
     .notNull()
     .references(() => events.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull(),
+  personId: uuid('person_id')
+    .notNull()
+    .references(() => fighters.id, { onDelete: 'cascade' }),
   scopeType: text('scope_type').notNull(),
   // lice | pool | match
   liceId: uuid('lice_id').references(() => lices.id, { onDelete: 'set null' }),
@@ -75,22 +89,25 @@ export type RefereeSkill = typeof refereeSkills.$inferSelect;
 export type NewRefereeSkill = typeof refereeSkills.$inferInsert;
 
 // ── Event referees ────────────────────────────────────────────────────────────
-// One row per (event, user) — presence means the user is registered as a referee
-// for that event. Availability flags are stored here, independent of skills.
+// One row per (event, person) — presence means the person is registered as a
+// referee for that event. Availability flags are stored here, independent of
+// skills. Post-0063 keys on person_id (→ global_persons.id).
 export const eventReferees = pgTable(
   'event_referees',
   {
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id').notNull(),
+    personId: uuid('person_id')
+      .notNull()
+      .references(() => fighters.id, { onDelete: 'cascade' }),
     availableAllTournaments: boolean('available_all_tournaments').notNull().default(true),
     availableAllEventDuration: boolean('available_all_event_duration').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.eventId, t.userId] }),
+    pk: primaryKey({ columns: [t.eventId, t.personId] }),
   }),
 );
 
