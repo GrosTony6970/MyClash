@@ -15,11 +15,12 @@ function makeChain(result: unknown) {
     order: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn(),
     delete: vi.fn(),
     single: vi.fn().mockResolvedValue(result),
   });
 
-  for (const key of ['select', 'eq', 'in', 'order', 'insert', 'update', 'delete']) {
+  for (const key of ['select', 'eq', 'in', 'order', 'insert', 'update', 'upsert', 'delete']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
 
@@ -240,13 +241,70 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       )
-      .mockReturnValueOnce(makeChain({ data: null, error: null }))
+      // matches bulk UPSERT — service derives matchesScheduled from
+      // the row count returned by .select('id'), not from the
+      // scheduler's optimistic intent.
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'match-1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
     const result = await service.generate('event-1');
 
     expect(result.matchesScheduled).toBe(1);
     expect(fromMock).toHaveBeenCalledWith('matches');
+  });
+
+  // Generate's matches UPSERT silently swallowed any DB-side rejection
+  // before this fix, so a stale "Generated N matches" banner could
+  // appear even when zero rows actually persisted. The check matches
+  // the existing pattern in the same file at the .resetEventProgramme
+  // matches-clear UPDATE (programme.service.ts:147-152).
+  it('throws BadRequestException when the matches UPSERT errors', async () => {
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '10:00',
+        end_time: '10:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            {
+              id: 'match-1',
+              red_registration_id: 'red-1',
+              blue_registration_id: 'blue-1',
+              pool_id: 'pool-1',
+            },
+          ],
+          error: null,
+        }),
+      )
+      // matches UPSERT — Supabase rejects with an error in the response
+      // body. Service must surface it, not silently ignore.
+      .mockReturnValueOnce(
+        makeChain({ data: null, error: { message: 'mock FK violation on lice_id' } }),
+      );
+
+    await expect(service.generate('event-1')).rejects.toThrow(/mock FK violation on lice_id/);
   });
 
   // ── Bug-fix coverage: missing-matches diagnostics ───────────────────────────
@@ -329,7 +387,7 @@ describe('ProgrammeService', () => {
           error: null,
         }),
       )
-      .mockReturnValueOnce(makeChain({ data: null, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'match-1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
     const result = await service.generate('event-1');

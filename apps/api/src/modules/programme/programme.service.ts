@@ -593,20 +593,39 @@ export class ProgrammeService {
           }
         }
 
-        for (const sm of result.scheduledMatches) {
-          await this.supabase.service
-            .from('matches')
-            .update({ scheduled_at: sm.scheduledAt, lice_id: sm.liceId })
-            .eq('id', sm.matchId);
+        // Bulk UPSERT in one round-trip (was a sequential for-loop of N
+        // UPDATEs — ~120 round-trips on a typical event). The .upsert
+        // with onConflict: 'id' acts as an UPDATE because the id was
+        // selected from the matches table 30 lines above, so insertion
+        // is impossible by upstream contract. matchesScheduled now
+        // reflects ACTUAL persisted rows (was: scheduler's optimistic
+        // intent), so a partial DB failure can no longer surface as a
+        // stale "Generated N matches" banner.
+        const matchesPayload = result.scheduledMatches.map((sm) => ({
+          id: sm.matchId,
+          scheduled_at: sm.scheduledAt,
+          lice_id: sm.liceId,
+        }));
+        const { data: upserted, error: matchesErr } = await this.supabase.service
+          .from('matches')
+          .upsert(matchesPayload, { onConflict: 'id' })
+          .select('id');
+        if (matchesErr) {
+          throw new BadRequestException(
+            `Failed to schedule matches for block "${block.label}": ${matchesErr.message}`,
+          );
         }
-        matchesScheduled += result.scheduledMatches.length;
+        const persistedCount = (upserted ?? []).length;
+        matchesScheduled += persistedCount;
 
         blockDiagnostics.push({
           blockId: block.id,
           blockLabel: block.label,
           blockType: block.blockType,
           fetchedMatches: matches.length,
-          scheduledMatches: result.scheduledMatches.length,
+          // Use the persisted count so diagnostics reflect what
+          // actually landed in the DB, not the scheduler's intent.
+          scheduledMatches: persistedCount,
           licesAvailable: blockLices.length,
         });
       }
@@ -623,7 +642,7 @@ export class ProgrammeService {
         const endsAt = new Date(dayDate);
         endsAt.setHours(eh ?? 0, em ?? 0, 0, 0);
 
-        await this.supabase.service.from('workshop_sessions').upsert(
+        const { error: wsErr } = await this.supabase.service.from('workshop_sessions').upsert(
           {
             workshop_id: block.workshopId,
             starts_at: startsAt.toISOString(),
@@ -631,14 +650,24 @@ export class ProgrammeService {
           },
           { onConflict: 'workshop_id' },
         );
+        if (wsErr) {
+          throw new BadRequestException(
+            `Failed to create workshop session for workshop ${block.workshopId}: ${wsErr.message}`,
+          );
+        }
         workshopSessionsCreated++;
       }
     }
 
-    await this.supabase.service
+    const { error: stampErr } = await this.supabase.service
       .from('event_programme_blocks')
       .update({ generated_at: new Date().toISOString() })
       .eq('event_id', eventId);
+    if (stampErr) {
+      throw new BadRequestException(
+        `Failed to stamp generated_at on event_programme_blocks: ${stampErr.message}`,
+      );
+    }
 
     return { matchesScheduled, workshopSessionsCreated, warnings, blockDiagnostics };
   }
