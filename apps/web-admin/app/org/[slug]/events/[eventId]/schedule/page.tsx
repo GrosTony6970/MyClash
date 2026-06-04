@@ -18,11 +18,15 @@ export default function SchedulePage() {
   const { t } = useI18n();
 
   // Bumping these nonces tells the children to act:
-  //   - topSuggestNonce → planner re-runs `suggest()` (Generate schedule)
-  //   - gridRefreshKey  → grid remounts after a Generate Grid run so it
-  //                       re-fetches matches + programme blocks.
+  //   - topSuggestNonce       → planner re-runs `suggest()` (Generate schedule)
+  //   - gridRefreshKey        → grid remounts after a Generate Grid run so it
+  //                             re-fetches matches + programme blocks (drawer → grid).
+  //   - programmeRefreshKey   → planner re-runs its mount fetch after the grid
+  //                             mutates a block (inline ×, drag-move). Symmetric to
+  //                             gridRefreshKey so both surfaces stay in sync (grid → drawer).
   const [topSuggestNonce, setTopSuggestNonce] = useState(0);
   const [gridRefreshKey, setGridRefreshKey] = useState(0);
+  const [programmeRefreshKey, setProgrammeRefreshKey] = useState(0);
 
   // The Programme Planner now lives inside a slide-over Drawer that
   // the operator opens via the `⚙ Configure schedule` button. The
@@ -152,7 +156,12 @@ export default function SchedulePage() {
           lives in the slide-over drawer below; it doesn't compete
           for vertical real estate anymore. */}
       <div className="px-4 pb-8">
-        <ScheduleGrid key={gridRefreshKey} slug={slug} eventId={eventId} />
+        <ScheduleGrid
+          key={gridRefreshKey}
+          slug={slug}
+          eventId={eventId}
+          onProgrammeMutated={() => setProgrammeRefreshKey((k) => k + 1)}
+        />
       </div>
 
       <Drawer
@@ -164,6 +173,7 @@ export default function SchedulePage() {
         <ProgrammePlanner
           eventId={eventId}
           topSuggestNonce={topSuggestNonce}
+          programmeRefreshKey={programmeRefreshKey}
           generateScheduleLabel={generateScheduleLabel}
           generateGridLabel={generateGridLabel}
           onGenerateDone={(result) => {

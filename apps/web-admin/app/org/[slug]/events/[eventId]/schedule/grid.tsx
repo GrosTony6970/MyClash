@@ -182,7 +182,23 @@ function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boole
   return scheduledAtIso.slice(0, 10) === dayIso;
 }
 
-export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string }) {
+export function ScheduleGrid({
+  slug,
+  eventId,
+  onProgrammeMutated,
+}: {
+  slug: string;
+  eventId: string;
+  /**
+   * Fired after a programme-block mutation that the Configure drawer
+   * should refetch (block delete from the inline ×, block drag-move
+   * cascade). Symmetric to ProgrammePlanner's onBlocksChanged →
+   * gridRefreshKey nonce; the page bumps a `programmeRefreshKey`
+   * nonce here and threads it to the planner so it re-runs its
+   * mount fetch.
+   */
+  onProgrammeMutated?: () => void;
+}) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [lices, setLices] = useState<Lice[]>([]);
@@ -449,6 +465,10 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
       // Cascade can touch many matches — refetch from source of truth
       // instead of trying to mirror the shift client-side.
       await refetchScheduleAndBlocks();
+      // The block's startTime / endTime changed server-side; let the
+      // Configure drawer's planner re-read its own copy so it doesn't
+      // render a stale value when the operator opens it.
+      onProgrammeMutated?.();
     } finally {
       setMovingBlockId(null);
     }
@@ -470,6 +490,7 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
       });
       if (!res.ok) return;
       await refetchScheduleAndBlocks();
+      onProgrammeMutated?.();
     } finally {
       setDeletingBlockId(null);
       setPendingBlockDelete(null);

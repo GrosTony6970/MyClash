@@ -59,6 +59,7 @@ export function ProgrammePlanner({
   onGenerateDone,
   onBlocksChanged,
   topSuggestNonce,
+  programmeRefreshKey,
   generateScheduleLabel,
   generateGridLabel,
 }: {
@@ -85,6 +86,14 @@ export function ProgrammePlanner({
    * from the parent on click.
    */
   topSuggestNonce?: number;
+  /**
+   * When this number changes, the planner re-runs its block-list
+   * mount fetch. Symmetric to onBlocksChanged → gridRefreshKey: the
+   * page bumps this whenever the grid mutates a block (inline ×
+   * delete, drag-move) so the drawer stays in sync without the
+   * operator closing + re-opening it.
+   */
+  programmeRefreshKey?: number;
   /** Localised button labels — fall back to English defaults if unset. */
   generateScheduleLabel?: string;
   generateGridLabel?: string;
@@ -135,7 +144,9 @@ export function ProgrammePlanner({
         );
       })
       .catch(() => undefined);
-  }, [eventId, apiUrl]);
+    // The lices fetch deliberately stays outside the refresh nonce —
+    // the grid can't change the lice list.
+  }, [eventId, apiUrl, programmeRefreshKey]);
 
   // Top "Generate schedule" button lives in the page header; clicking
   // it bumps `topSuggestNonce` and we re-run suggest here. Skip the
