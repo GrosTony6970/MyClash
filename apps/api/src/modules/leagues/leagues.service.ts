@@ -1027,6 +1027,22 @@ export class LeaguesService {
     if (league['public_visibility'] !== true || league['status'] !== 'published') {
       throw new NotFoundException(`League ${leagueId} not found`);
     }
+    return this.fetchStandingsPayload(league, leagueId, group);
+  }
+
+  /**
+   * Same standings shape as the public endpoint but auth-gated on
+   * league-manage permissions instead of public visibility — lets the
+   * admin Ranking page render rankings for draft / unlisted leagues
+   * that the operator still owns.
+   */
+  async adminStandings(leagueId: string, userId: string, group?: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    const league = await this.getLeagueById(leagueId);
+    return this.fetchStandingsPayload(league, leagueId, group);
+  }
+
+  private async fetchStandingsPayload(league: Row, leagueId: string, group?: string) {
     let q = this.supabase.service
       .from('league_rankings')
       .select('*, global_persons(display_name, clubs(name, city))')

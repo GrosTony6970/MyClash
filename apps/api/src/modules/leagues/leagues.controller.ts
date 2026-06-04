@@ -102,6 +102,22 @@ export class LeaguesController {
     return this.leagues.listManageable(userId);
   }
 
+  @Get('admin/leagues/:leagueId/standings')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Get league standings for the admin Ranking page (auth-gated on league-manage permissions; bypasses the public-visibility gate the /leagues/:leagueId/standings public endpoint enforces)',
+  })
+  @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
+  async adminStandings(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Query() query: LeagueStandingsQueryDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.adminStandings(leagueId, userId, query.group);
+  }
+
   @Post('admin/leagues')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
