@@ -177,7 +177,7 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
   return (
     <>
       {!readOnly && (
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-end">
           <CreateRulesetCta
             href="/admin/rulesets/league/new"
             label={t('admin.rulesets.league.newButton')}

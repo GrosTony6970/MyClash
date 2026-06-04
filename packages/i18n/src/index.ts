@@ -1319,9 +1319,9 @@ export const en = {
         subtitle: 'Rank → points presets and tie-breakers for season-long league rankings.',
         orgSubtitle:
           'Rank → points presets and tie-breakers available to leagues on this organization.',
-        newButton: 'New scoring system',
+        newButton: 'New league ruleset',
         loadingState: 'Loading…',
-        emptyState: 'No scoring systems yet. Click "New scoring system" to add one.',
+        emptyState: 'No league rulesets yet. Click "New league ruleset" to add one.',
         loadError: 'Could not load scoring systems',
         cloneError: 'Could not clone scoring system',
         columns: {
@@ -5158,9 +5158,10 @@ export const fr = {
         title: 'Systemes de score de ligue',
         subtitle: 'Bareme rang -> points et departages pour les classements de saison.',
         orgSubtitle: 'Baremes et departages disponibles pour les ligues de cette organisation.',
-        newButton: 'Nouveau systeme',
+        newButton: 'Nouveau ruleset de ligue',
         loadingState: 'Chargement…',
-        emptyState: 'Aucun systeme. Cliquez sur "Nouveau systeme" pour en creer un.',
+        emptyState:
+          'Aucun ruleset de ligue. Cliquez sur "Nouveau ruleset de ligue" pour en creer un.',
         loadError: 'Impossible de charger les systemes',
         cloneError: 'Impossible de cloner',
         columns: {
