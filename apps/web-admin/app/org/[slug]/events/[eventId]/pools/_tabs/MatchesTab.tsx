@@ -7,6 +7,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { accentClassFor, type ColorToken } from '@myclash/ui';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { countPoolFighters } from './count-pool-fighters';
+import { buildMatchScoringHref } from './build-scoring-href';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -502,21 +503,24 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         // treatment is gone — the web-scoring
                         // /matches/:matchId route renders the same UI
                         // without needing a lice context.
-                        // Compute the no-returnTo href at render time for
-                        // the aria-label; the actual navigation in the
-                        // click handler below re-builds the URL with
-                        // `?return=<current-url>` so the per-match scoring
-                        // page's back button survives a hard refresh.
-                        // Open the admin-side scoreboard (same-origin via the
-                        // existing myclash-admin-api Traefik router). The
-                        // cross-origin scoring.myclash.fr path failed
-                        // because the scoring container's
-                        // NEXT_PUBLIC_API_URL_SCORING points at api.myclash.fr
-                        // which uses the untrusted dev cert — the browser
-                        // refused the match fetch and the page rendered the
-                        // "Match unavailable" fallback.
-                        const scoringHref = m.id
+                        // Same-origin proxy at `/scoring/*` (Traefik) serves
+                        // the scoring PWA. The bundle reads its apiUrl as ''
+                        // in browsers, so all fetches resolve to
+                        // admin.myclash.fr/api/v1/* — same origin, admin
+                        // session cookie, no dev-cert prompt. The
+                        // `externalDisplay` query carries the read-only
+                        // admin scoreboard URL so the operator can throw
+                        // the projection on a second monitor in one click.
+                        const scoreboardHref = m.id
                           ? `/org/${slug}/events/${eventId}/matches/${m.id}/scoreboard`
+                          : null;
+                        const scoringHref = m.id
+                          ? buildMatchScoringHref(
+                              '/scoring',
+                              m.id,
+                              typeof window !== 'undefined' ? window.location.href : null,
+                              scoreboardHref,
+                            )
                           : null;
                         function openScoring() {
                           if (scoringHref) window.location.href = scoringHref;

@@ -60,4 +60,29 @@ describe('buildMatchScoringHref', () => {
       'https://scoring.myclash.fr/matches/match-1',
     );
   });
+
+  it('works with a same-origin path prefix (admin Traefik proxy)', () => {
+    expect(buildMatchScoringHref('/scoring', 'match-1', '/org/foo')).toBe(
+      '/scoring/matches/match-1?return=%2Forg%2Ffoo',
+    );
+  });
+
+  it('appends an encoded externalDisplay alongside return', () => {
+    expect(
+      buildMatchScoringHref(
+        '/scoring',
+        'match-1',
+        '/org/foo/pools',
+        '/org/foo/events/bar/matches/match-1/scoreboard',
+      ),
+    ).toBe(
+      '/scoring/matches/match-1?return=%2Forg%2Ffoo%2Fpools&externalDisplay=%2Forg%2Ffoo%2Fevents%2Fbar%2Fmatches%2Fmatch-1%2Fscoreboard',
+    );
+  });
+
+  it('omits externalDisplay when null', () => {
+    expect(buildMatchScoringHref('/scoring', 'match-1', '/org/foo', null)).toBe(
+      '/scoring/matches/match-1?return=%2Forg%2Ffoo',
+    );
+  });
 });

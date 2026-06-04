@@ -18,31 +18,39 @@ export function buildScoringHref(scoringBaseUrl: string, liceId: string | null):
 }
 
 /**
- * Build the cross-app URL into the web-scoring app's per-match
- * ScoringPad. **Primary** deep-link from any specific match click in
- * the admin (bracket, pools, schedule grid) — lands on
- * `/matches/{matchId}` which fetches the match by id without a lice
- * context, so the operator always sees the exact match they clicked.
+ * Build the URL into the web-scoring app's per-match ScoringPad.
+ * **Primary** deep-link from any specific match click in the admin
+ * (bracket, pools, schedule grid) — lands on `/matches/{matchId}`
+ * which fetches the match by id without a lice context, so the
+ * operator always sees the exact match they clicked.
+ *
+ * `scoringBaseUrl` can be a same-origin path prefix (e.g. `/scoring`
+ * when the admin proxies the scoring container via Traefik) or a
+ * full cross-origin URL. Same-origin avoids the dev-cert prompt that
+ * blocks `https://scoring.myclash.fr` fetches.
  *
  * `returnTo` is the admin URL the operator clicked from — the
  * per-match scoring page surfaces it via `?return=` so its back
  * button still works after a hard refresh (when `router.back()`
  * alone would have nothing to return to).
  *
- * TODO: dormant. All admin match clicks now route to the same-origin
- * admin scoreboard at
- * `/org/<slug>/events/<eventId>/matches/<matchId>/scoreboard` because
- * the cross-origin scoring.myclash.fr fetch fails the dev cert. This
- * helper stays for a future explicit "Open in tablet PWA" affordance.
+ * `externalDisplay` is the read-only projection-screen URL the
+ * scoring view should expose as an "↗ External display" link in its
+ * header. Surfaces the admin scoreboard route for operators who want
+ * to throw the projection on a second monitor.
  */
 export function buildMatchScoringHref(
   scoringBaseUrl: string,
   matchId: string | null,
   returnTo?: string | null,
+  externalDisplay?: string | null,
 ): string | null {
   if (!matchId) return null;
   const trimmed = scoringBaseUrl.replace(/\/+$/, '');
   const base = `${trimmed}/matches/${matchId}`;
-  if (!returnTo) return base;
-  return `${base}?return=${encodeURIComponent(returnTo)}`;
+  const params = new URLSearchParams();
+  if (returnTo) params.set('return', returnTo);
+  if (externalDisplay) params.set('externalDisplay', externalDisplay);
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
 }

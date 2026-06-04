@@ -23,6 +23,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
+import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
 interface Tournament {
   id: string;
@@ -1545,11 +1546,18 @@ export default function BracketPage() {
                     setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
                     return;
                   }
-                  // Open the admin-side scoreboard (same-origin via the
-                  // myclash-admin-api Traefik router). The
-                  // scoring.myclash.fr cross-origin path hits the dev
-                  // cert and renders "Match unavailable".
-                  window.location.href = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
+                  // Same-origin proxy at `/scoring/*` serves the scoring
+                  // PWA; externalDisplay carries the read-only admin
+                  // scoreboard URL so the operator can open the
+                  // projection screen in a new tab.
+                  const scoreboardHref = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
+                  const href = buildMatchScoringHref(
+                    '/scoring',
+                    matchId,
+                    window.location.href,
+                    scoreboardHref,
+                  );
+                  if (href) window.location.href = href;
                 }}
                 onOverrideSlot={(slotId) =>
                   setOverrideModal({ slotId, regAId: undefined, regBId: undefined })

@@ -5,21 +5,24 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { detectConflicts, type Conflict } from './conflict-detection';
+import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
- * chip) opens the same-origin admin scoreboard for **that specific
- * match**. Plain click is reserved for drag-and-drop selection. The
- * scoreboard route works for both pool and bracket matches without
- * needing lice/phase branching.
+ * chip) opens the same-origin proxied scoring view for **that
+ * specific match**. Plain click is reserved for drag-and-drop
+ * selection. The scoring route works for both pool and bracket
+ * matches without needing lice/phase branching.
  *
- * Was previously jumping cross-origin to scoring.myclash.fr, which
- * failed because the scoring container's NEXT_PUBLIC_API_URL_SCORING
- * points at api.myclash.fr (dev cert). Same-origin via the admin's
- * existing /api/v1 Traefik router avoids the problem entirely.
+ * `externalDisplay` carries the admin's read-only scoreboard URL so
+ * the operator can throw the projection on a second monitor in one
+ * click. Same-origin via Traefik `/scoring/*` avoids the dev-cert
+ * prompt that blocks cross-origin scoring.myclash.fr.
  */
 function openMatchScoring(slug: string, eventId: string, matchId: string): void {
-  window.location.href = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
+  const scoreboardHref = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
+  const href = buildMatchScoringHref('/scoring', matchId, window.location.href, scoreboardHref);
+  if (href) window.location.href = href;
 }
 
 interface Lice {
