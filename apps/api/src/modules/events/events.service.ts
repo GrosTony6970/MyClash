@@ -1164,12 +1164,13 @@ export class EventsService {
         role: string | null;
         displayName: string;
         status: string;
+        skillColor: string;
       }>
     >
   > {
     const byPool = new Map<
       string,
-      Array<{ role: string | null; displayName: string; status: string }>
+      Array<{ role: string | null; displayName: string; status: string; skillColor: string }>
     >();
     if (poolIds.length === 0) return byPool;
 
@@ -1213,11 +1214,28 @@ export class EventsService {
       }
     }
 
+    // Resolve skill colors. `referee_assignments.role` carries the
+    // `referee_skills.id` string (e.g. 'arbitre_assesseur'); the
+    // skill table holds the colour token used to tint the chip on
+    // the public Pool List footer.
+    const skillIds = Array.from(new Set(rows.map((r) => r.role).filter((r): r is string => !!r)));
+    const skillColorById = new Map<string, string>();
+    if (skillIds.length > 0) {
+      const { data: skillRows } = await this.supabase.service
+        .from('referee_skills')
+        .select('id, color')
+        .in('id', skillIds);
+      for (const s of (skillRows ?? []) as Array<{ id: string; color: string | null }>) {
+        if (s.color) skillColorById.set(s.id, s.color);
+      }
+    }
+
     for (const r of rows) {
       if (!r.pool_id) continue;
       const displayName = r.person_id ? (personNameById.get(r.person_id) ?? '—') : '—';
+      const skillColor = r.role ? (skillColorById.get(r.role) ?? 'slate') : 'slate';
       const list = byPool.get(r.pool_id) ?? [];
-      list.push({ role: r.role, displayName, status: r.status });
+      list.push({ role: r.role, displayName, status: r.status, skillColor });
       byPool.set(r.pool_id, list);
     }
     return byPool;

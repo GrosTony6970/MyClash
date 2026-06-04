@@ -4,10 +4,13 @@
  * Each pool renders as a card:
  *   - header: pool name + fighter count + accent stripe (tournament color)
  *   - body: members (seed · fighter · club)
- *   - footer: referee slots (role · name · status)
+ *   - footer: referee slots (role · name · status) — role label coloured
+ *     by the skill's configured color token (SkillBadge).
  *
  * Server component — fed by the SSR fetch on the tournament page.
  */
+
+import { SkillBadge } from '@myclash/ui';
 
 export interface PoolMember {
   registrationId: string;
@@ -21,6 +24,13 @@ export interface PoolReferee {
   role: string | null;
   displayName: string;
   status: string;
+  /**
+   * Color token of the role's referee_skill (e.g. 'red', 'amber',
+   * 'slate'). Drives the SkillBadge tint on the public footer. The
+   * backend resolves this from referee_skills.color and defaults to
+   * 'slate' when no skill row is found.
+   */
+  skillColor: string;
 }
 
 interface Pool {
@@ -138,9 +148,7 @@ export function PoolsCompositionView({ pools, accentColor }: Props) {
                       <span className="sr-only">{statusLabel(r.status)}.</span>
                       <span className="truncate text-slate-700">{r.displayName}</span>
                     </span>
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {refereeRoleLabel(r.role)}
-                    </span>
+                    <SkillBadge color={r.skillColor} label={refereeRoleLabel(r.role)} />
                   </li>
                 ))}
               </ul>
