@@ -663,3 +663,61 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
     expect(linksChain.eq).toHaveBeenCalledWith('status', 'approved');
   });
 });
+
+describe('LeaguesService.addTournamentLink', () => {
+  it('writes both requested_by_user_id and reviewed_by_user_id so the NOT NULL constraint passes', async () => {
+    // Regression for the operator-hit 400:
+    //   null value in column "requested_by_user_id" of relation
+    //   "league_tournament_links" violates not-null constraint
+    // The admin direct-link path must mirror the sibling
+    // requestTournamentLink and set requested_by_user_id (= same admin).
+    const upsertPayloads: unknown[] = [];
+
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'platform_roles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'super_admin' }, error: null }),
+          };
+        }
+        if (table === 'league_tournament_links') {
+          return {
+            upsert: vi.fn((payload: unknown) => {
+              upsertPayloads.push(payload);
+              return {
+                select: vi.fn().mockReturnThis(),
+                single: vi.fn().mockResolvedValue({
+                  data: { id: 'link-new', status: 'approved' },
+                  error: null,
+                }),
+              };
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      { assertOrgRole: vi.fn() } as never,
+      {} as never,
+    );
+
+    await service.addTournamentLink('league-1', 't-1', 'admin-user', null);
+
+    expect(upsertPayloads).toHaveLength(1);
+    expect(upsertPayloads[0]).toMatchObject({
+      league_id: 'league-1',
+      tournament_id: 't-1',
+      status: 'approved',
+      requested_by_user_id: 'admin-user',
+      reviewed_by_user_id: 'admin-user',
+    });
+  });
+});

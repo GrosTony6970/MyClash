@@ -837,6 +837,12 @@ export class LeaguesService {
           league_id: leagueId,
           tournament_id: tournamentId,
           status: 'approved',
+          // Both columns are required by migration 0015 — `requested_by`
+          // is NOT NULL. On an admin direct-link, the admin acts as both
+          // requester AND reviewer in one action, so write themselves
+          // to both sides. Missing requested_by_user_id was the source
+          // of the operator's "violates not-null constraint" 400.
+          requested_by_user_id: userId,
           reviewed_by_user_id: userId,
           reviewed_at: new Date().toISOString(),
           group_id: groupId ?? null,
