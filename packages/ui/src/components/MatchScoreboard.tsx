@@ -146,22 +146,25 @@ function FighterPanel({
       >
         {score}
       </p>
-      <p className="mt-6 text-5xl font-black uppercase tracking-wide leading-tight">{name}</p>
-      {club && (
-        <div className="mt-3 flex items-center justify-center gap-2 text-2xl text-gray-300">
-          {club.logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={club.logoUrl}
-              alt=""
-              width={32}
-              height={32}
-              className="h-8 w-8 rounded-full border border-white/20 bg-white/5 object-contain"
-            />
-          )}
-          <span>{club.name}</span>
-        </div>
-      )}
+      <p className="mt-6 text-6xl font-black uppercase tracking-wide leading-tight">{name}</p>
+      <div className="mt-3 flex flex-col items-center gap-1.5">
+        <p className="text-3xl font-bold uppercase tracking-wide leading-tight">{name}</p>
+        {club && (
+          <div className="flex items-center justify-center gap-2 text-2xl text-gray-300">
+            {club.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={club.logoUrl}
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-full border border-white/20 bg-white/5 object-contain"
+              />
+            )}
+            <span>{club.name}</span>
+          </div>
+        )}
+      </div>
       {penalties.length > 0 && (
         <div className="mt-4 flex items-center justify-center gap-1.5" aria-label="Penalty cards">
           {penalties.map((p) => (
