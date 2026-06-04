@@ -1958,7 +1958,7 @@ export const en = {
           previewSummary: 'Preview points + tie-breakers',
           pointsByRankLabel: 'Points by rank',
           rankLabel: 'Rank {rank}',
-          saveButton: 'Save basics',
+          saveButton: 'Save',
           saveError: 'Save failed',
         },
         logo: {

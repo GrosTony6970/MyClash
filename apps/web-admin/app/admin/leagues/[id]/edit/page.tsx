@@ -176,6 +176,15 @@ export default function EditLeaguePage() {
   const [tournamentsByEvent, setTournamentsByEvent] = useState<Record<string, TournamentOption[]>>(
     {},
   );
+  // Per-row group choice for the unlinked-tournament Link affordance.
+  // Operator picks a group from the inline select on each tournament
+  // row; the Link click reads the choice for that row. Default is null
+  // (sentinel "—") so the operator must be explicit when groups exist;
+  // when no groups exist, the select is hidden and link goes through
+  // with null.
+  const [selectedGroupByTournament, setSelectedGroupByTournament] = useState<
+    Record<string, string | null>
+  >({});
 
   // UI state
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
@@ -557,18 +566,17 @@ export default function EditLeaguePage() {
     }
   }
 
-  async function addTournamentLink(tournamentId: string) {
+  async function addTournamentLink(tournamentId: string, groupId: string | null) {
     setBusy(true);
     setError(null);
     try {
-      const defaultGroupId = groups[0]?.id ?? null;
       const res = await fetch(
         `${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/link`,
         {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupId: defaultGroupId }),
+          body: JSON.stringify({ groupId }),
         },
       );
       if (!res.ok) {
@@ -1204,21 +1212,50 @@ export default function EditLeaguePage() {
                                     </span>
                                   )}
                                 </span>
-                                <button
-                                  type="button"
-                                  disabled={already || busy}
-                                  onClick={() => void addTournamentLink(tour.id)}
-                                  className={[
-                                    'rounded px-2 py-0.5 font-semibold',
-                                    already
-                                      ? 'bg-slate-100 text-slate-400'
-                                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200',
-                                  ].join(' ')}
-                                >
-                                  {already
-                                    ? t('admin.leagues.editPage.tournaments.linkedButton')
-                                    : t('admin.leagues.editPage.tournaments.addButton')}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  {!already && groups.length > 0 && (
+                                    <select
+                                      value={selectedGroupByTournament[tour.id] ?? ''}
+                                      onChange={(e) =>
+                                        setSelectedGroupByTournament((prev) => ({
+                                          ...prev,
+                                          [tour.id]: e.target.value || null,
+                                        }))
+                                      }
+                                      disabled={busy}
+                                      className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px]"
+                                    >
+                                      <option value="">
+                                        {t('admin.leagues.editPage.tournaments.noGroupOption')}
+                                      </option>
+                                      {groups.map((g) => (
+                                        <option key={g.id} value={g.id}>
+                                          {g.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                  <button
+                                    type="button"
+                                    disabled={already || busy}
+                                    onClick={() =>
+                                      void addTournamentLink(
+                                        tour.id,
+                                        selectedGroupByTournament[tour.id] ?? null,
+                                      )
+                                    }
+                                    className={[
+                                      'rounded px-2 py-0.5 font-semibold',
+                                      already
+                                        ? 'bg-slate-100 text-slate-400'
+                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                    ].join(' ')}
+                                  >
+                                    {already
+                                      ? t('admin.leagues.editPage.tournaments.linkedButton')
+                                      : t('admin.leagues.editPage.tournaments.addButton')}
+                                  </button>
+                                </div>
                               </li>
                             );
                           })}
