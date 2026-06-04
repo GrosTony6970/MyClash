@@ -62,12 +62,17 @@ export function ProgrammePlanner({
   generateGridLabel,
 }: {
   eventId: string;
-  onGenerateDone: () => void;
+  /**
+   * Fired after a successful Generate Grid run. Receives the
+   * GenerateResult so the page can surface a toast above the grid
+   * (replaces the inline result banner this component used to show).
+   */
+  onGenerateDone: (result: GenerateResult) => void;
   /**
    * When this number changes, the planner runs `suggest()`. Lets the
-   * merged page expose a "Generate schedule" button in its top header
-   * without lifting the entire config state out of this component.
-   * Increment the nonce from the parent on click.
+   * page expose a "Generate schedule" button without lifting the
+   * entire config state out of this component. Increment the nonce
+   * from the parent on click.
    */
   topSuggestNonce?: number;
   /** Localised button labels — fall back to English defaults if unset. */
@@ -275,12 +280,14 @@ export function ProgrammePlanner({
       });
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to generate'));
       const result = (await res.json()) as GenerateResult;
-      setGenerateResult(result);
-      // Only switch to the grid when matches actually landed there.
-      // When 0 matches got scheduled the operator needs to read the
-      // per-block diagnostics, not be teleported to an empty grid.
+      // When 0 matches landed (e.g. no lices, no draw run), keep the
+      // result on-screen here so the operator can read per-block
+      // diagnostics. Only bubble up the success → drawer auto-close
+      // + page toast when something actually shipped.
       if (result.matchesScheduled > 0) {
-        setTimeout(() => onGenerateDone(), 1500);
+        onGenerateDone(result);
+      } else {
+        setGenerateResult(result);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');

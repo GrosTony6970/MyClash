@@ -3296,6 +3296,10 @@ export const en = {
       generateScheduleHint: 'Build the day plan: registration, pool sessions, brackets, breaks.',
       generateGridAction: 'Generate Grid',
       configureAction: 'Configure schedule',
+      generateToastTitle: 'Generated',
+      generateToastShowDetails: 'Show per-block details',
+      generateToastHideDetails: 'Hide per-block details',
+      generateToastDismiss: 'Dismiss',
     },
     bracketPage: {
       tabs: {
@@ -7153,6 +7157,10 @@ export const fr = {
         'Construit le plan de la journee : accueil, sessions de poules, tableaux, pauses.',
       generateGridAction: 'Generer la grille',
       configureAction: 'Configurer le programme',
+      generateToastTitle: 'Genere',
+      generateToastShowDetails: 'Voir le detail par bloc',
+      generateToastHideDetails: 'Masquer le detail par bloc',
+      generateToastDismiss: 'Fermer',
     },
     bracketPage: {
       tabs: {

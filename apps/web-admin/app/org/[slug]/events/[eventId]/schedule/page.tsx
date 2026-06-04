@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Drawer } from '@myclash/ui';
+import type { GenerateResult } from '@myclash/types';
 import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
 import { LiveNowBanner } from './live-now-banner';
@@ -28,6 +29,11 @@ export default function SchedulePage() {
   // grid takes the full page; this matches the operator's actual
   // workflow (setup once, drag-place 90% of the time).
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Toast surfaces the GenerateResult above the grid after the
+  // drawer auto-closes — replaces the inline result banner that
+  // used to live inside the planner.
+  const [generateToast, setGenerateToast] = useState<GenerateResult | null>(null);
+  const [toastDetailsOpen, setToastDetailsOpen] = useState(false);
 
   // Hash deep-link: `/schedule#configure` auto-opens the drawer so
   // operators can share "go here to set this up" URLs. We sync once
@@ -69,20 +75,10 @@ export default function SchedulePage() {
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              ⚙ {configureLabel}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDrawerOpen(true);
-                setTopSuggestNonce((n) => n + 1);
-              }}
               title={generateScheduleHint}
               className="rounded-lg bg-red-700 hover:bg-red-800 px-3 py-2 text-sm font-semibold text-white"
             >
-              ✦ {generateScheduleLabel}
+              ⚙ {configureLabel}
             </button>
             <Link
               href={`/org/${slug}/events/${eventId}/ai-assistant?type=schedule_grid`}
@@ -95,6 +91,62 @@ export default function SchedulePage() {
 
         <LiveNowBanner eventId={eventId} />
       </div>
+
+      {generateToast && (
+        <div className="px-8 pb-4">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          >
+            <span className="font-semibold">
+              ✓ {t('organizer.schedulePage.generateToastTitle')} {generateToast.matchesScheduled}{' '}
+              matches, {generateToast.workshopSessionsCreated} workshops
+            </span>
+            {generateToast.blockDiagnostics && generateToast.blockDiagnostics.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setToastDetailsOpen((v) => !v)}
+                className="text-xs font-semibold text-emerald-800 underline hover:text-emerald-950"
+              >
+                {toastDetailsOpen
+                  ? t('organizer.schedulePage.generateToastHideDetails')
+                  : t('organizer.schedulePage.generateToastShowDetails')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setGenerateToast(null);
+                setToastDetailsOpen(false);
+              }}
+              aria-label={t('organizer.schedulePage.generateToastDismiss')}
+              className="ml-auto text-emerald-700 hover:text-emerald-950"
+            >
+              ✕
+            </button>
+          </div>
+          {toastDetailsOpen && generateToast.blockDiagnostics && (
+            <ul className="mt-2 space-y-0.5 rounded-lg border border-emerald-200 bg-white px-4 py-3 text-xs text-slate-700">
+              {generateToast.blockDiagnostics.map((d) => {
+                const ok = d.scheduledMatches > 0;
+                const empty = d.fetchedMatches === 0;
+                const noLices = d.licesAvailable === 0;
+                return (
+                  <li key={d.blockId}>
+                    <span className="font-mono">
+                      {ok ? '✓' : empty ? '∅' : noLices ? '⚠' : '×'}
+                    </span>{' '}
+                    <span className="font-medium">{d.blockLabel}</span>
+                    {' — '}
+                    {d.scheduledMatches}/{d.fetchedMatches} scheduled on {d.licesAvailable} lice
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Grid is the workspace — full page width. Programme Planner
           lives in the slide-over drawer below; it doesn't compete
@@ -109,9 +161,11 @@ export default function SchedulePage() {
           topSuggestNonce={topSuggestNonce}
           generateScheduleLabel={generateScheduleLabel}
           generateGridLabel={generateGridLabel}
-          onGenerateDone={() => {
+          onGenerateDone={(result) => {
             setGridRefreshKey((k) => k + 1);
             setDrawerOpen(false);
+            setGenerateToast(result);
+            setToastDetailsOpen(false);
           }}
         />
       </Drawer>
