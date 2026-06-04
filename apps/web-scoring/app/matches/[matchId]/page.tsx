@@ -33,8 +33,10 @@ export default function MatchScoringPage({ params }: Props) {
   // `?return=<url>` survives hard refresh / bookmark — the
   // history-based back button doesn't. Read it on mount so the
   // operator always has a way back to the admin page they came
-  // from.
+  // from. `?externalDisplay=<url>` is the optional projection-screen
+  // link the admin sets when proxying this view via /scoring/*.
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
+  const [externalDisplayUrl, setExternalDisplayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     void params.then(({ matchId: id }) => setMatchId(id));
@@ -44,6 +46,7 @@ export default function MatchScoringPage({ params }: Props) {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     setReturnUrl(url.searchParams.get('return'));
+    setExternalDisplayUrl(url.searchParams.get('externalDisplay'));
   }, []);
 
   useEffect(() => {
@@ -159,7 +162,18 @@ export default function MatchScoringPage({ params }: Props) {
           ← {t('scoring.lice.backToLices')}
         </button>
         <h1 className="font-bold text-lg">{match?.roundCode || match?.matchNumberLabel || ''}</h1>
-        <div className="w-16" />
+        {externalDisplayUrl ? (
+          <a
+            href={externalDisplayUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-400 hover:text-white text-sm"
+          >
+            ↗ {t('scoring.lice.externalDisplay')}
+          </a>
+        ) : (
+          <div className="w-16" />
+        )}
       </header>
 
       {match ? (
