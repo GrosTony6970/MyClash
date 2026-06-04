@@ -57,6 +57,7 @@ const DEFAULT_CONFIG: SuggestConfig = {
 export function ProgrammePlanner({
   eventId,
   onGenerateDone,
+  onBlocksChanged,
   topSuggestNonce,
   generateScheduleLabel,
   generateGridLabel,
@@ -68,6 +69,15 @@ export function ProgrammePlanner({
    * (replaces the inline result banner this component used to show).
    */
   onGenerateDone: (result: GenerateResult) => void;
+  /**
+   * Fired after any persisted change to programme blocks or scheduled
+   * matches that the grid should re-fetch — Save, Reset, and the
+   * "Generate produced 0 matches" branch (where blocks were re-saved
+   * and existing matches wiped but no toast fires). The page wires
+   * this to bump the grid's mount key so the grid re-reads the new
+   * state instead of going stale.
+   */
+  onBlocksChanged?: () => void;
   /**
    * When this number changes, the planner runs `suggest()`. Lets the
    * page expose a "Generate schedule" button without lifting the
@@ -231,6 +241,7 @@ export function ProgrammePlanner({
     try {
       const saved = await persistProgramme();
       setBlocks(saved);
+      onBlocksChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -258,6 +269,7 @@ export function ProgrammePlanner({
       setBlocks([]);
       setWarnings([]);
       setGenerateResult(null);
+      onBlocksChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     } finally {
@@ -283,11 +295,14 @@ export function ProgrammePlanner({
       // When 0 matches landed (e.g. no lices, no draw run), keep the
       // result on-screen here so the operator can read per-block
       // diagnostics. Only bubble up the success → drawer auto-close
-      // + page toast when something actually shipped.
+      // + page toast when something actually shipped. Either way the
+      // backend wiped existing scheduled matches before re-attempting,
+      // so the grid needs to re-fetch.
       if (result.matchesScheduled > 0) {
         onGenerateDone(result);
       } else {
         setGenerateResult(result);
+        onBlocksChanged?.();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');

@@ -167,6 +167,7 @@ export default function SchedulePage() {
             setGenerateToast(result);
             setToastDetailsOpen(false);
           }}
+          onBlocksChanged={() => setGridRefreshKey((k) => k + 1)}
         />
       </Drawer>
     </main>
