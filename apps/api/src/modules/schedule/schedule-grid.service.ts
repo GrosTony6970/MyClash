@@ -20,6 +20,12 @@ export interface ScheduleGridMatch {
   redRegistrationId: string;
   blueRegistrationId: string;
   tournamentName: string | null;
+  /** Tournament identity colour (ColorToken string). Lets the grid
+   *  tint every match card by its parent tournament so the schedule
+   *  reads as a horizontal flow of tournaments. Null when the
+   *  tournament has no color set; the FE's tint helpers fall back
+   *  to the default token. */
+  tournamentColor: string | null;
   durationMinutes: number;
   /** 'pool' / 'single_elim' / 'double_elim' — drives the bracket-vs-pool chip on the grid. */
   phaseType: string | null;
@@ -46,6 +52,7 @@ interface TournamentRow {
   id: string;
   name: string;
   weapon: string | null;
+  color: string | null;
 }
 
 interface MatchRow {
@@ -134,7 +141,7 @@ export class ScheduleGridService {
     // 1. Tournaments for this event.
     const { data: tournamentsData, error: tournamentsErr } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon')
+      .select('id, name, weapon, color')
       .eq('event_id', eventId);
     if (tournamentsErr) throw new BadRequestException(tournamentsErr.message);
     const tournaments = ((tournamentsData ?? []) as TournamentRow[]).filter((t) => Boolean(t.id));
@@ -304,6 +311,7 @@ export class ScheduleGridService {
         redRegistrationId: m.red_registration_id ?? '',
         blueRegistrationId: m.blue_registration_id ?? '',
         tournamentName,
+        tournamentColor: tournament?.color ?? null,
         durationMinutes: 5,
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,

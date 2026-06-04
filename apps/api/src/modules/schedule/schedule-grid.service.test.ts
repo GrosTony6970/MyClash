@@ -92,8 +92,8 @@ describe('ScheduleGridService', () => {
   it('returns matches across pool + bracket phases for the event', async () => {
     queueTables({
       tournaments: [
-        { id: 't1', name: 'Longsword Open' },
-        { id: 't2', name: 'Saber Cup' },
+        { id: 't1', name: 'Longsword Open', color: 'red' },
+        { id: 't2', name: 'Saber Cup', color: 'blue' },
       ],
       phases: [
         { id: 'ph-pool', type: 'pool', tournament_id: 't1' },
@@ -143,6 +143,10 @@ describe('ScheduleGridService', () => {
     expect(bracket.tournamentName).toBe('Longsword Open');
     // Bracket round 2+ matches have null registrations until the bracket advances.
     expect(bracket.redFighterName).toBeNull();
+    // Tournament color projected onto every match so the FE can tint
+    // cards by their parent tournament.
+    expect(pool.tournamentColor).toBe('red');
+    expect(bracket.tournamentColor).toBe('red');
   });
 
   it('returns matches with null scheduled_at so the unscheduled sidebar can render them', async () => {
