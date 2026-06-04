@@ -280,6 +280,10 @@ export default function OrgDashboardPage() {
                   key={org.logoUrl}
                   src={org.logoUrl}
                   alt=""
+                  onError={() =>
+                    console.warn('[org-logo] dashboard preview failed to render', org.logoUrl)
+                  }
+                  onLoad={() => console.debug('[org-logo] dashboard preview rendered', org.logoUrl)}
                   className="h-full w-full object-contain p-1"
                 />
               ) : (

@@ -389,6 +389,8 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               alt=""
               width={44}
               height={44}
+              onError={() => console.warn('[org-logo] sidebar failed to render', orgLogoUrl)}
+              onLoad={() => console.debug('[org-logo] sidebar rendered', orgLogoUrl)}
               className="h-11 w-11 rounded-md object-cover"
             />
           ) : (
