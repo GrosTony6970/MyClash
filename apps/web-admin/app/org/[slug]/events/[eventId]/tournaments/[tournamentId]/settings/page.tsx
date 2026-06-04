@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { AdminPageHeader } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { BasicsTab } from './_components/BasicsTab';
@@ -45,11 +46,19 @@ export default function TournamentSettingsPage() {
 
   return (
     <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
-      <AdminPageHeader
-        eyebrow="Tournament"
-        title={t('organizer.tournaments.settings.title')}
-        subtitle={t('organizer.tournaments.settings.subtitle')}
-      />
+      <Link
+        href={`/org/${params.slug}/events/${params.eventId}/tournaments`}
+        className="inline-flex items-center gap-1 rounded text-sm font-medium text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+      >
+        ← {t('organizer.tournaments.settings.backToList')}
+      </Link>
+      <div className="mt-4">
+        <AdminPageHeader
+          eyebrow="Tournament"
+          title={t('organizer.tournaments.settings.title')}
+          subtitle={t('organizer.tournaments.settings.subtitle')}
+        />
+      </div>
 
       <div className="mt-6 grid grid-cols-[200px_1fr] gap-8">
         <nav aria-label="Settings sections" className="flex flex-col gap-1">

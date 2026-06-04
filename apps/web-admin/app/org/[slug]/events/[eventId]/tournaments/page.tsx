@@ -192,6 +192,31 @@ export default function EventTournamentsPage() {
     }
   }
 
+  async function changeStatus(tournament: Tournament, nextStatus: string) {
+    if (nextStatus === tournament.status) return;
+    setBusyId(tournament.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournament.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.tournaments.saveError'));
+      }
+      setNotice(t('organizer.tournaments.statusUpdated'));
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('organizer.tournaments.saveError'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function archiveTournament(tournament: Tournament) {
     setBusyId(tournament.id);
     setError(null);
@@ -377,21 +402,30 @@ export default function EventTournamentsPage() {
                         <TournamentColorDot color={tournament.color} />
                         {tournament.name}
                       </span>
-                      <p className="mt-1 font-mono text-xs text-slate-400">/{tournament.slug}</p>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>
                     <td className="px-4 py-4 text-right font-mono text-sm tabular-nums text-slate-700">
                       {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
                     </td>
                     <td className="px-4 py-4">
-                      <span
+                      <select
+                        value={tournament.status}
+                        onChange={(event) => void changeStatus(tournament, event.target.value)}
+                        disabled={isReadOnly || busyId === tournament.id}
+                        aria-label={t('organizer.tournaments.status')}
                         className={[
-                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                          'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
                           STATUS_COLORS[tournament.status] ?? STATUS_COLORS['draft']!,
                         ].join(' ')}
                       >
-                        {tournament.status}
-                      </span>
+                        {['draft', 'published', 'running', 'completed', 'archived'].map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ),
+                        )}
+                      </select>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
