@@ -837,10 +837,11 @@ export class ReviewQueueService {
     const map = new Map<string, string>();
     if (orgIds.length === 0) return map;
 
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('organizations')
       .select('id, name')
       .in('id', orgIds);
+    if (error) throw new BadRequestException(error.message);
 
     for (const row of (data ?? []) as Array<Record<string, unknown>>) {
       map.set(row['id'] as string, row['name'] as string);
@@ -852,10 +853,11 @@ export class ReviewQueueService {
     const map = new Map<string, string>();
     if (eventIds.length === 0) return map;
 
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('events')
       .select('id, name')
       .in('id', eventIds);
+    if (error) throw new BadRequestException(error.message);
 
     for (const row of (data ?? []) as Array<Record<string, unknown>>) {
       map.set(row['id'] as string, row['name'] as string);
@@ -867,10 +869,11 @@ export class ReviewQueueService {
     const map = new Map<string, string>();
     if (tournamentIds.length === 0) return map;
 
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('id, name')
       .in('id', tournamentIds);
+    if (error) throw new BadRequestException(error.message);
 
     for (const row of (data ?? []) as Array<Record<string, unknown>>) {
       map.set(row['id'] as string, row['name'] as string);
@@ -882,7 +885,11 @@ export class ReviewQueueService {
     const map = new Map<string, string>();
     if (clubIds.length === 0) return map;
 
-    const { data } = await this.supabase.service.from('clubs').select('id, name').in('id', clubIds);
+    const { data, error } = await this.supabase.service
+      .from('clubs')
+      .select('id, name')
+      .in('id', clubIds);
+    if (error) throw new BadRequestException(error.message);
 
     for (const row of (data ?? []) as Array<Record<string, unknown>>) {
       map.set(row['id'] as string, row['name'] as string);

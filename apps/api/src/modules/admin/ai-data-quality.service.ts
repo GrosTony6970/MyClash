@@ -219,10 +219,11 @@ export class AIDataQualityService {
   }
 
   async listScans() {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('ai_data_quality_scans')
       .select('*')
       .order('started_at', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
     return data ?? [];
   }
 
@@ -242,7 +243,8 @@ export class AIDataQualityService {
     if (filters.type) query = query.eq('finding_type', filters.type);
     if (filters.severity) query = query.eq('severity', filters.severity);
 
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) throw new BadRequestException(error.message);
     return data ?? [];
   }
 
@@ -283,18 +285,20 @@ export class AIDataQualityService {
   }
 
   private async loadGlobalPersons(): Promise<GlobalPersonRow[]> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('global_persons')
       .select(
         'id, given_name, family_name, display_name, hema_ratings_id, claimed_by_user_id, club_name, is_referee, merged_into_id, deleted_at',
       );
+    if (error) throw new BadRequestException(error.message);
     return (data ?? []) as GlobalPersonRow[];
   }
 
   private async loadClubs(): Promise<ClubRow[]> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('clubs')
       .select('id, name, abbreviation, city, country_code, verified, unverified');
+    if (error) throw new BadRequestException(error.message);
     return (data ?? []) as ClubRow[];
   }
 
@@ -303,11 +307,12 @@ export class AIDataQualityService {
     // `global_person_id` column (added in 0023) is now redundant — kept for
     // backwards compatibility with the findUnlinkedReferees heuristic, but
     // unused in greenfield data.
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('referee_qualifications')
       .select(
         'id, person_id, global_person_id, global_persons(given_name, family_name, display_name)',
       );
+    if (error) throw new BadRequestException(error.message);
     return (data ?? []) as RefereeQualificationRow[];
   }
 
@@ -667,18 +672,20 @@ export class AIDataQualityService {
   }
 
   private async loadEventPersons(): Promise<EventPersonRow[]> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, event_id, given_name, family_name, global_person_id, club_id');
+    if (error) throw new BadRequestException(error.message);
     return (data ?? []) as EventPersonRow[];
   }
 
   private async loadRegistrations(): Promise<RegistrationRow[]> {
     // Identity now flows through person_id → persons.global_person_id;
     // the legacy registrations.fighter_id column was retired in 0083.
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('registrations')
       .select('id, persons!inner(global_person_id)');
+    if (error) throw new BadRequestException(error.message);
     const rows = (data ?? []) as Array<{
       id: string;
       persons: { global_person_id: string | null } | { global_person_id: string | null }[] | null;

@@ -184,19 +184,21 @@ export class AdminAuditLogService {
   private async fetchLabelsForType(type: string, ids: string[]): Promise<Map<string, string>> {
     switch (type) {
       case 'event': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('events')
           .select('id, name')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           ((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]),
         );
       }
       case 'phase': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('phases')
           .select('id, type, tournaments(name)')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           (
             (data ?? []) as Array<{
@@ -211,10 +213,11 @@ export class AdminAuditLogService {
         );
       }
       case 'fighter': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('global_persons')
           .select('id, display_name, given_name, family_name')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           (
             (data ?? []) as Array<{
@@ -230,19 +233,21 @@ export class AdminAuditLogService {
         );
       }
       case 'user': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('users')
           .select('id, email')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           ((data ?? []) as Array<{ id: string; email: string }>).map((r) => [r.id, r.email]),
         );
       }
       case 'custom_ruleset': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('custom_rulesets')
           .select('id, display_name')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           ((data ?? []) as Array<{ id: string; display_name: string }>).map((r) => [
             r.id,
@@ -251,10 +256,11 @@ export class AdminAuditLogService {
         );
       }
       case 'league_membership_request': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('league_membership_requests')
           .select('id, leagues(name), clubs(name)')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           (
             (data ?? []) as Array<{
@@ -270,19 +276,21 @@ export class AdminAuditLogService {
         );
       }
       case 'league_scoring_system': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('league_scoring_systems')
           .select('id, name')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           ((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]),
         );
       }
       case 'organizer_ai_assistant_draft': {
-        const { data } = await this.supabase.service
+        const { data, error } = await this.supabase.service
           .from('organizer_ai_assistant_drafts')
           .select('id, title')
           .in('id', ids);
+        if (error) throw new BadRequestException(error.message);
         return new Map(
           ((data ?? []) as Array<{ id: string; title: string }>).map((r) => [r.id, r.title]),
         );
