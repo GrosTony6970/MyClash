@@ -376,6 +376,19 @@ export const en = {
         generic: 'Something went wrong while requesting the claim.',
       },
     },
+    tournament: {
+      tabs: {
+        poolList: 'Pool List',
+        poolMatches: 'Pool Matches',
+        standings: 'Standings',
+        bracket: 'Bracket',
+        podium: 'Podium',
+      },
+      standings: {
+        modeOverall: 'Overall',
+        modeByPool: 'Per pool',
+      },
+    },
   },
   metadata: {
     publicTitle: 'MyClash',
@@ -4186,6 +4199,19 @@ export const fr = {
         timeout: 'La requête de confirmation a expiré. Réessayez dans un instant.',
         network: 'Impossible de joindre le serveur MyClash. Vérifiez votre connexion et réessayez.',
         generic: 'Une erreur est survenue lors de la demande de liaison.',
+      },
+    },
+    tournament: {
+      tabs: {
+        poolList: 'Liste des poules',
+        poolMatches: 'Matchs de poules',
+        standings: 'Classements',
+        bracket: 'Tableau',
+        podium: 'Podium',
+      },
+      standings: {
+        modeOverall: 'Général',
+        modeByPool: 'Par poule',
       },
     },
   },

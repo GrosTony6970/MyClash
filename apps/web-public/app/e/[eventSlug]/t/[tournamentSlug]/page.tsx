@@ -16,6 +16,7 @@
 import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
+import { t } from '@myclash/i18n';
 import { StandingsTable } from './StandingsTable';
 import { BracketLive } from './BracketLive';
 import { TournamentTabs, type TabKey } from './TournamentTabs';
@@ -346,7 +347,7 @@ export default async function TournamentPage({ params }: Props) {
           tabs={[
             {
               key: 'pools',
-              label: 'Pools',
+              label: t('publicApp.tournament.tabs.poolList'),
               visible: poolsTabVisible,
               panel: (
                 <PoolsCompositionView
@@ -362,7 +363,7 @@ export default async function TournamentPage({ params }: Props) {
             },
             {
               key: 'standings',
-              label: 'Standings',
+              label: t('publicApp.tournament.tabs.standings'),
               visible: standingsTabVisible,
               panel: (
                 <div className="flex flex-col gap-6">
@@ -381,7 +382,7 @@ export default async function TournamentPage({ params }: Props) {
             },
             {
               key: 'bracket',
-              label: 'Bracket',
+              label: t('publicApp.tournament.tabs.bracket'),
               visible: bracketTabVisible,
               panel: (
                 <BracketLive
@@ -402,7 +403,7 @@ export default async function TournamentPage({ params }: Props) {
             },
             {
               key: 'podium',
-              label: 'Podium',
+              label: t('publicApp.tournament.tabs.podium'),
               visible: podiumTabVisible,
               panel:
                 podium && podiumDecided ? (
