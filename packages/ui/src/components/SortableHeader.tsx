@@ -18,6 +18,13 @@ export interface SortableHeaderProps {
   ariaSortAsc?: string;
   ariaSortDesc?: string;
   className?: string;
+  /**
+   * Horizontal alignment for the label + chevron pair. Defaults to
+   * 'left' (preserves every existing caller). Use 'center' on
+   * numeric-count columns so the header reads centred above the
+   * centred cell values.
+   */
+  align?: 'left' | 'center' | 'right';
 }
 
 export const SortableHeader: React.FC<SortableHeaderProps> = ({
@@ -29,10 +36,17 @@ export const SortableHeader: React.FC<SortableHeaderProps> = ({
   ariaSortAsc = 'Sort ascending',
   ariaSortDesc = 'Sort descending',
   className = '',
+  align = 'left',
 }) => {
   const active = currentKey === columnKey && direction !== null;
   const ariaSort = active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none';
   const nextLabel = direction === 'asc' && active ? ariaSortDesc : ariaSortAsc;
+  const alignClasses =
+    align === 'center'
+      ? 'justify-center text-center'
+      : align === 'right'
+        ? 'justify-end text-right'
+        : 'text-left';
 
   return (
     <button
@@ -41,7 +55,8 @@ export const SortableHeader: React.FC<SortableHeaderProps> = ({
       aria-sort={ariaSort}
       aria-label={`${label} — ${nextLabel}`}
       className={[
-        'inline-flex w-full items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+        'inline-flex w-full items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
+        alignClasses,
         active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700',
         className,
       ].join(' ')}
