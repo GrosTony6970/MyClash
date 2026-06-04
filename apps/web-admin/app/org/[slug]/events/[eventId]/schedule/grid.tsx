@@ -136,6 +136,12 @@ const GRID_START_HOUR = 8;
 const GRID_END_HOUR = 20;
 const TOTAL_SLOTS = ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
 const SLOT_HEIGHT_PX = 16;
+// Header rows are taller than body rows so the venue + lice names
+// read clearly. The lice header's sticky `top` offset must equal
+// VENUE_HEADER_HEIGHT_PX so it sticks below the venue band instead
+// of sliding under it on scroll.
+const VENUE_HEADER_HEIGHT_PX = 40;
+const LICE_HEADER_HEIGHT_PX = 40;
 const TIME_LABEL_COL_PX = 64;
 const MIN_LICE_COL_PX = 140;
 
@@ -1089,7 +1095,7 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                   can edit the venue inline. */}
               <div
                 className="sticky top-0 z-30 bg-white border-b border-gray-200"
-                style={{ gridColumn: 1, gridRow: 1, height: SLOT_HEIGHT_PX }}
+                style={{ gridColumn: 1, gridRow: 1, height: VENUE_HEADER_HEIGHT_PX }}
               />
               {computeVenueGroups(lices).map((group, groupIndex) => {
                 const startCol = group.startIndex + 2;
@@ -1098,11 +1104,11 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                     <a
                       key={`${group.venueId}-${groupIndex}`}
                       href={`/org/${slug}/events/${eventId}/venues`}
-                      className="sticky top-0 z-30 bg-blue-50 border-b border-blue-200 border-l border-l-gray-200 px-2 flex items-center text-xs font-semibold text-blue-800 hover:bg-blue-100 truncate"
+                      className="sticky top-0 z-30 bg-blue-50 border-b border-blue-200 border-l border-l-gray-200 px-2 flex items-center justify-center text-sm font-semibold text-blue-800 hover:bg-blue-100 truncate"
                       style={{
                         gridColumn: `${startCol} / span ${group.span}`,
                         gridRow: 1,
-                        height: SLOT_HEIGHT_PX,
+                        height: VENUE_HEADER_HEIGHT_PX,
                       }}
                       title={group.venueName ?? ''}
                     >
@@ -1113,11 +1119,11 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                 return (
                   <div
                     key={`no-venue-${groupIndex}`}
-                    className="sticky top-0 z-30 bg-gray-100 border-b border-gray-200 border-l border-l-gray-200 px-2 flex items-center text-xs italic text-gray-400 truncate"
+                    className="sticky top-0 z-30 bg-gray-100 border-b border-gray-200 border-l border-l-gray-200 px-2 flex items-center justify-center text-sm italic text-gray-400 truncate"
                     style={{
                       gridColumn: `${startCol} / span ${group.span}`,
                       gridRow: 1,
-                      height: SLOT_HEIGHT_PX,
+                      height: VENUE_HEADER_HEIGHT_PX,
                     }}
                   >
                     No venue
@@ -1128,21 +1134,23 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
               {/* Row 2: lice header — corner cell + lice name cells. Every
                   cell is explicitly placed so the per-slot Fragment below
                   can't be cascaded out of position by the absolutely-placed
-                  match cards (see Slice 1 of the schedule overhaul plan). */}
+                  match cards (see Slice 1 of the schedule overhaul plan).
+                  Sticky `top` matches the venue band's height so this row
+                  parks directly under it on scroll. */}
               <div
                 className="sticky bg-white border-b border-gray-300"
-                style={{ gridColumn: 1, gridRow: 2, top: SLOT_HEIGHT_PX, zIndex: 20 }}
+                style={{ gridColumn: 1, gridRow: 2, top: VENUE_HEADER_HEIGHT_PX, zIndex: 20 }}
               />
               {lices.map((lice, liceIndex) => (
                 <div
                   key={lice.id}
-                  className="sticky bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center"
+                  className="sticky bg-white border-b border-gray-300 border-l border-l-gray-200 px-2 flex items-center justify-center"
                   style={{
                     gridColumn: liceIndex + 2,
                     gridRow: 2,
-                    top: SLOT_HEIGHT_PX,
+                    top: VENUE_HEADER_HEIGHT_PX,
                     zIndex: 20,
-                    height: SLOT_HEIGHT_PX * 2,
+                    height: LICE_HEADER_HEIGHT_PX,
                   }}
                 >
                   <span className="text-xs font-bold text-gray-700 truncate">{lice.name}</span>
