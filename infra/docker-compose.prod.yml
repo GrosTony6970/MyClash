@@ -432,6 +432,20 @@ services:
       - traefik.http.routers.myclash-storage.priority=20
       - traefik.http.routers.myclash-storage.service=myclash-supabase-storage
       - traefik.http.services.myclash-supabase-storage.loadbalancer.server.url=http://supabase-storage:5000
+      # Admin same-origin proxy for storage: admin.${DOMAIN}/storage/v1/*
+      # → supabase-storage (with /storage/v1 stripped to match the
+      # upstream's unprefixed routes). Lets the admin's IMG elements
+      # load org logos / event assets without crossing origins, which
+      # avoids the cross-origin app.${DOMAIN} roundtrip and keeps cookies
+      # consistent with the admin surface if the bucket is later made
+      # non-public.
+      - traefik.http.routers.myclash-admin-storage.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/storage/v1`)
+      - traefik.http.routers.myclash-admin-storage.entrypoints=websecure
+      - traefik.http.routers.myclash-admin-storage.tls=true
+      - traefik.http.routers.myclash-admin-storage.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-admin-storage.middlewares=myclash-security-headers@file,supabase-storage-strip
+      - traefik.http.routers.myclash-admin-storage.priority=20
+      - traefik.http.routers.myclash-admin-storage.service=myclash-supabase-storage
 
   # ── Internal ops runner (backup/restore allowlist) ─────────────
   ops-runner:

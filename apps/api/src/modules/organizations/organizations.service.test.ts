@@ -211,7 +211,7 @@ describe('OrganizationsService', () => {
   // ── R4: org logo upload ─────────────────────────────────────────────────
 
   describe('uploadLogo', () => {
-    it('asserts admin role, uploads to event-assets, and writes logo_url', async () => {
+    it('asserts admin role, uploads to event-assets, and writes same-origin logo_url', async () => {
       const membershipChain = makeChain({ data: null, error: null });
       membershipChain.maybeSingle.mockResolvedValue({ data: { role: 'admin' }, error: null });
 
@@ -229,8 +229,13 @@ describe('OrganizationsService', () => {
         createBucket: vi.fn(),
         from: vi.fn().mockReturnValue({
           upload: vi.fn().mockResolvedValue({ error: null }),
+          // getPublicUrl is no longer called by uploadLogo — the
+          // service constructs a same-origin relative path instead so
+          // the IMG resolves to whichever admin/app origin loaded the
+          // bundle. Keep the mock so a regression that re-introduces
+          // getPublicUrl doesn't crash this test silently.
           getPublicUrl: vi.fn().mockReturnValue({
-            data: { publicUrl: 'https://cdn.test/organizations/org-1/logo.png' },
+            data: { publicUrl: 'https://cdn.test/should-not-be-used' },
           }),
         }),
       };
@@ -245,10 +250,18 @@ describe('OrganizationsService', () => {
         mimetype: 'image/png',
       });
 
-      expect(result).toEqual({ url: 'https://cdn.test/organizations/org-1/logo.png' });
+      // Relative same-origin path — IMG resolves to whichever
+      // admin/app origin loaded the bundle, no cross-origin roundtrip.
+      expect(result.url).toMatch(
+        /^\/storage\/v1\/object\/public\/event-assets\/organizations\/org-1\/logo-\d+-logo\.png$/,
+      );
       expect(storage.from).toHaveBeenCalledWith('event-assets');
       expect(updateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ logo_url: 'https://cdn.test/organizations/org-1/logo.png' }),
+        expect.objectContaining({
+          logo_url: expect.stringMatching(
+            /^\/storage\/v1\/object\/public\/event-assets\/organizations\/org-1\/logo-\d+-logo\.png$/,
+          ) as unknown,
+        }),
       );
     });
 

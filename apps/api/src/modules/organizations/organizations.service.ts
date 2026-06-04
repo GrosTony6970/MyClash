@@ -208,8 +208,12 @@ export class OrganizationsService {
       .upload(path, file.buffer, { contentType: file.mimetype, upsert: true });
     if (error) throw new BadRequestException(error.message);
 
-    const { data } = this.supabase.service.storage.from(ORG_LOGO_BUCKET).getPublicUrl(path);
-    const url = data.publicUrl;
+    // Same-origin relative path — the IMG resolves to whichever
+    // admin/app origin loaded the bundle, sidestepping the
+    // cross-origin app.${DOMAIN} roundtrip Supabase's getPublicUrl
+    // would have produced. Traefik routes /storage/v1/* to
+    // supabase-storage on both app.${DOMAIN} and admin.${DOMAIN}.
+    const url = `/storage/v1/object/public/${ORG_LOGO_BUCKET}/${path}`;
 
     const { error: updateError } = await this.supabase.service
       .from('organizations')
