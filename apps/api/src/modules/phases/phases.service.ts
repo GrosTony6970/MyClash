@@ -1665,13 +1665,16 @@ export class PhasesService {
       throw new BadRequestException('durationMinutes must be >= 1');
     }
 
-    // 1. Pool matches in stable order — sort_order then label so the
-    //    Berger output (P1, P2, …) lays out left-to-right, top-to-bottom.
+    // 1. Pool matches ordered by match_number_label — the Berger
+    //    generator emits labels like P1M1, P1M2, P2M1, … whose
+    //    lexicographic order matches the desired left-to-right,
+    //    top-to-bottom layout. matches has no sort_order column;
+    //    selecting it crashed autoDistributePool with `column
+    //    matches.sort_order does not exist`.
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
-      .select('id, sort_order, match_number_label')
+      .select('id, match_number_label')
       .eq('pool_id', poolId)
-      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('match_number_label', { ascending: true });
     if (matchesErr) throw new BadRequestException(matchesErr.message);
     const matchIds = ((matchesData ?? []) as Array<{ id: string }>).map((m) => m.id);
