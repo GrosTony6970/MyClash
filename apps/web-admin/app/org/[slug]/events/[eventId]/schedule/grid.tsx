@@ -253,6 +253,11 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
   // drop, on cell-leave, and on drag-cancel.
   const [dragOverCell, setDragOverCell] = useState<{ liceId: string; slot: number } | null>(null);
   const [movingBlockId, setMovingBlockId] = useState<string | null>(null);
+  // Block staged for deletion via the inline × button on the grid.
+  // Carries the full row so the confirm modal can render the label
+  // + time window in the description.
+  const [pendingBlockDelete, setPendingBlockDelete] = useState<ProgrammeBlockRow | null>(null);
+  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   // Surfaced when auto-distribute fails so the operator sees the error
   // instead of a silent no-op.
   const [autoDistributeError, setAutoDistributeError] = useState<string | null>(null);
@@ -446,6 +451,28 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
       await refetchScheduleAndBlocks();
     } finally {
       setMovingBlockId(null);
+    }
+  }
+
+  /**
+   * Drop a programme block from the grid via the inline × affordance.
+   * Backend unschedules matches whose scheduled_at falls inside the
+   * block window (set scheduled_at + lice_id null → they reappear in
+   * the Unscheduled sidebar); we refetch from the source of truth
+   * to pick up both the new matches state and the removed block row.
+   */
+  async function deleteBlock(blockId: string): Promise<void> {
+    setDeletingBlockId(blockId);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      await refetchScheduleAndBlocks();
+    } finally {
+      setDeletingBlockId(null);
+      setPendingBlockDelete(null);
     }
   }
 
@@ -1300,11 +1327,11 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                   aria-label={b.label}
                   title={`${b.startTime} – ${b.endTime} · ${b.label} · drag to move (cascade-shifts later matches)`}
                   className={[
-                    'pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing',
+                    'relative pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing',
                     b.blockType === 'break'
                       ? 'bg-slate-100 text-slate-600 border-y border-slate-300'
                       : 'bg-purple-50 text-purple-800 border-y border-purple-300',
-                    movingBlockId === b.id ? 'opacity-50' : '',
+                    movingBlockId === b.id || deletingBlockId === b.id ? 'opacity-50' : '',
                   ].join(' ')}
                   style={{
                     gridColumn: '2 / -1',
@@ -1319,6 +1346,33 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
                   <span className="truncate px-2">
                     {b.label} ({b.startTime} – {b.endTime})
                   </span>
+                  <button
+                    type="button"
+                    draggable={false}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingBlockDelete(b);
+                    }}
+                    aria-label={`Delete ${b.label}`}
+                    title={`Delete ${b.label}`}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
+                    </svg>
+                  </button>
                 </div>
               ))}
 
@@ -1373,6 +1427,22 @@ export function ScheduleGrid({ slug, eventId }: { slug: string; eventId: string 
         confirmLabel="Clear pool"
         danger
         busy={clearingPool}
+      />
+
+      {/* Inline block-delete confirm modal. */}
+      <ConfirmDialog
+        open={pendingBlockDelete !== null}
+        onConfirm={() => pendingBlockDelete && void deleteBlock(pendingBlockDelete.id)}
+        onCancel={() => setPendingBlockDelete(null)}
+        title={pendingBlockDelete ? `Delete "${pendingBlockDelete.label}"?` : ''}
+        description={
+          pendingBlockDelete
+            ? `Remove the ${pendingBlockDelete.blockType} block (${pendingBlockDelete.startTime} – ${pendingBlockDelete.endTime}) from the programme. Matches scheduled inside this window will be unscheduled and reappear in the Unscheduled sidebar — matches outside the window keep their existing slot.`
+            : ''
+        }
+        confirmLabel="Delete block"
+        danger
+        busy={deletingBlockId !== null}
       />
     </div>
   );
