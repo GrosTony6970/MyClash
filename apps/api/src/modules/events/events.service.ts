@@ -61,15 +61,24 @@ export class EventsService {
   // ── Events ───────────────────────────────────────────────────────────────────
 
   async listEvents(query: EventQueryDto) {
+    // Spectators poll this endpoint every ~30 s — bound the payload so a
+    // 1000-event deploy doesn't ship 1000 rows per poll. Default + max =
+    // 100. The cursor enables follow-on pagination by start_date when the
+    // FE adds a "load more" affordance.
+    const limit = Math.min(query.limit ?? 100, 100);
+
     let q = this.supabase.service
       .from('events')
       .select('*, organizations(name, slug, logo_url, brand_color)')
-      .order('start_date', { ascending: false });
+      .order('start_date', { ascending: false })
+      .limit(limit);
 
     if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
     else q = q.in('status', ['published', 'running', 'completed']) as typeof q;
 
     if (query.organizationId) q = q.eq('organization_id', query.organizationId) as typeof q;
+
+    if (query.cursor) q = q.lt('start_date', query.cursor) as typeof q;
 
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);

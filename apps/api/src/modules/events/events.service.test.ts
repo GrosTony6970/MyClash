@@ -37,8 +37,10 @@ function makeAwaitableChain(result: unknown) {
     order: vi.fn(),
     is: vi.fn(),
     or: vi.fn(),
+    limit: vi.fn(),
+    lt: vi.fn(),
   });
-  for (const key of ['select', 'eq', 'in', 'neq', 'order', 'is', 'or']) {
+  for (const key of ['select', 'eq', 'in', 'neq', 'order', 'is', 'or', 'limit', 'lt']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -1182,6 +1184,29 @@ describe('EventsService', () => {
       fromMock.mockReturnValueOnce(chain);
 
       await expect(service.listEvents({})).rejects.toThrow(BadRequestException);
+    });
+
+    it('caps the row count at 100 by default — spectators poll this endpoint every ~30 s', async () => {
+      // Default applies when no `limit` is passed. Clamping at 100 keeps
+      // per-poll payload bounded regardless of deploy size.
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+      await service.listEvents({});
+      expect(chain.limit).toHaveBeenCalledWith(100);
+    });
+
+    it('honours an explicit limit and clamps it back to 100 if larger', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+      await service.listEvents({ limit: 999 });
+      expect(chain.limit).toHaveBeenCalledWith(100);
+    });
+
+    it('paginates by cursor — applies start_date < cursor when set', async () => {
+      const chain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(chain);
+      await service.listEvents({ cursor: '2026-01-01T00:00:00.000Z' });
+      expect(chain.lt).toHaveBeenCalledWith('start_date', '2026-01-01T00:00:00.000Z');
     });
   });
 

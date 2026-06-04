@@ -133,6 +133,30 @@ export class EventQueryDto {
   @IsOptional()
   @IsUUID()
   organizationId?: string;
+
+  /**
+   * Hard cap on rows returned. Defaults to 100 (also the max). Spectators
+   * poll this endpoint every ~30 s; without a cap the per-poll payload
+   * grew linearly with deploy size.
+   */
+  @ApiProperty({ required: false, minimum: 1, maximum: 100, default: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  /**
+   * Pagination cursor — an ISO date string. The next page returns events
+   * whose start_date is strictly less than the cursor. Pair with the
+   * default `order by start_date desc` so the cursor walks backward in
+   * time deterministically.
+   */
+  @ApiProperty({ required: false, example: '2026-01-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }
 
 export class EventClubQueryDto {
