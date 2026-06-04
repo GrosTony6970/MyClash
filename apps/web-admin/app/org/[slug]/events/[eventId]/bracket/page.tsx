@@ -339,6 +339,26 @@ export default function BracketPage() {
     return () => controller.abort();
   }, [selectedTournament, apiUrl]);
 
+  // ── Clear tournament-scoped state on switch ─────────────────────────────────
+  // Without this, the previous tournament's bracket / weapon / side
+  // colors linger on screen when the operator switches to a tournament
+  // that has no bracket yet (or while the new fetch is in flight). The
+  // load effects below then populate from fresh data; a slow or empty
+  // fetch correctly leaves the "Configure your bracket" state visible.
+  // Kept as a SEPARATE effect (deps: [selectedTournament] only) so a
+  // manual refresh / reseed via bracketRefreshKey doesn't flash the
+  // bracket to empty before reloading.
+  useEffect(() => {
+    if (!selectedTournament) return;
+    setBracket(null);
+    setBracketPhaseId(null);
+    setExistingBracket(false);
+    setEditGrandFinalReset(false);
+    setTournamentWeapon(null);
+    setRedColor('red');
+    setBlueColor('blue');
+  }, [selectedTournament]);
+
   // ── Load existing bracket ───────────────────────────────────────────────────
 
   useEffect(() => {
