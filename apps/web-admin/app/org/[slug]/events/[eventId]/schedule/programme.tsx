@@ -403,16 +403,18 @@ export function ProgrammePlanner({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-      {/* Slice 8: Configuration sidebar — fixed 280 px sticky column on
-          lg+, stacks above the preview on smaller viewports. The Suggest
-          button stays inside the sidebar so operators don't have to
-          hunt for it after tweaking values. */}
-      <aside className="lg:sticky lg:top-6 lg:self-start space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm">
+    <div className="space-y-6">
+      {/* Configuration sidebar stacks above the day blocks inside the
+          drawer. Tailwind responsive prefixes (lg:) are viewport, not
+          container — when this lived in a 2-col split it crushed the
+          day-blocks column to ~140 px and cropped block cards on the
+          grid behind. Stacking matches the operator's workflow: set
+          knobs once, edit blocks 90 % of the time. */}
+      <aside className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           Configuration
         </h2>
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
           {(
             [
               ['Day start', 'dayStartTime', 'time'],

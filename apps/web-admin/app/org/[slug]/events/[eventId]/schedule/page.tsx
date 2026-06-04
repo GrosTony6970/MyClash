@@ -155,7 +155,12 @@ export default function SchedulePage() {
         <ScheduleGrid key={gridRefreshKey} slug={slug} eventId={eventId} />
       </div>
 
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={configureLabel}>
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title={configureLabel}
+        width="420px"
+      >
         <ProgrammePlanner
           eventId={eventId}
           topSuggestNonce={topSuggestNonce}
