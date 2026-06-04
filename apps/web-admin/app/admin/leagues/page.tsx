@@ -26,7 +26,16 @@ interface League {
     scoringSystem?: 'ffamhe_tf_2026' | 'custom';
     rankingDimensions?: 'weapon' | 'weapon_category';
   } | null;
+  // Projected by the BE's listManageable enrichment (Slice 3).
+  // The "Ranking" tab surfaces these as summary columns; the
+  // existing "League list" tab ignores them.
+  event_count?: number;
+  tournament_count?: number;
+  group_count?: number;
+  fighter_count?: number;
 }
+
+type AdminLeaguesTab = 'list' | 'ranking';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -53,6 +62,7 @@ export default function AdminLeaguesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [tab, setTab] = useState<AdminLeaguesTab>('list');
 
   const fetchLeagues = useCallback(async (signal?: AbortSignal) => {
     const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, {
@@ -152,151 +162,248 @@ export default function AdminLeaguesPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[920px] text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3 w-16">Logo</th>
-              <th className="px-4 py-3">
-                <SortableHeader
-                  label="Name"
-                  columnKey="name"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="px-4 py-3">
-                <SortableHeader
-                  label="Year"
-                  columnKey="year"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="px-4 py-3">
-                <SortableHeader
-                  label="Grouping"
-                  columnKey="category"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="px-4 py-3">
-                <SortableHeader
-                  label="Scoring system"
-                  columnKey="scoringSystem"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="px-4 py-3">
-                <SortableHeader
-                  label="Status"
-                  columnKey="status"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggle}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
-              </th>
-              <th className="px-4 py-3">Public</th>
-              <th className="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={8} className="py-8 text-center text-sm text-slate-400">
-                  Loading…
-                </td>
-              </tr>
-            )}
-            {!loading && leagues.length === 0 && (
-              <tr>
-                <td colSpan={8} className="py-12 text-center text-sm text-slate-400">
-                  No leagues yet. Click <strong>Create league</strong> to add one.
-                </td>
-              </tr>
-            )}
-            {visibleLeagues.map((league) => (
-              <tr key={league.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  {league.logo_url ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={league.logo_url}
-                      alt={league.name}
-                      className="h-9 w-9 rounded-md border border-slate-200 bg-white object-contain"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
-                      {initialsFor(league.name)}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <p className="font-medium text-slate-900">{league.name}</p>
-                  <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
-                </td>
-                <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
-                <td className="px-4 py-3 text-slate-700">
-                  {formatCategory(league.scoring_config?.rankingDimensions)}
-                </td>
-                <td className="px-4 py-3 text-slate-700">
-                  {formatScoringSystem(league.scoring_system)}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={[
-                      'rounded-full px-2 py-0.5 text-xs font-semibold',
-                      league.status === 'published'
-                        ? 'bg-green-100 text-green-700'
-                        : league.status === 'archived'
-                          ? 'bg-slate-200 text-slate-600'
-                          : 'bg-amber-100 text-amber-700',
-                    ].join(' ')}
-                  >
-                    {league.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-slate-600">
-                  {league.public_visibility ? 'Yes' : 'No'}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/admin/leagues/${league.id}/edit`}
-                      className={rowActionClasses('edit')}
-                    >
-                      Edit
-                    </Link>
-                    <RowActionButton
-                      variant="danger"
-                      onClick={() => setPendingDelete(league)}
-                      disabled={busyId === league.id}
-                    >
-                      Delete
-                    </RowActionButton>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-4 inline-flex rounded-md border border-slate-200 bg-white p-1 shadow-sm">
+        {(
+          [
+            ['list', 'League list'],
+            ['ranking', 'Ranking'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTab(value)}
+            className={[
+              'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
+              tab === value ? 'bg-red-800 text-white' : 'text-slate-600 hover:bg-slate-100',
+            ].join(' ')}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+
+      {tab === 'ranking' && (
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[820px] text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3 w-16">Logo</th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Year</th>
+                <th className="px-4 py-3 text-right">Events</th>
+                <th className="px-4 py-3 text-right">Tournaments</th>
+                <th className="px-4 py-3 text-right">Groups</th>
+                <th className="px-4 py-3 text-right">Fighters</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-sm text-slate-400">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+              {!loading && leagues.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-sm text-slate-400">
+                    No leagues yet.
+                  </td>
+                </tr>
+              )}
+              {leagues.map((league) => (
+                <tr key={league.id} className="border-b border-slate-100">
+                  <td className="px-4 py-3">
+                    {league.logo_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={league.logo_url}
+                        alt={league.name}
+                        className="h-9 w-9 rounded-md border border-slate-200 bg-white object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                        {initialsFor(league.name)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/admin/leagues/${league.id}/ranking`}
+                      className="font-medium text-red-800 hover:underline"
+                    >
+                      {league.name}
+                    </Link>
+                    <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
+                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                    {league.event_count ?? 0}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                    {league.tournament_count ?? 0}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                    {league.group_count ?? 0}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                    {league.fighter_count ?? 0}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'list' && (
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[920px] text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3 w-16">Logo</th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label="Name"
+                    columnKey="name"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label="Year"
+                    columnKey="year"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label="Grouping"
+                    columnKey="category"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label="Scoring system"
+                    columnKey="scoringSystem"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">
+                  <SortableHeader
+                    label="Status"
+                    columnKey="status"
+                    currentKey={sortKey}
+                    direction={direction}
+                    onToggle={toggle}
+                    ariaSortAsc={t('admin.common.sortAscLabel')}
+                    ariaSortDesc={t('admin.common.sortDescLabel')}
+                  />
+                </th>
+                <th className="px-4 py-3">Public</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-sm text-slate-400">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+              {!loading && leagues.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-sm text-slate-400">
+                    No leagues yet. Click <strong>Create league</strong> to add one.
+                  </td>
+                </tr>
+              )}
+              {visibleLeagues.map((league) => (
+                <tr key={league.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    {league.logo_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={league.logo_url}
+                        alt={league.name}
+                        className="h-9 w-9 rounded-md border border-slate-200 bg-white object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                        {initialsFor(league.name)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-slate-900">{league.name}</p>
+                    <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatCategory(league.scoring_config?.rankingDimensions)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatScoringSystem(league.scoring_system)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={[
+                        'rounded-full px-2 py-0.5 text-xs font-semibold',
+                        league.status === 'published'
+                          ? 'bg-green-100 text-green-700'
+                          : league.status === 'archived'
+                            ? 'bg-slate-200 text-slate-600'
+                            : 'bg-amber-100 text-amber-700',
+                      ].join(' ')}
+                    >
+                      {league.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {league.public_visibility ? 'Yes' : 'No'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <Link
+                        href={`/admin/leagues/${league.id}/edit`}
+                        className={rowActionClasses('edit')}
+                      >
+                        Edit
+                      </Link>
+                      <RowActionButton
+                        variant="danger"
+                        onClick={() => setPendingDelete(league)}
+                        disabled={busyId === league.id}
+                      >
+                        Delete
+                      </RowActionButton>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <ConfirmDialog
         open={pendingDelete !== null}
