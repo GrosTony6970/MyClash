@@ -904,6 +904,10 @@ export default function ParticipantsPage() {
                   ? 'All event'
                   : (tournaments.find((tour) => tour.id === tabId)?.name ?? tabId);
               const active = activeTab === tabId;
+              const count =
+                tabId === 'all'
+                  ? persons.length
+                  : registrations.filter((r) => r.tournamentId === tabId).length;
               return (
                 <button
                   key={tabId}
@@ -912,13 +916,21 @@ export default function ParticipantsPage() {
                     setSelected(new Set());
                   }}
                   className={[
-                    'px-3 py-1.5 rounded-full text-sm font-medium transition-colors border',
+                    'px-3 py-1.5 rounded-full text-sm font-medium transition-colors border inline-flex items-center',
                     active
                       ? 'bg-red-700 text-white border-red-700'
                       : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400',
                   ].join(' ')}
                 >
                   {label}
+                  <span
+                    className={[
+                      'ml-1.5 inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full text-xs font-semibold tabular-nums',
+                      active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700',
+                    ].join(' ')}
+                  >
+                    {count}
+                  </span>
                 </button>
               );
             })}
