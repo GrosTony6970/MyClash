@@ -315,6 +315,12 @@ describe('AssignmentBoardService', () => {
           person_id: 'person-ref-b',
           scope_type: 'pool',
           pool_id: 'pool-1',
+          // CHECK referee_assignments_scope_check (migration 0091)
+          // requires lice_id + match_id NULL for scope_type='pool'.
+          // Locked in here so a future regression that re-introduces
+          // denormalised values trips this test instead of production.
+          lice_id: null,
+          match_id: null,
           auto_assigned: true,
         }),
       ]),

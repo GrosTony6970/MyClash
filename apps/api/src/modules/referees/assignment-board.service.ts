@@ -1287,7 +1287,13 @@ export class AssignmentBoardService {
           scope_type: isMatchScoped ? 'match' : 'pool',
           pool_id: isMatchScoped ? null : assignment.poolId,
           match_id: isMatchScoped ? (pool.matchId ?? null) : null,
-          lice_id: pool.liceId,
+          // CHECK referee_assignments_scope_check (migration 0091)
+          // requires lice_id IS NULL for both 'pool' and 'match'
+          // scopes; lice_id is reserved for the 'lice' scope, which
+          // this code path never constructs. Writing pool.liceId here
+          // (a denormalised convenience of where the pool is
+          // anchored) fails the constraint and 400s the INSERT.
+          lice_id: null,
           role: assignment.role,
           starts_at: pool.scheduledStart,
           ends_at: pool.scheduledEnd,
