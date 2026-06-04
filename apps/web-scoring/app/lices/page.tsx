@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { getApiUrl } from '../../src/lib/api-url';
 
 interface LiceAssignment {
   liceId: string;
@@ -15,7 +16,7 @@ interface LiceAssignment {
 export default function LicePickerPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [assignments, setAssignments] = useState<LiceAssignment[]>([]);
   const [loading, setLoading] = useState(true);

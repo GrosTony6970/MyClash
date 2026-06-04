@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
+import { getApiUrl } from '../../src/lib/api-url';
 
 export default function ScoringLoginPage() {
   const { t } = useI18n();
@@ -16,7 +17,7 @@ export default function ScoringLoginPage() {
   const [loading, setLoading] = useState(false);
   const [staffLoading, setStaffLoading] = useState(false);
 
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

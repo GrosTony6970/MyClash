@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { getApiUrl } from '../../../src/lib/api-url';
 
 interface Props {
   params: Promise<{ liceId: string }>;
@@ -12,7 +13,7 @@ interface Props {
 export default function LiceMatchPage({ params }: Props) {
   const router = useRouter();
   const { t } = useI18n();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   const [liceId, setLiceId] = useState<string | null>(null);
   const [liceName, setLiceName] = useState<string | null>(null);

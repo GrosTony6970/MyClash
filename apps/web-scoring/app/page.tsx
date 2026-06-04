@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { t } from '@myclash/i18n';
+import { getApiUrl } from '../src/lib/api-url';
 
 /**
  * Root page - checks auth and redirects:
@@ -12,7 +13,7 @@ import { t } from '@myclash/i18n';
  */
 export default function RootPage() {
   const router = useRouter();
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const apiUrl = getApiUrl();
 
   useEffect(() => {
     void (async () => {
