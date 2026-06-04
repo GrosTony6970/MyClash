@@ -1,6 +1,7 @@
 import { getApiUrl } from '@/lib/api-url';
 import { t } from '@myclash/i18n';
-import { EventsListSections } from './_components/EventsListSections';
+import { HomeTabs } from './_components/HomeTabs';
+import type { PublicLeague } from './_components/PublicLeaguesSections';
 
 // Next.js 16 defaults route segments to static rendering. The public
 // landing page must always reflect the current published-events list
@@ -80,8 +81,39 @@ async function fetchPublicEvents(): Promise<EventLoadResult> {
   }
 }
 
+async function fetchPublicLeagues(): Promise<PublicLeague[]> {
+  const apiUrl = getApiUrl();
+  const target = `${apiUrl}/api/v1/leagues`;
+  try {
+    const res = await fetch(target, { cache: 'no-store' });
+    if (!res.ok) {
+      // Soft-fail so a public-leagues outage doesn't take the events
+      // tab down with it. The Leagues tab renders its empty state and
+      // the operator still has Events.
+      // eslint-disable-next-line no-console
+      console.error('[public-home] /leagues returned non-OK', {
+        target,
+        status: res.status,
+        statusText: res.statusText,
+      });
+      return [];
+    }
+    return (await res.json()) as PublicLeague[];
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[public-home] /leagues fetch threw', {
+      target,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    });
+    return [];
+  }
+}
+
 export default async function HomePage() {
-  const { events, unavailable } = await fetchPublicEvents();
+  const [{ events, unavailable }, leagues] = await Promise.all([
+    fetchPublicEvents(),
+    fetchPublicLeagues(),
+  ]);
 
   return (
     <main id="main-content" className="min-h-screen bg-stone-50 px-4 py-6 text-slate-900 sm:px-6">
@@ -95,8 +127,8 @@ export default async function HomePage() {
           </p>
         </section>
 
-        {events.length > 0 ? (
-          <EventsListSections events={events} />
+        {events.length > 0 || leagues.length > 0 ? (
+          <HomeTabs events={events} leagues={leagues} />
         ) : (
           <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
             <h2 className="font-display text-lg font-semibold text-slate-900">
