@@ -508,10 +508,10 @@ export default function HemaRatingsAdminPage() {
                                 <tr>
                                   <th className="py-1">{t('admin.hemaRatings.detailWeapon')}</th>
                                   <th className="py-1">{t('admin.hemaRatings.detailCategory')}</th>
-                                  <th className="py-1 text-right">
+                                  <th className="py-1 text-center">
                                     {t('admin.hemaRatings.detailRank')}
                                   </th>
-                                  <th className="py-1 text-right">
+                                  <th className="py-1 text-center">
                                     {t('admin.hemaRatings.detailWeightedRating')}
                                   </th>
                                   <th className="py-1 text-right">
@@ -524,10 +524,10 @@ export default function HemaRatingsAdminPage() {
                                   <tr key={`${r.weapon}-${r.category}`}>
                                     <td className="py-1 font-medium text-slate-900">{r.weapon}</td>
                                     <td className="py-1 text-slate-600">{r.category}</td>
-                                    <td className="py-1 text-right font-mono text-slate-700">
+                                    <td className="py-1 text-center font-mono tabular-nums text-slate-700">
                                       {r.rank ?? '—'}
                                     </td>
-                                    <td className="py-1 text-right font-mono text-slate-900">
+                                    <td className="py-1 text-center font-mono tabular-nums text-slate-900">
                                       {r.weightedRating.toFixed(1)}
                                     </td>
                                     <td className="py-1 text-right font-mono text-slate-500">

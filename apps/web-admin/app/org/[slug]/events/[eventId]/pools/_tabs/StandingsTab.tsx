@@ -259,10 +259,10 @@ function StandingsTable({ columns, rows }: { columns: StandingsColumn[]; rows: S
     <table className="w-full text-sm">
       <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
         <tr>
-          <th className="w-16 px-4 py-2">{t('organizer.pools.standings.rank')}</th>
+          <th className="w-16 px-4 py-2 text-center">{t('organizer.pools.standings.rank')}</th>
           <th className="px-4 py-2">{t('organizer.pools.standings.fighter')}</th>
           {columns.map((c) => (
-            <th key={c.key} className="px-4 py-2 text-right">
+            <th key={c.key} className="px-4 py-2 text-center">
               {c.label}
             </th>
           ))}
@@ -275,7 +275,9 @@ function StandingsTable({ columns, rows }: { columns: StandingsColumn[]; rows: S
             key={row.registrationId}
             className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
           >
-            <td className="px-4 py-2 font-mono text-slate-700">{row.rank}</td>
+            <td className="px-4 py-2 text-center font-mono tabular-nums text-slate-700">
+              {row.rank}
+            </td>
             <td className="px-4 py-2">
               <span className="font-medium text-slate-900">{row.displayName}</span>
               {row.club && (
@@ -285,7 +287,10 @@ function StandingsTable({ columns, rows }: { columns: StandingsColumn[]; rows: S
               )}
             </td>
             {columns.map((c) => (
-              <td key={c.key} className="px-4 py-2 text-right font-mono text-slate-700">
+              <td
+                key={c.key}
+                className="px-4 py-2 text-center font-mono tabular-nums text-slate-700"
+              >
                 {row.stats[c.key] ?? '—'}
               </td>
             ))}

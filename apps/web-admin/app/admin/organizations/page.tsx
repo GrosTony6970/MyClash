@@ -645,8 +645,8 @@ export default function AdminOrganizationsPage() {
                   />
                 </th>
                 <th className="py-2 pr-4">{t('admin.organizations.table.owner')}</th>
-                <th className="py-2 pr-4">{t('admin.organizations.table.members')}</th>
-                <th className="py-2 pr-4">{t('admin.organizations.table.events')}</th>
+                <th className="py-2 pr-4 text-center">{t('admin.organizations.table.members')}</th>
+                <th className="py-2 pr-4 text-center">{t('admin.organizations.table.events')}</th>
                 <th className="py-2 pr-4">
                   <SortableHeader
                     label={t('admin.organizations.table.status')}
@@ -700,8 +700,12 @@ export default function AdminOrganizationsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-4 text-slate-600">{org.member_count}</td>
-                  <td className="py-2 pr-4 text-slate-600">{org.event_count}</td>
+                  <td className="py-2 pr-4 text-center text-slate-600 tabular-nums">
+                    {org.member_count}
+                  </td>
+                  <td className="py-2 pr-4 text-center text-slate-600 tabular-nums">
+                    {org.event_count}
+                  </td>
                   <td className="py-2 pr-4">
                     <StatusBadge variant={org.status === 'active' ? 'active' : 'suspended'}>
                       {t(`admin.organizations.status.${org.status}`)}

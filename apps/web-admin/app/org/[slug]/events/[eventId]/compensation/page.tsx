@@ -284,17 +284,17 @@ export default function CompensationPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
                 <th className="py-3 px-4">{t('organizer.eventCompensation.referee')}</th>
-                <th className="py-3 px-4 text-right">
+                <th className="py-3 px-4 text-center">
                   {t('organizer.eventCompensation.poolPoints')}
                 </th>
-                <th className="py-3 px-4 text-right">
+                <th className="py-3 px-4 text-center">
                   {t('organizer.eventCompensation.bracketPoints')}
                 </th>
-                <th className="py-3 px-4 text-right">
+                <th className="py-3 px-4 text-center">
                   {t('organizer.eventCompensation.finalsPoints')}
                 </th>
-                <th className="py-3 px-4 text-right">{t('organizer.eventCompensation.total')}</th>
-                <th className="py-3 px-4 text-right">{t('organizer.eventCompensation.amount')}</th>
+                <th className="py-3 px-4 text-center">{t('organizer.eventCompensation.total')}</th>
+                <th className="py-3 px-4 text-center">{t('organizer.eventCompensation.amount')}</th>
                 <th className="py-3 px-4 text-center">{t('organizer.eventCompensation.paid')}</th>
               </tr>
             </thead>
@@ -318,21 +318,21 @@ export default function CompensationPage() {
                       </span>
                       {referee.displayName}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-gray-600 tabular-nums">
+                    <td className="py-2.5 px-4 text-center text-gray-600 tabular-nums">
                       {phaseTokens(referee, 'pool')}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-gray-600 tabular-nums">
+                    <td className="py-2.5 px-4 text-center text-gray-600 tabular-nums">
                       {phaseTokens(referee, 'bracket')}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-gray-600 tabular-nums">
+                    <td className="py-2.5 px-4 text-center text-gray-600 tabular-nums">
                       {phaseTokens(referee, 'finals')}
                     </td>
-                    <td className="py-2.5 px-4 text-right font-semibold text-gray-800 tabular-nums">
+                    <td className="py-2.5 px-4 text-center font-semibold text-gray-800 tabular-nums">
                       {t('organizer.eventCompensation.pointsValue', {
                         value: referee.totalTokens.toFixed(1),
                       })}
                     </td>
-                    <td className="py-2.5 px-4 text-right font-semibold text-gray-900 tabular-nums">
+                    <td className="py-2.5 px-4 text-center font-semibold text-gray-900 tabular-nums">
                       {t('organizer.eventCompensation.euroAmount', {
                         amount: referee.amountOwed.toFixed(2),
                       })}
@@ -364,13 +364,13 @@ export default function CompensationPage() {
                               <th className="text-left pb-1">
                                 {t('organizer.eventCompensation.phase')}
                               </th>
-                              <th className="text-right pb-1">
+                              <th className="text-center pb-1">
                                 {t('organizer.eventCompensation.matches')}
                               </th>
-                              <th className="text-right pb-1">
+                              <th className="text-center pb-1">
                                 {t('organizer.eventCompensation.pointsPerMatch')}
                               </th>
-                              <th className="text-right pb-1">
+                              <th className="text-center pb-1">
                                 {t('organizer.eventCompensation.subtotal')}
                               </th>
                             </tr>
@@ -388,13 +388,13 @@ export default function CompensationPage() {
                                   <td className="py-0.5">
                                     {phaseLabelKey ? t(phaseLabelKey) : line.phase}
                                   </td>
-                                  <td className="py-0.5 text-right tabular-nums">
+                                  <td className="py-0.5 text-center tabular-nums">
                                     {line.matchCount}
                                   </td>
-                                  <td className="py-0.5 text-right tabular-nums">
+                                  <td className="py-0.5 text-center tabular-nums">
                                     {line.tokensPerMatch}
                                   </td>
-                                  <td className="py-0.5 text-right tabular-nums font-medium">
+                                  <td className="py-0.5 text-center tabular-nums font-medium">
                                     {line.subtotal.toFixed(1)}
                                   </td>
                                 </tr>
@@ -419,7 +419,7 @@ export default function CompensationPage() {
                   <td colSpan={5} className="py-3 px-4 text-sm font-bold text-gray-700 text-right">
                     {t('organizer.eventCompensation.totalToPay')}
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-gray-900 tabular-nums">
+                  <td className="py-3 px-4 text-center font-bold text-gray-900 tabular-nums">
                     {t('organizer.eventCompensation.euroAmount', {
                       amount: report.grandTotal.toFixed(2),
                     })}

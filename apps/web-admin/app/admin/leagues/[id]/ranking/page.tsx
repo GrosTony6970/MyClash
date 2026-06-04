@@ -157,12 +157,12 @@ export default function AdminLeagueRankingPage() {
               <table className="w-full min-w-[720px] text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="px-4 py-3 w-16 text-right">Rank</th>
+                    <th className="px-4 py-3 w-16 text-center">Rank</th>
                     <th className="px-4 py-3">Fighter</th>
-                    <th className="px-4 py-3 text-right">Points</th>
-                    <th className="px-4 py-3 text-right">Participations</th>
-                    <th className="px-4 py-3 text-right">Medals</th>
-                    <th className="px-4 py-3 text-right">Avg double hits</th>
+                    <th className="px-4 py-3 text-center">Points</th>
+                    <th className="px-4 py-3 text-center">Participations</th>
+                    <th className="px-4 py-3 text-center">Medals</th>
+                    <th className="px-4 py-3 text-center">Avg double hits</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -173,23 +173,23 @@ export default function AdminLeagueRankingPage() {
                         key={`${row.ranking_group_key}-${row.fighter_id}`}
                         className="border-b border-slate-100"
                       >
-                        <td className="px-4 py-3 text-right font-mono font-semibold text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center font-mono font-semibold text-slate-700 tabular-nums">
                           {row.rank}
                         </td>
                         <td className="px-4 py-3">
                           <p className="font-medium text-slate-900">{fighterDisplayName(row)}</p>
                           {club && <p className="mt-0.5 text-xs text-slate-500">{club}</p>}
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                           {row.total_points}
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                           {row.participation_count}
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                           {row.medal_count}
                         </td>
-                        <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                        <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                           {row.double_hit_average.toFixed(2)}
                         </td>
                       </tr>

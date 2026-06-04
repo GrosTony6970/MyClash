@@ -465,22 +465,24 @@ export default function OrgEventsListPage() {
                       onToggle={toggleSort}
                     />
                   </th>
-                  <th className="px-4 py-3 text-right">
+                  <th className="px-4 py-3 text-center">
                     <SortableHeader
                       label={t('organizer.events.table.tournaments')}
                       columnKey="tournamentCount"
                       currentKey={sortKey}
                       direction={sortKey === 'tournamentCount' ? sortDir : null}
                       onToggle={toggleSort}
+                      align="center"
                     />
                   </th>
-                  <th className="px-4 py-3 text-right">
+                  <th className="px-4 py-3 text-center">
                     <SortableHeader
                       label={t('organizer.events.table.participants')}
                       columnKey="participantCount"
                       currentKey={sortKey}
                       direction={sortKey === 'participantCount' ? sortDir : null}
                       onToggle={toggleSort}
+                      align="center"
                     />
                   </th>
                   <th className="px-4 py-3">
@@ -545,10 +547,10 @@ export default function OrgEventsListPage() {
                     </td>
                     <td className="px-4 py-4 text-slate-600">{formatDate(event.createdAt)}</td>
                     <td className="px-4 py-4 text-slate-600">{event.createdByUserName ?? '—'}</td>
-                    <td className="px-4 py-4 text-right font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-4 text-center font-mono tabular-nums text-slate-700">
                       {event.tournamentCount}
                     </td>
-                    <td className="px-4 py-4 text-right font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-4 text-center font-mono tabular-nums text-slate-700">
                       {event.participantCount}
                     </td>
                     <td className="px-4 py-4 text-slate-600">{formatDate(event.startDate)}</td>

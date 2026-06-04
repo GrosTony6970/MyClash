@@ -127,7 +127,7 @@ export default function OrgVenuesPage() {
               <th className="py-2 pr-3">{t('organizer.venues.name')}</th>
               <th className="py-2 pr-3">{t('organizer.venues.address')}</th>
               <th className="py-2 pr-3">{t('organizer.venues.hosts')}</th>
-              <th className="py-2 pr-3">{t('organizer.venues.areas')}</th>
+              <th className="py-2 pr-3 text-center">{t('organizer.venues.areas')}</th>
               <th className="py-2 pr-3 text-right">{t('organizer.venues.actions')}</th>
             </tr>
           </thead>
@@ -150,7 +150,9 @@ export default function OrgVenuesPage() {
                     )}
                   </div>
                 </td>
-                <td className="py-3 pr-3 text-gray-600">{v.venue_areas?.length ?? 0}</td>
+                <td className="py-3 pr-3 text-center text-gray-600 tabular-nums">
+                  {v.venue_areas?.length ?? 0}
+                </td>
                 <td className="py-3 pr-3 text-right">
                   <button
                     type="button"

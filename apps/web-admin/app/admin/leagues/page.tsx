@@ -191,10 +191,10 @@ export default function AdminLeaguesPage() {
                 <th className="px-4 py-3 w-16">Logo</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Year</th>
-                <th className="px-4 py-3 text-right">Events</th>
-                <th className="px-4 py-3 text-right">Tournaments</th>
-                <th className="px-4 py-3 text-right">Groups</th>
-                <th className="px-4 py-3 text-right">Fighters</th>
+                <th className="px-4 py-3 text-center">Events</th>
+                <th className="px-4 py-3 text-center">Tournaments</th>
+                <th className="px-4 py-3 text-center">Groups</th>
+                <th className="px-4 py-3 text-center">Fighters</th>
               </tr>
             </thead>
             <tbody>
@@ -238,16 +238,16 @@ export default function AdminLeaguesPage() {
                     <p className="mt-0.5 font-mono text-xs text-slate-400">/{league.slug}</p>
                   </td>
                   <td className="px-4 py-3 text-slate-700">{league.season_year}</td>
-                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                     {league.event_count ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                     {league.tournament_count ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                     {league.group_count ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">
+                  <td className="px-4 py-3 text-center text-slate-700 tabular-nums">
                     {league.fighter_count ?? 0}
                   </td>
                 </tr>

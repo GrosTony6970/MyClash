@@ -382,7 +382,7 @@ export default function EventTournamentsPage() {
                 <tr>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.tournament')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.weapon')}</th>
-                  <th className="px-4 py-3 text-right">
+                  <th className="px-4 py-3 text-center">
                     {t('organizer.tournaments.table.registered')}
                   </th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.status')}</th>
@@ -404,7 +404,7 @@ export default function EventTournamentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>
-                    <td className="px-4 py-4 text-right font-mono text-sm tabular-nums text-slate-700">
+                    <td className="px-4 py-4 text-center font-mono text-sm tabular-nums text-slate-700">
                       {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
                     </td>
                     <td className="px-4 py-4">
