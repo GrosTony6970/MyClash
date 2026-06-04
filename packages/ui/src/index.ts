@@ -113,7 +113,12 @@ export { useSortableList } from './hooks/useSortableList';
 
 export { fuzzyMatch, normalizeForSearch } from './utils/fuzzy-match';
 
-export { accentClassFor, tintBgClassFor, tintTextClassFor } from './utils/color-token';
+export {
+  accentClassFor,
+  tintBgClassFor,
+  tintBorderClassFor,
+  tintTextClassFor,
+} from './utils/color-token';
 export type { ColorToken } from './utils/color-token';
 
 // ── Runtime feature-flags consumed by every app (banner + realtime) ──────

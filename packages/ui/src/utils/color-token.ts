@@ -69,6 +69,28 @@ const TINT_TEXT_MAP: Record<ColorToken, string> = {
   slate: 'text-slate-600',
 };
 
+// Matches TINT_TEXT_MAP's shade values one-for-one so the active-tab
+// underline + section-title text-colour pair visually. Listed as
+// literal strings (rather than runtime `text.replace`) so Tailwind's
+// content scanner picks each class up.
+const TINT_BORDER_MAP: Record<ColorToken, string> = {
+  red: 'border-red-700',
+  blue: 'border-blue-700',
+  green: 'border-green-700',
+  yellow: 'border-yellow-800',
+  purple: 'border-purple-700',
+  orange: 'border-orange-700',
+  black: 'border-slate-900',
+  white: 'border-slate-700',
+  amber: 'border-amber-700',
+  violet: 'border-violet-700',
+  teal: 'border-teal-700',
+  gold: 'border-amber-900',
+  silver: 'border-slate-700',
+  bronze: 'border-amber-800',
+  slate: 'border-slate-600',
+};
+
 function resolve(token: ColorToken | string | null | undefined): ColorToken {
   if (!token) return 'red';
   return (token in ACCENT_MAP ? token : 'red') as ColorToken;
@@ -87,4 +109,9 @@ export function tintBgClassFor(token: ColorToken | string | null | undefined): s
 /** Tint-paired text color class (used for pill text on a tinted background). */
 export function tintTextClassFor(token: ColorToken | string | null | undefined): string {
   return TINT_TEXT_MAP[resolve(token)];
+}
+
+/** Tint-paired border color class (matches tintTextClassFor's shade). */
+export function tintBorderClassFor(token: ColorToken | string | null | undefined): string {
+  return TINT_BORDER_MAP[resolve(token)];
 }

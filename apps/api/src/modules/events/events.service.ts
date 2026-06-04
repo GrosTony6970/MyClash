@@ -698,7 +698,7 @@ export class EventsService {
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, name, weapon, ruleset_code, status, logo_url')
+      .select('id, name, weapon, ruleset_code, status, logo_url, color')
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
@@ -721,6 +721,10 @@ export class EventsService {
       rulesetCode: tournament['ruleset_code'],
       status: tournament['status'],
       logoUrl: (tournament['logo_url'] as string | null) ?? null,
+      // Optional brand color token (e.g. 'red', 'blue'). The public
+      // page threads this through tab underlines, card outlines, and
+      // section titles via @myclash/ui's color-token helpers.
+      color: (tournament['color'] as string | null) ?? null,
     };
     if (!publicTournamentStatuses.includes(tournamentStatus)) {
       return {

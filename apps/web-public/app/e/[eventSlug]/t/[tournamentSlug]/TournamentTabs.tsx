@@ -2,8 +2,9 @@
 
 /**
  * Hash-driven tabs for the public tournament page.
- * Mirrors the admin's `border-b-2 border-red-800 text-red-800` pattern
- * with proper ARIA roles + keyboard nav (Arrow/Home/End).
+ * The active-tab underline + text colour pick up the tournament's
+ * configured `color` token (falls back to red when none is set).
+ * ARIA roles + keyboard nav (Arrow/Home/End) are preserved.
  *
  * Tab panels are wrapped with a CSS-driven cross-fade on switch; if
  * `prefers-reduced-motion` is set we hard-swap. We deliberately don't
@@ -11,6 +12,7 @@
  * client-component RSC boundary the rest of the page doesn't need.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 
 export type TabKey = 'pools' | 'standings' | 'bracket' | 'podium';
 
@@ -24,13 +26,30 @@ interface TabDef {
 interface Props {
   defaultTab: TabKey;
   tabs: TabDef[];
+  /**
+   * Optional brand color token (e.g. 'red', 'blue', 'amber'). Drives
+   * the active-tab border + text colour. Falls back to red-800 when
+   * null — preserves the original look for tournaments without a
+   * configured color.
+   */
+  colorToken?: string | null;
+}
+
+// Map a color token to the (border + text) Tailwind class pair used
+// on the active tab. The two helpers return matching shades so the
+// underline visually pairs with the text. Falls back to red-800 for
+// tournaments with no configured color (legacy look preserved).
+function activeTabClassesFor(token: string | null | undefined): string {
+  if (!token) return 'border-red-800 text-red-800';
+  return `${tintTextClassFor(token)} ${tintBorderClassFor(token)}`;
 }
 
 const TAB_ORDER: TabKey[] = ['pools', 'standings', 'bracket', 'podium'];
 
-export function TournamentTabs({ defaultTab, tabs }: Props) {
+export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   const visibleTabs = tabs.filter((t) => t.visible);
   const visibleKeys = visibleTabs.map((t) => t.key);
+  const activeClasses = activeTabClassesFor(colorToken);
 
   const [active, setActive] = useState<TabKey>(defaultTab);
   const tabRefs = useRef<Record<TabKey, HTMLButtonElement | null>>({
@@ -107,9 +126,7 @@ export function TournamentTabs({ defaultTab, tabs }: Props) {
               onKeyDown={onKeyDown}
               className={[
                 '-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40',
-                isActive
-                  ? 'border-red-800 text-red-800'
-                  : 'border-transparent text-slate-600 hover:text-slate-900',
+                isActive ? activeClasses : 'border-transparent text-slate-600 hover:text-slate-900',
               ].join(' ')}
             >
               {tab.label}

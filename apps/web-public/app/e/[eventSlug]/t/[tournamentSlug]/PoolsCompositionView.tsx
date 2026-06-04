@@ -10,7 +10,7 @@
  * Server component — fed by the SSR fetch on the tournament page.
  */
 
-import { SkillBadge } from '@myclash/ui';
+import { SkillBadge, tintTextClassFor } from '@myclash/ui';
 
 export interface PoolMember {
   registrationId: string;
@@ -42,7 +42,14 @@ interface Pool {
 
 interface Props {
   pools: Pool[];
+  /** Hex string used for the legacy vertical stripe on each card. */
   accentColor: string;
+  /**
+   * Tournament's brand color token (e.g. 'red', 'blue'). Drives the
+   * pool name text colour via tintTextClassFor. Null falls back to
+   * the existing slate-900 title.
+   */
+  colorToken?: string | null;
 }
 
 function refereeRoleLabel(role: string | null): string {
@@ -71,7 +78,9 @@ function statusLabel(status: string): string {
   return status;
 }
 
-export function PoolsCompositionView({ pools, accentColor }: Props) {
+export function PoolsCompositionView({ pools, accentColor, colorToken }: Props) {
+  const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
+
   if (pools.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
@@ -93,7 +102,7 @@ export function PoolsCompositionView({ pools, accentColor }: Props) {
             style={{ backgroundColor: accentColor }}
           />
           <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3 pl-5">
-            <h3 className="font-display text-lg font-semibold text-slate-900">{pool.name}</h3>
+            <h3 className={`font-display text-lg font-semibold ${titleClass}`}>{pool.name}</h3>
             <span className="text-xs uppercase tracking-wider text-slate-500">
               {pool.members.length} fighters
             </span>

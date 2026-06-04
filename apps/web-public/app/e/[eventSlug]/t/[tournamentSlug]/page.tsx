@@ -88,6 +88,14 @@ interface Tournament {
   weapon: string | null;
   rulesetCode: string;
   status: string;
+  /**
+   * Optional brand color token (e.g. 'red', 'blue', 'amber'). The
+   * page resolves it via colorTokenToHex for the legacy stripe/title
+   * paint AND threads the raw token through TournamentTabs +
+   * PoolsCompositionView so @myclash/ui's color-token helpers can
+   * paint the accent borders + section titles.
+   */
+  color?: string | null;
 }
 
 interface TournamentData {
@@ -344,6 +352,7 @@ export default async function TournamentPage({ params }: Props) {
       ) : (
         <TournamentTabs
           defaultTab={defaultTab}
+          colorToken={tournamentColor}
           tabs={[
             {
               key: 'pools',
@@ -358,6 +367,7 @@ export default async function TournamentPage({ params }: Props) {
                     referees: p.referees ?? [],
                   }))}
                   accentColor={accentColor}
+                  colorToken={tournamentColor}
                 />
               ),
             },
