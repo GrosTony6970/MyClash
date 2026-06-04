@@ -10,6 +10,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { LeaguesService } from '../leagues/leagues.service';
 import { ClubsService } from '../clubs/clubs.service';
+import { buildRoundCode } from '../matches/round-code.helper';
 import type {
   CreateEventDto,
   CreateTournamentDto,
@@ -759,6 +760,157 @@ export class EventsService {
       tournament: tournamentHeader,
       pools,
       ...bracket,
+    };
+  }
+
+  /**
+   * Public pools-with-matches projection for the spectator page. One
+   * entry per pool with the read-only match list (no admin pickers,
+   * no referee chips — referees still surface on the Pool List card
+   * footer). Gates on tournament status === published / running /
+   * completed; returns 404 otherwise (consistent with the standings
+   * endpoint above).
+   *
+   * Match projection mirrors what the admin's MatchesTab shows minus
+   * the per-match referee column: round code, fighter names + club
+   * abbreviations, score, status, lice name + color.
+   */
+  async getPublicTournamentPoolsWithMatches(eventSlug: string, tournamentSlug: string) {
+    const event = await this.getEventBySlug(eventSlug);
+    const eventId = (event as { id: string }).id;
+
+    const { data: tournament, error: tournamentError } = await this.supabase.service
+      .from('tournaments')
+      .select('id, weapon, status')
+      .eq('event_id', eventId)
+      .eq('slug', tournamentSlug)
+      .maybeSingle();
+    if (tournamentError) throw new BadRequestException(tournamentError.message);
+    if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
+    const tournamentStatus = (tournament as { status: string }).status;
+    if (!['published', 'running', 'completed'].includes(tournamentStatus)) {
+      return { tournamentId: (tournament as { id: string }).id, pools: [] };
+    }
+    const tournamentId = (tournament as { id: string }).id;
+    const weapon = (tournament as { weapon: string | null }).weapon ?? null;
+
+    // 1. Pool phase.
+    const { data: phaseRow } = await this.supabase.service
+      .from('phases')
+      .select('id, config_json')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+    if (!phaseRow) return { tournamentId, pools: [] };
+    const phaseId = (phaseRow as { id: string }).id;
+
+    // 2. Pools (id + name + sort_order so we can compute the canonical
+    //    pool number `P{sort_order + 1}` for the round code).
+    const { data: poolsData } = await this.supabase.service
+      .from('pools')
+      .select('id, name, sort_order')
+      .eq('phase_id', phaseId)
+      .order('sort_order', { ascending: true });
+    const pools = (poolsData ?? []) as Array<{
+      id: string;
+      name: string;
+      sort_order: number | null;
+    }>;
+    if (pools.length === 0) return { tournamentId, pools: [] };
+
+    const poolIds = pools.map((p) => p.id);
+
+    // 3. Matches for these pools. Nested joins resolve fighter names
+    //    via registrations → persons → clubs and the lice row for
+    //    color + name. Status / scores come straight off the matches
+    //    table.
+    const { data: matchesData, error: matchesError } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, status, scheduled_at, match_number_label, red_score, blue_score, pool_id, lice_id, ' +
+          'red:registrations!matches_red_registration_id_fkey(id, persons(given_name, family_name, clubs(abbreviation))), ' +
+          'blue:registrations!matches_blue_registration_id_fkey(id, persons(given_name, family_name, clubs(abbreviation))), ' +
+          'lices(id, name, color_hex)',
+      )
+      .in('pool_id', poolIds)
+      .order('pool_id', { ascending: true })
+      .order('match_number_label', { ascending: true });
+    if (matchesError) throw new BadRequestException(matchesError.message);
+
+    type PersonClubEmbed = {
+      given_name: string | null;
+      family_name: string | null;
+      clubs: { abbreviation: string | null } | null;
+    } | null;
+    type SideRel = { id: string; persons: PersonClubEmbed } | null;
+    type LiceRel = { id: string; name: string | null; color_hex: string | null } | null;
+    const matchRows = (matchesData ?? []) as unknown as Array<{
+      id: string;
+      status: string | null;
+      scheduled_at: string | null;
+      match_number_label: string | null;
+      red_score: number | null;
+      blue_score: number | null;
+      pool_id: string | null;
+      lice_id: string | null;
+      red: SideRel;
+      blue: SideRel;
+      lices: LiceRel;
+    }>;
+
+    function nameFrom(side: SideRel): string | null {
+      if (!side?.persons) return null;
+      const given = side.persons.given_name?.trim() ?? '';
+      const family = side.persons.family_name?.trim() ?? '';
+      const composed = `${given} ${family}`.trim();
+      return composed || null;
+    }
+    function clubAbbrevFrom(side: SideRel): string | null {
+      return side?.persons?.clubs?.abbreviation ?? null;
+    }
+
+    // 4. Group matches by pool + project. Round code uses the same
+    //    helper the admin matches list uses, so the public + admin
+    //    surfaces ship matching identifiers.
+    const matchesByPool = new Map<string, typeof matchRows>();
+    for (const m of matchRows) {
+      if (!m.pool_id) continue;
+      const list = matchesByPool.get(m.pool_id) ?? [];
+      list.push(m);
+      matchesByPool.set(m.pool_id, list);
+    }
+
+    return {
+      tournamentId,
+      pools: pools.map((pool) => {
+        const poolNumber = typeof pool.sort_order === 'number' ? pool.sort_order + 1 : null;
+        const rows = matchesByPool.get(pool.id) ?? [];
+        return {
+          poolId: pool.id,
+          poolName: pool.name,
+          matches: rows.map((m) => ({
+            matchId: m.id,
+            roundCode: buildRoundCode({
+              weapon,
+              poolNumber,
+              bracketRound: null,
+              bracketSize: null,
+              matchNumberLabel: m.match_number_label,
+              roundNumber: null,
+            }),
+            status: m.status ?? 'scheduled',
+            scheduledAt: m.scheduled_at,
+            redFighterName: nameFrom(m.red),
+            redClubAbbrev: clubAbbrevFrom(m.red),
+            redScore: m.red_score,
+            blueFighterName: nameFrom(m.blue),
+            blueClubAbbrev: clubAbbrevFrom(m.blue),
+            blueScore: m.blue_score,
+            liceName: m.lices?.name ?? null,
+            liceColorHex: m.lices?.color_hex ?? null,
+          })),
+        };
+      }),
     };
   }
 

@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 
-export type TabKey = 'pools' | 'standings' | 'bracket' | 'podium';
+export type TabKey = 'pools' | 'poolmatches' | 'standings' | 'bracket' | 'podium';
 
 interface TabDef {
   key: TabKey;
@@ -44,7 +44,7 @@ function activeTabClassesFor(token: string | null | undefined): string {
   return `${tintTextClassFor(token)} ${tintBorderClassFor(token)}`;
 }
 
-const TAB_ORDER: TabKey[] = ['pools', 'standings', 'bracket', 'podium'];
+const TAB_ORDER: TabKey[] = ['pools', 'poolmatches', 'standings', 'bracket', 'podium'];
 
 export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   const visibleTabs = tabs.filter((t) => t.visible);
@@ -54,6 +54,7 @@ export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   const [active, setActive] = useState<TabKey>(defaultTab);
   const tabRefs = useRef<Record<TabKey, HTMLButtonElement | null>>({
     pools: null,
+    poolmatches: null,
     standings: null,
     bracket: null,
     podium: null,

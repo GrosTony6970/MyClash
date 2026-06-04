@@ -1,0 +1,227 @@
+'use client';
+
+/**
+ * PoolMatchesView — read-only matches table per pool, surfaced on the
+ * public tournament page's new "Pool Matches" tab. Mirrors the admin
+ * MatchesTab but without the mutation pickers (Apply-to widgets,
+ * lice / referee dropdowns) — spectators only need to read.
+ *
+ * Columns: Round | Red fighter | Score | Score | Blue fighter |
+ * Status | Lice. Per-match referee chips are intentionally NOT shown
+ * here — those still surface on the Pool List card footer.
+ *
+ * Live updates: realtime on `exchanges` filtered by pool_id triggers
+ * a refetch of the whole projection. Same pattern as StandingsView.
+ */
+
+import { useCallback, useEffect, useState } from 'react';
+import { tintTextClassFor } from '@myclash/ui';
+import { supabase } from '@/lib/supabase';
+
+interface PoolMatch {
+  matchId: string;
+  roundCode: string;
+  status: string;
+  scheduledAt: string | null;
+  redFighterName: string | null;
+  redClubAbbrev: string | null;
+  redScore: number | null;
+  blueFighterName: string | null;
+  blueClubAbbrev: string | null;
+  blueScore: number | null;
+  liceName: string | null;
+  liceColorHex: string | null;
+}
+
+interface PoolWithMatches {
+  poolId: string;
+  poolName: string;
+  matches: PoolMatch[];
+}
+
+interface ApiResponse {
+  tournamentId: string;
+  pools: PoolWithMatches[];
+}
+
+interface Props {
+  eventSlug: string;
+  tournamentSlug: string;
+  apiUrl: string;
+  /** Optional tournament brand color token for the section title. */
+  colorToken?: string | null;
+}
+
+export function PoolMatchesView({ eventSlug, tournamentSlug, apiUrl, colorToken }: Props) {
+  const [pools, setPools] = useState<PoolWithMatches[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
+
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    void fetch(
+      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/tournaments/${encodeURIComponent(
+        tournamentSlug,
+      )}/pools-with-matches`,
+      { cache: 'no-store', signal: controller.signal },
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setPools((data as ApiResponse).pools);
+      })
+      .catch(() => {
+        // Swallow — keep showing last-known pools.
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [apiUrl, eventSlug, tournamentSlug, refreshKey]);
+
+  // Realtime: any exchange on this tournament's pool matches
+  // triggers a refetch. We subscribe by pool ids so the channel
+  // doesn't drift across tournaments.
+  useEffect(() => {
+    const poolIds = pools.map((p) => p.poolId);
+    if (poolIds.length === 0) return;
+    const channel = supabase
+      .channel(`pool-matches-${tournamentSlug}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'exchanges',
+          filter: `pool_id=in.(${poolIds.join(',')})`,
+        },
+        refresh,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matches',
+          filter: `pool_id=in.(${poolIds.join(',')})`,
+        },
+        refresh,
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [pools, tournamentSlug, refresh]);
+
+  if (loading && pools.length === 0) {
+    return <p className="text-sm italic text-slate-500">Loading…</p>;
+  }
+  if (pools.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+        Pool matches will be published once the organizer generates the schedule.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {pools.map((pool) => (
+        <article
+          key={pool.poolId}
+          className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+        >
+          <header className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
+            <h3 className={`font-display text-lg font-semibold ${titleClass}`}>{pool.poolName}</h3>
+            <span className="text-xs uppercase tracking-wider text-slate-500">
+              {pool.matches.length} matches
+            </span>
+          </header>
+          {pool.matches.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm italic text-slate-500">No matches yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-stone-100 bg-stone-50 text-left text-xs uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="w-32 px-4 py-2">Round</th>
+                    <th className="px-4 py-2">Red</th>
+                    <th className="w-12 px-2 py-2 text-center">Pts</th>
+                    <th className="w-12 px-2 py-2 text-center">Pts</th>
+                    <th className="px-4 py-2">Blue</th>
+                    <th className="w-24 px-4 py-2">Status</th>
+                    <th className="w-32 px-4 py-2">Lice</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pool.matches.map((m) => (
+                    <tr key={m.matchId} className="border-b border-stone-100 last:border-0">
+                      <td className="px-4 py-2 font-mono text-xs text-slate-600">{m.roundCode}</td>
+                      <td className="px-4 py-2">
+                        <span className="font-medium text-slate-900">
+                          {m.redFighterName ?? '—'}
+                        </span>
+                        {m.redClubAbbrev && (
+                          <span className="ml-2 rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
+                            {m.redClubAbbrev}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-center font-mono">{m.redScore ?? '—'}</td>
+                      <td className="px-2 py-2 text-center font-mono">{m.blueScore ?? '—'}</td>
+                      <td className="px-4 py-2">
+                        <span className="font-medium text-slate-900">
+                          {m.blueFighterName ?? '—'}
+                        </span>
+                        {m.blueClubAbbrev && (
+                          <span className="ml-2 rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
+                            {m.blueClubAbbrev}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        <StatusPill status={m.status} />
+                      </td>
+                      <td className="px-4 py-2">
+                        {m.liceName ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            {m.liceColorHex && (
+                              <span
+                                aria-hidden="true"
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: m.liceColorHex }}
+                              />
+                            )}
+                            <span className="text-xs text-slate-600">{m.liceName}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs italic text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const classes =
+    status === 'completed'
+      ? 'bg-emerald-100 text-emerald-700'
+      : status === 'running'
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-stone-100 text-slate-600';
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
+      {status}
+    </span>
+  );
+}

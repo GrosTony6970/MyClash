@@ -18,6 +18,7 @@ import { getApiUrl } from '@/lib/api-url';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { StandingsView } from './StandingsView';
+import { PoolMatchesView } from './PoolMatchesView';
 import { BracketLive } from './BracketLive';
 import { TournamentTabs, type TabKey } from './TournamentTabs';
 import { PoolsCompositionView, type PoolMember, type PoolReferee } from './PoolsCompositionView';
@@ -303,6 +304,7 @@ export default async function TournamentPage({ params }: Props) {
   // when the preferred default isn't available yet.
   const visibleByKey: Record<TabKey, boolean> = {
     pools: poolsTabVisible,
+    poolmatches: poolsTabVisible,
     standings: standingsTabVisible,
     bracket: bracketTabVisible,
     podium: podiumTabVisible,
@@ -313,7 +315,7 @@ export default async function TournamentPage({ params }: Props) {
       : tournament.status === 'running'
         ? 'standings'
         : 'pools';
-  const fallbackOrder: TabKey[] = ['pools', 'standings', 'bracket', 'podium'];
+  const fallbackOrder: TabKey[] = ['pools', 'poolmatches', 'standings', 'bracket', 'podium'];
   const defaultTab: TabKey = visibleByKey[preferredDefault]
     ? preferredDefault
     : (fallbackOrder.find((k) => visibleByKey[k]) ?? 'pools');
@@ -367,6 +369,19 @@ export default async function TournamentPage({ params }: Props) {
                     referees: p.referees ?? [],
                   }))}
                   accentColor={accentColor}
+                  colorToken={tournamentColor}
+                />
+              ),
+            },
+            {
+              key: 'poolmatches',
+              label: t('publicApp.tournament.tabs.poolMatches'),
+              visible: poolsTabVisible,
+              panel: (
+                <PoolMatchesView
+                  eventSlug={eventSlug}
+                  tournamentSlug={tournamentSlug}
+                  apiUrl={apiUrl}
                   colorToken={tournamentColor}
                 />
               ),

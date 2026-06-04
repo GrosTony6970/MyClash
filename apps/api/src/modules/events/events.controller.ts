@@ -124,6 +124,16 @@ export class EventsController {
     return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug);
   }
 
+  /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches */
+  @Get('events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches')
+  @ApiOperation({ summary: 'Public per-pool matches list (read-only) for the spectator page' })
+  async getPublicTournamentPoolsWithMatches(
+    @Param('eventSlug') eventSlug: string,
+    @Param('tournamentSlug') tournamentSlug: string,
+  ) {
+    return this.events.getPublicTournamentPoolsWithMatches(eventSlug, tournamentSlug);
+  }
+
   /** GET /api/v1/organizations/:orgId/events */
   @Get('organizations/:orgId/events')
   @ApiBearerAuth()
