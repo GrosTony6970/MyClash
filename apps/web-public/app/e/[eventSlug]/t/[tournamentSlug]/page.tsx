@@ -17,7 +17,7 @@ import type { Metadata } from 'next';
 import { getApiUrl } from '@/lib/api-url';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { t } from '@myclash/i18n';
-import { StandingsTable } from './StandingsTable';
+import { StandingsView } from './StandingsView';
 import { BracketLive } from './BracketLive';
 import { TournamentTabs, type TabKey } from './TournamentTabs';
 import { PoolsCompositionView, type PoolMember, type PoolReferee } from './PoolsCompositionView';
@@ -376,18 +376,12 @@ export default async function TournamentPage({ params }: Props) {
               label: t('publicApp.tournament.tabs.standings'),
               visible: standingsTabVisible,
               panel: (
-                <div className="flex flex-col gap-6">
-                  {pools.map((pool) => (
-                    <StandingsTable
-                      key={pool.id}
-                      poolId={pool.id}
-                      poolName={pool.name}
-                      initialStandings={pool.standings}
-                      tournamentId={tournament.id}
-                      apiUrl={apiUrl}
-                    />
-                  ))}
-                </div>
+                <StandingsView
+                  tournamentId={tournament.id}
+                  apiUrl={apiUrl}
+                  pools={pools}
+                  colorToken={tournamentColor}
+                />
               ),
             },
             {
