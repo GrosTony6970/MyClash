@@ -385,6 +385,19 @@ services:
       - traefik.http.routers.myclash-public-api.middlewares=myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-public-api.priority=30
       - traefik.http.routers.myclash-public-api.service=myclash-api
+      # Scoring same-origin API: scoring.${DOMAIN}/api/v1/* → API container.
+      # Needed so the scoring bundle (which fetches relative /api/v1 paths
+      # via getApiUrl()) keeps working when loaded from its own host. The
+      # admin proxy at admin.${DOMAIN}/scoring/* relies on the existing
+      # myclash-admin-api router for its /api/v1 calls — no new router
+      # there.
+      - traefik.http.routers.myclash-scoring-api.rule=Host(`scoring.${DOMAIN}`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.myclash-scoring-api.entrypoints=websecure
+      - traefik.http.routers.myclash-scoring-api.tls=true
+      - traefik.http.routers.myclash-scoring-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-scoring-api.middlewares=myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-scoring-api.priority=30
+      - traefik.http.routers.myclash-scoring-api.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
       # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
@@ -673,6 +686,21 @@ services:
       - traefik.http.routers.myclash-scoring.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-scoring.middlewares=myclash-security-headers@file,myclash-compress@file
       - traefik.http.services.myclash-scoring.loadbalancer.server.port=3000
+      # Admin same-origin proxy: admin.${DOMAIN}/scoring/* → scoring
+      # container with /scoring stripped. Lets the organizer click a
+      # match and land on the interactive scoring PWA inside admin
+      # (same-origin cookie, no cross-origin dev-cert prompt). The
+      # scoring bundle's relative-path fetches resolve to
+      # admin.${DOMAIN}/api/v1/* which the existing myclash-admin-api
+      # router already serves.
+      - traefik.http.middlewares.myclash-admin-scoring-strip.stripprefix.prefixes=/scoring
+      - traefik.http.routers.myclash-admin-scoring.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/scoring`)
+      - traefik.http.routers.myclash-admin-scoring.entrypoints=websecure
+      - traefik.http.routers.myclash-admin-scoring.tls=true
+      - traefik.http.routers.myclash-admin-scoring.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-admin-scoring.middlewares=myclash-security-headers@file,myclash-compress@file,myclash-admin-scoring-strip
+      - traefik.http.routers.myclash-admin-scoring.priority=30
+      - traefik.http.routers.myclash-admin-scoring.service=myclash-scoring
 
   # ── web-admin SPA (organizer + super admin) ───────────────────────
   web-admin:
