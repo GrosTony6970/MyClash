@@ -151,6 +151,15 @@ async function cropImageToBlob(imageSrc: string, pixelArea: Area): Promise<Blob 
   canvas.height = Math.max(1, Math.round(pixelArea.height));
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
+  // Fill with white before drawImage so transparent source pixels
+  // (common for brand assets supplied as transparent PNGs) become
+  // visible white pixels in the output. The org-logo surfaces (light
+  // sidebar, white card backgrounds, light list rows) would otherwise
+  // show the slate-50 container straight through, which the operator
+  // reads as "blank square" — even though the IMG is in the DOM and
+  // the bytes loaded successfully.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(
     image,
     pixelArea.x,
