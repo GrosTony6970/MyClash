@@ -692,19 +692,34 @@ export class MatchesService {
       .select('id, first_striker_color')
       .eq('match_id', matchId);
     if (exchangeError) throw new BadRequestException(exchangeError.message);
-    for (const exchange of exchanges ?? []) {
-      const row = exchange as { id: string; first_striker_color: string | null };
-      const next =
-        row.first_striker_color === 'red'
-          ? 'blue'
-          : row.first_striker_color === 'blue'
-            ? 'red'
-            : null;
-      if (next) {
-        await this.supabase.service
-          .from('exchanges')
-          .update({ first_striker_color: next })
-          .eq('id', row.id);
+    // Bulk-UPSERT replaces a per-row UPDATE loop: one round-trip
+    // regardless of exchange count. Each row maps to a different
+    // next colour (some red→blue, some blue→red), so a single
+    // .update().eq() won't work — UPSERT with onConflict='id' is
+    // the simplest batched form. Rows where first_striker_color is
+    // null (or anything other than red/blue) are filtered out
+    // before the upsert, matching the prior loop's `if (next)`
+    // skip behaviour.
+    type ColorRow = { id: string; first_striker_color: string | null };
+    const flipPayload = ((exchanges ?? []) as ColorRow[])
+      .map((row) => {
+        const next =
+          row.first_striker_color === 'red'
+            ? 'blue'
+            : row.first_striker_color === 'blue'
+              ? 'red'
+              : null;
+        return next ? { id: row.id, first_striker_color: next } : null;
+      })
+      .filter((row): row is { id: string; first_striker_color: string } => row !== null);
+    if (flipPayload.length > 0) {
+      const { error: flipErr } = await this.supabase.service
+        .from('exchanges')
+        .upsert(flipPayload, { onConflict: 'id' });
+      if (flipErr) {
+        throw new BadRequestException(
+          `Failed to swap exchange colours for match ${matchId}: ${flipErr.message}`,
+        );
       }
     }
     await this.scoring.recomputeMatchScore(matchId);
