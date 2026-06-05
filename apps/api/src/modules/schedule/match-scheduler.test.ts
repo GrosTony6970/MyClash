@@ -201,25 +201,30 @@ describe('scheduleMatches', () => {
       expect(Array.from(poolALices)[0]).not.toBe(Array.from(poolBLices)[0]);
     });
 
-    it('schedules the biggest pool first so smaller pools fit into the gaps', () => {
-      // Big pool: 5 matches. Small pool: 2 matches. 2 Lices.
-      // With biggest-first the big pool occupies its own Lice and the
-      // small pool fills the other Lice without contention.
+    it('lands pool i on lice i sorted by poolSortOrder regardless of pool size', () => {
+      // The operator's mental model is "Pool 1 → Lice 1, Pool 2 →
+      // Lice 2", not "biggest pool first". Even though pool-A is
+      // smaller than pool-B, pool-A's sortOrder=0 puts it on lice 1.
       const matches: SchedulerMatch[] = [
-        ...['s1', 's2'].map((id, i) => ({
+        ...['a1', 'a2'].map((id, i) => ({
           id,
-          poolId: 'pool-small',
-          redRegistrationId: `s-f${i * 2 + 1}`,
-          blueRegistrationId: `s-f${i * 2 + 2}`,
+          poolId: 'pool-A',
+          poolSortOrder: 0,
+          redRegistrationId: `a-f${i * 2 + 1}`,
+          blueRegistrationId: `a-f${i * 2 + 2}`,
         })),
-        ...['l1', 'l2', 'l3', 'l4', 'l5'].map((id, i) => ({
+        ...['b1', 'b2', 'b3', 'b4', 'b5'].map((id, i) => ({
           id,
-          poolId: 'pool-large',
-          redRegistrationId: `l-f${i * 2 + 1}`,
-          blueRegistrationId: `l-f${i * 2 + 2}`,
+          poolId: 'pool-B',
+          poolSortOrder: 1,
+          redRegistrationId: `b-f${i * 2 + 1}`,
+          blueRegistrationId: `b-f${i * 2 + 2}`,
         })),
       ];
-      const lices = makeLices(2);
+      const lices: SchedulerLice[] = [
+        { id: 'lice-1', name: 'Lice 1', sortOrder: 0 },
+        { id: 'lice-2', name: 'Lice 2', sortOrder: 1 },
+      ];
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
@@ -227,15 +232,158 @@ describe('scheduleMatches', () => {
         defaultMatchDurationMinutes: 5,
       });
 
-      const largeLice = result.scheduledMatches.find((s) => s.matchId === 'l1')!.liceId;
-      const smallLice = result.scheduledMatches.find((s) => s.matchId === 's1')!.liceId;
-      // Different lices — large pool gets one to itself.
-      expect(largeLice).not.toBe(smallLice);
-      // Large pool placed first, so it starts at exactly the start time.
-      const l1Start = new Date(
-        result.scheduledMatches.find((s) => s.matchId === 'l1')!.scheduledAt,
-      ).getTime();
-      expect(l1Start).toBe(new Date(START).getTime());
+      const poolA = result.scheduledMatches.find((s) => s.matchId === 'a1')!;
+      const poolB = result.scheduledMatches.find((s) => s.matchId === 'b1')!;
+      expect(poolA.liceId).toBe('lice-1');
+      expect(poolB.liceId).toBe('lice-2');
+    });
+
+    it('wraps pools modulo lice count when there are more pools than lices', () => {
+      const matches: SchedulerMatch[] = [
+        {
+          id: 'p1',
+          poolId: 'P1',
+          poolSortOrder: 0,
+          redRegistrationId: 'p1a',
+          blueRegistrationId: 'p1b',
+        },
+        {
+          id: 'p2',
+          poolId: 'P2',
+          poolSortOrder: 1,
+          redRegistrationId: 'p2a',
+          blueRegistrationId: 'p2b',
+        },
+        {
+          id: 'p3',
+          poolId: 'P3',
+          poolSortOrder: 2,
+          redRegistrationId: 'p3a',
+          blueRegistrationId: 'p3b',
+        },
+        {
+          id: 'p4',
+          poolId: 'P4',
+          poolSortOrder: 3,
+          redRegistrationId: 'p4a',
+          blueRegistrationId: 'p4b',
+        },
+      ];
+      const lices: SchedulerLice[] = [
+        { id: 'lice-1', name: 'Lice 1', sortOrder: 0 },
+        { id: 'lice-2', name: 'Lice 2', sortOrder: 1 },
+        { id: 'lice-3', name: 'Lice 3', sortOrder: 2 },
+      ];
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        poolAffinity: 'strict',
+        minRestMinutes: 0,
+        defaultMatchDurationMinutes: 5,
+      });
+
+      const liceOf = (id: string) => result.scheduledMatches.find((s) => s.matchId === id)!.liceId;
+      expect(liceOf('p1')).toBe('lice-1');
+      expect(liceOf('p2')).toBe('lice-2');
+      expect(liceOf('p3')).toBe('lice-3');
+      // 4 pools, 3 lices: pool 4 wraps onto lice 1.
+      expect(liceOf('p4')).toBe('lice-1');
+    });
+
+    it('iterates pool matches in numeric matchNumberLabel order (M1, M2, ... M10) not string sort', () => {
+      // Reproduces the operator-visible bug: matches stored as text
+      // labels M1, M10, M11, ..., M19, M2 would be processed in
+      // string order, putting M2 way after M19 and creating a
+      // fighter-overlap conflict when the rest tracker had already
+      // expired Valentin's rest from M19.
+      const matches: SchedulerMatch[] = [
+        {
+          id: 'a',
+          poolId: 'P',
+          matchNumberLabel: 'M10',
+          redRegistrationId: 'fa',
+          blueRegistrationId: 'fb',
+        },
+        {
+          id: 'b',
+          poolId: 'P',
+          matchNumberLabel: 'M1',
+          redRegistrationId: 'fc',
+          blueRegistrationId: 'fd',
+        },
+        {
+          id: 'c',
+          poolId: 'P',
+          matchNumberLabel: 'M2',
+          redRegistrationId: 'fe',
+          blueRegistrationId: 'ff',
+        },
+        {
+          id: 'd',
+          poolId: 'P',
+          matchNumberLabel: 'M19',
+          redRegistrationId: 'fg',
+          blueRegistrationId: 'fh',
+        },
+      ];
+      const lices: SchedulerLice[] = [{ id: 'lice-1', name: 'Lice 1', sortOrder: 0 }];
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        poolAffinity: 'strict',
+        minRestMinutes: 0,
+        defaultMatchDurationMinutes: 5,
+      });
+      const ordered = [...result.scheduledMatches].sort(
+        (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+      );
+      expect(ordered.map((s) => s.matchId)).toEqual(['b', 'c', 'a', 'd']);
+    });
+
+    it('does not let two matches sharing a fighter overlap (M19/M2 same-pool case)', () => {
+      // Same Valentin in M2 and M19 of the same pool. Numeric order
+      // schedules M2 right after M1; rest tracker pushes M19 well
+      // after M2 ends + minRest. They cannot collide.
+      const matches: SchedulerMatch[] = [
+        {
+          id: 'm1',
+          poolId: 'P',
+          matchNumberLabel: 'M1',
+          redRegistrationId: 'rem',
+          blueRegistrationId: 'ant',
+        },
+        {
+          id: 'm2',
+          poolId: 'P',
+          matchNumberLabel: 'M2',
+          redRegistrationId: 'val',
+          blueRegistrationId: 'cha',
+        },
+        {
+          id: 'm3',
+          poolId: 'P',
+          matchNumberLabel: 'M3',
+          redRegistrationId: 'ale',
+          blueRegistrationId: 'max',
+        },
+        {
+          id: 'm19',
+          poolId: 'P',
+          matchNumberLabel: 'M19',
+          redRegistrationId: 'max',
+          blueRegistrationId: 'val',
+        },
+      ];
+      const lices: SchedulerLice[] = [{ id: 'lice-1', name: 'Lice 1', sortOrder: 0 }];
+      const result = scheduleMatches(matches, lices, {
+        startTime: START,
+        poolAffinity: 'strict',
+        minRestMinutes: 10,
+        defaultMatchDurationMinutes: 5,
+      });
+      const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
+      const m19 = result.scheduledMatches.find((s) => s.matchId === 'm19')!;
+      const m2End = new Date(m2.estimatedEndAt).getTime();
+      const m19Start = new Date(m19.scheduledAt).getTime();
+      expect(m19Start).toBeGreaterThanOrEqual(m2End + 10 * 60_000);
     });
 
     it('falls back to per-match greedy when poolAffinity is "off" (bracket behaviour)', () => {

@@ -476,10 +476,14 @@ export class ProgrammeService {
 
     const { data: licesData } = await this.supabase.service
       .from('lices')
-      .select('id, name')
+      .select('id, name, sort_order')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
-    const allLices = (licesData ?? []) as Array<{ id: string; name: string }>;
+    const allLices = (licesData ?? []) as Array<{
+      id: string;
+      name: string;
+      sort_order: number | null;
+    }>;
 
     // Fail loud when the event has any competition block but no lices
     // configured. Without this the per-block loop below silently
@@ -565,8 +569,10 @@ export class ProgrammeService {
             redRegistrationId: m.red_registration_id,
             blueRegistrationId: m.blue_registration_id,
             poolId: m.pool_id,
+            poolSortOrder: m.pool_sort_order,
+            matchNumberLabel: m.match_number_label,
           })),
-          blockLices,
+          blockLices.map((l) => ({ id: l.id, name: l.name, sortOrder: l.sort_order })),
           {
             startTime: blockStartDt.toISOString(),
             defaultMatchDurationMinutes: block.matchDurationMinutes,
@@ -898,6 +904,8 @@ export class ProgrammeService {
       red_registration_id: string;
       blue_registration_id: string;
       pool_id: string | null;
+      pool_sort_order: number | null;
+      match_number_label: string | null;
       phase_id: string;
     }>
   > {
@@ -911,42 +919,59 @@ export class ProgrammeService {
       const poolPhaseIds = phases.filter((p) => p.type === 'pool').map((p) => p.id);
       if (poolPhaseIds.length === 0) return [];
 
+      // Pool sort_order joins back to the scheduler so pool i lands on
+      // lice i (operator's mental model). Without it the allocator
+      // wraps modulo at lice index 0 for every pool — the
+      // load-balancing fallback.
       const { data: poolsData } = await this.supabase.service
         .from('pools')
-        .select('id')
+        .select('id, sort_order')
         .in('phase_id', poolPhaseIds);
-      const poolIds = (poolsData ?? []).map((p) => (p as Record<string, string>)['id']);
+      const pools = (poolsData ?? []) as Array<{ id: string; sort_order: number | null }>;
+      const poolIds = pools.map((p) => p.id);
       if (poolIds.length === 0) return [];
+      const poolSortOrder = new Map<string, number | null>(pools.map((p) => [p.id, p.sort_order]));
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id, pool_id, phase_id')
+        .select(
+          'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id',
+        )
         .in('pool_id', poolIds)
         .order('pool_id', { ascending: true })
         .order('match_number_label', { ascending: true });
-      return (matchesData ?? []) as Array<{
+      const rows = (matchesData ?? []) as Array<{
         id: string;
         red_registration_id: string;
         blue_registration_id: string;
         pool_id: string | null;
+        match_number_label: string | null;
         phase_id: string;
       }>;
+      return rows.map((r) => ({
+        ...r,
+        pool_sort_order: r.pool_id ? (poolSortOrder.get(r.pool_id) ?? null) : null,
+      }));
     } else {
       const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
       if (bracketPhaseIds.length === 0) return [];
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
-        .select('id, red_registration_id, blue_registration_id, pool_id, phase_id')
+        .select(
+          'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id',
+        )
         .in('phase_id', bracketPhaseIds)
         .order('match_number_label', { ascending: true });
-      return (matchesData ?? []) as Array<{
+      const rows = (matchesData ?? []) as Array<{
         id: string;
         red_registration_id: string;
         blue_registration_id: string;
         pool_id: string | null;
+        match_number_label: string | null;
         phase_id: string;
       }>;
+      return rows.map((r) => ({ ...r, pool_sort_order: null }));
     }
   }
 

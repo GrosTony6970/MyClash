@@ -28,11 +28,29 @@ export interface SchedulerMatch {
    * finals matches typically leave this unset.
    */
   poolId?: string | null;
+  /**
+   * Pool sort_order from the DB (0-indexed). Used together with the
+   * lice's sort_order so pool i ends up on lice i — the operator's
+   * mental model. Falls back to caller-defined insertion order when
+   * unset (legacy behaviour).
+   */
+  poolSortOrder?: number | null;
+  /**
+   * Human-readable label like "M1", "M2", "M10". Iteration order
+   * within a pool falls back to numeric parse of the trailing digit
+   * group so the operator sees M1 → M2 → M3 (not the default string
+   * sort that puts M10 before M2). Falls back to insertion order
+   * when unset.
+   */
+  matchNumberLabel?: string | null;
 }
 
 export interface SchedulerLice {
   id: string;
   name: string;
+  /** Sort order from the DB (0-indexed). The allocator assigns pool
+   *  i to the lice with `sortOrder = i mod liceCount`. */
+  sortOrder?: number | null;
 }
 
 export interface SchedulerOptions {
@@ -105,7 +123,7 @@ export function scheduleMatches(
   // With strict affinity, matches sharing a poolId form one unit;
   // matches without a poolId stay as single-match units.
   // With affinity off, every match is its own unit (legacy behaviour).
-  type Unit = { poolId: string | null; matches: SchedulerMatch[] };
+  type Unit = { poolId: string | null; sortOrder: number; matches: SchedulerMatch[] };
   const units: Unit[] = [];
 
   if (poolAffinity === 'strict') {
@@ -116,38 +134,66 @@ export function scheduleMatches(
         arr.push(m);
         byPool.set(m.poolId, arr);
       } else {
-        units.push({ poolId: null, matches: [m] });
+        // Unpooled (bracket / finals) matches stay as single-match
+        // units. They run after all pools — high sort order sentinel
+        // sinks them past every real pool.
+        units.push({ poolId: null, sortOrder: Number.POSITIVE_INFINITY, matches: [m] });
       }
     }
     for (const [poolId, ms] of byPool) {
-      units.push({ poolId, matches: ms });
+      const sortOrder = ms.find((m) => m.poolSortOrder != null)?.poolSortOrder ?? 0;
+      units.push({ poolId, sortOrder, matches: ms });
     }
-    // Biggest pools first so they claim their dedicated Lice; smaller
-    // pools (and unpooled bracket matches) fill the remaining gaps.
-    units.sort((a, b) => b.matches.length - a.matches.length);
+    // Pools land on lices in operator-visible order: Pool 1 → Lice 1,
+    // Pool 2 → Lice 2, … (modulo wrap when pools > lices). Stable
+    // sort: ties on sortOrder fall back to poolId for determinism.
+    units.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return (a.poolId ?? '').localeCompare(b.poolId ?? '');
+    });
   } else {
-    for (const m of matches) units.push({ poolId: null, matches: [m] });
+    for (const m of matches) units.push({ poolId: null, sortOrder: 0, matches: [m] });
   }
 
-  for (const unit of units) {
-    // Pick one Lice for the whole unit: whichever is free earliest.
-    let bestLice: SchedulerLice | null = null;
-    let bestStart = Infinity;
-    for (const lice of lices) {
-      const liceFree = liceNextFree[lice.id] ?? startTime;
-      if (liceFree < bestStart) {
-        bestStart = liceFree;
-        bestLice = lice;
-      }
-    }
-    if (!bestLice) {
+  // Pre-sort lices by sortOrder so index assignment matches what the
+  // operator sees in the FE (Lice 1 first). Stable on ties.
+  const liceByIndex = [...lices].sort((a, b) => {
+    const sa = a.sortOrder ?? 0;
+    const sb = b.sortOrder ?? 0;
+    return sa - sb;
+  });
+
+  // Numeric label parse: extracts the trailing integer from a label
+  // like "M1", "L1-PA-M19", "P2-M28". Lets us iterate matches as M1
+  // → M2 → M3 instead of the default string sort M1 → M10 → M2.
+  // Falls back to Infinity so unlabelled matches sink to the end.
+  function matchNumericOrder(m: SchedulerMatch): number {
+    const match = /(\d+)$/.exec(m.matchNumberLabel ?? '');
+    return match ? Number.parseInt(match[1]!, 10) : Number.POSITIVE_INFINITY;
+  }
+
+  for (let unitIdx = 0; unitIdx < units.length; unitIdx++) {
+    const unit = units[unitIdx]!;
+    if (liceByIndex.length === 0) {
       for (const m of unit.matches) unscheduled.push(m.id);
       continue;
     }
 
-    // Schedule every match in this unit sequentially on the chosen Lice.
-    let cursor = bestStart;
-    for (const match of unit.matches) {
+    // Pool index → Lice index. Wrap modulo so surplus pools queue on
+    // top of earlier lices (preserves balance rather than piling
+    // everything on the last lice).
+    const assignedLice = liceByIndex[unitIdx % liceByIndex.length]!;
+    const liceStart = liceNextFree[assignedLice.id] ?? startTime;
+
+    // Schedule every match in this unit sequentially on the assigned
+    // Lice — iterating in numeric label order so rest constraints
+    // catch back-to-back appearances of the same fighter.
+    const orderedMatches = [...unit.matches].sort(
+      (a, b) => matchNumericOrder(a) - matchNumericOrder(b),
+    );
+
+    let cursor = liceStart;
+    for (const match of orderedMatches) {
       const duration = (match.estimatedDurationMinutes ?? 0) * 60_000 || defaultDuration;
       const redFree = fighterNextFree[match.redRegistrationId] ?? startTime;
       const blueFree = fighterNextFree[match.blueRegistrationId] ?? startTime;
@@ -158,8 +204,8 @@ export function scheduleMatches(
 
       scheduledMatches.push({
         matchId: match.id,
-        liceId: bestLice.id,
-        liceName: bestLice.name,
+        liceId: assignedLice.id,
+        liceName: assignedLice.name,
         scheduledAt: new Date(start).toISOString(),
         estimatedEndAt: new Date(end).toISOString(),
       });
@@ -168,7 +214,7 @@ export function scheduleMatches(
       fighterNextFree[match.redRegistrationId] = end + minRest;
       fighterNextFree[match.blueRegistrationId] = end + minRest;
     }
-    liceNextFree[bestLice.id] = cursor;
+    liceNextFree[assignedLice.id] = cursor;
   }
 
   // Compute load balance
