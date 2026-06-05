@@ -16,7 +16,8 @@ interface PublicEvent {
   id?: string | null;
   slug?: string | null;
   name?: string | null;
-  location?: string | null;
+  city?: string | null;
+  country?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   status?: string | null;

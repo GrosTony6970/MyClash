@@ -6,12 +6,15 @@
  */
 
 import Link from 'next/link';
+import { defaultLocale } from '@myclash/i18n';
+import { formatCountryName } from '@myclash/ui';
 import { EventBackLink } from './_components/EventBackLink';
 
 interface EventInfo {
   id: string;
   name: string;
-  location: string | null;
+  city: string | null;
+  country: string | null;
   startDate: string;
   endDate: string;
   publicLandingMd: string | null;
@@ -20,6 +23,12 @@ interface EventInfo {
   heroImageUrl: string | null;
   organizationName: string | null;
   organizationLogoUrl: string | null;
+}
+
+function formatEventPlace(event: Pick<EventInfo, 'city' | 'country'>): string | null {
+  const countryName = formatCountryName(event.country, defaultLocale);
+  const parts = [event.city, countryName].filter((v): v is string => Boolean(v));
+  return parts.length === 0 ? null : parts.join(', ');
 }
 
 interface Tournament {
@@ -94,7 +103,8 @@ async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventI
     return {
       id: String(raw['id'] ?? ''),
       name: String(raw['name'] ?? ''),
-      location: typeof raw['location'] === 'string' ? raw['location'] : null,
+      city: typeof raw['city'] === 'string' ? raw['city'] : null,
+      country: typeof raw['country'] === 'string' ? raw['country'] : null,
       startDate: String(raw['start_date'] ?? raw['startDate'] ?? ''),
       endDate: String(raw['end_date'] ?? raw['endDate'] ?? ''),
       publicLandingMd:
@@ -261,7 +271,10 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
             {event.organizationName && (
               <p className="text-sm font-semibold text-slate-700">{event.organizationName}</p>
             )}
-            {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+            {(() => {
+              const place = formatEventPlace(event);
+              return place ? <p className="text-sm text-slate-500">{place}</p> : null;
+            })()}
             <p className="mt-0.5 text-sm text-slate-500">
               {formatDateRange(event.startDate, event.endDate)}
             </p>

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { defaultLocale } from '@myclash/i18n';
+import { formatCountryName } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
 import { ParticipantsList } from './_components/ParticipantsList';
 import type { ParticipantLike } from './_components/filter-participants';
@@ -8,12 +10,19 @@ export const revalidate = 0;
 
 interface EventInfo {
   name: string;
-  location: string | null;
+  city: string | null;
+  country: string | null;
   startDate: string;
   endDate: string;
   logoUrl: string | null;
   organizationName: string | null;
   organizationLogoUrl: string | null;
+}
+
+function formatEventPlace(event: Pick<EventInfo, 'city' | 'country'>): string | null {
+  const countryName = formatCountryName(event.country, defaultLocale);
+  const parts = [event.city, countryName].filter((v): v is string => Boolean(v));
+  return parts.length === 0 ? null : parts.join(', ');
 }
 
 async function fetchEventInfo(eventSlug: string): Promise<EventInfo | null> {
@@ -27,7 +36,8 @@ async function fetchEventInfo(eventSlug: string): Promise<EventInfo | null> {
     const org = raw['organizations'] as { name?: string; logo_url?: string } | null;
     return {
       name: String(raw['name'] ?? ''),
-      location: typeof raw['location'] === 'string' ? raw['location'] : null,
+      city: typeof raw['city'] === 'string' ? raw['city'] : null,
+      country: typeof raw['country'] === 'string' ? raw['country'] : null,
       startDate: String(raw['start_date'] ?? ''),
       endDate: String(raw['end_date'] ?? ''),
       logoUrl: typeof raw['logo_url'] === 'string' ? String(raw['logo_url']) : null,
@@ -74,7 +84,7 @@ export async function generateMetadata({
   if (!event) return { title: 'Participants · MyClash', description: '' };
   return {
     title: `Participants · ${event.name} · MyClash`,
-    description: `Roster for ${event.name}${event.location ? ` in ${event.location}` : ''}.`,
+    description: `Roster for ${event.name}${formatEventPlace(event) ? ` in ${formatEventPlace(event)}` : ''}.`,
   };
 }
 
@@ -121,7 +131,10 @@ export default async function ParticipantsPage({
             {event.organizationName && (
               <p className="text-sm text-slate-700">{event.organizationName}</p>
             )}
-            {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+            {(() => {
+              const place = formatEventPlace(event);
+              return place ? <p className="text-sm text-slate-500">{place}</p> : null;
+            })()}
             <p className="text-sm text-slate-500">
               {formatDateRange(event.startDate, event.endDate)}
             </p>

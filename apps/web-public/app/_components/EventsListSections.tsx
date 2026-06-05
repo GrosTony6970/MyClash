@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { t } from '@myclash/i18n';
+import { defaultLocale, t } from '@myclash/i18n';
+import { formatCountryName } from '@myclash/ui';
 import { partitionAndFilterEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
 import { formatDateRange } from './format-date-range';
@@ -11,7 +12,8 @@ interface PublicEvent {
   id?: string | null;
   slug?: string | null;
   name?: string | null;
-  location?: string | null;
+  city?: string | null;
+  country?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   status?: string | null;
@@ -29,6 +31,12 @@ interface PublicEvent {
 }
 
 const DEFAULT_ORG_ACCENT = '#dc2626';
+
+function formatEventLocation(event: PublicEvent): string | null {
+  const countryName = formatCountryName(event.country, defaultLocale);
+  const parts = [event.city, countryName].filter((v): v is string => Boolean(v));
+  return parts.length === 0 ? null : parts.join(', ');
+}
 
 function eventHref(event: PublicEvent): string {
   return `/e/${encodeURIComponent(event.slug ?? event.id ?? '')}/home`;
@@ -193,9 +201,10 @@ function LiveSection({ events, query }: { events: PublicEvent[]; query: string }
                     <p className="font-display text-lg font-semibold leading-tight text-slate-900">
                       {event.name ?? t('publicApp.home.unknownEvent')}
                     </p>
-                    {event.location && (
-                      <p className="mt-1 text-sm text-slate-500">{event.location}</p>
-                    )}
+                    {(() => {
+                      const place = formatEventLocation(event);
+                      return place ? <p className="mt-1 text-sm text-slate-500">{place}</p> : null;
+                    })()}
                   </div>
                   <LiveTag />
                 </div>
@@ -259,7 +268,7 @@ function EventRow({ event, variant }: TableRowProps) {
           <span className="font-medium text-slate-600 md:hidden">
             {t('publicApp.home.colLocation')} ·{' '}
           </span>
-          {event.location ?? '—'}
+          {formatEventLocation(event) ?? '—'}
         </p>
         <p className="text-sm text-slate-500">
           <span className="font-medium text-slate-600 md:hidden">

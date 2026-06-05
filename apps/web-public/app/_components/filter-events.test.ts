@@ -5,7 +5,8 @@ const ev = (overrides: Partial<PublicEventLike>): PublicEventLike => ({
   id: overrides.id ?? 'e1',
   name: overrides.name ?? '',
   status: overrides.status ?? 'published',
-  location: overrides.location ?? null,
+  city: overrides.city ?? null,
+  country: overrides.country ?? null,
   organizations: overrides.organizations ?? null,
   ...overrides,
 });
@@ -25,11 +26,11 @@ describe('partitionAndFilterEvents', () => {
     expect(out.past.map((e) => e.id)).toEqual(['c']);
   });
 
-  it('matches the query case-insensitively against name + location + org name', () => {
+  it('matches the query case-insensitively against name + city + country + org name', () => {
     const out = partitionAndFilterEvents(
       [
         ev({ id: 'a', status: 'published', name: 'Lyon Spring' }),
-        ev({ id: 'b', status: 'published', location: 'Paris' }),
+        ev({ id: 'b', status: 'published', city: 'Paris' }),
         ev({
           id: 'c',
           status: 'published',
@@ -40,6 +41,17 @@ describe('partitionAndFilterEvents', () => {
       'lyon',
     );
     expect(out.published.map((e) => e.id).sort()).toEqual(['a', 'c']);
+  });
+
+  it('matches against the country code so operators can search "FR"', () => {
+    const out = partitionAndFilterEvents(
+      [
+        ev({ id: 'a', status: 'published', country: 'FR' }),
+        ev({ id: 'b', status: 'published', country: 'DE' }),
+      ],
+      'fr',
+    );
+    expect(out.published.map((e) => e.id)).toEqual(['a']);
   });
 
   it('trims whitespace from the query', () => {

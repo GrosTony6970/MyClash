@@ -11,7 +11,8 @@ export interface PublicEventLike {
   id?: string | null;
   name?: string | null;
   status?: string | null;
-  location?: string | null;
+  city?: string | null;
+  country?: string | null;
   organizations?: { name?: string | null; slug?: string | null; logo_url?: string | null } | null;
 }
 
@@ -28,7 +29,7 @@ export function partitionAndFilterEvents<T extends PublicEventLike>(
   const needle = rawQuery.trim().toLowerCase();
   const matches = (e: T) => {
     if (needle === '') return true;
-    const haystack = [e.name, e.location, e.organizations?.name]
+    const haystack = [e.name, e.city, e.country, e.organizations?.name]
       .filter((v): v is string => typeof v === 'string')
       .join(' ')
       .toLowerCase();
