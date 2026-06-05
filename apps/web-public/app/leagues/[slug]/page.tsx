@@ -1,12 +1,15 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getApiUrl } from '@/lib/api-url';
 import { t } from '@myclash/i18n';
+import { accentClassFor } from '@myclash/ui';
+import { getApiUrl } from '@/lib/api-url';
 
 interface League {
   id: string;
   name: string;
   season_year: number;
   description: string | null;
+  logo_url: string | null;
 }
 
 interface StandingRow {
@@ -55,6 +58,31 @@ async function fetchStandings(apiUrl: string, leagueId: string): Promise<Standin
   }
 }
 
+function initialsFor(name: string | null | undefined): string {
+  const value = (name ?? '').trim();
+  if (!value) return '··';
+  const parts = value.split(/\s+/u).filter(Boolean);
+  if (parts.length >= 2) return (parts[0]!.charAt(0) + parts[1]!.charAt(0)).toUpperCase();
+  return value.slice(0, 2).toUpperCase();
+}
+
+function rankBadge(rank: number): React.ReactNode {
+  const token = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null;
+  if (!token) {
+    return <span className="text-sm font-semibold tabular-nums text-slate-500">{rank}</span>;
+  }
+  return (
+    <span
+      className={[
+        'inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm tabular-nums',
+        accentClassFor(token),
+      ].join(' ')}
+    >
+      {rank}
+    </span>
+  );
+}
+
 export default async function PublicLeagueStandingsPage({
   params,
 }: {
@@ -69,62 +97,96 @@ export default async function PublicLeagueStandingsPage({
   const rows = standings?.rows ?? [];
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold text-white">{league.name}</h1>
-        <p className="text-sm text-gray-400 mt-1">{league.season_year}</p>
-      </div>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6">
+      <Link
+        href="/"
+        className="inline-flex items-center text-sm font-semibold text-red-700 hover:text-red-800"
+      >
+        ← {t('publicApp.leagues.backToHome')}
+      </Link>
 
-      <div className="overflow-x-auto rounded-lg border border-white/10">
-        <table className="min-w-full text-sm">
-          <thead className="bg-white/10 text-gray-300">
-            <tr>
-              <th className="px-3 py-2 text-left">{t('admin.leagues.standings')}</th>
-              <th className="px-3 py-2 text-left">{t('admin.leagues.fighter')}</th>
-              <th className="px-3 py-2 text-left">{t('admin.leagues.club')}</th>
-              <th className="px-3 py-2 text-right">{t('admin.leagues.totalPoints')}</th>
-              {columns.map((column) => (
-                <th key={column.tournament_id} className="px-3 py-2 text-left">
-                  {column.tournaments?.events?.name ?? column.tournaments?.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t border-white/10 text-gray-100">
-                <td className="px-3 py-2">{medal(row.rank)}</td>
-                <td className="px-3 py-2">{row.fighters?.display_name ?? row.id}</td>
-                <td className="px-3 py-2">{row.fighters?.clubs?.name ?? t('common.unknown')}</td>
-                <td className="px-3 py-2 text-right font-semibold">{row.total_points}</td>
-                {columns.map((column) => {
-                  const result = row.per_tournament.find(
-                    (item) => item.tournamentId === column.tournament_id,
-                  );
-                  return (
-                    <td key={column.tournament_id} className="px-3 py-2">
-                      {result
-                        ? `${result.finalRank} / ${result.leaguePoints}`
-                        : t('admin.leagues.dnp')}
-                    </td>
-                  );
-                })}
+      <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:py-8">
+        {league.logo_url ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={league.logo_url}
+            alt=""
+            className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white object-cover"
+          />
+        ) : (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-slate-50 text-base font-semibold text-slate-500">
+            {initialsFor(league.name)}
+          </div>
+        )}
+        <div className="flex-1">
+          <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
+            {league.name}
+          </h1>
+          {league.season_year != null && (
+            <p className="text-sm tabular-nums text-slate-500">{league.season_year}</p>
+          )}
+          {league.description && (
+            <p className="mt-2 max-w-prose text-sm leading-6 text-slate-600">
+              {league.description}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+          {t('publicApp.leagues.empty')}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white shadow-sm">
+          <table className="min-w-full text-sm">
+            <thead className="bg-stone-50 text-slate-600">
+              <tr className="text-xs font-semibold uppercase tracking-wider">
+                <th className="px-3 py-2 text-left">{t('publicApp.leagues.rankColumn')}</th>
+                <th className="px-3 py-2 text-left">{t('publicApp.leagues.fighterColumn')}</th>
+                <th className="px-3 py-2 text-left">{t('publicApp.leagues.clubColumn')}</th>
+                <th className="px-3 py-2 text-right">{t('publicApp.leagues.totalPointsColumn')}</th>
+                {columns.map((column) => (
+                  <th key={column.tournament_id} className="px-3 py-2 text-left">
+                    {column.tournaments?.events?.name ?? column.tournaments?.name ?? '—'}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {rows.length === 0 && (
-        <p className="text-sm text-gray-400 mt-5">{t('admin.leagues.empty')}</p>
+            </thead>
+            <tbody className="text-slate-800">
+              {rows.map((row) => (
+                <tr key={row.id} className="border-t border-stone-100 even:bg-slate-50/50">
+                  <td className="px-3 py-2">{rankBadge(row.rank)}</td>
+                  <td className="px-3 py-2 font-medium text-slate-900">
+                    {row.fighters?.display_name ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">{row.fighters?.clubs?.name ?? '—'}</td>
+                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
+                    {row.total_points}
+                  </td>
+                  {columns.map((column) => {
+                    const result = row.per_tournament.find(
+                      (item) => item.tournamentId === column.tournament_id,
+                    );
+                    return (
+                      <td
+                        key={column.tournament_id}
+                        className="px-3 py-2 tabular-nums text-slate-700"
+                      >
+                        {result ? (
+                          `${result.finalRank} / ${result.leaguePoints}`
+                        ) : (
+                          <span className="text-slate-400">{t('publicApp.leagues.dnp')}</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   );
-}
-
-function medal(rank: number): string {
-  if (rank === 1) return '1';
-  if (rank === 2) return '2';
-  if (rank === 3) return '3';
-  return String(rank);
 }

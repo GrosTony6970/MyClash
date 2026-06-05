@@ -404,6 +404,15 @@ export const en = {
         modeByPool: 'Per pool',
       },
     },
+    leagues: {
+      backToHome: 'Back to home',
+      rankColumn: 'Rank',
+      fighterColumn: 'Fighter',
+      clubColumn: 'Club',
+      totalPointsColumn: 'Total points',
+      dnp: 'DNP',
+      empty: 'No standings to show yet.',
+    },
   },
   metadata: {
     publicTitle: 'MyClash',
@@ -4268,6 +4277,15 @@ export const fr = {
         modeOverall: 'Général',
         modeByPool: 'Par poule',
       },
+    },
+    leagues: {
+      backToHome: "Retour à l'accueil",
+      rankColumn: 'Rang',
+      fighterColumn: 'Tireur',
+      clubColumn: 'Club',
+      totalPointsColumn: 'Points totaux',
+      dnp: 'NP',
+      empty: 'Aucun classement à afficher pour le moment.',
     },
   },
   metadata: {
