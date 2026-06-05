@@ -10,6 +10,7 @@ import {
   tintBorderClassFor,
   tintTextClassFor,
 } from '@myclash/ui';
+import { placeWithShift } from './place-with-shift';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
@@ -536,12 +537,48 @@ export function ScheduleGrid({
       toLiceId: liceId,
       toScheduledAt: newScheduledAt,
     });
-    const updated = matches.map((m) =>
-      m.id === match.id ? { ...m, liceId, scheduledAt: newScheduledAt } : m,
-    );
+
+    // Build a placeable representation of every match currently on the
+    // target lice on the active day (excluding the one being dropped if
+    // it was already there). placeWithShift cascades downward, with an
+    // upward fallback when the drop is too close to the grid end.
+    const span = Math.max(1, Math.floor(match.durationMinutes / SLOT_MINUTES));
+    const occupants = matches
+      .filter(
+        (m) =>
+          m.id !== match.id &&
+          m.liceId === liceId &&
+          m.scheduledAt &&
+          matchBelongsToDay(m.scheduledAt, activeDay),
+      )
+      .map((m) => ({
+        id: m.id,
+        slot: isoToSlot(m.scheduledAt!, activeDay),
+        span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
+      }));
+    const placement = placeWithShift({
+      items: occupants,
+      dropped: { id: match.id, slot, span },
+      dropSlot: slot,
+      gridEndSlot: TOTAL_SLOTS,
+    });
+    const shiftedById = new Map(placement.shifted.map((s) => [s.id, s.slot]));
+    const updated = matches.map((m) => {
+      if (m.id === match.id) return { ...m, liceId, scheduledAt: newScheduledAt };
+      const newSlot = shiftedById.get(m.id);
+      if (newSlot == null) return m;
+      return { ...m, scheduledAt: slotToTime(newSlot, activeDay) };
+    });
     setMatches(updated);
     setConflicts(detectConflicts(updated));
     void saveMatchPosition(match.id, liceId, newScheduledAt);
+    // Fan-out PATCHes for every neighbour the shift moved. Fire-and-
+    // forget; refetch on next render keeps state honest.
+    for (const s of placement.shifted) {
+      const moved = matches.find((m) => m.id === s.id);
+      if (!moved) continue;
+      void saveMatchPosition(s.id, liceId, slotToTime(s.slot, activeDay));
+    }
     dragMatch.current = null;
   }
 
