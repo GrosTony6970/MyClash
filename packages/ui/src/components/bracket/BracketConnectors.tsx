@@ -35,6 +35,19 @@ interface Rect {
 export function BracketConnectors({ cardRefs, edges, containerRef }: BracketConnectorsProps) {
   const [, force] = React.useReducer((x: number) => x + 1, 0);
 
+  // Snapshot of the slot IDs that own a card in this bracket. Used
+  // as a stable dep for the ResizeObserver effect so the observer
+  // re-subscribes the moment a new card mounts (the cardRefs Map is
+  // mutated in place and on its own wouldn't trigger a re-run).
+  const slotIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of edges) {
+      ids.add(e.from);
+      ids.add(e.to);
+    }
+    return Array.from(ids).sort().join(',');
+  }, [edges]);
+
   React.useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -44,7 +57,8 @@ export function BracketConnectors({ cardRefs, edges, containerRef }: BracketConn
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-  }, [cardRefs, containerRef, edges]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardRefs, containerRef, slotIds]);
 
   // First-paint after mount: cardRefs are populated by the children's
   // callback refs during commit, but this component has already
@@ -57,6 +71,17 @@ export function BracketConnectors({ cardRefs, edges, containerRef }: BracketConn
   React.useEffect(() => {
     const id = requestAnimationFrame(() => force());
     return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Defensive second pass on the next macrotask. Catches the case
+  // where the RAF above fires before every callback ref has
+  // resolved — happens on lazy-mounting tab panels, nested
+  // overflow-x-auto containers, and post-hydration scroll
+  // restoration. Cheap no-op when the first pass already produced
+  // paths; the recomputed map matches and React skips the update.
+  React.useEffect(() => {
+    const id = window.setTimeout(() => force(), 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   const container = containerRef.current;

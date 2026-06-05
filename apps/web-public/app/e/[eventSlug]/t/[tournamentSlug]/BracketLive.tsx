@@ -12,7 +12,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BracketView, type BracketSlotData } from '@myclash/ui';
+import { BracketView, MedalPodium, type BracketSlotData, type PodiumData } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
 import type { BracketSlot } from './page';
 
@@ -29,6 +29,13 @@ interface Props {
   hasPlayInRound?: boolean;
   rounds: number;
   weapon: string | null;
+  /** Derived podium (gold/silver/bronze/fourth). Page-level
+   *  derivePodium() owns the computation; we only render. */
+  podium?: PodiumData;
+  /** True when at least gold + silver are decided. Matches the
+   *  same gate the Podium tab uses so an in-progress bracket
+   *  doesn't render "results pending" tiles above the cards. */
+  podiumDecided?: boolean;
 }
 
 interface TournamentDataLike {
@@ -55,6 +62,8 @@ export function BracketLive({
   hasPlayInRound,
   rounds,
   weapon,
+  podium,
+  podiumDecided,
 }: Props) {
   const router = useRouter();
   const [slots, setSlots] = useState<BracketSlot[]>(initialSlots);
@@ -122,23 +131,25 @@ export function BracketLive({
   }));
 
   return (
-    <div
-      className="overflow-x-auto pb-4"
-      role="region"
-      aria-label="Tournament bracket"
-      aria-live="polite"
-    >
-      <BracketView
-        slots={adminShapeSlots}
-        rounds={rounds}
-        bracketSize={bracketSize}
-        weapon={weapon}
-        bracketConfig={{
-          phaseType: 'single_elim',
-          rounds,
-        }}
-        onMatchClick={onMatchClick}
-      />
+    <div role="region" aria-label="Tournament bracket" aria-live="polite">
+      {podium && podiumDecided && (
+        <div className="mb-6 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+          <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
+        </div>
+      )}
+      <div className="overflow-x-auto pb-4">
+        <BracketView
+          slots={adminShapeSlots}
+          rounds={rounds}
+          bracketSize={bracketSize}
+          weapon={weapon}
+          bracketConfig={{
+            phaseType: 'single_elim',
+            rounds,
+          }}
+          onMatchClick={onMatchClick}
+        />
+      </div>
       <p className="mt-4 text-xs text-slate-500">
         {bracketSize}-fighter bracket
         {mainBracketSize && mainBracketSize !== bracketSize && ` · main ${mainBracketSize}`}

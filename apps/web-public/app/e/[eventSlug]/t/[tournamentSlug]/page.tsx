@@ -417,6 +417,8 @@ export default async function TournamentPage({ params }: Props) {
                   hasPlayInRound={hasPlayInRound}
                   rounds={bracketRounds}
                   weapon={tournament.weapon}
+                  podium={podium}
+                  podiumDecided={podiumDecided}
                 />
               ),
             },
