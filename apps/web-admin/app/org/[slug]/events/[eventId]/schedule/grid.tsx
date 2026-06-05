@@ -3,7 +3,13 @@
 /* eslint-disable myclash/no-literal-string */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { ConfirmDialog, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import {
+  ConfirmDialog,
+  accentClassFor,
+  tintBgClassFor,
+  tintBorderClassFor,
+  tintTextClassFor,
+} from '@myclash/ui';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
@@ -748,8 +754,15 @@ export function ScheduleGrid({
     tournamentName: string | null;
     tournamentColor: string | null;
     minSlot: number;
+    /** Exclusive end slot — last match's slot + its span. The band's
+     *  bottom edge sits here so it visually wraps every pool match. */
+    endSlot: number;
     minLiceIndex: number;
     matchCount: number;
+    /** All match IDs in this pool group, in scheduled-time order.
+     *  Powers the drag-by-name payload (same shape as the unscheduled
+     *  pool-tile drag at line 1076). */
+    matchIds: string[];
   };
   const poolGroupsOnActiveDay = useMemo<PoolGroup[]>(() => {
     if (!activeDay) return [];
@@ -759,6 +772,8 @@ export function ScheduleGrid({
       const liceIndex = lices.findIndex((l) => l.id === m.liceId);
       if (liceIndex === -1) continue;
       const slot = isoToSlot(m.scheduledAt!, activeDay);
+      const span = Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES));
+      const endSlot = slot + span;
       const existing = byPool.get(m.poolId);
       if (!existing) {
         byPool.set(m.poolId, {
@@ -767,15 +782,19 @@ export function ScheduleGrid({
           tournamentName: m.tournamentName,
           tournamentColor: m.tournamentColor,
           minSlot: slot,
+          endSlot,
           minLiceIndex: liceIndex,
           matchCount: 1,
+          matchIds: [m.id],
         });
       } else {
         existing.matchCount += 1;
+        existing.matchIds.push(m.id);
         if (slot < existing.minSlot) {
           existing.minSlot = slot;
           existing.minLiceIndex = liceIndex;
         }
+        if (endSlot > existing.endSlot) existing.endSlot = endSlot;
       }
     }
     return Array.from(byPool.values());
@@ -1299,31 +1318,84 @@ export function ScheduleGrid({
                 );
               })}
 
-              {/* Slice 6: per-pool handle. Anchored to the topmost match
-                  of each pool group on the active day. Clicking the
-                  handle opens the confirm modal for clearing the pool. */}
+              {/* Pool block: tinted band wrapping every match in the
+                  pool on the active day, plus a prominent draggable
+                  header strip at the top. The band uses dashed colored
+                  borders to read as a container; matches inside keep
+                  their own solid styling and stay above the band via
+                  z-index so the operator can still drag individual
+                  cards out of the pool. */}
               {poolGroupsOnActiveDay.map((group) => {
+                const bandRowStart = group.minSlot + 3;
+                const bandRowEnd = group.endSlot + 3;
+                const headerRowEnd = Math.min(bandRowEnd, bandRowStart + 1);
                 return (
-                  <button
-                    key={group.poolId}
-                    type="button"
-                    onClick={() => setPendingPoolClear(group)}
-                    title={`${group.poolName} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — click to clear the pool`}
-                    className={[
-                      'absolute -translate-y-full self-start rounded-t-md px-1.5 py-0.5 text-[10px] font-bold leading-none shadow-sm border border-b-0 hover:shadow-md transition-shadow',
-                      tintBgClassFor(group.tournamentColor),
-                      tintBorderClassFor(group.tournamentColor),
-                      tintTextClassFor(group.tournamentColor),
-                    ].join(' ')}
-                    style={{
-                      gridColumn: group.minLiceIndex + 2,
-                      gridRow: group.minSlot + 3,
-                      zIndex: 12,
-                      pointerEvents: 'auto',
-                    }}
-                  >
-                    {group.poolName} · {group.matchCount}
-                  </button>
+                  <Fragment key={group.poolId}>
+                    {/* Translucent band — purely decorative, pointer-events
+                        none so individual match drags inside the band still
+                        work. */}
+                    <div
+                      aria-hidden="true"
+                      className={[
+                        'pointer-events-none rounded-md border-2 border-dashed',
+                        tintBgClassFor(group.tournamentColor),
+                        tintBorderClassFor(group.tournamentColor),
+                      ].join(' ')}
+                      style={{
+                        gridColumn: group.minLiceIndex + 2,
+                        gridRow: `${bandRowStart} / ${bandRowEnd}`,
+                        margin: '1px',
+                        opacity: 0.45,
+                        zIndex: 5,
+                      }}
+                    />
+                    {/* Drag handle: bold header strip the operator drags
+                        to move the whole pool. Reuses the same
+                        dragPool payload shape as the unscheduled-pool
+                        tile, so the existing handleDrop / handlePoolDrop
+                        paths work unchanged. */}
+                    <div
+                      draggable
+                      role="button"
+                      tabIndex={0}
+                      onDragStart={() => {
+                        dragPool.current = {
+                          poolId: group.poolId,
+                          matchIds: group.matchIds,
+                        };
+                        dragMatch.current = null;
+                        dragBlock.current = null;
+                      }}
+                      onDragEnd={() => {
+                        dragPool.current = null;
+                      }}
+                      onClick={() => setPendingPoolClear(group)}
+                      onKeyDown={(ev) => {
+                        if (ev.key === 'Enter' || ev.key === ' ') {
+                          ev.preventDefault();
+                          setPendingPoolClear(group);
+                        }
+                      }}
+                      title={`${group.poolName} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move the pool · click to clear`}
+                      className={[
+                        'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-2 py-1 text-xs font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
+                        accentClassFor(group.tournamentColor),
+                        tintBorderClassFor(group.tournamentColor),
+                        'text-white',
+                      ].join(' ')}
+                      style={{
+                        gridColumn: group.minLiceIndex + 2,
+                        gridRow: `${bandRowStart} / ${headerRowEnd}`,
+                        marginLeft: '1px',
+                        marginRight: '1px',
+                        zIndex: 12,
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      <span className="truncate">{group.poolName}</span>
+                      <span className="text-[10px] opacity-90">· {group.matchCount}</span>
+                    </div>
+                  </Fragment>
                 );
               })}
 
