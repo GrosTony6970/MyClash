@@ -116,6 +116,12 @@ export { useSortableList } from './hooks/useSortableList';
 
 export { fuzzyMatch, normalizeForSearch } from './utils/fuzzy-match';
 
+export { CountryCombobox } from './components/CountryCombobox';
+export type { CountryComboboxProps } from './components/CountryCombobox';
+
+export { getCountryOptions, formatCountryName, PINNED_COUNTRIES } from './lib/countries';
+export type { CountryOption } from './lib/countries';
+
 export {
   accentClassFor,
   tintBgClassFor,
