@@ -2,7 +2,7 @@
 
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@myclash/ui';
+import { Button, CountryCombobox, formatCountryName } from '@myclash/ui';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
@@ -23,7 +23,8 @@ interface WizardState {
   slug: string;
   startDate: string;
   endDate: string;
-  location: string;
+  city: string;
+  country: string | null;
   venueMode: VenueMode;
   selectedVenueId: string | null;
   newVenueName: string;
@@ -70,7 +71,8 @@ const INITIAL: WizardState = {
   slug: '',
   startDate: '',
   endDate: '',
-  location: '',
+  city: '',
+  country: null,
   venueMode: 'new',
   selectedVenueId: null,
   newVenueName: '',
@@ -271,20 +273,34 @@ function Step1({
         />
       </div>
 
-      <div>
-        <label htmlFor="wizard-location" className="mb-1 block text-sm font-medium text-gray-700">
-          {t('organizer.newEvent.location')}
-        </label>
-        <input
-          id="wizard-location"
-          type="text"
-          value={state.location}
-          onChange={(event) =>
-            dispatch({ type: 'SET_FIELD', field: 'location', value: event.target.value })
-          }
-          placeholder={t('organizer.newEvent.locationPlaceholder')}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-        />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="wizard-city" className="mb-1 block text-sm font-medium text-gray-700">
+            {t('organizer.newEvent.city')}
+          </label>
+          <input
+            id="wizard-city"
+            type="text"
+            value={state.city}
+            onChange={(event) =>
+              dispatch({ type: 'SET_FIELD', field: 'city', value: event.target.value })
+            }
+            placeholder={t('organizer.newEvent.cityPlaceholder')}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+          />
+        </div>
+        <div>
+          <label htmlFor="wizard-country" className="mb-1 block text-sm font-medium text-gray-700">
+            {t('organizer.newEvent.country')}
+          </label>
+          <CountryCombobox
+            id="wizard-country"
+            value={state.country}
+            onChange={(code) => dispatch({ type: 'SET_FIELD', field: 'country', value: code })}
+            locale={locale}
+            placeholder={t('organizer.newEvent.countryPlaceholder')}
+          />
+        </div>
       </div>
     </div>
   );
@@ -623,11 +639,13 @@ function Step3({
 function Step4({
   state,
   t,
+  locale,
   logoPreviewUrl,
   catalogue,
 }: {
   state: WizardState;
   t: Translator;
+  locale: string;
   logoPreviewUrl: string | null;
   catalogue: CatalogueVenue[];
 }) {
@@ -658,7 +676,11 @@ function Step4({
         <p className="mt-0.5 font-mono text-xs text-gray-500">/e/{state.slug}</p>
         <p className="mt-1 text-gray-500">
           {state.startDate} - {state.endDate}
-          {state.location ? ` - ${state.location}` : ''}
+          {(() => {
+            const countryName = formatCountryName(state.country, locale);
+            const place = [state.city, countryName].filter(Boolean).join(', ');
+            return place ? ` - ${place}` : '';
+          })()}
         </p>
       </div>
 
@@ -879,7 +901,8 @@ export default function NewEventPage() {
           name: state.name.trim(),
           startDate: state.startDate,
           endDate: state.endDate,
-          location: state.location.trim() || null,
+          city: state.city.trim() || null,
+          country: state.country || null,
         }),
       });
       if (!eventRes.ok) {
@@ -1081,7 +1104,13 @@ export default function NewEventPage() {
           />
         )}
         {state.step === 4 && (
-          <Step4 state={state} t={t} logoPreviewUrl={logoPreviewUrl} catalogue={catalogue} />
+          <Step4
+            state={state}
+            t={t}
+            locale={locale}
+            logoPreviewUrl={logoPreviewUrl}
+            catalogue={catalogue}
+          />
         )}
       </div>
 

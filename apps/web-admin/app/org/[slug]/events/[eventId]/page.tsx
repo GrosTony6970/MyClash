@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { TournamentColorDot } from '@myclash/ui';
+import { TournamentColorDot, formatCountryName } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
@@ -30,7 +30,8 @@ interface EventInfo {
   status: string;
   startDate: string | null;
   endDate: string | null;
-  location: string | null;
+  city: string | null;
+  country: string | null;
   logoUrl: string | null;
 }
 
@@ -92,7 +93,7 @@ export default function EventDetailPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { isArchived, isReadOnly } = useEventStatus(eventId);
   const [showDeletionModal, setShowDeletionModal] = useState(false);
 
@@ -301,7 +302,12 @@ export default function EventDetailPage() {
           )}
           {event && (
             <p className="mt-1 text-sm text-slate-500">
-              {event.location ? `${event.location} - ` : ''}
+              {(() => {
+                const place = [event.city, formatCountryName(event.country, locale)]
+                  .filter(Boolean)
+                  .join(', ');
+                return place ? `${place} - ` : '';
+              })()}
               {formatDate(event.startDate)}
               {event.startDate !== event.endDate ? ` - ${formatDate(event.endDate)}` : ''}
             </p>

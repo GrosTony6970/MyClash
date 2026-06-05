@@ -16,7 +16,14 @@
  *     in `events.logo_url`.
  */
 
-import { Button, SortableHeader, nextSortState, sortRows } from '@myclash/ui';
+import {
+  Button,
+  CountryCombobox,
+  SortableHeader,
+  formatCountryName,
+  nextSortState,
+  sortRows,
+} from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
@@ -27,7 +34,8 @@ interface OrgEvent {
   id: string;
   slug: string;
   name: string;
-  location: string | null;
+  city: string | null;
+  country: string | null;
   startDate: string;
   endDate: string;
   status: string;
@@ -44,7 +52,8 @@ interface EventForm {
   name: string;
   startDate: string;
   endDate: string;
-  location: string;
+  city: string;
+  country: string | null;
   status: string;
   publicLandingMd: string;
 }
@@ -62,7 +71,8 @@ function normalizeEvent(row: Record<string, unknown>): OrgEvent {
     id: String(row['id']),
     slug: String(row['slug'] ?? ''),
     name: String(row['name'] ?? ''),
-    location: typeof row['location'] === 'string' ? row['location'] : null,
+    city: typeof row['city'] === 'string' ? row['city'] : null,
+    country: typeof row['country'] === 'string' ? row['country'] : null,
     startDate: String(row['startDate'] ?? row['start_date'] ?? ''),
     endDate: String(row['endDate'] ?? row['end_date'] ?? ''),
     status: String(row['status'] ?? 'draft'),
@@ -93,7 +103,8 @@ function toForm(event: OrgEvent): EventForm {
     name: event.name,
     startDate: event.startDate,
     endDate: event.endDate,
-    location: event.location ?? '',
+    city: event.city ?? '',
+    country: event.country,
     status: event.status,
     publicLandingMd: event.publicLandingMd,
   };
@@ -103,7 +114,7 @@ export default function OrgEventsListPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [events, setEvents] = useState<OrgEvent[]>([]);
   const [orgName, setOrgName] = useState<string>(slug);
@@ -268,7 +279,8 @@ export default function OrgEventsListPage() {
         name: form.name,
         startDate: form.startDate,
         endDate: form.endDate,
-        location: form.location || null,
+        city: form.city || null,
+        country: form.country || null,
         status: form.status,
         publicLandingMd: form.publicLandingMd || null,
       };
@@ -542,7 +554,9 @@ export default function OrgEventsListPage() {
                         {event.name}
                       </Link>
                       <p className="mt-1 text-xs text-slate-500">
-                        {event.location ?? t('organizer.dashboard.noLocation')}
+                        {[event.city, formatCountryName(event.country, locale)]
+                          .filter(Boolean)
+                          .join(', ') || t('organizer.dashboard.noLocation')}
                       </p>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{formatDate(event.createdAt)}</td>
@@ -778,12 +792,22 @@ export default function OrgEventsListPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
-                {t('organizer.newEvent.location')}
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                {t('organizer.newEvent.city')}
                 <input
-                  value={form.location}
-                  onChange={(event) => setForm({ ...form, location: event.target.value })}
+                  value={form.city}
+                  onChange={(event) => setForm({ ...form, city: event.target.value })}
+                  placeholder={t('organizer.newEvent.cityPlaceholder')}
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                {t('organizer.newEvent.country')}
+                <CountryCombobox
+                  value={form.country}
+                  onChange={(code) => setForm({ ...form, country: code })}
+                  locale={locale}
+                  placeholder={t('organizer.newEvent.countryPlaceholder')}
                 />
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
