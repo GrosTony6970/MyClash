@@ -168,7 +168,9 @@ export default function SchedulePage() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={configureLabel}
-        width="420px"
+        width="640px"
+        resizable
+        persistKey="schedule-configure-drawer"
       >
         <ProgrammePlanner
           eventId={eventId}
