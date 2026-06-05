@@ -14,7 +14,8 @@ export const events = pgTable('events', {
     .references(() => organizations.id, { onDelete: 'cascade' }),
   slug: text('slug').notNull(),
   name: text('name').notNull(),
-  location: text('location'),
+  city: text('city'),
+  country: text('country'),
   startDate: text('start_date').notNull(), // ISO date
   endDate: text('end_date').notNull(), // ISO date
   status: text('status').notNull().default('draft'),

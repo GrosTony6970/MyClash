@@ -43,7 +43,14 @@ export class CreateEventDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  location?: string;
+  city?: string;
+
+  @ApiProperty({ required: false, example: 'FR', description: 'ISO 3166-1 alpha-2 country code' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(2)
+  country?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -63,7 +70,14 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  location?: string;
+  city?: string;
+
+  @ApiProperty({ required: false, example: 'FR', description: 'ISO 3166-1 alpha-2 country code' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(2)
+  country?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

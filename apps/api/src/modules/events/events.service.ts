@@ -312,7 +312,8 @@ export class EventsService {
         name: dto.name.trim(),
         start_date: dto.startDate,
         end_date: dto.endDate,
-        location: dto.location ?? null,
+        city: dto.city ?? null,
+        country: dto.country ?? null,
         public_landing_md: dto.publicLandingMd ?? null,
         status: 'draft',
         created_by_user_id: userId,
@@ -334,7 +335,8 @@ export class EventsService {
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
-    if (dto.location !== undefined) updates['location'] = dto.location;
+    if (dto.city !== undefined) updates['city'] = dto.city;
+    if (dto.country !== undefined) updates['country'] = dto.country;
     if (dto.startDate !== undefined) updates['start_date'] = dto.startDate;
     if (dto.endDate !== undefined) updates['end_date'] = dto.endDate;
     if (dto.publicLandingMd !== undefined) updates['public_landing_md'] = dto.publicLandingMd;
@@ -403,7 +405,8 @@ export class EventsService {
       slug?: string;
       start_date?: string;
       end_date?: string;
-      location?: string | null;
+      city?: string | null;
+      country?: string | null;
       logo_url?: string | null;
     };
     await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
@@ -496,7 +499,8 @@ export class EventsService {
         status: event.status,
         startDate: event.start_date ?? null,
         endDate: event.end_date ?? null,
-        location: event.location ?? null,
+        city: event.city ?? null,
+        country: event.country ?? null,
         logoUrl: event.logo_url ?? null,
       },
       totals: {
@@ -2041,7 +2045,7 @@ export class EventsService {
     const { data, error } = await this.supabase.service
       .from('events')
       .select(
-        'id, organization_id, status, name, slug, start_date, end_date, location, logo_url, created_by_user_id',
+        'id, organization_id, status, name, slug, start_date, end_date, city, country, logo_url, created_by_user_id',
       )
       .eq('id', eventId)
       .maybeSingle();
