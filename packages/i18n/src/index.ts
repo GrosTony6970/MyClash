@@ -46,6 +46,9 @@ export const en = {
       leaguesEmptyTitle: 'No leagues yet',
       leaguesEmptyDescription:
         'No published leagues right now. Operators publish leagues from the admin app; once visible, they appear here.',
+      leagueStatusActive: 'Active',
+      leagueStatusPast: 'Past',
+      openLeague: 'Open league',
       liveTag: 'Live',
       publishedTag: 'Published',
       pastTag: 'Completed',
@@ -3902,6 +3905,9 @@ export const fr = {
       leaguesEmptyTitle: 'Aucune ligue',
       leaguesEmptyDescription:
         "Aucune ligue publiee pour l'instant. Les organisateurs les publient depuis l'app admin; elles apparaitront ici une fois visibles.",
+      leagueStatusActive: 'Active',
+      leagueStatusPast: 'Passee',
+      openLeague: 'Voir la ligue',
       liveTag: 'En direct',
       publishedTag: 'Publie',
       pastTag: 'Termine',
