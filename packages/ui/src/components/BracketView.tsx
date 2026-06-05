@@ -3,6 +3,7 @@ import { formatRoundCode } from '@myclash/types';
 import { MatchCard } from './bracket/MatchCard';
 import { BracketConnectors, type ConnectorEdge } from './bracket/BracketConnectors';
 import { computeBracketEdges } from './bracket/compute-bracket-edges';
+import { computeSlotPositions } from './bracket/compute-slot-positions';
 import type { BracketConfig, BracketSlotData, ColorToken, PodiumData } from './bracket/types';
 
 export type { BracketSlotData, BracketConfig, PodiumData };
@@ -51,6 +52,11 @@ export interface BracketViewProps {
 
 const ROUND_GAP_CLASS = 'gap-16';
 const SLOT_VERTICAL_PITCH_PX = 90;
+// The MatchCard renders at roughly this height (header + two
+// fighter rows + footer). Used to offset cards from their
+// computed vertical center so they read as centred — not as
+// top-aligned with the connector endpoint.
+const CARD_HEIGHT_PX = 78;
 
 export function BracketView({
   slots,
@@ -208,8 +214,17 @@ function SingleElimLayout({
     return out;
   }, [slots, byRound, roundNumbers, bronzeMatch]);
 
-  const totalMatches = (byRound.get(roundNumbers[0] ?? 0) ?? []).length;
-  const minColumnHeight = Math.max(totalMatches * SLOT_VERTICAL_PITCH_PX, 200);
+  // Each next-round card sits at the vertical midpoint of its
+  // parent pair (operator's mental model). Power-of-2 brackets
+  // already produce that effect with flex justify-around, but
+  // play-in rounds, bye-padded first rounds, and the losers'
+  // lane break uniform distribution. The pure helper resolves
+  // every slot's pixel center; cards then render with absolute
+  // positioning rather than flex.
+  const { positions, columnHeight } = React.useMemo(
+    () => computeSlotPositions(byRound, roundNumbers, edges, SLOT_VERTICAL_PITCH_PX),
+    [byRound, roundNumbers, edges],
+  );
 
   return (
     <div className="space-y-8">
@@ -231,43 +246,48 @@ function SingleElimLayout({
                 <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">
                   {labels[round] ?? `R${round}`}
                 </p>
-                <div
-                  className="flex flex-col justify-around gap-3"
-                  style={{ minHeight: `${minColumnHeight}px` }}
-                >
-                  {roundSlots.map((slot) => (
+                <div className="relative" style={{ height: `${columnHeight}px` }}>
+                  {roundSlots.map((slot) => {
+                    const center = positions.get(slot.id) ?? 0;
+                    return (
+                      <div
+                        key={slot.id}
+                        className="absolute left-0 right-0"
+                        style={{ top: `${center - CARD_HEIGHT_PX / 2}px` }}
+                      >
+                        <MatchCard
+                          slot={slot}
+                          redColor={redColor}
+                          blueColor={blueColor}
+                          onClick={onMatchClick}
+                          onOverride={onOverrideSlot}
+                          onForfeitClick={onForfeitClick}
+                          registerRef={registerRef}
+                          isChampionshipMatch={isFinalRound}
+                          roundCode={roundCodeFor(slot)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                {isFinalRound && bronzeMatch && (
+                  <div className="mt-8">
+                    <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                      Bronze Match
+                    </p>
                     <MatchCard
-                      key={slot.id}
-                      slot={slot}
+                      slot={bronzeMatch}
                       redColor={redColor}
                       blueColor={blueColor}
                       onClick={onMatchClick}
                       onOverride={onOverrideSlot}
                       onForfeitClick={onForfeitClick}
                       registerRef={registerRef}
-                      isChampionshipMatch={isFinalRound}
-                      roundCode={roundCodeFor(slot)}
+                      isBronzeMatch={true}
+                      roundCode={roundCodeFor(bronzeMatch)}
                     />
-                  ))}
-                  {isFinalRound && bronzeMatch && (
-                    <div className="mt-8">
-                      <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-                        Bronze Match
-                      </p>
-                      <MatchCard
-                        slot={bronzeMatch}
-                        redColor={redColor}
-                        blueColor={blueColor}
-                        onClick={onMatchClick}
-                        onOverride={onOverrideSlot}
-                        onForfeitClick={onForfeitClick}
-                        registerRef={registerRef}
-                        isBronzeMatch={true}
-                        roundCode={roundCodeFor(bronzeMatch)}
-                      />
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -420,6 +440,17 @@ function Lane({
   for (const arr of byRound.values()) arr.sort((a, b) => a.position - b.position);
   const rounds = Array.from(byRound.keys()).sort((a, b) => a - b);
 
+  // Same parent-midpoint placement as SingleElimLayout, applied
+  // per lane. Edges are computed inline because the parent
+  // DoubleElimLayout already passes per-lane slot subsets in.
+  const edges = computeBracketEdges(slots, rounds);
+  const { positions, columnHeight } = computeSlotPositions(
+    byRound,
+    rounds,
+    edges,
+    SLOT_VERTICAL_PITCH_PX,
+  );
+
   return (
     <section>
       <p className={`mb-3 text-xs font-semibold uppercase tracking-widest ${accent}`}>{title}</p>
@@ -432,11 +463,19 @@ function Lane({
               <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 {label}
               </p>
-              <div
-                className="flex flex-col justify-around gap-3"
-                style={{ minHeight: `${rSlots.length * SLOT_VERTICAL_PITCH_PX}px` }}
-              >
-                {rSlots.map(renderCard)}
+              <div className="relative" style={{ height: `${columnHeight}px` }}>
+                {rSlots.map((slot) => {
+                  const center = positions.get(slot.id) ?? 0;
+                  return (
+                    <div
+                      key={slot.id}
+                      className="absolute left-0 right-0"
+                      style={{ top: `${center - CARD_HEIGHT_PX / 2}px` }}
+                    >
+                      {renderCard(slot)}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
