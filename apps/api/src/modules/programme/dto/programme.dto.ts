@@ -131,3 +131,15 @@ export class MoveBlockDto {
   @Matches(HH_MM)
   newStartTime: string = '09:00';
 }
+
+/**
+ * Resize a block by setting a new end time. The operator drags the
+ * block's bottom edge on the schedule grid; the FE rounds to the
+ * grid's 5-min slot and PATCHes the new HH:MM. The block's start
+ * time stays unchanged — only the duration grows or shrinks.
+ */
+export class ResizeBlockDto {
+  @IsString()
+  @Matches(HH_MM)
+  newEndTime: string = '10:00';
+}

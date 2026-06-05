@@ -281,6 +281,16 @@ export function ScheduleGrid({
   // + time window in the description.
   const [pendingBlockDelete, setPendingBlockDelete] = useState<ProgrammeBlockRow | null>(null);
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
+  // P8 — bottom-edge resize state. `previewSpan` is the live row-span
+  // the operator is dragging toward; commits to a PATCH resize on
+  // pointerup. Tracked here so the active block's render and the
+  // pointer handlers can share it.
+  const [resizingBlock, setResizingBlock] = useState<{
+    id: string;
+    startSlot: number;
+    minSpan: number;
+    previewSpan: number;
+  } | null>(null);
   // Surfaced when auto-distribute fails so the operator sees the error
   // instead of a silent no-op.
   const [autoDistributeError, setAutoDistributeError] = useState<string | null>(null);
@@ -488,6 +498,81 @@ export function ScheduleGrid({
    * the Unscheduled sidebar); we refetch from the source of truth
    * to pick up both the new matches state and the removed block row.
    */
+  /**
+   * P8 — bottom-edge block resize. The handle captures the pointer
+   * on mousedown, tracks vertical pointer movement in slot
+   * increments (one slot = SLOT_HEIGHT_PX px), and commits on
+   * pointerup. The minimum span is 1 slot (block can't be 0-length
+   * or invert). Cancels via Escape — preview reverts to the stored
+   * span without firing the PATCH.
+   */
+  function beginBlockResize(
+    ev: React.PointerEvent<HTMLDivElement>,
+    block: ProgrammeBlockRow & { startSlot: number; span: number },
+  ): void {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const handle = ev.currentTarget;
+    handle.setPointerCapture(ev.pointerId);
+    const startY = ev.clientY;
+    const startSpan = block.span;
+    setResizingBlock({
+      id: block.id,
+      startSlot: block.startSlot,
+      minSpan: 1,
+      previewSpan: startSpan,
+    });
+
+    function onMove(e: PointerEvent) {
+      const deltaSlots = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX);
+      const nextSpan = Math.max(1, Math.min(TOTAL_SLOTS - block.startSlot, startSpan + deltaSlots));
+      setResizingBlock((prev) =>
+        prev && prev.id === block.id ? { ...prev, previewSpan: nextSpan } : prev,
+      );
+    }
+    async function onUp(e: PointerEvent) {
+      handle.releasePointerCapture(e.pointerId);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onCancel);
+      // Compute new end_time from final preview span.
+      const finalSpan = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX) + startSpan;
+      const clampedSpan = Math.max(1, Math.min(TOTAL_SLOTS - block.startSlot, finalSpan));
+      setResizingBlock(null);
+      if (clampedSpan === startSpan) return;
+      const newEndMinutes = GRID_START_HOUR * 60 + (block.startSlot + clampedSpan) * SLOT_MINUTES;
+      const hh = String(Math.floor(newEndMinutes / 60)).padStart(2, '0');
+      const mm = String(newEndMinutes % 60).padStart(2, '0');
+      const newEndTime = `${hh}:${mm}`;
+      try {
+        const res = await fetch(
+          `${apiUrl}/api/v1/events/${eventId}/programme/blocks/${block.id}/resize`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ newEndTime }),
+          },
+        );
+        if (!res.ok) return;
+        await refetchScheduleAndBlocks();
+        onProgrammeMutated?.();
+      } catch {
+        // Surfaces on next refetch; refetch handles consistency.
+      }
+    }
+    function onCancel(e: PointerEvent) {
+      handle.releasePointerCapture(e.pointerId);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onCancel);
+      setResizingBlock(null);
+    }
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onCancel);
+  }
+
   async function deleteBlock(blockId: string): Promise<void> {
     setDeletingBlockId(blockId);
     try {
@@ -1441,70 +1526,90 @@ export function ScheduleGrid({
                   column. Now draggable — operator drops the bar on any
                   cell in the target row and the backend cascade-shifts
                   every later match on that day by the same Δ. Striped
-                  chrome distinguishes them from fight cards. */}
-              {blocksOnActiveDay.map((b) => (
-                <div
-                  key={b.id}
-                  draggable
-                  onDragStart={() => {
-                    dragBlock.current = { id: b.id, startTime: b.startTime };
-                    dragMatch.current = null;
-                    dragPool.current = null;
-                  }}
-                  onDragEnd={() => {
-                    dragBlock.current = null;
-                  }}
-                  aria-label={b.label}
-                  title={`${b.startTime} – ${b.endTime} · ${b.label} · drag to move (cascade-shifts later matches)`}
-                  className={[
-                    'relative pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing',
-                    b.blockType === 'break'
-                      ? 'bg-slate-100 text-slate-600 border-y border-slate-300'
-                      : 'bg-purple-50 text-purple-800 border-y border-purple-300',
-                    movingBlockId === b.id || deletingBlockId === b.id ? 'opacity-50' : '',
-                  ].join(' ')}
-                  style={{
-                    gridColumn: '2 / -1',
-                    gridRow: `${b.startSlot + 3} / span ${b.span}`,
-                    zIndex: 8,
-                    backgroundImage:
-                      b.blockType === 'break'
-                        ? 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(100,116,139,0.08) 8px, rgba(100,116,139,0.08) 16px)'
-                        : 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(147,51,234,0.08) 8px, rgba(147,51,234,0.08) 16px)',
-                  }}
-                >
-                  <span className="truncate px-2">
-                    {b.label} ({b.startTime} – {b.endTime})
-                  </span>
-                  <button
-                    type="button"
-                    draggable={false}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPendingBlockDelete(b);
+                  chrome distinguishes them from fight cards.
+                  The bottom-edge resize handle (4px) lets the operator
+                  grow / shrink the block in 5-min increments — PATCHes
+                  the resize endpoint on pointerup. */}
+              {blocksOnActiveDay.map((b) => {
+                const optimisticSpan =
+                  resizingBlock?.id === b.id ? resizingBlock.previewSpan : b.span;
+                return (
+                  <div
+                    key={b.id}
+                    draggable
+                    onDragStart={() => {
+                      dragBlock.current = { id: b.id, startTime: b.startTime };
+                      dragMatch.current = null;
+                      dragPool.current = null;
                     }}
-                    aria-label={`Delete ${b.label}`}
-                    title={`Delete ${b.label}`}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
+                    onDragEnd={() => {
+                      dragBlock.current = null;
+                    }}
+                    aria-label={b.label}
+                    title={`${b.startTime} – ${b.endTime} · ${b.label} · drag to move (cascade-shifts later matches)`}
+                    className={[
+                      'relative pointer-events-auto flex items-center justify-center overflow-hidden text-[11px] font-semibold uppercase tracking-wide cursor-grab active:cursor-grabbing',
+                      b.blockType === 'break'
+                        ? 'bg-slate-100 text-slate-600 border-y border-slate-300'
+                        : 'bg-purple-50 text-purple-800 border-y border-purple-300',
+                      movingBlockId === b.id || deletingBlockId === b.id ? 'opacity-50' : '',
+                    ].join(' ')}
+                    style={{
+                      gridColumn: '2 / -1',
+                      gridRow: `${b.startSlot + 3} / span ${optimisticSpan}`,
+                      zIndex: 8,
+                      backgroundImage:
+                        b.blockType === 'break'
+                          ? 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(100,116,139,0.08) 8px, rgba(100,116,139,0.08) 16px)'
+                          : 'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(147,51,234,0.08) 8px, rgba(147,51,234,0.08) 16px)',
+                    }}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                    <span className="truncate px-2">
+                      {b.label} ({b.startTime} – {b.endTime})
+                    </span>
+                    <button
+                      type="button"
+                      draggable={false}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPendingBlockDelete(b);
+                      }}
+                      aria-label={`Delete ${b.label}`}
+                      title={`Delete ${b.label}`}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-slate-500 hover:bg-white hover:text-slate-900 transition-colors"
                     >
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                    {/* Bottom-edge resize handle. pointerdown captures the
+                      pointer; pointermove updates the previewSpan in
+                      5-min increments; pointerup commits via PATCH
+                      resize. The `draggable={false}` + stopPropagation
+                      keeps the parent's HTML5 drag handler dormant
+                      while the operator is resizing. */}
+                    <div
+                      role="separator"
+                      aria-label={`Resize ${b.label}`}
+                      draggable={false}
+                      onPointerDown={(ev) => beginBlockResize(ev, b)}
+                      className="absolute inset-x-0 bottom-0 z-30 h-1 cursor-row-resize bg-transparent hover:bg-slate-500/40"
+                    />
+                  </div>
+                );
+              })}
 
               {/* Slice 4: "now" marker — horizontal red line across every
                   lice column at the current time slot. Only rendered when

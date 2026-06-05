@@ -791,6 +791,52 @@ export class ProgrammeService {
   }
 
   /**
+   * Resize a block by setting a new end_time. Start_time stays as
+   * stored — the operator dragged the bottom edge on the grid, not
+   * the top. Validates newEndTime > startTime; no cascade applied,
+   * the FE's place-with-shift helper handles neighbour reflow
+   * client-side then PATCHes the moved matches via
+   * `PATCH /matches/:id/schedule`.
+   */
+  async resizeBlock(
+    eventId: string,
+    blockId: string,
+    dto: { newEndTime: string },
+  ): Promise<{ block: ProgrammeBlock }> {
+    const { data: blockRow, error: blockErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .select('*')
+      .eq('id', blockId)
+      .eq('event_id', eventId)
+      .single();
+    if (blockErr || !blockRow) {
+      throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
+    }
+    const block = this.mapBlock(blockRow as Record<string, unknown>);
+
+    if (timeToMin(dto.newEndTime) <= timeToMin(block.startTime)) {
+      throw new BadRequestException(
+        `Block "${block.label}" newEndTime (${dto.newEndTime}) must be after startTime (${block.startTime})`,
+      );
+    }
+
+    const { data: updatedRow, error: updErr } = await this.supabase.service
+      .from('event_programme_blocks')
+      .update({ end_time: dto.newEndTime })
+      .eq('id', blockId)
+      .eq('event_id', eventId)
+      .select('*')
+      .single();
+    if (updErr) {
+      throw new BadRequestException(`Failed to resize block: ${updErr.message}`);
+    }
+    const updatedBlock = updatedRow
+      ? this.mapBlock(updatedRow as Record<string, unknown>)
+      : { ...block, endTime: dto.newEndTime };
+    return { block: updatedBlock };
+  }
+
+  /**
    * Delete a single programme block. Matches scheduled INSIDE the
    * block's time window on the same day are unscheduled
    * (scheduled_at + lice_id → null) so they reappear in the

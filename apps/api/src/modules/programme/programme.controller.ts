@@ -13,7 +13,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ProgrammeService } from './programme.service';
-import { MoveBlockDto, SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
+import {
+  MoveBlockDto,
+  ResizeBlockDto,
+  SaveProgrammeDto,
+  SuggestProgrammeDto,
+} from './dto/programme.dto';
 
 @ApiTags('programme')
 @Controller()
@@ -73,6 +78,23 @@ export class ProgrammeController {
     @Body() dto: MoveBlockDto,
   ) {
     return this.programme.moveBlock(eventId, blockId, dto);
+  }
+
+  /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId/resize */
+  @Patch('events/:eventId/programme/blocks/:blockId/resize')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Resize a programme block by changing its end_time. The block's start_time stays put — only the duration changes. Validates newEndTime > startTime.",
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'blockId', type: 'string', format: 'uuid' })
+  resizeBlock(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('blockId', ParseUUIDPipe) blockId: string,
+    @Body() dto: ResizeBlockDto,
+  ) {
+    return this.programme.resizeBlock(eventId, blockId, dto);
   }
 
   /** DELETE /api/v1/events/:eventId/programme/blocks/:blockId */
