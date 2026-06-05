@@ -755,28 +755,63 @@ export default function EditLeaguePage() {
               </span>
             </label>
           )}
-          <label className="text-xs font-medium text-slate-600">
-            {t('admin.leagues.editPage.basics.statusLabel')}
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="draft">{t('admin.leagues.editPage.basics.statusDraft')}</option>
-              <option value="published">
-                {t('admin.leagues.editPage.basics.statusPublished')}
-              </option>
-              <option value="archived">{t('admin.leagues.editPage.basics.statusArchived')}</option>
-            </select>
-          </label>
-          <label className="flex items-end gap-2 text-xs font-medium text-slate-600">
-            <input
-              type="checkbox"
-              checked={publicVisibility}
-              onChange={(e) => setPublicVisibility(e.target.checked)}
-            />
-            {t('admin.leagues.editPage.basics.publicVisibilityLabel')}
-          </label>
+          {/* Publishing controls. Grouped + described so the operator
+              understands that Status (lifecycle) and Public visibility
+              (whether app.myclash.fr lists the league) are two distinct
+              switches, and that BOTH must be on for the league to
+              appear publicly. Reflects the BE AND-gate at
+              leagues.service.ts:45-56 — keeping the filter unchanged
+              and surfacing the rule in the UI. */}
+          <fieldset className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t('admin.leagues.editPage.basics.publishingLegend')}
+            </legend>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-800">
+                {t('admin.leagues.editPage.basics.statusLabel')}
+              </span>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="draft">{t('admin.leagues.editPage.basics.statusDraft')}</option>
+                <option value="published">
+                  {t('admin.leagues.editPage.basics.statusPublished')}
+                </option>
+                <option value="archived">
+                  {t('admin.leagues.editPage.basics.statusArchived')}
+                </option>
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">
+                {t('admin.leagues.editPage.basics.statusHelp')}
+              </span>
+            </label>
+            <label className="mt-3 flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={publicVisibility}
+                onChange={(e) => setPublicVisibility(e.target.checked)}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-800">
+                  {t('admin.leagues.editPage.basics.publicVisibilityLabel')}
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {t('admin.leagues.editPage.basics.publicVisibilityHelp')}
+                </span>
+              </span>
+            </label>
+            {publicVisibility && status !== 'published' && (
+              <p
+                role="alert"
+                className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+              >
+                {t('admin.leagues.editPage.basics.notLivePublicWarning')}
+              </p>
+            )}
+          </fieldset>
           <label className="text-xs font-medium text-slate-600 sm:col-span-2">
             {t('admin.leagues.editPage.basics.descriptionLabel')}
             <textarea

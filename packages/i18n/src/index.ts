@@ -1961,11 +1961,18 @@ export const en = {
           versionLabel: 'Version',
           versionLatestOption: '(latest)',
           versionHelp: 'Pinned versions stay frozen even if the source system is edited later.',
+          publishingLegend: 'Publishing',
           statusLabel: 'Status',
           statusDraft: 'Draft',
           statusPublished: 'Published',
           statusArchived: 'Archived',
+          statusHelp:
+            'Draft = still being set up · Published = live · Archived = retired but kept for results',
           publicVisibilityLabel: 'Public visibility',
+          publicVisibilityHelp:
+            'When on, this league appears on app.myclash.fr in the Leagues tab. Both Public visibility and Status = Published are required for the league to actually show.',
+          notLivePublicWarning:
+            'Public visibility is on but Status is not "Published" yet — this league still won’t appear on app.myclash.fr until you publish it.',
           descriptionLabel: 'Description',
           previewSummary: 'Preview points + tie-breakers',
           pointsByRankLabel: 'Points by rank',
@@ -5833,11 +5840,18 @@ export const fr = {
           versionLatestOption: '(derniere)',
           versionHelp:
             'Les versions epinglees restent figees meme si le systeme source est modifie ulterieurement.',
+          publishingLegend: 'Publication',
           statusLabel: 'Statut',
           statusDraft: 'Brouillon',
           statusPublished: 'Publie',
           statusArchived: 'Archive',
+          statusHelp:
+            'Brouillon = en cours de configuration · Publie = actif · Archive = retire mais conserve pour les resultats',
           publicVisibilityLabel: 'Visibilite publique',
+          publicVisibilityHelp:
+            "Quand active, cette ligue apparait sur app.myclash.fr dans l'onglet Ligues. Visibilite publique et Statut = Publie sont tous deux necessaires pour que la ligue s'affiche reellement.",
+          notLivePublicWarning:
+            "La visibilite publique est activee mais le statut n'est pas encore \"Publie\" — cette ligue ne s'affichera toujours pas sur app.myclash.fr tant qu'elle ne sera pas publiee.",
           descriptionLabel: 'Description',
           previewSummary: 'Apercu points + departages',
           pointsByRankLabel: 'Points par rang',
