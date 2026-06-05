@@ -233,10 +233,16 @@ export class ScheduleGridService {
     );
     const personByRegId = new Map<string, PersonRow>();
     if (registrationIds.length > 0) {
+      // PostgREST defaults to a 1000-row response cap. An event with
+      // > 1000 distinct registrations would silently truncate, leaving
+      // later-numbered matches with no person link — the FE then
+      // renders "Unknown fighter" on the conflict line and `?` in the
+      // tooltip. `.limit()` bypasses the default cap.
       const { data: regsData } = await this.supabase.service
         .from('registrations')
         .select('id, person_id')
-        .in('id', registrationIds);
+        .in('id', registrationIds)
+        .limit(registrationIds.length);
       const regs = (regsData ?? []) as RegistrationRow[];
       const personIds = Array.from(
         new Set(regs.map((r) => r.person_id).filter((id): id is string => Boolean(id))),
@@ -246,7 +252,8 @@ export class ScheduleGridService {
         const { data: personsData } = await this.supabase.service
           .from('persons')
           .select('id, display_name, given_name, family_name')
-          .in('id', personIds);
+          .in('id', personIds)
+          .limit(personIds.length);
         const personById = new Map<string, PersonRow>(
           ((personsData ?? []) as PersonRow[]).map((p) => [p.id, p]),
         );

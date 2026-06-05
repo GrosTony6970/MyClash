@@ -792,8 +792,12 @@ export class ProgrammeService {
    * Matches OUTSIDE the window are left in place; operator runs
    * Generate Grid for a full reflow.
    *
-   * Mirrors moveBlock's UTC date math (start_date + dayIndex) so
-   * the window calculation is consistent across both endpoints.
+   * Uses wall-clock (`setHours`/`setDate`) date math matching the
+   * scheduler at lines 517-520 — both must agree on what timezone
+   * "10:00" means so the [start, end) window catches exactly the
+   * matches the scheduler placed inside the block. (moveBlock still
+   * uses UTC math; same fix should be applied there if its cascade
+   * shifts the wrong matches on a non-UTC container.)
    */
   async deleteBlock(
     eventId: string,
@@ -809,8 +813,14 @@ export class ProgrammeService {
     if (blockErr) throw new BadRequestException(`Failed to load block: ${blockErr.message}`);
     if (!blockRow) throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
 
-    // 2. Compute [startIso, endIso) for the block's day in UTC,
-    //    matching moveBlock's start_date + dayIndex math.
+    // 2. Compute [startIso, endIso) for the block's day. Must match
+    //    the scheduler's wall-clock interpretation (programme.service
+    //    lines 517-520 use `setHours`/`setDate` — i.e. container-local
+    //    TZ via `TZ=${TZ}` in docker-compose). Mismatching this with
+    //    setUTCHours would leave matches stored at "10:00 local" =
+    //    "08:00 UTC" outside an [09:30 UTC, 10:00 UTC) window, but
+    //    *also* match an unrelated set of matches at 09:30 UTC =
+    //    11:30 local — the delete then unschedules the wrong day.
     const { data: eventData, error: evErr } = await this.supabase.service
       .from('events')
       .select('start_date')
@@ -819,16 +829,14 @@ export class ProgrammeService {
     if (evErr) throw new BadRequestException(`Failed to load event: ${evErr.message}`);
     if (!eventData) throw new NotFoundException(`Event ${eventId} not found`);
 
-    const dayDate = new Date(
-      `${(eventData as Record<string, string>)['start_date']}T00:00:00.000Z`,
-    );
-    dayDate.setUTCDate(dayDate.getUTCDate() + (blockRow.day_index as number));
+    const dayDate = new Date(`${(eventData as Record<string, string>)['start_date']}T00:00:00`);
+    dayDate.setDate(dayDate.getDate() + (blockRow.day_index as number));
     const [sh, sm] = (blockRow.start_time as string).split(':').map(Number);
     const [eh, em] = (blockRow.end_time as string).split(':').map(Number);
     const startIso = new Date(dayDate);
-    startIso.setUTCHours(sh ?? 0, sm ?? 0, 0, 0);
+    startIso.setHours(sh ?? 0, sm ?? 0, 0, 0);
     const endIso = new Date(dayDate);
-    endIso.setUTCHours(eh ?? 0, em ?? 0, 0, 0);
+    endIso.setHours(eh ?? 0, em ?? 0, 0, 0);
 
     // 3. Unschedule matches whose scheduled_at falls inside the window.
     //    Scope through tournaments → phases of THIS event so the update

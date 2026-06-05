@@ -636,18 +636,76 @@ describe('ProgrammeService', () => {
 
       expect(captured.payload).toEqual({ scheduled_at: null, lice_id: null });
       expect(captured.phaseIds).toEqual(['phase-1']);
+      // Compute the expected ISO bounds via the same wall-clock formula
+      // the service uses (container TZ via setHours). Hard-coding
+      // `…T10:00:00.000Z` would have a different value on a Paris-TZ
+      // runner than on a UTC runner — and would silently pass the
+      // earlier bug where setUTCHours mismatched the scheduler's
+      // setHours, leaving a 2-hour delete window the operator never
+      // asked for.
+      const expectedStart = new Date('2026-06-02T00:00:00');
+      expectedStart.setHours(10, 0, 0, 0);
+      const expectedEnd = new Date('2026-06-02T00:00:00');
+      expectedEnd.setHours(11, 0, 0, 0);
       expect(captured.gte).toEqual({
         column: 'scheduled_at',
-        value: '2026-06-02T10:00:00.000Z',
+        value: expectedStart.toISOString(),
       });
       expect(captured.lt).toEqual({
         column: 'scheduled_at',
-        value: '2026-06-02T11:00:00.000Z',
+        value: expectedEnd.toISOString(),
       });
       expect(result).toEqual({
         deletedId: 'block-1',
         unscheduledMatchIds: ['match-inside-1', 'match-inside-2'],
       });
+    });
+
+    it("uses the same wall-clock TZ as the scheduler so the [start, end) window matches matches' stored ISOs", async () => {
+      // Reproduces the operator-reported bug: deleting a 09:30-10:00
+      // block sent matches scheduled at 10:00+ back to unscheduled,
+      // because the scheduler stored them at "10:00 local" (08:00 UTC
+      // in Paris summer) while the BE used setUTCHours, producing
+      // [09:30 UTC, 10:00 UTC) — a window that lands at 11:30-12:00
+      // Paris. The runtime check: both ends use setHours (container
+      // local) and the test simulates the scheduler's stored ISO via
+      // the same formula.
+      const blockRow = {
+        id: 'block-tz',
+        event_id: 'event-tz',
+        day_index: 0,
+        start_time: '09:30',
+        end_time: '10:00',
+      };
+      const { chain: matchesChain, captured } = makeMatchesUpdateChain([]);
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: blockRow, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-27' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null }))
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null }))
+        .mockReturnValueOnce(matchesChain)
+        .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+      await service.deleteBlock('event-tz', 'block-tz');
+
+      // A match scheduled by the scheduler at "10:00 local" (via
+      // setHours, matching grid.tsx slotToTime) — the BE delete must
+      // NOT catch it because 10:00 is the exclusive end.
+      const matchAtExactEnd = new Date('2026-06-27T00:00:00');
+      matchAtExactEnd.setHours(10, 0, 0, 0);
+      // A match strictly inside the window (09:45 local) — must be
+      // caught.
+      const matchInside = new Date('2026-06-27T00:00:00');
+      matchInside.setHours(9, 45, 0, 0);
+
+      const gteValue = captured.gte!.value;
+      const ltValue = captured.lt!.value;
+      expect(matchInside.toISOString() >= gteValue && matchInside.toISOString() < ltValue).toBe(
+        true,
+      );
+      expect(
+        matchAtExactEnd.toISOString() >= gteValue && matchAtExactEnd.toISOString() < ltValue,
+      ).toBe(false);
     });
 
     it('still deletes the block when the event has no tournaments', async () => {

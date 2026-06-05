@@ -11,8 +11,9 @@ function makeChain(result: unknown) {
     eq: vi.fn(),
     in: vi.fn(),
     order: vi.fn(),
+    limit: vi.fn(),
   });
-  for (const key of ['select', 'eq', 'in', 'order']) {
+  for (const key of ['select', 'eq', 'in', 'order', 'limit']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -281,5 +282,49 @@ describe('ScheduleGridService', () => {
     const result = await service.listEventSchedule('event-1');
     // mainBracketSize 8 + round 3 → final (2 fighters remaining)
     expect(result[0]!.roundCode).toBe('LSW-B-F-M1');
+  });
+
+  // PostgREST applies a default 1000-row response cap on every query.
+  // Without an explicit .limit(), an event with > 1000 distinct
+  // registrations would have the lookup silently truncated, leaving
+  // later-numbered matches with no fighter name. The FE then renders
+  // "Unknown fighter" in the conflict warning. The fix calls .limit()
+  // sized to the input array on both the registrations and persons
+  // batch lookups so the cap doesn't bite.
+  it('lifts the PostgREST 1000-row cap on registrations + persons batch lookups', async () => {
+    queueTables({
+      tournaments: [{ id: 't1', name: 'Cup' }],
+      phases: [{ id: 'ph', type: 'pool', tournament_id: 't1' }],
+      matches: [
+        {
+          id: 'm1',
+          match_number_label: 'P1-M1',
+          status: 'scheduled',
+          lice_id: null,
+          scheduled_at: null,
+          phase_id: 'ph',
+          red_registration_id: 'reg-a',
+          blue_registration_id: 'reg-b',
+        },
+      ],
+      registrations: [
+        { id: 'reg-a', person_id: 'p-a' },
+        { id: 'reg-b', person_id: 'p-b' },
+      ],
+      persons: [
+        { id: 'p-a', display_name: 'Alice', given_name: 'Alice', family_name: null },
+        { id: 'p-b', display_name: 'Bob', given_name: 'Bob', family_name: null },
+      ],
+    });
+
+    await service.listEventSchedule('event-1');
+
+    // queueTables pushes chains in order:
+    //   tournaments, phases, matches, registrations, persons
+    // The 4th and 5th `from()` calls are the lookups that must be capped.
+    const registrationsChain = fromMock.mock.results[3]!.value;
+    const personsChain = fromMock.mock.results[4]!.value;
+    expect(registrationsChain.limit).toHaveBeenCalledWith(2);
+    expect(personsChain.limit).toHaveBeenCalledWith(2);
   });
 });
