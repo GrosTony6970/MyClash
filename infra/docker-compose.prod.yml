@@ -660,6 +660,12 @@ services:
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
         SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+        # Mounted under /scoring on both admin.${DOMAIN} (via the
+        # myclash-admin-scoring stripprefix router) and scoring.${DOMAIN}
+        # (via the myclash-scoring-prefixed sibling router below). Next
+        # emits static chunks under this prefix so Traefik routes them
+        # to the scoring container instead of admin's catch-all.
+        SCORING_ASSET_PREFIX: /scoring
     container_name: myclash-web-scoring
     restart: unless-stopped
     environment:
@@ -715,6 +721,22 @@ services:
       - traefik.http.routers.myclash-admin-scoring.middlewares=myclash-security-headers@file,myclash-compress@file,myclash-admin-scoring-strip
       - traefik.http.routers.myclash-admin-scoring.priority=30
       - traefik.http.routers.myclash-admin-scoring.service=myclash-scoring
+      # Subdomain-prefixed assets: scoring.${DOMAIN}/scoring/_next/* →
+      # scoring container with /scoring stripped. Pairs with the
+      # SCORING_ASSET_PREFIX build arg so the HTML served on the
+      # canonical scoring subdomain can still resolve its own
+      # /scoring-prefixed chunks. The bare myclash-scoring router
+      # above keeps serving non-prefixed paths (scoring.${DOMAIN}/,
+      # scoring.${DOMAIN}/matches/<id>) so scorekeeper bookmarks and
+      # the tablet-PWA entry point keep working.
+      - traefik.http.middlewares.myclash-scoring-subdomain-strip.stripprefix.prefixes=/scoring
+      - traefik.http.routers.myclash-scoring-prefixed.rule=Host(`scoring.${DOMAIN}`) && PathPrefix(`/scoring`)
+      - traefik.http.routers.myclash-scoring-prefixed.entrypoints=websecure
+      - traefik.http.routers.myclash-scoring-prefixed.tls=true
+      - traefik.http.routers.myclash-scoring-prefixed.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-scoring-prefixed.middlewares=myclash-security-headers@file,myclash-compress@file,myclash-scoring-subdomain-strip
+      - traefik.http.routers.myclash-scoring-prefixed.priority=30
+      - traefik.http.routers.myclash-scoring-prefixed.service=myclash-scoring
 
   # ── web-admin SPA (organizer + super admin) ───────────────────────
   web-admin:

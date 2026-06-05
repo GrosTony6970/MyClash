@@ -18,6 +18,15 @@ if (process.env['NODE_ENV'] === 'production') {
   }
 }
 
+// When the scoring PWA is mounted under /scoring/* (same-origin
+// proxy on admin.${DOMAIN}, plus the canonical scoring.${DOMAIN}
+// routed through a stripprefix-equipped sibling router — see
+// infra/docker-compose.prod.yml), Next must emit its static chunks
+// under that prefix so Traefik routes them to the scoring container
+// instead of admin. Gated on a build-time env so local dev at
+// localhost:3002/ (no proxy, no prefix) keeps working.
+const SCORING_ASSET_PREFIX = process.env['SCORING_ASSET_PREFIX'];
+
 const nextConfig: NextConfig = {
   // Enable React strict mode for better development warnings
   reactStrictMode: true,
@@ -25,6 +34,8 @@ const nextConfig: NextConfig = {
   // Standalone output for Docker — copies only the files needed to run
   // the app, resulting in a minimal production image.
   output: 'standalone',
+
+  ...(SCORING_ASSET_PREFIX ? { assetPrefix: SCORING_ASSET_PREFIX } : {}),
 
   // Transpile shared workspace packages
   transpilePackages: [
