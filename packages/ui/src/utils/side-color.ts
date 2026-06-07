@@ -1,25 +1,23 @@
 /**
  * side-color.ts
  *
- * Centralised side-colour resolution for the scoring app.
+ * Centralised side-colour resolution for both the scoring app
+ * (referee scoreboard) and the public TV display.
  *
  * Operators configure each tournament's "red" and "blue" fighter sides
  * to one of 11 colour tokens (white, black, grey, yellow, red, blue,
  * green, brown, pink, orange, purple) via the admin tournament
  * settings. The configured colour is stored at
  * `tournaments.scoring_config_json.display.sideColors.{red,blue}` and
- * surfaces in the scoring app via the
- * `/api/v1/tournaments/:id/match-config` endpoint as
- * `scoringConfig.display.sideColors.{red,blue}`.
+ * surfaces in the scoring + public apps via the
+ * `/api/v1/tournaments/:id/match-config` and `/matches/:id/display`
+ * endpoints as `scoringConfig.display.sideColors.{red,blue}`.
  *
  * This module is the SINGLE source of truth for how a side colour
  * token maps to UI styles. Every consumer (ScoringPad, ScoringColumn,
  * ScoringCenterControls, the header subtitle, penalty card chips, the
- * next-match tile) must call `sideStyle(config, side)` rather than
- * hardcode `bg-red-*` / `bg-blue-*` Tailwind classes. The dormant
- * ExchangePad wizard predates this module — when it's reactivated it
- * should plumb `config` through and call `sideStyle()` for its
- * "choose striker" buttons.
+ * next-match tile, TVScoreboard) must call `sideStyle(config, side)`
+ * rather than hardcode `bg-red-*` / `bg-blue-*` Tailwind classes.
  */
 
 import type { TournamentScoringConfig } from '@myclash/types';
@@ -44,15 +42,13 @@ export interface SideColorStyle {
   panel: string;
   /** Border hex (slightly lighter than panel). */
   border: string;
-  /** Text colour on top of `hex` panel (white or near-black). */
+  /** Text colour on top of `panel` background (white or near-black). */
   text: string;
   /** Muted text colour for sub-labels on the panel. */
   muted: string;
   /**
    * Tailwind class string for buttons rendered ON a dark scoring
    * surface — handles bg + border + text + hover + active states.
-   * Mirrors the legacy `cardClass` map at ExchangePad.tsx so the
-   * point and afterblow buttons keep their existing visual weight.
    */
   buttonClasses: string;
 }

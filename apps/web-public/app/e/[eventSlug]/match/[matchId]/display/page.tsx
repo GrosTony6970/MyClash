@@ -5,24 +5,21 @@ import { DisplayView } from './display-view';
 const API_URL = getApiUrl();
 
 interface Props {
-  params: Promise<{ matchId: string }>;
+  params: Promise<{ eventSlug: string; matchId: string }>;
 }
 
 export default async function MatchDisplayPage({ params }: Props) {
-  const { matchId } = await params;
-  const [matchRes, penaltiesRes] = await Promise.all([
-    fetch(`${API_URL}/api/v1/matches/${matchId}/display`, { next: { revalidate: 0 } }),
-    fetch(`${API_URL}/api/v1/matches/${matchId}/penalties`, { next: { revalidate: 0 } }),
-  ]);
+  const { eventSlug, matchId } = await params;
+  // Sanity-check that the match exists server-side so we render a
+  // proper 404 instead of letting the client fail on a missing
+  // payload. The client (TVScoreboard) re-fetches on mount via the
+  // useLiveMatch hook + Supabase subscriptions; the server fetch
+  // here is purely for the existence gate.
+  const matchRes = await fetch(`${API_URL}/api/v1/matches/${matchId}/display`, {
+    next: { revalidate: 0 },
+  });
   if (matchRes.status === 404) notFound();
   if (!matchRes.ok) throw new Error(`Failed to load display match: ${matchRes.status}`);
 
-  return (
-    <DisplayView
-      apiUrl={API_URL}
-      matchId={matchId}
-      initialMatch={await matchRes.json()}
-      initialPenalties={penaltiesRes.ok ? await penaltiesRes.json() : []}
-    />
-  );
+  return <DisplayView matchId={matchId} eventSlug={eventSlug} />;
 }

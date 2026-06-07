@@ -72,13 +72,5 @@ export function LiceDisplayClient({ apiUrl, eventSlug, liceName }: Props) {
     );
   }
 
-  return (
-    <DisplayView
-      apiUrl={apiUrl}
-      matchId={payload.matchId}
-      initialMatch={payload.match as never}
-      initialPenalties={payload.penalties as never}
-      nextMatch={payload.nextMatch as never}
-    />
-  );
+  return <DisplayView matchId={payload.matchId} eventSlug={eventSlug} />;
 }

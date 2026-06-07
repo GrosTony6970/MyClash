@@ -1,0 +1,441 @@
+'use client';
+
+/**
+ * TVScoreboard — read-only three-column scoreboard for the public
+ * TV / projector display.
+ *
+ * Mirrors the redesigned referee scoreboard from
+ * `apps/web-scoring/src/components/MatchView.tsx` but strips every
+ * interactive control (no scoring buttons, no penalty picker, no
+ * clock controls, no drawer, no spacebar). Typography is scaled up
+ * significantly so the score is legible from across a sports hall.
+ *
+ * Auto-rollover: 5 seconds after the clock transitions to `'ended'`,
+ * navigates to `/e/{eventSlug}/match/{nextMatchId}/display` so the
+ * projection self-services between bouts. Re-opening the match from
+ * admin cancels the rollover. No next match → stays on the endcard.
+ *
+ * Used only by `apps/web-public/.../display/page.tsx`. The admin
+ * preview surface keeps using `<MatchScoreboard>` (the older
+ * single-column layout).
+ */
+
+import * as React from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createTranslator, getMessages } from '@myclash/i18n';
+import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
+import { sideStyle } from '../utils/side-color';
+
+export interface TVScoreboardProps {
+  matchId: string;
+  apiBaseUrl: string;
+  supabaseClient: SupabaseClient;
+  /** Used to build the next-match navigation URL on auto-rollover. */
+  eventSlug: string;
+  /** Seconds the endcard stays visible before navigating to the
+   *  next match. Defaults to 5 per operator request. */
+  rolloverDelaySeconds?: number;
+  className?: string;
+}
+
+const CARD_COLORS = ['yellow', 'red', 'black'] as const;
+const CARD_CHIP_BG: Record<(typeof CARD_COLORS)[number], string> = {
+  yellow: 'bg-yellow-400 text-yellow-950',
+  red: 'bg-red-600 text-white',
+  black: 'bg-gray-900 text-white border border-gray-600',
+};
+
+export function TVScoreboard({
+  matchId,
+  apiBaseUrl,
+  supabaseClient,
+  eventSlug,
+  rolloverDelaySeconds = 5,
+  className,
+}: TVScoreboardProps): React.ReactElement | null {
+  const t = createTranslator(getMessages());
+  const { match, penalties, clock, elapsedMs, loadError } = useLiveMatch(
+    apiBaseUrl,
+    matchId,
+    supabaseClient,
+  );
+
+  // ── Auto-rollover state machine ────────────────────────────────
+  // When the clock transitions INTO 'ended', start a countdown.
+  // When it transitions OUT of 'ended' (e.g., organizer re-opens),
+  // cancel the countdown. When it reaches 0 and we have a next
+  // match, hard-navigate to its display URL.
+  const [countdownRemaining, setCountdownRemaining] = useState<number | null>(null);
+  const clockStatus = clock?.status ?? 'idle';
+  const nextMatchId = match?.nextMatchId ?? null;
+
+  useEffect(() => {
+    if (clockStatus !== 'ended') {
+      setCountdownRemaining(null);
+      return;
+    }
+    // No next match → stay on endcard, no countdown.
+    if (!nextMatchId) {
+      setCountdownRemaining(null);
+      return;
+    }
+    setCountdownRemaining(rolloverDelaySeconds);
+    const interval = setInterval(() => {
+      setCountdownRemaining((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          // Hard navigation — guarantees fresh server-rendered
+          // initial data for the next match, no stale React tree.
+          window.location.href = `/e/${eventSlug}/match/${nextMatchId}/display`;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [clockStatus, nextMatchId, eventSlug, rolloverDelaySeconds]);
+
+  if (loadError) {
+    return (
+      <div
+        className={`flex min-h-screen items-center justify-center bg-gray-950 p-8 text-white ${className ?? ''}`}
+      >
+        <div className="text-center">
+          <p className="text-3xl font-bold">
+            {t('organizer.scoreboard.loadError', { status: String(loadError.status) })}
+          </p>
+          {loadError.message && <p className="mt-3 text-xl text-gray-400">{loadError.message}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  if (!match) {
+    return (
+      <div
+        className={`flex min-h-screen items-center justify-center bg-gray-950 p-8 text-white ${className ?? ''}`}
+      >
+        <div className="flex items-center gap-4 text-2xl text-gray-400">
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+          <span>{t('organizer.scoreboard.loading')}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const redName = match.redFighterName ?? t('scoring.lice.red');
+  const blueName = match.blueFighterName ?? t('scoring.lice.blue');
+  const redStyle = sideStyle(match.scoringConfig, 'red');
+  const blueStyle = sideStyle(match.scoringConfig, 'blue');
+
+  return (
+    <div className={`flex min-h-screen flex-col bg-gray-950 text-white ${className ?? ''}`}>
+      <TVHeader
+        match={match}
+        redName={redName}
+        blueName={blueName}
+        redBorder={redStyle.border}
+        blueBorder={blueStyle.border}
+      />
+
+      <div className="grid flex-1 grid-cols-[1fr_minmax(380px,28%)_1fr] gap-6 px-6 py-4">
+        <FighterColumn
+          name={redName}
+          club={match.redClub ?? null}
+          score={match.redScore}
+          registrationId={match.redRegistrationId ?? null}
+          penalties={penalties}
+          tintHex={redStyle.border}
+        />
+        <CenterColumn
+          match={match}
+          clockStatus={clockStatus}
+          elapsedMs={elapsedMs}
+          penalties={penalties}
+          countdownRemaining={countdownRemaining}
+          redName={redName}
+          blueName={blueName}
+          t={t}
+        />
+        <FighterColumn
+          name={blueName}
+          club={match.blueClub ?? null}
+          score={match.blueScore}
+          registrationId={match.blueRegistrationId ?? null}
+          penalties={penalties}
+          tintHex={blueStyle.border}
+        />
+      </div>
+
+      <TVFooter match={match} t={t} />
+    </div>
+  );
+}
+
+// ── Header ────────────────────────────────────────────────────────
+
+function TVHeader({
+  match,
+  redName,
+  blueName,
+  redBorder,
+  blueBorder,
+}: {
+  match: DisplayMatch;
+  redName: string;
+  blueName: string;
+  redBorder: string;
+  blueBorder: string;
+}) {
+  const matchCode = match.roundCode ?? match.matchNumberLabel ?? '';
+  const eventName = match.event?.name ?? null;
+  const liceName = match.lice?.name ?? null;
+  const next = match.nextMatch ?? null;
+
+  return (
+    <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
+        <div className="text-left text-sm font-semibold text-slate-600">
+          {eventName && <p>◇ {eventName}</p>}
+          {liceName && <p className="text-xs text-slate-500">{liceName}</p>}
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          {matchCode && (
+            <span className="rounded-full border-2 border-amber-300 bg-amber-50 px-4 py-1 font-mono text-xl font-bold tracking-widest text-amber-700">
+              {matchCode}
+            </span>
+          )}
+          <p className="text-2xl font-bold">
+            <span style={{ color: redBorder }}>{redName}</span>{' '}
+            <span className="text-slate-500">vs</span>{' '}
+            <span style={{ color: blueBorder }}>{blueName}</span>
+          </p>
+        </div>
+        <div className="flex justify-end">
+          {next && (
+            <div className="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-right">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-500">NEXT ▸</p>
+              <p className="text-sm font-semibold">
+                <span style={{ color: redBorder }}>●</span> {next.redFighterName ?? '—'}
+              </p>
+              <p className="text-sm font-semibold">
+                <span style={{ color: blueBorder }}>●</span> {next.blueFighterName ?? '—'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ── Fighter columns ───────────────────────────────────────────────
+
+function FighterColumn({
+  name,
+  club,
+  score,
+  registrationId,
+  penalties,
+  tintHex,
+}: {
+  name: string;
+  club: { name: string; logoUrl: string | null } | null;
+  score: number;
+  registrationId: string | null;
+  penalties: Penalty[];
+  tintHex: string;
+}) {
+  const myPenalties = penalties.filter((p) => !p.voided && p.registration_id === registrationId);
+  return (
+    <div className="flex flex-col items-center justify-start gap-6 pt-6">
+      <p className="text-[18rem] font-black leading-none tabular-nums" style={{ color: tintHex }}>
+        {score}
+      </p>
+      <p className="text-center text-5xl font-bold leading-tight">{name}</p>
+      {club && (
+        <div className="flex items-center justify-center gap-3 text-2xl text-gray-300">
+          {club.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={club.logoUrl}
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full border border-white/20 bg-white/5 object-contain"
+            />
+          )}
+          <span>{club.name}</span>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        {CARD_COLORS.map((card) => {
+          const count = myPenalties.filter((p) => p.card === card).length;
+          return (
+            <span
+              key={card}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-2xl font-bold transition-opacity ${CARD_CHIP_BG[card]} ${
+                count === 0 ? 'opacity-30' : ''
+              }`}
+            >
+              <span className="inline-block h-3 w-3 rounded-sm bg-white/70" />
+              {count}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Centre column ─────────────────────────────────────────────────
+
+function CenterColumn({
+  match,
+  clockStatus,
+  elapsedMs,
+  penalties,
+  countdownRemaining,
+  redName,
+  blueName,
+  t,
+}: {
+  match: DisplayMatch;
+  clockStatus: 'idle' | 'running' | 'halted' | 'ended';
+  elapsedMs: number;
+  penalties: Penalty[];
+  countdownRemaining: number | null;
+  redName: string;
+  blueName: string;
+  t: (k: string, p?: Record<string, string>) => string;
+}) {
+  const isEnded = clockStatus === 'ended';
+  const winner = useMemo(() => {
+    if (!isEnded) return null;
+    if (match.redScore > match.blueScore) return { side: 'red' as const, name: redName };
+    if (match.blueScore > match.redScore) return { side: 'blue' as const, name: blueName };
+    return null;
+  }, [isEnded, match.redScore, match.blueScore, redName, blueName]);
+
+  return (
+    <div className="flex flex-col items-center gap-4 pt-6">
+      <span
+        className={`rounded-full px-4 py-1 text-base font-bold uppercase tracking-widest ${
+          clockStatus === 'running'
+            ? 'bg-green-900 text-green-300'
+            : clockStatus === 'halted'
+              ? 'bg-yellow-900 text-yellow-300'
+              : clockStatus === 'ended'
+                ? 'bg-gray-800 text-gray-400'
+                : 'bg-gray-800 text-gray-500'
+        }`}
+      >
+        {clockStatus}
+      </span>
+
+      {isEnded ? (
+        <div className="flex flex-col items-center gap-4 py-8 text-center">
+          <p className="text-7xl font-black uppercase tracking-widest text-amber-400">
+            MATCH ENDED
+          </p>
+          {winner && <p className="text-5xl font-bold">🏆 {winner.name}</p>}
+          {countdownRemaining !== null && (
+            <p className="mt-4 text-2xl text-gray-400">Next match in {countdownRemaining}…</p>
+          )}
+          {countdownRemaining === null && !match.nextMatchId && (
+            <p className="mt-4 text-lg text-gray-500">Last match on this lice</p>
+          )}
+        </div>
+      ) : (
+        <>
+          <p
+            className={`font-mono text-9xl font-black tabular-nums leading-none ${
+              clockStatus === 'running'
+                ? 'text-white'
+                : clockStatus === 'halted'
+                  ? 'text-yellow-400'
+                  : 'text-gray-600'
+            }`}
+          >
+            {formatClockMs(elapsedMs)}
+          </p>
+          {match.startedAt && (
+            <p className="text-base uppercase tracking-widest text-gray-500">
+              Total{' '}
+              <span className="font-mono">
+                {formatClockMs(Date.now() - new Date(match.startedAt).getTime())}
+              </span>
+            </p>
+          )}
+        </>
+      )}
+
+      {/* Events list — last 8 active */}
+      <div className="mt-4 w-full">
+        <p className="mb-2 text-center text-sm font-bold uppercase tracking-widest text-gray-500">
+          ── EVENTS ──
+        </p>
+        <div className="max-h-[420px] overflow-y-auto rounded-lg border border-gray-800 bg-gray-900/50 p-3 space-y-2">
+          {penalties.filter((p) => !p.voided).length === 0 && (
+            <p className="text-center text-base text-gray-600 py-2">—</p>
+          )}
+          {penalties
+            .filter((p) => !p.voided)
+            .slice(-8)
+            .reverse()
+            .map((p) => (
+              <div key={p.id} className="flex items-center gap-2 text-lg">
+                <span
+                  className={`inline-block h-4 w-4 rounded-sm ${
+                    p.card === 'yellow'
+                      ? 'bg-yellow-400'
+                      : p.card === 'red'
+                        ? 'bg-red-600'
+                        : 'bg-gray-900 border border-gray-600'
+                  }`}
+                />
+                <span className="font-semibold text-gray-100 truncate">
+                  {p.short_name ?? p.reason ?? p.card}
+                </span>
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Footer ────────────────────────────────────────────────────────
+
+function TVFooter({
+  match,
+  t: _t,
+}: {
+  match: DisplayMatch;
+  t: (k: string, p?: Record<string, string>) => string;
+}) {
+  const tournamentName = match.tournament?.name ?? null;
+  const liceName = match.lice?.name ?? null;
+  return (
+    <footer className="border-t border-slate-700 bg-white px-6 py-2 text-center text-sm text-slate-600">
+      {tournamentName && <span className="font-semibold">{tournamentName}</span>}
+      {tournamentName && liceName && <span className="mx-2">·</span>}
+      {liceName && <span>{liceName}</span>}
+    </footer>
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+function formatClockMs(ms: number): string {
+  const clamped = Math.max(0, ms);
+  const totalSeconds = Math.floor(clamped / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const centiseconds = Math.floor((clamped % 1000) / 10);
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
+    centiseconds,
+  ).padStart(2, '0')}`;
+}

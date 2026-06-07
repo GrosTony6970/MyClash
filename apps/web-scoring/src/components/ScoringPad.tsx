@@ -35,7 +35,7 @@ import {
   computeAfterblowDeltas,
 } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { sideStyle } from '../lib/side-color';
+import { sideStyle } from '@myclash/ui';
 import type { ClockState } from './MatchClock';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

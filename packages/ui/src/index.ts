@@ -54,6 +54,9 @@ export type { SkillBadgeProps } from './components/SkillBadge';
 export { MatchScoreboard } from './components/MatchScoreboard';
 export type { MatchScoreboardProps } from './components/MatchScoreboard';
 
+export { TVScoreboard } from './components/TVScoreboard';
+export type { TVScoreboardProps } from './components/TVScoreboard';
+
 // ── Tournament Manual admin components (Phase 1 of the frontend overhaul) ──
 
 export { FoilMark } from './components/FoilMark';
@@ -129,6 +132,21 @@ export {
   tintTextClassFor,
 } from './utils/color-token';
 export type { ColorToken } from './utils/color-token';
+
+export { sideStyle, styleForToken } from './utils/side-color';
+export type { SideColorToken, SideColorStyle } from './utils/side-color';
+
+export { useNextMatch } from './hooks/useNextMatch';
+export type { NextMatchInfo } from './hooks/useNextMatch';
+
+export { useLiveMatch } from './hooks/useLiveMatch';
+export type {
+  DisplayMatch,
+  MatchStatus,
+  Penalty,
+  ClockSnapshot,
+  UseLiveMatchResult,
+} from './hooks/useLiveMatch';
 
 // ── Runtime feature-flags consumed by every app (banner + realtime) ──────
 

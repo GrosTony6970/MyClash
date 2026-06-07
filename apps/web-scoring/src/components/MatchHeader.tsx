@@ -18,8 +18,8 @@
 import Link from 'next/link';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { sideStyle } from '../lib/side-color';
-import { useNextMatch } from '../hooks/useNextMatch';
+import { sideStyle } from '@myclash/ui';
+import { useNextMatch } from '@myclash/ui';
 
 interface MatchHeaderProps {
   matchId: string;

@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { useCallback, useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { MatchFormatConfig } from '@myclash/types';
 import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { formatFightOfTotal } from './format-fight-of-total';
+import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
 
 export interface MatchScoreboardProps {
   matchId: string;
@@ -19,58 +19,9 @@ export interface MatchScoreboardProps {
 }
 
 // ── Internal types ────────────────────────────────────────────────────────────
-
-type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
-
-interface DisplayMatch {
-  id: string;
-  status: MatchStatus;
-  matchNumberLabel: string | null;
-  /** Round code computed server-side: e.g. `LSW-QF-M1`, `RAP-P2-M5`. */
-  roundCode?: string | null;
-  redScore: number;
-  blueScore: number;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  rulesetCode: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  lice?: { name?: string } | null;
-  event?: { name?: string } | null;
-  tournament?: { name?: string; weapon?: string } | null;
-  scoringConfig?: TournamentScoringConfig | null;
-  matchFormat?: MatchFormatConfig | null;
-  sideOrder?: 'red_left' | 'blue_left';
-  /** External-display redesign: pool position the operator
-   *  references during callouts. Null for bracket matches. */
-  poolName?: string | null;
-  fightIndex?: number | null;
-  totalFightsInPool?: number | null;
-  /** External-display redesign: club + logo per side, COALESCEd
-   *  between persons.club_id and global_persons.club_id by the
-   *  staff service. */
-  redClub?: { name: string; logoUrl: string | null } | null;
-  blueClub?: { name: string; logoUrl: string | null } | null;
-  /** External-display redesign: registration ids so the realtime
-   *  penalty list can be split per side. */
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
-}
-
-interface Penalty {
-  id: string;
-  card: 'yellow' | 'red' | 'black';
-  registration_id: string;
-  short_name: string | null;
-  reason: string | null;
-  voided: boolean;
-}
-
-interface ClockState {
-  status: 'idle' | 'running' | 'halted' | 'ended';
-  activeMs: number;
-  runningFrom: string | null;
-}
+// DisplayMatch / Penalty / ClockSnapshot moved to the shared
+// useLiveMatch hook so both this component and TVScoreboard read
+// from one source-of-truth.
 
 // ── Color map ─────────────────────────────────────────────────────────────────
 
@@ -89,11 +40,6 @@ const DISPLAY_COLOR_STYLE = {
 } as const;
 
 // ── Helper functions ──────────────────────────────────────────────────────────
-
-function computeElapsedMs(state: ClockState): number {
-  if (state.status !== 'running' || !state.runningFrom) return state.activeMs;
-  return state.activeMs + Date.now() - new Date(state.runningFrom).getTime();
-}
 
 function formatClockMs(ms: number): string {
   const clamped = Math.max(0, ms);
@@ -198,96 +144,11 @@ export function MatchScoreboard({
 }: MatchScoreboardProps): React.ReactElement | null {
   const t = createTranslator(getMessages());
 
-  const [match, setMatch] = useState<DisplayMatch | null>(null);
-  const [penalties, setPenalties] = useState<Penalty[]>([]);
-  const [clock, setClock] = useState<ClockState | null>(null);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const [matchRes, penaltyRes, clockRes] = await Promise.all([
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/display`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/penalties`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/clock`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-      ]);
-      if (!matchRes.ok) {
-        const body = (await matchRes.json().catch(() => null)) as { message?: string } | null;
-        setLoadError({ status: matchRes.status, message: body?.message ?? matchRes.statusText });
-        return;
-      }
-      setLoadError(null);
-      setMatch((await matchRes.json()) as DisplayMatch);
-      if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
-      if (clockRes.ok) {
-        const nextClock = (await clockRes.json()) as ClockState;
-        setClock(nextClock);
-        setElapsedMs(computeElapsedMs(nextClock));
-      }
-    } catch (err) {
-      setLoadError({
-        status: 0,
-        message: err instanceof Error ? err.message : 'Network error',
-      });
-    }
-  }, [apiBaseUrl, matchId]);
-
-  // Initial data load
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async refresh updates state after server responses
-    void refresh();
-  }, [refresh]);
-
-  // Realtime subscriptions
-  useEffect(() => {
-    const channel = supabaseClient
-      .channel(`match:${matchId}:display`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
-        () => void refresh(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'exchanges', filter: `match_id=eq.${matchId}` },
-        () => void refresh(),
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'match_penalties',
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => void refresh(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
-        () => void refresh(),
-      )
-      .subscribe();
-    return () => {
-      void supabaseClient.removeChannel(channel);
-    };
-  }, [matchId, supabaseClient, refresh]);
-
-  // Running clock ticker
-  useEffect(() => {
-    if (clock?.status !== 'running') return;
-    const timer = setInterval(() => setElapsedMs(computeElapsedMs(clock)), 50);
-    return () => clearInterval(timer);
-  }, [clock]);
+  const { match, penalties, clock, elapsedMs, loadError, refresh } = useLiveMatch(
+    apiBaseUrl,
+    matchId,
+    supabaseClient,
+  );
 
   if (loadError) {
     return (

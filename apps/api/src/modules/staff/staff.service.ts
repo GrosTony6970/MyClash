@@ -393,7 +393,79 @@ export class StaffService {
       fightIndex = idx >= 0 ? idx + 1 : null;
     }
 
-    return this.mapDisplayMatch(data, { fightIndex, totalFightsInPool });
+    // Next match on the same lice — used by the TV display's auto-
+    // rollover (5s after MATCH ENDED, navigate to this id's display
+    // route) and the corner NEXT tile. Same query shape the staff
+    // current-match endpoint uses; mirroring it keeps the two
+    // surfaces consistent. Public — no auth, lives alongside the
+    // already-public display payload.
+    const nextMatch = await this.resolveNextMatchOnLice(
+      matchId,
+      (data as { lice_id?: string | null }).lice_id ?? null,
+    );
+
+    const base = this.mapDisplayMatch(data, { fightIndex, totalFightsInPool });
+    return {
+      ...base,
+      nextMatchId: nextMatch?.id ?? null,
+      nextMatch,
+    };
+  }
+
+  private async resolveNextMatchOnLice(
+    currentMatchId: string,
+    liceId: string | null,
+  ): Promise<{
+    id: string;
+    matchNumberLabel: string | null;
+    roundCode: string | null;
+    redFighterName: string | null;
+    blueFighterName: string | null;
+  } | null> {
+    if (!liceId) return null;
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name)),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round)',
+      )
+      .eq('lice_id', liceId)
+      .in('status', ['running', 'paused', 'scheduled'])
+      .order('status', { ascending: true })
+      .order('scheduled_at', { ascending: true, nullsFirst: false })
+      .limit(8);
+    if (error) throw new BadRequestException(error.message);
+    const next = (data ?? []).find((row) => (row as { id?: string }).id !== currentMatchId);
+    if (!next) return null;
+    const row = next as Record<string, unknown>;
+    const phase = row['phases'] as {
+      config_json?: Record<string, unknown> | null;
+      tournaments?: { weapon?: string };
+    } | null;
+    const pool = row['pools'] as { sort_order?: number } | null;
+    const bracketSlot = row['bracket_slots'] as { round?: number } | null;
+    const phaseCfg = phase?.config_json ?? null;
+    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
+      | number
+      | undefined;
+    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
+    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
+    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const red = row['red'] as { persons?: { given_name?: string; family_name?: string } } | null;
+    const blue = row['blue'] as { persons?: { given_name?: string; family_name?: string } } | null;
+    return {
+      id: row['id'] as string,
+      matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
+      roundCode: buildRoundCode({
+        weapon: phase?.tournaments?.weapon ?? null,
+        poolNumber,
+        bracketRound,
+        bracketSize,
+        matchNumberLabel: (row['match_number_label'] as string | null) ?? null,
+        roundNumber: null,
+      }),
+      redFighterName: this.formatPersonName(red?.persons),
+      blueFighterName: this.formatPersonName(blue?.persons),
+    };
   }
 
   private async getMatchContext(matchId: string) {

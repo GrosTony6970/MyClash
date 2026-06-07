@@ -29,10 +29,15 @@ interface UseNextMatchResult {
  * ascending. We exclude the current match's id so the tile never
  * displays the same match the operator is on.
  *
+ * **Requires staff auth.** Public surfaces (e.g. the TV display)
+ * should read the next match from the `/matches/:id/display`
+ * payload's `nextMatchId` field instead.
+ *
  * Returns `null` for `next` when:
- *   - liceId is missing (page loaded without the column)
+ *   - liceId is missing
  *   - queue is empty (last match of the day on this lice)
- *   - fetch failed (network down)
+ *   - fetch failed (network down, or 401 because the caller
+ *     isn't authenticated as staff)
  */
 export function useNextMatch(
   apiUrl: string,

@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { sideStyle } from '../lib/side-color';
+import { sideStyle } from '@myclash/ui';
 import { formatClockMs, type ClockState } from './MatchClock';
 import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
 import { usePenalties, type MatchPenalty } from '../hooks/usePenalties';

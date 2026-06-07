@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
-import { sideStyle } from '../../../src/lib/side-color';
+import { sideStyle } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 
 interface Props {
