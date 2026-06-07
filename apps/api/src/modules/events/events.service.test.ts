@@ -1059,7 +1059,9 @@ describe('EventsService', () => {
 
       expect(result.map((r) => r.personId)).toEqual(['p2']);
       // Withdrawn / disqualified must never be in the status filter list.
-      expect(regChain.in).toHaveBeenCalledWith('status', ['registered', 'checked_in']);
+      // Active + waitlist are both surfaced; the projection separates
+      // them via registrationState.
+      expect(regChain.in).toHaveBeenCalledWith('status', ['registered', 'checked_in', 'waitlist']);
       // Defensive: registrations contained a withdrawn row from the start —
       // the test's `registrations` variable is unused so the .in filter is
       // the only barrier. Reference it to keep eslint happy.
@@ -1263,14 +1265,22 @@ describe('EventsService', () => {
         ],
         error: null,
       });
+      // Waitlist + phases + pools + matches stubs (added when
+      // listTournaments started decorating rows with aggregate counts
+      // for the public event home page). Empty results — this test
+      // focuses on the registered count, not the new fields.
+      const waitlistChain = makeAwaitableChain({ data: [], error: null });
+      const phasesChain = makeAwaitableChain({ data: [], error: null });
 
+      const regCallQueue = [registrationsChain, waitlistChain];
       fromMock.mockImplementation((table: string) => {
         if (table === 'tournaments') return tournamentsChain;
-        if (table === 'registrations') return registrationsChain;
+        if (table === 'registrations') return regCallQueue.shift() ?? waitlistChain;
+        if (table === 'phases') return phasesChain;
         throw new Error(`unexpected table ${table}`);
       });
 
-      const result = (await service.listTournaments('event-1')) as Array<{
+      const result = (await service.listTournaments('event-1')) as unknown as Array<{
         id: string;
         registered: number;
         max_participants: number | null;
@@ -1371,6 +1381,12 @@ describe('EventsService', () => {
       // Pools fetch — empty so we don't have to mock the deep registration
       // embed; what matters here is the filter contract.
       const poolsChain = makeAwaitableChain({ data: [], error: null });
+      // Aggregate-count chains (participantCount + waitlistCount +
+      // completedMatchCount) added when getPublicTournamentStandings
+      // started surfacing per-tournament stats on the response header.
+      const participantCountChain = makeAwaitableChain({ count: 0, error: null });
+      const waitlistCountChain = makeAwaitableChain({ count: 0, error: null });
+      const completedMatchCountChain = makeAwaitableChain({ count: 0, error: null });
       // Referees fetch fires only when there are pools — pools is empty so
       // referee_assignments shouldn't be queried at all in this test. We
       // assert that below.
@@ -1378,6 +1394,9 @@ describe('EventsService', () => {
         .mockReturnValueOnce(eventChain)
         .mockReturnValueOnce(tournamentChain)
         .mockReturnValueOnce(phasesChain)
+        .mockReturnValueOnce(participantCountChain)
+        .mockReturnValueOnce(waitlistCountChain)
+        .mockReturnValueOnce(completedMatchCountChain)
         .mockReturnValueOnce(poolsChain);
 
       const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
@@ -1431,11 +1450,19 @@ describe('EventsService', () => {
         error: null,
       });
       const refereesChain = makeAwaitableChain({ data: [], error: null });
+      // Aggregate-count chains added when getPublicTournamentStandings
+      // started surfacing per-tournament stats on the response header.
+      const participantCountChain = makeAwaitableChain({ count: 0, error: null });
+      const waitlistCountChain = makeAwaitableChain({ count: 0, error: null });
+      const completedMatchCountChain = makeAwaitableChain({ count: 0, error: null });
 
       fromMock
         .mockReturnValueOnce(eventChain)
         .mockReturnValueOnce(tournamentChain)
         .mockReturnValueOnce(phasesChain)
+        .mockReturnValueOnce(participantCountChain)
+        .mockReturnValueOnce(waitlistCountChain)
+        .mockReturnValueOnce(completedMatchCountChain)
         .mockReturnValueOnce(poolsChain)
         .mockReturnValueOnce(refereesChain);
 
@@ -1553,6 +1580,208 @@ describe('EventsService', () => {
       expect(phasesPayload).not.toHaveProperty('published_at');
       expect(phasesPayload).not.toHaveProperty('published_by_user_id');
       expect(phasesUpdate.eq).toHaveBeenCalledWith('tournament_id', 'tourn-1');
+    });
+  });
+
+  describe('listTournaments aggregates', () => {
+    it('returns waitlistCount + poolCount + bracketSize + completedMatchCount per tournament', async () => {
+      const tournamentsChain = makeChain({ data: null, error: null });
+      tournamentsChain.order.mockResolvedValue({
+        data: [{ id: 't-1', name: 'Longsword', max_participants: 12 }],
+        error: null,
+      });
+      // Existing: registered count via grouped registrations fetch
+      // (status IN registered/checked_in).
+      const registeredChain = makeAwaitableChain({
+        data: [
+          { tournament_id: 't-1', status: 'registered' },
+          { tournament_id: 't-1', status: 'checked_in' },
+        ],
+        error: null,
+      });
+      // NEW: grouped waitlist count.
+      const waitlistChain = makeAwaitableChain({
+        data: [{ tournament_id: 't-1' }, { tournament_id: 't-1' }, { tournament_id: 't-1' }],
+        error: null,
+      });
+      // NEW: phases per tournament (id, type, tournament_id, config_json
+      // for bracket size + pool flagging).
+      const phasesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'phase-pool-1',
+            tournament_id: 't-1',
+            type: 'pool',
+            config_json: {},
+          },
+          {
+            id: 'phase-bracket-1',
+            tournament_id: 't-1',
+            type: 'single_elim',
+            config_json: { bracketSize: 16 },
+          },
+        ],
+        error: null,
+      });
+      // NEW: matches per tournament's phases (status='completed').
+      const matchesChain = makeAwaitableChain({
+        data: [
+          { phase_id: 'phase-pool-1' },
+          { phase_id: 'phase-pool-1' },
+          { phase_id: 'phase-bracket-1' },
+        ],
+        error: null,
+      });
+      // NEW: pools per phase (for poolCount).
+      const poolsChain = makeAwaitableChain({
+        data: [
+          { phase_id: 'phase-pool-1' },
+          { phase_id: 'phase-pool-1' },
+          { phase_id: 'phase-pool-1' },
+          { phase_id: 'phase-pool-1' },
+        ],
+        error: null,
+      });
+
+      // Registrations is queried twice: registered then waitlist. Use a
+      // shift queue so the test doesn't couple to call-site indices.
+      const regCalls = [registeredChain, waitlistChain];
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'tournaments') return tournamentsChain;
+        if (table === 'registrations') return regCalls.shift() ?? waitlistChain;
+        if (table === 'phases') return phasesChain;
+        if (table === 'matches') return matchesChain;
+        if (table === 'pools') return poolsChain;
+        throw new Error(`unexpected table ${table}`);
+      });
+
+      const result = (await service.listTournaments('event-1')) as Array<{
+        id: string;
+        registered: number;
+        waitlistCount: number;
+        poolCount: number;
+        bracketSize: number;
+        completedMatchCount: number;
+      }>;
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: 't-1',
+        registered: 2,
+        waitlistCount: 3,
+        poolCount: 4,
+        bracketSize: 16,
+        completedMatchCount: 3,
+      });
+    });
+  });
+
+  describe('listPublicParticipants waitlist projection', () => {
+    it('marks waitlist registrations with registrationState=waitlist', async () => {
+      const eventChain = makeChain({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      const tournamentsChain = makeAwaitableChain({
+        data: [{ id: 't-1', slug: 'longsword', name: 'Longsword', color: null }],
+        error: null,
+      });
+      // One person on the waitlist, one person registered.
+      const regsChain = makeAwaitableChain({
+        data: [
+          {
+            tournament_id: 't-1',
+            person_id: 'p-1',
+            status: 'registered',
+            waitlist_position: null,
+          },
+          {
+            tournament_id: 't-1',
+            person_id: 'p-2',
+            status: 'waitlist',
+            waitlist_position: 1,
+          },
+        ],
+        error: null,
+      });
+      const personsChain = makeAwaitableChain({
+        data: [
+          { id: 'p-1', given_name: 'Alice', family_name: 'A', club_id: null },
+          { id: 'p-2', given_name: 'Bob', family_name: 'B', club_id: null },
+        ],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(tournamentsChain)
+        .mockReturnValueOnce(regsChain)
+        .mockReturnValueOnce(personsChain);
+
+      const result = await service.listPublicParticipants('fal-2027');
+
+      const bob = result.find((r) => r.personId === 'p-2');
+      expect(bob).toBeDefined();
+      expect(bob!.tournaments).toHaveLength(1);
+      expect(bob!.tournaments[0]).toMatchObject({
+        id: 't-1',
+        registrationState: 'waitlist',
+        waitlistPosition: 1,
+      });
+
+      const alice = result.find((r) => r.personId === 'p-1');
+      expect(alice).toBeDefined();
+      expect(alice!.tournaments[0]).toMatchObject({
+        id: 't-1',
+        registrationState: 'active',
+      });
+    });
+  });
+
+  describe('getPublicTournamentStandings aggregates', () => {
+    // Placed last in the file because a failing assertion in this
+    // suite throws before the test can drain its mockReturnValueOnce
+    // queue. Subsequent tests would inherit stale mocks otherwise —
+    // vi.clearAllMocks() clears call history but NOT the pending
+    // implementation queue.
+    it('returns participantCount on the tournament header for a published tournament', async () => {
+      const eventChain = makeChain({
+        data: { id: 'event-1', slug: 'fal-2027' },
+        error: null,
+      });
+      const tournamentChain = makeChain({
+        data: {
+          id: 'tournament-1',
+          name: 'Longsword Open',
+          weapon: 'longsword',
+          ruleset_code: 'TF_v1',
+          status: 'published',
+          logo_url: null,
+        },
+        error: null,
+      });
+      const phasesChain = makeAwaitableChain({ data: [], error: null });
+      // NEW — registrations COUNT for participantCount (status IN
+      // ('registered','checked_in') AND tournament_id = ?).
+      const participantCountChain = makeAwaitableChain({ count: 23, error: null });
+      // NEW — registrations COUNT for waitlistCount (status='waitlist').
+      const waitlistCountChain = makeAwaitableChain({ count: 4, error: null });
+      fromMock
+        .mockReturnValueOnce(eventChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(phasesChain)
+        .mockReturnValueOnce(participantCountChain)
+        .mockReturnValueOnce(waitlistCountChain);
+
+      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+
+      expect(result.tournament).toMatchObject({
+        participantCount: 23,
+        waitlistCount: 4,
+        refereeCount: 0,
+        poolCount: 0,
+        completedMatchCount: 0,
+      });
     });
   });
 });

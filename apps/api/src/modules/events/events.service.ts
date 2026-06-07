@@ -781,7 +781,8 @@ export class EventsService {
     // publishes the tournament, public sees nothing, no clue why).
     const tournamentStatus = (tournament as { status: string }).status;
     const publicTournamentStatuses = ['published', 'running', 'completed'];
-    const tournamentHeader = {
+    const tournamentId = (tournament as { id: string }).id;
+    const tournamentHeader: Record<string, unknown> = {
       id: tournament['id'],
       name: tournament['name'],
       weapon: tournament['weapon'],
@@ -792,6 +793,14 @@ export class EventsService {
       // page threads this through tab underlines, card outlines, and
       // section titles via @myclash/ui's color-token helpers.
       color: (tournament['color'] as string | null) ?? null,
+      // Aggregate counts surfaced for the redesigned public cards.
+      // Zero defaults so the early-return path (draft/archived) is
+      // shape-compatible with the published path.
+      participantCount: 0,
+      waitlistCount: 0,
+      refereeCount: 0,
+      poolCount: 0,
+      completedMatchCount: 0,
     };
     if (!publicTournamentStatuses.includes(tournamentStatus)) {
       return {
@@ -806,10 +815,40 @@ export class EventsService {
     const { data: phases, error: phasesError } = await this.supabase.service
       .from('phases')
       .select('id, type, visibility_status, config_json')
-      .eq('tournament_id', (tournament as { id: string }).id);
+      .eq('tournament_id', tournamentId);
     if (phasesError) throw new BadRequestException(phasesError.message);
 
     const phaseRows = (phases ?? []) as Array<Record<string, unknown>>;
+    const phaseIds = phaseRows
+      .map((p) => p['id'])
+      .filter((id): id is string => typeof id === 'string');
+
+    // Aggregate counts for the public tournament card. Each query is
+    // cheap (single COUNT) and uses Supabase's { count: 'exact', head:
+    // true } pattern to avoid pulling rows.
+    const participantsAgg = await this.supabase.service
+      .from('registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in']);
+    tournamentHeader['participantCount'] = participantsAgg.count ?? 0;
+
+    const waitlistAgg = await this.supabase.service
+      .from('registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId)
+      .eq('status', 'waitlist');
+    tournamentHeader['waitlistCount'] = waitlistAgg.count ?? 0;
+
+    if (phaseIds.length > 0) {
+      const completedAgg = await this.supabase.service
+        .from('matches')
+        .select('id', { count: 'exact', head: true })
+        .in('phase_id', phaseIds)
+        .eq('status', 'completed');
+      tournamentHeader['completedMatchCount'] = completedAgg.count ?? 0;
+    }
+
     const poolPhase = phaseRows.find((phase) => phase['type'] === 'pool');
     const bracketPhase = phaseRows.find((phase) => phase['type'] === 'single_elim');
 
@@ -821,6 +860,12 @@ export class EventsService {
       bracketPhase && typeof bracketPhase['id'] === 'string'
         ? await this.getPublishedBracket(bracketPhase)
         : { bracketSlots: [], bracketSize: 0, bracketRounds: 0 };
+
+    tournamentHeader['poolCount'] = pools.length;
+    tournamentHeader['refereeCount'] = pools.reduce(
+      (acc, p) => acc + ((p as { referees?: unknown[] }).referees?.length ?? 0),
+      0,
+    );
 
     return {
       tournament: tournamentHeader,
@@ -993,30 +1038,105 @@ export class EventsService {
     const tournaments = (data ?? []) as Array<Record<string, unknown>>;
     if (tournaments.length === 0) return [];
 
-    // Decorate each row with `registered`: the count of registrations
-    // whose status is 'registered' or 'checked_in' — matches the
-    // capacity-guard semantics in registrations.service.assertCapacity.
-    // One grouped fetch keeps this O(1) round-trips regardless of how
-    // many tournaments the event has.
+    // Decorate each row with aggregates the public event home renders
+    // on its tournament cards: `registered`, `waitlistCount`,
+    // `poolCount`, `bracketSize`, `completedMatchCount`. Each lookup
+    // is a single grouped query across all tournaments — O(1)
+    // round-trips regardless of how many tournaments the event has.
     const tournamentIds = tournaments
       .map((t) => (t['id'] as string | undefined) ?? null)
       .filter((id): id is string => Boolean(id));
 
+    // Registered + checked_in (mirrors registrations.service.assertCapacity).
     const { data: regRows } = await this.supabase.service
       .from('registrations')
       .select('tournament_id, status')
       .in('tournament_id', tournamentIds)
       .in('status', ['registered', 'checked_in']);
 
-    const counts = new Map<string, number>();
+    const registered = new Map<string, number>();
     for (const row of (regRows ?? []) as Array<{ tournament_id: string }>) {
-      counts.set(row.tournament_id, (counts.get(row.tournament_id) ?? 0) + 1);
+      registered.set(row.tournament_id, (registered.get(row.tournament_id) ?? 0) + 1);
     }
 
-    return tournaments.map((t) => ({
-      ...t,
-      registered: counts.get((t['id'] as string) ?? '') ?? 0,
-    }));
+    // Waitlist (status='waitlist'; see migration 0078 + the registrations
+    // schema gate).
+    const { data: waitlistRows } = await this.supabase.service
+      .from('registrations')
+      .select('tournament_id')
+      .in('tournament_id', tournamentIds)
+      .eq('status', 'waitlist');
+
+    const waitlistCounts = new Map<string, number>();
+    for (const row of (waitlistRows ?? []) as Array<{ tournament_id: string }>) {
+      waitlistCounts.set(row.tournament_id, (waitlistCounts.get(row.tournament_id) ?? 0) + 1);
+    }
+
+    // Phases (drives poolCount + bracketSize via config_json.bracketSize).
+    const { data: phaseRows } = await this.supabase.service
+      .from('phases')
+      .select('id, tournament_id, type, config_json')
+      .in('tournament_id', tournamentIds);
+
+    const phasesByTournament = new Map<string, Array<Record<string, unknown>>>();
+    const phaseIdToTournament = new Map<string, string>();
+    for (const row of (phaseRows ?? []) as Array<Record<string, unknown>>) {
+      const tournamentId = row['tournament_id'] as string;
+      const phaseId = row['id'] as string;
+      const list = phasesByTournament.get(tournamentId) ?? [];
+      list.push(row);
+      phasesByTournament.set(tournamentId, list);
+      phaseIdToTournament.set(phaseId, tournamentId);
+    }
+
+    // Pools (grouped by phase_id, summed per tournament via the
+    // phase→tournament map).
+    const allPhaseIds = Array.from(phaseIdToTournament.keys());
+    let poolCounts = new Map<string, number>();
+    if (allPhaseIds.length > 0) {
+      const { data: poolRows } = await this.supabase.service
+        .from('pools')
+        .select('phase_id')
+        .in('phase_id', allPhaseIds);
+      for (const row of (poolRows ?? []) as Array<{ phase_id: string }>) {
+        const tournamentId = phaseIdToTournament.get(row.phase_id);
+        if (!tournamentId) continue;
+        poolCounts.set(tournamentId, (poolCounts.get(tournamentId) ?? 0) + 1);
+      }
+    }
+
+    // Completed matches (grouped by phase_id → tournament).
+    let completedCounts = new Map<string, number>();
+    if (allPhaseIds.length > 0) {
+      const { data: matchRows } = await this.supabase.service
+        .from('matches')
+        .select('phase_id')
+        .in('phase_id', allPhaseIds)
+        .eq('status', 'completed');
+      for (const row of (matchRows ?? []) as Array<{ phase_id: string }>) {
+        const tournamentId = phaseIdToTournament.get(row.phase_id);
+        if (!tournamentId) continue;
+        completedCounts.set(tournamentId, (completedCounts.get(tournamentId) ?? 0) + 1);
+      }
+    }
+
+    return tournaments.map((t) => {
+      const id = (t['id'] as string) ?? '';
+      const phases = phasesByTournament.get(id) ?? [];
+      const bracketPhase = phases.find((p) => p['type'] === 'single_elim');
+      const bracketSizeRaw = ((bracketPhase?.['config_json'] as
+        | Record<string, unknown>
+        | undefined) ?? {})['bracketSize'];
+      const bracketSize = typeof bracketSizeRaw === 'number' ? bracketSizeRaw : 0;
+      return {
+        ...t,
+        registered: registered.get(id) ?? 0,
+        waitlistCount: waitlistCounts.get(id) ?? 0,
+        poolCount: poolCounts.get(id) ?? 0,
+        bracketSize,
+        completedMatchCount: completedCounts.get(id) ?? 0,
+      };
+    });
   }
 
   /**
@@ -1024,11 +1144,13 @@ export class EventsService {
    * to a tournament on this event, grouped into one row per person
    * with the tournaments they're entered in. Public — no auth.
    *
-   * Excludes withdrawn / disqualified registrations; everyone else is
-   * surfaced. The `registrationState` field is forward-looking; the
-   * current schema has no waitlist status, so every projected entry
-   * reports 'active'. When a waitlist column lands the projection
-   * can switch without changing the public payload shape.
+   * Includes active registrations (`registered`, `checked_in`) AND
+   * waitlist entries. Each tournament entry carries a
+   * `registrationState` of `'active'` or `'waitlist'`; waitlist
+   * entries also carry `waitlistPosition` so consumers can render the
+   * ordered waitlist queue.
+   *
+   * Excludes withdrawn / disqualified registrations.
    */
   async listPublicParticipants(slugOrId: string): Promise<
     Array<{
@@ -1041,7 +1163,8 @@ export class EventsService {
         slug: string;
         name: string;
         color: string | null;
-        registrationState: 'active';
+        registrationState: 'active' | 'waitlist';
+        waitlistPosition: number | null;
       }>;
     }>
   > {
@@ -1064,17 +1187,18 @@ export class EventsService {
 
     const { data: regRows, error: regErr } = await this.supabase.service
       .from('registrations')
-      .select('tournament_id, person_id, status')
+      .select('tournament_id, person_id, status, waitlist_position')
       .in(
         'tournament_id',
         tournaments.map((t) => t.id),
       )
-      .in('status', ['registered', 'checked_in']);
+      .in('status', ['registered', 'checked_in', 'waitlist']);
     if (regErr) throw new BadRequestException(regErr.message);
     const registrations = (regRows ?? []) as Array<{
       tournament_id: string;
       person_id: string;
       status: string;
+      waitlist_position: number | null;
     }>;
     if (registrations.length === 0) return [];
 
@@ -1123,7 +1247,8 @@ export class EventsService {
           slug: string;
           name: string;
           color: string | null;
-          registrationState: 'active';
+          registrationState: 'active' | 'waitlist';
+          waitlistPosition: number | null;
         }>;
       }
     >();
@@ -1149,7 +1274,8 @@ export class EventsService {
         slug: tournament.slug,
         name: tournament.name,
         color: tournament.color,
-        registrationState: 'active',
+        registrationState: reg.status === 'waitlist' ? 'waitlist' : 'active',
+        waitlistPosition: reg.waitlist_position,
       });
     }
 
