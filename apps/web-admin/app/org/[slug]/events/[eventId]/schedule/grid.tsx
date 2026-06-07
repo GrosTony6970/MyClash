@@ -10,7 +10,7 @@ import {
   tintBorderClassFor,
   tintTextClassFor,
 } from '@myclash/ui';
-import { placeWithShift } from './place-with-shift';
+import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
@@ -668,45 +668,92 @@ export function ScheduleGrid({
   }
 
   /**
-   * Pool drop: fan every match in the pool across the event's lices
-   * starting at (slot, liceId). Defaults to 5-minute slots (matching
-   * the grid resolution) and fills every lice in the event from the
-   * drop target onward.
+   * Pool drop: place every match in the pool sequentially on the
+   * target lice starting at `slot`, displacing any existing
+   * occupants past the pool's tail via placeMultiWithShift.
+   *
+   * Pre-P? this fanned the pool across every lice via the BE's
+   * /auto-distribute endpoint, which (a) scattered the pool the
+   * operator just dragged as a single unit and (b) silently no-op'd
+   * on occupied targets. We now layout client-side on a single lice
+   * and PATCH each affected match's new (liceId, scheduledAt).
    */
-  async function handlePoolDrop(poolId: string, startLiceId: string, slot: number) {
+  async function handlePoolDrop(poolId: string, targetLiceId: string, slot: number) {
     if (!activeDay) return;
     setAutoDistributeError(null);
-    const startAtIso = slotToTime(slot, activeDay);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/schedule/auto-distribute`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startAtIso,
-          startLiceId,
-          durationMinutes: 5,
-          parallelLices: lices.length,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? `HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as {
-        updated: Array<{ matchId: string; liceId: string; scheduledAt: string }>;
-      };
-      // Apply optimistically against current matches.
-      const byMatchId = new Map(data.updated.map((u) => [u.matchId, u]));
-      const updated = matches.map((m) => {
-        const u = byMatchId.get(m.id);
-        if (!u) return m;
-        return { ...m, liceId: u.liceId, scheduledAt: u.scheduledAt };
-      });
-      setMatches(updated);
-      setConflicts(detectConflicts(updated));
-    } catch (err) {
-      setAutoDistributeError(err instanceof Error ? err.message : 'Auto-distribute failed');
+
+    // 1. Gather the pool's matches in stable order. Numeric label
+    //    sort matches the BE scheduler's ordering after the
+    //    schedule overhaul; falls back to existing scheduledAt when
+    //    label is missing.
+    const matchNumeric = (m: ScheduleMatch): number => {
+      const match = /(\d+)$/.exec(m.matchNumberLabel ?? '');
+      return match ? Number.parseInt(match[1]!, 10) : Number.POSITIVE_INFINITY;
+    };
+    const poolMatches = matches
+      .filter((m) => m.poolId === poolId)
+      .sort((a, b) => matchNumeric(a) - matchNumeric(b));
+    if (poolMatches.length === 0) return;
+
+    // 2. Current occupants of the target lice on the active day,
+    //    EXCLUDING the pool's own matches (they're being repositioned).
+    const occupants = matches
+      .filter(
+        (m) =>
+          m.liceId === targetLiceId &&
+          m.scheduledAt &&
+          matchBelongsToDay(m.scheduledAt, activeDay) &&
+          m.poolId !== poolId,
+      )
+      .map((m) => ({
+        id: m.id,
+        slot: isoToSlot(m.scheduledAt!, activeDay),
+        span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
+      }));
+
+    // 3. Pool's drop set, ordered. The .slot field is unused by
+    //    placeMultiWithShift (it computes the real positions); the
+    //    .span is what determines how much room the pool takes.
+    const dropped = poolMatches.map((m) => ({
+      id: m.id,
+      slot: 0,
+      span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
+    }));
+
+    // 4. Compute the new layout.
+    const placement = placeMultiWithShift({
+      items: occupants,
+      dropped,
+      dropSlot: slot,
+      gridEndSlot: TOTAL_SLOTS,
+    });
+    const slotById = new Map(placement.items.map((it) => [it.id, it.slot]));
+    const poolMatchIds = new Set(poolMatches.map((m) => m.id));
+
+    // 5. Apply optimistically.
+    const updated = matches.map((m) => {
+      const newSlot = slotById.get(m.id);
+      if (newSlot == null) return m;
+      const newScheduledAt = slotToTime(newSlot, activeDay);
+      const newLiceId = poolMatchIds.has(m.id) ? targetLiceId : (m.liceId ?? targetLiceId);
+      if (m.scheduledAt === newScheduledAt && m.liceId === newLiceId) return m;
+      return { ...m, scheduledAt: newScheduledAt, liceId: newLiceId };
+    });
+    setMatches(updated);
+    setConflicts(detectConflicts(updated));
+
+    // 6. PATCH every match whose (liceId, scheduledAt) actually
+    //    changed. Fire-and-forget — refetch on next interaction
+    //    keeps state honest.
+    for (const item of placement.items) {
+      const original = matches.find((m) => m.id === item.id);
+      if (!original) continue;
+      const newScheduledAt = slotToTime(item.slot, activeDay);
+      const newLiceId = poolMatchIds.has(item.id)
+        ? targetLiceId
+        : (original.liceId ?? targetLiceId);
+      if (original.scheduledAt === newScheduledAt && original.liceId === newLiceId) continue;
+      void saveMatchPosition(item.id, newLiceId, newScheduledAt);
     }
   }
 
@@ -1450,7 +1497,6 @@ export function ScheduleGrid({
               {poolGroupsOnActiveDay.map((group) => {
                 const bandRowStart = group.minSlot + 3;
                 const bandRowEnd = group.endSlot + 3;
-                const headerRowEnd = Math.min(bandRowEnd, bandRowStart + 1);
                 return (
                   <Fragment key={group.poolId}>
                     {/* Translucent band — purely decorative, pointer-events
@@ -1500,14 +1546,18 @@ export function ScheduleGrid({
                       }}
                       title={`${group.poolName} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move the pool · click to clear`}
                       className={[
-                        'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-2 py-1 text-xs font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
+                        'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-3 py-2 text-sm font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
                         accentClassFor(group.tournamentColor),
                         tintBorderClassFor(group.tournamentColor),
                         'text-white',
                       ].join(' ')}
                       style={{
                         gridColumn: group.minLiceIndex + 2,
-                        gridRow: `${bandRowStart} / ${headerRowEnd}`,
+                        // Reserve two slot rows (~32 px) so the header
+                        // anchors the pool visibly. The first match
+                        // sits behind it at z-10; the match card's
+                        // ≈ 78 px keeps the fighter line visible.
+                        gridRow: `${bandRowStart} / ${Math.min(bandRowEnd, bandRowStart + 2)}`,
                         marginLeft: '1px',
                         marginRight: '1px',
                         zIndex: 12,
@@ -1515,7 +1565,7 @@ export function ScheduleGrid({
                       }}
                     >
                       <span className="truncate">{group.poolName}</span>
-                      <span className="text-[10px] opacity-90">· {group.matchCount}</span>
+                      <span className="text-xs opacity-90">· {group.matchCount}</span>
                     </div>
                   </Fragment>
                 );

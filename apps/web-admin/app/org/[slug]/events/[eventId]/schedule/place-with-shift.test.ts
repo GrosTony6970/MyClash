@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placeWithShift, type PlaceableItem } from './place-with-shift';
+import { placeMultiWithShift, placeWithShift, type PlaceableItem } from './place-with-shift';
 
 const END = 144; // 12h × 12 slots/h = 144
 
@@ -92,5 +92,79 @@ describe('placeWithShift', () => {
     expect(result.upwardFallback).toBe(false);
     expect(result.items.find((i) => i.id === 'above')!.slot).toBe(0);
     expect(result.shifted.map((i) => i.id)).toEqual(['on']);
+  });
+});
+
+// ── Multi-item (pool) drop ────────────────────────────────────────
+
+describe('placeMultiWithShift', () => {
+  it('lays a 3-match pool sequentially when the target stretch is empty', () => {
+    const result = placeMultiWithShift({
+      items: [],
+      dropped: [item('p1', 0, 1), item('p2', 0, 1), item('p3', 0, 1)],
+      dropSlot: 10,
+      gridEndSlot: END,
+    });
+    expect(result.upwardFallback).toBe(false);
+    expect(result.items.map((i) => [i.id, i.slot])).toEqual([
+      ['p1', 10],
+      ['p2', 11],
+      ['p3', 12],
+    ]);
+    expect(result.shifted.map((i) => i.id)).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('shifts a single existing occupant past the pool tail when it collides with the drop slot', () => {
+    const result = placeMultiWithShift({
+      items: [item('existing', 10, 2)],
+      dropped: [item('p1', 0, 1), item('p2', 0, 1), item('p3', 0, 1)],
+      dropSlot: 10,
+      gridEndSlot: END,
+    });
+    expect(result.upwardFallback).toBe(false);
+    // Pool occupies slots 10, 11, 12 → existing must start at 13.
+    expect(result.items.find((i) => i.id === 'existing')!.slot).toBe(13);
+  });
+
+  it('cascades multiple downstream items past the pool without losing order', () => {
+    const result = placeMultiWithShift({
+      items: [item('a', 10, 2), item('b', 12, 2), item('c', 14, 2)],
+      dropped: [item('p1', 0, 1), item('p2', 0, 1), item('p3', 0, 1)],
+      dropSlot: 10,
+      gridEndSlot: END,
+    });
+    expect(result.upwardFallback).toBe(false);
+    // Pool ends at 13; a → 13, b pushes past a (15), c pushes past b (17).
+    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.slot]));
+    expect(byId.a).toBe(13);
+    expect(byId.b).toBe(15);
+    expect(byId.c).toBe(17);
+  });
+
+  it('falls back to upward shift when downward would overflow the grid end', () => {
+    const result = placeMultiWithShift({
+      items: [item('above', 0, 1), item('tail', END - 1, 1)],
+      dropped: [item('p1', 0, 1), item('p2', 0, 1)],
+      dropSlot: END - 2,
+      gridEndSlot: END,
+    });
+    expect(result.upwardFallback).toBe(true);
+    // Pool sits at END-2 and END-1 → `tail` (was at END-1) can't be
+    // pushed past the grid end, so the upward path kicks in.
+    // The 'above' item gets pushed up to make room.
+    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.slot]));
+    expect(byId.p1).toBe(END - 2);
+    expect(byId.p2).toBe(END - 1);
+  });
+
+  it('returns the items unchanged when the dropped pool is empty', () => {
+    const result = placeMultiWithShift({
+      items: [item('a', 5, 2)],
+      dropped: [],
+      dropSlot: 10,
+      gridEndSlot: END,
+    });
+    expect(result.shifted).toEqual([]);
+    expect(result.items).toEqual([item('a', 5, 2)]);
   });
 });
