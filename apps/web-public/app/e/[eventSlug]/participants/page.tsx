@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { defaultLocale } from '@myclash/i18n';
 import { formatCountryName } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
-import { ParticipantsList } from './_components/ParticipantsList';
+import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';
 import type { ParticipantLike } from './_components/filter-participants';
 
 export const dynamic = 'force-dynamic';
@@ -140,7 +140,7 @@ export default async function ParticipantsPage({
             </p>
             <Link
               href={`/e/${eventSlug}/home`}
-              className="mt-2 inline-block text-sm font-semibold text-red-700 hover:text-red-800"
+              className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-500 hover:bg-slate-50"
             >
               ← Back to event home
             </Link>
@@ -148,7 +148,7 @@ export default async function ParticipantsPage({
         </header>
       )}
 
-      <ParticipantsList eventSlug={eventSlug} participants={participants} />
+      <ParticipantsTabbedView eventSlug={eventSlug} participants={participants} />
     </main>
   );
 }

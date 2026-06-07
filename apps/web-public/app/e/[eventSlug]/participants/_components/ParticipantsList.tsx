@@ -70,7 +70,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                           ].join(' ')}
                         >
                           {t.name}
-                          {t.registrationState === 'pending' && (
+                          {t.registrationState === 'waitlist' && (
                             <span className="ml-1 text-[10px]">· Waitlist</span>
                           )}
                         </Link>
@@ -134,7 +134,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                                 ].join(' ')}
                               >
                                 {t.name}
-                                {t.registrationState === 'pending' && (
+                                {t.registrationState === 'waitlist' && (
                                   <span className="ml-1 text-[10px]">· Waitlist</span>
                                 )}
                               </Link>

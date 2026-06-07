@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import { defaultLocale } from '@myclash/i18n';
-import { formatCountryName } from '@myclash/ui';
+import { StatusBadge, formatCountryName, tournamentStatusSemantic } from '@myclash/ui';
 import { EventBackLink } from './_components/EventBackLink';
 
 interface EventInfo {
@@ -38,10 +38,16 @@ interface Tournament {
   status: string | null;
   color: string | null;
   ruleset_code: string | null;
+  registered: number;
+  waitlistCount: number;
+  poolCount: number;
+  bracketSize: number;
+  completedMatchCount: number;
 }
 
 interface ParticipantRow {
   personId: string;
+  tournaments: Array<{ registrationState: 'active' | 'waitlist' }>;
 }
 
 interface HighlightMatch {
@@ -138,17 +144,31 @@ async function fetchTournaments(eventId: string, apiUrl: string): Promise<Tourna
   }
 }
 
-async function fetchParticipantsCount(eventSlug: string, apiUrl: string): Promise<number> {
+async function fetchParticipantsCounts(
+  eventSlug: string,
+  apiUrl: string,
+): Promise<{ active: number; waitlist: number }> {
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants`,
       { cache: 'no-store' },
     );
-    if (!res.ok) return 0;
+    if (!res.ok) return { active: 0, waitlist: 0 };
     const rows = (await res.json()) as ParticipantRow[];
-    return rows.length;
+    // Distinct people: a person counts as `active` if they have at
+    // least one tournament with registrationState='active', else
+    // `waitlist` if they only appear on waitlists. Avoids double-
+    // counting people registered to multiple tournaments.
+    let active = 0;
+    let waitlist = 0;
+    for (const row of rows) {
+      const hasActive = row.tournaments.some((t) => t.registrationState === 'active');
+      if (hasActive) active += 1;
+      else waitlist += 1;
+    }
+    return { active, waitlist };
   } catch {
-    return 0;
+    return { active: 0, waitlist: 0 };
   }
 }
 
@@ -212,10 +232,10 @@ function formatDateRange(start: string, end: string): string {
 
 export async function PublicHome({ eventSlug, apiUrl }: Props) {
   const event = await fetchEventInfo(eventSlug, apiUrl);
-  const [highlights, tournaments, participantsCount, venues] = await Promise.all([
+  const [highlights, tournaments, participantsCounts, venues] = await Promise.all([
     fetchHighlights(eventSlug, apiUrl),
     fetchTournaments(event?.id ?? '', apiUrl),
-    fetchParticipantsCount(eventSlug, apiUrl),
+    fetchParticipantsCounts(eventSlug, apiUrl),
     fetchVenues(eventSlug, apiUrl),
   ]);
 
@@ -295,14 +315,35 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
         </section>
       )}
 
-      {participantsCount > 0 && (
+      {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+            Participants
+          </h2>
           <Link
             href={`/e/${eventSlug}/participants`}
-            className="inline-flex items-center gap-2 rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+            className="group block max-w-sm rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
           >
-            <span>👥</span>
-            <span>View {participantsCount} participants</span>
+            <p className="font-display text-xs font-bold uppercase tracking-widest text-slate-500">
+              Participants
+            </p>
+            <p className="mt-2 flex items-baseline gap-2">
+              <span className="text-4xl font-black tabular-nums text-slate-900">
+                {participantsCounts.active}
+              </span>
+              <span className="text-sm text-slate-500">registered</span>
+            </p>
+            {participantsCounts.waitlist > 0 && (
+              <p className="mt-1 flex items-baseline gap-2 border-t border-stone-200 pt-2">
+                <span className="text-2xl font-bold tabular-nums text-amber-700">
+                  {participantsCounts.waitlist}
+                </span>
+                <span className="text-sm text-slate-500">on waitlist</span>
+              </p>
+            )}
+            <p className="mt-3 text-xs font-semibold text-red-700 group-hover:text-red-800">
+              View list →
+            </p>
           </Link>
         </section>
       )}
@@ -317,21 +358,59 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
               <Link
                 key={t.id}
                 href={`/e/${eventSlug}/t/${encodeURIComponent(t.slug)}`}
-                className="group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 pl-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                className="group relative flex min-h-36 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 pl-5 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
               >
                 <span
                   aria-hidden="true"
                   className="absolute left-0 top-0 h-full w-1"
                   style={{ backgroundColor: colorTokenToHex(t.color) }}
                 />
-                <div>
-                  <p className="font-display text-base font-semibold text-slate-900">{t.name}</p>
-                  {t.ruleset_code && (
-                    <p className="mt-0.5 font-mono text-xs text-slate-500">{t.ruleset_code}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-base font-semibold text-slate-900 truncate">
+                      {t.name}
+                    </p>
+                    {t.ruleset_code && (
+                      <p className="mt-0.5 font-mono text-xs text-slate-500">{t.ruleset_code}</p>
+                    )}
+                  </div>
+                  {t.status && (
+                    <StatusBadge semantic={tournamentStatusSemantic(t.status)} surface="light">
+                      {t.status}
+                    </StatusBadge>
                   )}
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Pools · Bracket · Podium</span>
+                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div className="space-y-0.5">
+                    {t.registered > 0 && (
+                      <p className="text-slate-700">
+                        <span className="font-semibold tabular-nums">{t.registered}</span>{' '}
+                        <span className="text-slate-500">fighters</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 text-right">
+                    {t.poolCount > 0 && (
+                      <p className="text-slate-700">
+                        <span className="text-slate-500">Pools </span>
+                        <span className="font-semibold tabular-nums">{t.poolCount}</span>
+                      </p>
+                    )}
+                    {t.bracketSize > 0 && (
+                      <p className="text-slate-700">
+                        <span className="text-slate-500">Bracket </span>
+                        <span className="font-semibold tabular-nums">{t.bracketSize}</span>
+                      </p>
+                    )}
+                    {t.completedMatchCount > 0 && (
+                      <p className="text-slate-500">
+                        <span className="font-semibold tabular-nums">{t.completedMatchCount}</span>{' '}
+                        completed fights
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-2 flex justify-end text-xs">
                   <span className="font-semibold text-red-700 group-hover:text-red-800">→</span>
                 </div>
               </Link>

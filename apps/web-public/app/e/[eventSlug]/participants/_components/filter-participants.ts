@@ -16,7 +16,8 @@ export interface ParticipantLike {
     slug: string;
     name: string;
     color: string | null;
-    registrationState: 'active' | 'pending';
+    registrationState: 'active' | 'waitlist';
+    waitlistPosition?: number | null;
   }>;
 }
 
