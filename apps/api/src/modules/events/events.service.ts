@@ -42,6 +42,14 @@ const ALLOWED_EVENT_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image
 const EVENT_HERO_MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EVENT_HERO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
+// Tournament statuses where the tournament IS publicly visible.
+// When setTournamentStatus moves the tournament INTO one of these
+// states, child phases get visibility_status='published'. When it
+// moves OUT, child phases get visibility_status='hidden'. Keeps the
+// phases row aligned with the tournament since operators have no
+// per-phase visibility toggle anymore (see pools/page.tsx).
+const TOURNAMENT_PUBLIC_STATUSES = new Set(['published', 'running', 'completed']);
+
 export interface EventLogoUpload {
   buffer: Buffer;
   filename: string;
@@ -1828,13 +1836,30 @@ export class EventsService {
       userId,
       'admin',
     );
+    const now = new Date().toISOString();
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status, updated_at: now })
       .eq('id', tournamentId)
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
+
+    // Cascade visibility to every child phase. The operator has no
+    // per-phase visibility toggle anymore (pools/page.tsx removed
+    // it; tournament status is the canonical public gate), so the
+    // phases row must follow the tournament. Public statuses
+    // publish; draft/archived hide. Stamps published_at +
+    // published_by_user_id on publish; on hide we leave them as
+    // historical record of the last publish.
+    const phaseVisibility = TOURNAMENT_PUBLIC_STATUSES.has(status) ? 'published' : 'hidden';
+    const phasePatch: Record<string, unknown> = { visibility_status: phaseVisibility };
+    if (phaseVisibility === 'published') {
+      phasePatch['published_at'] = now;
+      phasePatch['published_by_user_id'] = userId;
+    }
+    await this.supabase.service.from('phases').update(phasePatch).eq('tournament_id', tournamentId);
+
     return data;
   }
 
