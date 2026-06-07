@@ -22,6 +22,8 @@ import { PoolMatchesView } from './PoolMatchesView';
 import { BracketLive } from './BracketLive';
 import { TournamentTabs, type TabKey } from './TournamentTabs';
 import { PoolsCompositionView, type PoolMember, type PoolReferee } from './PoolsCompositionView';
+import { ParticipantsTab, type ParticipantsTabEntry } from './ParticipantsTab';
+import { FinalRankingTab } from './FinalRankingTab';
 
 interface Props {
   params: Promise<{ eventSlug: string; tournamentSlug: string }>;
@@ -295,27 +297,52 @@ export default async function TournamentPage({ params }: Props) {
   const tournamentColor = (tournament as { color?: string | null }).color ?? null;
   const accentColor = colorTokenToHex(tournamentColor);
 
+  // Per-tournament participants — pulled from the event roster and
+  // filtered to this tournament. Includes active + waitlist rows.
+  const participantsTabEntries = await fetchTournamentParticipants(
+    eventSlug,
+    tournamentSlug,
+    apiUrl,
+  );
+
   const poolsTabVisible = pools.length > 0;
   const standingsTabVisible = pools.length > 0;
-  const bracketTabVisible = bracketSlots.length > 0;
+  // Bracket tab is ALWAYS visible — visitors should know the section
+  // exists even before the operator generates the bracket. The panel
+  // renders a placeholder when bracketSlots is empty.
+  const bracketTabVisible = true;
   const podiumTabVisible = podiumDecided;
+  const participantsTabVisible = participantsTabEntries.length > 0;
+  // Final Ranking tab is ALWAYS visible too — content gates on
+  // `tournament.status === 'completed'`; otherwise placeholder.
+  const finalRankingTabVisible = true;
 
   // Default tab adapts to status. Falls back to the first visible tab
   // when the preferred default isn't available yet.
   const visibleByKey: Record<TabKey, boolean> = {
+    participants: participantsTabVisible,
     pools: poolsTabVisible,
     poolmatches: poolsTabVisible,
     standings: standingsTabVisible,
     bracket: bracketTabVisible,
     podium: podiumTabVisible,
+    finalranking: finalRankingTabVisible,
   };
   const preferredDefault: TabKey =
     tournament.status === 'completed'
-      ? 'podium'
+      ? 'finalranking'
       : tournament.status === 'running'
         ? 'standings'
         : 'pools';
-  const fallbackOrder: TabKey[] = ['pools', 'poolmatches', 'standings', 'bracket', 'podium'];
+  const fallbackOrder: TabKey[] = [
+    'participants',
+    'pools',
+    'poolmatches',
+    'standings',
+    'bracket',
+    'podium',
+    'finalranking',
+  ];
   const defaultTab: TabKey = visibleByKey[preferredDefault]
     ? preferredDefault
     : (fallbackOrder.find((k) => visibleByKey[k]) ?? 'pools');
@@ -344,66 +371,65 @@ export default async function TournamentPage({ params }: Props) {
         </div>
       </div>
 
-      {!poolsTabVisible && !standingsTabVisible && !bracketTabVisible && !podiumTabVisible ? (
-        <div className="py-12 text-center">
-          <p className="mb-3 text-4xl">⏳</p>
-          <p className="text-slate-500">
-            Pools and bracket will appear here once the organizer generates them.
-          </p>
-        </div>
-      ) : (
-        <TournamentTabs
-          defaultTab={defaultTab}
-          colorToken={tournamentColor}
-          tabs={[
-            {
-              key: 'pools',
-              label: t('publicApp.tournament.tabs.poolList'),
-              visible: poolsTabVisible,
-              panel: (
-                <PoolsCompositionView
-                  pools={pools.map((p) => ({
-                    id: p.id,
-                    name: p.name,
-                    members: p.members ?? [],
-                    referees: p.referees ?? [],
-                  }))}
-                  accentColor={accentColor}
-                  colorToken={tournamentColor}
-                />
-              ),
-            },
-            {
-              key: 'poolmatches',
-              label: t('publicApp.tournament.tabs.poolMatches'),
-              visible: poolsTabVisible,
-              panel: (
-                <PoolMatchesView
-                  eventSlug={eventSlug}
-                  tournamentSlug={tournamentSlug}
-                  apiUrl={apiUrl}
-                  colorToken={tournamentColor}
-                />
-              ),
-            },
-            {
-              key: 'standings',
-              label: t('publicApp.tournament.tabs.standings'),
-              visible: standingsTabVisible,
-              panel: (
-                <StandingsView
-                  tournamentId={tournament.id}
-                  apiUrl={apiUrl}
-                  pools={pools}
-                  colorToken={tournamentColor}
-                />
-              ),
-            },
-            {
-              key: 'bracket',
-              label: t('publicApp.tournament.tabs.bracket'),
-              visible: bracketTabVisible,
-              panel: (
+      <TournamentTabs
+        defaultTab={defaultTab}
+        colorToken={tournamentColor}
+        tabs={[
+          {
+            key: 'participants',
+            label: 'Participants',
+            visible: participantsTabVisible,
+            panel: <ParticipantsTab entries={participantsTabEntries} />,
+          },
+          {
+            key: 'pools',
+            label: t('publicApp.tournament.tabs.poolList'),
+            visible: poolsTabVisible,
+            panel: (
+              <PoolsCompositionView
+                pools={pools.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  members: p.members ?? [],
+                  referees: p.referees ?? [],
+                }))}
+                accentColor={accentColor}
+                colorToken={tournamentColor}
+              />
+            ),
+          },
+          {
+            key: 'poolmatches',
+            label: t('publicApp.tournament.tabs.poolMatches'),
+            visible: poolsTabVisible,
+            panel: (
+              <PoolMatchesView
+                eventSlug={eventSlug}
+                tournamentSlug={tournamentSlug}
+                apiUrl={apiUrl}
+                colorToken={tournamentColor}
+              />
+            ),
+          },
+          {
+            key: 'standings',
+            label: t('publicApp.tournament.tabs.standings'),
+            visible: standingsTabVisible,
+            panel: (
+              <StandingsView
+                tournamentId={tournament.id}
+                apiUrl={apiUrl}
+                pools={pools}
+                colorToken={tournamentColor}
+              />
+            ),
+          },
+          {
+            key: 'bracket',
+            label: t('publicApp.tournament.tabs.bracket'),
+            visible: bracketTabVisible,
+            panel:
+              bracketSlots.length > 0 ? (
                 <BracketLive
                   eventSlug={eventSlug}
                   tournamentSlug={tournamentSlug}
@@ -420,22 +446,79 @@ export default async function TournamentPage({ params }: Props) {
                   podium={podium}
                   podiumDecided={podiumDecided}
                 />
+              ) : (
+                <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-slate-500">
+                  No bracket yet — the bracket will appear here once the tournament&apos;s
+                  elimination phase is generated.
+                </div>
               ),
-            },
-            {
-              key: 'podium',
-              label: t('publicApp.tournament.tabs.podium'),
-              visible: podiumTabVisible,
-              panel:
-                podium && podiumDecided ? (
-                  <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-                    <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
-                  </div>
-                ) : null,
-            },
-          ]}
-        />
-      )}
+          },
+          {
+            key: 'podium',
+            label: t('publicApp.tournament.tabs.podium'),
+            visible: podiumTabVisible,
+            panel:
+              podium && podiumDecided ? (
+                <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+                  <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
+                </div>
+              ) : null,
+          },
+          {
+            key: 'finalranking',
+            label: 'Final Ranking',
+            visible: finalRankingTabVisible,
+            panel: (
+              <FinalRankingTab
+                isTournamentCompleted={tournament.status === 'completed'}
+                podium={podium ?? null}
+                bracketSlots={bracketSlots}
+              />
+            ),
+          },
+        ]}
+      />
     </main>
   );
+}
+
+async function fetchTournamentParticipants(
+  eventSlug: string,
+  tournamentSlug: string,
+  apiUrl: string,
+): Promise<ParticipantsTabEntry[]> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{
+      personId: string;
+      displayName: string;
+      clubName: string | null;
+      clubAbbrev: string | null;
+      tournaments: Array<{
+        slug: string;
+        registrationState: 'active' | 'waitlist';
+        waitlistPosition?: number | null;
+      }>;
+    }>;
+    const entries: ParticipantsTabEntry[] = [];
+    for (const person of rows) {
+      const tournamentEntry = person.tournaments.find((t) => t.slug === tournamentSlug);
+      if (!tournamentEntry) continue;
+      entries.push({
+        personId: person.personId,
+        displayName: person.displayName,
+        clubName: person.clubName,
+        clubAbbrev: person.clubAbbrev,
+        registrationState: tournamentEntry.registrationState,
+        waitlistPosition: tournamentEntry.waitlistPosition ?? null,
+      });
+    }
+    return entries;
+  } catch {
+    return [];
+  }
 }

@@ -14,7 +14,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 
-export type TabKey = 'pools' | 'poolmatches' | 'standings' | 'bracket' | 'podium';
+export type TabKey =
+  | 'participants'
+  | 'pools'
+  | 'poolmatches'
+  | 'standings'
+  | 'bracket'
+  | 'podium'
+  | 'finalranking';
 
 interface TabDef {
   key: TabKey;
@@ -44,7 +51,15 @@ function activeTabClassesFor(token: string | null | undefined): string {
   return `${tintTextClassFor(token)} ${tintBorderClassFor(token)}`;
 }
 
-const TAB_ORDER: TabKey[] = ['pools', 'poolmatches', 'standings', 'bracket', 'podium'];
+const TAB_ORDER: TabKey[] = [
+  'participants',
+  'pools',
+  'poolmatches',
+  'standings',
+  'bracket',
+  'podium',
+  'finalranking',
+];
 
 export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   const visibleTabs = tabs.filter((t) => t.visible);
@@ -53,11 +68,13 @@ export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
 
   const [active, setActive] = useState<TabKey>(defaultTab);
   const tabRefs = useRef<Record<TabKey, HTMLButtonElement | null>>({
+    participants: null,
     pools: null,
     poolmatches: null,
     standings: null,
     bracket: null,
     podium: null,
+    finalranking: null,
   });
 
   // Sync from URL hash on mount + listen for back/forward.
