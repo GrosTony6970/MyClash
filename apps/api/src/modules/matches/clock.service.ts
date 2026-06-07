@@ -5,7 +5,7 @@
  * Clock state is always recomputed from the match_events timeline,
  * never stored as a separate field. This makes it lossless and replayable.
  *
- * Clock actions: start | halt | resume | end | reset_clock
+ * Clock actions: start | halt | resume | end | reopen | reset_clock
  *
  * Active time = sum of (resume_at - start_at) intervals.
  * Current active time = sum of closed intervals + (now - last_start) if running.
@@ -18,6 +18,7 @@ export type ClockAction =
   | 'halt'
   | 'resume'
   | 'end'
+  | 'reopen'
   | 'reset_clock'
   | 'adjust_time'
   | 'reset_match';
@@ -47,7 +48,7 @@ const VALID_TRANSITIONS: Record<string, ClockAction[]> = {
   idle: ['start'],
   running: ['halt', 'end'],
   halted: ['resume', 'end', 'reset_clock'],
-  ended: [],
+  ended: ['reopen'],
 };
 
 @Injectable()
@@ -63,7 +64,16 @@ export class ClockService {
       .from('match_events')
       .select('id, type, reason, occurred_at, adjustment_ms')
       .eq('match_id', matchId)
-      .in('type', ['start', 'halt', 'resume', 'end', 'reset_clock', 'adjust_time', 'reset_match'])
+      .in('type', [
+        'start',
+        'halt',
+        'resume',
+        'end',
+        'reopen',
+        'reset_clock',
+        'adjust_time',
+        'reset_match',
+      ])
       .order('occurred_at', { ascending: true })
       .order('sequence', { ascending: true });
 
@@ -153,6 +163,20 @@ export class ClockService {
           ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
         })
         .eq('id', matchId);
+    } else if (action === 'reopen') {
+      // Reverses a prior 'end': clock goes back to halted with the
+      // accumulated active time preserved (computeClockState reads the
+      // same event-sourced timeline). Clears ended_at + locked_at so
+      // scoring can resume.
+      await this.supabase.service
+        .from('matches')
+        .update({
+          status: 'paused',
+          ended_at: null,
+          locked_at: null,
+          duration_total_ms: null,
+        })
+        .eq('id', matchId);
     }
 
     this.logger.log(`Match ${matchId}: clock ${action}`);
@@ -240,6 +264,13 @@ export class ClockService {
             runningFrom = null;
           }
           status = 'ended';
+          break;
+
+        case 'reopen':
+          // Inverse of 'end' — keep the accumulated activeMs, return
+          // the clock to halted so the referee can resume or end again.
+          runningFrom = null;
+          status = 'halted';
           break;
 
         case 'reset_clock':

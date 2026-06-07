@@ -36,7 +36,7 @@ import {
 } from './dto/matches.dto';
 
 class ClockActionDto {
-  @IsIn(['start', 'halt', 'resume', 'end', 'reset_clock'])
+  @IsIn(['start', 'halt', 'resume', 'end', 'reopen', 'reset_clock'])
   action!: ClockAction;
 
   @IsOptional()
@@ -330,12 +330,14 @@ export class MatchesController {
 
   /**
    * POST /api/v1/matches/:id/clock
-   * Perform a clock action: start | halt | resume | end | reset_clock.
-   * Persists a match_events row and updates match.status.
+   * Perform a clock action: start | halt | resume | end | reopen | reset_clock.
+   * Persists a match_events row and updates match.status. `reopen` reverses
+   * a prior `end`, returning the clock to halted with accumulated active
+   * time preserved.
    */
   @Post('matches/:id/clock')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Clock action: start | halt | resume | end | reset_clock' })
+  @ApiOperation({ summary: 'Clock action: start | halt | resume | end | reopen | reset_clock' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async clockAction(
     @Param('id', ParseUUIDPipe) id: string,

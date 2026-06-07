@@ -84,6 +84,20 @@ describe('ClockService.computeClockState', () => {
     expect(state.activeMs).toBe(3 * 60 * 1000 + 15_000);
   });
 
+  it('reopen returns an ended clock to halted with activeMs preserved', () => {
+    const state = service.computeClockState('m1', [
+      { id: 'e1', type: 'start', reason: null, occurred_at: T0 },
+      { id: 'e2', type: 'halt', reason: null, occurred_at: T1 }, // 3 min
+      { id: 'e3', type: 'resume', reason: null, occurred_at: T2 }, // resume at 5 min
+      { id: 'e4', type: 'end', reason: null, occurred_at: T3 }, // ends at 8 min → 6 min active
+      { id: 'e5', type: 'reopen', reason: null, occurred_at: T4 }, // reopen
+    ]);
+    expect(state.status).toBe('halted');
+    // 6 minutes active (3 + 3) preserved from before the end event.
+    expect(state.activeMs).toBe(6 * 60 * 1000);
+    expect(state.runningFrom).toBeNull();
+  });
+
   it('reset_match returns the replayed clock to idle', () => {
     const state = service.computeClockState('m1', [
       { id: 'e1', type: 'start', reason: null, occurred_at: T0 },

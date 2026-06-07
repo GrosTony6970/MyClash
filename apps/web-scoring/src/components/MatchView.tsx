@@ -113,6 +113,7 @@ export function MatchView({ match, apiUrl, networkStatus, onRefresh }: MatchView
         matchNumberLabel={match.matchNumberLabel}
         disabled={Boolean(match.lockedAt)}
         onStateChange={setClockState}
+        onMatchChanged={onRefresh}
       />
 
       <CorrectionTools
@@ -134,7 +135,7 @@ export function MatchView({ match, apiUrl, networkStatus, onRefresh }: MatchView
           redScore={match.redScore}
           blueScore={match.blueScore}
           scoringEnabled={
-            (match.status === 'running' || match.status === 'halted') && !match.lockedAt
+            (match.status === 'running' || match.status === 'paused') && !match.lockedAt
           }
           config={scoringConfig}
           matchFormat={matchFormat}
@@ -152,7 +153,7 @@ export function MatchView({ match, apiUrl, networkStatus, onRefresh }: MatchView
             blueRegistrationId={match.blueRegistrationId}
             redName={match.redFighterName ?? t('scoring.lice.red')}
             blueName={match.blueFighterName ?? t('scoring.lice.blue')}
-            disabled={(match.status !== 'running' && match.status !== 'halted') || !!match.lockedAt}
+            disabled={(match.status !== 'running' && match.status !== 'paused') || !!match.lockedAt}
             onPenaltyRecorded={() => setNextSequence((n) => n + 1)}
           />
         </div>
@@ -164,7 +165,7 @@ export function MatchView({ match, apiUrl, networkStatus, onRefresh }: MatchView
             blueRegistrationId={match.blueRegistrationId}
             redName={match.redFighterName ?? t('scoring.lice.red')}
             blueName={match.blueFighterName ?? t('scoring.lice.blue')}
-            disabled={(match.status !== 'running' && match.status !== 'halted') || !!match.lockedAt}
+            disabled={(match.status !== 'running' && match.status !== 'paused') || !!match.lockedAt}
             onForfeitRecorded={onRefresh}
           />
         </div>

@@ -24,6 +24,13 @@ interface MatchClockProps {
   matchNumberLabel?: string | null;
   disabled?: boolean;
   onStateChange?: (state: ClockState) => void;
+  /**
+   * Called after a successful clock action so the parent can refetch
+   * the match row. Without this, gates like `scoringEnabled` keep
+   * reading the original `match.status` from the initial load and
+   * never re-enable scoring after a 'start' / 'resume' transition.
+   */
+  onMatchChanged?: () => void;
 }
 
 export function formatClockMs(ms: number): string {
@@ -99,6 +106,7 @@ export default function MatchClock({
   matchNumberLabel,
   disabled = false,
   onStateChange,
+  onMatchChanged,
 }: MatchClockProps) {
   const { t } = useI18n();
   const [clockState, setClockState] = useState<ClockState | null>(null);
@@ -172,6 +180,11 @@ export default function MatchClock({
         setClockState(newState);
         setDisplayMs(computeDisplayMs(newState));
         onStateChange?.(newState);
+        // Trigger a parent refetch so `match.status` reflects the new
+        // clock state. Gates downstream (scoringEnabled, penalty
+        // picker disabled state) read `match.status` — without this
+        // they stay stale until the next manual refresh.
+        onMatchChanged?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
       } finally {
