@@ -238,34 +238,6 @@ export default function EventTournamentsPage() {
     }
   }
 
-  async function toggleVisibility(tournament: Tournament, mode: 'publish' | 'unpublish') {
-    setBusyId(tournament.id);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournament.id}/${mode}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.tournaments.visibilityError'));
-      }
-      setNotice(
-        t(
-          mode === 'publish'
-            ? 'organizer.tournaments.published'
-            : 'organizer.tournaments.unpublished',
-        ),
-      );
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.tournaments.visibilityError'));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function hardDeleteTournament() {
     if (!confirmDelete) return;
     setBusyId(confirmDelete.id);
@@ -472,28 +444,6 @@ export default function EventTournamentsPage() {
                             </>
                           );
                         })()}
-                        {tournament.status === 'draft' && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="next"
-                            disabled={busyId === tournament.id}
-                            onClick={() => void toggleVisibility(tournament, 'publish')}
-                          >
-                            {t('organizer.tournaments.publish')}
-                          </Button>
-                        )}
-                        {tournament.status === 'published' && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="back"
-                            disabled={busyId === tournament.id}
-                            onClick={() => void toggleVisibility(tournament, 'unpublish')}
-                          >
-                            {t('organizer.tournaments.unpublish')}
-                          </Button>
-                        )}
                         <Button
                           type="button"
                           size="sm"
