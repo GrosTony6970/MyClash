@@ -100,6 +100,12 @@ export interface AssignmentBoardPool {
   bracketMaxRound?: number;
   members: Array<{
     registrationId: string;
+    /**
+     * Resolved to `persons.global_person_id` (the same id-space the
+     * referee candidate side uses, sourced from `event_referees`).
+     * Projecting the event-scoped `persons.id` here would cross two
+     * unrelated UUID spaces and silently never match the candidates.
+     */
     personId: string;
     personName: string;
     clubLabel: string | null;
@@ -196,6 +202,7 @@ interface PoolMemberRow {
         person_id: string;
         persons?: {
           id: string;
+          global_person_id: string | null;
           given_name: string | null;
           family_name: string | null;
           display_name?: string | null;
@@ -208,6 +215,7 @@ interface PoolMemberRow {
         person_id: string;
         persons?: {
           id: string;
+          global_person_id: string | null;
           given_name: string | null;
           family_name: string | null;
           display_name?: string | null;
@@ -257,8 +265,19 @@ interface PersonRow {
 
 interface RegistrationRow {
   id: string;
+  /** Event-scoped `persons.id` — DO NOT compare against referee
+   *  candidate ids without first translating to `global_person_id`. */
   person_id: string;
   tournament_id: string;
+  /**
+   * `persons.global_person_id` resolved via the nested join in
+   * `listRegistrations`. This is the id-space the referee candidate
+   * side uses (sourced from `event_referees.person_id`), so we key
+   * `fighterRegistrationIdsByPerson` by it. NULL is possible for
+   * unclaimed guest persons; those candidates can't be referees
+   * anyway, so a NULL key just sits unused.
+   */
+  global_person_id: string | null;
 }
 
 interface RefereeAssignmentRow {
@@ -563,11 +582,17 @@ export class AssignmentBoardService {
     );
     const candidates = await this.listCandidates(eventId);
     const registrations = await this.listRegistrations(tournamentIds);
+    // Key by `global_person_id` so the map's keys live in the same
+    // id-space as the referee candidate (`event_referees.person_id`).
+    // A NULL global id (unclaimed guest persons) means the candidate
+    // can't be a referee anyway — skip them; no candidate would look
+    // up a NULL key.
     const fighterRegistrationIdsByPerson = new Map<string, string[]>();
     for (const registration of registrations) {
-      const existing = fighterRegistrationIdsByPerson.get(registration.person_id) ?? [];
+      if (!registration.global_person_id) continue;
+      const existing = fighterRegistrationIdsByPerson.get(registration.global_person_id) ?? [];
       existing.push(registration.id);
-      fighterRegistrationIdsByPerson.set(registration.person_id, existing);
+      fighterRegistrationIdsByPerson.set(registration.global_person_id, existing);
     }
     const assignments = await this.listAssignments(eventId);
 
@@ -809,7 +834,7 @@ export class AssignmentBoardService {
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, given_name, family_name, club_id, clubs(name)))), matches(id, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name)))), matches(id, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
       )
       .in('phase_id', phaseIds)
       .order('sort_order', { ascending: true });
@@ -844,7 +869,15 @@ export class AssignmentBoardService {
           const club = this.firstRelation(person?.clubs);
           return {
             registrationId: member.registration_id,
-            personId: registration?.person_id ?? '',
+            // The fighter-as-own-referee guards (engine filter,
+            // applyManual, and the persistAssignments chokepoint) all
+            // compare `member.personId` against the referee
+            // candidate's `personId`, which is sourced from
+            // `event_referees.person_id` — a `global_persons.id`.
+            // Projecting the event-scoped `persons.id` here would
+            // mean the comparison crosses two unrelated UUID spaces
+            // and silently never matches (the Denis-Allaume bug).
+            personId: person?.global_person_id ?? '',
             personName: this.formatName(person),
             clubLabel: club?.name ?? null,
           };
@@ -982,11 +1015,28 @@ export class AssignmentBoardService {
     if (tournamentIds.length === 0) return [];
     const { data, error } = await this.supabase.service
       .from('registrations')
-      .select('id, person_id, tournament_id')
+      .select('id, person_id, tournament_id, persons(global_person_id)')
       .in('tournament_id', tournamentIds)
       .in('status', ['registered', 'checked_in']);
     if (error) throw new BadRequestException(error.message);
-    return (data ?? []) as RegistrationRow[];
+    type Raw = {
+      id: string;
+      person_id: string;
+      tournament_id: string;
+      persons?:
+        | { global_person_id: string | null }
+        | Array<{ global_person_id: string | null }>
+        | null;
+    };
+    return ((data ?? []) as Raw[]).map((row) => {
+      const person = this.firstRelation(row.persons);
+      return {
+        id: row.id,
+        person_id: row.person_id,
+        tournament_id: row.tournament_id,
+        global_person_id: person?.global_person_id ?? null,
+      };
+    });
   }
 
   private async listAssignments(eventId: string): Promise<RefereeAssignmentRow[]> {

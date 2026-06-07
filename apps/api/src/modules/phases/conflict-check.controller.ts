@@ -108,22 +108,27 @@ export class ConflictCheckController {
       };
     });
 
-    // 3. Fetch registration → person mapping for this tournament
+    // 3. Fetch registration → person mapping for this tournament.
+    //    Project `persons.global_person_id` (not `persons.id`) so the
+    //    map keys live in the same id-space as
+    //    `referee_assignments.person_id`. Same shape of fix as the one
+    //    that closed the Denis-Allaume bug in assignment-board.service.
     const { data: regRows } = await this.supabase.service
       .from('registrations')
-      .select('id, persons ( id, given_name, family_name )')
+      .select('id, persons ( id, global_person_id, given_name, family_name )')
       .eq('tournament_id', tournamentId);
 
     const registrationPersonMap: RegistrationPersonMap[] = (regRows ?? []).map((r) => {
       const row = r as Record<string, unknown>;
       const person = row['persons'] as {
         id: string;
+        global_person_id: string | null;
         given_name: string;
         family_name: string;
       } | null;
       return {
         registrationId: row['id'] as string,
-        personId: person?.id ?? '',
+        personId: person?.global_person_id ?? '',
         personName: person ? `${person.given_name} ${person.family_name}` : '',
       };
     });

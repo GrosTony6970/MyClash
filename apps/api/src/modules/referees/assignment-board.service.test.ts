@@ -49,6 +49,17 @@ function makeChain(result: unknown) {
   return chain;
 }
 
+// Distinct UUIDs per id-space so the fixture can't accidentally
+// "work" when the production code compares the wrong space. The
+// originating Denis-Allaume bug hid behind a fixture where
+// `persons.id === global_persons.id`.
+const FIGHTER_REF_PERSONS_ID = 'persons-row-fighter-ref'; // event-scoped persons.id
+const FIGHTER_REF_GLOBAL_ID = 'person-ref-a'; // global_persons.id, candidate side
+const PURE_REF_PERSONS_ID = 'persons-row-pure-ref';
+const PURE_REF_GLOBAL_ID = 'person-ref-b';
+const BLUE_PERSONS_ID = 'persons-row-blue';
+const BLUE_GLOBAL_ID = 'person-b-global';
+
 function queueBoardReads(assignments: unknown[] = []) {
   fromMock
     // Slice 8: loadContext now fetches event.start_date up front.
@@ -71,9 +82,10 @@ function queueBoardReads(assignments: unknown[] = []) {
                 registration_id: 'reg-fighter-ref',
                 registrations: {
                   id: 'reg-fighter-ref',
-                  person_id: 'person-ref-a',
+                  person_id: FIGHTER_REF_PERSONS_ID,
                   persons: {
-                    id: 'person-ref-a',
+                    id: FIGHTER_REF_PERSONS_ID,
+                    global_person_id: FIGHTER_REF_GLOBAL_ID,
                     given_name: 'Fighter',
                     family_name: 'Referee',
                     display_name: null,
@@ -96,20 +108,20 @@ function queueBoardReads(assignments: unknown[] = []) {
         error: null,
       }),
     )
-    // event_referees — post-0063 keyed on person_id only
+    // event_referees — keyed on global_persons.id
     .mockReturnValueOnce(
       makeChain({
-        data: [{ person_id: 'person-ref-a' }, { person_id: 'person-ref-b' }],
+        data: [{ person_id: FIGHTER_REF_GLOBAL_ID }, { person_id: PURE_REF_GLOBAL_ID }],
         error: null,
       }),
     )
     .mockReturnValueOnce(
       makeChain({
         data: [
-          { person_id: 'person-ref-a', role: 'arbitre_declarant', rating: 5 },
-          { person_id: 'person-ref-b', role: 'arbitre_declarant', rating: 4 },
-          { person_id: 'person-ref-b', role: 'arbitre_assesseur', rating: 4 },
-          { person_id: 'person-ref-b', role: 'arbitre_table', rating: 4 },
+          { person_id: FIGHTER_REF_GLOBAL_ID, role: 'arbitre_declarant', rating: 5 },
+          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_declarant', rating: 4 },
+          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_assesseur', rating: 4 },
+          { person_id: PURE_REF_GLOBAL_ID, role: 'arbitre_table', rating: 4 },
         ],
         error: null,
       }),
@@ -119,14 +131,14 @@ function queueBoardReads(assignments: unknown[] = []) {
       makeChain({
         data: [
           {
-            id: 'person-ref-a',
+            id: FIGHTER_REF_GLOBAL_ID,
             claimed_by_user_id: 'user-a',
             given_name: 'Fighter',
             family_name: 'Referee',
             club_id: null,
           },
           {
-            id: 'person-ref-b',
+            id: PURE_REF_GLOBAL_ID,
             claimed_by_user_id: 'user-b',
             given_name: 'Pure',
             family_name: 'Referee',
@@ -141,11 +153,23 @@ function queueBoardReads(assignments: unknown[] = []) {
     // treats every candidate as available for every tournament + day.
     .mockReturnValueOnce(makeChain({ data: [], error: null }))
     .mockReturnValueOnce(makeChain({ data: [], error: null }))
+    // registrations — now joined with persons(global_person_id) so the
+    // map keys live in the same id-space as the candidate side.
     .mockReturnValueOnce(
       makeChain({
         data: [
-          { id: 'reg-fighter-ref', person_id: 'person-ref-a', tournament_id: 'tournament-1' },
-          { id: 'reg-b', person_id: 'person-b', tournament_id: 'tournament-1' },
+          {
+            id: 'reg-fighter-ref',
+            person_id: FIGHTER_REF_PERSONS_ID,
+            tournament_id: 'tournament-1',
+            persons: { global_person_id: FIGHTER_REF_GLOBAL_ID },
+          },
+          {
+            id: 'reg-b',
+            person_id: BLUE_PERSONS_ID,
+            tournament_id: 'tournament-1',
+            persons: { global_person_id: BLUE_GLOBAL_ID },
+          },
         ],
         error: null,
       }),
@@ -243,25 +267,49 @@ describe('AssignmentBoardService', () => {
   it('rejects a manual assignment when the referee is fighting in that pool', async () => {
     queueBoardReads();
 
+    // The manual-PATCH guard must catch this even though the
+    // candidate's id (FIGHTER_REF_GLOBAL_ID = global_persons.id) is
+    // structurally distinct from the pool member's persons.id
+    // (FIGHTER_REF_PERSONS_ID). Pre-fix code projected persons.id and
+    // failed the comparison silently.
     await expect(
       service.applyManual('event-1', {
         poolId: 'pool-1',
         role: 'arbitre_declarant',
-        personId: 'person-a',
+        personId: FIGHTER_REF_GLOBAL_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('blocks the fighter-in-pool as a referee proposal even when persons.id differs from global_persons.id', async () => {
+    // Regression: the originating Denis-Allaume bug. The fighter's
+    // event-scoped persons.id (FIGHTER_REF_PERSONS_ID) is distinct
+    // from their global_persons.id (FIGHTER_REF_GLOBAL_ID); the
+    // referee candidate side keys on the latter. Pre-fix code
+    // compared persons.id and never matched, so the engine
+    // happily proposed the fighter as a referee for their own pool.
+    queueBoardReads();
+
+    const board = await service.previewBoard('event-1');
+
+    const slot1Assignment = board.pools[0]!.roleSlots[0]!.assignment;
+    // The fighter must NOT have been proposed as a referee here. If
+    // the engine had a clean candidate to fill the slot it picked
+    // that; if not, the slot is empty — either is correct, but the
+    // fighter (FIGHTER_REF_GLOBAL_ID) is never the answer.
+    expect(slot1Assignment?.personId).not.toBe(FIGHTER_REF_GLOBAL_ID);
+  });
+
   it('rejects a manual assignment when the referee already has another role in the same pool', async () => {
-    // Slice 7b: person-ref-b is the pure referee (qualified for all
-    // three roles per queueBoardReads). They're already assigned to
-    // pool-1 as Déclarant — assigning them as Assesseur on the same
-    // pool would split their attention across roles, so the manual
-    // PATCH must reject.
+    // Slice 7b: the pure referee (PURE_REF_GLOBAL_ID) is qualified
+    // for all three roles per queueBoardReads. They're already
+    // assigned to pool-1 as Déclarant — assigning them as Assesseur
+    // on the same pool would split their attention across roles, so
+    // the manual PATCH must reject.
     queueBoardReads([
       {
         id: 'existing-assign',
-        person_id: 'person-ref-b',
+        person_id: PURE_REF_GLOBAL_ID,
         pool_id: 'pool-1',
         match_id: null,
         role: 'arbitre_declarant',
@@ -274,7 +322,7 @@ describe('AssignmentBoardService', () => {
       service.applyManual('event-1', {
         poolId: 'pool-1',
         role: 'arbitre_assesseur',
-        personId: 'person-ref-b',
+        personId: PURE_REF_GLOBAL_ID,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
