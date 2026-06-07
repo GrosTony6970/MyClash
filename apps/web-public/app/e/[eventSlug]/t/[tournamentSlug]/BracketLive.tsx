@@ -12,7 +12,13 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BracketView, MedalPodium, type BracketSlotData, type PodiumData } from '@myclash/ui';
+import {
+  BracketView,
+  MedalPodium,
+  extractBronzeMatch,
+  type BracketSlotData,
+  type PodiumData,
+} from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
 import type { BracketSlot } from './page';
 
@@ -130,6 +136,12 @@ export function BracketLive({
     blueRegistrationId: (s as { blueRegistrationId?: string | null }).blueRegistrationId ?? null,
   }));
 
+  // Extract the bronze final so BracketView renders it separately
+  // below the gold final — without this split, both finals collapse
+  // to a single card at the SF midpoint and the bronze disappears.
+  // Matches the admin bracket page's call shape.
+  const { bronze, mainSlots } = extractBronzeMatch(adminShapeSlots);
+
   return (
     <div role="region" aria-label="Tournament bracket" aria-live="polite">
       {podium && podiumDecided && (
@@ -137,19 +149,24 @@ export function BracketLive({
           <MedalPodium podium={podium} showBronze={!!podium.bronze || !!podium.fourth} />
         </div>
       )}
-      <div className="overflow-x-auto pb-4">
-        <BracketView
-          slots={adminShapeSlots}
-          rounds={rounds}
-          bracketSize={bracketSize}
-          weapon={weapon}
-          bracketConfig={{
-            phaseType: 'single_elim',
-            rounds,
-          }}
-          onMatchClick={onMatchClick}
-        />
-      </div>
+      {/* No outer overflow-x-auto here — BracketView has its own
+          internal scroll container. Nesting two overflow:auto
+          parents caused the connector SVG's ResizeObserver to
+          observe stale dimensions and render empty paths on
+          first paint (admin uses a single non-scrolling wrapper
+          and renders connectors fine). */}
+      <BracketView
+        slots={mainSlots}
+        rounds={rounds}
+        bracketSize={bracketSize}
+        weapon={weapon}
+        bracketConfig={{
+          phaseType: 'single_elim',
+          rounds,
+        }}
+        bronzeMatch={bronze}
+        onMatchClick={onMatchClick}
+      />
       <p className="mt-4 text-xs text-slate-500">
         {bracketSize}-fighter bracket
         {mainBracketSize && mainBracketSize !== bracketSize && ` · main ${mainBracketSize}`}
