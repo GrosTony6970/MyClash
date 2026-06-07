@@ -266,6 +266,29 @@ export default function MatchDetailPage() {
     }
   }
 
+  async function handleReopen() {
+    if (!match) return;
+    if (
+      !window.confirm(
+        'Re-open this match? The lice will be able to score again. The current scores and exchanges are preserved.',
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action: 'reopen', reason: 'Organizer re-opened ended match' }),
+    });
+    if (res.ok) {
+      setRefreshKey((key) => key + 1);
+    } else {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      alert(body.message ?? 'Could not re-open the match.');
+    }
+  }
+
   async function handleForfeit() {
     if (!match) return;
     const redId = match.redRegistrationId ?? match.red_registration_id;
@@ -347,13 +370,29 @@ export default function MatchDetailPage() {
               <span className="text-gray-400 mx-2">–</span>
               <span className="text-blue-600">{match?.blueScore ?? 0}</span>
             </p>
-            <button
-              type="button"
-              onClick={() => void handleLockToggle()}
-              className="mt-3 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-500"
-            >
-              {match?.lockedAt ? 'Unlock match' : 'Lock match'}
-            </button>
+            <div className="mt-3 flex flex-col items-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handleLockToggle()}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-500"
+              >
+                {match?.lockedAt ? 'Unlock match' : 'Lock match'}
+              </button>
+              {/* Re-open lets the organizer reverse a mistaken End match
+                  from the scoring app. Only relevant when the match is
+                  in the DB 'completed' state. Backed by the same
+                  POST /matches/:id/clock {action:'reopen'} endpoint the
+                  scoring app uses. */}
+              {match?.status === 'completed' && (
+                <button
+                  type="button"
+                  onClick={() => void handleReopen()}
+                  className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:border-amber-600 hover:bg-amber-100"
+                >
+                  ↻ Re-open match
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

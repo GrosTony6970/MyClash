@@ -1,36 +1,61 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
+import { sideStyle } from '../../../src/lib/side-color';
+import type { TournamentScoringConfig } from '@myclash/types';
 
 interface Props {
   params: Promise<{ liceId: string }>;
 }
 
-export default function LiceMatchPage({ params }: Props) {
+interface QueueMatch {
+  id: string;
+  status: string;
+  matchNumberLabel?: string | null;
+  roundCode?: string | null;
+  redFighterName?: string | null;
+  blueFighterName?: string | null;
+  scheduledAt?: string | null;
+  scoringConfig?: TournamentScoringConfig | null;
+}
+
+interface LiceQueueResponse {
+  liceId: string;
+  liceName: string;
+  current: QueueMatch | null;
+  queue: QueueMatch[];
+}
+
+/**
+ * Per-lice match list. Replaces the old "show current match"
+ * single-view with the full queue (current + upcoming) so the
+ * operator can navigate to any match on this lice.
+ *
+ * Routes:
+ *   - `/lices` → lice picker
+ *   - `/lices/[liceId]` → THIS page (match list for that lice)
+ *   - `/matches/[matchId]` → scoreboard (linked from this page)
+ */
+export default function LiceMatchListPage({ params }: Props) {
   const router = useRouter();
   const { t } = useI18n();
   const apiUrl = getApiUrl();
 
   const [liceId, setLiceId] = useState<string | null>(null);
-  const [liceName, setLiceName] = useState<string | null>(null);
-  const [currentMatch, setCurrentMatch] = useState<MatchInfo | null>(null);
+  const [data, setData] = useState<LiceQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-  // Initialize from browser API synchronously — avoids a flash of wrong state
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
   );
 
-  // Resolve params
   useEffect(() => {
     void params.then(({ liceId: id }) => setLiceId(id));
   }, [params]);
 
-  // Network status monitoring — only subscribe to changes, initial value set above
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
     const handleOffline = () => setNetworkStatus('offline');
@@ -42,7 +67,6 @@ export default function LiceMatchPage({ params }: Props) {
     };
   }, []);
 
-  // Fetch current match for this Lice
   useEffect(() => {
     if (!liceId) return;
     void (async () => {
@@ -54,22 +78,15 @@ export default function LiceMatchPage({ params }: Props) {
           router.replace('/login');
           return;
         }
-        const payload = (await res.json()) as {
-          current: MatchInfo | null;
-          event?: { slug?: string };
-          liceName?: string;
-        };
-        setCurrentMatch(
-          payload.current ? { ...payload.current, eventSlug: payload.event?.slug } : null,
-        );
-        if (typeof payload.liceName === 'string') setLiceName(payload.liceName);
+        const body = (await res.json()) as LiceQueueResponse;
+        setData(body);
       } catch {
-        // Offline — show last cached state
+        // Offline — leave previous data in place
       } finally {
         setLoading(false);
       }
     })();
-  }, [liceId, apiUrl, router, refreshKey]);
+  }, [liceId, apiUrl, router]);
 
   if (loading) {
     return (
@@ -80,13 +97,13 @@ export default function LiceMatchPage({ params }: Props) {
   }
 
   return (
-    <main id="main-content" className="min-h-screen flex flex-col">
-      {/* Network status bar */}
+    <main id="main-content" className="min-h-screen flex flex-col bg-stone-50 text-slate-900">
+      {/* Network status */}
       <div
         className={`px-4 py-1 text-xs font-bold text-center ${
           networkStatus === 'online'
-            ? 'bg-green-900 text-green-300'
-            : 'bg-red-900 text-red-300 animate-pulse'
+            ? 'bg-green-100 text-green-700'
+            : 'bg-red-100 text-red-700 animate-pulse'
         }`}
       >
         {networkStatus === 'online'
@@ -94,31 +111,91 @@ export default function LiceMatchPage({ params }: Props) {
           : `● ${t('scoring.lice.offlineQueued')}`}
       </div>
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <button
-          onClick={() => router.push('/lices')}
-          className="text-gray-400 hover:text-white text-sm"
-        >
-          ← {t('scoring.lice.backToLices')}
-        </button>
-        <h1 className="font-bold text-lg">
-          {t('scoring.lice.title', { liceName: liceName ?? '—' })}
-        </h1>
-        <div className="w-16" />
+      {/* Light chrome header */}
+      <header className="border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/lices"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
+          >
+            ← {t('scoring.lice.yourLices')}
+          </Link>
+          <h1 className="text-base font-bold uppercase tracking-wide">
+            {t('scoring.lice.title', { liceName: data?.liceName ?? '—' })}
+          </h1>
+          <div className="w-20" />
+        </div>
       </header>
 
-      {/* Match content */}
-      {currentMatch ? (
-        <MatchView
-          match={currentMatch}
-          apiUrl={apiUrl}
-          networkStatus={networkStatus}
-          onRefresh={() => setRefreshKey((key) => key + 1)}
-        />
-      ) : (
-        <NoMatchView />
-      )}
+      <div className="flex-1 p-4 max-w-3xl w-full mx-auto">
+        {data?.current && (
+          <section className="mb-6">
+            <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+              {t('scoring.lice.live')}
+            </h2>
+            <MatchCard match={data.current} />
+          </section>
+        )}
+
+        <section>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            {t('scoring.lice.nextMatchLabel')}
+          </h2>
+          {data?.queue.length === 0 && (
+            <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
+              {t('scoring.lice.noNextMatch')}
+            </p>
+          )}
+          <div className="flex flex-col gap-2">
+            {data?.queue.map((match) => (
+              <MatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        </section>
+      </div>
     </main>
+  );
+}
+
+function MatchCard({ match }: { match: QueueMatch }) {
+  const config = match.scoringConfig ?? null;
+  const redStyle = sideStyle(config, 'red');
+  const blueStyle = sideStyle(config, 'blue');
+  const time = match.scheduledAt
+    ? new Date(match.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+  const isLive = match.status === 'running' || match.status === 'paused';
+
+  return (
+    <Link
+      href={`/matches/${match.id}`}
+      className={`block rounded-xl border bg-white px-4 py-3 transition-colors hover:border-slate-500 hover:bg-slate-50 ${
+        isLive ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-xs font-bold uppercase tracking-widest text-slate-500">
+            {match.roundCode ?? match.matchNumberLabel ?? '—'}
+          </p>
+          <p className="mt-1 text-base font-semibold leading-tight">
+            <span style={{ color: redStyle.border }}>● </span>
+            {match.redFighterName ?? '—'}
+          </p>
+          <p className="text-base font-semibold leading-tight">
+            <span style={{ color: blueStyle.border }}>● </span>
+            {match.blueFighterName ?? '—'}
+          </p>
+        </div>
+        <div className="text-right">
+          {time && <p className="font-mono text-sm tabular-nums text-slate-500">{time}</p>}
+          {isLive && (
+            <span className="mt-1 inline-block rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">
+              LIVE
+            </span>
+          )}
+        </div>
+      </div>
+    </Link>
   );
 }
