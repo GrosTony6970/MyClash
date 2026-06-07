@@ -35,6 +35,7 @@ import {
   computeAfterblowDeltas,
 } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
+import { sideStyle } from '../lib/side-color';
 import type { ClockState } from './MatchClock';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -52,20 +53,6 @@ interface PendingExchange {
 
 const UNDO_WINDOW_MS = 30_000;
 
-const SIDE_COLOR_STYLE = {
-  white: { panel: '#f8fafc', border: '#cbd5e1', text: '#0f172a', muted: '#475569' },
-  black: { panel: '#020617', border: '#334155', text: '#f8fafc', muted: '#cbd5e1' },
-  grey: { panel: '#334155', border: '#64748b', text: '#f8fafc', muted: '#cbd5e1' },
-  yellow: { panel: '#713f12', border: '#ca8a04', text: '#fef9c3', muted: '#fde68a' },
-  red: { panel: '#7f1d1d', border: '#dc2626', text: '#fee2e2', muted: '#fca5a5' },
-  blue: { panel: '#1e3a8a', border: '#2563eb', text: '#dbeafe', muted: '#93c5fd' },
-  green: { panel: '#14532d', border: '#16a34a', text: '#dcfce7', muted: '#86efac' },
-  brown: { panel: '#422006', border: '#92400e', text: '#ffedd5', muted: '#fdba74' },
-  pink: { panel: '#831843', border: '#db2777', text: '#fce7f3', muted: '#f9a8d4' },
-  orange: { panel: '#7c2d12', border: '#ea580c', text: '#ffedd5', muted: '#fdba74' },
-  purple: { panel: '#581c87', border: '#9333ea', text: '#f3e8ff', muted: '#d8b4fe' },
-} as const;
-
 function isMedalMatchLabel(label: string | null | undefined) {
   const normalized = (label ?? '').trim().toUpperCase();
   return ['F', 'FINAL', 'GOLD', 'GOLD MEDAL MATCH', '3RD', 'BRONZE', 'BRONZE MEDAL MATCH'].includes(
@@ -73,7 +60,7 @@ function isMedalMatchLabel(label: string | null | undefined) {
   );
 }
 
-function remainingClockMs(
+export function remainingClockMs(
   matchFormat: MatchFormatConfig,
   phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
   matchNumberLabel: string | null,
@@ -277,8 +264,8 @@ export function ScoringPad({
 
   const visibleClean = config.buttons.clean.filter((b) => b.visible);
   const visibleAfterblows = config.buttons.afterblow.filter((b) => b.visible);
-  const redStyle = SIDE_COLOR_STYLE[config.display.sideColors.red];
-  const blueStyle = SIDE_COLOR_STYLE[config.display.sideColors.blue];
+  const redStyle = sideStyle(config, 'red');
+  const blueStyle = sideStyle(config, 'blue');
   const redSideLabel = t('scoring.lice.red');
   const blueSideLabel = t('scoring.lice.blue');
   const noExchangeReasons = [
