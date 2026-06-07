@@ -1,12 +1,20 @@
 'use client';
 
 /**
- * RulesetBadge — single source of truth for status pills across the
- * three ruleset catalogues (Scoring, Penalty, League). Replaces the
- * three divergent palettes that used to render the same semantic
- * concept (built-in / custom / default / published / draft) with
- * different colors per tab.
+ * RulesetBadge — status pills across the three ruleset catalogues
+ * (Scoring, Penalty, League). Sources its colour from the shared
+ * `statusPillTone` palette in `@myclash/ui` so every status pill
+ * across the app reads from the same canonical semantic map.
+ *
+ * Variants:
+ *   - builtin / default / published → 'ready'  (the platform endorses it)
+ *   - draft / custom                → 'pending' (still mutable)
+ *   - pendingReview                 → 'paused' (waiting on review;
+ *                                     kept as an uppercase flag so it
+ *                                     reads as urgent, not quiet)
  */
+
+import { rulesetSemantic, statusPillTone } from '@myclash/ui';
 
 export type RulesetBadgeVariant =
   | 'builtin'
@@ -16,23 +24,24 @@ export type RulesetBadgeVariant =
   | 'draft'
   | 'pendingReview';
 
-const BASE_CLASS = 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium';
-
-const VARIANT_CLASS: Record<RulesetBadgeVariant, string> = {
-  builtin: 'bg-purple-100 text-purple-700',
-  custom: 'bg-blue-100 text-blue-700',
-  default: 'bg-amber-100 text-amber-800',
-  published: 'bg-green-100 text-green-700',
-  draft: 'bg-slate-200 text-slate-600',
-  // Pending review is an urgency tag, not a status pill — kept square
-  // + uppercase to read as a flag rather than a quiet badge.
-  pendingReview:
-    'rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800',
-};
+const BASE_CLASS = 'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium';
 
 export function RulesetBadge({ variant, label }: { variant: RulesetBadgeVariant; label: string }) {
+  const tone = statusPillTone(rulesetSemantic(variant), 'light');
   if (variant === 'pendingReview') {
-    return <span className={VARIANT_CLASS[variant]}>{label}</span>;
+    // Pending review reads as an urgency flag: square corners,
+    // uppercase. Tone stays canonical (amber).
+    return (
+      <span
+        className={`rounded border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${tone.className}`}
+      >
+        {label}
+      </span>
+    );
   }
-  return <span className={`${BASE_CLASS} ${VARIANT_CLASS[variant]}`}>{label}</span>;
+  return (
+    <span className={`${BASE_CLASS} ${tone.className} ${tone.pulse ? 'animate-pulse' : ''}`}>
+      {label}
+    </span>
+  );
 }

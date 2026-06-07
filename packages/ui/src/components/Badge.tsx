@@ -1,5 +1,21 @@
 import * as React from 'react';
+import { statusPillTone, type StatusSemantic, type StatusSurface } from '../utils/status-pill';
 
+/**
+ * Badge — status pill chip rendered on a DARK surface by default
+ * (live match cards, TV display, scoring app). Same two ways to
+ * pick the colour as `StatusBadge`:
+ *
+ *   1. NEW — `semantic` prop carrying one of the canonical
+ *      `StatusSemantic` values, paired with `surface='dark'`
+ *      (default) or `'light'`. Use this for new callers via the
+ *      per-domain mappers from `utils/status-pill.ts`.
+ *
+ *   2. LEGACY — `variant` prop with the older `BadgeVariant`
+ *      strings. Mapped to a semantic internally so existing call
+ *      sites keep working and migrate to the new canonical palette
+ *      without each one changing immediately.
+ */
 export type BadgeVariant =
   | 'active'
   | 'suspended'
@@ -9,29 +25,48 @@ export type BadgeVariant =
   | 'completed'
   | 'voided';
 
-const variantMap: Record<BadgeVariant, string> = {
-  active: 'bg-green-900/60 text-green-300 border-green-800',
-  suspended: 'bg-red-900/60 text-red-300 border-red-800',
-  pending: 'bg-yellow-900/60 text-yellow-300 border-yellow-800',
-  draft: 'bg-gray-800 text-gray-400 border-gray-700',
-  running: 'bg-blue-900/60 text-blue-300 border-blue-800 animate-pulse',
-  completed: 'bg-gray-800 text-gray-300 border-gray-700',
-  voided: 'bg-gray-900 text-gray-500 border-gray-800 line-through',
+const VARIANT_TO_SEMANTIC: Record<BadgeVariant, StatusSemantic> = {
+  active: 'ready',
+  suspended: 'paused',
+  pending: 'paused',
+  draft: 'pending',
+  running: 'live',
+  completed: 'done',
+  voided: 'danger',
 };
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant: BadgeVariant;
+  /** Preferred — pick the canonical semantic intent. */
+  semantic?: StatusSemantic;
+  /** Surface mode (defaults to `'dark'` for this component). */
+  surface?: StatusSurface;
+  /** Legacy — old variant API. Mapped to a semantic internally. */
+  variant?: BadgeVariant;
 }
 
-export const Badge = ({ variant, className = '', children, ...props }: BadgeProps) => (
-  <span
-    className={[
-      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border',
-      variantMap[variant],
-      className,
-    ].join(' ')}
-    {...props}
-  >
-    {children}
-  </span>
-);
+export const Badge = ({
+  semantic,
+  surface = 'dark',
+  variant,
+  className = '',
+  children,
+  ...props
+}: BadgeProps) => {
+  const resolved: StatusSemantic = semantic ?? (variant ? VARIANT_TO_SEMANTIC[variant] : 'pending');
+  const tone = statusPillTone(resolved, surface);
+  return (
+    <span
+      className={[
+        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
+        tone.className,
+        tone.pulse ? 'animate-pulse' : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      {...props}
+    >
+      {children}
+    </span>
+  );
+};

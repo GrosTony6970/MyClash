@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, TournamentColorDot } from '@myclash/ui';
+import { Button, TournamentColorDot, statusPillTone, tournamentStatusSemantic } from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -33,14 +33,6 @@ interface TournamentForm {
   name: string;
   status: string;
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-slate-100 text-slate-700 border-slate-200',
-  published: 'bg-blue-50 text-blue-700 border-blue-100',
-  running: 'bg-green-50 text-green-700 border-green-100',
-  completed: 'bg-slate-100 text-slate-500 border-slate-200',
-  archived: 'bg-slate-900 text-slate-200 border-slate-800',
-};
 
 function normalizeTournament(row: Record<string, unknown>): Tournament {
   return {
@@ -387,7 +379,8 @@ export default function EventTournamentsPage() {
                         aria-label={t('organizer.tournaments.status')}
                         className={[
                           'rounded-full border px-2.5 py-0.5 text-xs font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
-                          STATUS_COLORS[tournament.status] ?? STATUS_COLORS['draft']!,
+                          statusPillTone(tournamentStatusSemantic(tournament.status), 'light')
+                            .className,
                         ].join(' ')}
                       >
                         {['draft', 'published', 'running', 'completed', 'archived'].map(

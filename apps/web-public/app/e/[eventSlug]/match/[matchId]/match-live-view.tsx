@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { matchStatusSemantic, statusPillTone } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 
@@ -108,13 +109,7 @@ function ScoreBoard({ match }: { match: MatchRow }) {
     voided: t('scoring.liveMatch.status.voided'),
   };
 
-  const statusColor: Record<MatchStatus, string> = {
-    scheduled: 'bg-gray-100 text-gray-600',
-    running: 'bg-green-100 text-green-700',
-    paused: 'bg-yellow-100 text-yellow-700',
-    completed: 'bg-blue-100 text-blue-700',
-    voided: 'bg-gray-100 text-gray-400',
-  };
+  const tone = statusPillTone(matchStatusSemantic(match.status), 'light');
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -145,7 +140,9 @@ function ScoreBoard({ match }: { match: MatchRow }) {
 
       <div className="mt-4 flex justify-center">
         <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor[match.status]}`}
+          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${tone.className} ${
+            tone.pulse ? 'animate-pulse' : ''
+          }`}
         >
           {statusLabel[match.status]}
         </span>

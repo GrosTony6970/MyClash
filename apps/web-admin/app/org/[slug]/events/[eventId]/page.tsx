@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { TournamentColorDot, formatCountryName } from '@myclash/ui';
+import {
+  TournamentColorDot,
+  formatCountryName,
+  statusPillTone,
+  tournamentStatusSemantic,
+} from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { TournamentQueryPanel } from './TournamentQueryPanel';
 import { useEventStatus } from './_hooks/useEventStatus';
@@ -314,7 +319,11 @@ export default function EventDetailPage() {
           )}
         </div>
         {event?.status && (
-          <span className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <span
+            className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
+              statusPillTone(tournamentStatusSemantic(event.status), 'light').className
+            }`}
+          >
             {event.status}
           </span>
         )}

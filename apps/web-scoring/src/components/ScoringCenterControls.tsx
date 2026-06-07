@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { sideStyle } from '@myclash/ui';
+import { clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
 import { formatClockMs, type ClockState } from './MatchClock';
 import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
 import { usePenalties, type MatchPenalty } from '../hooks/usePenalties';
@@ -166,19 +166,18 @@ export function ScoringCenterControls({
   return (
     <div className="flex flex-col items-center gap-3 px-2 py-3">
       {/* Status badge */}
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-widest ${
-          status === 'running'
-            ? 'bg-green-900 text-green-300'
-            : status === 'halted'
-              ? 'bg-yellow-900 text-yellow-300'
-              : status === 'ended'
-                ? 'bg-gray-800 text-gray-400'
-                : 'bg-gray-800 text-gray-500'
-        }`}
-      >
-        {status}
-      </span>
+      {(() => {
+        const tone = statusPillTone(clockStatusSemantic(status), 'dark');
+        return (
+          <span
+            className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-widest ${tone.className} ${
+              tone.pulse ? 'animate-pulse' : ''
+            }`}
+          >
+            {status}
+          </span>
+        );
+      })()}
 
       {/* Timer */}
       <p

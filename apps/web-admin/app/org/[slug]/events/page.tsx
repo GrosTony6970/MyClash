@@ -23,6 +23,8 @@ import {
   formatCountryName,
   nextSortState,
   sortRows,
+  statusPillTone,
+  tournamentStatusSemantic,
 } from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -57,14 +59,6 @@ interface EventForm {
   status: string;
   publicLandingMd: string;
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-slate-100 text-slate-700 border-slate-200',
-  published: 'bg-blue-50 text-blue-700 border-blue-100',
-  running: 'bg-green-50 text-green-700 border-green-100',
-  completed: 'bg-slate-100 text-slate-500 border-slate-200',
-  archived: 'bg-slate-900 text-slate-200 border-slate-800',
-};
 
 function normalizeEvent(row: Record<string, unknown>): OrgEvent {
   return {
@@ -593,7 +587,8 @@ export default function OrgEventsListPage() {
                           <span
                             className={[
                               'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                              STATUS_COLORS['published']!,
+                              statusPillTone(tournamentStatusSemantic('published'), 'light')
+                                .className,
                             ].join(' ')}
                           >
                             {t('organizer.events.statuses.published') ?? 'published'}
@@ -612,7 +607,8 @@ export default function OrgEventsListPage() {
                         <span
                           className={[
                             'rounded-full border px-2.5 py-0.5 text-xs font-semibold',
-                            STATUS_COLORS[event.status] ?? STATUS_COLORS['draft']!,
+                            statusPillTone(tournamentStatusSemantic(event.status), 'light')
+                              .className,
                           ].join(' ')}
                         >
                           {t(`organizer.events.statuses.${event.status}`) ?? event.status}

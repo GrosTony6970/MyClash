@@ -136,6 +136,16 @@ export type { ColorToken } from './utils/color-token';
 export { sideStyle, styleForToken } from './utils/side-color';
 export type { SideColorToken, SideColorStyle } from './utils/side-color';
 
+export {
+  statusPillTone,
+  tournamentStatusSemantic,
+  matchStatusSemantic,
+  phaseVisibilitySemantic,
+  clockStatusSemantic,
+  rulesetSemantic,
+} from './utils/status-pill';
+export type { StatusSemantic, StatusSurface, StatusPillTone } from './utils/status-pill';
+
 export { useNextMatch } from './hooks/useNextMatch';
 export type { NextMatchInfo } from './hooks/useNextMatch';
 

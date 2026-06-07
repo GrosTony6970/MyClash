@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatchFormatConfig } from '@myclash/types';
 import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
+import { clockStatusSemantic, statusPillTone } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
 
 export type ClockStatus = 'idle' | 'running' | 'halted' | 'ended';
@@ -224,19 +225,18 @@ export default function MatchClock({
         {formatClockMs(shownMs)}
       </div>
 
-      <div
-        className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-widest ${
-          status === 'running'
-            ? 'bg-green-900 text-green-300'
-            : status === 'halted'
-              ? 'bg-yellow-900 text-yellow-300'
-              : status === 'ended'
-                ? 'bg-gray-800 text-gray-400'
-                : 'bg-gray-800 text-gray-500'
-        }`}
-      >
-        {status}
-      </div>
+      {(() => {
+        const tone = statusPillTone(clockStatusSemantic(status), 'dark');
+        return (
+          <div
+            className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-widest ${tone.className} ${
+              tone.pulse ? 'animate-pulse' : ''
+            }`}
+          >
+            {status}
+          </div>
+        );
+      })()}
 
       {clockState.startedAt && clockState.status !== 'idle' && (
         <div className="flex items-center gap-2 text-gray-500">
