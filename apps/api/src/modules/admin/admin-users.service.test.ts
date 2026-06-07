@@ -300,7 +300,6 @@ describe('AdminUsersService', () => {
       data: {
         password: 'stored-temp',
         supabase_updated_at: '2026-05-26T12:00:00Z',
-        expires_at: '2099-01-01T00:00:00Z',
       },
       error: null,
     });
@@ -319,12 +318,39 @@ describe('AdminUsersService', () => {
     expect(result).toEqual({ status: 'active', password: 'stored-temp' });
   });
 
+  it('still reveals the temp password months later when the user has not changed it', async () => {
+    // Migration 0093 dropped the wall-clock TTL on the vault row;
+    // operators kept hitting "Locked — temp password expired" when
+    // the user took longer than 7 days to take delivery. The vault
+    // row no longer carries an `expires_at`; reveal now depends
+    // only on the Supabase updated_at comparison.
+    const tempVault = chain({
+      data: {
+        password: 'stored-temp',
+        supabase_updated_at: '2026-01-01T00:00:00Z',
+      },
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) =>
+      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
+    );
+    getAuthAdminUser.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: 'user-new', updated_at: '2026-01-01T00:00:00Z' },
+      detail: {},
+    });
+
+    const result = await service.revealTempPassword('user-new', 'actor-user');
+
+    expect(result).toEqual({ status: 'active', password: 'stored-temp' });
+  });
+
   it('wipes the vault and returns password_changed when Supabase updated_at has moved', async () => {
     const tempVault = chain({
       data: {
         password: 'stored-temp',
         supabase_updated_at: '2026-05-26T12:00:00Z',
-        expires_at: '2099-01-01T00:00:00Z',
       },
       error: null,
     });
@@ -341,25 +367,6 @@ describe('AdminUsersService', () => {
     const result = await service.revealTempPassword('user-new', 'actor-user');
 
     expect(result).toEqual({ status: 'password_changed' });
-    expect(tempVault.delete).toHaveBeenCalled();
-  });
-
-  it('returns expired when the vault row is past its expiry', async () => {
-    const tempVault = chain({
-      data: {
-        password: 'stored-temp',
-        supabase_updated_at: '2026-05-26T12:00:00Z',
-        expires_at: '2020-01-01T00:00:00Z',
-      },
-      error: null,
-    });
-    fromMock.mockImplementation((table: string) =>
-      table === 'admin_user_temp_passwords' ? tempVault : chain({ data: null, error: null }),
-    );
-
-    const result = await service.revealTempPassword('user-new', 'actor-user');
-
-    expect(result).toEqual({ status: 'expired' });
     expect(tempVault.delete).toHaveBeenCalled();
   });
 

@@ -280,7 +280,15 @@ export class AdminUsersService {
    *   - 'active'           — password still valid, returned to caller.
    *   - 'password_changed' — Supabase Auth updated_at has moved past
    *                          the baseline we recorded; row wiped.
-   *   - 'expired'          — past 7-day TTL or row missing; wiped.
+   *   - 'expired'          — row missing (never created or already
+   *                          locked via the explicit lock endpoint).
+   *
+   * The original migration shipped with a 7-day wall-clock TTL on the
+   * vault row; operators kept hitting it whenever the new user took
+   * longer than a week to log in (vacation, slow rollout). Migration
+   * 0093 dropped that column; lock is now action-driven only —
+   * either the user changes their password, or the super admin hits
+   * the explicit lock endpoint.
    *
    * Every successful reveal writes `user.temp_password.reveal` to the
    * audit log. The plaintext is never logged.
@@ -291,7 +299,7 @@ export class AdminUsersService {
   ): Promise<{ status: 'active'; password: string } | { status: 'password_changed' | 'expired' }> {
     const { data: row } = await this.supabase.service
       .from('admin_user_temp_passwords')
-      .select('password, supabase_updated_at, expires_at')
+      .select('password, supabase_updated_at')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -299,13 +307,7 @@ export class AdminUsersService {
     const stored = row as {
       password: string;
       supabase_updated_at: string;
-      expires_at: string;
     };
-
-    if (new Date(stored.expires_at).getTime() < Date.now()) {
-      await this.wipeTempPasswordRow(userId);
-      return { status: 'expired' };
-    }
 
     // Pull current Supabase state to detect a password change since we
     // vaulted. The fetch is on the GoTrue admin API; same surface used

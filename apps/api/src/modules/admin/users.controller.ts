@@ -124,7 +124,7 @@ export class UsersAdminController {
   @ApiOperation({
     summary: 'Reveal the temp password set at user-create (super admin)',
     description:
-      'Returns the temp password if it is still in effect. Locks (and wipes) automatically once the user has changed it, after the 7-day TTL elapses, or when the lock endpoint is invoked. Every reveal is audit-logged.',
+      'Returns the temp password if it is still in effect. Locks (and wipes) automatically once the user has changed it, or when the lock endpoint is invoked. Every reveal is audit-logged.',
   })
   async revealTempPassword(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     return this.service.revealTempPassword(id, getActorId(req));
