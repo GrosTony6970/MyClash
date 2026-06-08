@@ -378,36 +378,39 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
       </a>
 
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-slate-800 bg-slate-900 px-4 py-5 text-white lg:flex">
+        {/* Three-slot brand row: MyClash logo (always) + org name + org
+            logo (when uploaded, as a secondary identity badge to the
+            right of the name). The MyClash mark is the persistent home
+            affordance; the org logo never replaces it. */}
         <Link href={orgBase} className="mb-7 flex items-center gap-3">
-          {orgLogoUrl ? (
-            /* Org-uploaded logo (R4). next/image needs every remote host pre-
+          <Image
+            src="/brand/Logomini_nobackground.png"
+            alt=""
+            width={44}
+            height={44}
+            className="h-11 w-11 shrink-0"
+            priority
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-lg font-medium tracking-wide">
+              {orgName || t('organizer.shell.brand')}
+            </p>
+          </div>
+          {orgLogoUrl && (
+            /* Org-uploaded logo. next/image needs every remote host pre-
                configured, which is heavier for arbitrary Supabase storage
                URLs — use a plain <img> here. */
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={orgLogoUrl}
               alt=""
-              width={44}
-              height={44}
+              width={32}
+              height={32}
               onError={() => console.warn('[org-logo] sidebar failed to render', orgLogoUrl)}
               onLoad={() => console.debug('[org-logo] sidebar rendered', orgLogoUrl)}
-              className="h-11 w-11 rounded-md object-cover"
-            />
-          ) : (
-            <Image
-              src="/brand/Logomini_nobackground.png"
-              alt=""
-              width={44}
-              height={44}
-              className="h-11 w-11"
-              priority
+              className="h-8 w-8 shrink-0 rounded-md object-cover"
             />
           )}
-          <div className="min-w-0">
-            <p className="truncate font-display text-lg font-medium tracking-wide">
-              {orgName || t('organizer.shell.brand')}
-            </p>
-          </div>
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
         <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
@@ -466,13 +469,30 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             <div className="mb-6 flex items-center justify-between">
               <Link
                 href={orgBase}
-                className="flex items-center gap-3"
+                className="flex min-w-0 flex-1 items-center gap-3"
                 onClick={() => setOpen(false)}
               >
-                <Image src="/brand/Logomini_nobackground.png" alt="" width={40} height={40} />
-                <span className="font-display text-lg font-medium">
-                  {t('organizer.shell.brand')}
+                <Image
+                  src="/brand/Logomini_nobackground.png"
+                  alt=""
+                  width={40}
+                  height={40}
+                  className="shrink-0"
+                />
+                <span className="min-w-0 flex-1 truncate font-display text-lg font-medium">
+                  {orgName || t('organizer.shell.brand')}
                 </span>
+                {orgLogoUrl && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={orgLogoUrl}
+                    alt=""
+                    width={28}
+                    height={28}
+                    onError={() => console.warn('[org-logo] drawer failed to render', orgLogoUrl)}
+                    className="h-7 w-7 shrink-0 rounded-md object-cover"
+                  />
+                )}
               </Link>
               <button
                 type="button"
