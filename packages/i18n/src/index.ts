@@ -604,6 +604,7 @@ export const en = {
       upNext: 'Up next',
       versus: 'vs',
       waitingForMatch: 'Waiting for next match...',
+      noQueue: 'No more matches scheduled on this lice today',
     },
     pad: {
       scoringUnavailable: 'Scoring is unavailable for this match.',
@@ -4512,6 +4513,7 @@ export const fr = {
       upNext: 'A suivre',
       versus: 'contre',
       waitingForMatch: 'En attente du prochain assaut...',
+      noQueue: "Plus aucun assaut programme sur cette lice aujourd'hui",
     },
     pad: {
       scoringUnavailable: 'Scoring indisponible pour cet assaut.',

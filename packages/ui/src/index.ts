@@ -58,6 +58,12 @@ export type { MatchScoreboardProps } from './components/MatchScoreboard';
 export { TVScoreboard } from './components/TVScoreboard';
 export type { TVScoreboardProps } from './components/TVScoreboard';
 
+export { LiceWaitingDisplay } from './components/LiceWaitingDisplay';
+export type {
+  LiceWaitingDisplayProps,
+  LiceWaitingDisplayNextMatch,
+} from './components/LiceWaitingDisplay';
+
 // ── Tournament Manual admin components (Phase 1 of the frontend overhaul) ──
 
 export { FoilMark } from './components/FoilMark';
