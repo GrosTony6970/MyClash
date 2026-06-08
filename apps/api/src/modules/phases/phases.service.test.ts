@@ -452,10 +452,10 @@ describe('PhasesService', () => {
         ],
         error: null,
       });
-      // No matchInsertChain mock — generateBracket no longer creates match rows.
-      // R1 slots are empty post-fix, so createInitialBracketMatches early-returns.
-      // populateBracket is responsible for both seeding R1 AND creating the
-      // matching `matches` rows after pools finish.
+      // createInitialBracketMatches now pre-creates a matches row for
+      // every non-bye slot, including play-in slots with null
+      // registrations — so a matchInsertChain MUST be queued.
+      const matchInsertChain = makeAwaitableChain({ data: null, error: null });
 
       // Trailing reads from the post-write getTournamentBracket() delegation.
       const phaseReadChain = makeChain({ data: null, error: null });
@@ -486,6 +486,7 @@ describe('PhasesService', () => {
         .mockReturnValueOnce(phaseCheckChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(bracketSlotInsertChain)
+        .mockReturnValueOnce(matchInsertChain) // pre-created bracket placeholder rows
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
         .mockReturnValueOnce(slotsReadChain); // delegation read 2
 
@@ -672,12 +673,12 @@ describe('PhasesService', () => {
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValueOnce(slotInsertChain) // bracket_slots insert returns rows
         .mockReturnValueOnce(phaseUpdateChain) // phases update (bronzeSlotId)
-        // No matchInsertChain — R1 slots are empty post-fix, so
-        // createInitialBracketMatches early-returns without inserting.
+        // createInitialBracketMatches now pre-creates a matches row for
+        // every non-bye slot (R1, R2+, bronze), even when registrations
+        // are still null — so the matches insert IS queued.
+        .mockReturnValueOnce(matchInsertChain)
         .mockReturnValueOnce(phaseReadChain) // delegation read 1
         .mockReturnValueOnce(slotsReadChain); // delegation read 2
-
-      void matchInsertChain; // declared above for clarity; no longer queued
 
       const result = await service.generateBracket('tournament-1', {}, false);
 
@@ -1229,6 +1230,97 @@ describe('PhasesService', () => {
           match_number_label: '2',
         }),
       ]);
+    });
+
+    // Pre-create placeholder match rows for every non-bye slot at
+    // bracket-generation time — including R2+ rows whose registrations
+    // resolve later. This is what lets the schedule grid render every
+    // downstream slot as a draggable chip immediately after a bracket
+    // is generated, so an operator can time-block the whole day before
+    // any match has been played. Bye slots stay excluded (no match
+    // played at a bye), and resolved-later sides carry null
+    // registrations that get UPDATEd in by bracket-advance.
+    it('inserts a row for every non-bye slot, including R2+ rows with null registrations', async () => {
+      let inserted: Array<Record<string, unknown>> | null = null;
+      const insertChain = makeAwaitableChain({ data: null, error: null });
+      insertChain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
+        inserted = rows;
+        return Promise.resolve({ data: null, error: null });
+      }) as never;
+      fromMock.mockReturnValueOnce(insertChain);
+
+      const slots = [
+        // R1 played match — both fighters known
+        {
+          id: 'slot-r1p1',
+          phase_id: 'phase-1',
+          round: 1,
+          position: 1,
+          source_b_type: 'seed',
+          registration_a_id: 'reg-a1',
+          registration_b_id: 'reg-b1',
+        },
+        // R1 bye — no match is ever played here; must NOT get a row
+        {
+          id: 'slot-r1p2-bye',
+          phase_id: 'phase-1',
+          round: 1,
+          position: 2,
+          source_b_type: 'bye',
+          registration_a_id: 'reg-a2',
+          registration_b_id: null,
+        },
+        // R2 final — both sides resolve from upstream winners; null today,
+        // but must STILL get a placeholder match row so it shows up in the
+        // schedule grid pre-played.
+        {
+          id: 'slot-r2p1',
+          phase_id: 'phase-1',
+          round: 2,
+          position: 1,
+          source_b_type: 'winner',
+          registration_a_id: null,
+          registration_b_id: null,
+        },
+        // Bronze final — also resolves from upstream losers; same rule.
+        {
+          id: 'slot-bronze',
+          phase_id: 'phase-1',
+          round: 2,
+          position: 2,
+          source_b_type: 'loser',
+          registration_a_id: null,
+          registration_b_id: null,
+        },
+      ];
+
+      await (service as unknown as Record<string, (s: unknown) => Promise<void>>)[
+        'createInitialBracketMatches'
+      ]!(slots);
+
+      expect(inserted).toEqual([
+        expect.objectContaining({
+          bracket_slot_id: 'slot-r1p1',
+          red_registration_id: 'reg-a1',
+          blue_registration_id: 'reg-b1',
+        }),
+        expect.objectContaining({
+          bracket_slot_id: 'slot-r2p1',
+          red_registration_id: null,
+          blue_registration_id: null,
+        }),
+        expect.objectContaining({
+          bracket_slot_id: 'slot-bronze',
+          red_registration_id: null,
+          blue_registration_id: null,
+        }),
+      ]);
+      // Bye slot must not appear.
+      expect(
+        (inserted as Array<Record<string, unknown>> | null)?.find(
+          (row) => row['bracket_slot_id'] === 'slot-r1p2-bye',
+        ),
+      ).toBeUndefined();
     });
   });
 

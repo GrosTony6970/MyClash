@@ -345,6 +345,114 @@ describe('BracketAdvanceService.advanceFromSlot — fails loud', () => {
   });
 });
 
+// When advanceFromSlot resolves a downstream slot, the corresponding
+// matches row already exists (pre-created at bracket generation in
+// phases.service.ts createInitialBracketMatches). The advance flow
+// must UPDATE that row's red_/blue_registration_id rather than INSERT
+// a fresh one — otherwise we'd lose the operator's pre-played
+// schedule (lice_id + scheduled_at) attached to the placeholder row,
+// and the new partial unique index on (bracket_slot_id WHERE
+// status <> 'voided') would reject the duplicate.
+describe('BracketAdvanceService.advanceFromSlot — pushes registration into existing matches row', () => {
+  it("UPDATEs matches.red_registration_id (side 'a') for the pre-existing row keyed by bracket_slot_id", async () => {
+    const downstreamSlot = {
+      id: 'ds-1',
+      round: 2,
+      position: 1,
+      phase_id: 'phase-1',
+      source_a_type: 'winner_of',
+      source_a_ref: 'winner of R1P1',
+      source_b_type: 'winner_of',
+      source_b_ref: 'winner of R1P2',
+      registration_a_id: null,
+      registration_b_id: null,
+    };
+
+    // Capture every matches mutation. We expect: one update keyed by
+    // bracket_slot_id='ds-1' with red_registration_id='reg-winner';
+    // zero inserts.
+    const matchesUpdateCalls: Array<{ patch: unknown; bracketSlotId: unknown }> = [];
+    const matchesInsertCalls: unknown[] = [];
+
+    let bracketSlotsCall = 0;
+    const fromMock = vi.fn((table: string) => {
+      if (table === 'bracket_slots') {
+        bracketSlotsCall += 1;
+        if (bracketSlotsCall === 1) {
+          // Step 1: downstream query.
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            or: vi.fn().mockResolvedValue({ data: [downstreamSlot], error: null }),
+          };
+        }
+        // Step 2: writeSlotSide for bracket_slots — succeed.
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnThis(),
+            select: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'ds-1' }, error: null }),
+          }),
+        };
+      }
+      if (table === 'matches') {
+        // Two access shapes:
+        //   - update(patch).eq('bracket_slot_id', ...).not('status', 'eq', 'voided')
+        //   - createMatchIfReady select() idempotency chain
+        const chain: Record<string, unknown> = {
+          insert: vi.fn((row: unknown) => {
+            matchesInsertCalls.push(row);
+            return Promise.resolve({ data: null, error: null });
+          }),
+          // createMatchIfReady idempotency: existing row found → skip insert.
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { id: 'pre-existing-match', status: 'scheduled' },
+            error: null,
+          }),
+        };
+        chain.update = vi.fn((patch: unknown) => {
+          const eqMock = vi.fn((column: string, value: unknown) => {
+            if (column === 'bracket_slot_id') {
+              matchesUpdateCalls.push({ patch, bracketSlotId: value });
+            }
+            // chainable
+            return { eq: eqMock, not: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          });
+          return { eq: eqMock };
+        });
+        return chain;
+      }
+      return {} as never;
+    });
+    const mockSupabase = { service: { from: fromMock } };
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    const advanceFromSlot = (
+      service as unknown as Record<
+        string,
+        (
+          phaseId: string,
+          selfRef: string,
+          winnerRegId: string,
+          loserRegId: string | null,
+        ) => Promise<void>
+      >
+    )['advanceFromSlot']!.bind(service);
+
+    await advanceFromSlot('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+
+    // The matches row for the downstream slot already exists — flow
+    // must UPDATE it, not INSERT a fresh row.
+    expect(matchesUpdateCalls).toEqual([
+      { patch: { red_registration_id: 'reg-winner' }, bracketSlotId: 'ds-1' },
+    ]);
+    expect(matchesInsertCalls).toEqual([]);
+  });
+});
+
 describe('BracketAdvanceService.createMatchIfReady — stamps match_number_label', () => {
   // After a winner propagates into a downstream slot, the lazily-
   // created match must carry the bracket-local match number so
@@ -394,6 +502,58 @@ describe('BracketAdvanceService.createMatchIfReady — stamps match_number_label
       bracket_slot_id: 'slot-r2-p3',
       match_number_label: '3',
     });
+  });
+});
+
+// `deleteUnstartedMatch` (called from overrideSlot when an operator
+// un-sets a side) used to flip the matches row to status='voided'.
+// Now that every non-bye slot has a pre-created placeholder row that
+// may carry an operator-placed schedule (lice_id + scheduled_at), we
+// need to leave the row visible on the schedule grid and just clear
+// its registrations so it can be re-populated by a future advance.
+// In-flight matches (started_at non-null) must be untouched.
+describe('BracketAdvanceService.deleteUnstartedMatch — clears registrations, preserves schedule', () => {
+  it('UPDATEs the matches row keyed by bracket_slot_id with registrations cleared and status reset, scoped to unstarted non-voided rows', async () => {
+    const updateCalls: Array<{ patch: unknown; bracketSlotId: unknown }> = [];
+
+    const fromMock = vi.fn((table: string) => {
+      if (table !== 'matches') return {} as never;
+      // Track the call pattern:
+      //   update({...}).eq('bracket_slot_id', slotId).not('status','eq','voided').is('started_at', null)
+      return {
+        update: vi.fn((patch: unknown) => {
+          const eqMock = vi.fn((column: string, value: unknown) => {
+            if (column === 'bracket_slot_id') {
+              updateCalls.push({ patch, bracketSlotId: value });
+            }
+            const notMock = vi.fn().mockReturnValue({
+              is: vi.fn().mockResolvedValue({ data: null, error: null }),
+            });
+            return { eq: eqMock, not: notMock };
+          });
+          return { eq: eqMock };
+        }),
+      };
+    });
+    const mockSupabase = { service: { from: fromMock } };
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    const deleteUnstartedMatch = (
+      service as unknown as Record<string, (id: string) => Promise<void>>
+    )['deleteUnstartedMatch']!.bind(service);
+
+    await deleteUnstartedMatch('slot-r2p1');
+
+    expect(updateCalls).toEqual([
+      {
+        patch: {
+          red_registration_id: null,
+          blue_registration_id: null,
+          status: 'scheduled',
+        },
+        bracketSlotId: 'slot-r2p1',
+      },
+    ]);
   });
 });
 

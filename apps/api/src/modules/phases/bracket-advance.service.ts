@@ -253,20 +253,49 @@ export class BracketAdvanceService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Bracket slot ${slotId} not found`);
+
+    // Push the resolved registration into the placeholder matches row
+    // pre-created at bracket generation (phases.service.ts
+    // createInitialBracketMatches). The matches row exists from the
+    // moment the bracket was generated — UPDATEing it here preserves
+    // any schedule (lice_id + scheduled_at) the operator has already
+    // attached to the chip. The legacy INSERT path in
+    // createMatchIfReady stays as a defensive fallback for any slot
+    // missed at generation time. Skip voided rows: replay/regen-flow
+    // can leave a voided historical row alongside the live one.
+    const matchColumn = side === 'a' ? 'red_registration_id' : 'blue_registration_id';
+    await this.supabase.service
+      .from('matches')
+      .update({ [matchColumn]: registrationId })
+      .eq('bracket_slot_id', slotId)
+      .not('status', 'eq', 'voided');
   }
 
+  /**
+   * Invoked from overrideSlot when an operator un-sets a bracket
+   * slot's side. With placeholder match rows pre-created at bracket
+   * generation, the row may carry an operator-placed schedule
+   * (lice_id + scheduled_at) — voiding it would hide the chip from
+   * the schedule grid and lose that placement. Instead, clear the
+   * row's registrations and reset status to 'scheduled' so the row
+   * stays visible and a future re-advancement can re-populate
+   * registrations in place via writeSlotSide's matches UPDATE.
+   *
+   * Scoped to non-voided rows (replay/regen-flow can leave voided
+   * history alongside the live row) AND to rows whose match has not
+   * yet started — never touch an in-flight match.
+   */
   private async deleteUnstartedMatch(slotId: string): Promise<void> {
-    const { data } = await this.supabase.service
+    await this.supabase.service
       .from('matches')
-      .select('id, status')
+      .update({
+        red_registration_id: null,
+        blue_registration_id: null,
+        status: 'scheduled',
+      })
       .eq('bracket_slot_id', slotId)
-      .maybeSingle();
-
-    if (!data) return;
-    const m = data as { id: string; status: string };
-    if (m.status !== 'scheduled') return;
-
-    await this.supabase.service.from('matches').update({ status: 'voided' }).eq('id', m.id);
+      .not('status', 'eq', 'voided')
+      .is('started_at', null);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

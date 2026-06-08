@@ -547,13 +547,22 @@ export class PhasesService {
   }
 
   private async createInitialBracketMatches(insertedSlots: unknown[]): Promise<void> {
+    // Pre-create a placeholder matches row for EVERY non-bye bracket
+    // slot at generation time, regardless of whether its registrations
+    // are resolved yet. Downstream slots whose fighters won't be known
+    // until upstream rounds complete carry null registrations on the
+    // row; bracket-advance later UPDATEs the registrations into the
+    // existing row instead of INSERTing a fresh one. Bye slots stay
+    // excluded — no match is ever played at a bye.
+    //
+    // The schedule grid keys off `matches` rows existing; pre-creating
+    // them is what lets an operator drag every R2/QF/SF/F/Bronze slot
+    // onto the day's grid before any match has been played.
     const readySlots = (insertedSlots as Array<Record<string, unknown>>).filter(
       (slot) =>
         slot['source_b_type'] !== 'bye' &&
         typeof slot['id'] === 'string' &&
-        typeof slot['phase_id'] === 'string' &&
-        typeof slot['registration_a_id'] === 'string' &&
-        typeof slot['registration_b_id'] === 'string',
+        typeof slot['phase_id'] === 'string',
     );
 
     if (readySlots.length === 0) return;
@@ -561,8 +570,10 @@ export class PhasesService {
     const matchInserts = readySlots.map((slot) => ({
       phase_id: slot['phase_id'],
       bracket_slot_id: slot['id'],
-      red_registration_id: slot['registration_a_id'],
-      blue_registration_id: slot['registration_b_id'],
+      red_registration_id:
+        typeof slot['registration_a_id'] === 'string' ? slot['registration_a_id'] : null,
+      blue_registration_id:
+        typeof slot['registration_b_id'] === 'string' ? slot['registration_b_id'] : null,
       ruleset_code: 'TF_v1',
       ruleset_version: '1.0.0',
       status: 'scheduled',
