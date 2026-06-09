@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { LiceWaitingDisplay, type LiceWaitingDisplayNextMatch } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { supabase } from '../../../../../../src/lib/supabase';
+import { getApiUrl } from '../../../../../../src/lib/api-url';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 
 interface Props {
-  apiUrl: string;
   eventSlug: string;
   liceName: string;
 }
@@ -26,7 +26,7 @@ interface LicePayload {
  * matches with the next-up card; delegates to `<DisplayView>` for
  * the per-match TVScoreboard once a current match exists.
  */
-export function LiceDisplayClient({ apiUrl, eventSlug, liceName }: Props) {
+export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   const { t } = useI18n();
   const [liceId, setLiceId] = useState<string | null>(null);
   const [payload, setPayload] = useState<LicePayload>({
@@ -41,6 +41,8 @@ export function LiceDisplayClient({ apiUrl, eventSlug, liceName }: Props) {
   // for the DisplayView delegation.
   useEffect(() => {
     let cancelled = false;
+    // Client-side base URL (browser-reachable public host).
+    const apiUrl = getApiUrl();
 
     async function refresh() {
       const res = await fetch(
@@ -86,7 +88,7 @@ export function LiceDisplayClient({ apiUrl, eventSlug, liceName }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [apiUrl, eventSlug, liceName]);
+  }, [eventSlug, liceName]);
 
   // Realtime subscription: any matches row on this lice changing —
   // status flip (scheduled→running→completed), schedule/reassignment
@@ -95,6 +97,8 @@ export function LiceDisplayClient({ apiUrl, eventSlug, liceName }: Props) {
   // flips sub-second when a match starts or ends.
   useEffect(() => {
     if (!liceId) return;
+    // Client-side base URL (browser-reachable public host).
+    const apiUrl = getApiUrl();
     const channel = supabase
       .channel(`lice:${liceId}:current`)
       .on(
@@ -151,7 +155,7 @@ export function LiceDisplayClient({ apiUrl, eventSlug, liceName }: Props) {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [apiUrl, eventSlug, liceName, liceId]);
+  }, [eventSlug, liceName, liceId]);
 
   if (!payload.matchId) {
     return (

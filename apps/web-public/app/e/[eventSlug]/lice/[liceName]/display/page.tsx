@@ -1,7 +1,4 @@
 import { LiceDisplayClient } from './lice-display-client';
-import { getApiUrl } from '@/lib/api-url';
-
-const API_URL = getApiUrl();
 
 interface Props {
   params: Promise<{ eventSlug: string; liceName: string }>;
@@ -9,5 +6,9 @@ interface Props {
 
 export default async function LiceDisplayPage({ params }: Props) {
   const { eventSlug, liceName } = await params;
-  return <LiceDisplayClient apiUrl={API_URL} eventSlug={eventSlug} liceName={liceName} />;
+  // No apiUrl prop: LiceDisplayClient is a client component and resolves
+  // the browser-reachable API URL via getApiUrl() itself. Passing the
+  // server-resolved (docker-internal) URL would be unreachable in the
+  // browser.
+  return <LiceDisplayClient eventSlug={eventSlug} liceName={liceName} />;
 }

@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { accentClassFor } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/api-url';
 import { StandingsTable } from './StandingsTable';
 import type { Pool } from './page';
 
@@ -50,7 +51,6 @@ interface OverallResponse {
 
 interface Props {
   tournamentId: string;
-  apiUrl: string;
   pools: Pool[];
   /** Optional tournament brand color token for the active toggle pill. */
   colorToken?: string | null;
@@ -62,7 +62,7 @@ function readHashMode(): Mode {
   return hash === 'standings-by-pool' ? 'by-pool' : 'overall';
 }
 
-export function StandingsView({ tournamentId, apiUrl, pools, colorToken }: Props) {
+export function StandingsView({ tournamentId, pools, colorToken }: Props) {
   const [mode, setMode] = useState<Mode>('overall');
   const [overall, setOverall] = useState<OverallResponse | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -88,6 +88,10 @@ export function StandingsView({ tournamentId, apiUrl, pools, colorToken }: Props
   useEffect(() => {
     if (mode !== 'overall') return;
     const controller = new AbortController();
+    // Resolve client-side: getApiUrl() returns the browser-reachable
+    // public URL. A server-passed prop would be the docker-internal
+    // host, unreachable from the browser.
+    const apiUrl = getApiUrl();
     void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=overall`, {
       cache: 'no-store',
       signal: controller.signal,
@@ -101,7 +105,7 @@ export function StandingsView({ tournamentId, apiUrl, pools, colorToken }: Props
         // spectator page.
       });
     return () => controller.abort();
-  }, [tournamentId, apiUrl, mode, refreshKey]);
+  }, [tournamentId, mode, refreshKey]);
 
   // Realtime refresh: subscribe to `exchanges` scoped to the
   // tournament's pool ids. Per-pool StandingsTable instances have
@@ -170,7 +174,6 @@ export function StandingsView({ tournamentId, apiUrl, pools, colorToken }: Props
               poolName={pool.name}
               initialStandings={pool.standings}
               tournamentId={tournamentId}
-              apiUrl={apiUrl}
             />
           ))}
         </div>

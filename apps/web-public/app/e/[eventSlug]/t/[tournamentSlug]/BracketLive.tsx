@@ -20,12 +20,12 @@ import {
   type PodiumData,
 } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/api-url';
 import type { BracketSlot } from './page';
 
 interface Props {
   eventSlug: string;
   tournamentSlug: string;
-  apiUrl: string;
   initialSlots: BracketSlot[];
   bracketSize: number;
   mainBracketSize?: number;
@@ -58,7 +58,6 @@ interface TournamentDataLike {
 export function BracketLive({
   eventSlug,
   tournamentSlug,
-  apiUrl,
   initialSlots,
   bracketSize,
   mainBracketSize,
@@ -77,6 +76,8 @@ export function BracketLive({
 
   async function refresh() {
     try {
+      // Resolve client-side — the public (browser-reachable) URL.
+      const apiUrl = getApiUrl();
       const res = await fetch(
         `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/tournaments/${encodeURIComponent(tournamentSlug)}/standings`,
         { cache: 'no-store' },

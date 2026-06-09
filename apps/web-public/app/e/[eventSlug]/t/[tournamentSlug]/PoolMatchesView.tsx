@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { tintTextClassFor } from '@myclash/ui';
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/api-url';
 
 interface PoolMatch {
   matchId: string;
@@ -47,12 +48,11 @@ interface ApiResponse {
 interface Props {
   eventSlug: string;
   tournamentSlug: string;
-  apiUrl: string;
   /** Optional tournament brand color token for the section title. */
   colorToken?: string | null;
 }
 
-export function PoolMatchesView({ eventSlug, tournamentSlug, apiUrl, colorToken }: Props) {
+export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props) {
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -64,6 +64,11 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, apiUrl, colorToken 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    // Resolve the API base URL client-side: getApiUrl() returns the
+    // public NEXT_PUBLIC_API_URL in the browser. A server-passed prop
+    // would carry the docker-internal http://api:4000, which is
+    // unreachable from the browser (the bug that left this tab empty).
+    const apiUrl = getApiUrl();
     void fetch(
       `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/tournaments/${encodeURIComponent(
         tournamentSlug,
@@ -79,7 +84,7 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, apiUrl, colorToken 
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [apiUrl, eventSlug, tournamentSlug, refreshKey]);
+  }, [eventSlug, tournamentSlug, refreshKey]);
 
   // Realtime: any exchange on this tournament's pool matches
   // triggers a refetch. We subscribe by pool ids so the channel

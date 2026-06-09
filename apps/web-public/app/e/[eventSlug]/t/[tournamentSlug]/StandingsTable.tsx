@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getApiUrl } from '@/lib/api-url';
 import type { StandingRow } from './page';
 
 interface Props {
@@ -18,7 +19,6 @@ interface Props {
   poolName: string;
   initialStandings: StandingRow[];
   tournamentId: string;
-  apiUrl: string;
 }
 
 export function StandingsTable({
@@ -26,7 +26,6 @@ export function StandingsTable({
   poolName,
   initialStandings,
   tournamentId: _tournamentId,
-  apiUrl,
 }: Props) {
   const [standings, setStandings] = useState<StandingRow[]>(initialStandings);
   const [updating, setUpdating] = useState(false);
@@ -35,6 +34,8 @@ export function StandingsTable({
   async function refresh() {
     setUpdating(true);
     try {
+      // Resolve client-side — the public (browser-reachable) URL.
+      const apiUrl = getApiUrl();
       const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/standings`, { cache: 'no-store' });
       if (res.ok) {
         const data = (await res.json()) as StandingRow[];

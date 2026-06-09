@@ -406,7 +406,6 @@ export default async function TournamentPage({ params }: Props) {
               <PoolMatchesView
                 eventSlug={eventSlug}
                 tournamentSlug={tournamentSlug}
-                apiUrl={apiUrl}
                 colorToken={tournamentColor}
               />
             ),
@@ -418,7 +417,6 @@ export default async function TournamentPage({ params }: Props) {
             panel: (
               <StandingsView
                 tournamentId={tournament.id}
-                apiUrl={apiUrl}
                 pools={pools}
                 colorToken={tournamentColor}
               />
@@ -433,7 +431,6 @@ export default async function TournamentPage({ params }: Props) {
                 <BracketLive
                   eventSlug={eventSlug}
                   tournamentSlug={tournamentSlug}
-                  apiUrl={apiUrl}
                   initialSlots={bracketSlots}
                   bracketSize={bracketSize}
                   mainBracketSize={mainBracketSize}
