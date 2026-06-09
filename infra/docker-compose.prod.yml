@@ -793,6 +793,14 @@ services:
       - traefik.http.routers.myclash-admin.tls=true
       - traefik.http.routers.myclash-admin.tls.certresolver=letsencrypt
       - traefik.http.routers.myclash-admin.middlewares=myclash-security-headers@file,myclash-compress@file
+      # Low priority so every prefixed admin sub-router out-ranks this
+      # catch-all. Without it, Traefik's computed priority (rule length
+      # ~24) beats myclash-admin-storage (explicit priority=20), so
+      # admin.${DOMAIN}/storage/v1/* hit the Next app (404) instead of
+      # Supabase storage — org-logo <img> rendered blank. Mirrors
+      # myclash-public.priority=1. (api/scoring use priority=30 so they
+      # already won; only storage at 20 lost.)
+      - traefik.http.routers.myclash-admin.priority=1
       - traefik.http.services.myclash-admin.loadbalancer.server.port=3000
 
 networks:
