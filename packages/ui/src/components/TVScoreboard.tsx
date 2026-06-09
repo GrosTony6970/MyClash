@@ -363,6 +363,10 @@ function CenterColumn({
   t: (k: string, p?: Record<string, string>) => string;
 }) {
   const isEnded = clockStatus === 'ended';
+  // Double cap reached: both fighters lose, scores are 0-0 (so the
+  // score-derived winner below is null too). end_reason disambiguates
+  // this from a genuine tie.
+  const isDoubleLoss = isEnded && match.endReason === 'max_doubles';
   const winner = useMemo(() => {
     if (!isEnded) return null;
     if (match.redScore > match.blueScore) return { side: 'red' as const, name: redName };
@@ -388,10 +392,23 @@ function CenterColumn({
 
       {isEnded ? (
         <div className="flex flex-col items-center gap-4 py-8 text-center">
-          <p className="text-7xl font-black uppercase tracking-widest text-amber-400">
-            MATCH ENDED
-          </p>
-          {winner && <p className="text-5xl font-bold">🏆 {winner.name}</p>}
+          {isDoubleLoss ? (
+            <>
+              <p className="text-7xl font-black uppercase tracking-widest text-red-500">
+                {t('scoring.liveMatch.doubleLoss')}
+              </p>
+              <p className="text-3xl font-bold text-red-300">
+                {t('scoring.liveMatch.doubleLossSubtitle')}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-7xl font-black uppercase tracking-widest text-amber-400">
+                MATCH ENDED
+              </p>
+              {winner && <p className="text-5xl font-bold">🏆 {winner.name}</p>}
+            </>
+          )}
           {countdownRemaining !== null && (
             <p className="mt-4 text-2xl text-gray-400">Next match in {countdownRemaining}…</p>
           )}

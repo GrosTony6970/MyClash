@@ -162,16 +162,31 @@ export function MatchView({
   const canScore = scoringEnabled && !clockRunning && !softClockLocked;
   const clockTimeMs = clockState?.activeMs ?? null;
 
+  // Score-changing actions (exchange, penalty) recompute the score
+  // server-side. Besides the internal bump (clock + exchange/penalty
+  // lists), call the parent onRefresh() so the GET /matches/:id row —
+  // which carries red_score/blue_score + status — is re-fetched at once.
+  // Without this the score only updated on the next clock action.
+  const handleScoreMutation = useCallback(() => {
+    setNextSequence((n) => n + 1);
+    setRefreshKey((k) => k + 1);
+    onRefresh();
+  }, [onRefresh]);
+
+  // Clearing (voiding) the last exchange also recomputes the score, but
+  // must NOT advance the local sequence counter (no new exchange).
+  const handleExchangeVoided = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+    onRefresh();
+  }, [onRefresh]);
+
   const submit = useScoringSubmit({
     apiUrl,
     matchId: match.id,
     nextSequence,
     clockTimeMs,
     config: scoringConfig,
-    onExchangeRecorded: () => {
-      setNextSequence((n) => n + 1);
-      setRefreshKey((k) => k + 1);
-    },
+    onExchangeRecorded: handleScoreMutation,
   });
 
   // Spacebar shortcut: toggles the primary clock action when no input
@@ -250,16 +265,14 @@ export function MatchView({
           canScore={canScore}
           clockTimeMs={clockTimeMs}
           submit={submit}
-          onPenaltyRecorded={() => {
-            setNextSequence((n) => n + 1);
-            setRefreshKey((k) => k + 1);
-          }}
+          onPenaltyRecorded={handleScoreMutation}
           penaltiesRefreshKey={refreshKey}
         />
 
         <ScoringCenterControls
           matchId={match.id}
           apiUrl={apiUrl}
+          matchStatus={match.status}
           matchFormat={matchFormat}
           config={scoringConfig}
           redName={redName}
@@ -273,7 +286,7 @@ export function MatchView({
           onClockAction={onClockAction}
           submit={submit}
           refreshKey={refreshKey}
-          onExchangeVoided={() => setRefreshKey((k) => k + 1)}
+          onExchangeVoided={handleExchangeVoided}
         />
 
         <ScoringColumn
@@ -290,10 +303,7 @@ export function MatchView({
           canScore={canScore}
           clockTimeMs={clockTimeMs}
           submit={submit}
-          onPenaltyRecorded={() => {
-            setNextSequence((n) => n + 1);
-            setRefreshKey((k) => k + 1);
-          }}
+          onPenaltyRecorded={handleScoreMutation}
           penaltiesRefreshKey={refreshKey}
         />
       </div>

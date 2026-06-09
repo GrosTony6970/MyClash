@@ -15,6 +15,7 @@ import {
 import type { Exchange as RulesetExchange, Match as RulesetMatch } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
+import { ClockService } from './clock.service';
 
 // Register all built-in rulesets on module load
 // (idempotent — registry.register throws on duplicate, so we guard)
@@ -34,6 +35,7 @@ export class ScoringService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly rulesets: RulesetResolver,
+    private readonly clock: ClockService,
   ) {}
 
   /**
@@ -129,21 +131,59 @@ export class ScoringService {
       matchEndDecision.reason === 'first_to_points'
         ? getPointCapWinnerRegistrationId(match, score, matchFormat)
         : null;
+    // True only on the transition INTO completed — the guard makes the
+    // side effects below (clock end) fire exactly once.
+    const justCompleted = match.status !== 'completed' && matchEndDecision.isOver;
     const matchUpdates: Record<string, unknown> = {
       red_score: score.redScore,
       blue_score: score.blueScore,
       updated_at: new Date().toISOString(),
     };
-    if (match.status !== 'completed' && matchEndDecision.isOver) {
+    if (justCompleted) {
       matchUpdates['status'] = 'completed';
       matchUpdates['ended_at'] = new Date().toISOString();
       matchUpdates['winner_registration_id'] = winnerRegistrationId;
+      // 'first_to_points' | 'time_limit' | 'max_doubles' — lets the pad +
+      // TV distinguish a 0-0 double loss from a genuine tie.
+      matchUpdates['end_reason'] = matchEndDecision.reason;
     }
 
     // Persist derived scores back to matches row
     await this.supabase.service.from('matches').update(matchUpdates).eq('id', matchId);
 
+    // The ruleset closed the match (point cap or double cap). Stop the
+    // clock so it freezes and the scoreboard's clock-driven endcard fires.
+    if (justCompleted) {
+      await this.endClockBestEffort(matchId);
+    }
+
     return { redScore: score.redScore, blueScore: score.blueScore };
+  }
+
+  /**
+   * Auto-end the clock when a match completes on its own (point/double cap).
+   * Best-effort: the score + status are already persisted, so a clock-end
+   * failure must NOT fail the originating exchange. Only ends a clock that
+   * is running or halted — the 'end' transition is invalid (throws) from
+   * idle (timer never started) or ended (already stopped), so we skip those.
+   * Passes canOverrideLocked so a match auto-locked in the same cycle still
+   * stops its clock.
+   */
+  private async endClockBestEffort(matchId: string): Promise<void> {
+    try {
+      const clock = await this.clock.getClockState(matchId);
+      if (clock.status === 'running' || clock.status === 'halted') {
+        await this.clock.clockAction(matchId, 'end', 'auto: match complete', {
+          canOverrideLocked: true,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Auto clock-end skipped for match ${matchId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private phaseType(value: unknown): RulesetMatch['phaseType'] {

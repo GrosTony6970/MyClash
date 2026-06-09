@@ -19,6 +19,13 @@ export interface DisplayMatch {
   rulesetCode: string;
   startedAt: string | null;
   endedAt: string | null;
+  /** Why the match ended: 'first_to_points' | 'time_limit' | 'max_doubles'.
+   *  'max_doubles' = double-cap reached → DOUBLE LOSS (both scores 0, no
+   *  winner). Null on manual clock-end / forfeit / legacy rows. */
+  endReason?: string | null;
+  /** Winner's registration id when the ruleset declared one (point cap).
+   *  Null for a double loss / tie / not-yet-decided. */
+  winnerRegistrationId?: string | null;
   lice?: { name?: string } | null;
   event?: { name?: string } | null;
   tournament?: { name?: string; weapon?: string } | null;

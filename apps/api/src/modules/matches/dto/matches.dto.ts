@@ -112,19 +112,22 @@ export class CreateExchangeDto {
   @IsIn(['red', 'blue'])
   firstStrikerColor?: 'red' | 'blue';
 
-  @ApiProperty({ required: false, enum: [1, 2] })
+  @ApiProperty({ required: false, description: 'Points for the first strike (≥1)' })
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(2)
-  firstStrikeValue?: 1 | 2;
+  @Max(10)
+  firstStrikeValue?: number;
 
-  @ApiProperty({ required: false, enum: [1, 2] })
+  // Deductive afterblow mode awards the defender 0, so this MUST allow 0 —
+  // @IsOptional() does NOT skip a present 0, and @Min(1) would 400 the whole
+  // POST. The cap is raised to 10 so configurable button point values pass.
+  @ApiProperty({ required: false, description: 'Points for the afterblow (0 in deductive mode)' })
   @IsOptional()
   @IsInt()
-  @Min(1)
-  @Max(2)
-  afterblowValue?: 1 | 2;
+  @Min(0)
+  @Max(10)
+  afterblowValue?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -149,19 +152,22 @@ export class EditExchangeDto {
   @IsIn(['red', 'blue'])
   firstStrikerColor?: 'red' | 'blue';
 
-  @ApiProperty({ required: false, enum: [1, 2] })
+  @ApiProperty({ required: false, description: 'Points for the first strike (≥1)' })
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(2)
-  firstStrikeValue?: 1 | 2;
+  @Max(10)
+  firstStrikeValue?: number;
 
-  @ApiProperty({ required: false, enum: [1, 2] })
+  // Deductive afterblow mode awards the defender 0, so this MUST allow 0 —
+  // @IsOptional() does NOT skip a present 0, and @Min(1) would 400 the whole
+  // POST. The cap is raised to 10 so configurable button point values pass.
+  @ApiProperty({ required: false, description: 'Points for the afterblow (0 in deductive mode)' })
   @IsOptional()
   @IsInt()
-  @Min(1)
-  @Max(2)
-  afterblowValue?: 1 | 2;
+  @Min(0)
+  @Max(10)
+  afterblowValue?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()

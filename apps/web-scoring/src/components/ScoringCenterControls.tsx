@@ -25,10 +25,13 @@ import { formatClockMs, type ClockState } from './MatchClock';
 import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
 import { usePenalties, type MatchPenalty, type PenaltyCard } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { isDoubleLoss } from './is-double-loss';
 
 interface ScoringCenterControlsProps {
   matchId: string;
   apiUrl: string;
+  /** Match status (DB enum) — drives the DOUBLE LOSS banner once completed. */
+  matchStatus: string;
   matchFormat: MatchFormatConfig;
   config: TournamentScoringConfig;
   redName: string;
@@ -57,6 +60,7 @@ interface ScoringCenterControlsProps {
 export function ScoringCenterControls({
   matchId,
   apiUrl,
+  matchStatus,
   matchFormat,
   config,
   redName,
@@ -107,6 +111,7 @@ export function ScoringCenterControls({
 
   const doubleCount = activeExchanges.filter((e) => e.type === 'double').length;
   const maxDoubles = matchFormat.maxDoubleHits;
+  const doubleLoss = isDoubleLoss(matchStatus, doubleCount, maxDoubles);
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-gray-800 text-gray-300';
     if (doubleCount >= maxDoubles) return 'bg-red-900 text-red-200 border border-red-500';
@@ -165,6 +170,19 @@ export function ScoringCenterControls({
 
   return (
     <div className="flex flex-col items-center gap-3 px-2 py-3">
+      {/* Double-loss banner — the double cap was hit, both fighters lose
+          and the match is closed (scoring is already locked by status). */}
+      {doubleLoss && (
+        <div className="w-full rounded-xl border-2 border-red-500 bg-red-950 px-4 py-3 text-center">
+          <p className="text-lg font-black uppercase tracking-widest text-red-300">
+            {t('scoring.liveMatch.doubleLoss')}
+          </p>
+          <p className="mt-1 text-xs font-semibold text-red-200">
+            {t('scoring.liveMatch.doubleLossSubtitle')}
+          </p>
+        </div>
+      )}
+
       {/* Status badge */}
       {(() => {
         const tone = statusPillTone(clockStatusSemantic(status), 'dark');
