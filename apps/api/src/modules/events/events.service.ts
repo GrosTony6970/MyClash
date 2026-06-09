@@ -939,8 +939,8 @@ export class EventsService {
       .from('matches')
       .select(
         'id, status, scheduled_at, match_number_label, red_score, blue_score, pool_id, lice_id, ' +
-          'red:registrations!matches_red_registration_id_fkey(id, persons(given_name, family_name, clubs(abbreviation))), ' +
-          'blue:registrations!matches_blue_registration_id_fkey(id, persons(given_name, family_name, clubs(abbreviation))), ' +
+          'red:registrations!matches_red_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
+          'blue:registrations!matches_blue_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
           'lices(id, name, color_hex)',
       )
       .in('pool_id', poolIds)
@@ -951,7 +951,7 @@ export class EventsService {
     type PersonClubEmbed = {
       given_name: string | null;
       family_name: string | null;
-      clubs: { abbreviation: string | null } | null;
+      clubs: { name: string | null; abbreviation: string | null } | null;
     } | null;
     type SideRel = { id: string; persons: PersonClubEmbed } | null;
     type LiceRel = { id: string; name: string | null; color_hex: string | null } | null;
@@ -977,7 +977,9 @@ export class EventsService {
       return composed || null;
     }
     function clubAbbrevFrom(side: SideRel): string | null {
-      return side?.persons?.clubs?.abbreviation ?? null;
+      // Prefer the abbreviation; fall back to the full club name so the
+      // public club pill renders even for clubs without an abbreviation.
+      return side?.persons?.clubs?.abbreviation ?? side?.persons?.clubs?.name ?? null;
     }
 
     // 4. Group matches by pool + project. Round code uses the same

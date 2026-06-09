@@ -15,9 +15,13 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { tintTextClassFor } from '@myclash/ui';
+import { t } from '@myclash/i18n';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
+import { naturalCompare } from './pool-matches-sort';
+import { matchesQuery } from './pool-matches-filter';
 
 interface PoolMatch {
   matchId: string;
@@ -53,9 +57,11 @@ interface Props {
 }
 
 export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props) {
+  const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [query, setQuery] = useState('');
 
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
 
@@ -131,9 +137,36 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
     );
   }
 
+  // Natural-sort each pool's matches (M1, M2, … M10) then apply the
+  // search filter. When a query is active, drop pools left with no
+  // matching rows so the results collapse to what's relevant.
+  const q = query.trim();
+  const displayPools = pools
+    .map((pool) => ({
+      ...pool,
+      matches: [...pool.matches]
+        .sort((a, b) => naturalCompare(a.roundCode, b.roundCode))
+        .filter((m) => matchesQuery(m, query)),
+    }))
+    .filter((pool) => (q ? pool.matches.length > 0 : true));
+
   return (
     <div className="flex flex-col gap-6">
-      {pools.map((pool) => (
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t('publicApp.tournament.poolMatchesSearch')}
+        className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-stone-500 focus:outline-none focus:ring-2 focus:ring-stone-200"
+      />
+
+      {q && displayPools.length === 0 && (
+        <p className="rounded-xl border border-dashed border-stone-300 bg-stone-100 p-6 text-center text-sm text-slate-500">
+          {t('publicApp.tournament.poolMatchesNoResults')}
+        </p>
+      )}
+
+      {displayPools.map((pool) => (
         <article
           key={pool.poolId}
           className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
@@ -161,52 +194,69 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                   </tr>
                 </thead>
                 <tbody>
-                  {pool.matches.map((m) => (
-                    <tr key={m.matchId} className="border-b border-stone-100 last:border-0">
-                      <td className="px-4 py-2 font-mono text-xs text-slate-600">{m.roundCode}</td>
-                      <td className="px-4 py-2">
-                        <span className="font-medium text-slate-900">
-                          {m.redFighterName ?? '—'}
-                        </span>
-                        {m.redClubAbbrev && (
-                          <span className="ml-2 rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
-                            {m.redClubAbbrev}
+                  {pool.matches.map((m) => {
+                    const openMatch = () => router.push(`/e/${eventSlug}/match/${m.matchId}`);
+                    return (
+                      <tr
+                        key={m.matchId}
+                        role="link"
+                        tabIndex={0}
+                        onClick={openMatch}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openMatch();
+                          }
+                        }}
+                        className="cursor-pointer border-b border-stone-100 last:border-0 hover:bg-stone-50 focus:bg-stone-50 focus:outline-none"
+                      >
+                        <td className="px-4 py-2 font-mono text-xs text-slate-600">
+                          {m.roundCode}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="font-medium text-slate-900">
+                            {m.redFighterName ?? '—'}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2 text-center font-mono">{m.redScore ?? '—'}</td>
-                      <td className="px-2 py-2 text-center font-mono">{m.blueScore ?? '—'}</td>
-                      <td className="px-4 py-2">
-                        <span className="font-medium text-slate-900">
-                          {m.blueFighterName ?? '—'}
-                        </span>
-                        {m.blueClubAbbrev && (
-                          <span className="ml-2 rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
-                            {m.blueClubAbbrev}
+                          {m.redClubAbbrev && (
+                            <span className="ml-2 inline-block max-w-[10rem] truncate align-middle rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
+                              {m.redClubAbbrev}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-center font-mono">{m.redScore ?? '—'}</td>
+                        <td className="px-2 py-2 text-center font-mono">{m.blueScore ?? '—'}</td>
+                        <td className="px-4 py-2">
+                          <span className="font-medium text-slate-900">
+                            {m.blueFighterName ?? '—'}
                           </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        <StatusPill status={m.status} />
-                      </td>
-                      <td className="px-4 py-2">
-                        {m.liceName ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            {m.liceColorHex && (
-                              <span
-                                aria-hidden="true"
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: m.liceColorHex }}
-                              />
-                            )}
-                            <span className="text-xs text-slate-600">{m.liceName}</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs italic text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          {m.blueClubAbbrev && (
+                            <span className="ml-2 inline-block max-w-[10rem] truncate align-middle rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
+                              {m.blueClubAbbrev}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          <StatusPill status={m.status} />
+                        </td>
+                        <td className="px-4 py-2">
+                          {m.liceName ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              {m.liceColorHex && (
+                                <span
+                                  aria-hidden="true"
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: m.liceColorHex }}
+                                />
+                              )}
+                              <span className="text-xs text-slate-600">{m.liceName}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs italic text-slate-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

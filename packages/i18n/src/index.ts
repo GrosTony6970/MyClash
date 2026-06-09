@@ -403,6 +403,8 @@ export const en = {
         modeOverall: 'Overall',
         modeByPool: 'Per pool',
       },
+      poolMatchesSearch: 'Search matches (fighter, round, club…)',
+      poolMatchesNoResults: 'No matches found.',
     },
     leagues: {
       backToHome: 'Back to home',
@@ -4313,6 +4315,8 @@ export const fr = {
         modeOverall: 'Général',
         modeByPool: 'Par poule',
       },
+      poolMatchesSearch: 'Rechercher un match (tireur, manche, club…)',
+      poolMatchesNoResults: 'Aucun match trouvé.',
     },
     leagues: {
       backToHome: "Retour à l'accueil",
