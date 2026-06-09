@@ -155,6 +155,7 @@ export type { StatusSemantic, StatusSurface, StatusPillTone } from './utils/stat
 
 export { useNextMatch } from './hooks/useNextMatch';
 export type { NextMatchInfo } from './hooks/useNextMatch';
+export { useAdjacentMatches } from './hooks/useAdjacentMatches';
 
 export { useLiveMatch } from './hooks/useLiveMatch';
 export type {

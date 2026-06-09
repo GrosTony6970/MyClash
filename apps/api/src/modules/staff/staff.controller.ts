@@ -170,4 +170,11 @@ export class StaffController {
   async publicMatchDisplay(@Param('id', ParseUUIDPipe) id: string) {
     return this.staff.getPublicMatchDisplay(id);
   }
+
+  @Get('matches/:id/neighbors')
+  @ApiOperation({ summary: 'Public previous + next match on the same lice' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async matchNeighbors(@Param('id', ParseUUIDPipe) id: string) {
+    return this.staff.getMatchNeighbors(id);
+  }
 }

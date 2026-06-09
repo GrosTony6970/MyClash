@@ -46,6 +46,11 @@ export interface MatchViewProps {
   networkStatus: 'online' | 'offline';
   onRefresh: () => void;
   externalDisplayUrl?: string | null;
+  /** Back-link target (admin return URL); falls back to the lice queue. */
+  backHref?: string | null;
+  /** Builds in-scoring match hrefs (prev/next tiles) with the /scoring
+   *  prefix + preserved query. Defaults to a bare /matches/[id]. */
+  buildMatchHref?: (id: string) => string;
 }
 
 export function MatchView({
@@ -54,6 +59,8 @@ export function MatchView({
   networkStatus,
   onRefresh,
   externalDisplayUrl,
+  backHref,
+  buildMatchHref,
 }: MatchViewProps) {
   const { t } = useI18n();
   const [nextSequence, setNextSequence] = useState(1);
@@ -214,6 +221,8 @@ export function MatchView({
         blueName={blueName}
         config={scoringConfig}
         liceId={match.liceId ?? null}
+        backHref={backHref}
+        buildMatchHref={buildMatchHref}
         externalDisplayUrl={externalDisplayUrl ?? null}
         refreshKey={refreshKey}
         onOpenCorrections={() => setDrawerOpen(true)}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
+import { safeReturnHref, scoringRoutePrefix } from '../../../src/lib/nav';
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -28,11 +29,18 @@ export default function MatchScoringPage({ params }: Props) {
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
   );
-  // `?externalDisplay=<url>` is the optional projection-screen link
-  // the admin sets when proxying this view via /scoring/*. The
-  // `?return=<url>` legacy param is no longer used — the new header
-  // builds a deterministic back-link from match.liceId.
+  // `?externalDisplay=<url>` is the optional projection-screen link the
+  // admin sets when proxying this view via /scoring/*. `?return=<url>`
+  // is the admin page the operator came from — its back-link target
+  // (resolves on admin.${DOMAIN}, sidestepping the /scoring prefix that
+  // a root-relative /lices/{id} link would lose). `routePrefix` is
+  // `/scoring` under the admin proxy, '' on the canonical scoring
+  // subdomain — prefixes in-app match navigation so prev/next tiles
+  // don't escape the mount.
   const [externalDisplayUrl, setExternalDisplayUrl] = useState<string | null>(null);
+  const [backHref, setBackHref] = useState<string | null>(null);
+  const [routePrefix, setRoutePrefix] = useState('');
+  const [returnParam, setReturnParam] = useState<string | null>(null);
 
   useEffect(() => {
     void params.then(({ matchId: id }) => setMatchId(id));
@@ -41,8 +49,27 @@ export default function MatchScoringPage({ params }: Props) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
-    setExternalDisplayUrl(url.searchParams.get('externalDisplay'));
+    const ext = url.searchParams.get('externalDisplay');
+    const ret = url.searchParams.get('return');
+    setExternalDisplayUrl(ext);
+    setReturnParam(ret);
+    setBackHref(safeReturnHref(ret, window.location.origin));
+    setRoutePrefix(scoringRoutePrefix(window.location.pathname));
   }, []);
+
+  // Build in-scoring match hrefs (prev/next tiles) that carry the
+  // /scoring prefix + forward return/externalDisplay so the back-link
+  // and projection link keep working after a tile jump.
+  const buildMatchHref = useCallback(
+    (id: string) => {
+      const qs = new URLSearchParams();
+      if (returnParam) qs.set('return', returnParam);
+      if (externalDisplayUrl) qs.set('externalDisplay', externalDisplayUrl);
+      const s = qs.toString();
+      return `${routePrefix}/matches/${id}${s ? `?${s}` : ''}`;
+    },
+    [routePrefix, returnParam, externalDisplayUrl],
+  );
 
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
@@ -159,6 +186,8 @@ export default function MatchScoringPage({ params }: Props) {
           networkStatus={networkStatus}
           onRefresh={() => setRefreshKey((key) => key + 1)}
           externalDisplayUrl={externalDisplayUrl}
+          backHref={backHref}
+          buildMatchHref={buildMatchHref}
         />
       ) : (
         <NoMatchView mode="match" />

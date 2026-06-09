@@ -48,6 +48,17 @@ type StaffAccountRow = {
   status: string;
 };
 
+/** A prev/next match summary for the scoring pad's header tiles. */
+export interface NeighborTile {
+  id: string;
+  matchNumberLabel: string | null;
+  roundCode: string | null;
+  redFighterName: string | null;
+  blueFighterName: string | null;
+  redClub: string | null;
+  blueClub: string | null;
+}
+
 @Injectable()
 export class StaffService {
   constructor(
@@ -286,6 +297,86 @@ export class StaffService {
 
   async getPublicMatchDisplay(matchId: string) {
     return this.getMatchDisplayPayload(matchId);
+  }
+
+  /**
+   * Previous + next match on the same lice, in schedule order. Public —
+   * the scoring pad's prev/next header tiles read this instead of the
+   * staff lice-queue endpoint (which 401s for an organizer session).
+   * "previous" is an already-played match, so unlike resolveNextMatchOnLice
+   * we order the full non-voided list by scheduled_at and pick the
+   * immediate neighbours by index.
+   */
+  async getMatchNeighbors(
+    matchId: string,
+  ): Promise<{ previous: NeighborTile | null; next: NeighborTile | null }> {
+    const { data: current, error: curErr } = await this.supabase.service
+      .from('matches')
+      .select('id,lice_id')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (curErr) throw new BadRequestException(curErr.message);
+    if (!current) throw new NotFoundException('Match not found');
+    const liceId = (current as { lice_id: string | null }).lice_id;
+    if (!liceId) return { previous: null, next: null };
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name,clubs(name))),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round)',
+      )
+      .eq('lice_id', liceId)
+      .in('status', ['scheduled', 'running', 'paused', 'completed'])
+      .order('scheduled_at', { ascending: true, nullsFirst: false })
+      .order('match_number_label', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const idx = rows.findIndex((r) => (r['id'] as string) === matchId);
+    if (idx === -1) return { previous: null, next: null };
+    return {
+      previous: idx > 0 ? this.mapNeighborRow(rows[idx - 1]!) : null,
+      next: idx < rows.length - 1 ? this.mapNeighborRow(rows[idx + 1]!) : null,
+    };
+  }
+
+  private mapNeighborRow(row: Record<string, unknown>): NeighborTile {
+    const phase = row['phases'] as {
+      config_json?: Record<string, unknown> | null;
+      tournaments?: { weapon?: string };
+    } | null;
+    const pool = row['pools'] as { sort_order?: number } | null;
+    const bracketSlot = row['bracket_slots'] as { round?: number } | null;
+    const phaseCfg = phase?.config_json ?? null;
+    const sizeRaw = (phaseCfg?.['bracketSize'] ?? phaseCfg?.['mainBracketSize']) as
+      | number
+      | undefined;
+    const bracketSize: number | null = typeof sizeRaw === 'number' ? sizeRaw : null;
+    const poolNumber = typeof pool?.sort_order === 'number' ? pool.sort_order + 1 : null;
+    const bracketRound = typeof bracketSlot?.round === 'number' ? bracketSlot.round : null;
+    const red = row['red'] as {
+      persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
+    } | null;
+    const blue = row['blue'] as {
+      persons?: { given_name?: string; family_name?: string; clubs?: { name?: string } | null };
+    } | null;
+    const label = (row['match_number_label'] as string | null) ?? null;
+    return {
+      id: row['id'] as string,
+      matchNumberLabel: label,
+      roundCode: buildRoundCode({
+        weapon: phase?.tournaments?.weapon ?? null,
+        poolNumber,
+        bracketRound,
+        bracketSize,
+        matchNumberLabel: label,
+        roundNumber: null,
+      }),
+      redFighterName: this.formatPersonName(red?.persons),
+      blueFighterName: this.formatPersonName(blue?.persons),
+      redClub: red?.persons?.clubs?.name ?? null,
+      blueClub: blue?.persons?.clubs?.name ?? null,
+    };
   }
 
   private async getMeForStaff(staffAccountId: string) {

@@ -239,3 +239,100 @@ describe('StaffService.getPublicMatchDisplay', () => {
     });
   });
 });
+
+// The scoring pad's prev/next tiles read from this public endpoint (the
+// staff lice-queue endpoint 401s for admin sessions). It returns the
+// immediate predecessor + successor of a match along its lice's
+// schedule-ordered, non-voided match list.
+describe('StaffService.getMatchNeighbors', () => {
+  function makeNeighborSupabase(
+    current: Record<string, unknown> | null,
+    list: Array<Record<string, unknown>>,
+  ) {
+    let matchesCall = 0;
+    const service = {
+      from: vi.fn((table: string) => {
+        if (table !== 'matches') return {} as never;
+        matchesCall += 1;
+        if (matchesCall === 1) {
+          // Current-match lookup: select(...).eq('id', …).maybeSingle()
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: current, error: null }),
+          };
+        }
+        // Lice list: select().eq().in().order().order() → resolves to the list.
+        const listChain: Record<string, unknown> = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+        };
+        listChain.order = vi
+          .fn()
+          .mockReturnValueOnce(listChain)
+          .mockReturnValueOnce(Promise.resolve({ data: list, error: null }));
+        return listChain;
+      }),
+    };
+    return { supabase: { service } };
+  }
+
+  const mk = (id: string) => ({
+    id,
+    status: 'scheduled',
+    scheduled_at: `2026-05-05T1${id.slice(-1)}:00:00.000Z`,
+    match_number_label: id,
+    red: { persons: { given_name: 'Red', family_name: id } },
+    blue: { persons: { given_name: 'Blue', family_name: id } },
+    phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+    pools: { sort_order: 0 },
+    bracket_slots: null,
+  });
+
+  it('returns the immediate previous + next match on the same lice', async () => {
+    const { supabase } = makeNeighborSupabase({ id: 'm2', lice_id: 'lice-1' }, [
+      mk('m1'),
+      mk('m2'),
+      mk('m3'),
+    ]);
+    const service = new StaffService(supabase as never, {} as never, {} as never);
+
+    const result = (await service.getMatchNeighbors('m2')) as {
+      previous: { id: string } | null;
+      next: { id: string } | null;
+    };
+
+    expect(result.previous?.id).toBe('m1');
+    expect(result.next?.id).toBe('m3');
+  });
+
+  it('returns null at the open ends (first match has no previous)', async () => {
+    const { supabase } = makeNeighborSupabase({ id: 'm1', lice_id: 'lice-1' }, [
+      mk('m1'),
+      mk('m2'),
+    ]);
+    const service = new StaffService(supabase as never, {} as never, {} as never);
+
+    const result = (await service.getMatchNeighbors('m1')) as {
+      previous: { id: string } | null;
+      next: { id: string } | null;
+    };
+
+    expect(result.previous).toBeNull();
+    expect(result.next?.id).toBe('m2');
+  });
+
+  it('returns both null when the match has no lice', async () => {
+    const { supabase } = makeNeighborSupabase({ id: 'm1', lice_id: null }, []);
+    const service = new StaffService(supabase as never, {} as never, {} as never);
+
+    const result = (await service.getMatchNeighbors('m1')) as {
+      previous: unknown;
+      next: unknown;
+    };
+
+    expect(result.previous).toBeNull();
+    expect(result.next).toBeNull();
+  });
+});

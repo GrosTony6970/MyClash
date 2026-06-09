@@ -19,7 +19,7 @@ import Link from 'next/link';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { sideStyle } from '@myclash/ui';
-import { useNextMatch } from '@myclash/ui';
+import { useAdjacentMatches } from '@myclash/ui';
 
 interface MatchHeaderProps {
   matchId: string;
@@ -56,7 +56,7 @@ export function MatchHeader({
   onOpenCorrections,
 }: MatchHeaderProps) {
   const { t } = useI18n();
-  const { next } = useNextMatch(apiUrl, liceId, matchId, refreshKey);
+  const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
 
   const resolvedBackHref = backHref ?? (liceId ? `/lices/${liceId}` : '/lices');
   const redStyle = sideStyle(config, 'red');
@@ -65,14 +65,37 @@ export function MatchHeader({
   return (
     <header className="border-b border-slate-200 bg-white text-slate-900 px-4 py-3">
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">
-        {/* Left: back link */}
-        <div>
+        {/* Left: back link + previous-match tile */}
+        <div className="flex flex-col items-start gap-2">
           <Link
             href={resolvedBackHref}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
           >
             ← {t('scoring.lice.backToMatchList')}
           </Link>
+
+          {previous && (
+            <Link
+              href={buildMatchHref(previous.id)}
+              className="block w-full max-w-[280px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-left hover:border-slate-500 hover:bg-slate-50"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                ◂ {t('scoring.lice.previousMatchLabel')}
+              </p>
+              <p className="mt-0.5 text-sm font-semibold leading-tight">
+                <span style={{ color: redStyle.border }}>● </span>
+                {previous.redName}
+                {previous.redClub && <span className="text-slate-500"> · {previous.redClub}</span>}
+              </p>
+              <p className="text-sm font-semibold leading-tight">
+                <span style={{ color: blueStyle.border }}>● </span>
+                {previous.blueName}
+                {previous.blueClub && (
+                  <span className="text-slate-500"> · {previous.blueClub}</span>
+                )}
+              </p>
+            </Link>
+          )}
         </div>
 
         {/* Centre: match code pill + full fighter names + corrections */}
