@@ -42,6 +42,20 @@ export interface TVScoreboardProps {
    *  popup passes `(id) => `/display/${id}`` so rollover stays in its
    *  own routing. */
   buildNextDisplayHref?: (nextMatchId: string) => string;
+  /**
+   * Fallback poll interval (ms) for surfaces whose realtime WebSocket may
+   * not connect (e.g. the cross-origin admin external display under
+   * `--dev-certs`). Omit to rely on realtime alone (same-origin public
+   * display).
+   */
+  pollMs?: number;
+  /**
+   * Swap the red/blue fighter columns (and the header name order) so the
+   * display reads correctly on a TV facing the audience — the operator's
+   * left becomes the spectator's right. Default false; the external
+   * display defaults it on.
+   */
+  mirror?: boolean;
   className?: string;
 }
 
@@ -59,6 +73,8 @@ export function TVScoreboard({
   eventSlug,
   rolloverDelaySeconds = 5,
   buildNextDisplayHref,
+  pollMs,
+  mirror = false,
   className,
 }: TVScoreboardProps): React.ReactElement | null {
   const t = createTranslator(getMessages());
@@ -66,6 +82,7 @@ export function TVScoreboard({
     apiBaseUrl,
     matchId,
     supabaseClient,
+    pollMs,
   );
 
   // ── Auto-rollover state machine ────────────────────────────────
@@ -137,6 +154,32 @@ export function TVScoreboard({
   const redStyle = sideStyle(match.scoringConfig, 'red');
   const blueStyle = sideStyle(match.scoringConfig, 'blue');
 
+  const redColumn = (
+    <FighterColumn
+      key="red"
+      name={redName}
+      club={match.redClub ?? null}
+      score={match.redScore}
+      registrationId={match.redRegistrationId ?? null}
+      penalties={penalties}
+      tintHex={redStyle.border}
+    />
+  );
+  const blueColumn = (
+    <FighterColumn
+      key="blue"
+      name={blueName}
+      club={match.blueClub ?? null}
+      score={match.blueScore}
+      registrationId={match.blueRegistrationId ?? null}
+      penalties={penalties}
+      tintHex={blueStyle.border}
+    />
+  );
+  // Mirror swaps the whole fighter panel (score + name + club + cards)
+  // left↔right so the display reads right on a TV facing the audience.
+  const [leftColumn, rightColumn] = mirror ? [blueColumn, redColumn] : [redColumn, blueColumn];
+
   return (
     <div className={`flex min-h-screen flex-col bg-gray-950 text-white ${className ?? ''}`}>
       <TVHeader
@@ -145,17 +188,11 @@ export function TVScoreboard({
         blueName={blueName}
         redBorder={redStyle.border}
         blueBorder={blueStyle.border}
+        mirror={mirror}
       />
 
       <div className="grid flex-1 grid-cols-[1fr_minmax(380px,28%)_1fr] gap-6 px-6 py-4">
-        <FighterColumn
-          name={redName}
-          club={match.redClub ?? null}
-          score={match.redScore}
-          registrationId={match.redRegistrationId ?? null}
-          penalties={penalties}
-          tintHex={redStyle.border}
-        />
+        {leftColumn}
         <CenterColumn
           match={match}
           clockStatus={clockStatus}
@@ -166,14 +203,7 @@ export function TVScoreboard({
           blueName={blueName}
           t={t}
         />
-        <FighterColumn
-          name={blueName}
-          club={match.blueClub ?? null}
-          score={match.blueScore}
-          registrationId={match.blueRegistrationId ?? null}
-          penalties={penalties}
-          tintHex={blueStyle.border}
-        />
+        {rightColumn}
       </div>
 
       <TVFooter match={match} t={t} />
@@ -189,12 +219,14 @@ function TVHeader({
   blueName,
   redBorder,
   blueBorder,
+  mirror = false,
 }: {
   match: DisplayMatch;
   redName: string;
   blueName: string;
   redBorder: string;
   blueBorder: string;
+  mirror?: boolean;
 }) {
   const matchCode = match.roundCode ?? match.matchNumberLabel ?? '';
   const eventName = match.event?.name ?? null;
@@ -204,6 +236,11 @@ function TVHeader({
   // colours so a white-configured side stays legible (no white-on-white).
   const redOnLight = legibleOn(redBorder, 'light');
   const blueOnLight = legibleOn(blueBorder, 'light');
+  // Mirror swaps the "X vs Y" name order to match the swapped body columns.
+  const leftName = mirror ? blueName : redName;
+  const leftColor = mirror ? blueOnLight : redOnLight;
+  const rightName = mirror ? redName : blueName;
+  const rightColor = mirror ? redOnLight : blueOnLight;
 
   return (
     <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
@@ -219,9 +256,9 @@ function TVHeader({
             </span>
           )}
           <p className="text-2xl font-bold">
-            <span style={{ color: redOnLight }}>{redName}</span>{' '}
+            <span style={{ color: leftColor }}>{leftName}</span>{' '}
             <span className="text-slate-500">vs</span>{' '}
-            <span style={{ color: blueOnLight }}>{blueName}</span>
+            <span style={{ color: rightColor }}>{rightName}</span>
           </p>
         </div>
         <div className="flex justify-end">

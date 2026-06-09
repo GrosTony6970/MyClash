@@ -103,6 +103,16 @@ export function useLiveMatch(
   apiBaseUrl: string,
   matchId: string,
   supabaseClient: SupabaseClient,
+  /**
+   * Optional fallback poll interval (ms). When set, `refresh()` re-runs
+   * on this interval IN ADDITION to the realtime subscription. Used by
+   * the admin external display, whose realtime WebSocket is cross-origin
+   * (admin.${DOMAIN} → app.${DOMAIN}) and can be blocked under
+   * self-signed `--dev-certs`; the poll hits the same-origin API that
+   * already serves the initial render, so the screen stays live there.
+   * Omit (default) to rely on realtime alone (public same-origin display).
+   */
+  pollMs?: number,
 ): UseLiveMatchResult {
   const [match, setMatch] = useState<DisplayMatch | null>(null);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
@@ -194,6 +204,15 @@ export function useLiveMatch(
     const timer = setInterval(() => setElapsedMs(computeElapsedMs(clock)), 50);
     return () => clearInterval(timer);
   }, [clock]);
+
+  // Fallback poll — resilience for surfaces whose realtime WebSocket may
+  // not connect (e.g. the cross-origin admin display under --dev-certs).
+  // No-op when pollMs is unset.
+  useEffect(() => {
+    if (!pollMs || pollMs <= 0) return;
+    const id = setInterval(() => void refresh(), pollMs);
+    return () => clearInterval(id);
+  }, [pollMs, refresh]);
 
   return { match, penalties, clock, elapsedMs, loadError, refresh };
 }

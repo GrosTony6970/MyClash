@@ -3903,6 +3903,7 @@ export const en = {
       notFound: 'Match not found ({status}).',
       loadError: 'Could not load scoreboard data ({status}).',
       retry: 'Retry',
+      swapSides: '⇄ Swap sides',
     },
   },
   test: {
@@ -7858,6 +7859,7 @@ export const fr = {
       notFound: 'Match introuvable ({status}).',
       loadError: 'Impossible de charger les donnees du tableau de score ({status}).',
       retry: 'Reessayer',
+      swapSides: '⇄ Inverser les côtés',
     },
   },
   test: {
