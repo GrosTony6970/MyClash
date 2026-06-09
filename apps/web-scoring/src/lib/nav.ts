@@ -36,3 +36,17 @@ export function safeReturnHref(raw: string | null, currentOrigin: string): strin
 export function scoringRoutePrefix(pathname: string): string {
   return pathname.startsWith('/scoring') ? '/scoring' : '';
 }
+
+/**
+ * `window.open` feature string for the external-display scoreboard
+ * popup: a sized, resizable, chromeless second-screen window the
+ * operator can drag onto a projector.
+ */
+export function scoreboardPopupFeatures(width = 1280, height = 720): string {
+  return `popup=yes,width=${width},height=${height},resizable=yes,scrollbars=no`;
+}
+
+/** Open the external-display scoreboard as a sized popup window. */
+export function openScoreboardPopup(url: string): void {
+  window.open(url, 'myclash-scoreboard', scoreboardPopupFeatures());
+}

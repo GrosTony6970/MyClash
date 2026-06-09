@@ -20,6 +20,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { sideStyle } from '@myclash/ui';
 import { useAdjacentMatches } from '@myclash/ui';
+import { openScoreboardPopup } from '../lib/nav';
 
 interface MatchHeaderProps {
   matchId: string;
@@ -122,14 +123,13 @@ export function MatchHeader({
         {/* Right: external display + next-match tile */}
         <div className="flex flex-col items-end gap-2">
           {externalDisplayUrl && (
-            <a
-              href={externalDisplayUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => openScoreboardPopup(externalDisplayUrl)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
             >
               ↗ {t('scoring.lice.externalDisplay')}
-            </a>
+            </button>
           )}
 
           {next && (

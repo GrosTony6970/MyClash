@@ -27,7 +27,12 @@ import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
  * prompt that blocks cross-origin scoring.myclash.fr.
  */
 function openMatchScoring(slug: string, eventId: string, matchId: string): void {
-  const scoreboardHref = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
+  // Full-bleed external display (no admin shell), opened as a popup
+  // from the scoring pad. `slug`/`eventId` are no longer needed for the
+  // display URL but kept in the signature for call-site compatibility.
+  void slug;
+  void eventId;
+  const scoreboardHref = `/display/${matchId}`;
   const href = buildMatchScoringHref('/scoring', matchId, window.location.href, scoreboardHref);
   if (href) window.location.href = href;
 }

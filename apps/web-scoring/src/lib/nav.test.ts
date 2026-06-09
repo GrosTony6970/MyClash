@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { safeReturnHref, scoringRoutePrefix } from './nav';
+import { safeReturnHref, scoringRoutePrefix, scoreboardPopupFeatures } from './nav';
 
 describe('safeReturnHref', () => {
   const origin = 'https://admin.myclash.fr';
@@ -36,5 +36,19 @@ describe('scoringRoutePrefix', () => {
   it('returns empty string on the canonical scoring subdomain (root mount)', () => {
     expect(scoringRoutePrefix('/matches/abc')).toBe('');
     expect(scoringRoutePrefix('/lices/abc')).toBe('');
+  });
+});
+
+describe('scoreboardPopupFeatures', () => {
+  it('builds a sized, resizable, chromeless popup feature string by default', () => {
+    expect(scoreboardPopupFeatures()).toBe(
+      'popup=yes,width=1280,height=720,resizable=yes,scrollbars=no',
+    );
+  });
+
+  it('honours explicit width/height', () => {
+    expect(scoreboardPopupFeatures(800, 600)).toBe(
+      'popup=yes,width=800,height=600,resizable=yes,scrollbars=no',
+    );
   });
 });

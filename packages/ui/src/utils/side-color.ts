@@ -173,3 +173,36 @@ export function sideStyle(
 export function styleForToken(token: SideColorToken | string): SideColorStyle {
   return STYLES[(token as SideColorToken) in STYLES ? (token as SideColorToken) : 'grey'];
 }
+
+/** WCAG relative luminance (0..1) of a `#rrggbb` hex. */
+function relativeLuminance(hex: string): number {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex.trim());
+  if (!m) return 0.5; // unknown format → treat as mid so we don't over-clamp
+  const channel = (h: string) => {
+    const c = parseInt(h, 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const r = channel(m[1]!);
+  const g = channel(m[2]!);
+  const b = channel(m[3]!);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Clamp a side colour so it stays legible against a known surface.
+ * The configured side palette includes near-black ('black' → #334155)
+ * and near-white ('white' → #cbd5e1) tokens; rendered verbatim, the
+ * black token vanishes as a score on the dark stage and the white
+ * token vanishes as a name on the white header strip. This returns a
+ * safe fallback in those cases and the original hex otherwise.
+ *
+ * Thresholds isolate only the black/white extremes — saturated reds
+ * (lum ≈0.17), blues (≈0.16), purples (≈0.13) and the brown token
+ * (≈0.10) all pass through unchanged on both surfaces.
+ */
+export function legibleOn(hex: string, bg: 'dark' | 'light'): string {
+  const lum = relativeLuminance(hex);
+  if (bg === 'dark' && lum < 0.08) return '#e2e8f0'; // too dark on dark → light slate
+  if (bg === 'light' && lum > 0.6) return '#1f2937'; // too light on light → dark slate
+  return hex;
+}

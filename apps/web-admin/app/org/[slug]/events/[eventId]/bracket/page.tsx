@@ -1570,7 +1570,7 @@ export default function BracketPage() {
                   // PWA; externalDisplay carries the read-only admin
                   // scoreboard URL so the operator can open the
                   // projection screen in a new tab.
-                  const scoreboardHref = `/org/${slug}/events/${eventId}/matches/${matchId}/scoreboard`;
+                  const scoreboardHref = `/display/${matchId}`;
                   const href = buildMatchScoringHref(
                     '/scoring',
                     matchId,

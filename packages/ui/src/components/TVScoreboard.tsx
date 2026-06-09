@@ -25,7 +25,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
-import { sideStyle } from '../utils/side-color';
+import { sideStyle, legibleOn } from '../utils/side-color';
+import { nextDisplayHref } from './next-display-href';
 
 export interface TVScoreboardProps {
   matchId: string;
@@ -36,6 +37,11 @@ export interface TVScoreboardProps {
   /** Seconds the endcard stays visible before navigating to the
    *  next match. Defaults to 5 per operator request. */
   rolloverDelaySeconds?: number;
+  /** Override the rollover destination. Defaults to the web-public
+   *  `/e/{eventSlug}/match/{id}/display` route; the admin same-origin
+   *  popup passes `(id) => `/display/${id}`` so rollover stays in its
+   *  own routing. */
+  buildNextDisplayHref?: (nextMatchId: string) => string;
   className?: string;
 }
 
@@ -52,6 +58,7 @@ export function TVScoreboard({
   supabaseClient,
   eventSlug,
   rolloverDelaySeconds = 5,
+  buildNextDisplayHref,
   className,
 }: TVScoreboardProps): React.ReactElement | null {
   const t = createTranslator(getMessages());
@@ -88,14 +95,14 @@ export function TVScoreboard({
           clearInterval(interval);
           // Hard navigation — guarantees fresh server-rendered
           // initial data for the next match, no stale React tree.
-          window.location.href = `/e/${eventSlug}/match/${nextMatchId}/display`;
+          window.location.href = nextDisplayHref(eventSlug, nextMatchId, buildNextDisplayHref);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [clockStatus, nextMatchId, eventSlug, rolloverDelaySeconds]);
+  }, [clockStatus, nextMatchId, eventSlug, rolloverDelaySeconds, buildNextDisplayHref]);
 
   if (loadError) {
     return (
@@ -193,6 +200,10 @@ function TVHeader({
   const eventName = match.event?.name ?? null;
   const liceName = match.lice?.name ?? null;
   const next = match.nextMatch ?? null;
+  // The header strip + NEXT tile are light surfaces — clamp the side
+  // colours so a white-configured side stays legible (no white-on-white).
+  const redOnLight = legibleOn(redBorder, 'light');
+  const blueOnLight = legibleOn(blueBorder, 'light');
 
   return (
     <header className="border-b border-slate-700 bg-white px-6 py-4 text-slate-900">
@@ -208,9 +219,9 @@ function TVHeader({
             </span>
           )}
           <p className="text-2xl font-bold">
-            <span style={{ color: redBorder }}>{redName}</span>{' '}
+            <span style={{ color: redOnLight }}>{redName}</span>{' '}
             <span className="text-slate-500">vs</span>{' '}
-            <span style={{ color: blueBorder }}>{blueName}</span>
+            <span style={{ color: blueOnLight }}>{blueName}</span>
           </p>
         </div>
         <div className="flex justify-end">
@@ -218,10 +229,10 @@ function TVHeader({
             <div className="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-right">
               <p className="text-xs font-bold uppercase tracking-widest text-slate-500">NEXT ▸</p>
               <p className="text-sm font-semibold">
-                <span style={{ color: redBorder }}>●</span> {next.redFighterName ?? '—'}
+                <span style={{ color: redOnLight }}>●</span> {next.redFighterName ?? '—'}
               </p>
               <p className="text-sm font-semibold">
-                <span style={{ color: blueBorder }}>●</span> {next.blueFighterName ?? '—'}
+                <span style={{ color: blueOnLight }}>●</span> {next.blueFighterName ?? '—'}
               </p>
             </div>
           )}
@@ -251,7 +262,10 @@ function FighterColumn({
   const myPenalties = penalties.filter((p) => !p.voided && p.registration_id === registrationId);
   return (
     <div className="flex flex-col items-center justify-start gap-6 pt-6">
-      <p className="text-[18rem] font-black leading-none tabular-nums" style={{ color: tintHex }}>
+      <p
+        className="text-[24rem] font-black leading-none tabular-nums"
+        style={{ color: legibleOn(tintHex, 'dark') }}
+      >
         {score}
       </p>
       <p className="text-center text-5xl font-bold leading-tight">{name}</p>

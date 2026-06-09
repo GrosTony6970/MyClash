@@ -511,9 +511,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         // `externalDisplay` query carries the read-only
                         // admin scoreboard URL so the operator can throw
                         // the projection on a second monitor in one click.
-                        const scoreboardHref = m.id
-                          ? `/org/${slug}/events/${eventId}/matches/${m.id}/scoreboard`
-                          : null;
+                        const scoreboardHref = m.id ? `/display/${m.id}` : null;
                         const scoringHref = m.id
                           ? buildMatchScoringHref(
                               '/scoring',
