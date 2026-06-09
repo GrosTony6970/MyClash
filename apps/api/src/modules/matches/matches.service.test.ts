@@ -149,6 +149,40 @@ describe('MatchesService', () => {
     });
   });
 
+  // listExchanges returns raw snake_case from Supabase, but the scoring
+  // pad's ExchangeRow type is camelCase (occurredAt/scoringSide/
+  // scoreDelta) and the timeline reads clockTimeMs. Map the row so the
+  // FE renders fighter, delta and match-clock time on exchange rows.
+  describe('listExchanges — camelCase mapping', () => {
+    it('maps a raw clean/red row to scoringSide + scoreDelta + clockTimeMs', async () => {
+      const rawRow = {
+        id: 'ex-1',
+        sequence: 1,
+        type: 'clean',
+        voided: false,
+        occurred_at: '2026-05-05T10:00:00.000Z',
+        clock_time_ms: 90_000,
+        first_striker_color: 'red',
+        red_score_delta: 2,
+        blue_score_delta: 0,
+        afterblow_value: null,
+      };
+      const chain = makeChain({ data: null, error: null });
+      chain.order.mockResolvedValue({ data: [rawRow], error: null });
+      fromMock.mockReturnValue(chain);
+
+      const result = (await service.listExchanges('m1')) as Array<Record<string, unknown>>;
+
+      expect(result[0]).toMatchObject({
+        id: 'ex-1',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+        clockTimeMs: 90_000,
+        scoringSide: 'red',
+        scoreDelta: 2,
+      });
+    });
+  });
+
   // ── Idempotency on client_uuid ────────────────────────────────────────────
 
   describe('createExchange — idempotency', () => {
@@ -388,6 +422,33 @@ describe('MatchesService', () => {
 
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledOnce();
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('match-1');
+    });
+  });
+
+  // The scoring pad sends the match-clock position (accumulated active
+  // ms) with every exchange so the timeline can render match-clock time
+  // instead of wall-clock. The value must land on exchanges.clock_time_ms.
+  describe('createExchange — clock time', () => {
+    it('persists clock_time_ms from dto.clockTimeMs on the inserted row', async () => {
+      const checkChain = makeChain({ data: null, error: null });
+      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
+      const insertChain = makeChain({ data: null, error: null });
+      insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
+      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(insertChain);
+
+      await service.createExchange('match-1', {
+        clientUuid: 'uuid-clock',
+        sequence: 1,
+        type: 'clean',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 2,
+        occurredAt: new Date().toISOString(),
+        clockTimeMs: 90_000,
+      });
+
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ clock_time_ms: 90_000 }),
+      );
     });
   });
 

@@ -33,6 +33,9 @@ export interface MatchPenalty {
   voided: boolean;
   /** ISO timestamp the penalty was applied. */
   occurred_at?: string;
+  /** Match-clock position (accumulated active ms) when recorded — drives
+   *  the timeline's match-clock time. Null for legacy rows. */
+  clock_time_ms?: number | null;
 }
 
 interface UsePenaltiesResult {

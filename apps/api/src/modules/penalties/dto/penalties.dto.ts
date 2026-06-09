@@ -45,6 +45,18 @@ export class CreatePenaltyDto {
   @IsISO8601()
   occurredAt!: string;
 
+  /**
+   * Match-clock position (accumulated active ms) when the penalty was
+   * recorded. Persisted to match_penalties.clock_time_ms so the
+   * timeline shows match-clock time. Whitelisted here so the global
+   * forbidNonWhitelisted pipe doesn't 400 the POST.
+   */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  clockTimeMs?: number;
+
   @ApiProperty({ required: false })
   @ValidateIf((dto: CreatePenaltyDto) => Boolean(dto.directCard))
   @IsString()

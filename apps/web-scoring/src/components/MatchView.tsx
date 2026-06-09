@@ -239,6 +239,7 @@ export function MatchView({
           config={scoringConfig}
           scoringEnabled={scoringEnabled}
           canScore={canScore}
+          clockTimeMs={clockTimeMs}
           submit={submit}
           onPenaltyRecorded={() => {
             setNextSequence((n) => n + 1);
@@ -278,6 +279,7 @@ export function MatchView({
           config={scoringConfig}
           scoringEnabled={scoringEnabled}
           canScore={canScore}
+          clockTimeMs={clockTimeMs}
           submit={submit}
           onPenaltyRecorded={() => {
             setNextSequence((n) => n + 1);

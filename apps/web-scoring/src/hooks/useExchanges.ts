@@ -8,6 +8,9 @@ export interface ExchangeRow {
   type: 'clean' | 'afterblow' | 'double' | 'no_exchange';
   voided: boolean;
   occurredAt: string;
+  /** Match-clock position (accumulated active ms) when recorded — drives
+   *  the timeline's match-clock time. Null for legacy rows. */
+  clockTimeMs?: number | null;
   /** Registration id of the fighter who scored, if applicable. */
   scoringRegistrationId?: string | null;
   /** Side of the scoring fighter — derived BE-side. */

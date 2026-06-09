@@ -400,7 +400,40 @@ export class MatchesService {
       .order('sequence', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+
+    // The scoring pad's ExchangeRow is camelCase and the timeline reads
+    // clockTimeMs / scoringSide / scoreDelta. Supabase returns raw
+    // snake_case, so map additively (spread the raw row + add aliases —
+    // the corrections drawer reads only id/sequence/type, so nothing
+    // downstream breaks). scoringSide is the striker for clean/afterblow
+    // rows; scoreDelta is that striker's delta.
+    return (data ?? []).map((row) => {
+      const r = row as {
+        type: string;
+        occurred_at: string;
+        clock_time_ms: number | null;
+        first_striker_color: 'red' | 'blue' | null;
+        red_score_delta: number;
+        blue_score_delta: number;
+        afterblow_value: number | null;
+      };
+      const scoringSide =
+        r.type === 'clean' || r.type === 'afterblow' ? r.first_striker_color : null;
+      const scoreDelta =
+        scoringSide === 'red'
+          ? r.red_score_delta
+          : scoringSide === 'blue'
+            ? r.blue_score_delta
+            : null;
+      return {
+        ...r,
+        occurredAt: r.occurred_at,
+        clockTimeMs: r.clock_time_ms ?? null,
+        scoringSide,
+        scoreDelta,
+        defenderDelta: r.afterblow_value ?? null,
+      };
+    });
   }
 
   /**
@@ -438,6 +471,7 @@ export class MatchesService {
         type: dto.type,
         occurred_at: dto.occurredAt,
         recorded_at: new Date().toISOString(),
+        clock_time_ms: dto.clockTimeMs ?? null,
         duration_since_prev_ms: dto.durationSincePrevMs ?? null,
         first_striker_color: dto.firstStrikerColor ?? null,
         first_strike_value: dto.firstStrikeValue ?? null,

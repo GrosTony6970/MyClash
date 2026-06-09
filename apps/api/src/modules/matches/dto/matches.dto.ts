@@ -89,6 +89,19 @@ export class CreateExchangeDto {
   @IsISO8601()
   occurredAt!: string;
 
+  /**
+   * Match-clock position (accumulated active ms) when the exchange was
+   * recorded. Persisted to exchanges.clock_time_ms so the timeline can
+   * show match-clock time rather than wall-clock. Sent by the scoring
+   * pad on every exchange — the field MUST be whitelisted here or the
+   * global forbidNonWhitelisted pipe rejects the whole POST with a 400.
+   */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  clockTimeMs?: number;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsInt()

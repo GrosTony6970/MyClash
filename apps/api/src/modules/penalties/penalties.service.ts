@@ -512,6 +512,7 @@ export class PenaltiesService {
       by_user_id: context?.userId ?? null,
       staff_account_id: context?.staffAccountId ?? null,
       occurred_at: dto.occurredAt,
+      clock_time_ms: dto.clockTimeMs ?? null,
       voided: false,
     };
 

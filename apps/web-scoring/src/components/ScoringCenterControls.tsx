@@ -23,7 +23,7 @@ import { useI18n } from '../i18n/I18nProvider';
 import { clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
 import { formatClockMs, type ClockState } from './MatchClock';
 import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
-import { usePenalties, type MatchPenalty } from '../hooks/usePenalties';
+import { usePenalties, type MatchPenalty, type PenaltyCard } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 
 interface ScoringCenterControlsProps {
@@ -335,7 +335,13 @@ export function ScoringCenterControls({
                 />
               )}
               <span className="font-semibold text-gray-200 truncate flex-1">{ev.fighterLabel}</span>
-              <span className="text-gray-400">{ev.typeLabel}</span>
+              {ev.card && (
+                <span
+                  title={ev.card}
+                  className={`inline-block h-3.5 w-3.5 rounded-sm flex-shrink-0 ${CARD_CHIP_COLOR[ev.card]}`}
+                />
+              )}
+              <span className="text-gray-400 truncate">{ev.typeLabel}</span>
               {ev.delta && <span className="font-bold text-white">{ev.delta}</span>}
             </div>
           ))}
@@ -395,6 +401,15 @@ function primaryAction(status: 'idle' | 'running' | 'halted' | 'ended'): {
 
 // ── Event list merge ──────────────────────────────────────────────
 
+// Card → swatch colour for the timeline penalty icon. Mirrors the
+// per-side counter chips in ScoringColumn (not exported there; a 3-entry
+// dup is cleaner than widening that component's public surface).
+const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
+  yellow: 'bg-yellow-500',
+  red: 'bg-red-600',
+  black: 'bg-gray-900 border border-gray-600',
+};
+
 interface UnifiedEvent {
   id: string;
   occurredAt: string;
@@ -402,6 +417,9 @@ interface UnifiedEvent {
   sideColor: string | null;
   fighterLabel: string;
   typeLabel: string;
+  /** Penalty card colour — when set the row shows a colour swatch icon
+   *  instead of the card word. Null for exchange rows. */
+  card: PenaltyCard | null;
   delta: string | null;
 }
 
@@ -430,10 +448,11 @@ function mergeEvents(
     return {
       id: `ex-${e.id}`,
       occurredAt: e.occurredAt,
-      timeLabel: shortTime(e.occurredAt),
+      timeLabel: formatClockShort(e.clockTimeMs),
       sideColor: side ? sideStyle(config, side).border : null,
       fighterLabel: e.type === 'double' ? t('scoring.lice.eventRowDouble') : sideName,
       typeLabel,
+      card: null,
       delta,
     };
   });
@@ -445,10 +464,11 @@ function mergeEvents(
     return {
       id: `pen-${p.id}`,
       occurredAt: p.occurred_at ?? '',
-      timeLabel: shortTime(p.occurred_at),
+      timeLabel: formatClockShort(p.clock_time_ms),
       sideColor: side ? sideStyle(config, side).border : null,
       fighterLabel: sideName,
-      typeLabel: `${p.card} ${p.short_name ?? p.reason ?? ''}`.trim(),
+      typeLabel: (p.short_name ?? p.reason ?? '').trim(),
+      card: p.card,
       delta: p.score_delta ? String(p.score_delta) : null,
     };
   });
@@ -456,10 +476,14 @@ function mergeEvents(
   return [...exchangeRows, ...penaltyRows].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 }
 
-function shortTime(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
+// Match-clock time for the timeline — MM:SS from accumulated active ms
+// (the imported formatClockMs adds centiseconds, too noisy for the
+// list). Empty string when the row has no captured clock time (legacy
+// rows / pre-migration data).
+function formatClockShort(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined) return '';
+  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }

@@ -41,6 +41,9 @@ interface ScoringColumnProps {
   config: TournamentScoringConfig;
   scoringEnabled: boolean;
   canScore: boolean;
+  /** Match-clock position (accumulated active ms) — stamped on the
+   *  penalty so the timeline shows match-clock time. */
+  clockTimeMs: number | null;
   submit: UseScoringSubmitResult;
   onPenaltyRecorded?: () => void;
   /** Bump to force the per-side penalty hook to refetch. */
@@ -71,6 +74,7 @@ export function ScoringColumn({
   config,
   scoringEnabled,
   canScore,
+  clockTimeMs,
   submit,
   onPenaltyRecorded,
   penaltiesRefreshKey,
@@ -124,6 +128,7 @@ export function ScoringColumn({
           sequence: nextSequence,
           registrationId,
           occurredAt: new Date().toISOString(),
+          clockTimeMs,
           ...payload,
         }),
       });
@@ -144,7 +149,7 @@ export function ScoringColumn({
     <div className="flex flex-col gap-3 px-2">
       {/* Score numeral */}
       <p
-        className="text-center text-7xl font-black tabular-nums leading-none mt-2"
+        className="text-center text-8xl font-black tabular-nums leading-none mt-2"
         style={{ color: style.border }}
       >
         {score}
@@ -152,8 +157,8 @@ export function ScoringColumn({
 
       {/* Fighter name + club */}
       <div className="text-center">
-        <p className="text-xl font-bold text-white leading-tight truncate">{fighterName}</p>
-        {club && <p className="text-sm text-gray-400 mt-0.5 truncate">{club}</p>}
+        <p className="text-3xl font-bold text-white leading-tight truncate">{fighterName}</p>
+        {club && <p className="text-lg text-gray-400 mt-0.5 truncate">{club}</p>}
       </div>
 
       {/* Card-counter chips (ruleset-driven) */}

@@ -88,6 +88,50 @@ describe('PenaltiesService', () => {
     expect(recomputeMatchScore).toHaveBeenCalledWith('match-1');
   });
 
+  // The scoring pad sends the match-clock position with each penalty so
+  // the unified timeline can render match-clock time for penalty rows
+  // the same way it does for exchanges.
+  it('persists clock_time_ms from dto.clockTimeMs on the inserted penalty', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: { maybeSingle: null, insert: { id: 'penalty-1', card: 'yellow' } },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-clock',
+        sequence: 1,
+        registrationId: 'reg-red',
+        directCard: 'yellow',
+        reason: 'direct referee decision',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+        clockTimeMs: 45_000,
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(supabase.inserted.match_penalties?.[0]).toMatchObject({ clock_time_ms: 45_000 });
+  });
+
   it('black-card penalties complete the current match for the opponent', async () => {
     const supabase = fakeSupabase({
       match_penalties: {
