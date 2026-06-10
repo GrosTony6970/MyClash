@@ -3,6 +3,12 @@ import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  buildNameRatingIndex,
+  normalizePersonName,
+  pickWeaponRating,
+  type WeaponRating,
+} from './weapon-rating';
 
 /** Queue name re-exported here so callers don't reach into workers/. */
 export const HEMA_RATINGS_QUEUE_NAME = 'hema-ratings-sync';
@@ -529,33 +535,60 @@ export class HemaRatingsService {
 
     const snapshot = await this.latestSnapshot().catch(() => ({ fighters: [], syncedAt: '' }));
     const wanted = new Set(hemaRatingsIds);
-    const targetWeapon = normalizeToken(weapon);
     const now = options.now ?? new Date();
-    const staleBefore = new Date(now);
-    staleBefore.setFullYear(staleBefore.getFullYear() - 2);
 
     for (const fighter of snapshot.fighters) {
       const id = String(fighter.id);
-      if (!wanted.has(id) || !fighter.ratings) continue;
-
-      const candidates = fighter.ratings
-        .filter((rating) => normalizeToken(rating.weapon) === targetWeapon)
-        .filter((rating) => {
-          if (!rating.lastCompeted) return false;
-          const competedAt = new Date(rating.lastCompeted);
-          return !Number.isNaN(competedAt.getTime()) && competedAt >= staleBefore;
-        })
-        .sort((a, b) => {
-          const dateA = a.lastCompeted ? Date.parse(a.lastCompeted) : 0;
-          const dateB = b.lastCompeted ? Date.parse(b.lastCompeted) : 0;
-          return dateB - dateA;
-        });
-
-      const best = candidates[0];
-      if (best) result.set(id, best.weightedRating);
+      if (!wanted.has(id)) continue;
+      const rating = pickWeaponRating(fighter.ratings ?? [], weapon, now);
+      if (rating) result.set(id, rating.weightedRating);
     }
 
     return result;
+  }
+
+  /**
+   * Resolve weapon ratings (weighted + rank) for a set of participants by BOTH
+   * their linked HEMA Ratings id AND their display name, in one snapshot pass.
+   * Name matching is conservative — a normalized name shared by 2+ fighters is
+   * excluded (see buildNameRatingIndex). Callers prefer `byId`, falling back to
+   * `byName` for participants with no linked id.
+   */
+  async resolveWeaponRatings(
+    hemaRatingsIds: string[],
+    names: string[],
+    weapon: string | null | undefined,
+    options: { now?: Date } = {},
+  ): Promise<{ byId: Map<string, WeaponRating>; byName: Map<string, WeaponRating> }> {
+    const byId = new Map<string, WeaponRating>();
+    const byName = new Map<string, WeaponRating>();
+    if (!weapon) return { byId, byName };
+
+    const snapshot = await this.latestSnapshot().catch(() => ({ fighters: [], syncedAt: '' }));
+    const now = options.now ?? new Date();
+
+    const wantedIds = new Set(hemaRatingsIds);
+    if (wantedIds.size > 0) {
+      for (const fighter of snapshot.fighters) {
+        const id = String(fighter.id);
+        if (!wantedIds.has(id)) continue;
+        const rating = pickWeaponRating(fighter.ratings ?? [], weapon, now);
+        if (rating) byId.set(id, rating);
+      }
+    }
+
+    if (names.length > 0) {
+      // Ambiguity is computed across the WHOLE snapshot, then narrowed to the
+      // requested names so the returned map stays small.
+      const fullIndex = buildNameRatingIndex(snapshot.fighters, weapon, now);
+      for (const name of names) {
+        const key = normalizePersonName(name);
+        const rating = fullIndex.get(key);
+        if (rating) byName.set(key, rating);
+      }
+    }
+
+    return { byId, byName };
   }
 
   // ── Admin surface ────────────────────────────────────────────────────────

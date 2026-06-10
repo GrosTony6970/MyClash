@@ -4,8 +4,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
+import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { LeaguesService } from '../leagues/leagues.service';
@@ -65,6 +68,9 @@ export class EventsService {
     private readonly notificationEvents: NotificationEventsService,
     private readonly leagues?: LeaguesService,
     private readonly clubs?: ClubsService,
+    // Optional so existing direct-construction unit tests keep working; the
+    // app provides it via HemaRatingsModule (imported by EventsModule).
+    @Optional() private readonly hemaRatings?: HemaRatingsService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -1161,6 +1167,7 @@ export class EventsService {
       displayName: string;
       clubName: string | null;
       clubAbbrev: string | null;
+      isReferee: boolean;
       tournaments: Array<{
         id: string;
         slug: string;
@@ -1168,6 +1175,7 @@ export class EventsService {
         color: string | null;
         registrationState: 'active' | 'waitlist';
         waitlistPosition: number | null;
+        hemaRating: WeaponRating | null;
       }>;
     }>
   > {
@@ -1176,7 +1184,7 @@ export class EventsService {
 
     const { data: tournamentRows, error: tournErr } = await this.supabase.service
       .from('tournaments')
-      .select('id, slug, name, color')
+      .select('id, slug, name, color, weapon')
       .eq('event_id', eventId);
     if (tournErr) throw new BadRequestException(tournErr.message);
     const tournaments = (tournamentRows ?? []) as Array<{
@@ -1184,6 +1192,7 @@ export class EventsService {
       slug: string;
       name: string;
       color: string | null;
+      weapon: string | null;
     }>;
     if (tournaments.length === 0) return [];
     const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
@@ -1208,7 +1217,7 @@ export class EventsService {
     const personIds = Array.from(new Set(registrations.map((r) => r.person_id)));
     const { data: personRows, error: personErr } = await this.supabase.service
       .from('persons')
-      .select('id, given_name, family_name, club_id')
+      .select('id, given_name, family_name, club_id, hema_ratings_id, global_person_id')
       .in('id', personIds);
     if (personErr) throw new BadRequestException(personErr.message);
     const persons = (personRows ?? []) as Array<{
@@ -1216,6 +1225,8 @@ export class EventsService {
       given_name: string;
       family_name: string;
       club_id: string | null;
+      hema_ratings_id: string | null;
+      global_person_id: string | null;
     }>;
     const personById = new Map(persons.map((p) => [p.id, p]));
 
@@ -1238,6 +1249,58 @@ export class EventsService {
       }
     }
 
+    // Referee roster for the event (global-person-keyed). A participant whose
+    // global_person_id is in this set is also a referee for the event.
+    const refereeGlobalIds = new Set<string>();
+    {
+      const { data: refRows } = await this.supabase.service
+        .from('event_referees')
+        .select('person_id')
+        .eq('event_id', eventId);
+      for (const r of (refRows ?? []) as Array<{ person_id: string | null }>) {
+        if (r.person_id) refereeGlobalIds.add(r.person_id);
+      }
+    }
+
+    // HEMA rating per tournament weapon, resolved by linked id OR a unique name
+    // match. One resolve() per distinct weapon; ids + names gathered from all
+    // persons. No-ops gracefully when HemaRatingsService isn't provided.
+    const displayNameById = new Map(
+      persons.map((p) => [p.id, `${p.given_name} ${p.family_name}`.trim()]),
+    );
+    const ratingsByWeapon = new Map<
+      string,
+      { byId: Map<string, WeaponRating>; byName: Map<string, WeaponRating> }
+    >();
+    if (this.hemaRatings) {
+      const hemaIds = Array.from(
+        new Set(persons.map((p) => p.hema_ratings_id).filter((id): id is string => !!id)),
+      );
+      const allNames = Array.from(new Set(displayNameById.values()));
+      const weapons = Array.from(
+        new Set(tournaments.map((t) => t.weapon).filter((w): w is string => !!w)),
+      );
+      for (const weapon of weapons) {
+        ratingsByWeapon.set(
+          weapon,
+          await this.hemaRatings.resolveWeaponRatings(hemaIds, allNames, weapon),
+        );
+      }
+    }
+    const ratingFor = (
+      person: { id: string; hema_ratings_id: string | null },
+      weapon: string | null,
+    ): WeaponRating | null => {
+      if (!weapon) return null;
+      const maps = ratingsByWeapon.get(weapon);
+      if (!maps) return null;
+      const byId = person.hema_ratings_id ? maps.byId.get(person.hema_ratings_id) : undefined;
+      if (byId) return byId;
+      const name = displayNameById.get(person.id);
+      if (!name) return null;
+      return maps.byName.get(normalizePersonName(name)) ?? null;
+    };
+
     const byPerson = new Map<
       string,
       {
@@ -1245,6 +1308,7 @@ export class EventsService {
         displayName: string;
         clubName: string | null;
         clubAbbrev: string | null;
+        isReferee: boolean;
         tournaments: Array<{
           id: string;
           slug: string;
@@ -1252,6 +1316,7 @@ export class EventsService {
           color: string | null;
           registrationState: 'active' | 'waitlist';
           waitlistPosition: number | null;
+          hemaRating: WeaponRating | null;
         }>;
       }
     >();
@@ -1268,6 +1333,9 @@ export class EventsService {
           displayName: `${person.given_name} ${person.family_name}`.trim() || person.id,
           clubName: club?.name ?? null,
           clubAbbrev: club?.abbreviation ?? null,
+          isReferee: person.global_person_id
+            ? refereeGlobalIds.has(person.global_person_id)
+            : false,
           tournaments: [],
         };
         byPerson.set(reg.person_id, row);
@@ -1279,6 +1347,7 @@ export class EventsService {
         color: tournament.color,
         registrationState: reg.status === 'waitlist' ? 'waitlist' : 'active',
         waitlistPosition: reg.waitlist_position,
+        hemaRating: ratingFor(person, tournament.weapon),
       });
     }
 

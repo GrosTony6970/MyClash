@@ -1019,7 +1019,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: clubs, error: null }));
+        .mockReturnValueOnce(makeAwaitableChain({ data: clubs, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
 
       const result = await service.listPublicParticipants('fal-2027');
 
@@ -1053,7 +1054,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(eventSlugChain())
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(regChain)
-        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }));
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
 
       const result = await service.listPublicParticipants('fal-2027');
 
@@ -1077,7 +1079,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(eventSlugChain())
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }));
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
 
       const result = await service.listPublicParticipants('fal-2027');
 
@@ -1095,7 +1098,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(eventSlugChain())
         .mockReturnValueOnce(makeAwaitableChain({ data: tournaments, error: null }))
         .mockReturnValueOnce(makeAwaitableChain({ data: registrations, error: null }))
-        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }));
+        .mockReturnValueOnce(makeAwaitableChain({ data: persons, error: null }))
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
 
       const result = await service.listPublicParticipants('fal-2027');
       expect(result[0]?.tournaments[0]?.registrationState).toBe('active');
@@ -1721,7 +1725,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(eventChain)
         .mockReturnValueOnce(tournamentsChain)
         .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(personsChain);
+        .mockReturnValueOnce(personsChain)
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_referees
 
       const result = await service.listPublicParticipants('fal-2027');
 

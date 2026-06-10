@@ -503,10 +503,12 @@ async function fetchTournamentParticipants(
       displayName: string;
       clubName: string | null;
       clubAbbrev: string | null;
+      isReferee?: boolean;
       tournaments: Array<{
         slug: string;
         registrationState: 'active' | 'waitlist';
         waitlistPosition?: number | null;
+        hemaRating?: { weightedRating: number; rank: number | null } | null;
       }>;
     }>;
     const entries: ParticipantsTabEntry[] = [];
@@ -520,6 +522,8 @@ async function fetchTournamentParticipants(
         clubAbbrev: person.clubAbbrev,
         registrationState: tournamentEntry.registrationState,
         waitlistPosition: tournamentEntry.waitlistPosition ?? null,
+        isReferee: person.isReferee ?? false,
+        hemaRating: tournamentEntry.hemaRating ?? null,
       });
     }
     return entries;
