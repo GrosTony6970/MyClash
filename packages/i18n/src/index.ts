@@ -15,6 +15,14 @@ export const en = {
     name: 'MyClash',
     eventHome: {
       backToEvents: 'Back to events',
+      card: {
+        fighters: 'fighters',
+        referees: 'referees',
+        pools: 'Pools',
+        bracket: 'Bracket',
+        completedPoolFights: 'Completed Pool fights : {completed}/{total}',
+        completedBracketFights: 'Completed Bracket fights : {completed}/{total}',
+      },
     },
     home: {
       description: 'Public event app',
@@ -3937,6 +3945,14 @@ export const fr = {
     name: 'MyClash',
     eventHome: {
       backToEvents: 'Retour aux evenements',
+      card: {
+        fighters: 'tireurs',
+        referees: 'arbitres',
+        pools: 'Poules',
+        bracket: 'Tableau',
+        completedPoolFights: 'Combats de poule terminés : {completed}/{total}',
+        completedBracketFights: 'Combats de tableau terminés : {completed}/{total}',
+      },
     },
     home: {
       description: 'Application publique evenement',

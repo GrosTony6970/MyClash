@@ -6,7 +6,7 @@
  */
 
 import Link from 'next/link';
-import { defaultLocale } from '@myclash/i18n';
+import { defaultLocale, t as tr } from '@myclash/i18n';
 import { StatusBadge, formatCountryName, tournamentStatusSemantic } from '@myclash/ui';
 import { EventBackLink } from './_components/EventBackLink';
 
@@ -42,7 +42,11 @@ interface Tournament {
   waitlistCount: number;
   poolCount: number;
   bracketSize: number;
-  completedMatchCount: number;
+  refereeCount: number;
+  poolFightsTotal: number;
+  poolFightsCompleted: number;
+  bracketFightsTotal: number;
+  bracketFightsCompleted: number;
 }
 
 interface ParticipantRow {
@@ -250,7 +254,7 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
       {event?.heroImageUrl && (
         <section
           aria-label="Event hero"
-          className="relative -mx-4 aspect-[24/10] overflow-hidden rounded-none sm:aspect-[3/1] sm:rounded-xl"
+          className="relative -mx-4 aspect-[16/7] max-h-[200px] overflow-hidden rounded-none sm:aspect-[9/2] sm:rounded-xl"
         >
           {/* Decorative banner — event name is in the H1 below, so
               alt="" is correct here. eslint-disable for plain <img>:
@@ -263,55 +267,56 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
       )}
 
       {event && (
-        <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:py-8">
-          {(event.logoUrl || event.organizationLogoUrl) && (
-            <div className="flex items-center gap-2">
-              {event.logoUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={event.logoUrl}
-                  alt=""
-                  className="h-20 w-20 rounded-xl border border-stone-200 bg-white object-cover"
-                />
+        <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:justify-between sm:py-8">
+          <div className="flex items-start gap-3 min-w-0">
+            {event.organizationLogoUrl && (
+              /* Org logo — rounded square, kept on the left of the event name. */
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={event.organizationLogoUrl}
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-lg border border-stone-200 bg-white object-contain"
+              />
+            )}
+            <div className="min-w-0 flex-1">
+              <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
+                {event.name}
+              </h1>
+              {event.organizationName && (
+                <p className="text-sm font-semibold text-slate-700">{event.organizationName}</p>
               )}
-              {event.organizationLogoUrl && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={event.organizationLogoUrl}
-                  alt=""
-                  className="h-12 w-12 rounded-full border border-stone-200 bg-white object-contain"
-                />
+              {(() => {
+                const place = formatEventPlace(event);
+                return place ? <p className="text-sm text-slate-500">{place}</p> : null;
+              })()}
+              <p className="mt-0.5 text-sm text-slate-500">
+                {formatDateRange(event.startDate, event.endDate)}
+              </p>
+
+              {event.status === 'running' && (
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+                  Live now
+                </span>
+              )}
+
+              {event.publicLandingMd && (
+                <div className="prose prose-sm mt-4 max-w-none text-sm leading-relaxed text-slate-700">
+                  <p>{event.publicLandingMd}</p>
+                </div>
               )}
             </div>
-          )}
-          <div className="flex-1">
-            <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
-              {event.name}
-            </h1>
-            {event.organizationName && (
-              <p className="text-sm font-semibold text-slate-700">{event.organizationName}</p>
-            )}
-            {(() => {
-              const place = formatEventPlace(event);
-              return place ? <p className="text-sm text-slate-500">{place}</p> : null;
-            })()}
-            <p className="mt-0.5 text-sm text-slate-500">
-              {formatDateRange(event.startDate, event.endDate)}
-            </p>
-
-            {event.status === 'running' && (
-              <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-                Live now
-              </span>
-            )}
-
-            {event.publicLandingMd && (
-              <div className="prose prose-sm mt-4 max-w-none text-sm leading-relaxed text-slate-700">
-                <p>{event.publicLandingMd}</p>
-              </div>
-            )}
           </div>
+
+          {event.logoUrl && (
+            /* Event logo — moved to the right of the event name. */
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={event.logoUrl}
+              alt=""
+              className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white object-cover sm:ml-4"
+            />
+          )}
         </section>
       )}
 
@@ -385,27 +390,51 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                     {t.registered > 0 && (
                       <p className="text-slate-700">
                         <span className="font-semibold tabular-nums">{t.registered}</span>{' '}
-                        <span className="text-slate-500">fighters</span>
+                        <span className="text-slate-500">
+                          {tr('publicApp.eventHome.card.fighters')}
+                        </span>
+                      </p>
+                    )}
+                    {t.refereeCount > 0 && (
+                      <p className="text-slate-700">
+                        <span className="font-semibold tabular-nums">{t.refereeCount}</span>{' '}
+                        <span className="text-slate-500">
+                          {tr('publicApp.eventHome.card.referees')}
+                        </span>
                       </p>
                     )}
                   </div>
                   <div className="space-y-0.5 text-right">
                     {t.poolCount > 0 && (
                       <p className="text-slate-700">
-                        <span className="text-slate-500">Pools </span>
-                        <span className="font-semibold tabular-nums">{t.poolCount}</span>
+                        <span className="font-semibold tabular-nums">{t.poolCount}</span>{' '}
+                        <span className="text-slate-500">
+                          {tr('publicApp.eventHome.card.pools')}
+                        </span>
                       </p>
                     )}
                     {t.bracketSize > 0 && (
                       <p className="text-slate-700">
-                        <span className="text-slate-500">Bracket </span>
+                        <span className="text-slate-500">
+                          {tr('publicApp.eventHome.card.bracket')}{' '}
+                        </span>
                         <span className="font-semibold tabular-nums">{t.bracketSize}</span>
                       </p>
                     )}
-                    {t.completedMatchCount > 0 && (
+                    {t.poolFightsTotal > 0 && (
                       <p className="text-slate-500">
-                        <span className="font-semibold tabular-nums">{t.completedMatchCount}</span>{' '}
-                        completed fights
+                        {tr('publicApp.eventHome.card.completedPoolFights', {
+                          completed: t.poolFightsCompleted,
+                          total: t.poolFightsTotal,
+                        })}
+                      </p>
+                    )}
+                    {t.bracketFightsTotal > 0 && (
+                      <p className="text-slate-500">
+                        {tr('publicApp.eventHome.card.completedBracketFights', {
+                          completed: t.bracketFightsCompleted,
+                          total: t.bracketFightsTotal,
+                        })}
                       </p>
                     )}
                   </div>

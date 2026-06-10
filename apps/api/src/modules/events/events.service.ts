@@ -1089,6 +1089,10 @@ export class EventsService {
 
     const phasesByTournament = new Map<string, Array<Record<string, unknown>>>();
     const phaseIdToTournament = new Map<string, string>();
+    // Pool vs bracket phase → tournament, so each match can be bucketed into a
+    // pool-fight or a bracket/finals-fight ratio. Bracket = every non-pool phase.
+    const poolPhaseIdToTournament = new Map<string, string>();
+    const bracketPhaseIdToTournament = new Map<string, string>();
     for (const row of (phaseRows ?? []) as Array<Record<string, unknown>>) {
       const tournamentId = row['tournament_id'] as string;
       const phaseId = row['id'] as string;
@@ -1096,36 +1100,89 @@ export class EventsService {
       list.push(row);
       phasesByTournament.set(tournamentId, list);
       phaseIdToTournament.set(phaseId, tournamentId);
+      if (row['type'] === 'pool') poolPhaseIdToTournament.set(phaseId, tournamentId);
+      else bracketPhaseIdToTournament.set(phaseId, tournamentId);
     }
 
-    // Pools (grouped by phase_id, summed per tournament via the
-    // phase→tournament map).
+    // Pools (grouped by phase_id, summed per tournament). Also keeps a
+    // pool→tournament map for the referee-count lookup below.
     const allPhaseIds = Array.from(phaseIdToTournament.keys());
-    let poolCounts = new Map<string, number>();
+    const poolCounts = new Map<string, number>();
+    const poolIdToTournament = new Map<string, string>();
     if (allPhaseIds.length > 0) {
       const { data: poolRows } = await this.supabase.service
         .from('pools')
-        .select('phase_id')
+        .select('id, phase_id')
         .in('phase_id', allPhaseIds);
-      for (const row of (poolRows ?? []) as Array<{ phase_id: string }>) {
+      for (const row of (poolRows ?? []) as Array<{ id: string; phase_id: string }>) {
         const tournamentId = phaseIdToTournament.get(row.phase_id);
         if (!tournamentId) continue;
         poolCounts.set(tournamentId, (poolCounts.get(tournamentId) ?? 0) + 1);
+        poolIdToTournament.set(row.id, tournamentId);
       }
     }
 
-    // Completed matches (grouped by phase_id → tournament).
-    let completedCounts = new Map<string, number>();
+    // Matches across all phases → bucket into pool vs bracket fight ratios
+    // (total + completed) per tournament.
+    const poolFightsTotal = new Map<string, number>();
+    const poolFightsCompleted = new Map<string, number>();
+    const bracketFightsTotal = new Map<string, number>();
+    const bracketFightsCompleted = new Map<string, number>();
     if (allPhaseIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
-        .select('phase_id')
-        .in('phase_id', allPhaseIds)
-        .eq('status', 'completed');
-      for (const row of (matchRows ?? []) as Array<{ phase_id: string }>) {
-        const tournamentId = phaseIdToTournament.get(row.phase_id);
+        .select('phase_id, status')
+        .in('phase_id', allPhaseIds);
+      for (const row of (matchRows ?? []) as Array<{ phase_id: string; status: string | null }>) {
+        const poolTournamentId = poolPhaseIdToTournament.get(row.phase_id);
+        const done = row.status === 'completed';
+        if (poolTournamentId) {
+          poolFightsTotal.set(poolTournamentId, (poolFightsTotal.get(poolTournamentId) ?? 0) + 1);
+          if (done) {
+            poolFightsCompleted.set(
+              poolTournamentId,
+              (poolFightsCompleted.get(poolTournamentId) ?? 0) + 1,
+            );
+          }
+          continue;
+        }
+        const bracketTournamentId = bracketPhaseIdToTournament.get(row.phase_id);
+        if (bracketTournamentId) {
+          bracketFightsTotal.set(
+            bracketTournamentId,
+            (bracketFightsTotal.get(bracketTournamentId) ?? 0) + 1,
+          );
+          if (done) {
+            bracketFightsCompleted.set(
+              bracketTournamentId,
+              (bracketFightsCompleted.get(bracketTournamentId) ?? 0) + 1,
+            );
+          }
+        }
+      }
+    }
+
+    // Distinct referees per tournament — pool-assigned (referee_assignments via
+    // pool → tournament). Mirrors the pool-list footer's referee source.
+    const refereeSets = new Map<string, Set<string>>();
+    const allPoolIds = Array.from(poolIdToTournament.keys());
+    if (allPoolIds.length > 0) {
+      const { data: refRows } = await this.supabase.service
+        .from('referee_assignments')
+        .select('pool_id, person_id')
+        .in('pool_id', allPoolIds)
+        .eq('event_id', eventId)
+        .in('status', ['assigned', 'confirmed', 'pending']);
+      for (const row of (refRows ?? []) as Array<{
+        pool_id: string | null;
+        person_id: string | null;
+      }>) {
+        if (!row.pool_id || !row.person_id) continue;
+        const tournamentId = poolIdToTournament.get(row.pool_id);
         if (!tournamentId) continue;
-        completedCounts.set(tournamentId, (completedCounts.get(tournamentId) ?? 0) + 1);
+        const set = refereeSets.get(tournamentId) ?? new Set<string>();
+        set.add(row.person_id);
+        refereeSets.set(tournamentId, set);
       }
     }
 
@@ -1143,7 +1200,11 @@ export class EventsService {
         waitlistCount: waitlistCounts.get(id) ?? 0,
         poolCount: poolCounts.get(id) ?? 0,
         bracketSize,
-        completedMatchCount: completedCounts.get(id) ?? 0,
+        poolFightsTotal: poolFightsTotal.get(id) ?? 0,
+        poolFightsCompleted: poolFightsCompleted.get(id) ?? 0,
+        bracketFightsTotal: bracketFightsTotal.get(id) ?? 0,
+        bracketFightsCompleted: bracketFightsCompleted.get(id) ?? 0,
+        refereeCount: refereeSets.get(id)?.size ?? 0,
       };
     });
   }

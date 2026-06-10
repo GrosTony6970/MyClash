@@ -1593,7 +1593,7 @@ describe('EventsService', () => {
   });
 
   describe('listTournaments aggregates', () => {
-    it('returns waitlistCount + poolCount + bracketSize + completedMatchCount per tournament', async () => {
+    it('returns waitlistCount + poolCount + bracketSize + pool/bracket fight counts + refereeCount per tournament', async () => {
       const tournamentsChain = makeChain({ data: null, error: null });
       tournamentsChain.order.mockResolvedValue({
         data: [{ id: 't-1', name: 'Longsword', max_participants: 12 }],
@@ -1632,22 +1632,34 @@ describe('EventsService', () => {
         ],
         error: null,
       });
-      // NEW: matches per tournament's phases (status='completed').
+      // Matches across all phases, bucketed pool vs bracket by phase type:
+      // pool → 2 completed / 3 total; bracket → 1 completed / 2 total.
       const matchesChain = makeAwaitableChain({
         data: [
-          { phase_id: 'phase-pool-1' },
-          { phase_id: 'phase-pool-1' },
-          { phase_id: 'phase-bracket-1' },
+          { phase_id: 'phase-pool-1', status: 'completed' },
+          { phase_id: 'phase-pool-1', status: 'completed' },
+          { phase_id: 'phase-pool-1', status: 'scheduled' },
+          { phase_id: 'phase-bracket-1', status: 'completed' },
+          { phase_id: 'phase-bracket-1', status: 'running' },
         ],
         error: null,
       });
-      // NEW: pools per phase (for poolCount).
+      // Pools per phase (poolCount + pool→tournament for referee count).
       const poolsChain = makeAwaitableChain({
         data: [
-          { phase_id: 'phase-pool-1' },
-          { phase_id: 'phase-pool-1' },
-          { phase_id: 'phase-pool-1' },
-          { phase_id: 'phase-pool-1' },
+          { id: 'pool-a', phase_id: 'phase-pool-1' },
+          { id: 'pool-b', phase_id: 'phase-pool-1' },
+          { id: 'pool-c', phase_id: 'phase-pool-1' },
+          { id: 'pool-d', phase_id: 'phase-pool-1' },
+        ],
+        error: null,
+      });
+      // Referee assignments (pool-scoped) — distinct persons = {ref-1, ref-2}.
+      const refereeChain = makeAwaitableChain({
+        data: [
+          { pool_id: 'pool-a', person_id: 'ref-1' },
+          { pool_id: 'pool-a', person_id: 'ref-2' },
+          { pool_id: 'pool-b', person_id: 'ref-1' },
         ],
         error: null,
       });
@@ -1661,6 +1673,7 @@ describe('EventsService', () => {
         if (table === 'phases') return phasesChain;
         if (table === 'matches') return matchesChain;
         if (table === 'pools') return poolsChain;
+        if (table === 'referee_assignments') return refereeChain;
         throw new Error(`unexpected table ${table}`);
       });
 
@@ -1670,7 +1683,11 @@ describe('EventsService', () => {
         waitlistCount: number;
         poolCount: number;
         bracketSize: number;
-        completedMatchCount: number;
+        poolFightsTotal: number;
+        poolFightsCompleted: number;
+        bracketFightsTotal: number;
+        bracketFightsCompleted: number;
+        refereeCount: number;
       }>;
 
       expect(result).toHaveLength(1);
@@ -1680,7 +1697,11 @@ describe('EventsService', () => {
         waitlistCount: 3,
         poolCount: 4,
         bracketSize: 16,
-        completedMatchCount: 3,
+        poolFightsTotal: 3,
+        poolFightsCompleted: 2,
+        bracketFightsTotal: 2,
+        bracketFightsCompleted: 1,
+        refereeCount: 2,
       });
     });
   });
