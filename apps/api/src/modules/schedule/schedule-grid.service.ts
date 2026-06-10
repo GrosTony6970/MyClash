@@ -106,16 +106,10 @@ export function formatBracketPlaceholder(type: string | null, ref: string | null
   return ref;
 }
 
-interface RegistrationRow {
-  id: string;
-  person_id: string | null;
-}
-
-interface PersonRow {
-  id: string;
-  display_name: string | null;
-  given_name: string | null;
-  family_name: string | null;
+interface ViewNameRow {
+  match_id: string;
+  red_name: string | null;
+  blue_name: string | null;
 }
 
 @Injectable()
@@ -223,54 +217,32 @@ export class ScheduleGridService {
       }
     }
 
-    // 4. Registrations → persons batch lookup for display names.
-    const registrationIds = Array.from(
-      new Set(
-        matches
-          .flatMap((m) => [m.red_registration_id, m.blue_registration_id])
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
-    const personByRegId = new Map<string, PersonRow>();
-    if (registrationIds.length > 0) {
-      // PostgREST defaults to a 1000-row response cap. An event with
-      // > 1000 distinct registrations would silently truncate, leaving
-      // later-numbered matches with no person link — the FE then
-      // renders "Unknown fighter" on the conflict line and `?` in the
-      // tooltip. `.limit()` bypasses the default cap.
-      const { data: regsData } = await this.supabase.service
-        .from('registrations')
-        .select('id, person_id')
-        .in('id', registrationIds)
-        .limit(registrationIds.length);
-      const regs = (regsData ?? []) as RegistrationRow[];
-      const personIds = Array.from(
-        new Set(regs.map((r) => r.person_id).filter((id): id is string => Boolean(id))),
-      );
-
-      if (personIds.length > 0) {
-        const { data: personsData } = await this.supabase.service
-          .from('persons')
-          .select('id, display_name, given_name, family_name')
-          .in('id', personIds)
-          .limit(personIds.length);
-        const personById = new Map<string, PersonRow>(
-          ((personsData ?? []) as PersonRow[]).map((p) => [p.id, p]),
-        );
-        for (const reg of regs) {
-          if (!reg.person_id) continue;
-          const person = personById.get(reg.person_id);
-          if (person) personByRegId.set(reg.id, person);
-        }
-      }
+    // 4. Fighter display names via the canonical tournament-matches view —
+    // the same registrations→persons join the public pool view + scoring
+    // summary use. This replaces a manual registrations→persons batch lookup
+    // that returned null for pool matches (the "? vs ?" tooltip bug) while
+    // the view resolved them correctly. Keyed by match_id; bracket
+    // placeholders still fill the gaps for unresolved slots. `.limit()`
+    // bypasses PostgREST's default 1000-row cap for large events.
+    const matchIds = matches.map((m) => m.id);
+    const nameByMatchId = new Map<string, { red: string | null; blue: string | null }>();
+    const { data: nameRows } = await this.supabase.service
+      .from('vw_tournament_query_matches')
+      .select('match_id, red_name, blue_name')
+      .in('match_id', matchIds)
+      .limit(matchIds.length);
+    for (const r of (nameRows ?? []) as ViewNameRow[]) {
+      nameByMatchId.set(r.match_id, {
+        red: r.red_name?.trim() || null,
+        blue: r.blue_name?.trim() || null,
+      });
     }
 
     return matches.map((m): ScheduleGridMatch => {
       const phase = m.phase_id ? phaseById.get(m.phase_id) : null;
       const tournament = phase ? (tournamentById.get(phase.tournament_id) ?? null) : null;
       const tournamentName = tournament?.name ?? null;
-      const red = m.red_registration_id ? personByRegId.get(m.red_registration_id) : null;
-      const blue = m.blue_registration_id ? personByRegId.get(m.blue_registration_id) : null;
+      const names = nameByMatchId.get(m.id);
       const pool = m.pool_id ? (poolById.get(m.pool_id) ?? null) : null;
       const slotSource = m.bracket_slot_id
         ? (bracketSourceBySlotId.get(m.bracket_slot_id) ?? null)
@@ -296,12 +268,14 @@ export class ScheduleGridService {
       // it as the fighter label so the operator sees "Winner of
       // R1P1" instead of a blank "?".
       const redFighterName =
-        formatName(red) ??
+        names?.red ??
+        null ??
         (slotSource
           ? formatBracketPlaceholder(slotSource.sourceAType, slotSource.sourceARef)
           : null);
       const blueFighterName =
-        formatName(blue) ??
+        names?.blue ??
+        null ??
         (slotSource
           ? formatBracketPlaceholder(slotSource.sourceBType, slotSource.sourceBRef)
           : null);
@@ -326,10 +300,4 @@ export class ScheduleGridService {
       };
     });
   }
-}
-
-function formatName(person: PersonRow | null | undefined): string | null {
-  if (!person) return null;
-  const composed = `${person.given_name ?? ''} ${person.family_name ?? ''}`.trim();
-  return person.display_name?.trim() || composed || null;
 }

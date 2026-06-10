@@ -22,9 +22,11 @@ function makeChain(result: unknown) {
 /**
  * Sets up the supabase `from()` mock for the sequential table fetches the
  * service performs:
- *   tournaments → phases → matches → [pools] → [bracket_slots] → registrations → persons
+ *   tournaments → phases → matches → [pools] → [bracket_slots] → vw_tournament_query_matches
  * Pools / bracket_slots are only queried when at least one match has a
- * pool_id / bracket_slot_id, so the test must mirror that conditional.
+ * pool_id / bracket_slot_id. Fighter names come from the
+ * vw_tournament_query_matches view, queried whenever there is ≥1 match —
+ * so a `names` chain is queued for any non-empty `matches`.
  */
 function queueTables(opts: {
   tournaments: unknown;
@@ -32,8 +34,7 @@ function queueTables(opts: {
   matches?: unknown;
   pools?: unknown;
   bracketSlots?: unknown;
-  registrations?: unknown;
-  persons?: unknown;
+  names?: unknown;
 }) {
   fromMock.mockReturnValueOnce(makeChain({ data: opts.tournaments, error: null }));
   if (opts.phases !== undefined) {
@@ -48,11 +49,10 @@ function queueTables(opts: {
   if (opts.bracketSlots !== undefined) {
     fromMock.mockReturnValueOnce(makeChain({ data: opts.bracketSlots, error: null }));
   }
-  if (opts.registrations !== undefined) {
-    fromMock.mockReturnValueOnce(makeChain({ data: opts.registrations, error: null }));
-  }
-  if (opts.persons !== undefined) {
-    fromMock.mockReturnValueOnce(makeChain({ data: opts.persons, error: null }));
+  // The service queries the names view after the early-return guard, i.e.
+  // only when matches is a non-empty array.
+  if (Array.isArray(opts.matches) && opts.matches.length > 0) {
+    fromMock.mockReturnValueOnce(makeChain({ data: opts.names ?? [], error: null }));
   }
 }
 
@@ -123,13 +123,9 @@ describe('ScheduleGridService', () => {
           blue_registration_id: null,
         },
       ],
-      registrations: [
-        { id: 'reg-red', person_id: 'p-red' },
-        { id: 'reg-blue', person_id: 'p-blue' },
-      ],
-      persons: [
-        { id: 'p-red', display_name: 'Red Fighter', given_name: 'Red', family_name: 'Fighter' },
-        { id: 'p-blue', display_name: 'Blue Fighter', given_name: 'Blue', family_name: 'Fighter' },
+      names: [
+        { match_id: 'match-pool', red_name: 'Red Fighter', blue_name: 'Blue Fighter' },
+        // match-bracket has no resolved fighters yet (no view row).
       ],
     });
 
@@ -284,14 +280,7 @@ describe('ScheduleGridService', () => {
     expect(result[0]!.roundCode).toBe('LSW-B-F-M1');
   });
 
-  // PostgREST applies a default 1000-row response cap on every query.
-  // Without an explicit .limit(), an event with > 1000 distinct
-  // registrations would have the lookup silently truncated, leaving
-  // later-numbered matches with no fighter name. The FE then renders
-  // "Unknown fighter" in the conflict warning. The fix calls .limit()
-  // sized to the input array on both the registrations and persons
-  // batch lookups so the cap doesn't bite.
-  it('lifts the PostgREST 1000-row cap on registrations + persons batch lookups', async () => {
+  it('resolves fighter names from the vw_tournament_query_matches view', async () => {
     queueTables({
       tournaments: [{ id: 't1', name: 'Cup' }],
       phases: [{ id: 'ph', type: 'pool', tournament_id: 't1' }],
@@ -307,24 +296,17 @@ describe('ScheduleGridService', () => {
           blue_registration_id: 'reg-b',
         },
       ],
-      registrations: [
-        { id: 'reg-a', person_id: 'p-a' },
-        { id: 'reg-b', person_id: 'p-b' },
-      ],
-      persons: [
-        { id: 'p-a', display_name: 'Alice', given_name: 'Alice', family_name: null },
-        { id: 'p-b', display_name: 'Bob', given_name: 'Bob', family_name: null },
-      ],
+      names: [{ match_id: 'm1', red_name: 'Alice', blue_name: 'Bob' }],
     });
 
-    await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1');
+    expect(result[0]!.redFighterName).toBe('Alice');
+    expect(result[0]!.blueFighterName).toBe('Bob');
 
-    // queueTables pushes chains in order:
-    //   tournaments, phases, matches, registrations, persons
-    // The 4th and 5th `from()` calls are the lookups that must be capped.
-    const registrationsChain = fromMock.mock.results[3]!.value;
-    const personsChain = fromMock.mock.results[4]!.value;
-    expect(registrationsChain.limit).toHaveBeenCalledWith(2);
-    expect(personsChain.limit).toHaveBeenCalledWith(2);
+    // queueTables pushes chains in order: tournaments, phases, matches, names.
+    // The names view lookup is the 4th from() call; .limit() lifts PostgREST's
+    // default 1000-row cap so large events aren't silently truncated.
+    const namesChain = fromMock.mock.results[3]!.value;
+    expect(namesChain.limit).toHaveBeenCalledWith(1);
   });
 });

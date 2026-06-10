@@ -12,6 +12,7 @@ import {
 } from '@myclash/ui';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { detectConflicts, type Conflict } from './conflict-detection';
+import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 
 /**
@@ -974,6 +975,18 @@ export function ScheduleGrid({
     return Array.from(byPool.values());
   }, [scheduledOnActiveDay, lices, activeDay]);
 
+  // Reserve-space layout: distinct slots where a pool header begins. Every
+  // content item at/after such a slot shifts down POOL_HEADER_SPAN rows per
+  // header above it, so the header sits in its own band instead of covering
+  // the pool's first matches. `rowFor(slot)` maps a content slot to its
+  // display grid row (slot + 3 base: venue band + lice header + 1-based).
+  const poolHeaderStartSlots = useMemo(
+    () => poolGroupsOnActiveDay.map((g) => g.minSlot),
+    [poolGroupsOnActiveDay],
+  );
+  const rowFor = (slot: number): number =>
+    slot + 3 + rowShiftForSlot(slot, poolHeaderStartSlots, POOL_HEADER_SPAN);
+
   const [pendingPoolClear, setPendingPoolClear] = useState<PoolGroup | null>(null);
   const [clearingPool, setClearingPool] = useState(false);
 
@@ -1397,7 +1410,7 @@ export function ScheduleGrid({
                     className="sticky left-0 z-10 bg-white text-xs text-gray-400 pr-1 flex items-center justify-end select-none"
                     style={{
                       gridColumn: 1,
-                      gridRow: slot + 3,
+                      gridRow: rowFor(slot),
                       borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                     }}
                   >
@@ -1416,7 +1429,7 @@ export function ScheduleGrid({
                         ].join(' ')}
                         style={{
                           gridColumn: liceIndex + 2,
-                          gridRow: slot + 3,
+                          gridRow: rowFor(slot),
                           borderTop:
                             slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                         }}
@@ -1482,7 +1495,7 @@ export function ScheduleGrid({
                     ].join(' ')}
                     style={{
                       gridColumn: liceIndex + 2, // +1 for time-label col, +1 for 1-based
-                      gridRow: `${slot + 3} / span ${span}`, // +1 for venue band, +1 for lice header, +1 for 1-based
+                      gridRow: `${rowFor(slot)} / span ${span}`, // base slot+3 (venue+lice+1-based) plus reserved pool-header rows
                       margin: '1px',
                     }}
                     title={`${m.roundCode || m.matchNumberLabel} · Ctrl/⌘-click to open scoring${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`}
@@ -1500,8 +1513,12 @@ export function ScheduleGrid({
                   z-index so the operator can still drag individual
                   cards out of the pool. */}
               {poolGroupsOnActiveDay.map((group) => {
-                const bandRowStart = group.minSlot + 3;
-                const bandRowEnd = group.endSlot + 3;
+                // The header occupies its own reserved rows ABOVE the first
+                // match (matchRowStart already includes this pool's shift),
+                // so it no longer covers M1 & M2. The band wraps header + matches.
+                const matchRowStart = rowFor(group.minSlot);
+                const headerRowStart = matchRowStart - POOL_HEADER_SPAN;
+                const bandRowEnd = rowFor(group.endSlot);
                 return (
                   <Fragment key={group.poolId}>
                     {/* Translucent band — purely decorative, pointer-events
@@ -1516,7 +1533,7 @@ export function ScheduleGrid({
                       ].join(' ')}
                       style={{
                         gridColumn: group.minLiceIndex + 2,
-                        gridRow: `${bandRowStart} / ${bandRowEnd}`,
+                        gridRow: `${headerRowStart} / ${bandRowEnd}`,
                         margin: '1px',
                         opacity: 0.45,
                         zIndex: 5,
@@ -1549,7 +1566,7 @@ export function ScheduleGrid({
                           setPendingPoolClear(group);
                         }
                       }}
-                      title={`${group.poolName} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move the pool · click to clear`}
+                      title={`${group.poolName}${group.tournamentName ? ` - ${group.tournamentName}` : ''} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move the pool · click to clear`}
                       className={[
                         'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-3 py-2 text-sm font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
                         accentClassFor(group.tournamentColor),
@@ -1558,18 +1575,19 @@ export function ScheduleGrid({
                       ].join(' ')}
                       style={{
                         gridColumn: group.minLiceIndex + 2,
-                        // Reserve two slot rows (~32 px) so the header
-                        // anchors the pool visibly. The first match
-                        // sits behind it at z-10; the match card's
-                        // ≈ 78 px keeps the fighter line visible.
-                        gridRow: `${bandRowStart} / ${Math.min(bandRowEnd, bandRowStart + 2)}`,
+                        // Sits in its own reserved rows just above the pool's
+                        // first match — no longer overlapping M1 & M2.
+                        gridRow: `${headerRowStart} / ${matchRowStart}`,
                         marginLeft: '1px',
                         marginRight: '1px',
                         zIndex: 12,
                         pointerEvents: 'auto',
                       }}
                     >
-                      <span className="truncate">{group.poolName}</span>
+                      <span className="truncate">
+                        {group.poolName}
+                        {group.tournamentName ? ` - ${group.tournamentName}` : ''}
+                      </span>
                       <span className="text-xs opacity-90">· {group.matchCount}</span>
                     </div>
                   </Fragment>
@@ -1611,7 +1629,9 @@ export function ScheduleGrid({
                     ].join(' ')}
                     style={{
                       gridColumn: '2 / -1',
-                      gridRow: `${b.startSlot + 3} / span ${optimisticSpan}`,
+                      // Explicit end row (not span) so any reserved pool-header
+                      // rows inside the block's range are accounted for.
+                      gridRow: `${rowFor(b.startSlot)} / ${rowFor(b.startSlot + optimisticSpan)}`,
                       zIndex: 8,
                       backgroundImage:
                         b.blockType === 'break'
@@ -1675,7 +1695,7 @@ export function ScheduleGrid({
                   className="pointer-events-none flex items-center"
                   style={{
                     gridColumn: '1 / -1',
-                    gridRow: nowSlot + 3,
+                    gridRow: rowFor(nowSlot),
                     zIndex: 15,
                   }}
                 >
