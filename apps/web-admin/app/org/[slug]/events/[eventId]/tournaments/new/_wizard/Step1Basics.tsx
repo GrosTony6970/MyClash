@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { TournamentColorDot, useToast } from '@myclash/ui';
+import { TournamentColorDot, useToast, WeaponCombobox } from '@myclash/ui';
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
+import { WEAPONS, matchWeapon } from './weapon-match';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -40,6 +41,7 @@ export function Step1Basics({
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [weapon, setWeapon] = useState('');
+  const [weaponTouched, setWeaponTouched] = useState(false);
   const [rulesetCode, setRulesetCode] = useState('TF_v1');
   const [rulesetVersion, setRulesetVersion] = useState('1');
   const [penaltyRulesetId, setPenaltyRulesetId] = useState<string>('');
@@ -71,6 +73,7 @@ export function Step1Basics({
           setName(row.name);
           setSlug(row.slug);
           setWeapon(row.weapon ?? '');
+          setWeaponTouched(true);
           setRulesetCode(row.ruleset_code);
           setRulesetVersion(row.ruleset_version);
           setPenaltyRulesetId(row.penalty_ruleset_id ?? '');
@@ -153,8 +156,13 @@ export function Step1Basics({
         <input
           value={name}
           onChange={(e) => {
-            setName(e.target.value);
-            if (!initialTournamentId) setSlug(slugify(e.target.value));
+            const v = e.target.value;
+            setName(v);
+            if (!initialTournamentId) setSlug(slugify(v));
+            if (!weaponTouched) {
+              const m = matchWeapon(v);
+              if (m) setWeapon(m);
+            }
           }}
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
@@ -176,10 +184,17 @@ export function Step1Basics({
         <span className="block text-xs font-medium text-slate-600 mb-1">
           {t('organizer.tournaments.wizard.weapon')}
         </span>
-        <input
+        <WeaponCombobox
           value={weapon}
-          onChange={(e) => setWeapon(e.target.value)}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          onChange={(v) => {
+            setWeapon(v);
+            setWeaponTouched(true);
+          }}
+          options={WEAPONS}
+          placeholder={t('organizer.tournaments.wizard.weaponPlaceholder')}
+          emptyHint={t('organizer.tournaments.wizard.weaponCustomHint')}
+          aria-label={t('organizer.tournaments.wizard.weapon')}
+          className="w-full"
         />
       </label>
 
