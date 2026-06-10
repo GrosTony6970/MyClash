@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, RowActionButton, rowActionClasses, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
+import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
 
 interface CustomRulesetRow {
   id: string;
@@ -238,6 +239,7 @@ export default function OrgScoringRulesetsPage() {
                 const source = rowSource(row);
                 const submissionBadge = rowSubmissionBadge(row);
                 const canSubmit = isMine && !row.public_visibility && !row.submitted_for_review_at;
+                const actions = rulesetRowActions({ builtIn: row.is_system, mine: isMine });
                 return (
                   <tr key={row.id} className="border-b border-slate-100">
                     <td className="px-4 py-2">
@@ -277,12 +279,28 @@ export default function OrgScoringRulesetsPage() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex flex-wrap gap-2">
-                        {isMine && (
+                        {actions.view && (
+                          <Link
+                            href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
+                            className={rowActionClasses('neutral')}
+                          >
+                            {t('admin.rulesets.viewAction')}
+                          </Link>
+                        )}
+                        {actions.edit && (
                           <Link
                             href={`/org/${slugForLink}/rulesets/scoring/${row.id}/edit`}
                             className={rowActionClasses('edit')}
                           >
                             {t('admin.rulesets.shared.actions.edit')}
+                          </Link>
+                        )}
+                        {actions.clone && (
+                          <Link
+                            href={`/org/${slugForLink}/rulesets/scoring/new?cloneFrom=${row.id}`}
+                            className={rowActionClasses('neutral')}
+                          >
+                            {t('admin.rulesets.shared.actions.clone')}
                           </Link>
                         )}
                         {canSubmit && (
@@ -293,7 +311,7 @@ export default function OrgScoringRulesetsPage() {
                             {t('admin.rulesets.submitForReviewAction')}
                           </RowActionButton>
                         )}
-                        {isMine && (
+                        {actions.delete && (
                           <RowActionButton variant="danger" onClick={() => setDeleteTarget(row.id)}>
                             {t('admin.rulesets.shared.actions.delete')}
                           </RowActionButton>

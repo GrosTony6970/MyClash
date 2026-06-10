@@ -23,6 +23,8 @@ interface OrgCustomRulesetDetail {
   name: string;
   description: string | null;
   status: 'draft' | 'published' | 'archived';
+  is_system: boolean;
+  owner_organization_id: string | null;
   score_formula: FormulaNode | Record<string, never>;
   constants: Partial<FormulaConstants> | null;
   tiebreakers: Tiebreaker[];
@@ -69,19 +71,24 @@ export default function OrgEditScoringRulesetPage() {
     };
   }, [params.slug]);
 
-  // Fetch the row once we have orgId.
+  // Fetch the row from the org catalog (system + public + own) and find it by
+  // id. The owner-gated detail endpoint can't return built-ins/shared rows, so
+  // the list is the only org-visible source — which also lets us open those
+  // read-only as a "View".
   useEffect(() => {
     if (!orgId || !params.id) return;
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`, {
+    fetch(`${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets`, {
       credentials: 'include',
     })
       .then(async (res) => {
         if (!res.ok) throw new Error(t('admin.rulesets.loadOneError'));
-        return (await res.json()) as OrgCustomRulesetDetail;
+        return (await res.json()) as OrgCustomRulesetDetail[];
       })
-      .then((data) => {
+      .then((rows) => {
         if (cancelled) return;
+        const data = rows.find((r) => r.id === params.id);
+        if (!data) throw new Error(t('admin.rulesets.loadOneError'));
         const formula =
           data.score_formula && 'type' in (data.score_formula as object)
             ? (data.score_formula as FormulaNode)
@@ -104,11 +111,13 @@ export default function OrgEditScoringRulesetPage() {
           doublePenaltyFormula: data.double_penalty_formula ?? '',
           tfV1Internals: DEFAULT_TF_V1_INTERNALS,
         });
-        // A row that's pending review or already public is treated as
-        // read-only — the organiser can't tweak it mid-flight. Withdraw
-        // (R3) or wait for the super-admin to reject (so the org can fix
-        // and resubmit) before editing.
-        if (data.submitted_for_review_at) {
+        // Built-in or another org's shared ruleset → view-only (opened via the
+        // list "View" action). The organiser can Clone it to get an editable
+        // copy. Pending-review / already-public own rows are also read-only.
+        if (data.is_system || data.owner_organization_id !== orgId) {
+          setSubmissionBanner(t('admin.rulesets.viewOnlyBanner'));
+          setReadOnly(true);
+        } else if (data.submitted_for_review_at) {
           setSubmissionBanner(t('admin.rulesets.submissionPendingBanner'));
           setReadOnly(true);
         } else if (data.public_visibility) {

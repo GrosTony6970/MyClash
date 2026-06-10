@@ -15,6 +15,7 @@ import { useEventStatus } from './_hooks/useEventStatus';
 import { RequestDeletionModal } from './_components/RequestDeletionModal';
 import { EventLogoCard } from './_components/EventLogoCard';
 import { formatCountOfMax } from './format-count-of-max';
+import { eventVisibility } from './event-visibility';
 
 interface Tournament {
   id: string;
@@ -107,6 +108,7 @@ export default function EventDetailPage() {
   const [statsError, setStatsError] = useState<string | null>(null);
   const [tournamentBusy, setTournamentBusy] = useState<string | null>(null);
   const [tournamentError, setTournamentError] = useState<string | null>(null);
+  const [visibilityBusy, setVisibilityBusy] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiUsage, setAiUsage] = useState<AIUsage | null>(null);
   const [spendCap, setSpendCap] = useState<string>('');
@@ -191,6 +193,30 @@ export default function EventDetailPage() {
     }
   }
 
+  async function toggleEventVisibility() {
+    const status = stats?.event?.status;
+    if (!status) return;
+    const { mode } = eventVisibility(status);
+    if (!mode) return; // only draft ↔ published is toggleable
+    setVisibilityBusy(true);
+    setStatsError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/${mode}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.events.visibilityError'));
+      }
+      await reloadStats();
+    } catch (err) {
+      setStatsError(err instanceof Error ? err.message : t('organizer.events.visibilityError'));
+    } finally {
+      setVisibilityBusy(false);
+    }
+  }
+
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
@@ -258,6 +284,7 @@ export default function EventDetailPage() {
   }
 
   const event = stats?.event;
+  const vis = event ? eventVisibility(event.status) : null;
   const startDelta = useMemo(
     () => (now > 0 ? daysUntil(event?.startDate ?? null, now) : null),
     [event, now],
@@ -332,6 +359,55 @@ export default function EventDetailPage() {
       {statsError && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {statsError}
+        </div>
+      )}
+
+      {event && vis && (
+        <div className="mb-8 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                {t('organizer.events.visibilityCardTitle')}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {vis.isPublic
+                  ? t('organizer.events.visibilityPublicHint')
+                  : t('organizer.events.visibilityHiddenHint')}
+              </p>
+              {!vis.canToggle && (
+                <p className="mt-1 text-xs text-amber-700">
+                  {t('organizer.events.visibilityLocked', { status: event.status })}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-3">
+              <span className="text-sm font-semibold text-slate-700">
+                {vis.isPublic
+                  ? t('organizer.events.visibilityPublic')
+                  : t('organizer.events.visibilityHidden')}
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={vis.isPublic}
+                aria-label={
+                  vis.isPublic ? t('organizer.events.setDraft') : t('organizer.events.setPublic')
+                }
+                disabled={!vis.canToggle || isReadOnly || visibilityBusy}
+                onClick={() => void toggleEventVisibility()}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  vis.isPublic ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    vis.isPublic ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
