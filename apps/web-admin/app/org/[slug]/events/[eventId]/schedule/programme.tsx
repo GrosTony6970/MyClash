@@ -9,6 +9,7 @@ import type {
   ProgrammeBlock,
   ProgrammeSuggestion,
 } from '@myclash/types';
+import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 
 const BLOCK_TYPE_ICONS: Record<string, string> = {
   admin: '📋',
@@ -337,6 +338,10 @@ export function ProgrammePlanner({
         ? crypto.randomUUID()
         : `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const sortOrder = blocks.filter((b) => b.dayIndex === activeDay).length;
+    // Continue right after the day's last block (30-min default span) rather
+    // than always jumping back to the day start.
+    const startTime = nextBlockStartTime(blocks, activeDay, config.dayStartTime);
+    const endTime = minToTime(timeToMin(startTime) + 30);
     const newBlock: ProgrammeBlock = {
       id,
       eventId,
@@ -348,8 +353,8 @@ export function ProgrammePlanner({
       competitionPhase: null,
       workshopId: null,
       liceCount: 0,
-      startTime: '08:00',
-      endTime: '08:30',
+      startTime,
+      endTime,
       matchGapSeconds: 0,
       matchDurationMinutes: 0,
       generatedAt: null,
@@ -400,7 +405,10 @@ export function ProgrammePlanner({
 
     const [removed] = allBlocks.splice(fromGlobal, 1);
     allBlocks.splice(toGlobal, 0, removed!);
-    setBlocks(allBlocks.map((b, i) => ({ ...b, sortOrder: i })));
+    // Reindex sortOrder, then re-flow the active day's times so the blocks
+    // run back-to-back in the new order (durations preserved).
+    const reordered = allBlocks.map((b, i) => ({ ...b, sortOrder: i }));
+    setBlocks(resequenceDay(reordered, activeDay, config.dayStartTime));
     dragIndex.current = idx;
     setDraggingIndex(idx);
   }
@@ -725,20 +733,29 @@ function BlockRow({
         {/* Icon */}
         <span className="text-base leading-none">{BLOCK_TYPE_ICONS[block.blockType] ?? '📌'}</span>
 
-        {/* Times */}
+        {/* Times — custom HH:MM text inputs (not native <input type="time">,
+            which renders AM/PM in 12-hour locales). Matches the config form. */}
         <div className="flex items-center gap-1 text-xs text-gray-500 font-mono flex-shrink-0">
           <input
-            type="time"
+            type="text"
+            inputMode="numeric"
+            pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+            placeholder="HH:MM"
+            maxLength={5}
             value={block.startTime}
             onChange={(e) => onChange({ startTime: e.target.value })}
-            className="border-0 bg-transparent text-xs font-mono w-16 focus:outline-none focus:ring-1 focus:ring-red-600 rounded"
+            className="border-0 bg-transparent text-xs font-mono w-12 focus:outline-none focus:ring-1 focus:ring-red-600 rounded"
           />
           <span>–</span>
           <input
-            type="time"
+            type="text"
+            inputMode="numeric"
+            pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+            placeholder="HH:MM"
+            maxLength={5}
             value={block.endTime}
             onChange={(e) => onChange({ endTime: e.target.value })}
-            className="border-0 bg-transparent text-xs font-mono w-16 focus:outline-none focus:ring-1 focus:ring-red-600 rounded"
+            className="border-0 bg-transparent text-xs font-mono w-12 focus:outline-none focus:ring-1 focus:ring-red-600 rounded"
           />
         </div>
 
