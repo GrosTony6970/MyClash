@@ -269,13 +269,11 @@ export class ScheduleGridService {
       // R1P1" instead of a blank "?".
       const redFighterName =
         names?.red ??
-        null ??
         (slotSource
           ? formatBracketPlaceholder(slotSource.sourceAType, slotSource.sourceARef)
           : null);
       const blueFighterName =
         names?.blue ??
-        null ??
         (slotSource
           ? formatBracketPlaceholder(slotSource.sourceBType, slotSource.sourceBRef)
           : null);
