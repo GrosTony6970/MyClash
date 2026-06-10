@@ -210,7 +210,9 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
           {(['red', 'blue'] as const).map((side) => (
             <label key={side} className="flex-1">
               <span className="block text-[11px] uppercase tracking-wide text-slate-500 mb-1">
-                {side}
+                {side === 'red'
+                  ? t('organizer.tournaments.settings.sideFighter1')
+                  : t('organizer.tournaments.settings.sideFighter2')}
               </span>
               <select
                 value={data.sideColors[side]}
@@ -237,6 +239,15 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         <legend className="text-xs font-medium text-slate-600">
           {t('organizer.tournaments.settings.cleanButtons')}
         </legend>
+        {data.buttons.clean.length > 0 && (
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+            <span className="flex-1">{t('organizer.tournaments.settings.buttonNameHeader')}</span>
+            <span className="w-20">{t('organizer.tournaments.settings.buttonValueHeader')}</span>
+            {/* Invisible spacers mirror the trailing checkbox + Remove so "Value" sits over its field. */}
+            <span aria-hidden className="invisible w-4" />
+            <span aria-hidden className="invisible w-14" />
+          </div>
+        )}
         {data.buttons.clean.map((btn, i) => (
           <div key={i} className="flex gap-2 items-center">
             <input
@@ -322,6 +333,20 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
           <legend className="text-xs font-medium text-slate-600">
             {t('organizer.tournaments.settings.afterblowButtons')}
           </legend>
+          {data.buttons.afterblow.length > 0 && (
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
+              <span className="flex-1">{t('organizer.tournaments.settings.buttonNameHeader')}</span>
+              <span className="w-16">
+                {t('organizer.tournaments.settings.afterblowAttackerHeader')}
+              </span>
+              <span className="w-16">
+                {t('organizer.tournaments.settings.afterblowDefenderHeader')}
+              </span>
+              {/* Invisible spacers mirror the trailing checkbox + Remove so the headers stay over their fields. */}
+              <span aria-hidden className="invisible w-4" />
+              <span aria-hidden className="invisible w-14" />
+            </div>
+          )}
           {data.buttons.afterblow.map((btn, i) => (
             <div key={i} className="flex gap-2 items-center">
               <input

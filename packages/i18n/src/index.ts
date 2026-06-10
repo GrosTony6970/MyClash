@@ -2816,12 +2816,18 @@ export const en = {
         scoringDirectionHelp:
           'Normal: points add up; first to the cap wins. Reverse (zero loses): each fighter starts at the cap and loses points; first to reach 0 loses.',
         sideColors: 'Fighter side colors',
+        sideFighter1: 'Fighter 1',
+        sideFighter2: 'Fighter 2',
         colorLabel: 'Tournament color',
         colorNone: 'No color',
         colorHelp:
           'Optional. Shown as a small dot next to the tournament name across the admin UI (schedule, pools, bracket, registrations).',
         cleanButtons: 'Clean-hit buttons',
         afterblowButtons: 'Afterblow buttons',
+        buttonNameHeader: 'Button name',
+        buttonValueHeader: 'Value',
+        afterblowAttackerHeader: 'Attacker',
+        afterblowDefenderHeader: 'Defender',
         logoLabel: 'Tournament logo',
         logoHelp:
           'Optional. Overrides the parent event logo for this tournament. PNG, JPEG, or WebP up to 10 MB.',
@@ -6805,12 +6811,18 @@ export const fr = {
         scoringDirectionHelp:
           'Normal : les points s additionnent; le premier au plafond gagne. Inverse (zero perd) : chaque combattant part du plafond et perd des points; le premier a atteindre 0 perd.',
         sideColors: 'Couleurs des cotes',
+        sideFighter1: 'Combattant 1',
+        sideFighter2: 'Combattant 2',
         colorLabel: 'Couleur du tournoi',
         colorNone: 'Pas de couleur',
         colorHelp:
           'Optionnel. Affiche un petit point a cote du nom du tournoi dans l interface (calendrier, poules, tableau, inscriptions).',
         cleanButtons: 'Boutons coups nets',
         afterblowButtons: 'Boutons contre-frappes',
+        buttonNameHeader: 'Nom du bouton',
+        buttonValueHeader: 'Valeur',
+        afterblowAttackerHeader: 'Attaquant',
+        afterblowDefenderHeader: 'Defenseur',
         logoLabel: 'Logo du tournoi',
         logoHelp:
           'Optionnel. Remplace le logo de l evenement parent pour ce tournoi. PNG, JPEG ou WebP, jusqu a 10 Mo.',
