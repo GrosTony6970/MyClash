@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
 import { naturalCompare } from './pool-matches-sort';
 import { matchesQuery } from './pool-matches-filter';
+import { poolMatchWinner } from './pool-match-winner';
 
 interface PoolMatch {
   matchId: string;
@@ -229,10 +230,10 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                 <thead className="border-b border-stone-100 bg-stone-50 text-left text-xs uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="w-32 px-4 py-2">Round</th>
-                    <th className="px-4 py-2">Red</th>
+                    <th className="px-4 py-2">Fighter 1</th>
                     <th className="w-12 px-2 py-2 text-center">Pts</th>
                     <th className="w-12 px-2 py-2 text-center">Pts</th>
-                    <th className="px-4 py-2">Blue</th>
+                    <th className="px-4 py-2">Fighter 2</th>
                     <th className="w-24 px-4 py-2">Status</th>
                     <th className="w-32 px-4 py-2">Lice</th>
                   </tr>
@@ -240,6 +241,7 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                 <tbody>
                   {pool.matches.map((m) => {
                     const openMatch = () => router.push(`/e/${eventSlug}/match/${m.matchId}`);
+                    const winner = poolMatchWinner(m);
                     return (
                       <tr
                         key={m.matchId}
@@ -258,7 +260,13 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                           {m.roundCode}
                         </td>
                         <td className="px-4 py-2">
-                          <span className="font-medium text-slate-900">
+                          <span
+                            className={
+                              winner === 'red'
+                                ? 'font-bold text-slate-900'
+                                : 'font-medium text-slate-900'
+                            }
+                          >
                             {m.redFighterName ?? '—'}
                           </span>
                           {m.redClubAbbrev && (
@@ -267,10 +275,28 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-2 text-center font-mono">{m.redScore ?? '—'}</td>
-                        <td className="px-2 py-2 text-center font-mono">{m.blueScore ?? '—'}</td>
+                        <td
+                          className={`px-2 py-2 text-center font-mono ${
+                            winner === 'red' ? 'font-bold text-slate-900' : ''
+                          }`}
+                        >
+                          {m.redScore ?? '—'}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center font-mono ${
+                            winner === 'blue' ? 'font-bold text-slate-900' : ''
+                          }`}
+                        >
+                          {m.blueScore ?? '—'}
+                        </td>
                         <td className="px-4 py-2">
-                          <span className="font-medium text-slate-900">
+                          <span
+                            className={
+                              winner === 'blue'
+                                ? 'font-bold text-slate-900'
+                                : 'font-medium text-slate-900'
+                            }
+                          >
                             {m.blueFighterName ?? '—'}
                           </span>
                           {m.blueClubAbbrev && (
