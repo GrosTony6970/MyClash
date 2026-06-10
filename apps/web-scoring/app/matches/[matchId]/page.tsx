@@ -109,6 +109,7 @@ export default function MatchScoringPage({ params }: Props) {
           blue_score: number | null;
           locked_at: string | null;
           lice_id: string | null;
+          end_reason: string | null;
         };
         // Soft requirement: summary is labels only (roundCode,
         // fighter names, clubs, weapon, tournamentId). The most
@@ -148,6 +149,7 @@ export default function MatchScoringPage({ params }: Props) {
           phaseType: summary?.phaseType ?? null,
           lockedAt: raw.locked_at,
           liceId: raw.lice_id,
+          endReason: raw.end_reason ?? null,
         });
       } catch {
         // Offline — leave the cached match in place

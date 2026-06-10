@@ -3,6 +3,8 @@ import { resolveForfeitPolicy, type ForfeitReason } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { BracketAdvanceService } from '../phases/bracket-advance.service';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
+import { ClockService } from './clock.service';
+import { forfeitEndReason } from './forfeit-end-reason';
 
 type Actor = { userId?: string; staffAccountId?: string };
 type Row = Record<string, unknown>;
@@ -12,6 +14,9 @@ export class MatchForfeitsService {
   constructor(
     private readonly supabase: SupabaseService,
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+    // Optional so direct `new MatchForfeitsService(supabase)` in tests still
+    // works; in the app it's provided by MatchesModule (Supabase-only dep).
+    @Optional() private readonly clock?: ClockService,
   ) {}
 
   async createForfeit(matchId: string, dto: CreateMatchForfeitDto, actor: Actor = {}) {
@@ -70,6 +75,7 @@ export class MatchForfeitsService {
       dto.forfeitingRegistrationId,
       winnerRegistrationId as string,
       scores,
+      forfeitEndReason(dto.reason),
       now,
     );
     await this.applyTournamentState(
@@ -252,7 +258,13 @@ export class MatchForfeitsService {
       by_user_id: actor.userId ?? null,
       staff_account_id: actor.staffAccountId ?? null,
     });
-    await this.completeMatch(match['id'] as string, registrationId, winnerRegistrationId, scores);
+    await this.completeMatch(
+      match['id'] as string,
+      registrationId,
+      winnerRegistrationId,
+      scores,
+      forfeitEndReason(reason),
+    );
     return { matchId: match['id'] as string };
   }
 
@@ -408,6 +420,7 @@ export class MatchForfeitsService {
     _forfeitingRegistrationId: string,
     winnerRegistrationId: string,
     scores: { redScore: number; blueScore: number },
+    endReason: string,
     endedAt = new Date().toISOString(),
   ) {
     await this.supabase.service
@@ -418,9 +431,28 @@ export class MatchForfeitsService {
         winner_registration_id: winnerRegistrationId,
         red_score: scores.redScore,
         blue_score: scores.blueScore,
+        // 'black_card' | 'forfeit' — lets the pad + TV label the result.
+        end_reason: endReason,
         updated_at: new Date().toISOString(),
       })
       .eq('id', matchId);
+
+    // A forfeit ends the bout — stop the clock too so it freezes and the
+    // scoreboard's clock-driven endcard fires. Best-effort: the match is
+    // already completed, so a clock-end failure must not fail the forfeit.
+    // Only running/halted clocks can 'end' (idle/ended throw → skipped).
+    if (this.clock) {
+      try {
+        const clk = await this.clock.getClockState(matchId);
+        if (clk.status === 'running' || clk.status === 'halted') {
+          await this.clock.clockAction(matchId, 'end', 'auto: forfeit', {
+            canOverrideLocked: true,
+          });
+        }
+      } catch {
+        // swallow — clock end is best-effort
+      }
+    }
   }
 
   private async applyTournamentState(

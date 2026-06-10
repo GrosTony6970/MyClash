@@ -249,8 +249,9 @@ export function ScoringColumn({
         </div>
       )}
 
-      {/* PENALTIES — inline picker */}
-      <div className="flex flex-col gap-2 mt-2">
+      {/* PENALTIES — inline picker. Extra top margin + a divider separate
+          this clearly from the afterblow buttons above it. */}
+      <div className="flex flex-col gap-2 mt-6 border-t border-gray-800 pt-4">
         <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
           {t('scoring.lice.penaltiesHeader')}
         </p>
@@ -276,6 +277,7 @@ export function ScoringColumn({
             <PenaltyEntryRow
               key={entry.id}
               entry={entry}
+              groupLabel={t('scoring.penalties.group')}
               disabled={penaltyDisabled}
               onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
             />
@@ -319,10 +321,12 @@ export function ScoringColumn({
 
 function PenaltyEntryRow({
   entry,
+  groupLabel,
   disabled,
   onClick,
 }: {
   entry: PenaltyRulesetEntry;
+  groupLabel: string;
   disabled: boolean;
   onClick: () => void;
 }) {
@@ -338,7 +342,12 @@ function PenaltyEntryRow({
         <span className="font-semibold text-gray-100">
           {entry.ref_number}. {entry.short_name}
         </span>
-        <span className="block text-[10px] text-gray-500 truncate">{entry.description}</span>
+        <span className="block text-[10px] text-gray-500 truncate">
+          <span className="mr-1.5 rounded bg-gray-800 px-1 py-0.5 font-semibold text-gray-400">
+            {groupLabel} {entry.group_number}
+          </span>
+          {entry.description}
+        </span>
       </div>
       {card && (
         <span className={`inline-block h-5 w-5 rounded ${CARD_CHIP_COLOR[card]} flex-shrink-0`} />

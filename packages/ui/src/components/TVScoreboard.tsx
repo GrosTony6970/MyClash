@@ -367,6 +367,9 @@ function CenterColumn({
   // score-derived winner below is null too). end_reason disambiguates
   // this from a genuine tie.
   const isDoubleLoss = isEnded && match.endReason === 'max_doubles';
+  // A black card closed the match: the carded fighter forfeits, the opponent
+  // wins (fixed-loss score makes the winner score-derivable below).
+  const isBlackCard = isEnded && match.endReason === 'black_card';
   const winner = useMemo(() => {
     if (!isEnded) return null;
     if (match.redScore > match.blueScore) return { side: 'red' as const, name: redName };
@@ -400,6 +403,13 @@ function CenterColumn({
               <p className="text-3xl font-bold text-red-300">
                 {t('scoring.liveMatch.doubleLossSubtitle')}
               </p>
+            </>
+          ) : isBlackCard ? (
+            <>
+              <p className="text-7xl font-black uppercase tracking-widest text-red-500">
+                {t('scoring.liveMatch.blackCard')}
+              </p>
+              {winner && <p className="text-5xl font-bold">🏆 {winner.name}</p>}
             </>
           ) : (
             <>

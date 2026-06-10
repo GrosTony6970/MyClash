@@ -26,12 +26,15 @@ import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
 import { usePenalties, type MatchPenalty, type PenaltyCard } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { isDoubleLoss } from './is-double-loss';
+import { blackCardLossRegistrationId } from './black-card-loss';
 
 interface ScoringCenterControlsProps {
   matchId: string;
   apiUrl: string;
   /** Match status (DB enum) — drives the DOUBLE LOSS banner once completed. */
   matchStatus: string;
+  /** matches.end_reason — drives the BLACK CARD banner when 'black_card'. */
+  endReason?: string | null;
   matchFormat: MatchFormatConfig;
   config: TournamentScoringConfig;
   redName: string;
@@ -61,6 +64,7 @@ export function ScoringCenterControls({
   matchId,
   apiUrl,
   matchStatus,
+  endReason,
   matchFormat,
   config,
   redName,
@@ -112,6 +116,16 @@ export function ScoringCenterControls({
   const doubleCount = activeExchanges.filter((e) => e.type === 'double').length;
   const maxDoubles = matchFormat.maxDoubleHits;
   const doubleLoss = isDoubleLoss(matchStatus, doubleCount, maxDoubles);
+
+  // Black card closed the match (per the penalty ruleset). Name the carded
+  // fighter so the banner reads "Black card — {fighter}".
+  const blackCardLoserRegId = blackCardLossRegistrationId(endReason, activePenalties);
+  const blackCardLoserName =
+    blackCardLoserRegId === redRegistrationId
+      ? redName
+      : blackCardLoserRegId === blueRegistrationId
+        ? blueName
+        : null;
   const doubleChipTone = (() => {
     if (maxDoubles === null) return 'bg-gray-800 text-gray-300';
     if (doubleCount >= maxDoubles) return 'bg-red-900 text-red-200 border border-red-500';
@@ -180,6 +194,17 @@ export function ScoringCenterControls({
           <p className="mt-1 text-xs font-semibold text-red-200">
             {t('scoring.liveMatch.doubleLossSubtitle')}
           </p>
+        </div>
+      )}
+
+      {/* Black-card banner — a black card closed the match per the penalty
+          ruleset; the carded fighter forfeits, the opponent wins. */}
+      {blackCardLoserName && (
+        <div className="w-full rounded-xl border-2 border-gray-100 bg-gray-900 px-4 py-3 text-center">
+          <p className="text-lg font-black uppercase tracking-widest text-white">
+            {t('scoring.liveMatch.blackCard')}
+          </p>
+          <p className="mt-1 text-xs font-semibold text-gray-300">{blackCardLoserName}</p>
         </div>
       )}
 
@@ -345,6 +370,11 @@ export function ScoringCenterControls({
           {events.length === 0 && <p className="text-center text-xs text-gray-600 py-2">—</p>}
           {events.map((ev) => (
             <div key={ev.id} className="flex items-center gap-2 text-xs">
+              {ev.number !== null && (
+                <span className="font-mono text-gray-600 tabular-nums w-7 flex-shrink-0">
+                  #{ev.number}
+                </span>
+              )}
               <span className="font-mono text-gray-500 tabular-nums">{ev.timeLabel}</span>
               {ev.sideColor && (
                 <span
@@ -430,6 +460,8 @@ const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
 
 interface UnifiedEvent {
   id: string;
+  /** Exchange sequence number (the `#N` in the history); null for penalties. */
+  number: number | null;
   occurredAt: string;
   timeLabel: string;
   sideColor: string | null;
@@ -465,6 +497,7 @@ function mergeEvents(
     const delta = e.scoreDelta ? `+${e.scoreDelta}` : null;
     return {
       id: `ex-${e.id}`,
+      number: e.sequence,
       occurredAt: e.occurredAt,
       timeLabel: formatClockShort(e.clockTimeMs),
       sideColor: side ? sideStyle(config, side).border : null,
@@ -481,6 +514,7 @@ function mergeEvents(
     const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
     return {
       id: `pen-${p.id}`,
+      number: null,
       occurredAt: p.occurred_at ?? '',
       timeLabel: formatClockShort(p.clock_time_ms),
       sideColor: side ? sideStyle(config, side).border : null,

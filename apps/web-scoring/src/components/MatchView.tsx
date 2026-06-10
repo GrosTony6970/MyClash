@@ -38,6 +38,9 @@ export interface MatchInfo {
   /** Set by page.tsx from the GET /matches/:id row so the header
    *  can build its back-link href and fetch the lice queue. */
   liceId?: string | null;
+  /** Why the match ended ('max_doubles' | 'black_card' | 'forfeit' | ...).
+   *  Drives the centre column's black-card banner. Null while in progress. */
+  endReason?: string | null;
 }
 
 export interface MatchViewProps {
@@ -273,6 +276,7 @@ export function MatchView({
           matchId={match.id}
           apiUrl={apiUrl}
           matchStatus={match.status}
+          endReason={match.endReason ?? null}
           matchFormat={matchFormat}
           config={scoringConfig}
           redName={redName}

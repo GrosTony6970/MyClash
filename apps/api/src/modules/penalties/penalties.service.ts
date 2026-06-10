@@ -575,6 +575,7 @@ export class PenaltiesService {
               status: 'completed',
               ended_at: new Date().toISOString(),
               winner_registration_id: opponentRegistrationId,
+              end_reason: 'black_card',
               updated_at: new Date().toISOString(),
             })
             .eq('id', matchId);
