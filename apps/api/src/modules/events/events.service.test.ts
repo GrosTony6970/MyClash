@@ -1450,6 +1450,10 @@ describe('EventsService', () => {
         error: null,
       });
       const refereesChain = makeAwaitableChain({ data: [], error: null });
+      // getPublishedPools now also reads the pools' matches (pool_id,
+      // scheduled_at, lices) to derive each pool's lice + start time. Empty
+      // here — this test only pins the referee_assignments select shape.
+      const poolMatchesChain = makeAwaitableChain({ data: [], error: null });
       // Aggregate-count chains added when getPublicTournamentStandings
       // started surfacing per-tournament stats on the response header.
       const participantCountChain = makeAwaitableChain({ count: 0, error: null });
@@ -1464,7 +1468,8 @@ describe('EventsService', () => {
         .mockReturnValueOnce(waitlistCountChain)
         .mockReturnValueOnce(completedMatchCountChain)
         .mockReturnValueOnce(poolsChain)
-        .mockReturnValueOnce(refereesChain);
+        .mockReturnValueOnce(refereesChain)
+        .mockReturnValueOnce(poolMatchesChain);
 
       await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
 

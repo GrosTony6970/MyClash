@@ -67,6 +67,11 @@ export interface Pool {
   members: PoolMember[];
   referees: PoolReferee[];
   standings: StandingRow[];
+  /** Pool's lice (piste) + start time, derived server-side from its matches —
+   *  drives the Pool List's start-time sections + per-card piste badge. */
+  liceName?: string | null;
+  liceColorHex?: string | null;
+  startAt?: string | null;
 }
 
 export interface BracketSlot {
@@ -392,6 +397,9 @@ export default async function TournamentPage({ params }: Props) {
                   name: p.name,
                   members: p.members ?? [],
                   referees: p.referees ?? [],
+                  liceName: p.liceName ?? null,
+                  liceColorHex: p.liceColorHex ?? null,
+                  startAt: p.startAt ?? null,
                 }))}
                 accentColor={accentColor}
                 colorToken={tournamentColor}

@@ -11,6 +11,7 @@ import { NotificationEventsService } from '../notifications/event-handlers/notif
 import { LeaguesService } from '../leagues/leagues.service';
 import { ClubsService } from '../clubs/clubs.service';
 import { buildRoundCode } from '../matches/round-code.helper';
+import { derivePoolSchedule, type PoolMatchTimeRow } from './pool-schedule';
 import type {
   CreateEventDto,
   CreateTournamentDto,
@@ -1468,12 +1469,37 @@ export class EventsService {
     //    claimed) or global_persons (if person-scoped) table.
     const refereesByPool = await this.getPublishedRefereesByPool(eventId, poolIds);
 
+    // 2b. Per-pool lice + start time, derived from the pool's matches — drives
+    //     the public Pool List's start-time sections + per-card piste badge.
+    const scheduleByPool = new Map<string, ReturnType<typeof derivePoolSchedule>>();
+    if (poolIds.length > 0) {
+      const { data: matchTimeData } = await this.supabase.service
+        .from('matches')
+        .select('pool_id, scheduled_at, lices(name, color_hex)')
+        .in('pool_id', poolIds);
+      const byPool = new Map<string, PoolMatchTimeRow[]>();
+      for (const row of (matchTimeData ?? []) as unknown as Array<
+        PoolMatchTimeRow & { pool_id: string | null }
+      >) {
+        if (!row.pool_id) continue;
+        const list = byPool.get(row.pool_id) ?? [];
+        list.push({ scheduled_at: row.scheduled_at, lices: row.lices });
+        byPool.set(row.pool_id, list);
+      }
+      for (const id of poolIds) {
+        scheduleByPool.set(id, derivePoolSchedule(byPool.get(id) ?? []));
+      }
+    }
+
     // 3. Compose the public payload. `standings` stays empty here —
     //    the public tournament page hydrates per-pool standings via
     //    Realtime / a dedicated endpoint.
     return poolRows.map((pool) => ({
       id: pool.id,
       name: pool.name,
+      liceName: scheduleByPool.get(pool.id)?.liceName ?? null,
+      liceColorHex: scheduleByPool.get(pool.id)?.liceColorHex ?? null,
+      startAt: scheduleByPool.get(pool.id)?.startAt ?? null,
       members: (pool.pool_members ?? [])
         .map((m) => {
           const person = m.registrations?.persons;

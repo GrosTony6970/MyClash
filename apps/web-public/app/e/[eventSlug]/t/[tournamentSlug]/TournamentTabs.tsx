@@ -81,8 +81,11 @@ export function TournamentTabs({ defaultTab, tabs, colorToken }: Props) {
   useEffect(() => {
     function readHash() {
       const raw = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
-      if (TAB_ORDER.includes(raw as TabKey) && visibleKeys.includes(raw as TabKey)) {
-        setActive(raw as TabKey);
+      // The hash may carry a sub-segment (e.g. `poolmatches/<poolId>` from a
+      // pool-card deep-link). Match on the base tab key before the first '/'.
+      const base = (raw.split('/')[0] ?? '') as TabKey;
+      if (TAB_ORDER.includes(base) && visibleKeys.includes(base)) {
+        setActive(base);
       }
     }
     readHash();

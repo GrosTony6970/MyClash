@@ -56,12 +56,26 @@ interface Props {
   colorToken?: string | null;
 }
 
+/** Pool id deep-linked from the Pool List tab (`#poolmatches/<poolId>`). */
+function parseFocusPoolId(hash: string): string | null {
+  const [base, sub] = hash.replace(/^#/, '').split('/');
+  return base === 'poolmatches' && sub ? sub : null;
+}
+
 export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props) {
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [query, setQuery] = useState('');
+  // Pool deep-link focus: a pool card on the #pools tab links to
+  // `#poolmatches/<poolId>`; we scroll to + briefly highlight that pool.
+  // Lazy init reads the hash on mount; the hashchange listener (a callback,
+  // not the effect body) handles later changes — keeps the effect side-effect
+  // only (no setState-in-effect).
+  const [focusPoolId, setFocusPoolId] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : parseFocusPoolId(window.location.hash),
+  );
 
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
 
@@ -126,6 +140,35 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
     };
   }, [pools, tournamentSlug, refresh]);
 
+  // A click from the Pool List tab changes the hash — update the focus.
+  useEffect(() => {
+    const onHash = () => setFocusPoolId(parseFocusPoolId(window.location.hash));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Scroll the focused pool into view + briefly highlight it. DOM-only (no
+  // React state) so this is a pure side effect; rAF defers the scroll until
+  // the (previously hidden) tab panel is laid out. The transient ring uses an
+  // inline box-shadow so it can't be purged from the Tailwind build.
+  useEffect(() => {
+    if (!focusPoolId || pools.length === 0) return;
+    const el = document.getElementById(`pool-${focusPoolId}`);
+    if (!el) return;
+    const raf = requestAnimationFrame(() =>
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+    el.style.boxShadow = '0 0 0 2px #f59e0b, 0 0 0 6px rgba(245,158,11,0.25)';
+    const timer = setTimeout(() => {
+      el.style.boxShadow = '';
+    }, 2000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      el.style.boxShadow = '';
+    };
+  }, [focusPoolId, pools]);
+
   if (loading && pools.length === 0) {
     return <p className="text-sm italic text-slate-500">Loading…</p>;
   }
@@ -169,7 +212,8 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
       {displayPools.map((pool) => (
         <article
           key={pool.poolId}
-          className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm"
+          id={`pool-${pool.poolId}`}
+          className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-shadow"
         >
           <header className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
             <h3 className={`font-display text-lg font-semibold ${titleClass}`}>{pool.poolName}</h3>
