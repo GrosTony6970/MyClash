@@ -98,6 +98,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
       <NumberField
         label={t('organizer.tournaments.settings.pointCap')}
+        hint={t('organizer.tournaments.settings.pointCapHelp')}
         value={data.pointCap}
         defaultValue={DEFAULTS.pointCap}
         onChange={(v) => setData({ ...data, pointCap: v })}
@@ -108,6 +109,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
       <SelectField
         label={t('organizer.tournaments.settings.timerMode')}
+        hint={t('organizer.tournaments.settings.timerModeHelp')}
         value={data.timerMode}
         defaultValue={DEFAULTS.timerMode}
         onChange={(v) => setData({ ...data, timerMode: v as 'countdown' | 'countup' })}
@@ -120,6 +122,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
       <NumberField
         label={t('organizer.tournaments.settings.timePool')}
+        hint={t('organizer.tournaments.settings.timePoolHelp')}
         value={data.timeLimitsSeconds.pool ?? 0}
         defaultValue={DEFAULTS.timeLimitsSeconds.pool ?? 0}
         onChange={(v) =>
@@ -137,6 +140,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       />
       <NumberField
         label={t('organizer.tournaments.settings.timeBracket')}
+        hint={t('organizer.tournaments.settings.timeBracketHelp')}
         value={data.timeLimitsSeconds.bracket ?? 0}
         defaultValue={DEFAULTS.timeLimitsSeconds.bracket ?? 0}
         onChange={(v) =>
@@ -157,6 +161,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       />
       <NumberField
         label={t('organizer.tournaments.settings.timeFinals')}
+        hint={t('organizer.tournaments.settings.timeFinalsHelp')}
         value={data.timeLimitsSeconds.finals ?? 0}
         defaultValue={DEFAULTS.timeLimitsSeconds.finals ?? 0}
         onChange={(v) =>
@@ -178,6 +183,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
       <NumberField
         label={t('organizer.tournaments.settings.softClock')}
+        hint={t('organizer.tournaments.settings.softClockHelp')}
         value={data.softClockLimitSeconds}
         defaultValue={DEFAULTS.softClockLimitSeconds}
         onChange={(v) => setData({ ...data, softClockLimitSeconds: v })}
@@ -189,6 +195,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
       <NumberField
         label={t('organizer.tournaments.settings.maxDoubleHits')}
+        hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
         value={data.maxDoubleHits ?? 0}
         defaultValue={DEFAULTS.maxDoubleHits ?? 0}
         onChange={(v) => setData({ ...data, maxDoubleHits: v })}
@@ -200,6 +207,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       {isTfV1 && (
         <SelectField
           label={t('organizer.tournaments.settings.afterblowMode')}
+          hint={t('organizer.tournaments.settings.afterblowModeHelp')}
           value={data.afterblowMode}
           defaultValue={DEFAULTS.afterblowMode}
           onChange={(v) => setData({ ...data, afterblowMode: v as 'full' | 'deductive' })}
@@ -213,6 +221,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
 
       <SelectField
         label={t('organizer.tournaments.settings.scoringDirection')}
+        hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
         value={data.scoringDirection}
         defaultValue={DEFAULTS.scoringDirection}
         onChange={(v) =>
@@ -249,6 +258,7 @@ function NumberField({
   min,
   max,
   suffix,
+  hint,
 }: {
   label: string;
   value: number;
@@ -258,6 +268,7 @@ function NumberField({
   min: number;
   max: number;
   suffix?: string;
+  hint?: string;
 }) {
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
@@ -294,6 +305,7 @@ function NumberField({
         />
         {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
       </div>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </label>
   );
 }
@@ -305,6 +317,7 @@ function SelectField({
   onChange,
   onReset,
   options,
+  hint,
 }: {
   label: string;
   value: string;
@@ -312,6 +325,7 @@ function SelectField({
   onChange: (v: string) => void;
   onReset?: () => void;
   options: Array<{ value: string; label: string }>;
+  hint?: string;
 }) {
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
@@ -348,6 +362,7 @@ function SelectField({
           </option>
         ))}
       </select>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </label>
   );
 }

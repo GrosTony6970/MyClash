@@ -92,6 +92,7 @@ export function Step2MatchFormat({
 
       <NumberField
         label={t('organizer.tournaments.settings.pointCap')}
+        hint={t('organizer.tournaments.settings.pointCapHelp')}
         value={data.pointCap}
         onChange={(v) => setData({ ...data, pointCap: v })}
         min={1}
@@ -100,6 +101,7 @@ export function Step2MatchFormat({
 
       <SelectField
         label={t('organizer.tournaments.settings.timerMode')}
+        hint={t('organizer.tournaments.settings.timerModeHelp')}
         value={data.timerMode}
         onChange={(v) => setData({ ...data, timerMode: v as 'countdown' | 'countup' })}
         options={[
@@ -110,6 +112,7 @@ export function Step2MatchFormat({
 
       <NumberField
         label={t('organizer.tournaments.settings.timePool')}
+        hint={t('organizer.tournaments.settings.timePoolHelp')}
         value={data.timeLimitsSeconds.pool ?? 0}
         onChange={(v) =>
           setData({ ...data, timeLimitsSeconds: { ...data.timeLimitsSeconds, pool: v } })
@@ -120,6 +123,7 @@ export function Step2MatchFormat({
       />
       <NumberField
         label={t('organizer.tournaments.settings.timeBracket')}
+        hint={t('organizer.tournaments.settings.timeBracketHelp')}
         value={data.timeLimitsSeconds.bracket ?? 0}
         onChange={(v) =>
           setData({ ...data, timeLimitsSeconds: { ...data.timeLimitsSeconds, bracket: v } })
@@ -130,6 +134,7 @@ export function Step2MatchFormat({
       />
       <NumberField
         label={t('organizer.tournaments.settings.timeFinals')}
+        hint={t('organizer.tournaments.settings.timeFinalsHelp')}
         value={data.timeLimitsSeconds.finals ?? 0}
         onChange={(v) =>
           setData({ ...data, timeLimitsSeconds: { ...data.timeLimitsSeconds, finals: v } })
@@ -141,6 +146,7 @@ export function Step2MatchFormat({
 
       <NumberField
         label={t('organizer.tournaments.settings.softClock')}
+        hint={t('organizer.tournaments.settings.softClockHelp')}
         value={data.softClockLimitSeconds}
         onChange={(v) => setData({ ...data, softClockLimitSeconds: v })}
         min={0}
@@ -150,6 +156,7 @@ export function Step2MatchFormat({
 
       <NumberField
         label={t('organizer.tournaments.settings.maxDoubleHits')}
+        hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
         value={data.maxDoubleHits ?? 0}
         onChange={(v) => setData({ ...data, maxDoubleHits: v })}
         min={0}
@@ -159,6 +166,7 @@ export function Step2MatchFormat({
       {isTfV1 && (
         <SelectField
           label={t('organizer.tournaments.settings.afterblowMode')}
+          hint={t('organizer.tournaments.settings.afterblowModeHelp')}
           value={data.afterblowMode}
           onChange={(v) => setData({ ...data, afterblowMode: v as 'full' | 'deductive' })}
           options={[
@@ -170,6 +178,7 @@ export function Step2MatchFormat({
 
       <SelectField
         label={t('organizer.tournaments.settings.scoringDirection')}
+        hint={t('organizer.tournaments.settings.scoringDirectionHelp')}
         value={data.scoringDirection}
         onChange={(v) =>
           setData({ ...data, scoringDirection: v as MatchFormat['scoringDirection'] })
@@ -211,6 +220,7 @@ function NumberField({
   min,
   max,
   suffix,
+  hint,
 }: {
   label: string;
   value: number;
@@ -218,6 +228,7 @@ function NumberField({
   min: number;
   max: number;
   suffix?: string;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -233,6 +244,7 @@ function NumberField({
         />
         {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
       </div>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </label>
   );
 }
@@ -242,11 +254,13 @@ function SelectField({
   value,
   onChange,
   options,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: Array<{ value: string; label: string }>;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -262,6 +276,7 @@ function SelectField({
           </option>
         ))}
       </select>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </label>
   );
 }

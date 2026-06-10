@@ -2795,6 +2795,20 @@ export const en = {
         scoringDirection: 'Scoring direction',
         scoringNormal: 'Normal',
         scoringReverse: 'Reverse (zero loses)',
+        pointCapHelp: 'First fighter to reach this score wins; the match then ends automatically.',
+        timerModeHelp:
+          'Countdown runs from the match time down to 0:00. Count up runs from 0:00 upward.',
+        timePoolHelp: 'Time limit for pool matches (seconds). 0 = no limit.',
+        timeBracketHelp: 'Time limit for bracket matches (seconds). 0 = no limit.',
+        timeFinalsHelp: 'Time limit for finals and medal matches (seconds). 0 = no limit.',
+        softClockHelp:
+          'Once the countdown drops below this many seconds, scoring locks until the clock is stopped.',
+        maxDoubleHitsHelp:
+          'After this many double hits both fighters lose with a 0–0 score. 0 = no limit.',
+        afterblowModeHelp:
+          "Full: the afterblow still scores for the defender. Deductive: the afterblow is subtracted from the attacker's points and the defender scores 0.",
+        scoringDirectionHelp:
+          'Normal: points add up; first to the cap wins. Reverse (zero loses): each fighter starts at the cap and loses points; first to reach 0 loses.',
         sideColors: 'Fighter side colors',
         colorLabel: 'Tournament color',
         colorNone: 'No color',
@@ -6760,6 +6774,23 @@ export const fr = {
         scoringDirection: 'Direction du score',
         scoringNormal: 'Normal',
         scoringReverse: 'Inverse (zero perd)',
+        pointCapHelp:
+          'Le premier combattant a atteindre ce score gagne; le match se termine alors automatiquement.',
+        timerModeHelp:
+          'Le decompte part du temps de match vers 0:00. Le mode croissant part de 0:00 vers le haut.',
+        timePoolHelp: 'Limite de temps pour les matchs de poule (secondes). 0 = pas de limite.',
+        timeBracketHelp:
+          'Limite de temps pour les matchs de tableau (secondes). 0 = pas de limite.',
+        timeFinalsHelp:
+          'Limite de temps pour les finales et matchs de medaille (secondes). 0 = pas de limite.',
+        softClockHelp:
+          'Quand le decompte passe sous ce nombre de secondes, la saisie des points est bloquee jusqu a l arret du chrono.',
+        maxDoubleHitsHelp:
+          'Apres ce nombre de doubles, les deux combattants perdent avec un score de 0–0. 0 = pas de limite.',
+        afterblowModeHelp:
+          'Complet : la contre-frappe rapporte des points au defenseur. Deductif : la contre-frappe est soustraite des points de l attaquant et le defenseur marque 0.',
+        scoringDirectionHelp:
+          'Normal : les points s additionnent; le premier au plafond gagne. Inverse (zero perd) : chaque combattant part du plafond et perd des points; le premier a atteindre 0 perd.',
         sideColors: 'Couleurs des cotes',
         colorLabel: 'Couleur du tournoi',
         colorNone: 'Pas de couleur',

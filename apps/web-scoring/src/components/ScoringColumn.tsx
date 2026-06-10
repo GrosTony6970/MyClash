@@ -24,6 +24,7 @@
 
 import { useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
+import { computeAfterblowDeltas } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { sideStyle } from '@myclash/ui';
 import { usePenalties, type PenaltyCard, type PenaltyRulesetEntry } from '../hooks/usePenalties';
@@ -38,6 +39,12 @@ interface ScoringColumnProps {
   fighterName: string;
   club?: string | null;
   score: number;
+  /** This side has won by reaching the point cap — highlights the score gold. */
+  reachedCap?: boolean;
+  /** Point cap, shown as an "X / cap" caption in normal scoring. */
+  pointCap?: number;
+  /** Reverse (zero-loses) scoring — suppresses the "X / cap" caption. */
+  reverse?: boolean;
   config: TournamentScoringConfig;
   scoringEnabled: boolean;
   canScore: boolean;
@@ -71,6 +78,9 @@ export function ScoringColumn({
   fighterName,
   club,
   score,
+  reachedCap,
+  pointCap,
+  reverse,
   config,
   scoringEnabled,
   canScore,
@@ -147,13 +157,20 @@ export function ScoringColumn({
 
   return (
     <div className="flex flex-col gap-3 px-2">
-      {/* Score numeral */}
+      {/* Score numeral — turns gold when this side wins by reaching the cap. */}
       <p
-        className="text-center text-8xl font-black tabular-nums leading-none mt-2"
-        style={{ color: style.border }}
+        className={`text-center text-8xl font-black tabular-nums leading-none mt-2 ${
+          reachedCap ? 'drop-shadow-[0_0_12px_rgba(251,191,36,0.5)]' : ''
+        }`}
+        style={{ color: reachedCap ? '#fbbf24' : style.border }}
       >
         {score}
       </p>
+      {pointCap !== undefined && !reverse && (
+        <p className="-mt-2 text-center text-sm font-semibold tabular-nums text-gray-500">
+          {`${score} / ${pointCap}`}
+        </p>
+      )}
 
       {/* Fighter name + club */}
       <div className="text-center">
@@ -216,35 +233,42 @@ export function ScoringColumn({
             {t('scoring.lice.afterblowHeader')}
           </p>
           <div className="grid grid-cols-2 gap-1.5">
-            {visibleAfterblows.map((btn) => (
-              <button
-                key={btn.label}
-                onClick={() => submit.submitAfterblow(side, btn)}
-                disabled={submit.submitting || !canScore}
-                className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
-                title={
-                  config.afterblowMode === 'deductive'
-                    ? t('scoring.pad.afterblowTitleDeductive', {
-                        attacker: fighterName,
-                        defender: '—',
-                        attackerPts: btn.attackerPts,
-                      })
-                    : t('scoring.pad.afterblowTitleFull', {
-                        attacker: fighterName,
-                        defender: '—',
-                        attackerPts: btn.attackerPts,
-                        defenderPts: btn.defenderPts,
-                      })
-                }
-              >
-                {btn.label}
-                <span className="block text-xs font-normal opacity-60">
-                  {config.afterblowMode === 'deductive'
-                    ? `+${btn.attackerPts} / 0`
-                    : `+${btn.attackerPts} / +${btn.defenderPts}`}
-                </span>
-              </button>
-            ))}
+            {visibleAfterblows.map((btn) => {
+              const d = computeAfterblowDeltas(
+                config.afterblowMode,
+                btn.attackerPts,
+                btn.defenderPts,
+              );
+              return (
+                <button
+                  key={btn.label}
+                  onClick={() => submit.submitAfterblow(side, btn)}
+                  disabled={submit.submitting || !canScore}
+                  className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
+                  title={
+                    config.afterblowMode === 'deductive'
+                      ? t('scoring.pad.afterblowTitleDeductive', {
+                          attacker: fighterName,
+                          defender: '—',
+                          attackerPts: d.attackerDelta,
+                        })
+                      : t('scoring.pad.afterblowTitleFull', {
+                          attacker: fighterName,
+                          defender: '—',
+                          attackerPts: d.attackerDelta,
+                          defenderPts: d.defenderDelta,
+                        })
+                  }
+                >
+                  {btn.label}
+                  <span className="block text-xs font-normal opacity-60">
+                    {config.afterblowMode === 'deductive'
+                      ? `+${d.attackerDelta} / 0`
+                      : `+${d.attackerDelta} / +${d.defenderDelta}`}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

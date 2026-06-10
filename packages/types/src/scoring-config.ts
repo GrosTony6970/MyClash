@@ -73,8 +73,9 @@ export interface AfterblowButton {
   /** Points awarded to the first striker (attacker) */
   attackerPts: number;
   /**
-   * Points awarded to the defender.
-   * In 'deductive' mode this is ignored — defender always gets 0.
+   * Points awarded to the defender in 'full' mode. In 'deductive' mode the
+   * defender always gets 0 and this value is instead deducted from the
+   * attacker (see {@link computeAfterblowDeltas}).
    */
   defenderPts: number;
   /** Whether this button is shown in the scoring UI */
@@ -131,16 +132,44 @@ export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
 };
 
 /**
- * Compute the actual score deltas for an afterblow exchange,
- * respecting the afterblow mode.
+ * Compute the actual score deltas for an afterblow exchange, respecting the
+ * afterblow mode.
+ *
+ * - `full`: both fighters score their button points (attacker, defender).
+ * - `deductive`: the afterblow is subtracted from the attacker
+ *   (`max(0, attackerPts − defenderPts)`, never negative) and the defender
+ *   scores 0 — getting hit back costs the attacker points.
  */
 export function computeAfterblowDeltas(
   mode: AfterblowMode,
   attackerPts: number,
   defenderPts: number,
 ): { attackerDelta: number; defenderDelta: number } {
-  return {
-    attackerDelta: attackerPts,
-    defenderDelta: mode === 'deductive' ? 0 : defenderPts,
-  };
+  if (mode === 'deductive') {
+    return { attackerDelta: Math.max(0, attackerPts - defenderPts), defenderDelta: 0 };
+  }
+  return { attackerDelta: attackerPts, defenderDelta: defenderPts };
+}
+
+/**
+ * Which side has won by reaching the point cap, or null if neither has yet.
+ * Reverse-aware: in `reverse_zero_loses` the side that hits 0 loses, so the
+ * winner is its opponent. Mirrors the engine's point-cap winner rule and
+ * drives the scoreboard's cap highlight.
+ */
+export function pointCapWinnerSide(
+  redScore: number,
+  blueScore: number,
+  matchFormat: MatchFormatConfig,
+): 'red' | 'blue' | null {
+  if (matchFormat.scoringDirection === 'reverse_zero_loses') {
+    if (redScore <= 0 && blueScore <= 0) return null;
+    if (redScore <= 0) return 'blue';
+    if (blueScore <= 0) return 'red';
+    return null;
+  }
+  if (redScore >= matchFormat.pointCap && blueScore >= matchFormat.pointCap) return null;
+  if (redScore >= matchFormat.pointCap) return 'red';
+  if (blueScore >= matchFormat.pointCap) return 'blue';
+  return null;
 }

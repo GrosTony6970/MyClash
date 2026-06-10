@@ -10,7 +10,11 @@ import { useI18n } from '../i18n/I18nProvider';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
-import { DEFAULT_MATCH_FORMAT_CONFIG, DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  DEFAULT_SCORING_CONFIG,
+  pointCapWinnerSide,
+} from '@myclash/types';
 import { remainingClockMs } from './ScoringPad';
 
 export interface MatchInfo {
@@ -165,6 +169,11 @@ export function MatchView({
   const canScore = scoringEnabled && !clockRunning && !softClockLocked;
   const clockTimeMs = clockState?.activeMs ?? null;
 
+  // Which side (if any) has won by reaching the point cap — drives the gold
+  // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
+  const capWinnerSide = pointCapWinnerSide(match.redScore, match.blueScore, matchFormat);
+  const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
+
   // Score-changing actions (exchange, penalty) recompute the score
   // server-side. Besides the internal bump (clock + exchange/penalty
   // lists), call the parent onRefresh() so the GET /matches/:id row —
@@ -263,6 +272,9 @@ export function MatchView({
           fighterName={redName}
           club={match.redClub ?? null}
           score={match.redScore}
+          reachedCap={capWinnerSide === 'red'}
+          pointCap={matchFormat.pointCap}
+          reverse={reverseScoring}
           config={scoringConfig}
           scoringEnabled={scoringEnabled}
           canScore={canScore}
@@ -278,6 +290,8 @@ export function MatchView({
           matchStatus={match.status}
           endReason={match.endReason ?? null}
           matchFormat={matchFormat}
+          phaseType={match.phaseType ?? undefined}
+          matchNumberLabel={match.matchNumberLabel}
           config={scoringConfig}
           redName={redName}
           blueName={blueName}
@@ -302,6 +316,9 @@ export function MatchView({
           fighterName={blueName}
           club={match.blueClub ?? null}
           score={match.blueScore}
+          reachedCap={capWinnerSide === 'blue'}
+          pointCap={matchFormat.pointCap}
+          reverse={reverseScoring}
           config={scoringConfig}
           scoringEnabled={scoringEnabled}
           canScore={canScore}

@@ -5,17 +5,24 @@ import type { MatchFormatConfig } from '@myclash/types';
 import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
 import { clockStatusSemantic, statusPillTone } from '@myclash/ui';
 import { useI18n } from '../i18n/I18nProvider';
+import {
+  type ClockState,
+  displayClockMs,
+  elapsedActiveMs,
+  formatClockMs,
+  shouldWarnClock,
+} from './scoreboard-clock';
 
-export type ClockStatus = 'idle' | 'running' | 'halted' | 'ended';
-
-export interface ClockState {
-  matchId: string;
-  status: ClockStatus;
-  activeMs: number;
-  runningFrom: string | null;
-  totalActiveMs: number;
-  startedAt: string | null;
-}
+// Pure clock math lives in ./scoreboard-clock (unit-tested). Re-export the
+// helpers + types so existing `from './MatchClock'` imports keep resolving.
+export type { ClockStatus, ClockState } from './scoreboard-clock';
+export {
+  formatClockMs,
+  isMedalMatchLabel,
+  phaseTimeLimitSeconds,
+  displayClockMs,
+  shouldWarnClock,
+} from './scoreboard-clock';
 
 interface MatchClockProps {
   matchId: string;
@@ -32,66 +39,6 @@ interface MatchClockProps {
    * never re-enable scoring after a 'start' / 'resume' transition.
    */
   onMatchChanged?: () => void;
-}
-
-export function formatClockMs(ms: number): string {
-  const clamped = Math.max(0, ms);
-  const totalSeconds = Math.floor(clamped / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const centiseconds = Math.floor((clamped % 1000) / 10);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(
-    centiseconds,
-  ).padStart(2, '0')}`;
-}
-
-export function isMedalMatchLabel(label: string | null | undefined) {
-  const normalized = (label ?? '').trim().toUpperCase();
-  return ['F', 'FINAL', 'GOLD', 'GOLD MEDAL MATCH', '3RD', 'BRONZE', 'BRONZE MEDAL MATCH'].includes(
-    normalized,
-  );
-}
-
-export function phaseTimeLimitSeconds(
-  matchFormat: MatchFormatConfig,
-  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
-  matchNumberLabel: string | null | undefined,
-) {
-  if (phaseType === 'pool') return matchFormat.timeLimitsSeconds.pool;
-  if (isMedalMatchLabel(matchNumberLabel)) return matchFormat.timeLimitsSeconds.finals;
-  return matchFormat.timeLimitsSeconds.bracket;
-}
-
-export function displayClockMs(
-  elapsedMs: number,
-  matchFormat: MatchFormatConfig,
-  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
-  matchNumberLabel: string | null | undefined,
-) {
-  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
-  if (matchFormat.timerMode === 'countdown' && limitSeconds !== null) {
-    return Math.max(0, limitSeconds * 1000 - elapsedMs);
-  }
-  return elapsedMs;
-}
-
-export function shouldWarnClock(
-  elapsedMs: number,
-  matchFormat: MatchFormatConfig,
-  phaseType: 'pool' | 'single_elim' | 'double_elim' | 'swiss' | undefined,
-  matchNumberLabel: string | null | undefined,
-) {
-  const limitSeconds = phaseTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
-  if (limitSeconds === null) return false;
-  return Math.max(0, limitSeconds * 1000 - elapsedMs) < 10_000;
-}
-
-function computeDisplayMs(state: ClockState): number {
-  if (state.status !== 'running' || !state.runningFrom) {
-    return state.activeMs;
-  }
-  const elapsed = Date.now() - new Date(state.runningFrom).getTime();
-  return state.activeMs + elapsed;
 }
 
 function computeWallElapsedMs(state: ClockState): number {
@@ -125,7 +72,7 @@ export default function MatchClock({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const state = (await res.json()) as ClockState;
       setClockState(state);
-      setDisplayMs(computeDisplayMs(state));
+      setDisplayMs(elapsedActiveMs(state, Date.now()));
       onStateChange?.(state);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('scoring.clock.loadFailed'));
@@ -143,7 +90,7 @@ export default function MatchClock({
       clockState?.startedAt && clockState.status !== 'idle' && clockState.status !== 'ended';
     if (shouldTick) {
       tickRef.current = setInterval(() => {
-        setDisplayMs(computeDisplayMs(clockState));
+        setDisplayMs(elapsedActiveMs(clockState, Date.now()));
         setWallElapsedMs(computeWallElapsedMs(clockState));
       }, 50);
     } else {
@@ -153,7 +100,7 @@ export default function MatchClock({
       }
       if (clockState) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronize displayed time when server clock stops
-        setDisplayMs(computeDisplayMs(clockState));
+        setDisplayMs(elapsedActiveMs(clockState, Date.now()));
         setWallElapsedMs(computeWallElapsedMs(clockState));
       }
     }
@@ -179,7 +126,7 @@ export default function MatchClock({
         }
         const newState = (await res.json()) as ClockState;
         setClockState(newState);
-        setDisplayMs(computeDisplayMs(newState));
+        setDisplayMs(elapsedActiveMs(newState, Date.now()));
         onStateChange?.(newState);
         // Trigger a parent refetch so `match.status` reflects the new
         // clock state. Gates downstream (scoringEnabled, penalty

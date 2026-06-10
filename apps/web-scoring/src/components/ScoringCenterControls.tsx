@@ -21,7 +21,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
-import { formatClockMs, type ClockState } from './MatchClock';
+import {
+  displayClockMs,
+  elapsedActiveMs,
+  formatClockMs,
+  shouldWarnClock,
+  type ClockState,
+} from './scoreboard-clock';
 import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
 import { usePenalties, type MatchPenalty, type PenaltyCard } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
@@ -36,6 +42,10 @@ interface ScoringCenterControlsProps {
   /** matches.end_reason — drives the BLACK CARD banner when 'black_card'. */
   endReason?: string | null;
   matchFormat: MatchFormatConfig;
+  /** Phase + match label resolve the per-phase time limit and the countdown
+   *  direction for the big clock. */
+  phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss';
+  matchNumberLabel?: string | null;
   config: TournamentScoringConfig;
   redName: string;
   blueName: string;
@@ -66,6 +76,8 @@ export function ScoringCenterControls({
   matchStatus,
   endReason,
   matchFormat,
+  phaseType,
+  matchNumberLabel,
   config,
   redName,
   blueName,
@@ -93,13 +105,11 @@ export function ScoringCenterControls({
     return () => clearInterval(id);
   }, [status]);
 
-  const displayMs = useMemo(() => {
-    if (!clockState) return 0;
-    if (clockState.status === 'running' && clockState.runningFrom) {
-      return clockState.activeMs + (now - new Date(clockState.runningFrom).getTime());
-    }
-    return clockState.activeMs;
-  }, [clockState, now]);
+  // Raw accumulated active ms; the big clock counts DOWN from the phase limit
+  // in countdown mode and UP otherwise (scoreboard-clock is the single source).
+  const elapsedMs = useMemo(() => elapsedActiveMs(clockState, now), [clockState, now]);
+  const shownMs = displayClockMs(elapsedMs, matchFormat, phaseType, matchNumberLabel);
+  const warned = shouldWarnClock(elapsedMs, matchFormat, phaseType, matchNumberLabel);
 
   const totalMs = useMemo(() => {
     if (!clockState?.startedAt) return 0;
@@ -222,19 +232,21 @@ export function ScoringCenterControls({
         );
       })()}
 
-      {/* Timer */}
+      {/* Timer — countdown-aware; turns red in the final 10s of a countdown. */}
       <p
         className={`font-mono text-6xl font-black tabular-nums leading-none ${
-          status === 'running'
-            ? 'text-white'
-            : status === 'halted'
-              ? 'text-yellow-400'
-              : status === 'ended'
-                ? 'text-gray-500'
-                : 'text-gray-600'
+          warned
+            ? 'text-red-500'
+            : status === 'running'
+              ? 'text-white'
+              : status === 'halted'
+                ? 'text-yellow-400'
+                : status === 'ended'
+                  ? 'text-gray-500'
+                  : 'text-gray-600'
         }`}
       >
-        {formatClockMs(displayMs)}
+        {formatClockMs(shownMs)}
       </p>
 
       {/* Total time */}

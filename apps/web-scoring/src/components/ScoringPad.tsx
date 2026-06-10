@@ -371,36 +371,43 @@ export function ScoringPad({
           {/* Afterblow buttons */}
           {visibleAfterblows.length > 0 && (
             <div className="grid grid-cols-2 gap-1.5">
-              {visibleAfterblows.map((btn) => (
-                <button
-                  key={btn.label}
-                  onClick={() => onAfterblowBtn('red', btn)}
-                  disabled={submitting || !canScore}
-                  className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
-                             hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
-                  title={
-                    config.afterblowMode === 'deductive'
-                      ? t('scoring.pad.afterblowTitleDeductive', {
-                          attacker: redSideLabel,
-                          defender: blueSideLabel,
-                          attackerPts: btn.attackerPts,
-                        })
-                      : t('scoring.pad.afterblowTitleFull', {
-                          attacker: redSideLabel,
-                          defender: blueSideLabel,
-                          attackerPts: btn.attackerPts,
-                          defenderPts: btn.defenderPts,
-                        })
-                  }
-                >
-                  {btn.label}
-                  <span className="block text-xs font-normal opacity-60">
-                    {config.afterblowMode === 'deductive'
-                      ? `+${btn.attackerPts} / 0`
-                      : `+${btn.attackerPts} / +${btn.defenderPts}`}
-                  </span>
-                </button>
-              ))}
+              {visibleAfterblows.map((btn) => {
+                const d = computeAfterblowDeltas(
+                  config.afterblowMode,
+                  btn.attackerPts,
+                  btn.defenderPts,
+                );
+                return (
+                  <button
+                    key={btn.label}
+                    onClick={() => onAfterblowBtn('red', btn)}
+                    disabled={submitting || !canScore}
+                    className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
+                               hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
+                    title={
+                      config.afterblowMode === 'deductive'
+                        ? t('scoring.pad.afterblowTitleDeductive', {
+                            attacker: redSideLabel,
+                            defender: blueSideLabel,
+                            attackerPts: d.attackerDelta,
+                          })
+                        : t('scoring.pad.afterblowTitleFull', {
+                            attacker: redSideLabel,
+                            defender: blueSideLabel,
+                            attackerPts: d.attackerDelta,
+                            defenderPts: d.defenderDelta,
+                          })
+                    }
+                  >
+                    {btn.label}
+                    <span className="block text-xs font-normal opacity-60">
+                      {config.afterblowMode === 'deductive'
+                        ? `+${d.attackerDelta} / 0`
+                        : `+${d.attackerDelta} / +${d.defenderDelta}`}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -450,36 +457,43 @@ export function ScoringPad({
           {/* Afterblow buttons */}
           {visibleAfterblows.length > 0 && (
             <div className="grid grid-cols-2 gap-1.5">
-              {visibleAfterblows.map((btn) => (
-                <button
-                  key={btn.label}
-                  onClick={() => onAfterblowBtn('blue', btn)}
-                  disabled={submitting || !canScore}
-                  className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
-                             hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
-                  title={
-                    config.afterblowMode === 'deductive'
-                      ? t('scoring.pad.afterblowTitleDeductive', {
-                          attacker: blueSideLabel,
-                          defender: redSideLabel,
-                          attackerPts: btn.attackerPts,
-                        })
-                      : t('scoring.pad.afterblowTitleFull', {
-                          attacker: blueSideLabel,
-                          defender: redSideLabel,
-                          attackerPts: btn.attackerPts,
-                          defenderPts: btn.defenderPts,
-                        })
-                  }
-                >
-                  {btn.label}
-                  <span className="block text-xs font-normal opacity-60">
-                    {config.afterblowMode === 'deductive'
-                      ? `+${btn.attackerPts} / 0`
-                      : `+${btn.attackerPts} / +${btn.defenderPts}`}
-                  </span>
-                </button>
-              ))}
+              {visibleAfterblows.map((btn) => {
+                const d = computeAfterblowDeltas(
+                  config.afterblowMode,
+                  btn.attackerPts,
+                  btn.defenderPts,
+                );
+                return (
+                  <button
+                    key={btn.label}
+                    onClick={() => onAfterblowBtn('blue', btn)}
+                    disabled={submitting || !canScore}
+                    className="min-h-[48px] rounded-xl border-2 border-orange-700 bg-orange-950 text-orange-200 font-bold text-sm
+                               hover:bg-orange-900 active:bg-orange-800 disabled:opacity-40 transition-colors touch-manipulation"
+                    title={
+                      config.afterblowMode === 'deductive'
+                        ? t('scoring.pad.afterblowTitleDeductive', {
+                            attacker: blueSideLabel,
+                            defender: redSideLabel,
+                            attackerPts: d.attackerDelta,
+                          })
+                        : t('scoring.pad.afterblowTitleFull', {
+                            attacker: blueSideLabel,
+                            defender: redSideLabel,
+                            attackerPts: d.attackerDelta,
+                            defenderPts: d.defenderDelta,
+                          })
+                    }
+                  >
+                    {btn.label}
+                    <span className="block text-xs font-normal opacity-60">
+                      {config.afterblowMode === 'deductive'
+                        ? `+${d.attackerDelta} / 0`
+                        : `+${d.attackerDelta} / +${d.defenderDelta}`}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
