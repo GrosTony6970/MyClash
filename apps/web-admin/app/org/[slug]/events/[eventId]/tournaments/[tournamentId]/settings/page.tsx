@@ -45,7 +45,7 @@ export default function TournamentSettingsPage() {
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full px-6 py-12 lg:px-8">
+    <main id="main-content" className="mx-auto w-full max-w-5xl px-6 py-12 lg:px-8">
       <Link
         href={`/org/${params.slug}/events/${params.eventId}/tournaments`}
         className="inline-flex items-center gap-1 rounded text-sm font-medium text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
