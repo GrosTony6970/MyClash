@@ -3112,6 +3112,10 @@ export const en = {
         laggingRefsFr: 'Quelles poules sont en retard et qui les arbitre ?',
       },
     },
+    compensation: {
+      tabPlan: 'Compensation plan',
+      tabReferees: 'Referee compensation',
+    },
     compensationSettings: {
       navCompensation: 'Compensation',
       navAi: 'AI',
@@ -7076,6 +7080,10 @@ export const fr = {
         laggingRefsEn: 'Which pools are lagging and who is refereeing them?',
         laggingRefsFr: 'Quelles poules sont en retard et qui les arbitre ?',
       },
+    },
+    compensation: {
+      tabPlan: 'Plan de compensation',
+      tabReferees: 'Compensation des arbitres',
     },
     compensationSettings: {
       navCompensation: 'Compensation',

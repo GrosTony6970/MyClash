@@ -1,10 +1,10 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationPlan, RefereeRole, CompensationPhase } from '@myclash/types';
+import { CompensationTopNav } from '../../../../../../../src/components/CompensationTopNav';
 
 const ROLES: { id: RefereeRole }[] = [
   { id: 'arbitre_declarant' },
@@ -52,8 +52,8 @@ function planToTierRows(plan: CompensationPlan): TierRow[] {
 }
 
 export default function OrgCompensationPlansPage() {
-  const params = useParams<{ slug: string }>();
-  const { slug } = params;
+  const params = useParams<{ slug: string; eventId: string }>();
+  const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -242,11 +242,7 @@ export default function OrgCompensationPlansPage() {
 
   return (
     <main className="p-8 max-w-4xl">
-      <div className="mb-2">
-        <Link href={`/org/${slug}`} className="text-sm text-gray-500 hover:underline">
-          {t('organizer.compensationSettings.backToOrg', { slug })}
-        </Link>
-      </div>
+      <CompensationTopNav active="plan" basePath={`/org/${slug}/events/${eventId}/compensation`} />
       <h1 className="text-2xl font-bold mb-1">{t('organizer.compensationSettings.title')}</h1>
       <p className="text-gray-500 text-sm mb-6">
         {t('organizer.compensationSettings.description')}

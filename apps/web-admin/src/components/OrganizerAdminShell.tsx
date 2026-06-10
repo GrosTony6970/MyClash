@@ -22,11 +22,8 @@ const orgNavItems = [
   // highlighted whether the operator is on /scoring or /penalty.
   { href: 'rulesets', labelKey: 'organizer.shell.nav.rulesets', badge: 'R' },
   { href: 'settings/ai', labelKey: 'organizer.shell.nav.aiSettings', badge: 'AI' },
-  {
-    href: 'settings/compensation',
-    labelKey: 'organizer.shell.nav.compensationSettings',
-    badge: 'C',
-  },
+  // Compensation is unified under each event (Compensation plan + Referee
+  // compensation tabs); no standalone org-settings entry.
   // Venues are org-level — operators manage the catalogue from this
   // entry. The event sidebar no longer surfaces venues; the
   // workshop + session venue pickers consume the org catalogue

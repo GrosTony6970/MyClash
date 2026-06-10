@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
+import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
 
 const ROLE_LABEL_KEYS: Record<string, string> = {
   arbitre_declarant: 'organizer.eventCompensation.roles.arbitre_declarant',
@@ -175,6 +176,10 @@ export default function CompensationPage() {
 
   return (
     <main className="p-8 max-w-5xl">
+      <CompensationTopNav
+        active="referees"
+        basePath={`/org/${slug}/events/${eventId}/compensation`}
+      />
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
         <Link href={`/org/${slug}`} className="hover:text-gray-700">
