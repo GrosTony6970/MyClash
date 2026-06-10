@@ -277,6 +277,9 @@ export default function PoolsPage() {
 
       // Check conflicts
       await checkConflicts();
+
+      // Pools just created — take the operator straight to the matches view.
+      selectTab('matches');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Pool generation failed.';
       setError(message);

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { accentClassFor, type ColorToken } from '@myclash/ui';
+import { sideStyle } from '@myclash/ui';
+import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { countPoolFighters } from './count-pool-fighters';
 import { buildMatchScoringHref } from './build-scoring-href';
@@ -84,8 +86,7 @@ interface MatchesTabProps {
 
 export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: MatchesTabProps) {
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
-  const [redColor, setRedColor] = useState<ColorToken>('red');
-  const [blueColor, setBlueColor] = useState<ColorToken>('blue');
+  const [sideColors, setSideColors] = useState<SideColors>({ red: 'red', blue: 'blue' });
   const [lices, setLices] = useState<Lice[]>([]);
   const [referees, setReferees] = useState<Referee[]>([]);
   const [roleConfig, setRoleConfig] = useState<RoleConfig[]>([]);
@@ -96,6 +97,10 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Use the scoreboard's exact side-colour palette so the fighter pills match
+  // the configured tournament colours (and the live scoreboard) one-for-one.
+  const sideConfig = { ...DEFAULT_SCORING_CONFIG, display: { sideColors } };
 
   useEffect(() => {
     setLoading(true);
@@ -122,14 +127,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
       }).then((r) => (r.ok ? r.json() : { roles: [] })),
     ]).then(([poolsData, tournamentData, licesData, refereesData, roleConfigData]) => {
       setPools(poolsData as PoolWithMatches[]);
-      const tournament = tournamentData as {
-        scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
-      } | null;
-      const sc = tournament?.scoring_config;
-      if (sc?.display?.sideColors) {
-        setRedColor((sc.display.sideColors.red as ColorToken) ?? 'red');
-        setBlueColor((sc.display.sideColors.blue as ColorToken) ?? 'blue');
-      }
+      setSideColors(parseSideColors(tournamentData));
       setLices(licesData as Lice[]);
       const refs = refereesData as Referee[];
       setReferees(refs);
@@ -563,7 +561,8 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             <td className="px-4 py-2">
                               <span className="flex items-center gap-2">
                                 <span
-                                  className={`h-6 w-1 rounded ${accentClassFor(redColor)}`}
+                                  className="h-6 w-1 rounded"
+                                  style={{ backgroundColor: sideStyle(sideConfig, 'red').border }}
                                   aria-hidden="true"
                                 />
                                 <span
@@ -611,7 +610,8 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             <td className="px-4 py-2">
                               <span className="flex items-center gap-2">
                                 <span
-                                  className={`h-6 w-1 rounded ${accentClassFor(blueColor)}`}
+                                  className="h-6 w-1 rounded"
+                                  style={{ backgroundColor: sideStyle(sideConfig, 'blue').border }}
                                   aria-hidden="true"
                                 />
                                 <span
