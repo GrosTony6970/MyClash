@@ -12,6 +12,7 @@ import {
 } from '@myclash/ui';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { parseBracketRound } from './bracket-round-group';
+import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
@@ -996,97 +997,101 @@ export function ScheduleGrid({
     [matches, activeDay],
   );
 
-  // Slice 6: group active-day matches by pool so the operator can
-  // clear an entire pool's day in one click. Each group also exposes
-  // the topmost slot/lice it occupies so the handle can be anchored to
-  // the right cell in the grid.
-  type PoolGroup = {
-    poolId: string;
-    poolName: string;
+  // Per-run grid headers: pools AND bracket rounds group into contiguous
+  // same-key runs per lice (computeHeaderRuns). Separating a match —
+  // another lice, a time gap, or a different match wedged in — splits the
+  // run, so each cluster keeps its own header, and the header's drag /
+  // clear scopes to just that cluster's matches.
+  type HeaderRunGroup = {
+    key: string;
+    label: string;
     tournamentName: string | null;
     tournamentColor: string | null;
-    minSlot: number;
+    startSlot: number;
     /** Exclusive end slot — last match's slot + its span. The band's
-     *  bottom edge sits here so it visually wraps every pool match. */
+     *  bottom edge sits here so it visually wraps the run. */
     endSlot: number;
-    minLiceIndex: number;
+    liceIndex: number;
     matchCount: number;
-    /** All match IDs in this pool group, in scheduled-time order.
-     *  Powers the drag-by-name payload (same shape as the unscheduled
-     *  pool-tile drag at line 1076). */
     matchIds: string[];
   };
-  const poolGroupsOnActiveDay = useMemo<PoolGroup[]>(() => {
+  const headerRunsOnActiveDay = useMemo<HeaderRunGroup[]>(() => {
     if (!activeDay) return [];
-    const byPool = new Map<string, PoolGroup>();
+    const items: HeaderRunItem[] = [];
+    const metaById = new Map<string, ScheduleMatch>();
     for (const m of scheduledOnActiveDay) {
-      if (!m.poolId || !m.poolName) continue;
       const liceIndex = lices.findIndex((l) => l.id === m.liceId);
       if (liceIndex === -1) continue;
-      const slot = isoToSlot(m.scheduledAt!, activeDay);
-      const span = Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES));
-      const endSlot = slot + span;
-      const existing = byPool.get(m.poolId);
-      if (!existing) {
-        byPool.set(m.poolId, {
-          poolId: m.poolId,
-          poolName: m.poolName,
-          tournamentName: m.tournamentName,
-          tournamentColor: m.tournamentColor,
-          minSlot: slot,
-          endSlot,
-          minLiceIndex: liceIndex,
-          matchCount: 1,
-          matchIds: [m.id],
-        });
-      } else {
-        existing.matchCount += 1;
-        existing.matchIds.push(m.id);
-        if (slot < existing.minSlot) {
-          existing.minSlot = slot;
-          existing.minLiceIndex = liceIndex;
-        }
-        if (endSlot > existing.endSlot) existing.endSlot = endSlot;
+      // Pool matches key by pool; bracket matches key by tournament +
+      // phase round (the same key the sidebar round blocks use). Other
+      // matches get no header.
+      let key: string | null = null;
+      if (m.poolId && m.poolName) {
+        key = `pool:${m.poolId}`;
+      } else if (m.phaseType && m.phaseType !== 'pool') {
+        const round = parseBracketRound(m.roundCode);
+        if (round) key = `round:${m.tournamentName ?? ''}|${round.token}`;
       }
+      if (!key) continue;
+      metaById.set(m.id, m);
+      items.push({
+        id: m.id,
+        key,
+        liceIndex,
+        slot: isoToSlot(m.scheduledAt!, activeDay),
+        span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
+      });
     }
-    return Array.from(byPool.values());
+    return computeHeaderRuns(items).map((run) => {
+      const first = metaById.get(run.matchIds[0]!)!;
+      const label = first.poolName ?? parseBracketRound(first.roundCode)?.label ?? '';
+      return {
+        key: `${run.key}@${run.liceIndex}:${run.startSlot}`,
+        label,
+        tournamentName: first.tournamentName,
+        tournamentColor: first.tournamentColor,
+        startSlot: run.startSlot,
+        endSlot: run.endSlot,
+        liceIndex: run.liceIndex,
+        matchCount: run.matchIds.length,
+        matchIds: run.matchIds,
+      };
+    });
   }, [scheduledOnActiveDay, lices, activeDay]);
 
-  // Reserve-space layout: distinct slots where a pool header begins. Every
+  // Reserve-space layout: distinct slots where a run header begins. Every
   // content item at/after such a slot shifts down POOL_HEADER_SPAN rows per
   // header above it, so the header sits in its own band instead of covering
-  // the pool's first matches. `rowFor(slot)` maps a content slot to its
+  // the run's first matches. `rowFor(slot)` maps a content slot to its
   // display grid row (slot + 3 base: venue band + lice header + 1-based).
   const poolHeaderStartSlots = useMemo(
-    () => poolGroupsOnActiveDay.map((g) => g.minSlot),
-    [poolGroupsOnActiveDay],
+    () => headerRunsOnActiveDay.map((g) => g.startSlot),
+    [headerRunsOnActiveDay],
   );
   const rowFor = (slot: number): number =>
     slot + 3 + rowShiftForSlot(slot, poolHeaderStartSlots, POOL_HEADER_SPAN);
 
-  const [pendingPoolClear, setPendingPoolClear] = useState<PoolGroup | null>(null);
-  const [clearingPool, setClearingPool] = useState(false);
+  const [pendingRunClear, setPendingRunClear] = useState<HeaderRunGroup | null>(null);
+  const [clearingRun, setClearingRun] = useState(false);
 
-  async function clearPool(group: PoolGroup) {
-    if (!activeDay) return;
-    setClearingPool(true);
+  /** Unschedule one run's matches (the header's click action). Per-match
+   *  PATCHes rather than the pool-day DELETE endpoint so it works for any
+   *  run subset — a separated pool cluster or a bracket round alike. */
+  async function clearRun(group: HeaderRunGroup) {
+    setClearingRun(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${group.poolId}/schedule?day=${activeDay}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // Optimistic local state update: null out matching matches.
+      const ids = new Set(group.matchIds);
       const updated = matches.map((m) =>
-        m.poolId === group.poolId && m.scheduledAt && matchBelongsToDay(m.scheduledAt, activeDay)
-          ? { ...m, liceId: null, scheduledAt: null }
-          : m,
+        ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
       setConflicts(detectConflicts(updated));
+      for (const id of group.matchIds) {
+        void saveMatchPosition(id, '', '');
+      }
     } finally {
-      setClearingPool(false);
-      setPendingPoolClear(null);
+      setClearingRun(false);
+      setPendingRunClear(null);
     }
   }
 
@@ -1622,22 +1627,23 @@ export function ScheduleGrid({
                 );
               })}
 
-              {/* Pool block: tinted band wrapping every match in the
-                  pool on the active day, plus a prominent draggable
-                  header strip at the top. The band uses dashed colored
-                  borders to read as a container; matches inside keep
-                  their own solid styling and stay above the band via
-                  z-index so the operator can still drag individual
-                  cards out of the pool. */}
-              {poolGroupsOnActiveDay.map((group) => {
-                // The header occupies its own reserved rows ABOVE the first
-                // match (matchRowStart already includes this pool's shift),
-                // so it no longer covers M1 & M2. The band wraps header + matches.
-                const matchRowStart = rowFor(group.minSlot);
+              {/* Run headers: one tinted band + bold strip per contiguous
+                  same-pool / same-bracket-round run on a lice ("Pool 1",
+                  "Semi-finals", …). Separating a match splits the run, so
+                  each cluster keeps its own header. The band uses dashed
+                  colored borders to read as a container; matches inside
+                  keep their own solid styling and stay above the band via
+                  z-index so the operator can still drag individual cards
+                  out of the run. */}
+              {headerRunsOnActiveDay.map((group) => {
+                // The header occupies its own reserved rows ABOVE the run's
+                // first match (matchRowStart already includes this run's
+                // shift). The band wraps header + matches.
+                const matchRowStart = rowFor(group.startSlot);
                 const headerRowStart = matchRowStart - POOL_HEADER_SPAN;
                 const bandRowEnd = rowFor(group.endSlot);
                 return (
-                  <Fragment key={group.poolId}>
+                  <Fragment key={group.key}>
                     {/* Translucent band — purely decorative, pointer-events
                         none so individual match drags inside the band still
                         work. */}
@@ -1649,41 +1655,42 @@ export function ScheduleGrid({
                         tintBorderClassFor(group.tournamentColor),
                       ].join(' ')}
                       style={{
-                        gridColumn: group.minLiceIndex + 2,
+                        gridColumn: group.liceIndex + 2,
                         gridRow: `${headerRowStart} / ${bandRowEnd}`,
                         margin: '1px',
                         opacity: 0.45,
                         zIndex: 5,
                       }}
                     />
-                    {/* Drag handle: bold header strip the operator drags
-                        to move the whole pool. Reuses the same
-                        dragPool payload shape as the unscheduled-pool
-                        tile, so the existing handleDrop / handlePoolDrop
-                        paths work unchanged. */}
+                    {/* Drag handle: bold header strip the operator drags to
+                        move this run's matches. Reuses the dragBracketRound
+                        payload (a plain matchIds group) so handleDrop's
+                        existing handleGroupDrop path re-fans the run at the
+                        drop target — works for pools and rounds alike. */}
                     <div
                       draggable
                       role="button"
                       tabIndex={0}
                       onDragStart={() => {
-                        dragPool.current = {
-                          poolId: group.poolId,
+                        dragBracketRound.current = {
+                          key: group.key,
                           matchIds: group.matchIds,
                         };
                         dragMatch.current = null;
+                        dragPool.current = null;
                         dragBlock.current = null;
                       }}
                       onDragEnd={() => {
-                        dragPool.current = null;
+                        dragBracketRound.current = null;
                       }}
-                      onClick={() => setPendingPoolClear(group)}
+                      onClick={() => setPendingRunClear(group)}
                       onKeyDown={(ev) => {
                         if (ev.key === 'Enter' || ev.key === ' ') {
                           ev.preventDefault();
-                          setPendingPoolClear(group);
+                          setPendingRunClear(group);
                         }
                       }}
-                      title={`${group.poolName}${group.tournamentName ? ` - ${group.tournamentName}` : ''} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move the pool · click to clear`}
+                      title={`${group.label}${group.tournamentName ? ` - ${group.tournamentName}` : ''} (${group.matchCount} match${group.matchCount === 1 ? '' : 'es'}) — drag to move · click to clear`}
                       className={[
                         'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-3 py-2 text-sm font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
                         accentClassFor(group.tournamentColor),
@@ -1691,9 +1698,9 @@ export function ScheduleGrid({
                         'text-white',
                       ].join(' ')}
                       style={{
-                        gridColumn: group.minLiceIndex + 2,
-                        // Sits in its own reserved rows just above the pool's
-                        // first match — no longer overlapping M1 & M2.
+                        gridColumn: group.liceIndex + 2,
+                        // Sits in its own reserved rows just above the run's
+                        // first match.
                         gridRow: `${headerRowStart} / ${matchRowStart}`,
                         marginLeft: '1px',
                         marginRight: '1px',
@@ -1702,7 +1709,7 @@ export function ScheduleGrid({
                       }}
                     >
                       <span className="truncate">
-                        {group.poolName}
+                        {group.label}
                         {group.tournamentName ? ` - ${group.tournamentName}` : ''}
                       </span>
                       <span className="text-xs opacity-90">· {group.matchCount}</span>
@@ -1838,22 +1845,22 @@ export function ScheduleGrid({
         busy={clearingDay}
       />
 
-      {/* Slice 6: Clear-pool confirm modal. */}
+      {/* Clear-run confirm modal (pool cluster or bracket round). */}
       <ConfirmDialog
-        open={pendingPoolClear !== null}
-        onConfirm={() => pendingPoolClear && void clearPool(pendingPoolClear)}
-        onCancel={() => setPendingPoolClear(null)}
-        title={pendingPoolClear ? `Clear ${pendingPoolClear.poolName}?` : ''}
+        open={pendingRunClear !== null}
+        onConfirm={() => pendingRunClear && void clearRun(pendingRunClear)}
+        onCancel={() => setPendingRunClear(null)}
+        title={pendingRunClear ? `Clear ${pendingRunClear.label}?` : ''}
         description={
-          pendingPoolClear
-            ? `This will unschedule ${pendingPoolClear.matchCount} match${
-                pendingPoolClear.matchCount === 1 ? '' : 'es'
-              } from ${pendingPoolClear.poolName}${pendingPoolClear.tournamentName ? ` (${pendingPoolClear.tournamentName})` : ''} on ${activeDay ? formatDayLabel(activeDay) : 'this day'}. Matches on other days and from other pools are not affected.`
+          pendingRunClear
+            ? `This will unschedule ${pendingRunClear.matchCount} match${
+                pendingRunClear.matchCount === 1 ? '' : 'es'
+              } from ${pendingRunClear.label}${pendingRunClear.tournamentName ? ` (${pendingRunClear.tournamentName})` : ''} on ${activeDay ? formatDayLabel(activeDay) : 'this day'}. Other matches are not affected.`
             : ''
         }
-        confirmLabel="Clear pool"
+        confirmLabel="Clear"
         danger
-        busy={clearingPool}
+        busy={clearingRun}
       />
 
       {/* Inline block-delete confirm modal. */}
