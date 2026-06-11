@@ -17,9 +17,11 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
 import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
-import { assignmentChipClasses } from './_components/assignment-chip-classes';
-import { formatUnassignedReason } from './_components/format-unassigned-reason';
 import { AssignmentDiagnosticsPanel } from './_components/AssignmentDiagnosticsPanel';
+import { PoolSlotCard } from './_components/PoolSlotCard';
+import { groupPoolsByTimeslot } from './_components/group-pools-by-timeslot';
+import { NO_LICE, liceColumnsFor } from './_components/timeslot-lice-columns';
+import { PoolTimelineGrid, type TimelinePool } from '../pools/_tabs/_components/PoolTimelineGrid';
 import { AvailabilityChips } from './_components/AvailabilityChips';
 import { countQualifiedBySkill } from './count-qualified-by-skill';
 
@@ -675,6 +677,59 @@ function AssignmentsTab({
   const [pendingClearPool, setPendingClearPool] = useState<{ id: string; name: string } | null>(
     null,
   );
+  // Unscheduled pool whose full card is expanded under the timeline
+  // (clicking its chip toggles it; one at a time).
+  const [expandedPoolId, setExpandedPoolId] = useState<string | null>(null);
+
+  // Timeslot blocks + lice columns for the "by time slot" card grid.
+  // The lice column order mirrors the /lices fetch order (sort_order) —
+  // liceNameById is built by insertion, so its key order carries it.
+  const allBoardPools = useMemo(
+    () => (board ? [...board.pools, ...board.unscheduledPools] : []),
+    [board],
+  );
+  const { blocks: timeslotBlocks, unscheduled: unscheduledBoardPools } = useMemo(
+    () => groupPoolsByTimeslot(allBoardPools),
+    [allBoardPools],
+  );
+  const liceColumns = useMemo(
+    () => liceColumnsFor(timeslotBlocks, [...liceNameById.keys()]),
+    [timeslotBlocks, liceNameById],
+  );
+  const timelinePools = useMemo<TimelinePool[]>(
+    () =>
+      allBoardPools.map((p) => ({
+        id: p.id,
+        name: p.name,
+        tournamentId: p.tournamentId,
+        tournamentName: p.tournamentName,
+        scheduledStart: p.scheduledStart,
+        scheduledEnd: p.scheduledEnd,
+        liceName: p.liceId ? (liceNameById.get(p.liceId) ?? null) : null,
+        filledSlotCount: p.roleSlots.filter((s) => s.assignment !== null).length,
+        totalSlotCount: p.roleSlots.length,
+      })),
+    [allBoardPools, liceNameById],
+  );
+  const expandedPool = useMemo(
+    () => unscheduledBoardPools.find((p) => p.id === expandedPoolId) ?? null,
+    [unscheduledBoardPools, expandedPoolId],
+  );
+
+  // Timeline chip click: unscheduled chips toggle their expanded card;
+  // scheduled chips jump to their timeslot section.
+  function handleChipClick(chip: TimelinePool) {
+    if (!chip.scheduledStart) {
+      setExpandedPoolId((prev) => (prev === chip.id ? null : chip.id));
+      return;
+    }
+    const block = timeslotBlocks.find((b) => b.pools.some((p) => p.id === chip.id));
+    if (block) {
+      document
+        .getElementById(`timeslot-${block.startTime}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 
   async function loadBoard(signal?: AbortSignal) {
     setLoading(true);
@@ -795,6 +850,30 @@ function AssignmentsTab({
       }
       setPicker(null);
       setBoard((await res.json()) as AssignmentBoard);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
+      );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  /** Remove one assignment from its slot (the card's Unassign button) —
+   *  same DELETE the pools-tab card uses, then a board refresh. */
+  async function unassign(assignmentId: string) {
+    setRunning(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/referee-assignments/${assignmentId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
+      }
+      await loadBoard();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
@@ -933,205 +1012,80 @@ function AssignmentsTab({
     }
   }
 
-  /**
-   * R2: pools are grouped by tournament so each tournament's table can
-   * show its own slot columns (slot config is per-tournament).
-   *
-   * Column derivation: within a tournament we pick the slot config from
-   * the first pool in the group — every pool of a given tournament shares
-   * the same `pool` slot config, so any one is representative. If a pool
-   * has fewer roleSlots than expected (legacy data corner case), we
-   * render its slots as-is and pad with empty cells.
-   */
-  function renderPoolRows(pools: AssignmentBoardPool[]) {
-    if (pools.length === 0) return null;
-    // One section per tournament. Within each tournament, Pool → Bracket →
-    // Finals sub-sections; scheduled vs unscheduled is a per-row label, not a
-    // separate block (so a tournament never splits across the page).
-    const groups = new Map<string, { tournamentName: string; pools: AssignmentBoardPool[] }>();
-    for (const pool of pools) {
-      const key = pool.tournamentId || pool.tournamentName || 'unknown';
-      const bucket = groups.get(key) ?? { tournamentName: pool.tournamentName, pools: [] };
-      bucket.pools.push(pool);
-      groups.set(key, bucket);
-    }
-    const KINDS: Array<'pool' | 'bracket' | 'finals'> = ['pool', 'bracket', 'finals'];
-    const orderedGroups = Array.from(groups.entries()).sort((a, b) =>
-      a[1].tournamentName.localeCompare(b[1].tournamentName),
+  /** One pool card wired to this tab's picker / unassign / clear / conflict state. */
+  function renderPoolCard(pool: AssignmentBoardPool, showLice: boolean) {
+    return (
+      <PoolSlotCard
+        key={pool.id}
+        pool={pool}
+        liceName={pool.liceId ? (liceNameById.get(pool.liceId) ?? null) : null}
+        showLice={showLice}
+        isReadOnly={isReadOnly || !!board?.locked}
+        busy={running}
+        skillNameById={skillNameById}
+        skillColorById={skillColorById}
+        onAssignClick={(slot) => setPicker({ pool, slot })}
+        onUnassign={(assignmentId) => void unassign(assignmentId)}
+        conflictFor={(personId) => conflictByKey.get(`${pool.id}|${personId}`)}
+        onClearPool={() => setPendingClearPool({ id: pool.id, name: pool.name })}
+      />
     );
+  }
 
+  /**
+   * "By time slot" grid: every pool/bracket (any tournament) running at
+   * the same time renders side-by-side, one column per lice, so the
+   * operator staffs a whole time block at once. Replaces the per-
+   * tournament tables — the timeline above gives the overview, the
+   * cards carry the assignment controls.
+   */
+  function renderTimeslotSections() {
+    if (timeslotBlocks.length === 0) return null;
     return (
       <div className="space-y-6">
-        {orderedGroups.map(([key, group]) => (
-          <div key={key} className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-800">{group.tournamentName}</h3>
-            {KINDS.map((kind) => {
-              const kindPools = group.pools
-                .filter((p) => (p.kind ?? 'pool') === kind)
-                .sort((a, b) => {
-                  // Scheduled rows first (by start time), unscheduled last.
-                  if (!a.scheduledStart && !b.scheduledStart) return 0;
-                  if (!a.scheduledStart) return 1;
-                  if (!b.scheduledStart) return -1;
-                  return a.scheduledStart.localeCompare(b.scheduledStart);
-                });
-              if (kindPools.length === 0) return null;
-              const headerSlots = kindPools[0]?.roleSlots ?? [];
-              return (
-                <div key={kind} className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                    {t(`organizer.refereesPage.assignmentsSubsection.${kind}`)}
-                  </p>
-                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
-                          <th className="px-3 py-2 font-medium">
-                            {t('organizer.refereesPage.poolColumn')}
-                          </th>
-                          <th className="px-3 py-2 font-medium">
-                            {t('organizer.refereesPage.scheduleColumn')}
-                          </th>
-                          <th className="px-3 py-2 font-medium">
-                            {t('organizer.refereesPage.liceColumn')}
-                          </th>
-                          {/* Clear-pool icon column header — kept empty
-                              since the icon itself carries an aria-label. */}
-                          <th className="w-8 px-2 py-2" />
-                          {headerSlots.map((slot) => (
-                            <th
-                              key={`${slot.slotIndex}:${slot.role}`}
-                              className="px-3 py-2 font-medium"
-                            >
-                              {slot.displayName ?? roleLabel(slot.role, skillNameById)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {kindPools.map((pool) => (
-                          <tr key={pool.id} className="border-b border-gray-100 last:border-0">
-                            <td className="px-3 py-3 align-top">
-                              <p className="font-medium text-gray-900">{pool.name}</p>
-                              <p className="mt-1 text-sm leading-relaxed text-gray-600">
-                                {pool.members.map((member) => member.personName).join(', ')}
-                              </p>
-                            </td>
-                            <td className="px-3 py-3 align-top text-xs text-gray-600">
-                              {!pool.scheduledStart
-                                ? t('organizer.refereesPage.unscheduled')
-                                : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
-                            </td>
-                            <td className="px-3 py-3 align-top text-xs text-gray-600">
-                              {pool.liceId ? (liceNameById.get(pool.liceId) ?? '—') : '—'}
-                            </td>
-                            <td className="w-8 px-2 py-3 align-top">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setPendingClearPool({ id: pool.id, name: pool.name })
-                                }
-                                disabled={isReadOnly || running || board?.locked}
-                                aria-label={t('organizer.refereesPage.clearPool')}
-                                title={t('organizer.refereesPage.clearPool')}
-                                className="text-gray-400 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <svg
-                                  aria-hidden="true"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                  className="h-4 w-4"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M8.75 1A1.75 1.75 0 0 0 7 2.75V3.5H3.75a.75.75 0 0 0 0 1.5h.59l.812 11.366A2.25 2.25 0 0 0 7.398 18.5h5.204a2.25 2.25 0 0 0 2.245-2.134L15.66 5h.59a.75.75 0 0 0 0-1.5H13V2.75A1.75 1.75 0 0 0 11.25 1h-2.5zM8.5 2.75A.25.25 0 0 1 8.75 2.5h2.5a.25.25 0 0 1 .25.25V3.5h-3V2.75zM7.75 8a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5A.75.75 0 0 1 7.75 8zm5 0a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0v-5.5a.75.75 0 0 1 .75-.75z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </button>
-                            </td>
-                            {pool.roleSlots.map((slot) => {
-                              const conflict = slot.assignment?.personId
-                                ? conflictByKey.get(`${pool.id}|${slot.assignment.personId}`)
-                                : undefined;
-                              return (
-                                <td
-                                  key={`${slot.slotIndex}:${slot.role}`}
-                                  className="px-3 py-3 align-top"
-                                >
-                                  <button
-                                    type="button"
-                                    disabled={isReadOnly || board?.locked}
-                                    onClick={() => setPicker({ pool, slot })}
-                                    className={[
-                                      'group relative min-h-12 w-full rounded border px-2 py-2 pr-6 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                                      assignmentChipClasses({
-                                        hasAssignment: !!slot.assignment,
-                                        isError:
-                                          !!conflict ||
-                                          (slot.missingReasons.length > 0 && !slot.assignment),
-                                        isProposal: slot.assignment?.isProposal ?? false,
-                                        skillColor: skillColorById.get(slot.role) ?? null,
-                                      }),
-                                    ].join(' ')}
-                                    aria-label={
-                                      slot.assignment
-                                        ? t('organizer.refereesPage.editAssignment')
-                                        : t('organizer.refereesPage.assignReferee')
-                                    }
-                                  >
-                                    <span className="block font-medium">
-                                      {slot.assignment?.displayName ??
-                                        t('organizer.refereesPage.unassigned')}
-                                    </span>
-                                    {slot.assignment?.isProposal && (
-                                      <span className="mt-0.5 inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
-                                        {t('organizer.refereesPage.proposedTag')}
-                                      </span>
-                                    )}
-                                    {slot.missingReasons.length > 0 && (
-                                      <span className="block text-xs opacity-80">
-                                        {slot.missingReasons
-                                          .map((r) => formatUnassignedReason(r, t))
-                                          .join(' ')}
-                                      </span>
-                                    )}
-                                    {conflict && (
-                                      <span className="block text-xs font-medium">
-                                        {conflict.kind === 'double_booked'
-                                          ? t(
-                                              'organizer.refereesPage.conflict.alsoOfficiating',
-                                            ).replace('{pool}', conflict.otherPoolName)
-                                          : t(
-                                              'organizer.refereesPage.conflict.alsoFighting',
-                                            ).replace('{pool}', conflict.otherPoolName)}
-                                      </span>
-                                    )}
-                                    {/* Slice B: pencil affordance — only on
-                                      filled slots; unassigned cells already
-                                      look like an "add" target. */}
-                                    {slot.assignment && (
-                                      <svg
-                                        aria-hidden="true"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                        className="pointer-events-none absolute right-1.5 top-1.5 h-3.5 w-3.5 opacity-50 group-hover:opacity-100"
-                                      >
-                                        <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.379-8.379-2.828-2.828z" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })}
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          {t('organizer.refereesPage.byTimeslotTitle')}
+        </h3>
+        {timeslotBlocks.map((block) => (
+          <div
+            key={block.startTime}
+            id={`timeslot-${block.startTime}`}
+            className="scroll-mt-4 space-y-2"
+          >
+            <div className="flex items-baseline gap-3">
+              <span className="text-sm font-bold tabular-nums text-gray-900">
+                {formatTime(block.startTime)}
+              </span>
+              <div className="h-px flex-1 bg-gray-200" />
+            </div>
+            <div className="overflow-x-auto pb-2">
+              <div
+                className="grid gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${liceColumns.length}, minmax(240px, 1fr))`,
+                }}
+              >
+                {liceColumns.map((liceId) => {
+                  const cellPools = block.pools.filter((p) => (p.liceId ?? NO_LICE) === liceId);
+                  return (
+                    <div key={liceId} className="space-y-2">
+                      <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                        {liceId === NO_LICE
+                          ? t('organizer.refereesPage.noLiceColumn')
+                          : (liceNameById.get(liceId) ?? '—')}
+                      </p>
+                      {cellPools.length === 0 ? (
+                        <p className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-xs text-gray-300">
+                          {t('organizer.refereesPage.idleLice')}
+                        </p>
+                      ) : (
+                        cellPools.map((pool) => renderPoolCard(pool, false))
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -1255,7 +1209,28 @@ function AssignmentsTab({
                 roleLabel={(role) => roleLabel(role, skillNameById)}
               />
             </div>
-            {renderPoolRows([...board.pools, ...board.unscheduledPools])}
+            {/* Event-wide timeline: every pool/bracket chip grouped by start
+                time, with the UNSCHEDULED chip row. Unscheduled chips expand
+                their card below; scheduled chips jump to their timeslot. */}
+            <PoolTimelineGrid pools={timelinePools} onPoolClick={handleChipClick} />
+            {expandedPool && (
+              <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    {t('organizer.refereesPage.unscheduled')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedPoolId(null)}
+                    className="text-xs text-gray-500 hover:text-gray-800"
+                  >
+                    {t('organizer.refereesPage.collapseCard')}
+                  </button>
+                </div>
+                <div className="max-w-md">{renderPoolCard(expandedPool, true)}</div>
+              </div>
+            )}
+            {renderTimeslotSections()}
             {/* R4: back-to-back swap suggestions (engine-computed).
                 Panel hides itself when the list is empty. */}
             <SwapSuggestionsPanel

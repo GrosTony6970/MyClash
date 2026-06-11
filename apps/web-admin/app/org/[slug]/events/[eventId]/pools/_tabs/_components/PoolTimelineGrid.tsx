@@ -20,6 +20,7 @@
 
 import { useMemo } from 'react';
 import { t } from '@myclash/i18n';
+import { groupPoolsByTimeslot } from '../../../referees/_components/group-pools-by-timeslot';
 
 export interface TimelinePool {
   id: string;
@@ -36,21 +37,16 @@ export interface TimelinePool {
 
 interface Props {
   pools: TimelinePool[];
-  /** Pools of this tournament render with a highlight ring. */
-  highlightTournamentId: string | null;
+  /** Pools of this tournament render with a highlight ring. Omit (the
+   *  event-level assignments tab) and no chip is highlighted. */
+  highlightTournamentId?: string | null;
+  /** When provided, chips become buttons — the assignments tab uses
+   *  this to expand an unscheduled pool's card / jump to a timeslot. */
+  onPoolClick?: (pool: TimelinePool) => void;
 }
 
-const GROUP_WINDOW_MS = 5 * 60 * 1000;
-
-interface Block {
-  /** Start time of the block (= the earliest scheduledStart of its pools). */
-  startTime: string;
-  pools: TimelinePool[];
-}
-
-export function PoolTimelineGrid({ pools, highlightTournamentId }: Props) {
-  const blocks = useMemo<Block[]>(() => groupByTimeBlock(pools), [pools]);
-  const unscheduled = useMemo(() => pools.filter((p) => !p.scheduledStart), [pools]);
+export function PoolTimelineGrid({ pools, highlightTournamentId, onPoolClick }: Props) {
+  const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
 
   if (blocks.length === 0 && unscheduled.length === 0) {
     return (
@@ -75,6 +71,7 @@ export function PoolTimelineGrid({ pools, highlightTournamentId }: Props) {
                   key={pool.id}
                   pool={pool}
                   highlighted={pool.tournamentId === highlightTournamentId}
+                  onClick={onPoolClick}
                 />
               ))}
             </div>
@@ -91,6 +88,7 @@ export function PoolTimelineGrid({ pools, highlightTournamentId }: Props) {
                   key={pool.id}
                   pool={pool}
                   highlighted={pool.tournamentId === highlightTournamentId}
+                  onClick={onPoolClick}
                 />
               ))}
             </div>
@@ -101,11 +99,24 @@ export function PoolTimelineGrid({ pools, highlightTournamentId }: Props) {
   );
 }
 
-function PoolCard({ pool, highlighted }: { pool: TimelinePool; highlighted: boolean }) {
+function PoolCard({
+  pool,
+  highlighted,
+  onClick,
+}: {
+  pool: TimelinePool;
+  highlighted: boolean;
+  onClick?: (pool: TimelinePool) => void;
+}) {
+  // Chips are read-only on the pools tab; the assignments tab passes
+  // onClick so a chip can expand its card / jump to its timeslot.
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div
+    <Tag
+      {...(onClick ? { type: 'button' as const, onClick: () => onClick(pool) } : {})}
       className={[
-        'rounded-md border bg-white px-3 py-2 text-xs shadow-sm transition-colors',
+        'rounded-md border bg-white px-3 py-2 text-left text-xs shadow-sm transition-colors',
+        onClick ? 'cursor-pointer' : '',
         highlighted
           ? 'border-red-500 ring-2 ring-red-200'
           : 'border-gray-200 hover:border-gray-300',
@@ -127,36 +138,8 @@ function PoolCard({ pool, highlighted }: { pool: TimelinePool; highlighted: bool
           {pool.filledSlotCount}/{pool.totalSlotCount}
         </span>
       </div>
-    </div>
+    </Tag>
   );
-}
-
-/**
- * Group pools whose `scheduledStart` falls within `GROUP_WINDOW_MS` of
- * each other into the same block. Pools sharing an identical
- * `scheduledStart` (the common case for scheduler-generated layouts)
- * always end up together; the tolerance only matters when the operator
- * has hand-edited slot times.
- */
-function groupByTimeBlock(pools: TimelinePool[]): Block[] {
-  const scheduled = pools
-    .filter((p) => p.scheduledStart !== null)
-    .sort((a, b) => (a.scheduledStart! < b.scheduledStart! ? -1 : 1));
-
-  const blocks: Block[] = [];
-  for (const pool of scheduled) {
-    const last = blocks[blocks.length - 1];
-    if (last) {
-      const lastTime = new Date(last.startTime).getTime();
-      const thisTime = new Date(pool.scheduledStart!).getTime();
-      if (thisTime - lastTime <= GROUP_WINDOW_MS) {
-        last.pools.push(pool);
-        continue;
-      }
-    }
-    blocks.push({ startTime: pool.scheduledStart!, pools: [pool] });
-  }
-  return blocks;
 }
 
 function formatHHMM(iso: string): string {

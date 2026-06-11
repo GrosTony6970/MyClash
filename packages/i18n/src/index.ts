@@ -3831,6 +3831,10 @@ export const en = {
         rulesFooter:
           'Rules: own pool · officiate-vs-fight · double-booked · two roles · availability · capacity',
       },
+      byTimeslotTitle: 'By time slot',
+      idleLice: 'idle',
+      noLiceColumn: 'No lice',
+      collapseCard: 'Close',
       unassigned: 'Unassigned',
       previewAssignments: 'Preview auto-assign',
       previewAutoAssign: 'Preview auto assign',
@@ -7863,6 +7867,10 @@ export const fr = {
         rulesFooter:
           'Regles : sa poule · arbitre-vs-combat · double affectation · deux roles · disponibilite · capacite',
       },
+      byTimeslotTitle: 'Par creneau',
+      idleLice: 'libre',
+      noLiceColumn: 'Sans lice',
+      collapseCard: 'Fermer',
       unassigned: 'Non affecte',
       previewAssignments: "Previsualiser l'affectation auto",
       previewAutoAssign: 'Lancer le calcul',

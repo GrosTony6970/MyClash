@@ -33,7 +33,7 @@ import {
   SwapSuggestionsPanel,
   type SwapSuggestion,
 } from '../../referees/_components/SwapSuggestionsPanel';
-import { assignmentChipClasses } from '../../referees/_components/assignment-chip-classes';
+import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -404,112 +404,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 }
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
-
-function PoolSlotCard({
-  pool,
-  liceName,
-  isReadOnly,
-  busy,
-  skillNameById,
-  skillColorById,
-  onAssignClick,
-  onUnassign,
-}: {
-  pool: AssignmentBoardPool;
-  liceName: string | null;
-  isReadOnly: boolean;
-  busy: boolean;
-  skillNameById: Map<string, string>;
-  skillColorById: Map<string, string>;
-  onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
-  onUnassign: (assignmentId: string) => void;
-}) {
-  // Most-important role first (slot 1 sits on top, then 2, then 3 …).
-  const orderedSlots = [...pool.roleSlots].sort((a, b) => a.slotIndex - b.slotIndex);
-  return (
-    <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-4">
-      <div className="mb-3">
-        <p className="font-semibold text-gray-900">
-          {pool.tournamentName ? `${pool.tournamentName} – ${pool.name}` : pool.name}
-        </p>
-        {pool.scheduledStart && (
-          <p className="text-xs text-gray-500">
-            {formatHHMM(pool.scheduledStart)}
-            {pool.scheduledEnd && `–${formatHHMM(pool.scheduledEnd)}`}
-          </p>
-        )}
-        {liceName && (
-          <p className="text-xs text-gray-500">
-            {t('organizer.poolsPage.refereesLiceLabel').replace('{lice}', liceName)}
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        {orderedSlots.map((slot) => (
-          <div
-            key={`${slot.slotIndex}:${slot.role}`}
-            className={[
-              'rounded-md border px-3 py-2',
-              assignmentChipClasses({
-                hasAssignment: !!slot.assignment,
-                isError: slot.missingReasons.length > 0 && !slot.assignment,
-                skillColor: skillColorById.get(slot.role) ?? null,
-              }),
-            ].join(' ')}
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
-              {slot.displayName ?? skillNameById.get(slot.role) ?? slot.role}
-            </p>
-            {slot.assignment ? (
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">{slot.assignment.displayName}</p>
-                <button
-                  type="button"
-                  disabled={isReadOnly || busy}
-                  onClick={() => onUnassign(slot.assignment!.id)}
-                  className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
-                >
-                  {t('organizer.poolsPage.refereesUnassign')}
-                </button>
-              </div>
-            ) : (
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-sm">{t('organizer.poolsPage.refereesUnassigned')}</p>
-                <button
-                  type="button"
-                  disabled={isReadOnly || busy}
-                  onClick={() => onAssignClick(slot)}
-                  className="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {t('organizer.poolsPage.refereesAssign')}
-                </button>
-              </div>
-            )}
-            {slot.missingReasons.length > 0 && !slot.assignment && (
-              <p className="mt-1 text-[10px] text-red-700">{slot.missingReasons.join(', ')}</p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {pool.members.length > 0 && (
-        <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3">
-          {pool.members.map((m) => (
-            <li key={m.registrationId} className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-gray-800">{m.personName}</span>
-              {m.clubLabel && (
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">
-                  {m.clubLabel}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+// PoolSlotCard moved to ../../referees/_components/PoolSlotCard.tsx so the
+// event-level Assignments tab's timeslot grid renders the same card.
 
 function ConcurrentPoolsPanel({ pools }: { pools: AssignmentBoardPool[] }) {
   return (
