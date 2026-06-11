@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { filterParticipants, type ParticipantLike } from './filter-participants';
+import { tournamentPillClasses } from './tournament-pill-classes';
 
 interface Props {
   eventSlug: string;
@@ -64,9 +65,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                           href={`/e/${eventSlug}/t/${encodeURIComponent(t.slug)}`}
                           className={[
                             'inline-block rounded-full border px-2 py-0.5 text-xs',
-                            t.registrationState === 'active'
-                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                              : 'border-stone-300 bg-stone-100 text-slate-500 opacity-60',
+                            tournamentPillClasses(t),
                           ].join(' ')}
                         >
                           {t.name}
@@ -128,9 +127,7 @@ export function ParticipantsList({ eventSlug, participants }: Props) {
                                 href={`/e/${eventSlug}/t/${encodeURIComponent(t.slug)}`}
                                 className={[
                                   'inline-block rounded-full border px-2 py-0.5 text-xs',
-                                  t.registrationState === 'active'
-                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                    : 'border-stone-300 bg-stone-100 text-slate-500 opacity-60',
+                                  tournamentPillClasses(t),
                                 ].join(' ')}
                               >
                                 {t.name}
