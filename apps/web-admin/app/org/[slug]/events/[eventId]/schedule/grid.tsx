@@ -11,6 +11,7 @@ import {
   tintTextClassFor,
 } from '@myclash/ui';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
+import { parseBracketRound } from './bracket-round-group';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
@@ -276,6 +277,11 @@ export function ScheduleGrid({
   // block AND cascade-shifts every later match on the same day.
   // Mutually exclusive with dragMatch / dragPool.
   const dragBlock = useRef<{ id: string; startTime: string } | null>(null);
+  // Dropping a whole bracket round (Play-ins / Round of 16 / …) onto a
+  // cell, the bracket analogue of dragPool. Carries the round's match
+  // ids so the drop fans them out via handleGroupDrop. Mutually
+  // exclusive with dragMatch / dragPool / dragBlock.
+  const dragBracketRound = useRef<{ key: string; matchIds: string[] } | null>(null);
   // Highlighted drop target while the operator drags. Drives the
   // blue ring on the hovered cell plus a HH:MM · lice-name pill so
   // the operator can aim the drop instead of guessing. Cleared on
@@ -613,6 +619,13 @@ export function ScheduleGrid({
       void handlePoolDrop(payload.poolId, liceId, slot);
       return;
     }
+    // Bracket-round-block drop — same precedence as a pool block.
+    if (dragBracketRound.current) {
+      const payload = dragBracketRound.current;
+      dragBracketRound.current = null;
+      void handleGroupDrop(new Set(payload.matchIds), liceId, slot);
+      return;
+    }
     const match = dragMatch.current;
     if (!match || !activeDay) return;
     const newScheduledAt = slotToTime(slot, activeDay);
@@ -674,21 +687,22 @@ export function ScheduleGrid({
   }
 
   /**
-   * Pool drop: place every match in the pool sequentially on the
-   * target lice starting at `slot`, displacing any existing
-   * occupants past the pool's tail via placeMultiWithShift.
+   * Group drop: place every match in `groupMatchIds` sequentially on
+   * the target lice starting at `slot`, displacing any existing
+   * occupants past the group's tail via placeMultiWithShift. Shared
+   * by the pool block and the bracket-round block.
    *
-   * Pre-P? this fanned the pool across every lice via the BE's
-   * /auto-distribute endpoint, which (a) scattered the pool the
+   * Pre-P? the pool path fanned the pool across every lice via the
+   * BE's /auto-distribute endpoint, which (a) scattered the group the
    * operator just dragged as a single unit and (b) silently no-op'd
    * on occupied targets. We now layout client-side on a single lice
    * and PATCH each affected match's new (liceId, scheduledAt).
    */
-  async function handlePoolDrop(poolId: string, targetLiceId: string, slot: number) {
+  async function handleGroupDrop(groupMatchIds: Set<string>, targetLiceId: string, slot: number) {
     if (!activeDay) return;
     setAutoDistributeError(null);
 
-    // 1. Gather the pool's matches in stable order. Numeric label
+    // 1. Gather the group's matches in stable order. Numeric label
     //    sort matches the BE scheduler's ordering after the
     //    schedule overhaul; falls back to existing scheduledAt when
     //    label is missing.
@@ -696,20 +710,20 @@ export function ScheduleGrid({
       const match = /(\d+)$/.exec(m.matchNumberLabel ?? '');
       return match ? Number.parseInt(match[1]!, 10) : Number.POSITIVE_INFINITY;
     };
-    const poolMatches = matches
-      .filter((m) => m.poolId === poolId)
+    const groupMatches = matches
+      .filter((m) => groupMatchIds.has(m.id))
       .sort((a, b) => matchNumeric(a) - matchNumeric(b));
-    if (poolMatches.length === 0) return;
+    if (groupMatches.length === 0) return;
 
     // 2. Current occupants of the target lice on the active day,
-    //    EXCLUDING the pool's own matches (they're being repositioned).
+    //    EXCLUDING the group's own matches (they're being repositioned).
     const occupants = matches
       .filter(
         (m) =>
           m.liceId === targetLiceId &&
           m.scheduledAt &&
           matchBelongsToDay(m.scheduledAt, activeDay) &&
-          m.poolId !== poolId,
+          !groupMatchIds.has(m.id),
       )
       .map((m) => ({
         id: m.id,
@@ -717,10 +731,10 @@ export function ScheduleGrid({
         span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
       }));
 
-    // 3. Pool's drop set, ordered. The .slot field is unused by
+    // 3. Group's drop set, ordered. The .slot field is unused by
     //    placeMultiWithShift (it computes the real positions); the
-    //    .span is what determines how much room the pool takes.
-    const dropped = poolMatches.map((m) => ({
+    //    .span is what determines how much room the group takes.
+    const dropped = groupMatches.map((m) => ({
       id: m.id,
       slot: 0,
       span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
@@ -734,14 +748,13 @@ export function ScheduleGrid({
       gridEndSlot: TOTAL_SLOTS,
     });
     const slotById = new Map(placement.items.map((it) => [it.id, it.slot]));
-    const poolMatchIds = new Set(poolMatches.map((m) => m.id));
 
     // 5. Apply optimistically.
     const updated = matches.map((m) => {
       const newSlot = slotById.get(m.id);
       if (newSlot == null) return m;
       const newScheduledAt = slotToTime(newSlot, activeDay);
-      const newLiceId = poolMatchIds.has(m.id) ? targetLiceId : (m.liceId ?? targetLiceId);
+      const newLiceId = groupMatchIds.has(m.id) ? targetLiceId : (m.liceId ?? targetLiceId);
       if (m.scheduledAt === newScheduledAt && m.liceId === newLiceId) return m;
       return { ...m, scheduledAt: newScheduledAt, liceId: newLiceId };
     });
@@ -755,12 +768,18 @@ export function ScheduleGrid({
       const original = matches.find((m) => m.id === item.id);
       if (!original) continue;
       const newScheduledAt = slotToTime(item.slot, activeDay);
-      const newLiceId = poolMatchIds.has(item.id)
+      const newLiceId = groupMatchIds.has(item.id)
         ? targetLiceId
         : (original.liceId ?? targetLiceId);
       if (original.scheduledAt === newScheduledAt && original.liceId === newLiceId) continue;
       void saveMatchPosition(item.id, newLiceId, newScheduledAt);
     }
+  }
+
+  /** Pool drop — all of the pool's matches as one group. */
+  function handlePoolDrop(poolId: string, targetLiceId: string, slot: number) {
+    const ids = new Set(matches.filter((m) => m.poolId === poolId).map((m) => m.id));
+    return handleGroupDrop(ids, targetLiceId, slot);
   }
 
   function pushUndo(move: ScheduleMove) {
@@ -910,6 +929,64 @@ export function ScheduleGrid({
     }
     return ids;
   }, [unscheduledPools, matches]);
+
+  // Same idea as pools, but for bracket matches grouped by phase round
+  // (Play-ins / Round of 16 / Quarter-finals / …). The round is read
+  // from each match's roundCode via parseBracketRound; the group key
+  // includes the tournament name so two same-weapon tournaments don't
+  // merge their rounds. Sorted by tournament then round order
+  // (play-ins → final).
+  type UnscheduledBracketRound = {
+    key: string;
+    label: string;
+    order: number;
+    tournamentName: string | null;
+    matchIds: string[];
+  };
+  const unscheduledBracketRounds = useMemo<UnscheduledBracketRound[]>(() => {
+    const byRound = new Map<string, UnscheduledBracketRound>();
+    for (const m of unscheduled) {
+      if (!m.phaseType || m.phaseType === 'pool') continue;
+      const round = parseBracketRound(m.roundCode);
+      if (!round) continue;
+      const key = `${m.tournamentName ?? ''}|${round.token}`;
+      const existing = byRound.get(key);
+      if (!existing) {
+        byRound.set(key, {
+          key,
+          label: round.label,
+          order: round.order,
+          tournamentName: m.tournamentName,
+          matchIds: [m.id],
+        });
+      } else {
+        existing.matchIds.push(m.id);
+      }
+    }
+    return Array.from(byRound.values()).sort((a, b) => {
+      const t = `${a.tournamentName ?? ''}`.localeCompare(`${b.tournamentName ?? ''}`);
+      return t !== 0 ? t : a.order - b.order;
+    });
+  }, [unscheduled]);
+
+  // Match ids hidden behind a bracket-round block — a round only earns
+  // a block when ALL its matches (across the whole schedule, by the
+  // same key) are unscheduled, mirroring the pool rule so manual
+  // placements fall back to individual chips.
+  const matchIdsCoveredByBracketRoundBlock = useMemo(() => {
+    const ids = new Set<string>();
+    for (const round of unscheduledBracketRounds) {
+      const totalForRound = matches.filter((m) => {
+        if (!m.phaseType || m.phaseType === 'pool') return false;
+        const r = parseBracketRound(m.roundCode);
+        return r != null && `${m.tournamentName ?? ''}|${r.token}` === round.key;
+      }).length;
+      if (totalForRound === round.matchIds.length) {
+        for (const id of round.matchIds) ids.add(id);
+      }
+    }
+    return ids;
+  }, [unscheduledBracketRounds, matches]);
 
   const scheduledOnActiveDay = useMemo(
     () =>
@@ -1234,9 +1311,14 @@ export function ScheduleGrid({
             className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2 max-h-[60vh] overflow-y-auto"
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
-              // Dropping a pool block back onto the sidebar = no-op.
+              // Dropping a pool / bracket-round block back onto the
+              // sidebar = no-op.
               if (dragPool.current) {
                 dragPool.current = null;
+                return;
+              }
+              if (dragBracketRound.current) {
+                dragBracketRound.current = null;
                 return;
               }
               const match = dragMatch.current;
@@ -1281,6 +1363,7 @@ export function ScheduleGrid({
                       onDragStart={() => {
                         dragPool.current = { poolId: pool.poolId, matchIds: pool.matchIds };
                         dragMatch.current = null;
+                        dragBracketRound.current = null;
                       }}
                       onDragEnd={() => {
                         dragPool.current = null;
@@ -1294,8 +1377,41 @@ export function ScheduleGrid({
                       </div>
                     </div>
                   ))}
+                {/* Bracket rounds group the same way pools do — drag a
+                    whole round (Play-ins / Round of 16 / …) onto a cell
+                    to fan its matches down a lice. Amber accent mirrors
+                    the bracket theme on the individual chips. */}
+                {unscheduledBracketRounds
+                  .filter((r) =>
+                    r.matchIds.every((id) => matchIdsCoveredByBracketRoundBlock.has(id)),
+                  )
+                  .map((round) => (
+                    <div
+                      key={round.key}
+                      draggable
+                      onDragStart={() => {
+                        dragBracketRound.current = { key: round.key, matchIds: round.matchIds };
+                        dragMatch.current = null;
+                        dragPool.current = null;
+                      }}
+                      onDragEnd={() => {
+                        dragBracketRound.current = null;
+                      }}
+                      className="cursor-grab rounded-md border-2 border-dashed border-amber-400 bg-amber-50 px-2 py-1.5 text-xs hover:border-amber-500 hover:bg-amber-100"
+                      title={`Drag onto a cell to auto-distribute ${round.matchIds.length} matches across lices`}
+                    >
+                      <div className="font-bold text-amber-900 truncate">{round.label}</div>
+                      <div className="text-[10px] text-amber-700 truncate">
+                        {round.tournamentName ?? ''} · {round.matchIds.length} matches
+                      </div>
+                    </div>
+                  ))}
                 {unscheduled
-                  .filter((m) => !matchIdsCoveredByPoolBlock.has(m.id))
+                  .filter(
+                    (m) =>
+                      !matchIdsCoveredByPoolBlock.has(m.id) &&
+                      !matchIdsCoveredByBracketRoundBlock.has(m.id),
+                  )
                   .map((m) => (
                     <MatchChip
                       key={m.id}
@@ -1306,6 +1422,7 @@ export function ScheduleGrid({
                       onDragStart={() => {
                         dragMatch.current = m;
                         dragPool.current = null;
+                        dragBracketRound.current = null;
                       }}
                     />
                   ))}
