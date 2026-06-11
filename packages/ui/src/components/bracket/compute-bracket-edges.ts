@@ -16,11 +16,39 @@ import type { BracketSlotData } from './types';
  *
  * Pure: no React, no DOM. Used by both the single-elim layout and
  * each lane of the double-elim layout (winners + losers brackets).
+ *
+ * When the slots carry the generator's advancement refs
+ * (`source_a_ref`/`source_b_ref` of the strict form `winner of RxPy`),
+ * edges come straight from them — the authoritative bracket structure.
+ * This is what makes a play-in round connect correctly: position-pairing
+ * assumes each round is a clean halving of the next, which a play-in
+ * round (e.g. R0=2 → R1=8) is not. The strict regex only matches
+ * single-elim refs; double-elim refs are WB/LB-prefixed, so its lanes
+ * fall through to position-pairing unchanged.
  */
+const WINNER_REF = /^winner of R(\d+)P(\d+)$/;
+
 export function computeBracketEdges(
   slots: BracketSlotData[],
   roundNumbers: readonly number[],
 ): ConnectorEdge[] {
+  // Prefer the generator's advancement refs when present — exact
+  // structure, including the irregular play-in → first-round feeds.
+  const idByRoundPos = new Map<string, string>();
+  for (const s of slots) idByRoundPos.set(`${s.round}:${s.position}`, s.id);
+  const refEdges: ConnectorEdge[] = [];
+  let sawRef = false;
+  for (const s of slots) {
+    for (const ref of [s.source_a_ref, s.source_b_ref]) {
+      const m = ref?.match(WINNER_REF);
+      if (!m) continue;
+      sawRef = true;
+      const fromId = idByRoundPos.get(`${Number(m[1])}:${Number(m[2])}`);
+      if (fromId) refEdges.push({ from: fromId, to: s.id, kind: 'winner' });
+    }
+  }
+  if (sawRef) return refEdges;
+
   const byRound = new Map<number, BracketSlotData[]>();
   for (const s of slots) {
     const arr = byRound.get(s.round) ?? [];

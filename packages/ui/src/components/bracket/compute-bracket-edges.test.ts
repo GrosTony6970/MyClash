@@ -22,6 +22,27 @@ function makeSlots(rounds: Array<{ round: number; count: number }>): BracketSlot
   return out;
 }
 
+function mk(
+  id: string,
+  round: number,
+  position: number,
+  refs?: { a?: string; b?: string },
+): BracketSlotData {
+  return {
+    id,
+    round,
+    position,
+    redFighterName: null,
+    blueFighterName: null,
+    redScore: null,
+    blueScore: null,
+    status: 'pending',
+    matchId: null,
+    source_a_ref: refs?.a ?? null,
+    source_b_ref: refs?.b ?? null,
+  };
+}
+
 describe('computeBracketEdges', () => {
   it('16-fighter R1 → R2 pairs (1,2)→r2p1, (3,4)→r2p2, (5,6)→r2p3, (7,8)→r2p4', () => {
     const slots = makeSlots([
@@ -118,6 +139,33 @@ describe('computeBracketEdges', () => {
         .map((e) => e.from)
         .sort(),
     ).toEqual(['r1p3', 'r1p4']);
+  });
+
+  it('uses winner-of refs to pair a play-in round to its real R1 slots (single-elim)', () => {
+    // 18-fighter shape: 2 play-ins feed two *different* R1 matches.
+    // Position-pairing (floor((pos-1)/2)) would wrongly map both
+    // play-ins to r1p1; the generator refs say otherwise.
+    const slots: BracketSlotData[] = [
+      mk('r0p1', 0, 1),
+      mk('r0p2', 0, 2),
+      mk('r1p1', 1, 1, { a: 'seed 1', b: 'winner of R0P2' }),
+      mk('r1p2', 1, 2, { a: 'seed 9', b: 'seed 8' }),
+      mk('r1p3', 1, 3),
+      mk('r1p4', 1, 4),
+      mk('r1p5', 1, 5),
+      mk('r1p6', 1, 6),
+      mk('r1p7', 1, 7),
+      mk('r1p8', 1, 8, { a: 'seed 2', b: 'winner of R0P1' }),
+    ];
+
+    const edges = computeBracketEdges(slots, [0, 1]);
+
+    // Each play-in points at the R1 match it actually feeds.
+    expect(edges).toContainEqual({ from: 'r0p2', to: 'r1p1', kind: 'winner' });
+    expect(edges).toContainEqual({ from: 'r0p1', to: 'r1p8', kind: 'winner' });
+    // And NOT the position-paired bug (both → r1p1).
+    expect(edges.filter((e) => e.to === 'r1p1')).toHaveLength(1);
+    expect(edges.some((e) => e.from === 'r0p1' && e.to === 'r1p1')).toBe(false);
   });
 
   it('every connector targets a real toSlots entry — never undefined', () => {

@@ -30,6 +30,14 @@ export interface BracketSlotData {
   liceId?: string | null;
   /** Self-ref label, e.g. 'WBR1P0', 'LBR2P1', 'GF', 'BRONZE'. */
   section?: string;
+  /** Advancement refs from the bracket generator, e.g. 'seed 1',
+   *  'winner of R0P2', 'bye'. The single-elim layout parses the
+   *  `winner of RxPy` form to draw exact connectors (and align the
+   *  play-in column) instead of guessing by position — which breaks
+   *  the moment a round isn't a clean halving of the next. Optional
+   *  so consumers that don't project them fall back gracefully. */
+  source_a_ref?: string | null;
+  source_b_ref?: string | null;
 }
 
 export interface BracketConfig {

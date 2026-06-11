@@ -933,9 +933,13 @@ export default function BracketPage() {
                 </label>
                 <select
                   value={bracketSize}
-                  onChange={(e) =>
-                    setBracketSize(e.target.value === '' ? '' : parseInt(e.target.value))
-                  }
+                  onChange={(e) => {
+                    const next = e.target.value === '' ? '' : parseInt(e.target.value);
+                    setBracketSize(next);
+                    // Auto bracket size ⇒ Auto qualify count, so generate()
+                    // omits both and the server auto-sizes from entrants.
+                    if (next === '') setQualifyCount('');
+                  }}
                   className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 >
                   <option value="">Auto</option>

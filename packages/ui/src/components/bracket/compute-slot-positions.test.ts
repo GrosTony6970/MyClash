@@ -115,6 +115,81 @@ describe('computeSlotPositions', () => {
     expect(positions.get('qf4')).toBe(6.5 * PITCH);
   });
 
+  it('anchors an 18-fighter play-in bracket on the widest round (no overlap)', () => {
+    // 18 → R0 = 2 play-ins, R1 = 8, R2 = 4, R3 = 2, R4 = 1.
+    // The play-in round is NOT the widest, so anchoring on it (old
+    // behaviour) crushed R1's 8 cards into 2×PITCH → overlap. The
+    // anchor must be R1 (8 slots); play-ins then align to the R1
+    // match each one actually feeds (via ref-derived edges).
+    const slots = [
+      slot('pi1', 0, 1),
+      slot('pi2', 0, 2),
+      slot('a1', 1, 1),
+      slot('a2', 1, 2),
+      slot('a3', 1, 3),
+      slot('a4', 1, 4),
+      slot('a5', 1, 5),
+      slot('a6', 1, 6),
+      slot('a7', 1, 7),
+      slot('a8', 1, 8),
+      slot('b1', 2, 1),
+      slot('b2', 2, 2),
+      slot('b3', 2, 3),
+      slot('b4', 2, 4),
+      slot('c1', 3, 1),
+      slot('c2', 3, 2),
+      slot('d1', 4, 1),
+    ];
+    const w = (from: string, to: string): ConnectorEdge => ({ from, to, kind: 'winner' });
+    const edges: ConnectorEdge[] = [
+      // play-ins feed two *different* R1 matches
+      w('pi1', 'a1'),
+      w('pi2', 'a8'),
+      // R1 → R2
+      w('a1', 'b1'),
+      w('a2', 'b1'),
+      w('a3', 'b2'),
+      w('a4', 'b2'),
+      w('a5', 'b3'),
+      w('a6', 'b3'),
+      w('a7', 'b4'),
+      w('a8', 'b4'),
+      // R2 → R3
+      w('b1', 'c1'),
+      w('b2', 'c1'),
+      w('b3', 'c2'),
+      w('b4', 'c2'),
+      // R3 → R4
+      w('c1', 'd1'),
+      w('c2', 'd1'),
+    ];
+
+    const { positions, columnHeight } = computeSlotPositions(
+      byRound(slots),
+      [0, 1, 2, 3, 4],
+      edges,
+      PITCH,
+    );
+
+    // Anchored on R1 (8 slots), not R0 (2).
+    expect(columnHeight).toBe(8 * PITCH);
+    // R1: uniform pitch across the full column.
+    for (let i = 0; i < 8; i++) {
+      expect(positions.get(`a${i + 1}`)).toBe((i + 0.5) * PITCH);
+    }
+    // R2/R3/R4: clean parent midpoints.
+    expect(positions.get('b1')).toBe(1 * PITCH);
+    expect(positions.get('b2')).toBe(3 * PITCH);
+    expect(positions.get('b3')).toBe(5 * PITCH);
+    expect(positions.get('b4')).toBe(7 * PITCH);
+    expect(positions.get('c1')).toBe(2 * PITCH);
+    expect(positions.get('c2')).toBe(6 * PITCH);
+    expect(positions.get('d1')).toBe(4 * PITCH);
+    // Play-ins (before the anchor) align to the R1 match they feed.
+    expect(positions.get('pi1')).toBe(positions.get('a1'));
+    expect(positions.get('pi2')).toBe(positions.get('a8'));
+  });
+
   it('distributes orphan slots evenly when a round has no parent edges', () => {
     // Round 2 has no slot with edges from round 1 — uniform fallback.
     const slots = [slot('r1a', 1, 1), slot('r1b', 1, 2), slot('r2a', 2, 1), slot('r2b', 2, 2)];
