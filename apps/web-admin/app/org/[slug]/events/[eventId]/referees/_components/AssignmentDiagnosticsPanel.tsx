@@ -1,7 +1,9 @@
 'use client';
 
 import { t } from '@myclash/i18n';
-import { summariseBoard, summariseRosterHealth } from './board-diagnostics';
+import type { CapacityWarning, RefereeConflict } from '@myclash/types';
+import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
+import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
 
 interface DiagnosticsBoard {
@@ -22,12 +24,14 @@ interface DiagnosticsBoard {
     role: string;
     reasons?: string[];
   }>;
+  conflicts?: RefereeConflict[];
+  capacityWarnings?: CapacityWarning[];
+  deadEndSlots?: Array<{ poolId: string; poolName: string; role: string }>;
 }
-
-type HealthStatus = 'healthy' | 'gaps' | 'shortage';
 
 function pickTheme(status: HealthStatus) {
   switch (status) {
+    case 'conflict':
     case 'shortage':
       return {
         section: 'mb-4 rounded-xl border border-red-300 bg-red-50 p-4',
@@ -58,6 +62,15 @@ function pickTheme(status: HealthStatus) {
   }
 }
 
+function hhmm(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
 export function AssignmentDiagnosticsPanel({
   board,
   skillNameById,
@@ -81,16 +94,18 @@ export function AssignmentDiagnosticsPanel({
   const reasonEntries = Object.entries(summary.byReason).sort((a, b) => b[1] - a[1]);
   const rosterShort = roster.filter((r) => r.shortBy > 0);
   const missing = board.missingSlots ?? [];
+  const conflicts = board.conflicts ?? [];
+  const capacityWarnings = board.capacityWarnings ?? [];
+  const deadEndSlots = board.deadEndSlots ?? [];
+  const label = (role: string) => (roleLabel ? roleLabel(role) : role);
 
-  // Red when something the operator can't fix from this tab (no
-  // qualified people for a skill). Amber when there are unfilled
-  // slots that are theoretically fillable. Otherwise neutral.
-  const status: HealthStatus =
-    rosterShort.length > 0
-      ? 'shortage'
-      : summary.filledSlots < summary.totalSlots
-        ? 'gaps'
-        : 'healthy';
+  const status = boardHealthStatus({
+    openSlots: summary.totalSlots - summary.filledSlots,
+    rosterShort: rosterShort.length > 0,
+    conflicts: conflicts.length,
+    capacity: capacityWarnings.length,
+    deadEnds: deadEndSlots.length,
+  });
   const theme = pickTheme(status);
 
   return (
@@ -101,6 +116,76 @@ export function AssignmentDiagnosticsPanel({
         </h3>
         <p className={`text-sm font-medium ${theme.coverage}`}>{coverage}</p>
       </div>
+
+      {conflicts.length > 0 && (
+        <div className="mb-3">
+          <p className={`mb-1 text-xs font-medium ${theme.sublabel}`}>
+            ⚠ {t('organizer.refereesPage.conflict.sectionTitle')} ({conflicts.length})
+          </p>
+          <ul className="space-y-1">
+            {conflicts.map((c, i) => (
+              <li key={`${c.poolId}:${c.personId}:${i}`} className={`text-sm ${theme.item}`}>
+                <span className="font-medium">{c.personName}</span> — {label(c.role)} · {c.poolName}
+                {c.start && ` (${hhmm(c.start)})`}
+                <span className={`block text-xs ${theme.sublabel}`}>
+                  ↳{' '}
+                  {c.kind === 'unavailable'
+                    ? t('organizer.refereesPage.conflict.unavailableLine').replace(
+                        '{tournament}',
+                        c.otherPoolName,
+                      )
+                    : c.kind === 'double_booked'
+                      ? t('organizer.refereesPage.conflict.alsoOfficiating').replace(
+                          '{pool}',
+                          c.otherPoolName,
+                        )
+                      : t('organizer.refereesPage.conflict.alsoFighting').replace(
+                          '{pool}',
+                          c.otherPoolName,
+                        )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {deadEndSlots.length > 0 && (
+        <div className="mb-3">
+          <p className={`mb-1 text-xs font-medium ${theme.sublabel}`}>
+            ⛔ {t('organizer.refereesPage.conflict.unfillableTitle')} ({deadEndSlots.length})
+          </p>
+          <ul className="space-y-1">
+            {deadEndSlots.map((d) => (
+              <li key={`${d.poolId}:${d.role}`} className={`text-sm ${theme.item}`}>
+                <span className="font-medium">{d.poolName}</span> — {label(d.role)}
+                <span className={`block text-xs ${theme.sublabel}`}>
+                  ↳ {t('organizer.refereesPage.conflict.unfillableDetail')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {capacityWarnings.length > 0 && (
+        <div className="mb-3">
+          <p className={`mb-1 text-xs font-medium ${theme.sublabel}`}>
+            📉 {t('organizer.refereesPage.conflict.capacityTitle')}
+          </p>
+          <ul className="space-y-1">
+            {capacityWarnings.map((w, i) => (
+              <li key={`${w.start}:${i}`} className={`text-sm ${theme.item}`}>
+                {hhmm(w.start)}–{hhmm(w.end)}:{' '}
+                {t('organizer.refereesPage.conflict.capacityLine')
+                  .replace('{lices}', String(w.liceCount))
+                  .replace('{needed}', String(w.needed))
+                  .replace('{free}', String(w.free))}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {reasonEntries.length > 0 && (
         <div className="mb-3">
@@ -132,8 +217,7 @@ export function AssignmentDiagnosticsPanel({
               const primaryReason = m.reasons?.[0];
               return (
                 <li key={`${m.poolId}:${m.role}`} className={`text-sm ${theme.item}`}>
-                  <span className="font-medium">{m.poolName}</span> —{' '}
-                  {roleLabel ? roleLabel(m.role) : m.role}
+                  <span className="font-medium">{m.poolName}</span> — {label(m.role)}
                   {primaryReason && (
                     <span className={`block text-xs ${theme.sublabel}`}>
                       ↳ {formatUnassignedReason(primaryReason, t)}
@@ -168,6 +252,10 @@ export function AssignmentDiagnosticsPanel({
           </ul>
         )}
       </div>
+
+      <p className={`mt-3 border-t pt-2 text-[11px] ${theme.sublabel}`}>
+        {t('organizer.refereesPage.conflict.rulesFooter')}
+      </p>
     </section>
   );
 }

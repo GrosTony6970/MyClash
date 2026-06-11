@@ -12,6 +12,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
+import type { CapacityWarning, RefereeConflict } from '@myclash/types';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
@@ -156,6 +157,9 @@ interface AssignmentBoard {
   }>;
   warnings: Array<{ poolId: string; poolName: string; role: AssignmentRole; detail: string }>;
   locked: boolean;
+  conflicts: RefereeConflict[];
+  capacityWarnings: CapacityWarning[];
+  deadEndSlots: Array<{ poolId: string; poolName: string; role: string }>;
   swapSuggestions: SwapSuggestion[];
 }
 
@@ -522,8 +526,16 @@ function formatTime(value: string | null) {
  * Unknown codes fall through verbatim so a new server reason still
  * shows something the operator can grep on.
  */
+const KNOWN_BLOCKED_REASONS = new Set([
+  'missing_qualification',
+  'fighter_referee_overlap',
+  'schedule_conflict',
+  'unavailable',
+  'duplicate_role_same_pool',
+]);
+
 function formatBlockedReason(code: string): string {
-  if (code === 'missing_qualification' || code === 'fighter_referee_overlap') {
+  if (KNOWN_BLOCKED_REASONS.has(code)) {
     return t(`organizer.refereesPage.blockedReasons.${code}`);
   }
   return code;
@@ -636,6 +648,16 @@ function AssignmentsTab({
       }
     }
     return false;
+  }, [board]);
+  // Scheduling conflicts keyed by `${poolId}|${personId}` so a role cell can
+  // flag the assigned referee in red. Excludes the 'unavailable' kind, which
+  // is surfaced in the health panel rather than per-cell.
+  const conflictByKey = useMemo(() => {
+    const m = new Map<string, RefereeConflict>();
+    for (const c of board?.conflicts ?? []) {
+      if (c.kind !== 'unavailable') m.set(`${c.poolId}|${c.personId}`, c);
+    }
+    return m;
   }, [board]);
   const [picker, setPicker] = useState<{
     pool: AssignmentBoardPool;
@@ -921,11 +943,11 @@ function AssignmentsTab({
    * has fewer roleSlots than expected (legacy data corner case), we
    * render its slots as-is and pad with empty cells.
    */
-  function renderPoolRows(pools: AssignmentBoardPool[], unscheduled = false) {
+  function renderPoolRows(pools: AssignmentBoardPool[]) {
     if (pools.length === 0) return null;
-    // R2: group by tournament. R4: within each tournament, split into
-    // Pool / Bracket / Finals sub-sections so each sub-section's table
-    // can carry its own (potentially different) slot column set.
+    // One section per tournament. Within each tournament, Pool → Bracket →
+    // Finals sub-sections; scheduled vs unscheduled is a per-row label, not a
+    // separate block (so a tournament never splits across the page).
     const groups = new Map<string, { tournamentName: string; pools: AssignmentBoardPool[] }>();
     for (const pool of pools) {
       const key = pool.tournamentId || pool.tournamentName || 'unknown';
@@ -934,14 +956,25 @@ function AssignmentsTab({
       groups.set(key, bucket);
     }
     const KINDS: Array<'pool' | 'bracket' | 'finals'> = ['pool', 'bracket', 'finals'];
+    const orderedGroups = Array.from(groups.entries()).sort((a, b) =>
+      a[1].tournamentName.localeCompare(b[1].tournamentName),
+    );
 
     return (
       <div className="space-y-6">
-        {Array.from(groups.entries()).map(([key, group]) => (
+        {orderedGroups.map(([key, group]) => (
           <div key={key} className="space-y-3">
             <h3 className="text-sm font-semibold text-gray-800">{group.tournamentName}</h3>
             {KINDS.map((kind) => {
-              const kindPools = group.pools.filter((p) => (p.kind ?? 'pool') === kind);
+              const kindPools = group.pools
+                .filter((p) => (p.kind ?? 'pool') === kind)
+                .sort((a, b) => {
+                  // Scheduled rows first (by start time), unscheduled last.
+                  if (!a.scheduledStart && !b.scheduledStart) return 0;
+                  if (!a.scheduledStart) return 1;
+                  if (!b.scheduledStart) return -1;
+                  return a.scheduledStart.localeCompare(b.scheduledStart);
+                });
               if (kindPools.length === 0) return null;
               const headerSlots = kindPools[0]?.roleSlots ?? [];
               return (
@@ -985,7 +1018,7 @@ function AssignmentsTab({
                               </p>
                             </td>
                             <td className="px-3 py-3 align-top text-xs text-gray-600">
-                              {unscheduled
+                              {!pool.scheduledStart
                                 ? t('organizer.refereesPage.unscheduled')
                                 : `${formatTime(pool.scheduledStart)}-${formatTime(pool.scheduledEnd)}`}
                             </td>
@@ -1017,62 +1050,80 @@ function AssignmentsTab({
                                 </svg>
                               </button>
                             </td>
-                            {pool.roleSlots.map((slot) => (
-                              <td
-                                key={`${slot.slotIndex}:${slot.role}`}
-                                className="px-3 py-3 align-top"
-                              >
-                                <button
-                                  type="button"
-                                  disabled={isReadOnly || board?.locked}
-                                  onClick={() => setPicker({ pool, slot })}
-                                  className={[
-                                    'group relative min-h-12 w-full rounded border px-2 py-2 pr-6 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                                    assignmentChipClasses({
-                                      hasAssignment: !!slot.assignment,
-                                      isError: slot.missingReasons.length > 0 && !slot.assignment,
-                                      isProposal: slot.assignment?.isProposal ?? false,
-                                      skillColor: skillColorById.get(slot.role) ?? null,
-                                    }),
-                                  ].join(' ')}
-                                  aria-label={
-                                    slot.assignment
-                                      ? t('organizer.refereesPage.editAssignment')
-                                      : t('organizer.refereesPage.assignReferee')
-                                  }
+                            {pool.roleSlots.map((slot) => {
+                              const conflict = slot.assignment?.personId
+                                ? conflictByKey.get(`${pool.id}|${slot.assignment.personId}`)
+                                : undefined;
+                              return (
+                                <td
+                                  key={`${slot.slotIndex}:${slot.role}`}
+                                  className="px-3 py-3 align-top"
                                 >
-                                  <span className="block font-medium">
-                                    {slot.assignment?.displayName ??
-                                      t('organizer.refereesPage.unassigned')}
-                                  </span>
-                                  {slot.assignment?.isProposal && (
-                                    <span className="mt-0.5 inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
-                                      {t('organizer.refereesPage.proposedTag')}
+                                  <button
+                                    type="button"
+                                    disabled={isReadOnly || board?.locked}
+                                    onClick={() => setPicker({ pool, slot })}
+                                    className={[
+                                      'group relative min-h-12 w-full rounded border px-2 py-2 pr-6 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                                      assignmentChipClasses({
+                                        hasAssignment: !!slot.assignment,
+                                        isError:
+                                          !!conflict ||
+                                          (slot.missingReasons.length > 0 && !slot.assignment),
+                                        isProposal: slot.assignment?.isProposal ?? false,
+                                        skillColor: skillColorById.get(slot.role) ?? null,
+                                      }),
+                                    ].join(' ')}
+                                    aria-label={
+                                      slot.assignment
+                                        ? t('organizer.refereesPage.editAssignment')
+                                        : t('organizer.refereesPage.assignReferee')
+                                    }
+                                  >
+                                    <span className="block font-medium">
+                                      {slot.assignment?.displayName ??
+                                        t('organizer.refereesPage.unassigned')}
                                     </span>
-                                  )}
-                                  {slot.missingReasons.length > 0 && (
-                                    <span className="block text-xs opacity-80">
-                                      {slot.missingReasons
-                                        .map((r) => formatUnassignedReason(r, t))
-                                        .join(' ')}
-                                    </span>
-                                  )}
-                                  {/* Slice B: pencil affordance — only on
+                                    {slot.assignment?.isProposal && (
+                                      <span className="mt-0.5 inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                                        {t('organizer.refereesPage.proposedTag')}
+                                      </span>
+                                    )}
+                                    {slot.missingReasons.length > 0 && (
+                                      <span className="block text-xs opacity-80">
+                                        {slot.missingReasons
+                                          .map((r) => formatUnassignedReason(r, t))
+                                          .join(' ')}
+                                      </span>
+                                    )}
+                                    {conflict && (
+                                      <span className="block text-xs font-medium">
+                                        {conflict.kind === 'double_booked'
+                                          ? t(
+                                              'organizer.refereesPage.conflict.alsoOfficiating',
+                                            ).replace('{pool}', conflict.otherPoolName)
+                                          : t(
+                                              'organizer.refereesPage.conflict.alsoFighting',
+                                            ).replace('{pool}', conflict.otherPoolName)}
+                                      </span>
+                                    )}
+                                    {/* Slice B: pencil affordance — only on
                                       filled slots; unassigned cells already
                                       look like an "add" target. */}
-                                  {slot.assignment && (
-                                    <svg
-                                      aria-hidden="true"
-                                      viewBox="0 0 20 20"
-                                      fill="currentColor"
-                                      className="pointer-events-none absolute right-1.5 top-1.5 h-3.5 w-3.5 opacity-50 group-hover:opacity-100"
-                                    >
-                                      <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.379-8.379-2.828-2.828z" />
-                                    </svg>
-                                  )}
-                                </button>
-                              </td>
-                            ))}
+                                    {slot.assignment && (
+                                      <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        className="pointer-events-none absolute right-1.5 top-1.5 h-3.5 w-3.5 opacity-50 group-hover:opacity-100"
+                                      >
+                                        <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.379-8.379-2.828-2.828z" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
                       </tbody>
@@ -1153,6 +1204,23 @@ function AssignmentsTab({
         >
           {t('organizer.refereesPage.clearAll')}
         </button>
+        {board && board.conflicts.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById('referee-health-panel')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 transition-colors hover:border-red-400 hover:bg-red-100"
+          >
+            <span aria-hidden="true">⚠</span>
+            {t('organizer.refereesPage.conflict.checkButton').replace(
+              '{count}',
+              String(board.conflicts.length),
+            )}
+          </button>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -1180,20 +1248,14 @@ function AssignmentsTab({
             className={board.locked ? 'pointer-events-none opacity-60' : ''}
             aria-disabled={board.locked || undefined}
           >
-            <AssignmentDiagnosticsPanel
-              board={board}
-              skillNameById={skillNameById}
-              roleLabel={(role) => roleLabel(role, skillNameById)}
-            />
-            {renderPoolRows(board.pools)}
-            {board.unscheduledPools.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-sm font-semibold text-gray-700">
-                  {t('organizer.refereesPage.unscheduledPools')}
-                </h2>
-                {renderPoolRows(board.unscheduledPools, true)}
-              </div>
-            )}
+            <div id="referee-health-panel" className="scroll-mt-4">
+              <AssignmentDiagnosticsPanel
+                board={board}
+                skillNameById={skillNameById}
+                roleLabel={(role) => roleLabel(role, skillNameById)}
+              />
+            </div>
+            {renderPoolRows([...board.pools, ...board.unscheduledPools])}
             {/* R4: back-to-back swap suggestions (engine-computed).
                 Panel hides itself when the list is empty. */}
             <SwapSuggestionsPanel

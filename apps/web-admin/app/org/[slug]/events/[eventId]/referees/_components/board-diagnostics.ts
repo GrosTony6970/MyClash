@@ -37,6 +37,29 @@ export function summariseBoard(board: BoardLike): BoardSummary {
   return { totalSlots, filledSlots, byReason };
 }
 
+export type HealthStatus = 'healthy' | 'gaps' | 'shortage' | 'conflict';
+
+/**
+ * Overall panel status, worst-first:
+ *   conflict — scheduling conflicts, capacity shortfalls, or unfillable slots
+ *              (red; the operator must act)
+ *   shortage — not enough qualified referees for some skill (red)
+ *   gaps     — slots merely unfilled but theoretically fillable (amber)
+ *   healthy  — nothing outstanding (neutral)
+ */
+export function boardHealthStatus(input: {
+  openSlots: number;
+  rosterShort: boolean;
+  conflicts: number;
+  capacity: number;
+  deadEnds: number;
+}): HealthStatus {
+  if (input.conflicts > 0 || input.capacity > 0 || input.deadEnds > 0) return 'conflict';
+  if (input.rosterShort) return 'shortage';
+  if (input.openSlots > 0) return 'gaps';
+  return 'healthy';
+}
+
 interface RosterBoardLike extends BoardLike {
   candidates: Array<{
     personId: string;

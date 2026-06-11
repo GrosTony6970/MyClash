@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summariseBoard, summariseRosterHealth } from './board-diagnostics';
+import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
 
 const slot = (overrides: Partial<{ role: string; assigned: boolean; reasons: string[] }> = {}) => ({
   slotIndex: 0,
@@ -77,5 +77,73 @@ describe('summariseRosterHealth', () => {
     };
     const health = summariseRosterHealth(board, new Map([['arbitre_table', 'Table']]));
     expect(health[0]?.shortBy).toBe(0);
+  });
+});
+
+describe('boardHealthStatus', () => {
+  it('is "healthy" when everything is filled and there are no problems', () => {
+    expect(
+      boardHealthStatus({
+        openSlots: 0,
+        rosterShort: false,
+        conflicts: 0,
+        capacity: 0,
+        deadEnds: 0,
+      }),
+    ).toBe('healthy');
+  });
+
+  it('is "gaps" when slots are merely unfilled', () => {
+    expect(
+      boardHealthStatus({
+        openSlots: 2,
+        rosterShort: false,
+        conflicts: 0,
+        capacity: 0,
+        deadEnds: 0,
+      }),
+    ).toBe('gaps');
+  });
+
+  it('escalates to "conflict" (red) when there are scheduling conflicts', () => {
+    expect(
+      boardHealthStatus({
+        openSlots: 0,
+        rosterShort: false,
+        conflicts: 1,
+        capacity: 0,
+        deadEnds: 0,
+      }),
+    ).toBe('conflict');
+  });
+
+  it('treats capacity shortages, dead-ends and roster shortage as red too', () => {
+    expect(
+      boardHealthStatus({
+        openSlots: 0,
+        rosterShort: false,
+        conflicts: 0,
+        capacity: 1,
+        deadEnds: 0,
+      }),
+    ).toBe('conflict');
+    expect(
+      boardHealthStatus({
+        openSlots: 0,
+        rosterShort: false,
+        conflicts: 0,
+        capacity: 0,
+        deadEnds: 1,
+      }),
+    ).toBe('conflict');
+    expect(
+      boardHealthStatus({
+        openSlots: 3,
+        rosterShort: true,
+        conflicts: 0,
+        capacity: 0,
+        deadEnds: 0,
+      }),
+    ).toBe('shortage');
   });
 });

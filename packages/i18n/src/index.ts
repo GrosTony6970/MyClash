@@ -3814,6 +3814,22 @@ export const en = {
       blockedReasons: {
         missing_qualification: 'Not qualified for this role',
         fighter_referee_overlap: 'Competing in this pool',
+        schedule_conflict: 'Busy at this time (fighting or officiating elsewhere)',
+        unavailable: 'Not available for this tournament or day',
+        duplicate_role_same_pool: 'Already assigned another role here',
+      },
+      conflict: {
+        sectionTitle: 'Scheduling conflicts',
+        checkButton: 'Check scheduling conflicts ({count})',
+        alsoFighting: 'also fighting in {pool} at the same time',
+        alsoOfficiating: 'also officiating {pool} at the same time',
+        unavailableLine: 'assigned outside availability ({tournament})',
+        unfillableTitle: 'Unfillable slots',
+        unfillableDetail: 'all qualified referees are busy or unavailable',
+        capacityTitle: 'Capacity',
+        capacityLine: '{lices} parallel pools need {needed} slots, only {free} referees free',
+        rulesFooter:
+          'Rules: own pool · officiate-vs-fight · double-booked · two roles · availability · capacity',
       },
       unassigned: 'Unassigned',
       previewAssignments: 'Preview auto-assign',
@@ -7829,6 +7845,23 @@ export const fr = {
       blockedReasons: {
         missing_qualification: 'Non qualifie pour ce role',
         fighter_referee_overlap: 'Combattant dans cette poule',
+        schedule_conflict: 'Occupe a ce creneau (combat ou arbitrage ailleurs)',
+        unavailable: 'Indisponible pour ce tournoi ou ce jour',
+        duplicate_role_same_pool: 'Deja affecte a un autre role ici',
+      },
+      conflict: {
+        sectionTitle: 'Conflits de planning',
+        checkButton: 'Verifier les conflits de planning ({count})',
+        alsoFighting: 'combat aussi dans {pool} au meme moment',
+        alsoOfficiating: 'arbitre aussi {pool} au meme moment',
+        unavailableLine: 'affecte hors disponibilite ({tournament})',
+        unfillableTitle: 'Postes impossibles a pourvoir',
+        unfillableDetail: 'tous les arbitres qualifies sont occupes ou indisponibles',
+        capacityTitle: 'Capacite',
+        capacityLine:
+          '{lices} poules en parallele demandent {needed} postes, seulement {free} arbitres libres',
+        rulesFooter:
+          'Regles : sa poule · arbitre-vs-combat · double affectation · deux roles · disponibilite · capacite',
       },
       unassigned: 'Non affecte',
       previewAssignments: "Previsualiser l'affectation auto",
