@@ -1385,6 +1385,7 @@ export const en = {
       publishNewVersionPrompt:
         'Optional: enter an explicit next version (e.g. 2.0.0). Leave blank to auto-bump.',
       tfV1InternalsTitle: 'TF v1 internals (super-admin)',
+      tfV1InternalsTitleOrg: 'TF v1 internals',
       tfV1InternalsHelp:
         'These values are merged over the TF v1 defaults at tournament creation. The scoring algorithm and ranking chain remain code-defined.',
       tfV1WinBonus: 'Win bonus',
@@ -5385,6 +5386,7 @@ export const fr = {
       publishNewVersionPrompt:
         'Optionnel : indiquer une version explicite (ex. 2.0.0). Laisser vide pour incrementer automatiquement.',
       tfV1InternalsTitle: 'Internals TF v1 (super-admin)',
+      tfV1InternalsTitleOrg: 'Internals TF v1',
       tfV1InternalsHelp:
         'Ces valeurs sont fusionnees par-dessus les defauts TF v1 a la creation d un tournoi. L algorithme de scoring et la chaine de classement restent definis dans le code.',
       tfV1WinBonus: 'Bonus de victoire',

@@ -14,20 +14,15 @@ import type {
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
-  DEFAULT_MATCH_FORMAT_DEFAULTS,
-  DEFAULT_TF_V1_INTERNALS,
   type MatchFormatDefaults,
   type RulesetFormValue,
-  type TfV1Internals,
 } from '../../../../../../src/components/rulesets/RulesetForm';
+import {
+  rulesetFormInitial,
+  type RulesetRowLike,
+} from '../../../../../../src/components/rulesets/ruleset-form-initial';
 
-interface TfConfigOverride {
-  winBonus?: number;
-  targetValues?: { deepTarget?: number; shallowTarget?: number };
-  matchFormat?: Partial<MatchFormatDefaults>;
-  doublePenaltyFormula?: string;
-  // forfeitPolicy intentionally not exposed in the UI yet
-}
+type TfConfigOverride = NonNullable<RulesetRowLike['tf_config']>;
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -112,29 +107,6 @@ export default function EditRulesetPage() {
           data.score_formula && 'type' in (data.score_formula as object)
             ? (data.score_formula as FormulaNode)
             : null;
-        const isTfV1 = data.code === 'TF_v1';
-        const tfCfg = data.tf_config ?? {};
-
-        // For TF v1, the canonical store for match-format defaults and
-        // double-penalty formula is `tf_config.*`. For custom rulesets it
-        // lives in the dedicated sibling columns. The form treats both as
-        // the same UI — we just hydrate from the right place per code.
-        const matchFormatSource = isTfV1
-          ? (tfCfg.matchFormat ?? null)
-          : (data.match_format_defaults ?? null);
-        const doublePenaltySource = isTfV1
-          ? (tfCfg.doublePenaltyFormula ?? '')
-          : (data.double_penalty_formula ?? '');
-
-        const tfV1Internals: TfV1Internals = isTfV1
-          ? {
-              winBonus: tfCfg.winBonus ?? DEFAULT_TF_V1_INTERNALS.winBonus,
-              deepTarget: tfCfg.targetValues?.deepTarget ?? DEFAULT_TF_V1_INTERNALS.deepTarget,
-              shallowTarget:
-                tfCfg.targetValues?.shallowTarget ?? DEFAULT_TF_V1_INTERNALS.shallowTarget,
-            }
-          : DEFAULT_TF_V1_INTERNALS;
-
         setInitial({
           code: data.code,
           name: data.name,
@@ -143,16 +115,9 @@ export default function EditRulesetPage() {
           scoreFormula: formula,
           constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(data.constants ?? {}) },
           tiebreakers: data.tiebreakers ?? [],
-          matchFormatDefaults: {
-            ...DEFAULT_MATCH_FORMAT_DEFAULTS,
-            ...(matchFormatSource ?? {}),
-            timeLimitsSeconds: {
-              ...DEFAULT_MATCH_FORMAT_DEFAULTS.timeLimitsSeconds,
-              ...(matchFormatSource?.timeLimitsSeconds ?? {}),
-            },
-          },
-          doublePenaltyFormula: doublePenaltySource,
-          tfV1Internals,
+          // TF v1 hydrates from tf_config.*, custom rulesets from the flat
+          // columns — one shared helper so the org pages can't drift.
+          ...rulesetFormInitial(data),
           isSystem: data.is_system,
           systemRankingChain: data.systemRankingChain,
           systemMetadata: data.systemMetadata,

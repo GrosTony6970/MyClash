@@ -12,6 +12,10 @@ import {
   type MatchFormatDefaults,
   type RulesetFormValue,
 } from '../../../../../../src/components/rulesets/RulesetForm';
+import {
+  rulesetFormInitial,
+  type RulesetRowLike,
+} from '../../../../../../src/components/rulesets/ruleset-form-initial';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -31,6 +35,7 @@ const BLANK_INITIAL: RulesetFormValue = {
  *  source (the owner-gated detail endpoint can't return built-ins). */
 interface OrgRulesetCatalogRow {
   id: string;
+  code: string;
   name: string;
   description: string | null;
   score_formula: FormulaNode | Record<string, never>;
@@ -38,6 +43,9 @@ interface OrgRulesetCatalogRow {
   tiebreakers: Tiebreaker[] | null;
   match_format_defaults: Partial<MatchFormatDefaults> | null;
   double_penalty_formula: string | null;
+  /** TF v1's canonical match-format store — without it a TF v1 clone
+   *  would silently seed from the generic 5/180 defaults. */
+  tf_config: RulesetRowLike['tf_config'];
 }
 
 /** Build a fresh-create form value from a ruleset being cloned: copy the
@@ -47,6 +55,10 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     row.score_formula && 'type' in (row.score_formula as object)
       ? (row.score_formula as FormulaNode)
       : null;
+  // Match-format defaults + double-penalty come from the same shared
+  // hydration the edit pages use, so cloning TF v1 carries its real
+  // configured values (tf_config.matchFormat), not the generic fallbacks.
+  const { matchFormatDefaults, doublePenaltyFormula } = rulesetFormInitial(row);
   return {
     name: `${row.name} (copy)`,
     description: row.description ?? '',
@@ -54,15 +66,8 @@ function cloneInitial(row: OrgRulesetCatalogRow): RulesetFormValue {
     scoreFormula: formula,
     constants: { ...DEFAULT_FORMULA_CONSTANTS, ...(row.constants ?? {}) },
     tiebreakers: row.tiebreakers ?? BLANK_INITIAL.tiebreakers,
-    matchFormatDefaults: {
-      ...DEFAULT_MATCH_FORMAT_DEFAULTS,
-      ...(row.match_format_defaults ?? {}),
-      timeLimitsSeconds: {
-        ...DEFAULT_MATCH_FORMAT_DEFAULTS.timeLimitsSeconds,
-        ...(row.match_format_defaults?.timeLimitsSeconds ?? {}),
-      },
-    },
-    doublePenaltyFormula: row.double_penalty_formula ?? '',
+    matchFormatDefaults,
+    doublePenaltyFormula,
   };
 }
 

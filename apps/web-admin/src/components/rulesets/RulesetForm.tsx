@@ -70,6 +70,10 @@ interface Props {
   /** Ruleset code — when 'TF_v1', the form renders the TF v1 internals
    * section and the onSubmit payload carries `tfV1Internals`. */
   code?: string;
+  /** Override for the TF v1 internals section title. The default carries
+   *  a "(SUPER-ADMIN)" suffix; the org read-only view passes a neutral
+   *  title instead. */
+  tfInternalsTitle?: string;
   /** Optional read-only metadata for is_system rulesets — sourced from the
    *  coded ruleset registry via the API. When provided, a System ruleset
    *  details panel renders above the form and the TiebreakersEditor's
@@ -92,6 +96,7 @@ export function RulesetForm({
   busy,
   submitLabel,
   code,
+  tfInternalsTitle,
   systemMetadata,
   systemRankingChain,
   onSubmit,
@@ -211,7 +216,7 @@ export function RulesetForm({
       {isTfV1 && (
         <div className="rounded-md border border-purple-200 bg-purple-50/40 p-5 shadow-sm">
           <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-purple-700">
-            {t('admin.rulesets.tfV1InternalsTitle')}
+            {tfInternalsTitle ?? t('admin.rulesets.tfV1InternalsTitle')}
           </h3>
           <p className="mb-3 text-xs text-slate-600">{t('admin.rulesets.tfV1InternalsHelp')}</p>
           <div className="grid gap-3 md:grid-cols-3">
