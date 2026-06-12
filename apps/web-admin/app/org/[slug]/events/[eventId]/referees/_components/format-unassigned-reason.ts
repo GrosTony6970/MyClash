@@ -10,6 +10,7 @@ const KNOWN_CODES = new Set([
   'all_qualified_already_assigned_to_pool',
   'all_qualified_are_fighters_in_this_pool',
   'all_qualified_have_time_conflict_with_other_pool',
+  'all_qualified_fighting_in_parallel_pool',
   'no_candidates_after_scoring',
   'would_self_conflict_in_pool',
   'all_qualified_unavailable_for_this_pool',

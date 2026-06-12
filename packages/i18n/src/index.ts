@@ -603,6 +603,19 @@ export const en = {
       resetConfirmAction: 'Reset clock',
       resetConfirmCancel: 'Cancel',
     },
+    resumeGuard: {
+      title: 'Time is up',
+      message:
+        'Per the ruleset the clock should not be restarted (time limit reached or soft-clock zone). Continue anyway, or end the match?',
+      continueAnyway: 'Continue anyway',
+      endMatch: 'End match',
+    },
+    result: {
+      matchEnded: 'Match ended',
+      winner: 'Winner',
+      draw: 'Draw',
+      close: 'Close',
+    },
     liveMatch: {
       status: {
         scheduled: 'Scheduled',
@@ -3736,6 +3749,37 @@ export const en = {
         would_self_conflict_in_pool: 'They are already assigned to a different role in this pool.',
         all_qualified_unavailable_for_this_pool:
           'Everyone qualified is unavailable for this tournament or day.',
+        all_qualified_fighting_in_parallel_pool:
+          'Everyone qualified is fighting in a parallel pool at the same time.',
+      },
+      rules: {
+        title: 'Rules checked',
+        toggleFailed: 'Could not update the rule setting.',
+        ownPool: {
+          label: 'Own pool',
+          description: 'A fighter cannot referee the pool or match they compete in.',
+        },
+        officiateVsFight: {
+          label: 'Officiate vs fight',
+          description:
+            'A referee cannot officiate while fighting in another pool at an overlapping time.',
+        },
+        doubleBooked: {
+          label: 'Double-booked',
+          description: 'A referee cannot officiate two pools whose schedules overlap.',
+        },
+        twoRoles: {
+          label: 'Two roles',
+          description: 'One person cannot hold two referee roles on the same pool.',
+        },
+        availability: {
+          label: 'Availability',
+          description: 'Assignments must respect each referee’s tournament and day availability.',
+        },
+        capacity: {
+          label: 'Capacity',
+          description: 'Warns when parallel pools need more referee slots than referees are free.',
+        },
       },
       diagnostics: {
         title: 'Assignment health',
@@ -4601,6 +4645,19 @@ export const fr = {
       resetConfirmBody: 'Le chrono retombe a zero. Les echanges ne sont pas modifies.',
       resetConfirmAction: 'Reinitialiser',
       resetConfirmCancel: 'Annuler',
+    },
+    resumeGuard: {
+      title: 'Temps ecoule',
+      message:
+        'Selon le reglement le chrono ne devrait pas etre relance (limite atteinte ou zone de soft clock). Continuer quand meme, ou terminer le match ?',
+      continueAnyway: 'Continuer quand meme',
+      endMatch: 'Terminer le match',
+    },
+    result: {
+      matchEnded: 'Match termine',
+      winner: 'Vainqueur',
+      draw: 'Egalite',
+      close: 'Fermer',
     },
     liveMatch: {
       status: {
@@ -7778,6 +7835,40 @@ export const fr = {
           'Cette personne est deja affectee a un autre role dans cette poule.',
         all_qualified_unavailable_for_this_pool:
           'Tous les arbitres qualifies sont indisponibles pour ce tournoi ou ce jour.',
+        all_qualified_fighting_in_parallel_pool:
+          'Tous les arbitres qualifies combattent dans une poule en parallele au meme moment.',
+      },
+      rules: {
+        title: 'Regles verifiees',
+        toggleFailed: 'Impossible de mettre a jour le reglage de la regle.',
+        ownPool: {
+          label: 'Sa poule',
+          description: 'Un combattant ne peut pas arbitrer la poule ou le match ou il combat.',
+        },
+        officiateVsFight: {
+          label: 'Arbitre vs combat',
+          description:
+            'Un arbitre ne peut pas officier pendant qu il combat dans une autre poule au meme moment.',
+        },
+        doubleBooked: {
+          label: 'Double affectation',
+          description:
+            'Un arbitre ne peut pas officier deux poules dont les horaires se chevauchent.',
+        },
+        twoRoles: {
+          label: 'Deux roles',
+          description: 'Une meme personne ne peut pas tenir deux roles sur la meme poule.',
+        },
+        availability: {
+          label: 'Disponibilite',
+          description:
+            'Les affectations respectent la disponibilite tournoi/jour de chaque arbitre.',
+        },
+        capacity: {
+          label: 'Capacite',
+          description:
+            'Avertit quand les poules en parallele demandent plus de postes que d arbitres libres.',
+        },
       },
       diagnostics: {
         title: 'Sante des affectations',

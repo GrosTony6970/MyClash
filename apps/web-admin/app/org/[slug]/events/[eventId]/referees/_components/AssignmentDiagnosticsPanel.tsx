@@ -6,6 +6,28 @@ import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './boar
 import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
 
+/** The six health-panel rules an operator can enable/disable. Keys match
+ *  the PUT pool-assignment-settings payload field names. */
+export const RULE_KEYS = [
+  'enableOwnPoolRule',
+  'enableOfficiateVsFightRule',
+  'enableDoubleBookedRule',
+  'enableTwoRolesRule',
+  'enableAvailabilityRule',
+  'enableCapacityRule',
+] as const;
+export type RuleKey = (typeof RULE_KEYS)[number];
+
+/** i18n suffix per rule under organizer.refereesPage.rules.* */
+const RULE_I18N: Record<RuleKey, string> = {
+  enableOwnPoolRule: 'ownPool',
+  enableOfficiateVsFightRule: 'officiateVsFight',
+  enableDoubleBookedRule: 'doubleBooked',
+  enableTwoRolesRule: 'twoRoles',
+  enableAvailabilityRule: 'availability',
+  enableCapacityRule: 'capacity',
+};
+
 interface DiagnosticsBoard {
   pools: Array<{
     roleSlots: Array<{
@@ -75,10 +97,18 @@ export function AssignmentDiagnosticsPanel({
   board,
   skillNameById,
   roleLabel,
+  ruleSettings,
+  onToggleRule,
+  togglesDisabled,
 }: {
   board: DiagnosticsBoard;
   skillNameById: Map<string, string>;
   roleLabel?: (role: string) => string;
+  /** Per-rule enabled state (from pool-assignment-settings). When provided,
+   *  the rules footer becomes a checkbox list with descriptions. */
+  ruleSettings?: Record<RuleKey, boolean>;
+  onToggleRule?: (key: RuleKey, enabled: boolean) => void;
+  togglesDisabled?: boolean;
 }) {
   const summary = summariseBoard(board);
   const roster = summariseRosterHealth(board, skillNameById);
@@ -253,9 +283,44 @@ export function AssignmentDiagnosticsPanel({
         )}
       </div>
 
-      <p className={`mt-3 border-t pt-2 text-[11px] ${theme.sublabel}`}>
-        {t('organizer.refereesPage.conflict.rulesFooter')}
-      </p>
+      {ruleSettings ? (
+        <div className="mt-3 border-t pt-2">
+          <p
+            className={`mb-1.5 text-[11px] font-semibold uppercase tracking-wider ${theme.sublabel}`}
+          >
+            {t('organizer.refereesPage.rules.title')}
+          </p>
+          <ul className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+            {RULE_KEYS.map((key) => (
+              <li key={key}>
+                <label
+                  className={`flex items-start gap-2 ${togglesDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={ruleSettings[key]}
+                    disabled={togglesDisabled}
+                    onChange={(e) => onToggleRule?.(key, e.target.checked)}
+                    className="mt-0.5 rounded"
+                  />
+                  <span>
+                    <span className={`block text-xs font-semibold ${theme.item}`}>
+                      {t(`organizer.refereesPage.rules.${RULE_I18N[key]}.label`)}
+                    </span>
+                    <span className={`block text-[11px] ${theme.sublabel}`}>
+                      {t(`organizer.refereesPage.rules.${RULE_I18N[key]}.description`)}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className={`mt-3 border-t pt-2 text-[11px] ${theme.sublabel}`}>
+          {t('organizer.refereesPage.conflict.rulesFooter')}
+        </p>
+      )}
     </section>
   );
 }

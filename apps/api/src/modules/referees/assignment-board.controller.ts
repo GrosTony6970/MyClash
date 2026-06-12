@@ -103,6 +103,14 @@ export class AssignmentBoardController {
     return this.assignments.applyManual(dto.eventId, dto);
   }
 
+  @Delete('referee-assignments/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove one referee assignment (refuses when locked)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteAssignment(@Param('id', ParseUUIDPipe) assignmentId: string) {
+    return this.assignments.deleteAssignment(assignmentId);
+  }
+
   @Delete('events/:eventId/referee-assignments')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

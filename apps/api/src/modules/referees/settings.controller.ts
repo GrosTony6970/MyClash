@@ -57,6 +57,31 @@ class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   workloadBalance?: boolean;
+
+  // Per-rule toggles for the Assignment Health rules (all default true).
+  @IsOptional()
+  @IsBoolean()
+  enableOwnPoolRule?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enableOfficiateVsFightRule?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enableDoubleBookedRule?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enableTwoRolesRule?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enableAvailabilityRule?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  enableCapacityRule?: boolean;
 }
 
 @ApiTags('referees')

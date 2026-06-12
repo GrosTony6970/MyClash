@@ -17,7 +17,7 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
 import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
-import { AssignmentDiagnosticsPanel } from './_components/AssignmentDiagnosticsPanel';
+import { AssignmentDiagnosticsPanel, type RuleKey } from './_components/AssignmentDiagnosticsPanel';
 import { PoolSlotCard } from './_components/PoolSlotCard';
 import { groupPoolsByTimeslot } from './_components/group-pools-by-timeslot';
 import { NO_LICE, liceColumnsFor } from './_components/timeslot-lice-columns';
@@ -780,6 +780,50 @@ function AssignmentsTab({
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
+  // Per-rule toggles (health panel checkboxes) — persisted in the event's
+  // pool-assignment-settings; the board re-loads after a toggle so
+  // conflicts / candidate blocking re-evaluate against the new rule set.
+  const [ruleSettings, setRuleSettings] = useState<Record<RuleKey, boolean> | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`${apiUrl}/api/v1/events/${eventId}/pool-assignment-settings`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const s = (await res.json()) as Record<RuleKey, boolean>;
+        setRuleSettings({
+          enableOwnPoolRule: s.enableOwnPoolRule ?? true,
+          enableOfficiateVsFightRule: s.enableOfficiateVsFightRule ?? true,
+          enableDoubleBookedRule: s.enableDoubleBookedRule ?? true,
+          enableTwoRolesRule: s.enableTwoRolesRule ?? true,
+          enableAvailabilityRule: s.enableAvailabilityRule ?? true,
+          enableCapacityRule: s.enableCapacityRule ?? true,
+        });
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  async function toggleRule(key: RuleKey, enabled: boolean) {
+    const prev = ruleSettings;
+    setRuleSettings((cur) => (cur ? { ...cur, [key]: enabled } : cur));
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/pool-assignment-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ [key]: enabled }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadBoard();
+    } catch {
+      setRuleSettings(prev ?? null);
+      setError(t('organizer.refereesPage.rules.toggleFailed'));
+    }
+  }
+
   /**
    * Run the auto-assign engine and overlay its proposals on the
    * current board. Until the operator clicks this, the board only
@@ -1207,6 +1251,9 @@ function AssignmentsTab({
                 board={board}
                 skillNameById={skillNameById}
                 roleLabel={(role) => roleLabel(role, skillNameById)}
+                {...(ruleSettings ? { ruleSettings } : {})}
+                onToggleRule={(key, enabled) => void toggleRule(key, enabled)}
+                togglesDisabled={isReadOnly || running || previewing}
               />
             </div>
             {/* Event-wide timeline: every pool/bracket chip grouped by start

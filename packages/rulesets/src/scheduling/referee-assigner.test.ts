@@ -864,3 +864,116 @@ describe('Pool-member fighter constraint', () => {
     expect(tableMissing?.rejectionReasons).toContain('all_qualified_are_fighters_in_this_pool');
   });
 });
+
+// ── Cross-pool fighting: a referee cannot officiate while fighting a
+//    parallel pool whose time window overlaps (any tournament). ─────────────
+
+describe('Cross-pool fighting conflict', () => {
+  const WINDOW = { earliestStart: '2027-06-22T11:00:00Z', latestEnd: '2027-06-22T13:24:00Z' };
+
+  function parallelPools(): PoolSlot[] {
+    // 4 pools all running 11:00–13:24 on parallel lices. Jocelyn fights
+    // in Pool 4 (roster + match registration).
+    return [
+      { ...makePool('p1', 'Pool 1'), ...WINDOW },
+      { ...makePool('p2', 'Pool 2'), ...WINDOW },
+      { ...makePool('p3', 'Pool 3'), ...WINDOW },
+      {
+        ...makePool('p4', 'Pool 4', ['reg-jocelyn', 'reg-bob']),
+        ...WINDOW,
+        memberPersonIds: ['jocelyn'],
+      },
+    ];
+  }
+
+  it('never assigns a referee to a pool overlapping one they fight in', () => {
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('jocelyn', 'Jocelyn Chaumette', ['arbitre_table'], ['reg-jocelyn']),
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeCandidate(`d${i}`, `Declarant ${i}`, ['arbitre_declarant']),
+      ),
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeCandidate(`a${i}`, `Assesseur ${i}`, ['arbitre_assesseur']),
+      ),
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeCandidate(`t${i}`, `Table ${i}`, ['arbitre_table']),
+      ),
+    ];
+
+    const result = assignRefereesWithPools(parallelPools(), candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    // Jocelyn fights 11:00–13:24 — she can't officiate ANY of the four pools.
+    const jocelynAssignments = result.assignments.filter((a) => a.personId === 'jocelyn');
+    expect(jocelynAssignments).toEqual([]);
+  });
+
+  it('reports the dedicated rejection reason when the fighter was the only candidate', () => {
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('jocelyn', 'Jocelyn Chaumette', ['arbitre_table'], ['reg-jocelyn']),
+      makeCandidate('d', 'Declarant', ['arbitre_declarant']),
+      makeCandidate('a', 'Assesseur', ['arbitre_assesseur']),
+    ];
+
+    const result = assignRefereesWithPools(parallelPools(), candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    const p1TableMissing = result.missing.find(
+      (m) => m.poolId === 'p1' && m.role === 'arbitre_table',
+    );
+    expect(p1TableMissing?.rejectionReasons).toContain('all_qualified_fighting_in_parallel_pool');
+  });
+
+  it('assigns the parallel fighter again when the officiate-vs-fight rule is disabled', () => {
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('jocelyn', 'Jocelyn Chaumette', ['arbitre_table'], ['reg-jocelyn']),
+      makeCandidate('d', 'Declarant', ['arbitre_declarant']),
+      makeCandidate('a', 'Assesseur', ['arbitre_assesseur']),
+    ];
+
+    const result = assignRefereesWithPools(parallelPools(), candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+      enableOfficiateVsFightRule: false,
+    });
+
+    // Rule off → Jocelyn is assignable to overlapping pools again (but
+    // still never to Pool 4, her own pool — own-pool rule stays on).
+    expect(
+      result.assignments.find((a) => a.personId === 'jocelyn' && a.poolId === 'p1'),
+    ).toBeDefined();
+    expect(
+      result.assignments.find((a) => a.personId === 'jocelyn' && a.poolId === 'p4'),
+    ).toBeUndefined();
+  });
+
+  it('still assigns a fighter whose own pool does NOT overlap', () => {
+    const pools: PoolSlot[] = [
+      { ...makePool('p1', 'Pool 1'), ...WINDOW },
+      {
+        ...makePool('p2', 'Afternoon pool', ['reg-jocelyn', 'reg-bob']),
+        earliestStart: '2027-06-22T14:00:00Z',
+        latestEnd: '2027-06-22T16:00:00Z',
+        memberPersonIds: ['jocelyn'],
+      },
+    ];
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('jocelyn', 'Jocelyn Chaumette', ['arbitre_table'], ['reg-jocelyn']),
+      makeCandidate('d', 'Declarant', ['arbitre_declarant']),
+      makeCandidate('a', 'Assesseur', ['arbitre_assesseur']),
+    ];
+
+    const result = assignRefereesWithPools(pools, candidates, {
+      ...DEFAULT_SETTINGS,
+      enforceRefereeNoBackToBack: false,
+    });
+
+    expect(
+      result.assignments.find((a) => a.personId === 'jocelyn' && a.poolId === 'p1'),
+    ).toBeDefined();
+  });
+});

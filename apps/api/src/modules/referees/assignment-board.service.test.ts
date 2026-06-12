@@ -13,6 +13,12 @@ const mockSettings = {
     workshopConflictWarning: true,
     ratingBasedOrdering: true,
     workloadBalance: true,
+    enableOwnPoolRule: true,
+    enableOfficiateVsFightRule: true,
+    enableDoubleBookedRule: true,
+    enableTwoRolesRule: true,
+    enableAvailabilityRule: true,
+    enableCapacityRule: true,
   }),
 };
 // R2: the assignment board now depends on the staffing resolver. In

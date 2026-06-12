@@ -158,6 +158,14 @@ export interface AssignmentSettings {
   workshopConflictWarning: boolean;
   ratingBasedOrdering: boolean;
   workloadBalance: boolean;
+  /** Per-rule toggles mirroring the Assignment Health rules. Optional,
+   *  default TRUE when omitted so existing callers/tests keep the full
+   *  hard-constraint behaviour. Disabling a rule skips its filter. */
+  enableOwnPoolRule?: boolean;
+  enableOfficiateVsFightRule?: boolean;
+  enableDoubleBookedRule?: boolean;
+  enableTwoRolesRule?: boolean;
+  enableAvailabilityRule?: boolean;
 }
 
 export interface RefereeAssignment {
@@ -478,23 +486,26 @@ function assignSlot(
   // pool.tournamentId / pool.dayIndex are optional for backwards
   // compatibility with pre-Slice-8 callers; missing pool metadata means
   // the matching dimension's filter is skipped.
-  const available = qualified.filter(({ candidate }) => {
-    if (
-      pool.tournamentId !== undefined &&
-      candidate.availableTournamentIds !== undefined &&
-      !candidate.availableTournamentIds.includes(pool.tournamentId)
-    ) {
-      return false;
-    }
-    if (
-      pool.dayIndex !== undefined &&
-      candidate.availableDayIndices !== undefined &&
-      !candidate.availableDayIndices.includes(pool.dayIndex)
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const available =
+    (settings.enableAvailabilityRule ?? true)
+      ? qualified.filter(({ candidate }) => {
+          if (
+            pool.tournamentId !== undefined &&
+            candidate.availableTournamentIds !== undefined &&
+            !candidate.availableTournamentIds.includes(pool.tournamentId)
+          ) {
+            return false;
+          }
+          if (
+            pool.dayIndex !== undefined &&
+            candidate.availableDayIndices !== undefined &&
+            !candidate.availableDayIndices.includes(pool.dayIndex)
+          ) {
+            return false;
+          }
+          return true;
+        })
+      : qualified;
 
   if (available.length === 0) {
     rejectionReasons.push('all_qualified_unavailable_for_this_pool');
@@ -506,9 +517,10 @@ function assignSlot(
     existingAssignments.filter((a) => a.poolId === pool.poolId).map((a) => a.personId),
   );
 
-  const notAlreadyAssigned = available.filter(
-    (q) => !alreadyAssignedToPool.has(q.candidate.personId),
-  );
+  const notAlreadyAssigned =
+    (settings.enableTwoRolesRule ?? true)
+      ? available.filter((q) => !alreadyAssignedToPool.has(q.candidate.personId))
+      : available;
 
   if (notAlreadyAssigned.length === 0) {
     rejectionReasons.push('all_qualified_already_assigned_to_pool');
@@ -524,26 +536,70 @@ function assignSlot(
   //      registration match. Still needed for the cross-pool case
   //      where a fighter's match record references a registration ID
   //      tied to them but the membership table hasn't caught up.
-  const noFighterOverlap = notAlreadyAssigned.filter(({ candidate }) => {
-    if (pool.memberPersonIds?.includes(candidate.personId)) {
-      return false;
-    }
-    for (const match of pool.matches) {
-      const isFighter =
-        candidate.fighterRegistrationIds.includes(match.redRegistrationId) ||
-        candidate.fighterRegistrationIds.includes(match.blueRegistrationId);
-      if (isFighter) return false;
-    }
-    return true;
-  });
+  const noFighterOverlap =
+    (settings.enableOwnPoolRule ?? true)
+      ? notAlreadyAssigned.filter(({ candidate }) => {
+          if (pool.memberPersonIds?.includes(candidate.personId)) {
+            return false;
+          }
+          for (const match of pool.matches) {
+            const isFighter =
+              candidate.fighterRegistrationIds.includes(match.redRegistrationId) ||
+              candidate.fighterRegistrationIds.includes(match.blueRegistrationId);
+            if (isFighter) return false;
+          }
+          return true;
+        })
+      : notAlreadyAssigned;
 
   if (noFighterOverlap.length === 0) {
     rejectionReasons.push('all_qualified_are_fighters_in_this_pool');
     return { assigned: null, warnings, rejectionReasons };
   }
 
+  // Filter: HARD constraint — referee cannot officiate a pool whose time
+  // window overlaps a DIFFERENT pool they FIGHT in (parallel lices, any
+  // tournament). The double-booking check below only sees officiating
+  // assignments already made; without this, a fighter of parallel Pool 4
+  // gets proposed as referee of Pool 1 at the same 11:00 window — the
+  // exact conflict the assignment-board detector then flags. Looping all
+  // pools (not just processed ones) also prevents conflicts with pools
+  // assigned later in the run.
+  const noParallelFighting = noFighterOverlap.filter(({ candidate }) => {
+    if (!(settings.enableOfficiateVsFightRule ?? true)) return true; // rule disabled
+    if (!pool.earliestStart || !pool.latestEnd) return true; // unscheduled — skip time check
+
+    const poolStart = new Date(pool.earliestStart).getTime();
+    const poolEnd = new Date(pool.latestEnd).getTime();
+
+    for (const otherPool of pools) {
+      if (otherPool.poolId === pool.poolId) continue;
+      if (!otherPool.earliestStart || !otherPool.latestEnd) continue;
+
+      const otherStart = new Date(otherPool.earliestStart).getTime();
+      const otherEnd = new Date(otherPool.latestEnd).getTime();
+      if (!(poolStart < otherEnd && otherStart < poolEnd)) continue;
+
+      const fightsThere =
+        otherPool.memberPersonIds?.includes(candidate.personId) ||
+        otherPool.matches.some(
+          (m) =>
+            candidate.fighterRegistrationIds.includes(m.redRegistrationId) ||
+            candidate.fighterRegistrationIds.includes(m.blueRegistrationId),
+        );
+      if (fightsThere) return false;
+    }
+    return true;
+  });
+
+  if (noParallelFighting.length === 0) {
+    rejectionReasons.push('all_qualified_fighting_in_parallel_pool');
+    return { assigned: null, warnings, rejectionReasons };
+  }
+
   // Filter: HARD constraint — referee cannot be assigned to two pools at the same time
-  const noTimeOverlap = noFighterOverlap.filter(({ candidate }) => {
+  const noTimeOverlap = noParallelFighting.filter(({ candidate }) => {
+    if (!(settings.enableDoubleBookedRule ?? true)) return true; // rule disabled
     if (!pool.earliestStart || !pool.latestEnd) return true; // unscheduled — skip time check
 
     const poolStart = new Date(pool.earliestStart).getTime();

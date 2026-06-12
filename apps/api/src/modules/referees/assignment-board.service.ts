@@ -461,6 +461,30 @@ export class AssignmentBoardService {
     return { deleted: all.length };
   }
 
+  /**
+   * Remove ONE referee assignment (the pool-card Unassign button and the
+   * swap-apply flow). Same lock guard as the bulk clears: a confirmed
+   * row means the board is locked and must be unlocked first.
+   */
+  async deleteAssignment(assignmentId: string): Promise<{ deleted: number }> {
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id, status')
+      .eq('id', assignmentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Assignment ${assignmentId} not found`);
+    if ((data as { status: string }).status === 'confirmed') {
+      throw new ConflictException('Assignments are locked. Unlock the board before removing.');
+    }
+    const { error: delErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('id', assignmentId);
+    if (delErr) throw new BadRequestException(delErr.message);
+    return { deleted: 1 };
+  }
+
   async applyPreview(eventId: string): Promise<AssignmentResult & { persisted: number }> {
     const context = await this.loadContext(eventId);
     const result = await this.previewFromContext(context);
@@ -504,18 +528,23 @@ export class AssignmentBoardService {
 
     // Pool-membership check handles real pools (members list) and bracket
     // matches (red/blue registration IDs on the single match) uniformly.
+    // Every reject below is gated by its rule toggle so a disabled rule
+    // stops blocking manual assignments too.
+    const rules = context.ruleSettings;
     const poolMembers = new Set<string>(pool.members.map((m) => m.personId));
     const fighterRegIds = context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [];
-    for (const match of pool.matches) {
-      if (
-        (match.redRegistrationId && fighterRegIds.includes(match.redRegistrationId)) ||
-        (match.blueRegistrationId && fighterRegIds.includes(match.blueRegistrationId))
-      ) {
-        throw new BadRequestException('A fighter cannot referee their own match');
+    if (rules.enableOwnPoolRule) {
+      for (const match of pool.matches) {
+        if (
+          (match.redRegistrationId && fighterRegIds.includes(match.redRegistrationId)) ||
+          (match.blueRegistrationId && fighterRegIds.includes(match.blueRegistrationId))
+        ) {
+          throw new BadRequestException('A fighter cannot referee their own match');
+        }
       }
-    }
-    if (poolMembers.has(candidate.personId)) {
-      throw new BadRequestException('A fighter cannot referee their own pool');
+      if (poolMembers.has(candidate.personId)) {
+        throw new BadRequestException('A fighter cannot referee their own pool');
+      }
     }
 
     // Cross-pool scheduling conflict: busy fighting or officiating another
@@ -525,7 +554,12 @@ export class AssignmentBoardService {
       dto.poolId,
       this.buildCommitmentPools(context),
     );
-    if (timeConflict) {
+    if (
+      timeConflict &&
+      (timeConflict.kind === 'officiate_vs_fight'
+        ? rules.enableOfficiateVsFightRule
+        : rules.enableDoubleBookedRule)
+    ) {
       throw new BadRequestException(
         timeConflict.kind === 'double_booked'
           ? `Referee is already officiating ${timeConflict.otherPoolName} at this time`
@@ -533,7 +567,10 @@ export class AssignmentBoardService {
       );
     }
     // Outside the referee's declared tournament/day availability.
-    if (this.isUnavailable(candidate, pool, this.makeDayIndexOf(context.eventStartDate))) {
+    if (
+      rules.enableAvailabilityRule &&
+      this.isUnavailable(candidate, pool, this.makeDayIndexOf(context.eventStartDate))
+    ) {
       throw new BadRequestException('Referee is not available for this tournament or day');
     }
 
@@ -552,7 +589,7 @@ export class AssignmentBoardService {
       if (isMatchScoped) return a.match_id === pool.matchId;
       return a.pool_id === pool.id;
     });
-    if (conflictingExisting) {
+    if (conflictingExisting && rules.enableTwoRolesRule) {
       throw new BadRequestException(
         'This referee is already assigned a different role in this pool',
       );
@@ -591,11 +628,17 @@ export class AssignmentBoardService {
       .maybeSingle();
     const eventStartDate = (eventRow as { start_date: string | null } | null)?.start_date ?? null;
 
+    // Per-rule toggles (own pool / officiate-vs-fight / …) gate every
+    // enforcement point downstream: engine filters, candidate blocking,
+    // manual-assign rejects, and the conflicts/capacity payload.
+    const ruleSettings = await this.settings.getSettings(eventId);
+
     const tournaments = await this.listTournaments(eventId);
     if (tournaments.length === 0) {
       return {
         eventId,
         eventStartDate,
+        ruleSettings,
         tournaments,
         phases: [] as PhaseRow[],
         pools: [] as AssignmentBoardPool[],
@@ -671,6 +714,7 @@ export class AssignmentBoardService {
     return {
       eventId,
       eventStartDate,
+      ruleSettings,
       tournaments,
       phases,
       pools: allPools,
@@ -1165,7 +1209,7 @@ export class AssignmentBoardService {
       }),
     );
 
-    const poolSettings = await this.settings.getSettings(context.eventId);
+    const poolSettings = context.ruleSettings;
     return assignRefereesWithPools(poolSlots, engineCandidates, {
       enforceRefereeNoBackToBack: poolSettings.enforceRefereeNoBackToBack,
       refereeRestMinSlots: poolSettings.refereeRestMinSlots,
@@ -1173,6 +1217,11 @@ export class AssignmentBoardService {
       workshopConflictWarning: poolSettings.workshopConflictWarning,
       ratingBasedOrdering: poolSettings.ratingBasedOrdering,
       workloadBalance: poolSettings.workloadBalance,
+      enableOwnPoolRule: poolSettings.enableOwnPoolRule,
+      enableOfficiateVsFightRule: poolSettings.enableOfficiateVsFightRule,
+      enableDoubleBookedRule: poolSettings.enableDoubleBookedRule,
+      enableTwoRolesRule: poolSettings.enableTwoRolesRule,
+      enableAvailabilityRule: poolSettings.enableAvailabilityRule,
     });
   }
 
@@ -1306,6 +1355,7 @@ export class AssignmentBoardService {
     // Shared inputs for the scheduling-conflict + availability checks.
     const dayIndexOf = this.makeDayIndexOf(context.eventStartDate);
     const commitmentPools = this.buildCommitmentPools(context);
+    const rules = context.ruleSettings;
 
     // R2 + R4: roleSlots come from the resolved Staffing config per
     // tournament, selecting `pool`/`bracket`/`finals` based on the
@@ -1360,23 +1410,34 @@ export class AssignmentBoardService {
             const reasons: string[] = [];
             const hasMatchingQual = candidate.qualifications.some((q) => allowedSet.has(q.role));
             if (!hasMatchingQual) reasons.push('missing_qualification');
-            if (candidate.personId && poolMembers.has(candidate.personId)) {
+            if (
+              rules.enableOwnPoolRule &&
+              candidate.personId &&
+              poolMembers.has(candidate.personId)
+            ) {
               reasons.push('fighter_referee_overlap');
             }
             // Busy at this time elsewhere (fighting or officiating another
-            // pool/bracket whose window overlaps — any tournament).
-            if (
-              candidate.personId &&
-              findTimeConflict(candidate.personId, pool.id, commitmentPools)
-            ) {
-              reasons.push('schedule_conflict');
+            // pool/bracket whose window overlaps — any tournament). Each
+            // collision kind is gated by its own rule toggle.
+            if (candidate.personId) {
+              const collision = findTimeConflict(candidate.personId, pool.id, commitmentPools);
+              if (
+                collision &&
+                (collision.kind === 'officiate_vs_fight'
+                  ? rules.enableOfficiateVsFightRule
+                  : rules.enableDoubleBookedRule)
+              ) {
+                reasons.push('schedule_conflict');
+              }
             }
             // Outside the referee's declared tournament/day availability.
-            if (this.isUnavailable(candidate, pool, dayIndexOf)) {
+            if (rules.enableAvailabilityRule && this.isUnavailable(candidate, pool, dayIndexOf)) {
               reasons.push('unavailable');
             }
             // Already holding a different role on this same pool/bracket.
             if (
+              rules.enableTwoRolesRule &&
               candidate.personId &&
               context.assignments.some(
                 (a) =>
@@ -1458,17 +1519,30 @@ export class AssignmentBoardService {
         }
       }
     }
-    const conflicts = [...detectRefereeConflicts(commitmentPools), ...availabilityConflicts];
-    const capacityWarnings = detectConcurrencyShortage(
-      commitmentPools,
-      context.candidates.map((c) => ({
-        personId: c.personId,
-        roles: c.qualifications.map((q) => q.role),
-        ...(c.availableTournamentIds ? { availableTournamentIds: c.availableTournamentIds } : {}),
-        ...(c.availableDayIndices ? { availableDayIndices: c.availableDayIndices } : {}),
-      })),
-      dayIndexOf,
-    );
+    // Each conflict kind is gated by its rule toggle, so unticking a rule
+    // in the health panel removes its findings everywhere at once.
+    const conflicts = [
+      ...detectRefereeConflicts(commitmentPools).filter((c) =>
+        c.kind === 'officiate_vs_fight'
+          ? rules.enableOfficiateVsFightRule
+          : rules.enableDoubleBookedRule,
+      ),
+      ...(rules.enableAvailabilityRule ? availabilityConflicts : []),
+    ];
+    const capacityWarnings = rules.enableCapacityRule
+      ? detectConcurrencyShortage(
+          commitmentPools,
+          context.candidates.map((c) => ({
+            personId: c.personId,
+            roles: c.qualifications.map((q) => q.role),
+            ...(c.availableTournamentIds
+              ? { availableTournamentIds: c.availableTournamentIds }
+              : {}),
+            ...(c.availableDayIndices ? { availableDayIndices: c.availableDayIndices } : {}),
+          })),
+          dayIndexOf,
+        )
+      : [];
     const deadEndSlots: AssignmentBoard['deadEndSlots'] = [];
     for (const pool of pools) {
       for (const slot of pool.roleSlots) {
