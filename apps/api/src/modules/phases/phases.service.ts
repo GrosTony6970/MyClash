@@ -1815,6 +1815,24 @@ export class PhasesService {
     const dst = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
 
+    // Defence in depth: only ACTIVE registrations can be pooled. The
+    // unassigned panel filters these out too, but a stale FE list (or any
+    // other caller) must not be able to pool a waitlisted/withdrawn fighter.
+    const { data: registration } = await this.supabase.service
+      .from('registrations')
+      .select('id, status')
+      .eq('id', registrationId)
+      .maybeSingle();
+    if (!registration) {
+      throw new BadRequestException(`Registration ${registrationId} not found`);
+    }
+    const regStatus = (registration as { status: string }).status;
+    if (regStatus !== 'registered' && regStatus !== 'checked_in') {
+      throw new BadRequestException(
+        `Cannot add a '${regStatus}' registration to a pool — only active (registered / checked-in) fighters can be pooled`,
+      );
+    }
+
     // Find any existing membership for this registration in pools of the same tournament.
     const { data: existing } = await this.supabase.service
       .from('pool_members')
@@ -1943,7 +1961,10 @@ export class PhasesService {
   }
 
   async listUnassignedFighters(tournamentId: string) {
-    // 1. Fetch all confirmed registrations for the tournament
+    // 1. Fetch the tournament's ACTIVE registrations. Same status filter as
+    //    generatePools: waitlist / withdrawn / disqualified rows must never
+    //    surface in the unassigned panel — they'd look like fighters waiting
+    //    to be pooled and could be dragged into a pool.
     const { data: regs, error: regErr } = await this.supabase.service
       .from('registrations')
       .select(
@@ -1951,7 +1972,8 @@ export class PhasesService {
         // through persons.global_person_id.
         'id, persons(given_name, family_name, clubs(name), global_persons(hema_ratings_id))',
       )
-      .eq('tournament_id', tournamentId);
+      .eq('tournament_id', tournamentId)
+      .in('status', ['registered', 'checked_in']);
     if (regErr) throw new BadRequestException(regErr.message);
 
     // 2. Fetch all pool_members for this tournament's pools

@@ -2247,4 +2247,66 @@ describe('PhasesService', () => {
       expect(result.source).toBe('pool-standings');
     });
   });
+
+  // ── Waiting list must not leak into pool building ─────────────────────────
+
+  describe('listUnassignedFighters — waiting list excluded', () => {
+    it('constrains the registrations query to active statuses (no waitlist/withdrawn)', async () => {
+      const regsChain = makeAwaitableChain({ data: [], error: null });
+      const poolMembersChain = makeAwaitableChain({ data: [], error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'registrations') return regsChain;
+        if (table === 'pool_members') return poolMembersChain;
+        return makeAwaitableChain({ data: null, error: null });
+      });
+      vi.spyOn(
+        service as unknown as { weightedRatingsForTournament: () => Promise<Map<string, number>> },
+        'weightedRatingsForTournament',
+      ).mockResolvedValue(new Map());
+
+      await service.listUnassignedFighters('tournament-1');
+
+      expect(regsChain.in).toHaveBeenCalledWith('status', ['registered', 'checked_in']);
+    });
+  });
+
+  describe('addPoolMember — waiting list guard', () => {
+    function stubPoolAuth() {
+      vi.spyOn(
+        service as unknown as { assertPoolEditAuth: () => Promise<{ tournamentId: string }> },
+        'assertPoolEditAuth',
+      ).mockResolvedValue({ tournamentId: 'tournament-1' });
+      vi.spyOn(
+        service as unknown as { assertPoolEditable: () => Promise<void> },
+        'assertPoolEditable',
+      ).mockResolvedValue(undefined);
+      vi.spyOn(
+        service as unknown as { regeneratePoolMatches: () => Promise<void> },
+        'regeneratePoolMatches',
+      ).mockResolvedValue(undefined);
+    }
+
+    it('rejects adding a waitlisted registration to a pool', async () => {
+      stubPoolAuth();
+      const regChain = makeChain({ data: { id: 'reg-1', status: 'waitlist' }, error: null });
+      fromMock.mockImplementation((table: string) =>
+        table === 'registrations' ? regChain : makeAwaitableChain({ data: [], error: null }),
+      );
+
+      await expect(service.addPoolMember('pool-1', 'reg-1', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('still adds an active (registered) fighter', async () => {
+      stubPoolAuth();
+      const regChain = makeChain({ data: { id: 'reg-1', status: 'registered' }, error: null });
+      fromMock.mockImplementation((table: string) =>
+        table === 'registrations' ? regChain : makeAwaitableChain({ data: [], error: null }),
+      );
+
+      const result = await service.addPoolMember('pool-1', 'reg-1', 'user-1');
+      expect(result).toMatchObject({ poolId: 'pool-1', registrationId: 'reg-1', moved: true });
+    });
+  });
 });
