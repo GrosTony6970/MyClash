@@ -126,8 +126,10 @@ export class ClockService {
     const sequence = ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
     const now = new Date().toISOString();
 
-    // Insert match_event
-    await this.supabase.service.from('match_events').insert({
+    // Insert match_event. The error MUST be checked: an unchecked failed
+    // insert would return a recomputed-but-unchanged clock with HTTP 200 —
+    // a silent no-op the operator can't diagnose.
+    const { error: insertErr } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
       sequence,
       type: action,
@@ -136,6 +138,7 @@ export class ClockService {
       staff_account_id: actor?.staffAccountId ?? null,
       occurred_at: now,
     });
+    if (insertErr) throw new BadRequestException(insertErr.message);
 
     // Update match status if needed
     if (action === 'start' || action === 'resume') {
@@ -199,7 +202,9 @@ export class ClockService {
       throw new BadRequestException('Match is locked');
     }
     const sequence = await this.nextSequence(matchId);
-    await this.supabase.service.from('match_events').insert({
+    // Same silent-no-op guard as clockAction: a failed insert must surface
+    // as an error, not as an unchanged clock with HTTP 200.
+    const { error: insertErr } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
       sequence,
       type: 'adjust_time',
@@ -209,6 +214,7 @@ export class ClockService {
       staff_account_id: actor?.staffAccountId ?? null,
       occurred_at: new Date().toISOString(),
     });
+    if (insertErr) throw new BadRequestException(insertErr.message);
     return this.getClockState(matchId);
   }
 

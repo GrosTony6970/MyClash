@@ -152,20 +152,12 @@ export function ScoringPad({
   // ── Clock guard ────────────────────────────────────────────────────────────
   // Scoring is only allowed when the clock is halted (not running).
   // This prevents accidental score entry during active fighting.
+  // The soft-clock zone no longer locks scoring: with the clock stopped at
+  // zero / inside the soft zone the operator keeps full control — the
+  // ruleset warning lives on the Start/Resume action (MatchView's resume
+  // guard) instead of silently disabling every button here.
   const clockRunning = clockState?.status === 'running';
-  const remainingMs = remainingClockMs(
-    matchFormat,
-    phaseType,
-    matchNumberLabel,
-    clockState?.activeMs ?? 0,
-  );
-  const softClockLocked =
-    !clockRunning &&
-    matchFormat.timerMode === 'countdown' &&
-    matchFormat.softClockLimitSeconds > 0 &&
-    remainingMs !== null &&
-    remainingMs < matchFormat.softClockLimitSeconds * 1000;
-  const canScore = scoringEnabled && !clockRunning && !softClockLocked;
+  const canScore = scoringEnabled && !clockRunning;
 
   // Elapsed active ms at the moment of the last halt — recorded on each exchange
   const clockTimeMs = clockState?.activeMs ?? null;
@@ -305,12 +297,6 @@ export function ScoringPad({
       {clockRunning && (
         <div className="bg-yellow-900 border-2 border-yellow-500 text-yellow-200 rounded-xl px-4 py-3 text-center font-bold animate-pulse">
           {t('scoring.pad.clockRunning')}
-        </div>
-      )}
-
-      {softClockLocked && (
-        <div className="bg-orange-900 border-2 border-orange-500 text-orange-100 rounded-xl px-4 py-3 text-center font-bold">
-          {t('scoring.lice.softClockLocked')}
         </div>
       )}
 

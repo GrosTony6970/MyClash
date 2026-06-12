@@ -75,6 +75,14 @@ export function shouldWarnClock(
   return Math.max(0, limitSeconds * 1000 - elapsedMs) < 10_000;
 }
 
+/** Whether the UI's `now` ticker should run. Running is obvious; HALTED must
+ *  tick too so the wall-clock TOTAL TIME keeps flowing while the match clock
+ *  is paused (the big clock is unaffected — elapsedActiveMs returns the
+ *  constant activeMs when not running). Idle/ended clocks are frozen. */
+export function clockShouldTick(status: ClockStatus): boolean {
+  return status === 'running' || status === 'halted';
+}
+
 /** Accumulated active ms: the persisted `activeMs` plus the wall time elapsed
  *  since `runningFrom` while the clock is running. `now` is injected for tests. */
 export function elapsedActiveMs(state: ClockState | null, now: number): number {

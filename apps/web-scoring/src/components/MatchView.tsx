@@ -15,7 +15,9 @@ import {
   DEFAULT_SCORING_CONFIG,
   pointCapWinnerSide,
 } from '@myclash/types';
-import { remainingClockMs } from './ScoringPad';
+import { phaseTimeLimitSeconds } from './scoreboard-clock';
+import { matchWinnerSide } from './match-winner';
+import { resumeBlockedByRuleset } from './resume-guard';
 
 export interface MatchInfo {
   id: string;
@@ -79,6 +81,15 @@ export function MatchView({
   const [clockError, setClockError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Resume guard: when the operator starts/resumes at zero / in the soft
+  // zone, hold the action here and ask first (continue anyway / end match).
+  const [pendingResume, setPendingResume] = useState<'start' | 'resume' | null>(null);
+  // End-of-match result overlay; dismiss resets whenever the clock leaves
+  // 'ended' so Reopen → end shows it again.
+  const [resultDismissed, setResultDismissed] = useState(false);
+  useEffect(() => {
+    if (clockState?.status !== 'ended') setResultDismissed(false);
+  }, [clockState?.status]);
 
   // Fetch scoring config for this tournament
   useEffect(() => {
@@ -119,9 +130,27 @@ export function MatchView({
     void fetchClockState();
   }, [fetchClockState, refreshKey]);
 
-  // Clock state machine: POST + refresh
+  // Clock state machine: POST + refresh. Start/Resume at zero remaining /
+  // inside the soft-clock zone is challenged first (per the ruleset the
+  // clock should not restart) — the modal proceeds with `force`.
   const onClockAction = useCallback(
-    async (action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock') => {
+    async (
+      action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock',
+      force = false,
+    ) => {
+      if (
+        !force &&
+        (action === 'start' || action === 'resume') &&
+        resumeBlockedByRuleset(
+          matchFormat,
+          match.phaseType ?? undefined,
+          match.matchNumberLabel,
+          clockState?.activeMs ?? 0,
+        )
+      ) {
+        setPendingResume(action);
+        return;
+      }
       setClockLoading(true);
       setClockError(null);
       try {
@@ -146,28 +175,39 @@ export function MatchView({
         setClockLoading(false);
       }
     },
-    [apiUrl, match.id, onRefresh, t],
+    [
+      apiUrl,
+      match.id,
+      match.phaseType,
+      match.matchNumberLabel,
+      matchFormat,
+      clockState?.activeMs,
+      onRefresh,
+      t,
+    ],
   );
 
   // Scoring gate — DB status enum is 'scheduled' | 'running' | 'paused'
   // | 'completed' | 'voided'. Active scoring requires running OR paused.
+  // The soft-clock zone does NOT lock scoring any more: with the clock
+  // stopped at zero / inside the soft zone the operator keeps full control
+  // (points, penalties, corrections) — the ruleset warning moved to the
+  // Start/Resume action instead (resume guard below).
   const scoringEnabled =
     (match.status === 'running' || match.status === 'paused') && !match.lockedAt;
   const clockRunning = clockState?.status === 'running';
-  const remainingMs = remainingClockMs(
+  const canScore = scoringEnabled && !clockRunning;
+  const clockTimeMs = clockState?.activeMs ?? null;
+
+  // Phase time limit (ms) — drives the corrections drawer's display-anchored
+  // time adjust. Null in count-up mode or when no limit is configured.
+  const limitSeconds = phaseTimeLimitSeconds(
     matchFormat,
     match.phaseType ?? undefined,
     match.matchNumberLabel,
-    clockState?.activeMs ?? 0,
   );
-  const softClockLocked =
-    !clockRunning &&
-    matchFormat.timerMode === 'countdown' &&
-    matchFormat.softClockLimitSeconds > 0 &&
-    remainingMs !== null &&
-    remainingMs < matchFormat.softClockLimitSeconds * 1000;
-  const canScore = scoringEnabled && !clockRunning && !softClockLocked;
-  const clockTimeMs = clockState?.activeMs ?? null;
+  const limitMs =
+    matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null;
 
   // Which side (if any) has won by reaching the point cap — drives the gold
   // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
@@ -350,11 +390,88 @@ export function MatchView({
         apiUrl={apiUrl}
         online={networkStatus === 'online'}
         locked={Boolean(match.lockedAt)}
+        timerMode={matchFormat.timerMode}
+        elapsedMs={clockState?.activeMs ?? 0}
+        limitMs={limitMs}
         onDone={() => {
           onRefresh();
           setRefreshKey((k) => k + 1);
         }}
       />
+
+      {/* Resume guard: the ruleset says the clock shouldn't restart at zero
+          remaining / inside the soft zone — the operator decides. */}
+      {pendingResume && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-yellow-700 bg-gray-900 p-6 text-center shadow-2xl">
+            <p className="mb-2 text-lg font-bold text-yellow-300">
+              {t('scoring.resumeGuard.title')}
+            </p>
+            <p className="mb-5 text-sm text-gray-300">{t('scoring.resumeGuard.message')}</p>
+            <div className="flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const action = pendingResume;
+                  setPendingResume(null);
+                  void onClockAction(action, true);
+                }}
+                className="rounded-lg border-2 border-yellow-600 bg-yellow-900/40 px-4 py-2 text-sm font-bold text-yellow-200 hover:bg-yellow-900"
+              >
+                {t('scoring.resumeGuard.continueAnyway')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingResume(null);
+                  void onClockAction('end');
+                }}
+                className="rounded-lg border-2 border-red-700 bg-red-950 px-4 py-2 text-sm font-bold text-red-200 hover:bg-red-900"
+              >
+                {t('scoring.resumeGuard.endMatch')}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingResume(null)}
+              className="mt-4 text-xs text-gray-500 hover:text-gray-300"
+            >
+              {t('scoring.result.close')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* End-of-match result: winner (highest score) or draw. */}
+      {clockState?.status === 'ended' && !resultDismissed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-amber-600 bg-gray-900 p-8 text-center shadow-2xl">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.3em] text-amber-400">
+              {t('scoring.result.matchEnded')}
+            </p>
+            {(() => {
+              const winner = matchWinnerSide(match.redScore, match.blueScore);
+              return winner ? (
+                <p className="mb-2 text-3xl font-black text-white">
+                  🏆 {winner === 'red' ? redName : blueName}
+                </p>
+              ) : (
+                <p className="mb-2 text-3xl font-black text-white">{t('scoring.result.draw')}</p>
+              );
+            })()}
+            <p className="mb-6 font-mono text-2xl font-bold text-gray-300">
+              {match.redScore} – {match.blueScore}
+            </p>
+            <button
+              type="button"
+              onClick={() => setResultDismissed(true)}
+              className="rounded-lg border-2 border-gray-600 bg-gray-800 px-6 py-2 text-sm font-bold text-gray-200 hover:bg-gray-700"
+            >
+              {t('scoring.result.close')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

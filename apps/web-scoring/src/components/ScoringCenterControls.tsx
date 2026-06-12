@@ -22,12 +22,14 @@ import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types'
 import { useI18n } from '../i18n/I18nProvider';
 import { clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
 import {
+  clockShouldTick,
   displayClockMs,
   elapsedActiveMs,
   formatClockMs,
   shouldWarnClock,
   type ClockState,
 } from './scoreboard-clock';
+import { exchangeDeltaLabel } from './exchange-delta-label';
 import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
 import { usePenalties, type MatchPenalty, type PenaltyCard } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
@@ -97,10 +99,12 @@ export function ScoringCenterControls({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
 
-  // Live ticker so the timer doesn't freeze while running.
+  // Live ticker — runs while running AND while halted so the wall-clock
+  // TOTAL TIME keeps flowing through pauses (the big clock is unaffected:
+  // elapsedActiveMs is constant when not running). Frozen when idle/ended.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (status !== 'running') return;
+    if (!clockShouldTick(status)) return;
     const id = setInterval(() => setNow(Date.now()), 50);
     return () => clearInterval(id);
   }, [status]);
@@ -506,7 +510,9 @@ function mergeEvents(
           : e.type === 'afterblow'
             ? 'AB'
             : 'clean';
-    const delta = e.scoreDelta ? `+${e.scoreDelta}` : null;
+    // Scoring rows always show their delta — INCLUDING '+0' for a 1-1
+    // afterblow, so a no-point exchange still visibly registers.
+    const delta = exchangeDeltaLabel(e.type, e.scoreDelta);
     return {
       id: `ex-${e.id}`,
       number: e.sequence,

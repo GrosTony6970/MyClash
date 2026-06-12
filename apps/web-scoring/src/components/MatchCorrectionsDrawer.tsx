@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import { useI18n } from '../i18n/I18nProvider';
+import { clockAdjustmentMs } from './clock-adjustment';
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -27,6 +28,13 @@ interface MatchCorrectionsDrawerProps {
   online: boolean;
   locked: boolean;
   onDone: () => void;
+  /** Display-anchored time adjust: the operator's add/subtract acts on the
+   *  clock THEY see. Countdown inverts elapsed-vs-display, and a clock that
+   *  ran past zero carries a hidden elapsed overshoot — the helper resolves
+   *  both so "+10s at 0:00" lands the display on exactly 0:10. */
+  timerMode: 'countdown' | 'countup';
+  elapsedMs: number;
+  limitMs: number | null;
 }
 
 interface ExchangeSummary {
@@ -44,6 +52,9 @@ export function MatchCorrectionsDrawer({
   online,
   locked,
   onDone,
+  timerMode,
+  elapsedMs,
+  limitMs,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -214,7 +225,13 @@ export function MatchCorrectionsDrawer({
                 disabled={disabled}
                 onClick={() =>
                   void post(`/api/v1/matches/${matchId}/clock/adjust`, {
-                    adjustmentMs: adjustSeconds * 1000,
+                    adjustmentMs: clockAdjustmentMs({
+                      timerMode,
+                      direction: 'add',
+                      seconds: adjustSeconds,
+                      elapsedMs,
+                      limitMs,
+                    }),
                     reason: reason || t('scoring.corrections.defaultReason'),
                   })
                 }
@@ -227,7 +244,13 @@ export function MatchCorrectionsDrawer({
                 disabled={disabled}
                 onClick={() =>
                   void post(`/api/v1/matches/${matchId}/clock/adjust`, {
-                    adjustmentMs: -adjustSeconds * 1000,
+                    adjustmentMs: clockAdjustmentMs({
+                      timerMode,
+                      direction: 'subtract',
+                      seconds: adjustSeconds,
+                      elapsedMs,
+                      limitMs,
+                    }),
                     reason: reason || t('scoring.corrections.defaultReason'),
                   })
                 }

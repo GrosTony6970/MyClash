@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MATCH_FORMAT_CONFIG, type MatchFormatConfig } from '@myclash/types';
-import { scoreboardClockMs, type ClockState } from './scoreboard-clock';
+import { clockShouldTick, scoreboardClockMs, type ClockState } from './scoreboard-clock';
 
 const NOW = 1_000_000;
 
@@ -64,5 +64,14 @@ describe('scoreboardClockMs', () => {
     expect(scoreboardClockMs(null, NOW, countup, 'pool', null)).toBe(0);
     // Before the clock starts, a countdown shows the full match time (01:30).
     expect(scoreboardClockMs(null, NOW, countdownPool90, 'pool', null)).toBe(90_000);
+  });
+});
+
+describe('clockShouldTick', () => {
+  it('ticks while running AND while halted (the wall-clock total keeps flowing), not idle/ended', () => {
+    expect(clockShouldTick('running')).toBe(true);
+    expect(clockShouldTick('halted')).toBe(true);
+    expect(clockShouldTick('idle')).toBe(false);
+    expect(clockShouldTick('ended')).toBe(false);
   });
 });
