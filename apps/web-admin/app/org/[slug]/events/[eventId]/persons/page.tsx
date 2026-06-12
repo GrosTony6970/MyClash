@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, SkillBadge, TournamentColorDot, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
+import { personMatchesFilter, type PersonFilterValue } from './filter-persons';
 import {
   computeClubPickerRows,
   type ClubSuggestion as ClubPickerSuggestion,
@@ -100,6 +101,9 @@ export default function ParticipantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<string>('all');
+  // Inline header filters: 'all' | 'none' | clubId, and referee tri-state.
+  const [clubFilter, setClubFilter] = useState('all');
+  const [refereeFilter, setRefereeFilter] = useState<PersonFilterValue['referee']>('all');
   /** Slice 5: top-level mode toggle. 'persons' shows the existing roster
    *  view; 'waiting-list' renders per-tournament waitlist tables instead. */
   const [mode, setMode] = useState<'persons' | 'waiting-list'>(() => {
@@ -266,6 +270,15 @@ export default function ParticipantsPage() {
     return map;
   }, [registrations]);
 
+  // Distinct clubs on the roster, for the Club header filter, sorted by name.
+  const clubOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const p of persons) {
+      if (p.clubId && p.clubLabel) byId.set(p.clubId, p.clubLabel);
+    }
+    return Array.from(byId.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [persons]);
+
   useEffect(() => {
     if (globalSearch.trim().length < 2) {
       setGlobalSuggestions([]);
@@ -331,6 +344,11 @@ export default function ParticipantsPage() {
       const q = search.toLowerCase();
       list = list.filter((p) => `${p.givenName} ${p.familyName}`.toLowerCase().includes(q));
     }
+    if (clubFilter !== 'all' || refereeFilter !== 'all') {
+      list = list.filter((p) =>
+        personMatchesFilter(p, { club: clubFilter, referee: refereeFilter }, refereePersonIds),
+      );
+    }
     const dir = sortDir === 'asc' ? 1 : -1;
     const sorted = [...list].sort((a, b) => {
       switch (sortKey) {
@@ -364,6 +382,8 @@ export default function ParticipantsPage() {
     registrations,
     activeTab,
     search,
+    clubFilter,
+    refereeFilter,
     sortKey,
     sortDir,
     registrationsByPersonId,
@@ -887,16 +907,6 @@ export default function ParticipantsPage() {
 
       {mode === 'persons' && (
         <>
-          <div className="mb-4">
-            <input
-              type="search"
-              placeholder="Search by name…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600 w-64"
-            />
-          </div>
-
           <div className="flex gap-2 mb-4 flex-wrap">
             {(['all', ...tournaments.map((tour) => tour.id)] as string[]).map((tabId) => {
               const label =
@@ -1095,14 +1105,38 @@ export default function ParticipantsPage() {
                       activeKey={sortKey}
                       dir={sortDir}
                       onClick={() => toggleSort('name')}
-                    />
+                    >
+                      <input
+                        type="search"
+                        placeholder={t('organizer.persons.searchPlaceholder')}
+                        aria-label={t('organizer.persons.searchPlaceholder')}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-36 rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal focus:outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </SortableTh>
                     <SortableTh
                       label="Club"
                       sortKey="club"
                       activeKey={sortKey}
                       dir={sortDir}
                       onClick={() => toggleSort('club')}
-                    />
+                    >
+                      <select
+                        value={clubFilter}
+                        onChange={(e) => setClubFilter(e.target.value)}
+                        aria-label={t('organizer.persons.filterByClub')}
+                        className="max-w-36 rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-600"
+                      >
+                        <option value="all">{t('organizer.persons.allClubs')}</option>
+                        <option value="none">{t('organizer.persons.noClub')}</option>
+                        {clubOptions.map(([id, label]) => (
+                          <option key={id} value={id}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </SortableTh>
                     <SortableTh
                       label="Claim status"
                       sortKey="claim"
@@ -1123,7 +1157,22 @@ export default function ParticipantsPage() {
                       activeKey={sortKey}
                       dir={sortDir}
                       onClick={() => toggleSort('referee')}
-                    />
+                    >
+                      <select
+                        value={refereeFilter}
+                        onChange={(e) =>
+                          setRefereeFilter(e.target.value as PersonFilterValue['referee'])
+                        }
+                        aria-label={t('organizer.persons.filterByReferee')}
+                        className="rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-600"
+                      >
+                        <option value="all">{t('organizer.persons.refereeFilterAll')}</option>
+                        <option value="referee">{t('organizer.persons.refereeFilterOnly')}</option>
+                        <option value="non_referee">
+                          {t('organizer.persons.refereeFilterNon')}
+                        </option>
+                      </select>
+                    </SortableTh>
                     <th className="py-2 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -1832,12 +1881,17 @@ function SortableTh<K extends string>({
   activeKey,
   dir,
   onClick,
+  children,
 }: {
   label: string;
   sortKey: K;
   activeKey: K;
   dir: 'asc' | 'desc';
   onClick: () => void;
+  /** Optional inline filter control rendered next to the label (the
+   *  sort trigger is the label button, so the control doesn't need any
+   *  event gymnastics to avoid sorting). */
+  children?: ReactNode;
 }) {
   const active = activeKey === sortKey;
   const ariaSort: 'ascending' | 'descending' | 'none' = active
@@ -1847,16 +1901,19 @@ function SortableTh<K extends string>({
     : 'none';
   return (
     <th className="py-2 pr-4 font-medium" aria-sort={ariaSort}>
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-1 hover:text-gray-700 focus:outline-none"
-      >
-        <span>{label}</span>
-        <span className={active ? 'text-gray-700' : 'text-gray-300'}>
-          {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onClick}
+          className="inline-flex items-center gap-1 hover:text-gray-700 focus:outline-none"
+        >
+          <span>{label}</span>
+          <span className={active ? 'text-gray-700' : 'text-gray-300'}>
+            {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
+          </span>
+        </button>
+        {children}
+      </div>
     </th>
   );
 }

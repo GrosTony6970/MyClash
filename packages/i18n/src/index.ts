@@ -3598,6 +3598,14 @@ export const en = {
     persons: {
       addAsReferee: 'Also register as referee for this event',
       refereeColumn: 'Referee',
+      searchPlaceholder: 'Search by name…',
+      filterByClub: 'Filter by club',
+      allClubs: 'All clubs',
+      noClub: 'No club',
+      filterByReferee: 'Filter by referee',
+      refereeFilterAll: 'All',
+      refereeFilterOnly: 'Referees only',
+      refereeFilterNon: 'Non-referees',
       refereeTag: 'Referee',
       tournamentFullTitle: 'Tournament full',
       tournamentFullDescription:
@@ -7626,6 +7634,14 @@ export const fr = {
     persons: {
       addAsReferee: 'Inscrire aussi comme arbitre pour cet evenement',
       refereeColumn: 'Arbitre',
+      searchPlaceholder: 'Rechercher par nom…',
+      filterByClub: 'Filtrer par club',
+      allClubs: 'Tous les clubs',
+      noClub: 'Sans club',
+      filterByReferee: 'Filtrer par arbitre',
+      refereeFilterAll: 'Tous',
+      refereeFilterOnly: 'Arbitres uniquement',
+      refereeFilterNon: 'Non-arbitres',
       refereeTag: 'Arbitre',
       tournamentFullTitle: 'Tournoi complet',
       tournamentFullDescription:
