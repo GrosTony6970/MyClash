@@ -8,6 +8,7 @@ import type {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { scheduleMatches } from '../schedule/match-scheduler';
+import { shiftBreaksAfterOverlap, type MatchWindow } from './shift-breaks';
 import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
 
 function timeToMin(t: string): number {
@@ -456,7 +457,11 @@ export class ProgrammeService {
 
   // ── Generate ───────────────────────────────────────────────────────────────
 
-  async generate(eventId: string): Promise<GenerateResult> {
+  async generate(eventId: string, opts?: { dayIndices?: number[] }): Promise<GenerateResult> {
+    // When dayIndices is provided, only (re)generate those days — other
+    // days' blocks/matches are left untouched.
+    const dayFilter =
+      opts?.dayIndices && opts.dayIndices.length > 0 ? new Set(opts.dayIndices) : null;
     const { data: blocksData, error: blocksErr } = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')
@@ -507,9 +512,17 @@ export class ProgrammeService {
       overflowMinutes: number;
     }> = [];
     const blockDiagnostics: BlockDiagnostic[] = [];
+    // Scheduled competition match windows per day (minutes-of-day), used
+    // after the loop to push breaks out of overlap with pools.
+    const matchWindowsByDay: Record<number, MatchWindow[]> = {};
+    const utcMinOfDay = (iso: string) => {
+      const d = new Date(iso);
+      return d.getUTCHours() * 60 + d.getUTCMinutes();
+    };
 
     for (const rawBlock of blocksData ?? []) {
       const block = this.mapBlock(rawBlock as Record<string, unknown>);
+      if (dayFilter && !dayFilter.has(block.dayIndex)) continue;
 
       if (block.blockType === 'competition' && block.competitionId) {
         const dayDate = new Date(startDate);
@@ -624,6 +637,14 @@ export class ProgrammeService {
         const persistedCount = (upserted ?? []).length;
         matchesScheduled += persistedCount;
 
+        // Record each scheduled match's window (start → start + match
+        // duration) so breaks can be shifted clear of them below.
+        const windows = (matchWindowsByDay[block.dayIndex] ??= []);
+        for (const sm of result.scheduledMatches) {
+          const startMin = utcMinOfDay(sm.scheduledAt);
+          windows.push({ startMin, endMin: startMin + block.matchDurationMinutes });
+        }
+
         blockDiagnostics.push({
           blockId: block.id,
           blockLabel: block.label,
@@ -662,6 +683,33 @@ export class ProgrammeService {
           );
         }
         workshopSessionsCreated++;
+      }
+    }
+
+    // Shift break blocks so they never overlap the scheduled pool/bracket
+    // matches (push each break to after the matches it overlapped, keeping
+    // its duration; later breaks cascade). Only the generated days' breaks.
+    const breakBlocks = (blocksData ?? [])
+      .map((raw) => this.mapBlock(raw as Record<string, unknown>))
+      .filter((b) => b.blockType === 'break' && (!dayFilter || dayFilter.has(b.dayIndex)))
+      .map((b) => ({
+        id: b.id,
+        dayIndex: b.dayIndex,
+        blockType: b.blockType,
+        startMin: timeToMin(b.startTime),
+        endMin: timeToMin(b.endTime),
+      }));
+    if (breakBlocks.length > 0) {
+      const shifted = shiftBreaksAfterOverlap(breakBlocks, matchWindowsByDay);
+      for (let i = 0; i < shifted.length; i++) {
+        const before = breakBlocks[i]!;
+        const after = shifted[i]!;
+        if (after.startMin === before.startMin && after.endMin === before.endMin) continue;
+        const { error: shiftErr } = await this.supabase.service
+          .from('event_programme_blocks')
+          .update({ start_time: minToTime(after.startMin), end_time: minToTime(after.endMin) })
+          .eq('id', after.id);
+        if (shiftErr) throw new BadRequestException(shiftErr.message);
       }
     }
 

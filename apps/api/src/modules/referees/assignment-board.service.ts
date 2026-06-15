@@ -14,6 +14,7 @@ import {
   type RefereeRole,
 } from '@myclash/rulesets/dist/scheduling/index';
 import { priorAssignmentsFromRows } from './prior-assignments';
+import { runEndIso } from '../schedule/run-end';
 import {
   detectConcurrencyShortage,
   detectRefereeConflicts,
@@ -817,9 +818,7 @@ export class AssignmentBoardService {
       const info = m.bracket_slot_id ? (slotInfo.get(m.bracket_slot_id) ?? null) : null;
       const maxRound = maxRoundByPhase.get(m.phase_id) ?? 0;
       const kind = AssignmentBoardService.classifyBracketMatchKind(info, maxRound);
-      const scheduledEnd = m.scheduled_at
-        ? new Date(new Date(m.scheduled_at).getTime() + 5 * 60_000).toISOString()
-        : null;
+      const scheduledEnd = m.scheduled_at ? runEndIso([m.scheduled_at]) : null;
 
       return {
         id: `match-${m.id}`,
@@ -929,11 +928,9 @@ export class AssignmentBoardService {
         .sort();
       const phaseTournamentId = phaseToTournament.get(pool.phase_id);
       const tournament = phaseTournamentId ? tournamentById.get(phaseTournamentId) : undefined;
-      const scheduledEnd = scheduledTimes.length
-        ? new Date(
-            new Date(scheduledTimes[scheduledTimes.length - 1]!).getTime() + 5 * 60_000,
-          ).toISOString()
-        : null;
+      // End = last match start + inferred per-match interval, matching the
+      // schedule grid (not a hardcoded +5 min, which mismatched the grid).
+      const scheduledEnd = runEndIso(scheduledTimes);
       const liceId = matches.find((m) => m.lice_id)?.lice_id ?? null;
 
       return {

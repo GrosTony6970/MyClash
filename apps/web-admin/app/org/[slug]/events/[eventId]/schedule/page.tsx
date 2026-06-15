@@ -2,10 +2,9 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Drawer } from '@myclash/ui';
 import type { GenerateResult } from '@myclash/types';
 import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
@@ -28,33 +27,11 @@ export default function SchedulePage() {
   const [gridRefreshKey, setGridRefreshKey] = useState(0);
   const [programmeRefreshKey, setProgrammeRefreshKey] = useState(0);
 
-  // The Programme Planner now lives inside a slide-over Drawer that
-  // the operator opens via the `⚙ Configure schedule` button. The
-  // grid takes the full page; this matches the operator's actual
-  // workflow (setup once, drag-place 90% of the time).
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  // Toast surfaces the GenerateResult above the grid after the
-  // drawer auto-closes — replaces the inline result banner that
-  // used to live inside the planner.
+  // Toast surfaces the GenerateResult above the grid after a Generate run.
   const [generateToast, setGenerateToast] = useState<GenerateResult | null>(null);
   const [toastDetailsOpen, setToastDetailsOpen] = useState(false);
 
-  // Hash deep-link: `/schedule#configure` auto-opens the drawer so
-  // operators can share "go here to set this up" URLs. We sync once
-  // on mount + listen for hashchange (matches the TournamentTabs
-  // pattern used on the public side).
-  useEffect(() => {
-    function syncFromHash() {
-      if (typeof window === 'undefined') return;
-      if (window.location.hash === '#configure') setDrawerOpen(true);
-    }
-    syncFromHash();
-    window.addEventListener('hashchange', syncFromHash);
-    return () => window.removeEventListener('hashchange', syncFromHash);
-  }, []);
-
   const generateScheduleLabel = t('organizer.schedulePage.generateScheduleAction');
-  const generateScheduleHint = t('organizer.schedulePage.generateScheduleHint');
   const generateGridLabel = t('organizer.schedulePage.generateGridAction');
   const configureLabel = t('organizer.schedulePage.configureAction');
 
@@ -76,14 +53,6 @@ export default function SchedulePage() {
         <div className="mb-6 flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold">Schedule</h1>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              title={generateScheduleHint}
-              className="rounded-lg bg-red-700 hover:bg-red-800 px-3 py-2 text-sm font-semibold text-white"
-            >
-              ⚙ {configureLabel}
-            </button>
             <Link
               href={`/org/${slug}/events/${eventId}/ai-assistant?type=schedule_grid`}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -152,41 +121,36 @@ export default function SchedulePage() {
         </div>
       )}
 
-      {/* Grid is the workspace — full page width. Programme Planner
-          lives in the slide-over drawer below; it doesn't compete
-          for vertical real estate anymore. */}
+      {/* Grid is the workspace; the Configure (Programme Planner) panel now
+          lives in the grid's right sidebar, under the Unscheduled list. */}
       <div className="px-4 pb-8">
         <ScheduleGrid
           key={gridRefreshKey}
           slug={slug}
           eventId={eventId}
           onProgrammeMutated={() => setProgrammeRefreshKey((k) => k + 1)}
+          configurePanel={
+            <div className="rounded-xl border border-gray-200 bg-white p-3">
+              <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+                {configureLabel}
+              </h2>
+              <ProgrammePlanner
+                eventId={eventId}
+                topSuggestNonce={topSuggestNonce}
+                programmeRefreshKey={programmeRefreshKey}
+                generateScheduleLabel={generateScheduleLabel}
+                generateGridLabel={generateGridLabel}
+                onGenerateDone={(result) => {
+                  setGridRefreshKey((k) => k + 1);
+                  setGenerateToast(result);
+                  setToastDetailsOpen(false);
+                }}
+                onBlocksChanged={() => setGridRefreshKey((k) => k + 1)}
+              />
+            </div>
+          }
         />
       </div>
-
-      <Drawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        title={configureLabel}
-        width="640px"
-        resizable
-        persistKey="schedule-configure-drawer"
-      >
-        <ProgrammePlanner
-          eventId={eventId}
-          topSuggestNonce={topSuggestNonce}
-          programmeRefreshKey={programmeRefreshKey}
-          generateScheduleLabel={generateScheduleLabel}
-          generateGridLabel={generateGridLabel}
-          onGenerateDone={(result) => {
-            setGridRefreshKey((k) => k + 1);
-            setDrawerOpen(false);
-            setGenerateToast(result);
-            setToastDetailsOpen(false);
-          }}
-          onBlocksChanged={() => setGridRefreshKey((k) => k + 1)}
-        />
-      </Drawer>
     </main>
   );
 }

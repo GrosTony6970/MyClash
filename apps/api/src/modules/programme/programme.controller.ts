@@ -57,10 +57,16 @@ export class ProgrammeController {
   @Post('events/:eventId/programme/generate')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Generate match schedule and workshop sessions from saved blocks' })
+  @ApiOperation({
+    summary:
+      'Generate match schedule and workshop sessions from saved blocks. Optional dayIndices scopes generation to those days only.',
+  })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  generate(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.programme.generate(eventId);
+  generate(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto?: { dayIndices?: number[] },
+  ) {
+    return this.programme.generate(eventId, dto ?? {});
   }
 
   /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId/move */

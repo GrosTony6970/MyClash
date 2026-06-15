@@ -2,7 +2,7 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BlockWarning,
   GenerateResult,
@@ -115,6 +115,13 @@ export function ProgrammePlanner({
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  // Day multi-select for Generate: distinct days present in the blocks; the
+  // operator unticks days to leave them untouched. `skipDays` = unticked.
+  const distinctDays = useMemo(
+    () => [...new Set(blocks.map((b) => b.dayIndex))].sort((a, b) => a - b),
+    [blocks],
+  );
+  const [skipDays, setSkipDays] = useState<Set<number>>(new Set());
 
   // Drag state
   const dragIndex = useRef<number | null>(null);
@@ -298,9 +305,18 @@ export function ProgrammePlanner({
     try {
       const saved = await persistProgramme();
       setBlocks(saved);
+      // Scope generation to the ticked days; omit the body to mean "all days".
+      const dayIndices = distinctDays.filter((d) => !skipDays.has(d));
+      const scoped = dayIndices.length > 0 && dayIndices.length < distinctDays.length;
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/generate`, {
         method: 'POST',
         credentials: 'include',
+        ...(scoped
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ dayIndices }),
+            }
+          : {}),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to generate'));
       const result = (await res.json()) as GenerateResult;
@@ -599,6 +615,36 @@ export function ProgrammePlanner({
         >
           + Add block
         </button>
+
+        {/* Day multi-select — which days Generate (re)builds. Only shown
+            for multi-day programmes; unticked days are left untouched. */}
+        {distinctDays.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Generate days
+            </span>
+            {distinctDays.map((d) => {
+              const checked = !skipDays.has(d);
+              return (
+                <label key={d} className="flex items-center gap-1 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      setSkipDays((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(d);
+                        else next.delete(d);
+                        return next;
+                      })
+                    }
+                  />
+                  Day {d + 1}
+                </label>
+              );
+            })}
+          </div>
+        )}
 
         {/* Action bar */}
         <div className="flex items-center gap-3 flex-wrap">

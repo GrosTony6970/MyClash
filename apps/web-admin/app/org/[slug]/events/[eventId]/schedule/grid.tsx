@@ -2,7 +2,7 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ConfirmDialog,
   accentClassFor,
@@ -16,6 +16,8 @@ import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { BlockScheduleView } from './BlockScheduleView';
+import { buildScheduleBlocks } from './schedule-blocks';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -201,11 +203,12 @@ export function ScheduleGrid({
   slug,
   eventId,
   onProgrammeMutated,
+  configurePanel,
 }: {
   slug: string;
   eventId: string;
   /**
-   * Fired after a programme-block mutation that the Configure drawer
+   * Fired after a programme-block mutation that the Configure panel
    * should refetch (block delete from the inline ×, block drag-move
    * cascade). Symmetric to ProgrammePlanner's onBlocksChanged →
    * gridRefreshKey nonce; the page bumps a `programmeRefreshKey`
@@ -213,6 +216,10 @@ export function ScheduleGrid({
    * mount fetch.
    */
   onProgrammeMutated?: () => void;
+  /** Configure (ProgrammePlanner) rendered in the right sidebar under
+   *  the Unscheduled list. Owned by the page so its generate/refresh
+   *  nonces stay intact; the grid just places it. */
+  configurePanel?: ReactNode;
 }) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -265,6 +272,18 @@ export function ScheduleGrid({
   const redoStackRef = useRef(redoStack);
   undoStackRef.current = undoStack;
   redoStackRef.current = redoStack;
+
+  // Default to the readable block view (one block per pool/round); the
+  // detailed time-grid is available behind the toggle.
+  const [viewMode, setViewMode] = useState<'blocks' | 'grid'>('blocks');
+  // Which block's inline accordion is open in the block view.
+  const [expandedBlockKey, setExpandedBlockKey] = useState<string | null>(null);
+  const [dragOverLiceId, setDragOverLiceId] = useState<string | null>(null);
+  // Quick-assign start time ("HH:MM"). When set, dropping a block onto a lice
+  // starts it here; when blank, it appends after the lice's last match.
+  const [quickStartTime, setQuickStartTime] = useState<string>('');
+  // Match ids of the block being dragged in the block view.
+  const dragViewBlock = useRef<{ matchIds: string[] } | null>(null);
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
   // Slice 4 of the polish pass: dropping a whole pool onto a cell.
@@ -997,6 +1016,84 @@ export function ScheduleGrid({
     [matches, activeDay],
   );
 
+  // ── Block view model (one block per pool / bracket round) ─────────────────
+  const dayBlocks = useMemo(
+    () =>
+      buildScheduleBlocks(
+        scheduledOnActiveDay.map((m) => ({
+          id: m.id,
+          liceId: m.liceId,
+          scheduledAt: m.scheduledAt,
+          poolId: m.poolId,
+          poolName: m.poolName,
+          roundCode: m.roundCode,
+          phaseType: m.phaseType,
+          tournamentName: m.tournamentName,
+          redFighterName: m.redFighterName,
+          blueFighterName: m.blueFighterName,
+        })),
+      ),
+    [scheduledOnActiveDay],
+  );
+  const dayBreaks = useMemo(() => {
+    const dayIndex = days.indexOf(activeDay);
+    if (dayIndex < 0) return [];
+    return programmeBlocks
+      .filter((b) => b.dayIndex === dayIndex && b.blockType !== 'competition')
+      .map((b) => ({
+        id: b.id,
+        startIso: `${activeDay}T${b.startTime}:00`,
+        label: `${b.label} (${b.startTime}–${b.endTime})`,
+        kind: b.blockType,
+      }));
+  }, [programmeBlocks, days, activeDay]);
+  const tournamentColorByName = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const m of matches) {
+      if (m.tournamentName) map.set(m.tournamentName, m.tournamentColor);
+    }
+    return map;
+  }, [matches]);
+
+  // Drop a dragged block / unscheduled pool / round onto a lice in the block
+  // view: place its matches sequentially (5-min apart) after that lice's last
+  // scheduled match (or 09:00 if empty). Persists each via the schedule PATCH.
+  function handleBlockViewDrop(liceId: string) {
+    const ids =
+      dragViewBlock.current?.matchIds ??
+      dragPool.current?.matchIds ??
+      dragBracketRound.current?.matchIds ??
+      (dragMatch.current ? [dragMatch.current.id] : []);
+    dragViewBlock.current = null;
+    dragPool.current = null;
+    dragBracketRound.current = null;
+    dragMatch.current = null;
+    setDragOverLiceId(null);
+    if (ids.length === 0 || !activeDay) return;
+
+    const exclude = new Set(ids);
+    const onLice = scheduledOnActiveDay.filter(
+      (m) => m.liceId === liceId && !exclude.has(m.id) && m.scheduledAt,
+    );
+    // A chosen quick-start time wins; otherwise append after the lice's last
+    // match (or 09:00 when the lice is empty).
+    const chosenMs = quickStartTime ? new Date(`${activeDay}T${quickStartTime}:00`).getTime() : NaN;
+    const startMs = Number.isFinite(chosenMs)
+      ? chosenMs
+      : onLice.length
+        ? Math.max(...onLice.map((m) => new Date(m.scheduledAt!).getTime())) + 5 * 60_000
+        : new Date(`${activeDay}T09:00:00`).getTime();
+
+    const atFor = (i: number) => new Date(startMs + i * 5 * 60_000).toISOString();
+    const byId = new Map(ids.map((id, i) => [id, atFor(i)]));
+    const updated = matches.map((m) =>
+      byId.has(m.id) ? { ...m, liceId, scheduledAt: byId.get(m.id)! } : m,
+    );
+    setMatches(updated);
+    setConflicts(detectConflicts(updated));
+    ids.forEach((id, i) => void saveMatchPosition(id, liceId, atFor(i)));
+  }
+
   // Per-run grid headers: pools AND bracket rounds group into contiguous
   // same-key runs per lice (computeHeaderRuns). Separating a match —
   // another lice, a time gap, or a different match wedged in — splits the
@@ -1306,9 +1403,32 @@ export function ScheduleGrid({
         </div>
       )}
 
-      <div className="flex flex-col gap-6 lg:flex-row">
-        {/* Unscheduled sidebar — global across all days. */}
-        <div className="w-full lg:w-56 lg:flex-shrink-0">
+      <div className="mb-3 flex items-center gap-1.5">
+        <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          View
+        </span>
+        {(['blocks', 'grid'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setViewMode(mode)}
+            className={[
+              'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+              viewMode === mode
+                ? 'border-red-700 bg-red-700 text-white'
+                : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+            ].join(' ')}
+          >
+            {mode === 'blocks' ? 'Blocks' : 'Detailed grid'}
+          </button>
+        ))}
+      </div>
+
+      {/* Unscheduled now sits on the RIGHT (flex-row-reverse) with Configure
+          below it; the schedule canvas takes the rest. */}
+      <div className="flex flex-col gap-6 lg:flex-row-reverse">
+        {/* Right sidebar: Unscheduled (top) + Configure (below). */}
+        <div className="w-full space-y-4 lg:w-80 lg:flex-shrink-0">
           <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
             Unscheduled ({unscheduled.length})
           </h2>
@@ -1434,6 +1554,7 @@ export function ScheduleGrid({
               </>
             )}
           </div>
+          {configurePanel}
         </div>
 
         {/* Day grid — lice as columns, time as rows. Columns flex to fill the canvas. */}
@@ -1442,6 +1563,29 @@ export function ScheduleGrid({
             <p className="text-gray-400 text-sm">No Lices configured for this event.</p>
           ) : !activeDay ? (
             <p className="text-gray-400 text-sm">No event date available.</p>
+          ) : viewMode === 'blocks' ? (
+            <BlockScheduleView
+              lices={lices}
+              blocks={dayBlocks}
+              breaks={dayBreaks}
+              tournamentColorByName={tournamentColorByName}
+              quickStartTime={quickStartTime}
+              onQuickStartTimeChange={setQuickStartTime}
+              expandedKey={expandedBlockKey}
+              onToggleExpand={(key) => setExpandedBlockKey((prev) => (prev === key ? null : key))}
+              onBlockDragStart={(block) => {
+                dragViewBlock.current = { matchIds: block.matches.map((m) => m.id) };
+                dragMatch.current = null;
+                dragPool.current = null;
+                dragBracketRound.current = null;
+              }}
+              onBlockDragEnd={() => {
+                dragViewBlock.current = null;
+              }}
+              onDropOnLice={handleBlockViewDrop}
+              dragOverLiceId={dragOverLiceId}
+              onDragOverLice={setDragOverLiceId}
+            />
           ) : (
             <div
               className="relative grid w-full"
