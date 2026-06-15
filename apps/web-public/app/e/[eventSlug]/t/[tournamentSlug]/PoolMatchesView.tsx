@@ -16,7 +16,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { tintTextClassFor } from '@myclash/ui';
+import { sideStyle, tintTextClassFor } from '@myclash/ui';
+import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
 import { t } from '@myclash/i18n';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
@@ -45,10 +46,20 @@ interface PoolWithMatches {
   matches: PoolMatch[];
 }
 
+interface SideColors {
+  red: TournamentSideColor;
+  blue: TournamentSideColor;
+}
+
 interface ApiResponse {
   tournamentId: string;
+  /** Configured fighter-side colour tokens (default red/blue), resolved to
+   *  hex via `sideStyle` for the accent bar — matches the admin matches table. */
+  sideColors: SideColors;
   pools: PoolWithMatches[];
 }
+
+const DEFAULT_SIDE_COLORS: SideColors = { red: 'red', blue: 'blue' };
 
 interface Props {
   eventSlug: string;
@@ -66,6 +77,7 @@ function parseFocusPoolId(hash: string): string | null {
 export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props) {
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
+  const [sideColors, setSideColors] = useState<SideColors>(DEFAULT_SIDE_COLORS);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [query, setQuery] = useState('');
@@ -79,6 +91,12 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
   );
 
   const titleClass = colorToken ? tintTextClassFor(colorToken) : 'text-slate-900';
+  // Resolve the configured side-colour tokens to hex for the accent bars,
+  // the same way the admin matches table does.
+  const sideConfig = {
+    ...DEFAULT_SCORING_CONFIG,
+    display: { ...DEFAULT_SCORING_CONFIG.display, sideColors },
+  };
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -98,7 +116,11 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
     )
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data) setPools((data as ApiResponse).pools);
+        if (data) {
+          const res = data as ApiResponse;
+          setPools(res.pools);
+          if (res.sideColors) setSideColors(res.sideColors);
+        }
       })
       .catch(() => {
         // Swallow — keep showing last-known pools.
@@ -260,20 +282,27 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                           {m.roundCode}
                         </td>
                         <td className="px-4 py-2">
-                          <span
-                            className={
-                              winner === 'red'
-                                ? 'font-bold text-slate-900'
-                                : 'font-medium text-slate-900'
-                            }
-                          >
-                            {m.redFighterName ?? '—'}
-                          </span>
-                          {m.redClubAbbrev && (
-                            <span className="ml-2 inline-block max-w-[10rem] truncate align-middle rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
-                              {m.redClubAbbrev}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="h-6 w-1 shrink-0 rounded"
+                              style={{ backgroundColor: sideStyle(sideConfig, 'red').border }}
+                              aria-hidden="true"
+                            />
+                            <span
+                              className={
+                                winner === 'red'
+                                  ? 'font-bold text-slate-900'
+                                  : 'font-medium text-slate-900'
+                              }
+                            >
+                              {m.redFighterName ?? '—'}
                             </span>
-                          )}
+                            {m.redClubAbbrev && (
+                              <span className="max-w-[10rem] truncate rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                {m.redClubAbbrev}
+                              </span>
+                            )}
+                          </span>
                         </td>
                         <td
                           className={`px-2 py-2 text-center font-mono ${
@@ -290,20 +319,27 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
                           {m.blueScore ?? '—'}
                         </td>
                         <td className="px-4 py-2">
-                          <span
-                            className={
-                              winner === 'blue'
-                                ? 'font-bold text-slate-900'
-                                : 'font-medium text-slate-900'
-                            }
-                          >
-                            {m.blueFighterName ?? '—'}
-                          </span>
-                          {m.blueClubAbbrev && (
-                            <span className="ml-2 inline-block max-w-[10rem] truncate align-middle rounded bg-stone-100 px-1.5 py-0.5 text-xs text-slate-600">
-                              {m.blueClubAbbrev}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="h-6 w-1 shrink-0 rounded"
+                              style={{ backgroundColor: sideStyle(sideConfig, 'blue').border }}
+                              aria-hidden="true"
+                            />
+                            <span
+                              className={
+                                winner === 'blue'
+                                  ? 'font-bold text-slate-900'
+                                  : 'font-medium text-slate-900'
+                              }
+                            >
+                              {m.blueFighterName ?? '—'}
                             </span>
-                          )}
+                            {m.blueClubAbbrev && (
+                              <span className="max-w-[10rem] truncate rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                {m.blueClubAbbrev}
+                              </span>
+                            )}
+                          </span>
                         </td>
                         <td className="px-4 py-2">
                           <StatusPill status={m.status} />

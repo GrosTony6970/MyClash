@@ -15,6 +15,7 @@ import { LeaguesService } from '../leagues/leagues.service';
 import { ClubsService } from '../clubs/clubs.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { derivePoolSchedule, type PoolMatchTimeRow } from './pool-schedule';
+import { sideColorsFromScoringConfig } from './side-colors';
 import type {
   CreateEventDto,
   CreateTournamentDto,
@@ -899,15 +900,21 @@ export class EventsService {
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
-      .select('id, weapon, status')
+      .select('id, weapon, status, scoring_config_json')
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
     if (tournamentError) throw new BadRequestException(tournamentError.message);
     if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
+    // Configured fighter-side colour tokens (default red/blue). The client
+    // resolves these to hex via `sideStyle` for the matches-table accent bar,
+    // matching the admin Pools → Matches view.
+    const sideColors = sideColorsFromScoringConfig(
+      (tournament as { scoring_config_json?: unknown }).scoring_config_json,
+    );
     const tournamentStatus = (tournament as { status: string }).status;
     if (!['published', 'running', 'completed'].includes(tournamentStatus)) {
-      return { tournamentId: (tournament as { id: string }).id, pools: [] };
+      return { tournamentId: (tournament as { id: string }).id, sideColors, pools: [] };
     }
     const tournamentId = (tournament as { id: string }).id;
     const weapon = (tournament as { weapon: string | null }).weapon ?? null;
@@ -919,7 +926,7 @@ export class EventsService {
       .eq('tournament_id', tournamentId)
       .eq('type', 'pool')
       .maybeSingle();
-    if (!phaseRow) return { tournamentId, pools: [] };
+    if (!phaseRow) return { tournamentId, sideColors, pools: [] };
     const phaseId = (phaseRow as { id: string }).id;
 
     // 2. Pools (id + name + sort_order so we can compute the canonical
@@ -934,7 +941,7 @@ export class EventsService {
       name: string;
       sort_order: number | null;
     }>;
-    if (pools.length === 0) return { tournamentId, pools: [] };
+    if (pools.length === 0) return { tournamentId, sideColors, pools: [] };
 
     const poolIds = pools.map((p) => p.id);
 
@@ -1002,6 +1009,7 @@ export class EventsService {
 
     return {
       tournamentId,
+      sideColors,
       pools: pools.map((pool) => {
         const poolNumber = typeof pool.sort_order === 'number' ? pool.sort_order + 1 : null;
         const rows = matchesByPool.get(pool.id) ?? [];
