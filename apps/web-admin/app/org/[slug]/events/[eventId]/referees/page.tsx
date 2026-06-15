@@ -21,9 +21,14 @@ import { AssignmentDiagnosticsPanel, type RuleKey } from './_components/Assignme
 import { PoolSlotCard } from './_components/PoolSlotCard';
 import { groupPoolsByTimeslot } from './_components/group-pools-by-timeslot';
 import { NO_LICE, liceColumnsFor } from './_components/timeslot-lice-columns';
-import { PoolTimelineGrid, type TimelinePool } from '../pools/_tabs/_components/PoolTimelineGrid';
+import {
+  PoolTimelineGrid,
+  type TimelineBreak,
+  type TimelinePool,
+} from '../pools/_tabs/_components/PoolTimelineGrid';
 import { AvailabilityChips } from './_components/AvailabilityChips';
 import { countQualifiedBySkill } from './count-qualified-by-skill';
+import { programmeBlockStartIso } from './_components/programme-block-instant';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -520,6 +525,35 @@ function formatTime(value: string | null) {
   );
 }
 
+/** Short day label for the by-timeslot header + day-filter pills. */
+function formatDayShort(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  }).format(new Date(value));
+}
+
+/** Inclusive list of YYYY-MM-DD between two ISO dates (UTC), for the day filter. */
+function eachDayIso(startIso: string, endIso: string | null): string[] {
+  if (!startIso) return [];
+  const start = new Date(`${startIso}T00:00:00.000Z`);
+  const end = endIso ? new Date(`${endIso}T00:00:00.000Z`) : start;
+  if (Number.isNaN(start.getTime()) || end.getTime() < start.getTime()) return [startIso];
+  const days: string[] = [];
+  for (const d = new Date(start); d.getTime() <= end.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+/** Programme-block tint per kind in the timeline / by-timeslot bars. */
+function breakBarClasses(kind: string): string {
+  if (kind === 'break') return 'border-slate-300 bg-slate-100 text-slate-600';
+  if (kind === 'workshop') return 'border-amber-300 bg-amber-50 text-amber-800';
+  return 'border-purple-300 bg-purple-50 text-purple-800'; // admin / other
+}
+
 /**
  * Map a backend blocked-candidate reason code to a user-friendly i18n
  * string. Known codes are emitted by assignment-board.service.ts ~L1183:
@@ -680,6 +714,33 @@ function AssignmentsTab({
   // Unscheduled pool whose full card is expanded under the timeline
   // (clicking its chip toggles it; one at a time).
   const [expandedPoolId, setExpandedPoolId] = useState<string | null>(null);
+  // Programme blocks (breaks / admin / workshop — NOT the competition runs,
+  // which are the pool/bracket cards) so the timeline shows the day's shape.
+  const [programmeBlocks, setProgrammeBlocks] = useState<
+    Array<{
+      id: string;
+      dayIndex: number;
+      blockType: string;
+      label: string;
+      startTime: string;
+      endTime: string;
+    }>
+  >([]);
+  // Event days for the day filter; selectedDayIso null = all days.
+  const [eventDayIsos, setEventDayIsos] = useState<string[]>([]);
+  const [eventStartDateIso, setEventStartDateIso] = useState<string | null>(null);
+  const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
+  // Drag-drop: ref holds the dragged pool (no re-render); state highlights
+  // the hovered drop cell.
+  const dragPool = useRef<{
+    id: string;
+    matchId: string | null;
+    liceId: string | null;
+    scheduledStart: string | null;
+  } | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ blockStart: string; liceId: string } | null>(
+    null,
+  );
 
   // Timeslot blocks + lice columns for the "by time slot" card grid.
   // The lice column order mirrors the /lices fetch order (sort_order) —
@@ -688,9 +749,18 @@ function AssignmentsTab({
     () => (board ? [...board.pools, ...board.unscheduledPools] : []),
     [board],
   );
+  // Day filter: when a day is selected, keep only pools scheduled that day
+  // (unscheduled pools — null start — only appear under "All days").
+  const visibleBoardPools = useMemo(
+    () =>
+      selectedDayIso
+        ? allBoardPools.filter((p) => p.scheduledStart?.slice(0, 10) === selectedDayIso)
+        : allBoardPools,
+    [allBoardPools, selectedDayIso],
+  );
   const { blocks: timeslotBlocks, unscheduled: unscheduledBoardPools } = useMemo(
-    () => groupPoolsByTimeslot(allBoardPools),
-    [allBoardPools],
+    () => groupPoolsByTimeslot(visibleBoardPools),
+    [visibleBoardPools],
   );
   const liceColumns = useMemo(
     () => liceColumnsFor(timeslotBlocks, [...liceNameById.keys()]),
@@ -698,7 +768,7 @@ function AssignmentsTab({
   );
   const timelinePools = useMemo<TimelinePool[]>(
     () =>
-      allBoardPools.map((p) => ({
+      visibleBoardPools.map((p) => ({
         id: p.id,
         name: p.name,
         tournamentId: p.tournamentId,
@@ -709,7 +779,30 @@ function AssignmentsTab({
         filledSlotCount: p.roleSlots.filter((s) => s.assignment !== null).length,
         totalSlotCount: p.roleSlots.length,
       })),
-    [allBoardPools, liceNameById],
+    [visibleBoardPools, liceNameById],
+  );
+  // Non-competition programme blocks placed on the same epoch as pools, so
+  // they interleave with the timeslot rows; filtered to the selected day.
+  const breakItems = useMemo(() => {
+    if (!eventStartDateIso) return [];
+    return programmeBlocks
+      .map((b) => {
+        const startIso = programmeBlockStartIso(b, eventStartDateIso);
+        return {
+          id: b.id,
+          startIso,
+          startMs: new Date(startIso).getTime(),
+          dayIso: startIso.slice(0, 10),
+          label: `${b.label} (${b.startTime}–${b.endTime})`,
+          kind: b.blockType,
+        };
+      })
+      .filter((it) => (selectedDayIso ? it.dayIso === selectedDayIso : true))
+      .sort((a, b) => a.startMs - b.startMs);
+  }, [programmeBlocks, eventStartDateIso, selectedDayIso]);
+  const timelineBreaks = useMemo<TimelineBreak[]>(
+    () => breakItems.map((b) => ({ startIso: b.startIso, label: b.label, kind: b.kind })),
+    [breakItems],
   );
   const expandedPool = useMemo(
     () => unscheduledBoardPools.find((p) => p.id === expandedPoolId) ?? null,
@@ -728,6 +821,47 @@ function AssignmentsTab({
       document
         .getElementById(`timeslot-${block.startTime}`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  // Drag-drop a pool card onto a (timeslot row × lice column) cell: move the
+  // whole pool to that lice + start time. Bracket/finals cards are a single
+  // match (PATCH); real pools shift all their matches (POST reschedule).
+  async function handlePoolDrop(targetLiceId: string, blockStartIso: string) {
+    const dragged = dragPool.current;
+    dragPool.current = null;
+    setDragOverCell(null);
+    if (!dragged || isReadOnly || board?.locked) return;
+    const liceId = targetLiceId === NO_LICE ? null : targetLiceId;
+    if ((dragged.liceId ?? null) === liceId && dragged.scheduledStart === blockStartIso) return;
+    setRunning(true);
+    setError(null);
+    try {
+      const res = dragged.matchId
+        ? await fetch(`${apiUrl}/api/v1/matches/${dragged.matchId}/schedule`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ liceId, scheduledAt: blockStartIso }),
+          })
+        : await fetch(`${apiUrl}/api/v1/pools/${dragged.id}/reschedule`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ liceId, startAtIso: blockStartIso }),
+          });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(body.message ?? t('organizer.refereesPage.assignmentLoadFailed'));
+      }
+      await loadBoard();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentLoadFailed'),
+      );
+      await loadBoard();
+    } finally {
+      setRunning(false);
     }
   }
 
@@ -775,6 +909,49 @@ function AssignmentsTab({
         const map = new Map<string, string>();
         for (const l of lices) map.set(l.id, l.name);
         setLiceNameById(map);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  // Event days (for the day filter + day labels) + programme blocks (breaks,
+  // admin, workshop) so the timeline mirrors the day's shape. Both tolerate
+  // errors quietly — the views just render without days / without breaks.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const ev = (await res.json()) as { start_date: string; end_date?: string | null };
+        setEventStartDateIso(ev.start_date ?? null);
+        setEventDayIsos(eachDayIso(ev.start_date, ev.end_date ?? null));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const blocks = (await res.json()) as Array<{
+          id: string;
+          dayIndex: number;
+          blockType: string;
+          label: string;
+          startTime: string;
+          endTime: string;
+        }>;
+        // Competition blocks are the pool/bracket runs already shown as
+        // cards; keep only the surrounding non-competition blocks.
+        setProgrammeBlocks(blocks.filter((b) => b.blockType !== 'competition'));
       })
       .catch(() => undefined);
     return () => controller.abort();
@@ -1085,53 +1262,125 @@ function AssignmentsTab({
    */
   function renderTimeslotSections() {
     if (timeslotBlocks.length === 0) return null;
+    const canDrag = !isReadOnly && !board?.locked;
+    // Interleave timeslot rows with non-competition programme blocks
+    // (breaks / admin / workshop), ordered by start time.
+    const rows: Array<
+      | { kind: 'slot'; ms: number; block: (typeof timeslotBlocks)[number] }
+      | { kind: 'break'; ms: number; brk: (typeof breakItems)[number] }
+    > = [
+      ...timeslotBlocks.map((block) => ({
+        kind: 'slot' as const,
+        ms: new Date(block.startTime).getTime(),
+        block,
+      })),
+      ...breakItems.map((brk) => ({ kind: 'break' as const, ms: brk.startMs, brk })),
+    ].sort((a, b) => a.ms - b.ms);
     return (
       <div className="space-y-6">
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
           {t('organizer.refereesPage.byTimeslotTitle')}
         </h3>
-        {timeslotBlocks.map((block) => (
-          <div
-            key={block.startTime}
-            id={`timeslot-${block.startTime}`}
-            className="scroll-mt-4 space-y-2"
-          >
-            <div className="flex items-baseline gap-3">
-              <span className="text-sm font-bold tabular-nums text-gray-900">
-                {formatTime(block.startTime)}
-              </span>
-              <div className="h-px flex-1 bg-gray-200" />
+        {rows.map((row) =>
+          row.kind === 'break' ? (
+            <div
+              key={`break-${row.brk.id}`}
+              className={`flex items-center justify-center rounded-md border-y px-3 py-2 text-[11px] font-semibold uppercase tracking-wide ${breakBarClasses(
+                row.brk.kind,
+              )}`}
+            >
+              {row.brk.label}
             </div>
-            <div className="overflow-x-auto pb-2">
-              <div
-                className="grid gap-3"
-                style={{
-                  gridTemplateColumns: `repeat(${liceColumns.length}, minmax(240px, 1fr))`,
-                }}
-              >
-                {liceColumns.map((liceId) => {
-                  const cellPools = block.pools.filter((p) => (p.liceId ?? NO_LICE) === liceId);
-                  return (
-                    <div key={liceId} className="space-y-2">
-                      <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                        {liceId === NO_LICE
-                          ? t('organizer.refereesPage.noLiceColumn')
-                          : (liceNameById.get(liceId) ?? '—')}
-                      </p>
-                      {cellPools.length === 0 ? (
-                        <p className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-xs text-gray-300">
-                          {t('organizer.refereesPage.idleLice')}
+          ) : (
+            <div
+              key={row.block.startTime}
+              id={`timeslot-${row.block.startTime}`}
+              className="scroll-mt-4 space-y-2"
+            >
+              <div className="flex items-baseline gap-3">
+                <span className="text-sm font-bold tabular-nums text-gray-900">
+                  {formatDayShort(row.block.startTime)} · {formatTime(row.block.startTime)}
+                </span>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+              <div className="overflow-x-auto pb-2">
+                <div
+                  className="grid gap-3"
+                  style={{
+                    gridTemplateColumns: `repeat(${liceColumns.length}, minmax(240px, 1fr))`,
+                  }}
+                >
+                  {liceColumns.map((liceId) => {
+                    const cellPools = row.block.pools.filter(
+                      (p) => (p.liceId ?? NO_LICE) === liceId,
+                    );
+                    const isDropTarget =
+                      dragOverCell?.blockStart === row.block.startTime &&
+                      dragOverCell?.liceId === liceId;
+                    return (
+                      <div
+                        key={liceId}
+                        onDragOver={
+                          canDrag
+                            ? (e) => {
+                                e.preventDefault();
+                                if (!isDropTarget)
+                                  setDragOverCell({ blockStart: row.block.startTime, liceId });
+                              }
+                            : undefined
+                        }
+                        onDragLeave={
+                          canDrag ? () => isDropTarget && setDragOverCell(null) : undefined
+                        }
+                        onDrop={
+                          canDrag
+                            ? () => void handlePoolDrop(liceId, row.block.startTime)
+                            : undefined
+                        }
+                        className={[
+                          'space-y-2 rounded-lg',
+                          isDropTarget ? 'ring-2 ring-indigo-400 ring-offset-1' : '',
+                        ].join(' ')}
+                      >
+                        <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          {liceId === NO_LICE
+                            ? t('organizer.refereesPage.noLiceColumn')
+                            : (liceNameById.get(liceId) ?? '—')}
                         </p>
-                      ) : (
-                        cellPools.map((pool) => renderPoolCard(pool, false))
-                      )}
-                    </div>
-                  );
-                })}
+                        {cellPools.length === 0 ? (
+                          <p className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-xs text-gray-300">
+                            {t('organizer.refereesPage.idleLice')}
+                          </p>
+                        ) : (
+                          cellPools.map((pool) => (
+                            <div
+                              key={pool.id}
+                              draggable={canDrag}
+                              onDragStart={() => {
+                                dragPool.current = {
+                                  id: pool.id,
+                                  matchId: pool.matchId ?? null,
+                                  liceId: pool.liceId ?? null,
+                                  scheduledStart: pool.scheduledStart,
+                                };
+                              }}
+                              onDragEnd={() => {
+                                dragPool.current = null;
+                              }}
+                              className={canDrag ? 'cursor-grab active:cursor-grabbing' : ''}
+                            >
+                              {renderPoolCard(pool, false)}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ),
+        )}
       </div>
     );
   }
@@ -1202,6 +1451,14 @@ function AssignmentsTab({
         >
           {t('organizer.refereesPage.clearAll')}
         </button>
+        <button
+          type="button"
+          onClick={() => void loadBoard()}
+          disabled={loading}
+          className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
+        >
+          {t('organizer.refereesPage.healthcheck')}
+        </button>
         {board && board.conflicts.length > 0 && (
           <button
             type="button"
@@ -1256,10 +1513,47 @@ function AssignmentsTab({
                 togglesDisabled={isReadOnly || running || previewing}
               />
             </div>
+            {/* Day filter — scopes both the timeline and the by-timeslot
+                view. Only shown for multi-day events. */}
+            {eventDayIsos.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayIso(null)}
+                  className={[
+                    'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                    selectedDayIso === null
+                      ? 'border-red-700 bg-red-700 text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+                  ].join(' ')}
+                >
+                  {t('organizer.refereesPage.dayFilterAll')}
+                </button>
+                {eventDayIsos.map((iso) => (
+                  <button
+                    key={iso}
+                    type="button"
+                    onClick={() => setSelectedDayIso(iso)}
+                    className={[
+                      'rounded-full border px-3 py-1 text-xs font-semibold capitalize transition-colors',
+                      selectedDayIso === iso
+                        ? 'border-red-700 bg-red-700 text-white'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400',
+                    ].join(' ')}
+                  >
+                    {formatDayShort(iso)}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* Event-wide timeline: every pool/bracket chip grouped by start
                 time, with the UNSCHEDULED chip row. Unscheduled chips expand
                 their card below; scheduled chips jump to their timeslot. */}
-            <PoolTimelineGrid pools={timelinePools} onPoolClick={handleChipClick} />
+            <PoolTimelineGrid
+              pools={timelinePools}
+              breaks={timelineBreaks}
+              onPoolClick={handleChipClick}
+            />
             {expandedPool && (
               <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-3">
                 <div className="mb-2 flex items-center justify-between">

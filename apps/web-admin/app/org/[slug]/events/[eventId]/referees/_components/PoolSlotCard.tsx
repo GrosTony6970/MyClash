@@ -117,6 +117,9 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
       </div>
 
       <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+          {t('organizer.refereesPage.refereesSection')}
+        </p>
         {orderedSlots.map((slot) => {
           const conflict =
             slot.assignment?.personId && conflictFor
@@ -194,18 +197,26 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
       </div>
 
       {pool.members.length > 0 && (
-        <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3">
-          {pool.members.map((m) => (
-            <li key={m.registrationId} className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-gray-800">{m.personName}</span>
-              {m.clubLabel && (
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">
-                  {m.clubLabel}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+            {t('organizer.refereesPage.fightersSection')}
+          </p>
+          <ul className="space-y-1">
+            {pool.members.map((m) => (
+              <li
+                key={m.registrationId}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span className="text-gray-800">{m.personName}</span>
+                {m.clubLabel && (
+                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">
+                    {m.clubLabel}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -35,6 +35,7 @@ import type { PopulateBracketDto } from './dto/populate-bracket.dto';
 import type { BracketAdvanceService } from './bracket-advance.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
+import { computePoolReschedule } from './pool-reschedule';
 import { poolMatchSortKey } from './pool-match-sort';
 import {
   buildCrossPoolSnakeRanking,
@@ -1641,6 +1642,52 @@ export class PhasesService {
     if (error) throw new BadRequestException(error.message);
 
     return { poolId, liceId };
+  }
+
+  /**
+   * Move a whole pool to (liceId, startAtIso): set every match's lice to
+   * `liceId` and shift the timed matches so the pool starts at
+   * `startAtIso`, preserving their internal spacing. Backs the referee
+   * board's drag-drop (drop a pool card on a lice/timeslot cell). Unlike
+   * autoDistributePool this keeps the existing layout instead of re-fanning.
+   */
+  async reschedulePool(
+    poolId: string,
+    dto: { liceId: string | null; startAtIso: string },
+    userId: string,
+  ): Promise<{
+    poolId: string;
+    updated: Array<{ matchId: string; liceId: string | null; scheduledAt: string | null }>;
+  }> {
+    await this.assertPoolEditAuth(poolId, userId);
+    await this.assertPoolEditable(poolId);
+
+    const { data: matchesData, error: matchesErr } = await this.supabase.service
+      .from('matches')
+      .select('id, scheduled_at')
+      .eq('pool_id', poolId)
+      .order('match_number_label', { ascending: true });
+    if (matchesErr) throw new BadRequestException(matchesErr.message);
+    const matches = ((matchesData ?? []) as Array<{ id: string; scheduled_at: string | null }>).map(
+      (m) => ({ id: m.id, scheduledAt: m.scheduled_at }),
+    );
+    if (matches.length === 0) return { poolId, updated: [] };
+
+    const updates = computePoolReschedule(matches, dto.liceId ?? null, dto.startAtIso);
+
+    // One UPDATE per row (PostgREST can't set different rows to different
+    // values in one statement); independent rows, last-write-wins is safe.
+    await Promise.all(
+      updates.map(async (u) => {
+        const { error } = await this.supabase.service
+          .from('matches')
+          .update({ lice_id: u.liceId, scheduled_at: u.scheduledAt })
+          .eq('id', u.matchId);
+        if (error) throw new BadRequestException(error.message);
+      }),
+    );
+
+    return { poolId, updated: updates };
   }
 
   /**

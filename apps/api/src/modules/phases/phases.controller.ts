@@ -145,6 +145,23 @@ export class PhasesController {
     return this.phases.setPoolLice(poolId, dto.liceId ?? null, userId);
   }
 
+  /** POST /api/v1/pools/:poolId/reschedule */
+  @Post('pools/:poolId/reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Move a whole pool to a lice + start time (shifts its matches, preserving spacing) (org admin+)',
+  })
+  @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
+  async reschedulePool(
+    @Param('poolId', ParseUUIDPipe) poolId: string,
+    @Body() dto: { liceId: string | null; startAtIso: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.reschedulePool(poolId, dto, userId);
+  }
+
   /** POST /api/v1/pools/:poolId/schedule/auto-distribute */
   @Post('pools/:poolId/schedule/auto-distribute')
   @HttpCode(HttpStatus.OK)

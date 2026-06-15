@@ -35,8 +35,19 @@ export interface TimelinePool {
   totalSlotCount: number;
 }
 
+/** A non-competition programme block (break / admin / workshop) interleaved
+ *  with the pool rows so the timeline mirrors the day's shape. */
+export interface TimelineBreak {
+  startIso: string;
+  label: string;
+  /** 'break' | 'admin' | 'workshop' — drives the bar tint. */
+  kind: string;
+}
+
 interface Props {
   pools: TimelinePool[];
+  /** Non-pool programme blocks to interleave as full-width bars. */
+  breaks?: TimelineBreak[];
   /** Pools of this tournament render with a highlight ring. Omit (the
    *  event-level assignments tab) and no chip is highlighted. */
   highlightTournamentId?: string | null;
@@ -53,9 +64,33 @@ function byLice(a: TimelinePool, b: TimelinePool): number {
   });
 }
 
-export function PoolTimelineGrid({ pools, highlightTournamentId, onPoolClick }: Props) {
+/** Programme-block bar tint per kind. */
+function breakBarClasses(kind: string): string {
+  if (kind === 'break') return 'border-slate-300 bg-slate-100 text-slate-600';
+  if (kind === 'workshop') return 'border-amber-300 bg-amber-50 text-amber-800';
+  return 'border-purple-300 bg-purple-50 text-purple-800';
+}
+
+export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolClick }: Props) {
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
   const unscheduledByLice = useMemo(() => [...unscheduled].sort(byLice), [unscheduled]);
+  // Merge timeslot rows with break bars, ordered by start time.
+  const rows = useMemo(
+    () =>
+      [
+        ...blocks.map((block) => ({
+          kind: 'slot' as const,
+          ms: new Date(block.startTime).getTime(),
+          block,
+        })),
+        ...(breaks ?? []).map((brk) => ({
+          kind: 'break' as const,
+          ms: new Date(brk.startIso).getTime(),
+          brk,
+        })),
+      ].sort((a, b) => a.ms - b.ms),
+    [blocks, breaks],
+  );
 
   if (blocks.length === 0 && unscheduled.length === 0) {
     return (
@@ -69,28 +104,39 @@ export function PoolTimelineGrid({ pools, highlightTournamentId, onPoolClick }: 
         {t('organizer.poolsPage.refereesTimelineTitle')}
       </h3>
       <div className="space-y-3">
-        {blocks.map((block) => (
-          <div key={block.startTime} className="flex items-start gap-3">
-            <div className="w-20 shrink-0 pt-2 text-right">
-              <div className="text-[10px] leading-tight text-gray-400">
-                {formatDay(block.startTime)}
+        {rows.map((row) =>
+          row.kind === 'break' ? (
+            <div
+              key={`break-${row.brk.startIso}-${row.brk.label}`}
+              className={`rounded-md border px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide ${breakBarClasses(
+                row.brk.kind,
+              )}`}
+            >
+              {row.brk.label}
+            </div>
+          ) : (
+            <div key={row.block.startTime} className="flex items-start gap-3">
+              <div className="w-20 shrink-0 pt-2 text-right">
+                <div className="text-[10px] leading-tight text-gray-400">
+                  {formatDay(row.block.startTime)}
+                </div>
+                <div className="text-xs font-semibold tabular-nums text-gray-600">
+                  {formatHHMM(row.block.startTime)}
+                </div>
               </div>
-              <div className="text-xs font-semibold tabular-nums text-gray-600">
-                {formatHHMM(block.startTime)}
+              <div className="flex flex-wrap gap-2">
+                {[...row.block.pools].sort(byLice).map((pool) => (
+                  <PoolCard
+                    key={pool.id}
+                    pool={pool}
+                    highlighted={pool.tournamentId === highlightTournamentId}
+                    onClick={onPoolClick}
+                  />
+                ))}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {[...block.pools].sort(byLice).map((pool) => (
-                <PoolCard
-                  key={pool.id}
-                  pool={pool}
-                  highlighted={pool.tournamentId === highlightTournamentId}
-                  onClick={onPoolClick}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+          ),
+        )}
         {unscheduledByLice.length > 0 && (
           <div className="flex items-start gap-3 border-t border-gray-100 pt-3">
             <div className="w-20 shrink-0 pt-2 text-right text-xs font-semibold uppercase leading-tight break-words text-gray-400">
