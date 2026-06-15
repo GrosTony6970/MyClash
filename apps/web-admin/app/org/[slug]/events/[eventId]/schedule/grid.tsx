@@ -2,7 +2,8 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import {
   ConfirmDialog,
   accentClassFor,
@@ -18,6 +19,8 @@ import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { BlockScheduleView } from './BlockScheduleView';
 import { buildScheduleBlocks } from './schedule-blocks';
+import { computeLiceDrift } from './lice-drift';
+import { scheduleToCsv } from './schedule-csv';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -109,6 +112,9 @@ interface ScheduleMatch {
   status: string;
   liceId: string | null;
   scheduledAt: string | null;
+  /** Actual run timing — drives the per-lice drift indicator. */
+  startedAt: string | null;
+  endedAt: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
   redRegistrationId: string;
@@ -491,6 +497,36 @@ export function ScheduleGrid({
       setProgrammeBlocks(blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'));
     }
   }
+
+  // ── Realtime: refresh when matches change elsewhere (scoring, another
+  //    operator). Debounced + suppressed during a local save so it never
+  //    fights an in-flight optimistic drag. 30s poll fallback in the hook. ──
+  const refetchRef = useRef(refetchScheduleAndBlocks);
+  refetchRef.current = refetchScheduleAndBlocks;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+  const refetchTimer = useRef<number | null>(null);
+  const scheduleRefetch = useCallback(() => {
+    if (refetchTimer.current) window.clearTimeout(refetchTimer.current);
+    refetchTimer.current = window.setTimeout(() => {
+      if (savingRef.current) return;
+      void refetchRef.current();
+    }, 1500);
+  }, []);
+  const liceIdsCsv = lices.map((l) => l.id).join(',');
+  useRealtimeWithFallback({
+    channelName: `schedule-${eventId}`,
+    table: 'matches',
+    // Scoped to the event's lices — catches scoring/status changes + lice
+    // placements; the poll fallback covers unschedule-off-lice edges.
+    filter: liceIdsCsv
+      ? `lice_id=in.(${liceIdsCsv})`
+      : 'lice_id=in.(00000000-0000-0000-0000-000000000000)',
+    event: '*',
+    onEvent: scheduleRefetch,
+    onFallbackPoll: scheduleRefetch,
+    fallbackPollMs: 30_000,
+  });
 
   async function moveBlockTo(blockId: string, slot: number): Promise<void> {
     setMovingBlockId(blockId);
@@ -1094,6 +1130,108 @@ export function ScheduleGrid({
     ids.forEach((id, i) => void saveMatchPosition(id, liceId, atFor(i)));
   }
 
+  // ── Live drift: how late/early each lice is running on the active day ──────
+  const liceDrift = useMemo(
+    () =>
+      computeLiceDrift(
+        scheduledOnActiveDay.map((m) => ({
+          liceId: m.liceId,
+          scheduledAt: m.scheduledAt,
+          startedAt: m.startedAt,
+          endedAt: m.endedAt,
+          status: m.status,
+          durationMinutes: m.durationMinutes,
+          matchNumberLabel: m.matchNumberLabel,
+        })),
+      ),
+    [scheduledOnActiveDay],
+  );
+
+  // Push a lice's not-yet-started future matches by the drift, to re-align the
+  // rest of the day after a delay. Optimistic + per-match PATCH.
+  function shiftLiceRemaining(liceId: string, driftMin: number) {
+    if (!driftMin || !activeDay) return;
+    const future = matches.filter(
+      (m) =>
+        m.liceId === liceId &&
+        m.scheduledAt &&
+        m.status === 'scheduled' &&
+        matchBelongsToDay(m.scheduledAt, activeDay),
+    );
+    if (future.length === 0) return;
+    const futureIds = new Set(future.map((f) => f.id));
+    const shifted = (iso: string) =>
+      new Date(new Date(iso).getTime() + driftMin * 60_000).toISOString();
+    const updated = matches.map((m) =>
+      futureIds.has(m.id) ? { ...m, scheduledAt: shifted(m.scheduledAt!) } : m,
+    );
+    setMatches(updated);
+    setConflicts(detectConflicts(updated));
+    for (const f of future) void saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!));
+  }
+
+  // ── Export CSV + Print (client-side, from loaded matches) ─────────────────
+  const liceNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of lices) map.set(l.id, l.name);
+    return map;
+  }, [lices]);
+
+  function exportCsv() {
+    const csv = scheduleToCsv(matches, liceNameById);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedule-${eventId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printSchedule() {
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const rows = matches
+      .filter((m) => m.scheduledAt && m.liceId)
+      .map((m) => ({
+        day: m.scheduledAt!.slice(0, 10),
+        lice: liceNameById.get(m.liceId!) ?? m.liceId!,
+        startIso: m.scheduledAt!,
+        cells: [
+          m.scheduledAt!.slice(0, 10),
+          liceNameById.get(m.liceId!) ?? m.liceId!,
+          new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(
+            new Date(m.scheduledAt!),
+          ),
+          m.roundCode || m.matchNumberLabel,
+          m.tournamentName ?? '',
+          `${m.redFighterName ?? '?'} vs ${m.blueFighterName ?? '?'}`,
+        ],
+      }))
+      .sort(
+        (a, b) =>
+          a.day.localeCompare(b.day) ||
+          a.lice.localeCompare(b.lice, undefined, { numeric: true }) ||
+          a.startIso.localeCompare(b.startIso),
+      );
+    const body = rows
+      .map((r) => `<tr>${r.cells.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`)
+      .join('');
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(
+      `<!doctype html><html><head><title>Schedule</title><style>` +
+        `body{font-family:system-ui,sans-serif;padding:24px;color:#111}` +
+        `h1{font-size:18px}table{border-collapse:collapse;width:100%;font-size:12px}` +
+        `th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f4f6}` +
+        `</style></head><body><h1>Schedule</h1><table><thead><tr>` +
+        `<th>Day</th><th>Lice</th><th>Start</th><th>Round</th><th>Tournament</th><th>Match</th>` +
+        `</tr></thead><tbody>${body}</tbody></table></body></html>`,
+    );
+    w.document.close();
+    w.focus();
+    w.print();
+  }
+
   // Per-run grid headers: pools AND bracket rounds group into contiguous
   // same-key runs per lice (computeHeaderRuns). Separating a match —
   // another lice, a time gap, or a different match wedged in — splits the
@@ -1422,6 +1560,22 @@ export function ScheduleGrid({
             {mode === 'blocks' ? 'Blocks' : 'Detailed grid'}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={printSchedule}
+            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Print
+          </button>
+        </div>
       </div>
 
       {/* Unscheduled now sits on the RIGHT (flex-row-reverse) with Configure
@@ -1571,6 +1725,8 @@ export function ScheduleGrid({
               tournamentColorByName={tournamentColorByName}
               quickStartTime={quickStartTime}
               onQuickStartTimeChange={setQuickStartTime}
+              drift={liceDrift}
+              onShiftLice={shiftLiceRemaining}
               expandedKey={expandedBlockKey}
               onToggleExpand={(key) => setExpandedBlockKey((prev) => (prev === key ? null : key))}
               onBlockDragStart={(block) => {

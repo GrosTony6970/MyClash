@@ -15,6 +15,7 @@
 
 import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import type { ScheduleBlock } from './schedule-blocks';
+import type { LiceDrift } from './lice-drift';
 
 export interface ViewLice {
   id: string;
@@ -38,6 +39,9 @@ interface Props {
   /** Quick-assign start time ("HH:MM"); blank = append to the lice. */
   quickStartTime: string;
   onQuickStartTimeChange: (value: string) => void;
+  /** Per-lice running-late/early drift (omitted lices = nothing started). */
+  drift: Map<string, LiceDrift>;
+  onShiftLice: (liceId: string, driftMin: number) => void;
   expandedKey: string | null;
   onToggleExpand: (key: string) => void;
   /** Drag source: the operator grabbed a scheduled block. */
@@ -80,6 +84,8 @@ export function BlockScheduleView({
   tournamentColorByName,
   quickStartTime,
   onQuickStartTimeChange,
+  drift,
+  onShiftLice,
   expandedKey,
   onToggleExpand,
   onBlockDragStart,
@@ -184,6 +190,35 @@ export function BlockScheduleView({
               <p className="text-center text-xs font-bold uppercase tracking-wider text-gray-600">
                 {lice.name}
               </p>
+              {(() => {
+                const d = drift.get(lice.id);
+                if (!d || Math.abs(d.driftMin) < 2) {
+                  return d ? (
+                    <p className="text-center text-[10px] font-medium text-emerald-600">on time</p>
+                  ) : null;
+                }
+                const late = d.driftMin > 0;
+                return (
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span
+                      className={`text-[10px] font-semibold ${late ? 'text-red-600' : 'text-emerald-600'}`}
+                      title={`Based on ${d.basisLabel}`}
+                    >
+                      {late ? `▲ ${d.driftMin} min late` : `▼ ${-d.driftMin} min ahead`}
+                    </span>
+                    {late && (
+                      <button
+                        type="button"
+                        onClick={() => onShiftLice(lice.id, d.driftMin)}
+                        className="rounded border border-red-300 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-50"
+                        title="Push this lice's upcoming matches by the delay"
+                      >
+                        Shift remaining +{d.driftMin}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
               {items.length === 0 ? (
                 <p className="py-6 text-center text-xs italic text-gray-300">idle</p>
               ) : (

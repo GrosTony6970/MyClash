@@ -15,6 +15,10 @@ export interface ScheduleGridMatch {
   status: string;
   liceId: string | null;
   scheduledAt: string | null;
+  /** Actual run timing — present once the match has started/ended; drives
+   *  the schedule's per-lice "running late" drift indicator. */
+  startedAt: string | null;
+  endedAt: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
   redRegistrationId: string;
@@ -61,6 +65,8 @@ interface MatchRow {
   status: string | null;
   lice_id: string | null;
   scheduled_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
   phase_id: string | null;
   pool_id: string | null;
   bracket_slot_id: string | null;
@@ -167,7 +173,7 @@ export class ScheduleGridService {
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, match_number_label, status, lice_id, scheduled_at, phase_id, pool_id, bracket_slot_id, red_registration_id, blue_registration_id',
+        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, red_registration_id, blue_registration_id',
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -285,6 +291,8 @@ export class ScheduleGridService {
         status: m.status ?? 'scheduled',
         liceId: m.lice_id,
         scheduledAt: m.scheduled_at,
+        startedAt: m.started_at ?? null,
+        endedAt: m.ended_at ?? null,
         redFighterName,
         blueFighterName,
         redRegistrationId: m.red_registration_id ?? '',
