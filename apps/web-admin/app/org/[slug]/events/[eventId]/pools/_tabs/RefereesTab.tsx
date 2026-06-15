@@ -212,17 +212,21 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
 
   const timelinePools = useMemo<TimelinePool[]>(
     () =>
-      allBoardPools.map((p) => ({
-        id: p.id,
-        name: p.name,
-        tournamentId: p.tournamentId,
-        tournamentName: p.tournamentName,
-        scheduledStart: p.scheduledStart,
-        scheduledEnd: p.scheduledEnd,
-        liceName: p.liceId ? (liceNameById.get(p.liceId) ?? null) : null,
-        filledSlotCount: p.roleSlots.filter((s) => s.assignment !== null).length,
-        totalSlotCount: p.roleSlots.length,
-      })),
+      // Pools only — bracket/finals matches are staffed in the bracket
+      // section, so they don't belong on the pool timeline.
+      allBoardPools
+        .filter((p) => (p.kind ?? 'pool') === 'pool')
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          tournamentId: p.tournamentId,
+          tournamentName: p.tournamentName,
+          scheduledStart: p.scheduledStart,
+          scheduledEnd: p.scheduledEnd,
+          liceName: p.liceId ? (liceNameById.get(p.liceId) ?? null) : null,
+          filledSlotCount: p.roleSlots.filter((s) => s.assignment !== null).length,
+          totalSlotCount: p.roleSlots.length,
+        })),
     [allBoardPools, liceNameById],
   );
 

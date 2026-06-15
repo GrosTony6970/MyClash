@@ -45,8 +45,17 @@ interface Props {
   onPoolClick?: (pool: TimelinePool) => void;
 }
 
+/** Order pools Lice 1 → Lice 2 → … (numeric so "Lice 10" sorts after "Lice 2");
+ *  pools without a lice fall to the end. */
+function byLice(a: TimelinePool, b: TimelinePool): number {
+  return (a.liceName ?? '￿').localeCompare(b.liceName ?? '￿', undefined, {
+    numeric: true,
+  });
+}
+
 export function PoolTimelineGrid({ pools, highlightTournamentId, onPoolClick }: Props) {
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
+  const unscheduledByLice = useMemo(() => [...unscheduled].sort(byLice), [unscheduled]);
 
   if (blocks.length === 0 && unscheduled.length === 0) {
     return (
@@ -62,11 +71,16 @@ export function PoolTimelineGrid({ pools, highlightTournamentId, onPoolClick }: 
       <div className="space-y-3">
         {blocks.map((block) => (
           <div key={block.startTime} className="flex items-start gap-3">
-            <div className="w-16 shrink-0 pt-2 text-right text-xs font-semibold tabular-nums text-gray-600">
-              {formatHHMM(block.startTime)}
+            <div className="w-20 shrink-0 pt-2 text-right">
+              <div className="text-[10px] leading-tight text-gray-400">
+                {formatDay(block.startTime)}
+              </div>
+              <div className="text-xs font-semibold tabular-nums text-gray-600">
+                {formatHHMM(block.startTime)}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {block.pools.map((pool) => (
+              {[...block.pools].sort(byLice).map((pool) => (
                 <PoolCard
                   key={pool.id}
                   pool={pool}
@@ -77,13 +91,13 @@ export function PoolTimelineGrid({ pools, highlightTournamentId, onPoolClick }: 
             </div>
           </div>
         ))}
-        {unscheduled.length > 0 && (
+        {unscheduledByLice.length > 0 && (
           <div className="flex items-start gap-3 border-t border-gray-100 pt-3">
-            <div className="w-16 shrink-0 pt-2 text-right text-xs font-semibold uppercase text-gray-400">
+            <div className="w-20 shrink-0 pt-2 text-right text-xs font-semibold uppercase leading-tight break-words text-gray-400">
               {t('organizer.poolsPage.refereesTimelineUnscheduled')}
             </div>
             <div className="flex flex-wrap gap-2">
-              {unscheduled.map((pool) => (
+              {unscheduledByLice.map((pool) => (
                 <PoolCard
                   key={pool.id}
                   pool={pool}
@@ -111,15 +125,21 @@ function PoolCard({
   // Chips are read-only on the pools tab; the assignments tab passes
   // onClick so a chip can expand its card / jump to its timeslot.
   const Tag = onClick ? 'button' : 'div';
+  // Red ring means "needs a referee" — a pool with at least one empty slot.
+  // A fully-staffed pool is never red; the current-tournament context cue is
+  // kept as a subtle non-red border instead.
+  const incomplete = pool.totalSlotCount > 0 && pool.filledSlotCount < pool.totalSlotCount;
   return (
     <Tag
       {...(onClick ? { type: 'button' as const, onClick: () => onClick(pool) } : {})}
       className={[
         'rounded-md border bg-white px-3 py-2 text-left text-xs shadow-sm transition-colors',
         onClick ? 'cursor-pointer' : '',
-        highlighted
+        incomplete
           ? 'border-red-500 ring-2 ring-red-200'
-          : 'border-gray-200 hover:border-gray-300',
+          : highlighted
+            ? 'border-gray-300'
+            : 'border-gray-200 hover:border-gray-300',
       ].join(' ')}
       title={`${pool.tournamentName} - ${pool.name}`}
     >
@@ -146,4 +166,12 @@ function formatHHMM(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Compact day label above the time so multi-day events are unambiguous,
+ *  e.g. "sam. 21/06". Same 'fr-FR' locale as the time formatter. */
+function formatDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
 }
