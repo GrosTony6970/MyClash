@@ -10,7 +10,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { assignRefereesWithPools } from './referee-assigner';
-import type { AssignmentSettings, PoolSlot, RefereeCandidate } from './referee-assigner';
+import type {
+  AssignmentSettings,
+  PoolSlot,
+  PriorAssignment,
+  RefereeCandidate,
+} from './referee-assigner';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -975,5 +980,144 @@ describe('Cross-pool fighting conflict', () => {
     expect(
       result.assignments.find((a) => a.personId === 'jocelyn' && a.poolId === 'p1'),
     ).toBeDefined();
+  });
+});
+
+// ── Prior (manual) assignments — locked + treated as constraints ─────────────
+
+describe('priorAssignments: a manually-filled slot is left untouched', () => {
+  it('does not propose into an occupied (pool, role) slot, and it is not reported missing', () => {
+    const pools = [makePool('p1', 'Pool A')];
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('d0', 'Declarant 0', ['arbitre_declarant']),
+      makeCandidate('a0', 'Assesseur 0', ['arbitre_assesseur']),
+      makeCandidate('t0', 'Table 0', ['arbitre_table']),
+    ];
+    // A human already put someone on Pool A's declarant slot.
+    const priors: PriorAssignment[] = [
+      { poolId: 'p1', role: 'arbitre_declarant', personId: 'manual-ref' },
+    ];
+
+    const result = assignRefereesWithPools(pools, candidates, DEFAULT_SETTINGS, priors);
+
+    // The declarant slot is manually filled — engine neither proposes nor flags it.
+    expect(
+      result.assignments.find((a) => a.poolId === 'p1' && a.role === 'arbitre_declarant'),
+    ).toBeUndefined();
+    expect(
+      result.missing.find((m) => m.poolId === 'p1' && m.role === 'arbitre_declarant'),
+    ).toBeUndefined();
+    // The other two slots still fill normally.
+    expect(result.assignments).toHaveLength(2);
+    expect(result.assignments.map((a) => a.role).sort()).toEqual([
+      'arbitre_assesseur',
+      'arbitre_table',
+    ]);
+  });
+});
+
+describe('priorAssignments: a manual pick is honoured as a time-conflict constraint', () => {
+  it('does not propose a referee for a pool overlapping a pool they are manually assigned to', () => {
+    // Pool A 11:00–12:00 (manual pick), Pool B 11:00–12:00 (overlaps A),
+    // Pool C 13:00–14:00 (no overlap). Only ONE assesseur exists, so the
+    // engine would normally place them in every pool.
+    const poolA: PoolSlot = {
+      ...makePool('pA', 'Pool A'),
+      earliestStart: '2027-06-15T11:00:00.000Z',
+      latestEnd: '2027-06-15T12:00:00.000Z',
+    };
+    const poolB: PoolSlot = {
+      ...makePool('pB', 'Pool B'),
+      earliestStart: '2027-06-15T11:00:00.000Z',
+      latestEnd: '2027-06-15T12:00:00.000Z',
+    };
+    const poolC: PoolSlot = {
+      ...makePool('pC', 'Pool C'),
+      earliestStart: '2027-06-15T13:00:00.000Z',
+      latestEnd: '2027-06-15T14:00:00.000Z',
+    };
+
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('only-assesseur', 'Solo Assesseur', ['arbitre_assesseur']),
+    ];
+    // Manually assigned as Pool A assesseur (11:00).
+    const priors: PriorAssignment[] = [
+      { poolId: 'pA', role: 'arbitre_assesseur', personId: 'only-assesseur' },
+    ];
+
+    const result = assignRefereesWithPools(
+      [poolA, poolB, poolC],
+      candidates,
+      DEFAULT_SETTINGS,
+      priors,
+    );
+
+    const assesseur = (poolId: string) =>
+      result.assignments.find(
+        (a) =>
+          a.poolId === poolId && a.role === 'arbitre_assesseur' && a.personId === 'only-assesseur',
+      );
+    // Pool B overlaps the manual Pool A pick → not proposed (double-book).
+    expect(assesseur('pB')).toBeUndefined();
+    expect(
+      result.missing.find((m) => m.poolId === 'pB' && m.role === 'arbitre_assesseur'),
+    ).toBeDefined();
+    // Pool C does not overlap → still proposed.
+    expect(assesseur('pC')).toBeDefined();
+  });
+});
+
+describe('priorAssignments: a manual pick blocks a second role in the same pool', () => {
+  it('does not give a manually-assigned referee another role in that pool', () => {
+    const pools = [makePool('p1', 'Pool A')];
+    // R is the only qualified person, qualified for all three roles.
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('r', 'Ref', ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table']),
+    ];
+    // Manually placed as Pool A table.
+    const priors: PriorAssignment[] = [{ poolId: 'p1', role: 'arbitre_table', personId: 'r' }];
+
+    const result = assignRefereesWithPools(pools, candidates, DEFAULT_SETTINGS, priors);
+
+    // R is not proposed for any OTHER role in Pool A (two-roles rule vs prior).
+    expect(result.assignments.filter((a) => a.poolId === 'p1')).toHaveLength(0);
+    // With no other candidate, the declarant + assesseur slots report missing
+    // because the only qualified person is already on the pool.
+    const reasons = result.missing
+      .filter((m) => m.poolId === 'p1')
+      .flatMap((m) => m.rejectionReasons);
+    expect(reasons).toContain('all_qualified_already_assigned_to_pool');
+  });
+});
+
+describe('priorAssignments: a manual pick counts toward workload balance', () => {
+  it('prefers an un-burdened referee for a new slot when a peer already has a manual duty', () => {
+    // Two unscheduled pools (no time constraints), two assesseur candidates.
+    // Workload balance should send the new assesseur slots to the referee
+    // who is NOT already carrying a manual assignment.
+    const pools = [makePool('p1', 'Pool A'), makePool('p2', 'Pool B')];
+    const candidates: RefereeCandidate[] = [
+      makeCandidate('busy', 'Busy', ['arbitre_assesseur']),
+      makeCandidate('fresh', 'Fresh', ['arbitre_assesseur']),
+    ];
+    // `busy` already has two manual duties elsewhere.
+    const priors: PriorAssignment[] = [
+      { poolId: 'pX', role: 'arbitre_assesseur', personId: 'busy' },
+      { poolId: 'pY', role: 'arbitre_assesseur', personId: 'busy' },
+    ];
+
+    // Back-to-back off so the workload signal is isolated (the priors' pools
+    // aren't in this run, so back-to-back would otherwise skew the choice).
+    const result = assignRefereesWithPools(
+      pools,
+      candidates,
+      { ...DEFAULT_SETTINGS, enforceRefereeNoBackToBack: false },
+      priors,
+    );
+
+    const newAssesseurs = result.assignments.filter((a) => a.role === 'arbitre_assesseur');
+    expect(newAssesseurs).toHaveLength(2);
+    // Both new assesseur slots go to the fresh referee, not the already-busy one.
+    expect(newAssesseurs.every((a) => a.personId === 'fresh')).toBe(true);
   });
 });

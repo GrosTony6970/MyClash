@@ -41,6 +41,7 @@ export type {
   PoolSlot as RefereePoolSlot,
   AssignmentSettings as RefereeAssignmentSettings,
   RefereeAssignment,
+  PriorAssignment,
   MissingAssignment,
   AssignmentWarning,
   AssignmentResult,

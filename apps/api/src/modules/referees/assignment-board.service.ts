@@ -13,6 +13,7 @@ import {
   type RefereePoolSlot,
   type RefereeRole,
 } from '@myclash/rulesets/dist/scheduling/index';
+import { priorAssignmentsFromRows } from './prior-assignments';
 import {
   detectConcurrencyShortage,
   detectRefereeConflicts,
@@ -1209,20 +1210,32 @@ export class AssignmentBoardService {
       }),
     );
 
+    // Manually-assigned referees (auto_assigned=false) are FIXED constraints:
+    // the engine won't re-fill their slot and won't propose anyone who'd
+    // conflict with them. Auto chips are wiped & regenerated, so they don't
+    // constrain. Both preview (dry-run) and apply flow through here, so they
+    // stay consistent.
+    const priorAssignments = priorAssignmentsFromRows(context.assignments, context.pools);
+
     const poolSettings = context.ruleSettings;
-    return assignRefereesWithPools(poolSlots, engineCandidates, {
-      enforceRefereeNoBackToBack: poolSettings.enforceRefereeNoBackToBack,
-      refereeRestMinSlots: poolSettings.refereeRestMinSlots,
-      enforceDedicatedRefereeRest: poolSettings.enforceDedicatedRefereeRest,
-      workshopConflictWarning: poolSettings.workshopConflictWarning,
-      ratingBasedOrdering: poolSettings.ratingBasedOrdering,
-      workloadBalance: poolSettings.workloadBalance,
-      enableOwnPoolRule: poolSettings.enableOwnPoolRule,
-      enableOfficiateVsFightRule: poolSettings.enableOfficiateVsFightRule,
-      enableDoubleBookedRule: poolSettings.enableDoubleBookedRule,
-      enableTwoRolesRule: poolSettings.enableTwoRolesRule,
-      enableAvailabilityRule: poolSettings.enableAvailabilityRule,
-    });
+    return assignRefereesWithPools(
+      poolSlots,
+      engineCandidates,
+      {
+        enforceRefereeNoBackToBack: poolSettings.enforceRefereeNoBackToBack,
+        refereeRestMinSlots: poolSettings.refereeRestMinSlots,
+        enforceDedicatedRefereeRest: poolSettings.enforceDedicatedRefereeRest,
+        workshopConflictWarning: poolSettings.workshopConflictWarning,
+        ratingBasedOrdering: poolSettings.ratingBasedOrdering,
+        workloadBalance: poolSettings.workloadBalance,
+        enableOwnPoolRule: poolSettings.enableOwnPoolRule,
+        enableOfficiateVsFightRule: poolSettings.enableOfficiateVsFightRule,
+        enableDoubleBookedRule: poolSettings.enableDoubleBookedRule,
+        enableTwoRolesRule: poolSettings.enableTwoRolesRule,
+        enableAvailabilityRule: poolSettings.enableAvailabilityRule,
+      },
+      priorAssignments,
+    );
   }
 
   private makeDayIndexOf(eventStartDate: string | null): (iso: string) => number {

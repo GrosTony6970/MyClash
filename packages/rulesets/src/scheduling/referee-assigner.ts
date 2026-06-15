@@ -230,13 +230,29 @@ export interface AssignmentResult {
   swapSuggestions: SwapSuggestion[];
 }
 
+/**
+ * An assignment that already exists on the board (typically a human's
+ * manual pick) and must be treated as FIXED when the engine runs: the
+ * engine won't propose into the same `(poolId, role)` slot, and the
+ * person is fed into the conflict + workload checks so new proposals
+ * don't double-book / back-to-back / two-role against them.
+ */
+export interface PriorAssignment {
+  poolId: string;
+  role: RefereeRole;
+  personId: string;
+}
+
 // ── Implementation ────────────────────────────────────────────────────────────
 
 export function assignReferees(
   pools: PoolSlot[],
   candidates: RefereeCandidate[],
   settings: AssignmentSettings,
+  priorAssignments: PriorAssignment[] = [],
 ): AssignmentResult {
+  // Newly-produced assignments — the only ones returned (priors already
+  // live on the board and are re-applied by the persistence layer).
   const assignments: RefereeAssignment[] = [];
   const missing: MissingAssignment[] = [];
   const warnings: AssignmentWarning[] = [];
@@ -248,14 +264,49 @@ export function assignReferees(
   // Track which pools each person is assigned to (for back-to-back detection)
   const personAssignedPools = new Map<string, string[]>();
 
+  // `committed` = priors + produced, fed to assignSlot's conflict filters
+  // (double-booking / two-roles). Kept separate from `assignments` so priors
+  // constrain new picks without being returned as fresh proposals.
+  const committed: Array<{ poolId: string; personId: string }> = [];
+
+  // Seed the workload / back-to-back / conflict structures with the prior
+  // (manual) assignments so new proposals avoid clashing with them.
+  for (const prior of priorAssignments) {
+    committed.push({ poolId: prior.poolId, personId: prior.personId });
+    personAssignmentCount.set(prior.personId, (personAssignmentCount.get(prior.personId) ?? 0) + 1);
+    const pp = personAssignedPools.get(prior.personId) ?? [];
+    pp.push(prior.poolId);
+    personAssignedPools.set(prior.personId, pp);
+  }
+
+  // Consumable per-pool list of prior roles, used to SKIP a slot a human
+  // already filled (matched by role within the pool — the DB slot key is
+  // (pool, role), there is no slot_index).
+  const remainingPriorRolesByPool = new Map<string, string[]>();
+  for (const prior of priorAssignments) {
+    const arr = remainingPriorRolesByPool.get(prior.poolId) ?? [];
+    arr.push(prior.role);
+    remainingPriorRolesByPool.set(prior.poolId, arr);
+  }
+
   for (const pool of pools) {
     const slots = pool.slotDefinitions ?? LEGACY_DEFAULT_SLOTS;
     for (const slot of slots) {
+      // A manually-filled slot is left untouched: not proposed, not missing.
+      const priorRoles = remainingPriorRolesByPool.get(pool.poolId);
+      if (priorRoles && priorRoles.length > 0) {
+        const idx = priorRoles.findIndex((r) => slot.allowedSkillIds.includes(r));
+        if (idx !== -1) {
+          priorRoles.splice(idx, 1); // consume this prior — slot is taken
+          continue;
+        }
+      }
+
       const result = assignSlot(
         pool,
         slot,
         candidates,
-        assignments,
+        committed,
         settings,
         personAssignmentCount,
         personAssignedPools,
@@ -266,6 +317,7 @@ export function assignReferees(
           ? { ...result.assigned, isFinals: true }
           : result.assigned;
         assignments.push(stamped);
+        committed.push({ poolId: stamped.poolId, personId: stamped.personId });
         personAssignmentCount.set(
           stamped.personId,
           (personAssignmentCount.get(stamped.personId) ?? 0) + 1,
@@ -455,7 +507,9 @@ function assignSlot(
   pool: PoolSlot,
   slot: SlotDefinition,
   candidates: RefereeCandidate[],
-  existingAssignments: RefereeAssignment[],
+  // Structural minimum so both produced `RefereeAssignment`s and seeded
+  // prior assignments satisfy it — the filters only read poolId + personId.
+  existingAssignments: ReadonlyArray<{ poolId: string; personId: string }>,
   settings: AssignmentSettings,
   personAssignmentCount: Map<string, number>,
   personAssignedPools: Map<string, string[]>,
@@ -724,7 +778,8 @@ export function assignRefereesWithPools(
   poolsArg: PoolSlot[],
   candidates: RefereeCandidate[],
   settings: AssignmentSettings,
+  priorAssignments: PriorAssignment[] = [],
 ): AssignmentResult {
   pools = poolsArg;
-  return assignReferees(poolsArg, candidates, settings);
+  return assignReferees(poolsArg, candidates, settings, priorAssignments);
 }
