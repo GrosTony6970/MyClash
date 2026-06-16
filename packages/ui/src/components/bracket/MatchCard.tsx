@@ -8,14 +8,6 @@ export interface MatchCardProps {
   blueColor?: ColorToken;
   onClick?: (matchId: string | null, slotId: string, liceId: string | null) => void;
   onOverride?: (slotId: string) => void;
-  /**
-   * Open the inline Record-forfeit modal for this match. Wired from the
-   * bracket page; the modal posts to /matches/:id/forfeit and the
-   * bracket refetches. Card only renders the WO chip when the callback
-   * is provided AND the match has both sides resolved AND isn't already
-   * completed.
-   */
-  onForfeitClick?: (matchId: string, slot: BracketSlotData) => void;
   /** Registers the card's outer element for connector geometry. */
   registerRef?: (slotId: string, el: HTMLDivElement | null) => void;
   /**
@@ -59,7 +51,6 @@ export function MatchCard({
   blueColor = 'blue',
   onClick,
   onOverride,
-  onForfeitClick,
   registerRef,
   isChampionshipMatch = false,
   isBronzeMatch = false,
@@ -185,42 +176,14 @@ export function MatchCard({
         </button>
       )}
 
-      {/* Top-left overlay: the assigned-lice pill (info) and the WO forfeit
-          chip (action) sit side by side so they never overlap. */}
-      {(slot.liceName ||
-        (onForfeitClick &&
-          slot.matchId &&
-          slot.redRegistrationId &&
-          slot.blueRegistrationId &&
-          !isCompleted)) && (
-        <div className="absolute -top-2 -left-2 flex items-center gap-1">
-          {slot.liceName && (
-            <span
-              title={`Lice: ${slot.liceName}`}
-              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm"
-            >
-              {slot.liceName}
-            </span>
-          )}
-          {onForfeitClick &&
-            slot.matchId &&
-            slot.redRegistrationId &&
-            slot.blueRegistrationId &&
-            !isCompleted && (
-              <button
-                type="button"
-                aria-label="Record forfeit"
-                title="Record forfeit"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onForfeitClick(slot.matchId!, slot);
-                }}
-                className="flex h-5 items-center justify-center rounded-full border border-slate-300 bg-white px-1.5 text-[9px] font-bold text-slate-500 shadow-sm hover:text-slate-900"
-              >
-                WO
-              </button>
-            )}
-        </div>
+      {/* Assigned-lice pill, top-left. */}
+      {slot.liceName && (
+        <span
+          title={`Lice: ${slot.liceName}`}
+          className="absolute -top-2 -left-2 inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm"
+        >
+          {slot.liceName}
+        </span>
       )}
     </div>
   );

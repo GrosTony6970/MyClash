@@ -215,29 +215,24 @@ export default function BracketPage() {
     | 'black_card_1'
     | 'black_card_2'
     | 'conduct_violation';
-  const [forfeitModal, setForfeitModal] = useState<{
-    matchId: string;
-    redRegistrationId: string | null;
-    redName: string | null;
-    blueRegistrationId: string | null;
-    blueName: string | null;
-  } | null>(null);
+  // Forfeit draft — lives inside the ✎ edit modal (no separate forfeit modal).
   const [forfeitSide, setForfeitSide] = useState<'red' | 'blue' | null>(null);
   const [forfeitReason, setForfeitReason] = useState<ForfeitReason>('voluntary');
   const [forfeitBusy, setForfeitBusy] = useState(false);
   const [forfeitError, setForfeitError] = useState<string | null>(null);
 
-  function closeForfeitModal() {
-    setForfeitModal(null);
+  function resetForfeitDraft() {
     setForfeitSide(null);
     setForfeitReason('voluntary');
     setForfeitError(null);
   }
 
   async function submitForfeit() {
-    if (!forfeitModal || !forfeitSide) return;
+    const matchId = overrideModal?.matchId;
+    if (!matchId || !forfeitSide) return;
+    const slot = bracket?.slots.find((s) => s.id === overrideModal.slotId);
     const forfeitingRegistrationId =
-      forfeitSide === 'red' ? forfeitModal.redRegistrationId : forfeitModal.blueRegistrationId;
+      forfeitSide === 'red' ? slot?.redRegistrationId : slot?.blueRegistrationId;
     if (!forfeitingRegistrationId) {
       setForfeitError('This side has no registration id yet.');
       return;
@@ -245,7 +240,7 @@ export default function BracketPage() {
     setForfeitBusy(true);
     setForfeitError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${forfeitModal.matchId}/forfeit`, {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -258,7 +253,9 @@ export default function BracketPage() {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
-      closeForfeitModal();
+      resetForfeitDraft();
+      setOverrideModal(null);
+      setPickerFilter('');
       refreshBracket();
     } catch (err) {
       setForfeitError(err instanceof Error ? err.message : 'Forfeit failed');
@@ -514,6 +511,17 @@ export default function BracketPage() {
       ? (refereeBoard.pools.find((p) => p.matchId === editMatchId)?.roleSlots ?? [])
       : [];
 
+  // The slot open in the edit modal + whether it can be forfeited (both sides
+  // resolved, not yet completed) — gates the modal's Forfeit section.
+  const editSlot = overrideModal
+    ? (bracket?.slots.find((s) => s.id === overrideModal.slotId) ?? null)
+    : null;
+  const canForfeit =
+    !!overrideModal?.matchId &&
+    !!editSlot?.redRegistrationId &&
+    !!editSlot?.blueRegistrationId &&
+    editSlot?.status !== 'completed';
+
   // ── Realtime: update individual match cards in place ───────────────────────
 
   useRealtimeWithFallback({
@@ -712,6 +720,7 @@ export default function BracketPage() {
       roleChanges: {},
     });
     setOverrideError(null);
+    resetForfeitDraft();
   }
 
   async function submitOverride() {
@@ -1411,87 +1420,6 @@ export default function BracketPage() {
             filtered list; clicking a row sets that side to the
             registration id; "Clear" sends an explicit null so the
             backend wipes the assignment. */}
-        {forfeitModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-              <h2 className="text-lg font-bold mb-1">Record forfeit</h2>
-              <p className="text-sm text-gray-500 mb-4">
-                The selected side will be marked as forfeiting; the other side advances.
-              </p>
-
-              <div className="space-y-2 mb-4">
-                {(['red', 'blue'] as const).map((side) => {
-                  const name = side === 'red' ? forfeitModal.redName : forfeitModal.blueName;
-                  const regId =
-                    side === 'red'
-                      ? forfeitModal.redRegistrationId
-                      : forfeitModal.blueRegistrationId;
-                  const disabled = !regId;
-                  const active = forfeitSide === side;
-                  return (
-                    <button
-                      key={side}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setForfeitSide(side)}
-                      className={[
-                        'w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors',
-                        active
-                          ? 'border-red-600 bg-red-50 text-red-900'
-                          : 'border-gray-300 hover:border-gray-400',
-                        disabled ? 'opacity-50 cursor-not-allowed' : '',
-                      ].join(' ')}
-                    >
-                      <span className="font-semibold">
-                        {side === 'red' ? 'Red' : 'Blue'} forfeits
-                      </span>
-                      <span className="ml-2 text-gray-600">— {name ?? '?'}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Reason</label>
-              <select
-                value={forfeitReason}
-                onChange={(e) => setForfeitReason(e.target.value as ForfeitReason)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-600"
-              >
-                <option value="voluntary">Voluntary</option>
-                <option value="injury">Injury</option>
-                <option value="black_card_1">Black card (single)</option>
-                <option value="black_card_2">Black card (two)</option>
-                <option value="conduct_violation">Conduct violation</option>
-              </select>
-
-              {forfeitError && (
-                <p className="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
-                  {forfeitError}
-                </p>
-              )}
-
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeForfeitModal}
-                  disabled={forfeitBusy}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:border-gray-400 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void submitForfeit()}
-                  disabled={forfeitBusy || !forfeitSide}
-                  className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
-                >
-                  {forfeitBusy ? '…' : 'Confirm forfeit'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {overrideModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
@@ -1642,12 +1570,65 @@ export default function BracketPage() {
                   })}
                 </div>
               )}
+              {canForfeit && editSlot && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700">
+                    Record forfeit
+                  </p>
+                  <div className="mb-2 space-y-1.5">
+                    {(['red', 'blue'] as const).map((side) => {
+                      const name =
+                        side === 'red' ? editSlot.redFighterName : editSlot.blueFighterName;
+                      const active = forfeitSide === side;
+                      return (
+                        <button
+                          key={side}
+                          type="button"
+                          onClick={() => setForfeitSide(side)}
+                          className={[
+                            'w-full rounded-md border px-3 py-1.5 text-left text-sm transition-colors',
+                            active
+                              ? 'border-red-600 bg-white text-red-900'
+                              : 'border-gray-300 bg-white hover:border-gray-400',
+                          ].join(' ')}
+                        >
+                          <span className="font-semibold">
+                            {side === 'red' ? 'Red' : 'Blue'} forfeits
+                          </span>
+                          <span className="ml-2 text-gray-600">— {name ?? '?'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <select
+                    value={forfeitReason}
+                    onChange={(e) => setForfeitReason(e.target.value as ForfeitReason)}
+                    className="mb-2 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  >
+                    <option value="voluntary">Voluntary</option>
+                    <option value="injury">Injury</option>
+                    <option value="black_card_1">Black card (single)</option>
+                    <option value="black_card_2">Black card (two)</option>
+                    <option value="conduct_violation">Conduct violation</option>
+                  </select>
+                  {forfeitError && <p className="mb-2 text-xs text-red-700">{forfeitError}</p>}
+                  <button
+                    type="button"
+                    onClick={() => void submitForfeit()}
+                    disabled={forfeitBusy || !forfeitSide}
+                    className="w-full rounded-md bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+                  >
+                    {forfeitBusy ? '…' : 'Record forfeit'}
+                  </button>
+                </div>
+              )}
               {overrideError && <p className="text-red-600 text-sm mb-3">{overrideError}</p>}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setOverrideModal(null);
                     setPickerFilter('');
+                    resetForfeitDraft();
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
                 >
@@ -1815,15 +1796,6 @@ export default function BracketPage() {
                   if (href) window.location.href = href;
                 }}
                 onOverrideSlot={(slotId) => openOverride(slotId)}
-                onForfeitClick={(matchId, slot) => {
-                  setForfeitModal({
-                    matchId,
-                    redRegistrationId: slot.redRegistrationId ?? null,
-                    redName: slot.redFighterName,
-                    blueRegistrationId: slot.blueRegistrationId ?? null,
-                    blueName: slot.blueFighterName,
-                  });
-                }}
                 playInLabel={t('organizer.phaseVisibility.playIns')}
               />
             </div>
