@@ -3,7 +3,7 @@
 import { Button, TournamentColorDot, statusPillTone, tournamentStatusSemantic } from '@myclash/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { type FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -27,11 +27,6 @@ interface Tournament {
   maxWaitlist: number | null;
   /** Count of registered + checked_in registrations — drives the table's Registered column. */
   registered: number;
-}
-
-interface TournamentForm {
-  name: string;
-  status: string;
 }
 
 function normalizeTournament(row: Record<string, unknown>): Tournament {
@@ -68,13 +63,6 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
   };
 }
 
-function toForm(tournament: Tournament): TournamentForm {
-  return {
-    name: tournament.name,
-    status: tournament.status,
-  };
-}
-
 export default function EventTournamentsPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
@@ -86,8 +74,6 @@ export default function EventTournamentsPage() {
   const [eventName, setEventName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Tournament | null>(null);
-  const [form, setForm] = useState<TournamentForm | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Tournament | null>(null);
   const [deletionRequestTarget, setDeletionRequestTarget] = useState<Tournament | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,44 +131,6 @@ export default function EventTournamentsPage() {
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, apiUrl]);
-
-  function openEdit(tournament: Tournament) {
-    setEditing(tournament);
-    setForm(toForm(tournament));
-    setError(null);
-    setNotice(null);
-  }
-
-  async function saveEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editing || !form) return;
-    setBusyId(editing.id);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${editing.id}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          status: form.status,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.tournaments.saveError'));
-      }
-      setEditing(null);
-      setForm(null);
-      setNotice(t('organizer.tournaments.saved'));
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.tournaments.saveError'));
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   async function changeStatus(tournament: Tournament, nextStatus: string) {
     if (nextStatus === tournament.status) return;
@@ -394,20 +342,11 @@ export default function EventTournamentsPage() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="back"
-                          disabled={isReadOnly}
-                          onClick={() => openEdit(tournament)}
-                        >
-                          {t('organizer.tournaments.edit')}
-                        </Button>
                         <Link
                           href={`/org/${slug}/events/${eventId}/tournaments/${tournament.id}/settings#basics`}
                           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         >
-                          {t('organizer.tournaments.settings.action')}
+                          {t('organizer.tournaments.edit')}
                         </Link>
                         {(() => {
                           if (tournament.status !== 'draft') return null;
@@ -479,62 +418,6 @@ export default function EventTournamentsPage() {
           </div>
         )}
       </section>
-
-      {editing && form && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <form
-            onSubmit={(event) => void saveEdit(event)}
-            className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-2xl"
-          >
-            <h2 className="text-xl font-bold text-slate-900">
-              {t('organizer.tournaments.editTitle')}
-            </h2>
-            <p className="mt-1 font-mono text-xs text-slate-400">/{editing.slug}</p>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
-                {t('organizer.tournaments.table.tournament')}
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
-                {t('organizer.tournaments.status')}
-                <select
-                  value={form.status}
-                  onChange={(event) => setForm({ ...form, status: event.target.value })}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {['draft', 'published', 'running', 'completed', 'archived'].map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="my-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-              {t('organizer.tournaments.editModal.openSettingsHint')}{' '}
-              <Link
-                href={`/org/${slug}/events/${eventId}/tournaments/${editing.id}/settings#basics`}
-                className="font-semibold underline"
-                onClick={() => setEditing(null)}
-              >
-                {t('organizer.tournaments.editModal.openSettingsLink')} →
-              </Link>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Button type="button" variant="cancel" onClick={() => setEditing(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" variant="next" loading={busyId === editing.id}>
-                {t('organizer.tournaments.save')}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
