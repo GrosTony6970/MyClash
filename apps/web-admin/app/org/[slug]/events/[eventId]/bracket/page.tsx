@@ -24,6 +24,7 @@ import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { diffRoleAssignments } from './diff-role-assignments';
 
 interface Tournament {
   id: string;
@@ -71,6 +72,9 @@ interface BracketResult {
 
 interface OverrideModalState {
   slotId: string;
+  /** The slot's scheduled match (null when fighters aren't placed yet) — gates
+   *  the Lice + referee controls, which act on the match. */
+  matchId: string | null;
   /**
    * Tri-state values:
    *   - undefined: untouched in this modal session, omitted from the PATCH.
@@ -79,6 +83,10 @@ interface OverrideModalState {
    */
   regAId: string | null | undefined;
   regBId: string | null | undefined;
+  /** Editable lice, initialised to the match's current lice (null = none). */
+  liceId: string | null;
+  /** Roles the operator changed: role → person id (null = clear). */
+  roleChanges: Record<string, string | null>;
 }
 
 /**
@@ -92,6 +100,36 @@ interface PickerRegistration {
   displayName: string;
   bibNumber: number | null;
   seed: number | null;
+}
+
+interface EventLice {
+  id: string;
+  name: string;
+}
+
+/** Minimal slice of the referee assignment board the bracket edit modal needs:
+ *  per-match role slots with their current assignee + candidate referees. */
+interface RefBoardCandidate {
+  personId: string | null;
+  displayName: string;
+}
+interface RefBoardRoleSlot {
+  role: string;
+  displayName: string | null;
+  allowedSkillIds: string[];
+  assignment: { personId: string | null; displayName: string } | null;
+  candidates: {
+    recommended: RefBoardCandidate[];
+    warning: RefBoardCandidate[];
+    blocked: RefBoardCandidate[];
+  };
+}
+interface RefBoardPool {
+  matchId?: string;
+  roleSlots: RefBoardRoleSlot[];
+}
+interface RefBoard {
+  pools: RefBoardPool[];
 }
 
 type SeedingStrategy = 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
@@ -234,6 +272,10 @@ export default function BracketPage() {
    * don't double-fetch when a row is reassigned.
    */
   const [pickerRegistrations, setPickerRegistrations] = useState<PickerRegistration[]>([]);
+  // Event lices (drives the lice pill on each fight + the edit-modal dropdown)
+  // and the referee assignment board (per-match role slots for the modal).
+  const [lices, setLices] = useState<EventLice[]>([]);
+  const [refereeBoard, setRefereeBoard] = useState<RefBoard | null>(null);
   const [pickerFilter, setPickerFilter] = useState('');
 
   // Configuration card (post-generation edit)
@@ -432,6 +474,46 @@ export default function BracketPage() {
     return pickerRegistrations.filter((r) => r.displayName.toLowerCase().includes(q));
   }, [pickerRegistrations, pickerFilter]);
 
+  // Event lices — for the per-fight lice pill + the edit-modal dropdown.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) setLices((await res.json()) as EventLice[]);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
+  // Referee assignment board — supplies each match's role slots + candidates
+  // for the edit modal. Refetched on bracketRefreshKey so a save (which calls
+  // refreshBracket) re-reads the assignments.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignment-board`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) setRefereeBoard((await res.json()) as RefBoard);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl, bracketRefreshKey]);
+
+  const liceNameById = useMemo(() => new Map(lices.map((l) => [l.id, l.name])), [lices]);
+
+  // Role slots for the match being edited (from the board), for the modal.
+  // Plain derived value — cheap, and the React Compiler handles memoization.
+  const editMatchId = overrideModal?.matchId ?? null;
+  const editMatchRoleSlots: RefBoardRoleSlot[] =
+    editMatchId && refereeBoard
+      ? (refereeBoard.pools.find((p) => p.matchId === editMatchId)?.roleSlots ?? [])
+      : [];
+
   // ── Realtime: update individual match cards in place ───────────────────────
 
   useRealtimeWithFallback({
@@ -617,25 +699,88 @@ export default function BracketPage() {
     return `/org/${slug}/events/${eventId}/notifications?${query.toString()}`;
   }, [bracketPhaseId, selectedTournament, slug, eventId]);
 
+  // Open the edit modal for a slot, seeding the lice from the slot's current
+  // match placement so the dropdown shows where it's assigned.
+  function openOverride(slotId: string) {
+    const slot = bracket?.slots.find((s) => s.id === slotId);
+    setOverrideModal({
+      slotId,
+      matchId: slot?.matchId ?? null,
+      regAId: undefined,
+      regBId: undefined,
+      liceId: slot?.liceId ?? null,
+      roleChanges: {},
+    });
+    setOverrideError(null);
+  }
+
   async function submitOverride() {
     if (!overrideModal) return;
     setOverriding(true);
     setOverrideError(null);
     try {
-      const body: Record<string, string | null> = {};
-      if (overrideModal.regAId !== undefined) body['registrationAId'] = overrideModal.regAId;
-      if (overrideModal.regBId !== undefined) body['registrationBId'] = overrideModal.regBId;
-
-      const res = await fetch(`${apiUrl}/api/v1/bracket-slots/${overrideModal.slotId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? 'Override failed');
+      // 1. Fighters (bracket slot) — only when the operator touched a side.
+      if (overrideModal.regAId !== undefined || overrideModal.regBId !== undefined) {
+        const body: Record<string, string | null> = {};
+        if (overrideModal.regAId !== undefined) body['registrationAId'] = overrideModal.regAId;
+        if (overrideModal.regBId !== undefined) body['registrationBId'] = overrideModal.regBId;
+        const res = await fetch(`${apiUrl}/api/v1/bracket-slots/${overrideModal.slotId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const errBody = (await res.json()) as { message?: string };
+          throw new Error(errBody.message ?? 'Override failed');
+        }
       }
+
+      const matchId = overrideModal.matchId;
+      if (matchId) {
+        // 2. Lice — PATCH /matches/:id (preserves scheduled_at) when changed.
+        const slot = bracket?.slots.find((s) => s.id === overrideModal.slotId);
+        const currentLiceId = slot?.liceId ?? null;
+        if (overrideModal.liceId !== currentLiceId) {
+          const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ liceId: overrideModal.liceId }),
+          });
+          if (!res.ok) {
+            const errBody = (await res.json()) as { message?: string };
+            throw new Error(errBody.message ?? 'Lice update failed');
+          }
+        }
+
+        // 3. Referees — diff the board's current assignments vs the draft and
+        //    PUT only the changed (role, refereeId) pairs.
+        const roleSlots = refereeBoard?.pools.find((p) => p.matchId === matchId)?.roleSlots ?? [];
+        const current = roleSlots.map((rs) => ({
+          role: rs.role,
+          refereeId: rs.assignment?.personId ?? null,
+        }));
+        const draft = current.map((c) => ({
+          role: c.role,
+          refereeId: Object.prototype.hasOwnProperty.call(overrideModal.roleChanges, c.role)
+            ? (overrideModal.roleChanges[c.role] ?? null)
+            : c.refereeId,
+        }));
+        for (const change of diffRoleAssignments(current, draft)) {
+          const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/referee-role-assignments`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ role: change.role, refereeId: change.refereeId }),
+          });
+          if (!res.ok) {
+            const errBody = (await res.json()) as { message?: string };
+            throw new Error(errBody.message ?? 'Referee update failed');
+          }
+        }
+      }
+
       setOverrideModal(null);
       setPickerFilter('');
       refreshBracket();
@@ -1425,6 +1570,78 @@ export default function BracketPage() {
                   );
                 })}
               </div>
+              {overrideModal.matchId && (
+                <div className="mb-4 space-y-2 border-t border-gray-200 pt-3">
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-semibold text-gray-700">
+                      {t('organizer.bracket.overrideModal.liceLabel')}
+                    </span>
+                    <select
+                      value={overrideModal.liceId ?? ''}
+                      onChange={(e) =>
+                        setOverrideModal({ ...overrideModal, liceId: e.target.value || null })
+                      }
+                      className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    >
+                      <option value="">{t('organizer.bracket.overrideModal.liceNone')}</option>
+                      {lices.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {editMatchRoleSlots.map((rs) => {
+                    const current = rs.assignment?.personId ?? null;
+                    const value = Object.prototype.hasOwnProperty.call(
+                      overrideModal.roleChanges,
+                      rs.role,
+                    )
+                      ? (overrideModal.roleChanges[rs.role] ?? '')
+                      : (current ?? '');
+                    const options = [...rs.candidates.recommended, ...rs.candidates.warning];
+                    const currentMissing =
+                      current !== null && !options.some((c) => c.personId === current);
+                    return (
+                      <label
+                        key={rs.role}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="font-semibold text-gray-700">
+                          {rs.displayName ?? rs.role}
+                        </span>
+                        <select
+                          value={value}
+                          onChange={(e) =>
+                            setOverrideModal({
+                              ...overrideModal,
+                              roleChanges: {
+                                ...overrideModal.roleChanges,
+                                [rs.role]: e.target.value || null,
+                              },
+                            })
+                          }
+                          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                        >
+                          <option value="">
+                            {t('organizer.bracket.overrideModal.refereeNone')}
+                          </option>
+                          {currentMissing && rs.assignment && (
+                            <option value={current ?? ''}>{rs.assignment.displayName}</option>
+                          )}
+                          {options.map((c) =>
+                            c.personId ? (
+                              <option key={c.personId} value={c.personId}>
+                                {c.displayName}
+                              </option>
+                            ) : null,
+                          )}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
               {overrideError && <p className="text-red-600 text-sm mb-3">{overrideError}</p>}
               <div className="flex gap-3">
                 <button
@@ -1549,12 +1766,26 @@ export default function BracketPage() {
             )}
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <BracketView
-                slots={bracket.slots.filter((s) => s.id !== bronzeMatch?.id)}
+                slots={bracket.slots
+                  .filter((s) => s.id !== bronzeMatch?.id)
+                  .map((s) => ({
+                    ...s,
+                    liceName: s.liceId ? (liceNameById.get(s.liceId) ?? null) : null,
+                  }))}
                 rounds={bracket.rounds}
                 bracketConfig={bracketConfig}
                 redColor={redColor}
                 blueColor={blueColor}
-                bronzeMatch={bronzeMatch}
+                bronzeMatch={
+                  bronzeMatch
+                    ? {
+                        ...bronzeMatch,
+                        liceName: bronzeMatch.liceId
+                          ? (liceNameById.get(bronzeMatch.liceId) ?? null)
+                          : null,
+                      }
+                    : bronzeMatch
+                }
                 weapon={tournamentWeapon}
                 bracketSize={bracket.bracketSize}
                 onMatchClick={(matchId, slotId) => {
@@ -1567,7 +1798,7 @@ export default function BracketPage() {
                   // page is no longer the fallback — operators reach it
                   // via the WO chip on each card.
                   if (!matchId) {
-                    setOverrideModal({ slotId, regAId: undefined, regBId: undefined });
+                    openOverride(slotId);
                     return;
                   }
                   // Same-origin proxy at `/scoring/*` serves the scoring
@@ -1583,9 +1814,7 @@ export default function BracketPage() {
                   );
                   if (href) window.location.href = href;
                 }}
-                onOverrideSlot={(slotId) =>
-                  setOverrideModal({ slotId, regAId: undefined, regBId: undefined })
-                }
+                onOverrideSlot={(slotId) => openOverride(slotId)}
                 onForfeitClick={(matchId, slot) => {
                   setForfeitModal({
                     matchId,

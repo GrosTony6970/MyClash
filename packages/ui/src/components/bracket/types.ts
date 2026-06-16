@@ -28,6 +28,10 @@ export interface BracketSlotData {
    *  when the operator hasn't placed the match on a lice yet —
    *  bracket page falls back to the per-match scoring URL in that case. */
   liceId?: string | null;
+  /** Human name of the assigned lice (e.g. "Lice 2"), for the top-left pill on
+   *  the card. Enriched by the bracket page from the event's lices list;
+   *  optional so other consumers type-check without it. */
+  liceName?: string | null;
   /** Self-ref label, e.g. 'WBR1P0', 'LBR2P1', 'GF', 'BRONZE'. */
   section?: string;
   /** Advancement refs from the bracket generator, e.g. 'seed 1',

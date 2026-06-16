@@ -185,24 +185,43 @@ export function MatchCard({
         </button>
       )}
 
-      {onForfeitClick &&
-        slot.matchId &&
-        slot.redRegistrationId &&
-        slot.blueRegistrationId &&
-        !isCompleted && (
-          <button
-            type="button"
-            aria-label="Record forfeit"
-            title="Record forfeit"
-            onClick={(e) => {
-              e.stopPropagation();
-              onForfeitClick(slot.matchId!, slot);
-            }}
-            className="absolute -top-2 -left-2 flex h-5 items-center justify-center rounded-full border border-slate-300 bg-white px-1.5 text-[9px] font-bold text-slate-500 shadow-sm hover:text-slate-900"
-          >
-            WO
-          </button>
-        )}
+      {/* Top-left overlay: the assigned-lice pill (info) and the WO forfeit
+          chip (action) sit side by side so they never overlap. */}
+      {(slot.liceName ||
+        (onForfeitClick &&
+          slot.matchId &&
+          slot.redRegistrationId &&
+          slot.blueRegistrationId &&
+          !isCompleted)) && (
+        <div className="absolute -top-2 -left-2 flex items-center gap-1">
+          {slot.liceName && (
+            <span
+              title={`Lice: ${slot.liceName}`}
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm"
+            >
+              {slot.liceName}
+            </span>
+          )}
+          {onForfeitClick &&
+            slot.matchId &&
+            slot.redRegistrationId &&
+            slot.blueRegistrationId &&
+            !isCompleted && (
+              <button
+                type="button"
+                aria-label="Record forfeit"
+                title="Record forfeit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onForfeitClick(slot.matchId!, slot);
+                }}
+                className="flex h-5 items-center justify-center rounded-full border border-slate-300 bg-white px-1.5 text-[9px] font-bold text-slate-500 shadow-sm hover:text-slate-900"
+              >
+                WO
+              </button>
+            )}
+        </div>
+      )}
     </div>
   );
 }

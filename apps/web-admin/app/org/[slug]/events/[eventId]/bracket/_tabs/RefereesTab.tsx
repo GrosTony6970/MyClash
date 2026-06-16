@@ -25,6 +25,7 @@ import {
   type SwapSuggestion,
 } from '../../referees/_components/SwapSuggestionsPanel';
 import { assignmentChipClasses } from '../../referees/_components/assignment-chip-classes';
+import { groupBracketPoolsBySection } from './group-bracket-by-section';
 
 interface AssignmentBoardCandidate {
   userId: string;
@@ -201,14 +202,9 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     [allBoardPools, activeTournamentId],
   );
 
-  const bracketGroup = useMemo(
-    () => bracketPools.filter((p) => p.kind === 'bracket'),
-    [bracketPools],
-  );
-  const finalsGroup = useMemo(
-    () => bracketPools.filter((p) => p.kind === 'finals'),
-    [bracketPools],
-  );
+  // Group every bracket + finals match of the active tournament into round
+  // sections (Play-ins → Round of 16 → … → Final), ordered play-ins first.
+  const sections = useMemo(() => groupBracketPoolsBySection(bracketPools), [bracketPools]);
 
   async function manualAssign(poolId: string, role: string, userId: string) {
     setBusy(true);
@@ -335,10 +331,11 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         </nav>
       )}
 
-      {bracketGroup.length > 0 && (
+      {sections.map((section) => (
         <BracketMatchSection
-          title={t('organizer.bracketPage.refereesBracketSection')}
-          pools={bracketGroup}
+          key={section.label}
+          title={section.label}
+          pools={section.pools}
           isReadOnly={isReadOnly || board.locked}
           busy={busy}
           skillNameById={skillNameById}
@@ -346,20 +343,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           onAssignClick={(pool, slot) => setPicker({ pool, slot })}
           onUnassign={(id) => void unassign(id)}
         />
-      )}
-
-      {finalsGroup.length > 0 && (
-        <BracketMatchSection
-          title={t('organizer.bracketPage.refereesFinalsSection')}
-          pools={finalsGroup}
-          isReadOnly={isReadOnly || board.locked}
-          busy={busy}
-          skillNameById={skillNameById}
-          skillColorById={skillColorById}
-          onAssignClick={(pool, slot) => setPicker({ pool, slot })}
-          onUnassign={(id) => void unassign(id)}
-        />
-      )}
+      ))}
 
       <SwapSuggestionsPanel
         suggestions={filteredSwapSuggestions}
