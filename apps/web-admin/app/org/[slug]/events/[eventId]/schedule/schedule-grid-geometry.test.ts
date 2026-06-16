@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest';
+import {
+  computeVenueGroups,
+  formatSlotTime,
+  hhmmToSlot,
+  isoToSlot,
+  minutesToSlot,
+  slotToHHMM,
+  slotToTime,
+} from './schedule-grid-geometry';
+
+const BASE = '2026-06-15';
+
+describe('schedule-grid-geometry', () => {
+  describe('slotToTime / isoToSlot roundtrip', () => {
+    it('isoToSlot inverts slotToTime for every slot (tz-agnostic via roundtrip)', () => {
+      for (let s = 0; s <= 100; s++) {
+        expect(isoToSlot(slotToTime(s, BASE), BASE)).toBe(s);
+      }
+    });
+  });
+
+  describe('formatSlotTime', () => {
+    it('labels the hour boundaries from 08:00', () => {
+      expect(formatSlotTime(0)).toBe('08:00');
+      expect(formatSlotTime(12)).toBe('09:00');
+      expect(formatSlotTime(13)).toBe('09:05');
+    });
+  });
+
+  describe('slotToHHMM', () => {
+    it('maps a slot to its HH:MM on the 08:00 axis', () => {
+      expect(slotToHHMM(0)).toBe('08:00');
+      expect(slotToHHMM(1)).toBe('08:05');
+      expect(slotToHHMM(144)).toBe('20:00');
+    });
+  });
+
+  describe('hhmmToSlot', () => {
+    it('maps HH:MM back to a slot index', () => {
+      expect(hhmmToSlot('08:00')).toBe(0);
+      expect(hhmmToSlot('09:05')).toBe(13);
+    });
+    it('clamps times before the axis start to 0', () => {
+      expect(hhmmToSlot('07:30')).toBe(0);
+    });
+    it('roundtrips with slotToHHMM', () => {
+      for (let s = 0; s <= 144; s++) {
+        expect(hhmmToSlot(slotToHHMM(s))).toBe(s);
+      }
+    });
+  });
+
+  describe('minutesToSlot', () => {
+    it('floors minutes into 5-minute slots', () => {
+      expect(minutesToSlot(9)).toBe(1);
+      expect(minutesToSlot(10)).toBe(2);
+      expect(minutesToSlot(0)).toBe(0);
+    });
+  });
+
+  describe('computeVenueGroups', () => {
+    it('merges consecutive same-venue lices and splits on change', () => {
+      const groups = computeVenueGroups([
+        { venues: { id: 'v1', name: 'CSL' } },
+        { venues: { id: 'v1', name: 'CSL' } },
+        { venues: null },
+        { venues: { id: 'v2', name: 'Annex' } },
+      ]);
+      expect(groups).toEqual([
+        { venueId: 'v1', venueName: 'CSL', startIndex: 0, span: 2 },
+        { venueId: null, venueName: null, startIndex: 2, span: 1 },
+        { venueId: 'v2', venueName: 'Annex', startIndex: 3, span: 1 },
+      ]);
+    });
+  });
+});

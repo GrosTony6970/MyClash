@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ProgrammeService } from './programme.service';
+import { ProgrammeService, decidePoolAffinity } from './programme.service';
 import type { SaveProgrammeDto } from './dto/programme.dto';
 
 const fromMock = vi.fn();
@@ -809,5 +809,138 @@ describe('ProgrammeService', () => {
       fetchedMatches: 0,
       scheduledMatches: 0,
     });
+  });
+});
+
+describe('scheduleGroup', () => {
+  let svc: ProgrammeService;
+  beforeEach(() => {
+    fromMock.mockReset();
+    svc = new ProgrammeService(mockSupabase as never);
+  });
+
+  const START = '2026-05-21T09:00:00.000Z';
+  const gm = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    red_registration_id: `r-${id}`,
+    blue_registration_id: `b-${id}`,
+    pool_id: 'pool-1',
+    match_number_label: id,
+    phase_id: 'phase-1',
+    bracket_slot_id: null,
+    ...over,
+  });
+
+  it('returns empty without querying for an empty group', async () => {
+    const res = await svc.scheduleGroup('event-1', {
+      matchIds: [],
+      liceIds: ['l1'],
+      startTime: START,
+      mode: 'pool',
+    });
+    expect(res.scheduled).toEqual([]);
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects matches that are not in the event', async () => {
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [gm('m1', { phase_id: 'OTHER' })], error: null })); // matches
+    await expect(
+      svc.scheduleGroup('event-1', {
+        matchIds: ['m1'],
+        liceIds: ['l1'],
+        startTime: START,
+        mode: 'pool',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('keeps a pool group on one lice and persists each match', async () => {
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [gm('m1'), gm('m2')], error: null })) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // update m1
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m2
+    const res = await svc.scheduleGroup('event-1', {
+      matchIds: ['m1', 'm2'],
+      liceIds: ['l1'],
+      startTime: START,
+      mode: 'pool',
+    });
+    expect(res.scheduled).toHaveLength(2);
+    expect(new Set(res.scheduled.map((s) => s.liceId))).toEqual(new Set(['l1']));
+  });
+
+  it('appends after existing occupants via liceBusyUntil', async () => {
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      ) // lices
+      .mockReturnValueOnce(
+        makeChain({
+          data: [{ id: 'occ', lice_id: 'l1', scheduled_at: '2026-05-21T10:00:00.000Z' }],
+          error: null,
+        }),
+      ) // occupants
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m1
+    const res = await svc.scheduleGroup('event-1', {
+      matchIds: ['m1'],
+      liceIds: ['l1'],
+      startTime: START,
+      mode: 'pool',
+    });
+    expect(new Date(res.scheduled[0]!.scheduledAt).getTime()).toBeGreaterThanOrEqual(
+      new Date('2026-05-21T10:05:00.000Z').getTime(),
+    );
+  });
+});
+
+describe('decidePoolAffinity', () => {
+  it('keeps pools strict', () => {
+    expect(decidePoolAffinity({ isPool: true, matches: [] })).toBe('strict');
+  });
+
+  it('uses bracket-branch for a single-elim bracket with slot coordinates', () => {
+    expect(
+      decidePoolAffinity({
+        isPool: false,
+        matches: [
+          { bracket_round: 1, bracket_position: 1, phase_type: 'single_elim' },
+          { bracket_round: 2, bracket_position: 1, phase_type: 'single_elim' },
+        ],
+      }),
+    ).toBe('bracket-branch');
+  });
+
+  it('falls back to greedy for double-elim even with coordinates', () => {
+    expect(
+      decidePoolAffinity({
+        isPool: false,
+        matches: [{ bracket_round: 1, bracket_position: 1, phase_type: 'double_elim' }],
+      }),
+    ).toBe('off');
+  });
+
+  it('falls back to greedy when there is no bracket tree', () => {
+    expect(
+      decidePoolAffinity({
+        isPool: false,
+        matches: [{ bracket_round: null, bracket_position: null, phase_type: 'single_elim' }],
+      }),
+    ).toBe('off');
+  });
+
+  it('falls back to greedy for an empty match set', () => {
+    expect(decidePoolAffinity({ isPool: false, matches: [] })).toBe('off');
   });
 });

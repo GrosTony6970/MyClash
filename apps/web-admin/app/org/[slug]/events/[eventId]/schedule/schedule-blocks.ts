@@ -1,8 +1,9 @@
 /**
- * Build the per-lice "block list" model for the schedule view: collapse a
- * lice's scheduled matches into ONE block per pool / per bracket round, with
- * a rounded-up-to-30-min time span and the nested match details (code · start
- * · fighters) for the inline accordion.
+ * Build the "block" model for the schedule board: collapse scheduled matches
+ * into ONE block per pool / per bracket round. A run fanned across several
+ * lices is a single block that SPANS those lice columns (`liceIds`), with a
+ * rounded-up-to-30-min time span and the nested match details (code · start ·
+ * lice · fighters) for the inline accordion + per-lice counts.
  *
  * Pure: no React, no I/O.
  */
@@ -20,19 +21,25 @@ export interface BlockMatchInput {
   tournamentName: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
+  /** Match length in minutes — drives block height + retime-on-resize. */
+  durationMinutes?: number;
 }
 
 export interface ScheduleBlockMatch {
   id: string;
+  /** The lice this match sits on (a wide block holds matches from several lices). */
+  liceId: string;
   code: string;
   startIso: string;
+  durationMinutes?: number;
   redFighterName: string | null;
   blueFighterName: string | null;
 }
 
 export interface ScheduleBlock {
   key: string;
-  liceId: string;
+  /** Every lice this block occupies; min→max = its column span. Length 1 for a pool. */
+  liceIds: string[];
   label: string;
   tournamentName: string | null;
   kind: 'pool' | 'bracket' | 'other';
@@ -54,9 +61,10 @@ function medianGapMs(sortedMs: number[]): number | null {
 }
 
 export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[] {
-  // Group scheduled matches by (lice, run): pool → pool id, bracket → round
-  // token, else the match's own id (a standalone block).
-  const groups = new Map<string, BlockMatchInput[]>();
+  // Group scheduled matches by RUN: pool → pool id, bracket → round token,
+  // else the match's own id (a standalone block). The lice is NOT part of the
+  // key, so a run fanned across several lices is ONE block spanning them.
+  const groups = new Map<string, { kind: ScheduleBlock['kind']; matches: BlockMatchInput[] }>();
   for (const m of matches) {
     if (!m.liceId || !m.scheduledAt) continue;
     let runKey: string;
@@ -74,15 +82,16 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
         kind = 'other';
       }
     }
-    const groupKey = `${m.liceId}|${runKey}|${kind}`;
-    const arr = groups.get(groupKey) ?? [];
-    arr.push(m);
-    groups.set(groupKey, arr);
+    const groupKey = `${runKey}|${kind}`;
+    const g = groups.get(groupKey) ?? { kind, matches: [] };
+    g.matches.push(m);
+    groups.set(groupKey, g);
   }
 
   const blocks: ScheduleBlock[] = [];
-  for (const [groupKey, groupMatches] of groups) {
-    const sorted = [...groupMatches].sort((a, b) =>
+  for (const [groupKey, group] of groups) {
+    const { kind } = group;
+    const sorted = [...group.matches].sort((a, b) =>
       a.scheduledAt! < b.scheduledAt! ? -1 : a.scheduledAt! > b.scheduledAt! ? 1 : 0,
     );
     const first = sorted[0]!;
@@ -94,11 +103,6 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
     const actualMin = (lastMs - startMs) / 60_000 + (intervalMs > 0 ? intervalMs / 60_000 : 5);
     const endMs = startMs + roundUpToHalfHourMin(actualMin) * 60_000;
 
-    const kind: ScheduleBlock['kind'] = groupKey.endsWith('|pool')
-      ? 'pool'
-      : groupKey.endsWith('|bracket')
-        ? 'bracket'
-        : 'other';
     const label =
       kind === 'pool'
         ? (first.poolName ?? 'Pool')
@@ -106,9 +110,14 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
           ? (parseBracketRound(first.roundCode)?.label ?? 'Bracket')
           : (first.roundCode ?? first.id);
 
+    // Distinct lices this run occupies, ordered for a deterministic span.
+    const liceIds = [...new Set(sorted.map((m) => m.liceId!))].sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
+
     blocks.push({
       key: groupKey,
-      liceId: first.liceId!,
+      liceIds,
       label,
       tournamentName: first.tournamentName,
       kind,
@@ -117,15 +126,19 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
       matchCount: sorted.length,
       matches: sorted.map((m) => ({
         id: m.id,
+        liceId: m.liceId!,
         code: m.roundCode ?? m.id,
         startIso: m.scheduledAt!,
+        durationMinutes: m.durationMinutes,
         redFighterName: m.redFighterName,
         blueFighterName: m.blueFighterName,
       })),
     });
   }
 
-  return blocks.sort((a, b) =>
-    a.liceId < b.liceId ? -1 : a.liceId > b.liceId ? 1 : a.startIso < b.startIso ? -1 : 1,
-  );
+  return blocks.sort((a, b) => {
+    const al = a.liceIds[0] ?? '';
+    const bl = b.liceIds[0] ?? '';
+    return al < bl ? -1 : al > bl ? 1 : a.startIso < b.startIso ? -1 : 1;
+  });
 }

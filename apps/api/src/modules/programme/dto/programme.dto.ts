@@ -143,3 +143,43 @@ export class ResizeBlockDto {
   @Matches(HH_MM)
   newEndTime: string = '10:00';
 }
+
+/**
+ * Re-fan a group of matches (a pool or a bracket sub-tree) across the given
+ * lices from a start time. `mode` 'pool' keeps the group on one lice; 'bracket-
+ * branch' applies branch-aware grouping (each quarter-final sub-tree on one
+ * lice). The group lands after whatever already occupies those lices.
+ */
+export class ScheduleGroupDto {
+  @IsArray()
+  @IsUUID('all', { each: true })
+  matchIds: string[] = [];
+
+  @IsArray()
+  @IsUUID('all', { each: true })
+  liceIds: string[] = [];
+
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}T/)
+  startTime: string = '';
+
+  @IsIn(['pool', 'bracket-branch'])
+  mode: 'pool' | 'bracket-branch' = 'bracket-branch';
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  matchDurationMinutes?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  matchGapSeconds?: number;
+}
+
+/** Rename a single programme block (admin / break / workshop bar). */
+export class UpdateBlockLabelDto {
+  @IsString()
+  @IsNotEmpty()
+  label: string = '';
+}

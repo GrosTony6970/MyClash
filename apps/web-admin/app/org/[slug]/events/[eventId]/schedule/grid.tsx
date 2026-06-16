@@ -17,10 +17,36 @@ import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
-import { BlockScheduleView } from './BlockScheduleView';
-import { buildScheduleBlocks } from './schedule-blocks';
+import { BlockGridView, type BgvBreak } from './BlockGridView';
+import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
+import {
+  buildScheduleBlocks,
+  type ScheduleBlock,
+  type ScheduleBlockMatch,
+} from './schedule-blocks';
 import { computeLiceDrift } from './lice-drift';
 import { scheduleToCsv } from './schedule-csv';
+import { computeGridEndSlot } from './compute-grid-end';
+import { respaceMatchesEvenly } from './lice-span';
+import { distributeGroups } from './auto-place';
+import { detectScheduleOverlaps } from './detect-overlaps';
+import {
+  DEFAULT_GRID_END_HOUR,
+  GRID_START_HOUR,
+  LICE_HEADER_HEIGHT_PX,
+  MIN_LICE_COL_PX,
+  SLOT_HEIGHT_PX,
+  SLOT_MINUTES,
+  TIME_LABEL_COL_PX,
+  VENUE_HEADER_HEIGHT_PX,
+  computeVenueGroups,
+  formatSlotTime,
+  hhmmToSlot,
+  isoToSlot,
+  minutesToSlot,
+  slotToHHMM,
+  slotToTime,
+} from './schedule-grid-geometry';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -58,34 +84,8 @@ interface Lice {
   venues?: { id: string; name: string } | null;
 }
 
-interface VenueGroup {
-  venueId: string | null;
-  venueName: string | null;
-  startIndex: number;
-  span: number;
-}
-
-/**
- * Group consecutive same-venue lice columns into header bands. Lice
- * with no venue render under a "No venue" header at their position
- * (we don't reorder — sortOrder still wins) so the operator's column
- * layout stays predictable.
- */
-function computeVenueGroups(lices: Lice[]): VenueGroup[] {
-  const groups: VenueGroup[] = [];
-  for (let i = 0; i < lices.length; i++) {
-    const lice = lices[i]!;
-    const id = lice.venues?.id ?? null;
-    const name = lice.venues?.name ?? null;
-    const previous = groups[groups.length - 1];
-    if (previous && previous.venueId === id) {
-      previous.span += 1;
-    } else {
-      groups.push({ venueId: id, venueName: name, startIndex: i, span: 1 });
-    }
-  }
-  return groups;
-}
+// `computeVenueGroups` + the `VenueGroup` type now live in
+// ./schedule-grid-geometry (shared with BlockGridView).
 
 /**
  * Slice 7: non-fight programme blocks rendered on the grid.
@@ -133,44 +133,16 @@ interface ScheduleMatch {
   poolName: string | null;
 }
 
-const SLOT_MINUTES = 5;
-const GRID_START_HOUR = 8;
-const GRID_END_HOUR = 20;
-const TOTAL_SLOTS = ((GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
-const SLOT_HEIGHT_PX = 16;
-// Header rows are taller than body rows so the venue + lice names
-// read clearly. The lice header's sticky `top` offset must equal
-// VENUE_HEADER_HEIGHT_PX so it sticks below the venue band instead
-// of sliding under it on scroll.
-const VENUE_HEADER_HEIGHT_PX = 40;
-const LICE_HEADER_HEIGHT_PX = 40;
-const TIME_LABEL_COL_PX = 64;
-const MIN_LICE_COL_PX = 140;
+// Geometry constants + slot helpers (slotToTime / isoToSlot /
+// formatSlotTime / computeVenueGroups …) live in
+// ./schedule-grid-geometry, shared with BlockGridView. TOTAL_SLOTS
+// floors at DEFAULT_GRID_END_HOUR for now; Stage G makes the visible
+// end dynamic per day.
+const TOTAL_SLOTS = ((DEFAULT_GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
 
-function minutesToSlot(minutes: number): number {
-  return Math.floor(minutes / SLOT_MINUTES);
-}
-
-function slotToTime(slot: number, baseDate: string): string {
-  const base = new Date(baseDate);
-  base.setHours(GRID_START_HOUR, 0, 0, 0);
-  base.setMinutes(base.getMinutes() + slot * SLOT_MINUTES);
-  return base.toISOString();
-}
-
-function isoToSlot(iso: string, baseDate: string): number {
-  const base = new Date(baseDate);
-  base.setHours(GRID_START_HOUR, 0, 0, 0);
-  const diff = (new Date(iso).getTime() - base.getTime()) / 60_000;
-  return Math.max(0, minutesToSlot(diff));
-}
-
-function formatSlotTime(slot: number): string {
-  const totalMin = GRID_START_HOUR * 60 + slot * SLOT_MINUTES;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
+// Stable empty set for the block grid's conflict/overlap tint props until S7b
+// computes the real ones (avoids a new-ref churn each render).
+const EMPTY_STRING_SET: Set<string> = new Set();
 
 /**
  * Return every ISO date (YYYY-MM-DD) between start and end inclusive.
@@ -282,12 +254,33 @@ export function ScheduleGrid({
   // Default to the readable block view (one block per pool/round); the
   // detailed time-grid is available behind the toggle.
   const [viewMode, setViewMode] = useState<'blocks' | 'grid'>('blocks');
-  // Which block's inline accordion is open in the block view.
-  const [expandedBlockKey, setExpandedBlockKey] = useState<string | null>(null);
+  // The Unscheduled + Configure side panel is retractable, visible by default.
+  // Init false (hydration-safe), then sync from localStorage in an effect.
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  useEffect(() => {
+    // Hydration-safe: SSR + first client render use `false`, then sync from
+    // localStorage. (setState-in-effect is the correct pattern here.)
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem('myclash.schedule.panelCollapsed') === '1') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPanelCollapsed(true);
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('myclash.schedule.panelCollapsed', panelCollapsed ? '1' : '0');
+  }, [panelCollapsed]);
+  // Selected (ticked) unscheduled groups for batch scheduling.
+  const [tickedKeys, setTickedKeys] = useState<Set<string>>(() => new Set());
+  function toggleTicked(key: string) {
+    setTickedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
   const [dragOverLiceId, setDragOverLiceId] = useState<string | null>(null);
-  // Quick-assign start time ("HH:MM"). When set, dropping a block onto a lice
-  // starts it here; when blank, it appends after the lice's last match.
-  const [quickStartTime, setQuickStartTime] = useState<string>('');
   // Match ids of the block being dragged in the block view.
   const dragViewBlock = useRef<{ matchIds: string[] } | null>(null);
 
@@ -1071,18 +1064,6 @@ export function ScheduleGrid({
       ),
     [scheduledOnActiveDay],
   );
-  const dayBreaks = useMemo(() => {
-    const dayIndex = days.indexOf(activeDay);
-    if (dayIndex < 0) return [];
-    return programmeBlocks
-      .filter((b) => b.dayIndex === dayIndex && b.blockType !== 'competition')
-      .map((b) => ({
-        id: b.id,
-        startIso: `${activeDay}T${b.startTime}:00`,
-        label: `${b.label} (${b.startTime}–${b.endTime})`,
-        kind: b.blockType,
-      }));
-  }, [programmeBlocks, days, activeDay]);
   const tournamentColorByName = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const m of matches) {
@@ -1111,14 +1092,10 @@ export function ScheduleGrid({
     const onLice = scheduledOnActiveDay.filter(
       (m) => m.liceId === liceId && !exclude.has(m.id) && m.scheduledAt,
     );
-    // A chosen quick-start time wins; otherwise append after the lice's last
-    // match (or 09:00 when the lice is empty).
-    const chosenMs = quickStartTime ? new Date(`${activeDay}T${quickStartTime}:00`).getTime() : NaN;
-    const startMs = Number.isFinite(chosenMs)
-      ? chosenMs
-      : onLice.length
-        ? Math.max(...onLice.map((m) => new Date(m.scheduledAt!).getTime())) + 5 * 60_000
-        : new Date(`${activeDay}T09:00:00`).getTime();
+    // Append after the lice's last match (or 09:00 when the lice is empty).
+    const startMs = onLice.length
+      ? Math.max(...onLice.map((m) => new Date(m.scheduledAt!).getTime())) + 5 * 60_000
+      : new Date(`${activeDay}T09:00:00`).getTime();
 
     const atFor = (i: number) => new Date(startMs + i * 5 * 60_000).toISOString();
     const byId = new Map(ids.map((id, i) => [id, atFor(i)]));
@@ -1168,6 +1145,229 @@ export function ScheduleGrid({
     setMatches(updated);
     setConflicts(detectConflicts(updated));
     for (const f of future) void saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!));
+  }
+
+  // ── Block grid: edit popover + resize/edit commit handlers ────────────────
+  const [editingBlock, setEditingBlock] = useState<ScheduleBlock | null>(null);
+  const [editingBreak, setEditingBreak] = useState<BgvBreak | null>(null);
+  const [blockEditBusy, setBlockEditBusy] = useState(false);
+
+  // Optimistic apply + per-match PATCH for a set of (id, lice, time) updates.
+  function applyMatchUpdates(updates: Array<{ id: string; liceId: string; scheduledAt: string }>) {
+    if (updates.length === 0) return;
+    const byId = new Map(updates.map((u) => [u.id, u]));
+    const updated = matches.map((m) =>
+      byId.has(m.id)
+        ? { ...m, liceId: byId.get(m.id)!.liceId, scheduledAt: byId.get(m.id)!.scheduledAt }
+        : m,
+    );
+    setMatches(updated);
+    setConflicts(detectConflicts(updated));
+    for (const u of updates) void saveMatchPosition(u.id, u.liceId, u.scheduledAt);
+  }
+
+  // Vertical resize / end edit: respace each lice's sub-run of the block across
+  // [start, newEnd] so a multi-lice bracket keeps its parallel layout.
+  function resizeBlockTimeTo(block: ScheduleBlock, newEndSlot: number) {
+    if (!activeDay) return;
+    const startSlot = isoToSlot(block.startIso, activeDay);
+    const byLice = new Map<string, ScheduleBlockMatch[]>();
+    for (const m of block.matches) {
+      const arr = byLice.get(m.liceId) ?? [];
+      arr.push(m);
+      byLice.set(m.liceId, arr);
+    }
+    const updates: Array<{ id: string; liceId: string; scheduledAt: string }> = [];
+    for (const [liceId, ms] of byLice) {
+      const sorted = [...ms].sort((a, b) => (a.startIso < b.startIso ? -1 : 1));
+      const slots = respaceMatchesEvenly({ startSlot, endSlot: newEndSlot, count: sorted.length });
+      sorted.forEach((m, i) =>
+        updates.push({ id: m.id, liceId, scheduledAt: slotToTime(slots[i]!, activeDay) }),
+      );
+    }
+    applyMatchUpdates(updates);
+  }
+
+  // Shift the whole block (every lice) so it starts at newStartSlot, preserving
+  // its internal layout.
+  function retimeBlockStart(block: ScheduleBlock, newStartSlot: number) {
+    if (!activeDay) return;
+    const delta = newStartSlot - isoToSlot(block.startIso, activeDay);
+    if (delta === 0) return;
+    applyMatchUpdates(
+      block.matches.map((m) => ({
+        id: m.id,
+        liceId: m.liceId,
+        scheduledAt: slotToTime(isoToSlot(m.startIso, activeDay) + delta, activeDay),
+      })),
+    );
+  }
+
+  // Horizontal resize / lice-span edit. A pool (single lice) relocates via the
+  // group-drop placer (shifts occupants). A bracket re-fan across lices is
+  // branch-aware and needs the backend — wired in Phase 3 (S12).
+  // POST a group (pool or bracket sub-tree) to the branch-aware schedule-group
+  // endpoint. Returns ok; the caller refetches.
+  async function postScheduleGroup(
+    matchIds: string[],
+    liceIds: string[],
+    startSlot: number,
+    mode: 'pool' | 'bracket-branch',
+  ): Promise<boolean> {
+    if (!activeDay || matchIds.length === 0 || liceIds.length === 0) return false;
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchIds,
+          liceIds,
+          startTime: slotToTime(startSlot, activeDay),
+          mode,
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  function changeBlockLices(block: ScheduleBlock, newLiceIds: string[]) {
+    if (!newLiceIds[0] || !activeDay) return;
+    const startSlot = isoToSlot(block.startIso, activeDay);
+    if (block.kind === 'bracket') {
+      // Branch-aware re-fan across the dragged lices (server-side).
+      void (async () => {
+        const ok = await postScheduleGroup(
+          block.matches.map((m) => m.id),
+          newLiceIds,
+          startSlot,
+          'bracket-branch',
+        );
+        if (ok) await refetchScheduleAndBlocks();
+        else setAutoDistributeError('Could not re-fan the bracket across those lices.');
+      })();
+      return;
+    }
+    // Pool / other: relocate to the single target lice client-side.
+    void handleGroupDrop(new Set(block.matches.map((m) => m.id)), newLiceIds[0], startSlot);
+  }
+
+  // Move / resize / rename a break via the programme endpoints.
+  async function saveBreakEdit(brk: BgvBreak, draft: BlockEditDraft) {
+    setBlockEditBusy(true);
+    try {
+      if (draft.label !== brk.label) {
+        await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: draft.label }),
+        });
+      }
+      if (draft.startHHMM !== brk.startTime) {
+        await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/move`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newStartTime: draft.startHHMM }),
+        });
+      }
+      if (draft.endHHMM !== brk.endTime) {
+        await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newEndTime: draft.endHHMM }),
+        });
+      }
+      await refetchScheduleAndBlocks();
+      onProgrammeMutated?.();
+    } finally {
+      setBlockEditBusy(false);
+    }
+  }
+
+  async function resizeBreakTimeTo(brk: BgvBreak, newEndSlot: number) {
+    await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newEndTime: slotToHHMM(newEndSlot) }),
+    });
+    await refetchScheduleAndBlocks();
+    onProgrammeMutated?.();
+  }
+
+  function savePopover(draft: BlockEditDraft) {
+    if (editingBreak) {
+      const brk = editingBreak;
+      setEditingBreak(null);
+      void saveBreakEdit(brk, draft);
+      return;
+    }
+    if (editingBlock) {
+      const block = editingBlock;
+      setEditingBlock(null);
+      retimeBlockStart(block, hhmmToSlot(draft.startHHMM));
+      const cur = [...block.liceIds].sort();
+      const next = [...draft.liceIds].sort();
+      const changed = cur.length !== next.length || cur.some((v, i) => v !== next[i]);
+      if (changed) changeBlockLices(block, draft.liceIds);
+    }
+  }
+
+  // Batch-schedule every ticked group via the branch-aware endpoint: each pool
+  // onto the least-loaded lice, each bracket round branch-aware across all
+  // lices. Overlap-free (the endpoint appends after occupants); one refetch.
+  async function scheduleSelected() {
+    if (!activeDay) return;
+    const pools = unscheduledPools.filter(
+      (p) =>
+        tickedKeys.has(`pool:${p.poolId}`) &&
+        p.matchIds.every((id) => matchIdsCoveredByPoolBlock.has(id)),
+    );
+    const brackets = unscheduledBracketRounds.filter((r) => tickedKeys.has(`round:${r.key}`));
+    if (pools.length === 0 && brackets.length === 0) {
+      setTickedKeys(new Set());
+      return;
+    }
+    setAutoDistributeError(null);
+    const dayStartSlot = isoToSlot(`${activeDay}T09:00:00`, activeDay);
+    const lastEnd = (liceId: string) => {
+      const onLice = scheduledOnActiveDay.filter((m) => m.liceId === liceId && m.scheduledAt);
+      if (onLice.length === 0) return dayStartSlot;
+      return Math.max(
+        ...onLice.map(
+          (m) =>
+            isoToSlot(m.scheduledAt!, activeDay) +
+            Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
+        ),
+      );
+    };
+    const loads = lices.map((l) => ({ liceId: l.id, lastEndSlot: lastEnd(l.id) }));
+    const placements = distributeGroups({
+      groups: pools.map((p) => ({ key: p.poolId, spanSlots: p.matchIds.length })),
+      loads,
+      dayStartSlot,
+    });
+    let okAll = true;
+    for (const pl of placements) {
+      const pool = pools.find((p) => p.poolId === pl.key);
+      if (pool) {
+        okAll =
+          (await postScheduleGroup(pool.matchIds, [pl.liceId], pl.startSlot, 'pool')) && okAll;
+      }
+    }
+    const allLiceIds = lices.map((l) => l.id);
+    for (const r of brackets) {
+      okAll =
+        (await postScheduleGroup(r.matchIds, allLiceIds, dayStartSlot, 'bracket-branch')) && okAll;
+    }
+    if (!okAll) setAutoDistributeError('Some selected groups could not be scheduled.');
+    await refetchScheduleAndBlocks();
+    setTickedKeys(new Set());
   }
 
   // ── Export CSV + Print (client-side, from loaded matches) ─────────────────
@@ -1349,6 +1549,63 @@ export function ScheduleGrid({
       })
       .filter((b) => b.startSlot < TOTAL_SLOTS);
   }, [programmeBlocks, activeDay, days]);
+
+  // Stage G: the block grid's visible vertical extent grows to cover the latest
+  // block/break and the configured day-end (the detailed grid keeps its fixed
+  // 08:00–20:00 window).
+  const gridEndSlot = useMemo(() => {
+    const blockEndSlots = dayBlocks.map((b) => isoToSlot(b.endIso, activeDay));
+    const breakEndSlots = blocksOnActiveDay
+      .filter((b) => b.blockType !== 'competition')
+      .map((b) => b.startSlot + b.span);
+    const dayEndHHMM = blocksOnActiveDay.reduce<string | null>(
+      (max, b) => (max && max >= b.endTime ? max : b.endTime),
+      null,
+    );
+    return computeGridEndSlot({ blockEndSlots, breakEndSlots, dayEndHHMM });
+  }, [dayBlocks, blocksOnActiveDay, activeDay]);
+
+  // Admin / break / workshop bars for the block grid (competition excluded —
+  // those render as the pool/round blocks).
+  const bgvBreaks = useMemo<BgvBreak[]>(
+    () =>
+      blocksOnActiveDay
+        .filter((b) => b.blockType !== 'competition')
+        .map((b) => ({
+          id: b.id,
+          startSlot: b.startSlot,
+          span: b.span,
+          label: b.label,
+          startTime: b.startTime,
+          endTime: b.endTime,
+          kind: b.blockType,
+        })),
+    [blocksOnActiveDay],
+  );
+
+  // S7b: conflict (fighter double-booked) + overlap (two blocks share a lice &
+  // time) detection, surfaced as tints on the block grid + banners.
+  const conflictMatchIds = useMemo(() => {
+    if (conflicts.length === 0) return EMPTY_STRING_SET;
+    const labels = new Set<string>();
+    for (const c of conflicts) {
+      labels.add(c.matchA);
+      labels.add(c.matchB);
+    }
+    const ids = new Set<string>();
+    for (const m of scheduledOnActiveDay) if (labels.has(m.matchNumberLabel)) ids.add(m.id);
+    return ids;
+  }, [conflicts, scheduledOnActiveDay]);
+  const dayOverlaps = useMemo(() => detectScheduleOverlaps(dayBlocks), [dayBlocks]);
+  const overlapBlockKeys = useMemo(() => {
+    if (dayOverlaps.length === 0) return EMPTY_STRING_SET;
+    const keys = new Set<string>();
+    for (const o of dayOverlaps) {
+      keys.add(o.aKey);
+      keys.add(o.bKey);
+    }
+    return keys;
+  }, [dayOverlaps]);
 
   // Slice 4: slot index for "now" on the active day. Null when the
   // active day isn't today, when the current time is before the grid
@@ -1541,6 +1798,15 @@ export function ScheduleGrid({
         </div>
       )}
 
+      {dayOverlaps.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2 mb-4 text-sm">
+          <p className="font-semibold text-amber-800">
+            ⚠ {dayOverlaps.length} block overlap{dayOverlaps.length !== 1 ? 's' : ''} on a lice —
+            adjust the times or lices.
+          </p>
+        </div>
+      )}
+
       <div className="mb-3 flex items-center gap-1.5">
         <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
           View
@@ -1578,137 +1844,194 @@ export function ScheduleGrid({
         </div>
       </div>
 
-      {/* Unscheduled now sits on the RIGHT (flex-row-reverse) with Configure
-          below it; the schedule canvas takes the rest. */}
-      <div className="flex flex-col gap-6 lg:flex-row-reverse">
-        {/* Right sidebar: Unscheduled (top) + Configure (below). */}
-        <div className="w-full space-y-4 lg:w-80 lg:flex-shrink-0">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
-            Unscheduled ({unscheduled.length})
-          </h2>
-          <div
-            className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2 max-h-[60vh] overflow-y-auto"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              // Dropping a pool / bracket-round block back onto the
-              // sidebar = no-op.
-              if (dragPool.current) {
-                dragPool.current = null;
-                return;
-              }
-              if (dragBracketRound.current) {
-                dragBracketRound.current = null;
-                return;
-              }
-              const match = dragMatch.current;
-              if (!match) return;
-              if (match.liceId === null && match.scheduledAt === null) {
-                dragMatch.current = null;
-                return;
-              }
-              pushUndo({
-                matchId: match.id,
-                fromLiceId: match.liceId,
-                fromScheduledAt: match.scheduledAt,
-                toLiceId: null,
-                toScheduledAt: null,
-              });
-              const updated = matches.map((m) =>
-                m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m,
-              );
-              setMatches(updated);
-              setConflicts(detectConflicts(updated));
-              void saveMatchPosition(match.id, '', '');
-              dragMatch.current = null;
-            }}
-          >
-            {unscheduled.length === 0 ? (
-              <p className="px-1 py-2 text-xs italic text-gray-400">
-                All matches placed on the grid.
-              </p>
-            ) : (
-              <>
-                {/* Slice 4: drag a whole pool onto a cell to fan its
+      {/* Retractable LEFT panel: Unscheduled (top) + Configure (below); the
+          schedule canvas takes the rest. Collapses to a thin rail. */}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <div
+          className={
+            panelCollapsed
+              ? 'w-full lg:w-10 lg:flex-shrink-0'
+              : 'w-full space-y-4 lg:w-80 lg:flex-shrink-0'
+          }
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            {!panelCollapsed && (
+              <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                Unscheduled ({unscheduled.length})
+              </h2>
+            )}
+            <button
+              type="button"
+              aria-expanded={!panelCollapsed}
+              aria-label={panelCollapsed ? 'Expand panel' : 'Collapse panel'}
+              onClick={() => setPanelCollapsed((v) => !v)}
+              className="rounded-md border border-gray-300 px-2 py-0.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              {panelCollapsed ? '»' : '«'}
+            </button>
+          </div>
+          {!panelCollapsed && (
+            <>
+              {tickedKeys.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void scheduleSelected()}
+                  className="mb-2 w-full rounded-md bg-red-700 px-2 py-1 text-xs font-semibold text-white hover:bg-red-800"
+                >
+                  Schedule selected ({tickedKeys.size})
+                </button>
+              )}
+              <div
+                className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-gray-200 rounded-xl p-2 max-h-[60vh] overflow-y-auto"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  // Dropping a pool / bracket-round block back onto the
+                  // sidebar = no-op.
+                  if (dragPool.current) {
+                    dragPool.current = null;
+                    return;
+                  }
+                  if (dragBracketRound.current) {
+                    dragBracketRound.current = null;
+                    return;
+                  }
+                  const match = dragMatch.current;
+                  if (!match) return;
+                  if (match.liceId === null && match.scheduledAt === null) {
+                    dragMatch.current = null;
+                    return;
+                  }
+                  pushUndo({
+                    matchId: match.id,
+                    fromLiceId: match.liceId,
+                    fromScheduledAt: match.scheduledAt,
+                    toLiceId: null,
+                    toScheduledAt: null,
+                  });
+                  const updated = matches.map((m) =>
+                    m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m,
+                  );
+                  setMatches(updated);
+                  setConflicts(detectConflicts(updated));
+                  void saveMatchPosition(match.id, '', '');
+                  dragMatch.current = null;
+                }}
+              >
+                {unscheduled.length === 0 ? (
+                  <p className="px-1 py-2 text-xs italic text-gray-400">
+                    All matches placed on the grid.
+                  </p>
+                ) : (
+                  <>
+                    {/* Slice 4: drag a whole pool onto a cell to fan its
                     matches out across lices. Only fully-unscheduled
                     pools render as blocks — the moment the operator
                     places one fight manually, the rest fall back to
                     individual chips. */}
-                {unscheduledPools
-                  .filter((p) => p.matchIds.every((id) => matchIdsCoveredByPoolBlock.has(id)))
-                  .map((pool) => (
-                    <div
-                      key={pool.poolId}
-                      draggable
-                      onDragStart={() => {
-                        dragPool.current = { poolId: pool.poolId, matchIds: pool.matchIds };
-                        dragMatch.current = null;
-                        dragBracketRound.current = null;
-                      }}
-                      onDragEnd={() => {
-                        dragPool.current = null;
-                      }}
-                      className="cursor-grab rounded-md border-2 border-dashed border-slate-400 bg-slate-100 px-2 py-1.5 text-xs hover:border-slate-500 hover:bg-slate-200"
-                      title={`Drag onto a cell to auto-distribute ${pool.matchIds.length} matches across lices`}
-                    >
-                      <div className="font-bold text-slate-800 truncate">{pool.poolName}</div>
-                      <div className="text-[10px] text-slate-600 truncate">
-                        {pool.tournamentName ?? ''} · {pool.matchIds.length} matches
-                      </div>
-                    </div>
-                  ))}
-                {/* Bracket rounds group the same way pools do — drag a
+                    {unscheduledPools
+                      .filter((p) => p.matchIds.every((id) => matchIdsCoveredByPoolBlock.has(id)))
+                      .map((pool) => (
+                        <div
+                          key={pool.poolId}
+                          draggable
+                          onDragStart={() => {
+                            dragPool.current = { poolId: pool.poolId, matchIds: pool.matchIds };
+                            dragMatch.current = null;
+                            dragBracketRound.current = null;
+                          }}
+                          onDragEnd={() => {
+                            dragPool.current = null;
+                          }}
+                          className="cursor-grab rounded-md border-2 border-dashed border-slate-400 bg-slate-100 px-2 py-1.5 text-xs hover:border-slate-500 hover:bg-slate-200"
+                          title={`Tick to select, or drag onto a cell — ${pool.matchIds.length} matches`}
+                        >
+                          <div className="flex items-start gap-1.5">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={tickedKeys.has(`pool:${pool.poolId}`)}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={() => toggleTicked(`pool:${pool.poolId}`)}
+                              aria-label={`Select ${pool.poolName}`}
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 truncate">
+                                {pool.poolName}
+                              </div>
+                              <div className="text-[10px] text-slate-600 truncate">
+                                {pool.tournamentName ?? ''} · {pool.matchIds.length} matches
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    {/* Bracket rounds group the same way pools do — drag a
                     whole round (Play-ins / Round of 16 / …) onto a cell
                     to fan its matches down a lice. Amber accent mirrors
                     the bracket theme on the individual chips. */}
-                {unscheduledBracketRounds
-                  .filter((r) =>
-                    r.matchIds.every((id) => matchIdsCoveredByBracketRoundBlock.has(id)),
-                  )
-                  .map((round) => (
-                    <div
-                      key={round.key}
-                      draggable
-                      onDragStart={() => {
-                        dragBracketRound.current = { key: round.key, matchIds: round.matchIds };
-                        dragMatch.current = null;
-                        dragPool.current = null;
-                      }}
-                      onDragEnd={() => {
-                        dragBracketRound.current = null;
-                      }}
-                      className="cursor-grab rounded-md border-2 border-dashed border-amber-400 bg-amber-50 px-2 py-1.5 text-xs hover:border-amber-500 hover:bg-amber-100"
-                      title={`Drag onto a cell to auto-distribute ${round.matchIds.length} matches across lices`}
-                    >
-                      <div className="font-bold text-amber-900 truncate">{round.label}</div>
-                      <div className="text-[10px] text-amber-700 truncate">
-                        {round.tournamentName ?? ''} · {round.matchIds.length} matches
-                      </div>
-                    </div>
-                  ))}
-                {unscheduled
-                  .filter(
-                    (m) =>
-                      !matchIdsCoveredByPoolBlock.has(m.id) &&
-                      !matchIdsCoveredByBracketRoundBlock.has(m.id),
-                  )
-                  .map((m) => (
-                    <MatchChip
-                      key={m.id}
-                      match={m}
-                      slug={slug}
-                      eventId={eventId}
-                      saving={saving === m.id}
-                      onDragStart={() => {
-                        dragMatch.current = m;
-                        dragPool.current = null;
-                        dragBracketRound.current = null;
-                      }}
-                    />
-                  ))}
-              </>
-            )}
-          </div>
-          {configurePanel}
+                    {unscheduledBracketRounds
+                      .filter((r) =>
+                        r.matchIds.every((id) => matchIdsCoveredByBracketRoundBlock.has(id)),
+                      )
+                      .map((round) => (
+                        <div
+                          key={round.key}
+                          draggable
+                          onDragStart={() => {
+                            dragBracketRound.current = { key: round.key, matchIds: round.matchIds };
+                            dragMatch.current = null;
+                            dragPool.current = null;
+                          }}
+                          onDragEnd={() => {
+                            dragBracketRound.current = null;
+                          }}
+                          className="cursor-grab rounded-md border-2 border-dashed border-amber-400 bg-amber-50 px-2 py-1.5 text-xs hover:border-amber-500 hover:bg-amber-100"
+                          title={`Tick to select, or drag onto a cell — ${round.matchIds.length} matches`}
+                        >
+                          <div className="flex items-start gap-1.5">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={tickedKeys.has(`round:${round.key}`)}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={() => toggleTicked(`round:${round.key}`)}
+                              aria-label={`Select ${round.label}`}
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-amber-900 truncate">{round.label}</div>
+                              <div className="text-[10px] text-amber-700 truncate">
+                                {round.tournamentName ?? ''} · {round.matchIds.length} matches
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    {unscheduled
+                      .filter(
+                        (m) =>
+                          !matchIdsCoveredByPoolBlock.has(m.id) &&
+                          !matchIdsCoveredByBracketRoundBlock.has(m.id),
+                      )
+                      .map((m) => (
+                        <MatchChip
+                          key={m.id}
+                          match={m}
+                          slug={slug}
+                          eventId={eventId}
+                          saving={saving === m.id}
+                          onDragStart={() => {
+                            dragMatch.current = m;
+                            dragPool.current = null;
+                            dragBracketRound.current = null;
+                          }}
+                        />
+                      ))}
+                  </>
+                )}
+              </div>
+              {configurePanel}
+            </>
+          )}
         </div>
 
         {/* Day grid — lice as columns, time as rows. Columns flex to fill the canvas. */}
@@ -1718,17 +2041,23 @@ export function ScheduleGrid({
           ) : !activeDay ? (
             <p className="text-gray-400 text-sm">No event date available.</p>
           ) : viewMode === 'blocks' ? (
-            <BlockScheduleView
+            <BlockGridView
               lices={lices}
               blocks={dayBlocks}
-              breaks={dayBreaks}
+              breaks={bgvBreaks}
               tournamentColorByName={tournamentColorByName}
-              quickStartTime={quickStartTime}
-              onQuickStartTimeChange={setQuickStartTime}
+              baseDate={activeDay}
+              gridEndSlot={gridEndSlot}
               drift={liceDrift}
+              nowSlot={nowSlot}
+              conflictMatchIds={conflictMatchIds}
+              overlapBlockKeys={overlapBlockKeys}
               onShiftLice={shiftLiceRemaining}
-              expandedKey={expandedBlockKey}
-              onToggleExpand={(key) => setExpandedBlockKey((prev) => (prev === key ? null : key))}
+              onEditBlock={setEditingBlock}
+              onEditBreak={setEditingBreak}
+              onResizeBlockTime={resizeBlockTimeTo}
+              onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
+              onResizeBlockLices={changeBlockLices}
               onBlockDragStart={(block) => {
                 dragViewBlock.current = { matchIds: block.matches.map((m) => m.id) };
                 dragMatch.current = null;
@@ -2130,6 +2459,42 @@ export function ScheduleGrid({
           )}
         </div>
       </div>
+
+      {/* Block grid edit popover (name / time / lice span). */}
+      {(editingBlock || editingBreak) && (
+        <BlockEditPopover
+          key={editingBreak ? `brk-${editingBreak.id}` : `blk-${editingBlock?.key ?? ''}`}
+          open
+          mode={editingBreak ? 'break' : 'block'}
+          title={editingBreak ? `Edit ${editingBreak.label}` : `Edit ${editingBlock?.label ?? ''}`}
+          initial={
+            editingBreak
+              ? {
+                  label: editingBreak.label,
+                  startHHMM: editingBreak.startTime,
+                  endHHMM: editingBreak.endTime,
+                  liceIds: [],
+                }
+              : {
+                  label: editingBlock?.label ?? '',
+                  startHHMM: editingBlock
+                    ? slotToHHMM(isoToSlot(editingBlock.startIso, activeDay))
+                    : '',
+                  endHHMM: editingBlock
+                    ? slotToHHMM(isoToSlot(editingBlock.endIso, activeDay))
+                    : '',
+                  liceIds: editingBlock?.liceIds ?? [],
+                }
+          }
+          lices={lices}
+          busy={blockEditBusy}
+          onCancel={() => {
+            setEditingBlock(null);
+            setEditingBreak(null);
+          }}
+          onSave={savePopover}
+        />
+      )}
 
       {/* Slice 3: Clear-day confirm modal. */}
       <ConfirmDialog

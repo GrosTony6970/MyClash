@@ -1,0 +1,94 @@
+/**
+ * Shared time-axis geometry for the Schedule canvas — used by BOTH the
+ * Detailed grid ([grid.tsx]) and the Block grid ([BlockGridView.tsx]) so
+ * the two surfaces agree on slot math, column sizing and venue banding.
+ *
+ * The axis runs from `GRID_START_HOUR` in `SLOT_MINUTES` steps. The end of
+ * the axis is dynamic (see `compute-grid-end.ts`); `DEFAULT_GRID_END_HOUR`
+ * is the floor used when there's no later content.
+ *
+ * Pure: no React, no I/O. `slotToTime`/`isoToSlot` use the local timezone
+ * (via `Date.setHours`) — assert them by roundtrip, not raw ISO equality.
+ */
+
+export const SLOT_MINUTES = 5;
+export const GRID_START_HOUR = 8;
+export const DEFAULT_GRID_END_HOUR = 20;
+export const SLOT_HEIGHT_PX = 16;
+// Header rows are taller than body rows so the venue + lice names read
+// clearly. The lice header's sticky `top` offset must equal
+// VENUE_HEADER_HEIGHT_PX so it sticks below the venue band on scroll.
+export const VENUE_HEADER_HEIGHT_PX = 40;
+export const LICE_HEADER_HEIGHT_PX = 40;
+export const TIME_LABEL_COL_PX = 64;
+export const MIN_LICE_COL_PX = 140;
+
+export function minutesToSlot(minutes: number): number {
+  return Math.floor(minutes / SLOT_MINUTES);
+}
+
+export function slotToTime(slot: number, baseDate: string): string {
+  const base = new Date(baseDate);
+  base.setHours(GRID_START_HOUR, 0, 0, 0);
+  base.setMinutes(base.getMinutes() + slot * SLOT_MINUTES);
+  return base.toISOString();
+}
+
+export function isoToSlot(iso: string, baseDate: string): number {
+  const base = new Date(baseDate);
+  base.setHours(GRID_START_HOUR, 0, 0, 0);
+  const diff = (new Date(iso).getTime() - base.getTime()) / 60_000;
+  return Math.max(0, minutesToSlot(diff));
+}
+
+/** Slot index → "HH:MM" on the axis (e.g. slot 0 → "08:00"). */
+export function slotToHHMM(slot: number): string {
+  const totalMin = GRID_START_HOUR * 60 + slot * SLOT_MINUTES;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Alias used for the grid's hourly ruler labels — same mapping as `slotToHHMM`. */
+export const formatSlotTime = slotToHHMM;
+
+/** "HH:MM" → slot index on the axis; clamps times before `GRID_START_HOUR` to 0. */
+export function hhmmToSlot(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map((s) => Number(s));
+  const min = (h ?? 0) * 60 + (m ?? 0) - GRID_START_HOUR * 60;
+  return Math.max(0, Math.floor(min / SLOT_MINUTES));
+}
+
+export interface VenueGroup {
+  venueId: string | null;
+  venueName: string | null;
+  startIndex: number;
+  span: number;
+}
+
+/** Minimal shape `computeVenueGroups` reads — any `Lice` is assignable. */
+export interface VenueCarrier {
+  venues?: { id: string; name: string } | null;
+}
+
+/**
+ * Group consecutive same-venue lice columns into header bands. Lice with no
+ * venue render under a "No venue" header at their position (we don't
+ * reorder — sortOrder still wins) so the operator's column layout stays
+ * predictable.
+ */
+export function computeVenueGroups(lices: ReadonlyArray<VenueCarrier>): VenueGroup[] {
+  const groups: VenueGroup[] = [];
+  for (let i = 0; i < lices.length; i++) {
+    const lice = lices[i]!;
+    const id = lice.venues?.id ?? null;
+    const name = lice.venues?.name ?? null;
+    const previous = groups[groups.length - 1];
+    if (previous && previous.venueId === id) {
+      previous.span += 1;
+    } else {
+      groups.push({ venueId: id, venueName: name, startIndex: i, span: 1 });
+    }
+  }
+  return groups;
+}

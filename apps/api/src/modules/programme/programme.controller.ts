@@ -17,7 +17,9 @@ import {
   MoveBlockDto,
   ResizeBlockDto,
   SaveProgrammeDto,
+  ScheduleGroupDto,
   SuggestProgrammeDto,
+  UpdateBlockLabelDto,
 } from './dto/programme.dto';
 
 @ApiTags('programme')
@@ -101,6 +103,33 @@ export class ProgrammeController {
     @Body() dto: ResizeBlockDto,
   ) {
     return this.programme.resizeBlock(eventId, blockId, dto);
+  }
+
+  /** POST /api/v1/events/:eventId/programme/schedule-group */
+  @Post('events/:eventId/programme/schedule-group')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Re-fan a group of matches (a pool or a bracket sub-tree) across the given lices from a start time, branch-aware for brackets, appending after existing occupants.',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  scheduleGroup(@Param('eventId', ParseUUIDPipe) eventId: string, @Body() dto: ScheduleGroupDto) {
+    return this.programme.scheduleGroup(eventId, dto);
+  }
+
+  /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId */
+  @Patch('events/:eventId/programme/blocks/:blockId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Rename a single programme block (admin / break / workshop bar)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'blockId', type: 'string', format: 'uuid' })
+  updateBlockLabel(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('blockId', ParseUUIDPipe) blockId: string,
+    @Body() dto: UpdateBlockLabelDto,
+  ) {
+    return this.programme.updateBlockLabel(eventId, blockId, dto);
   }
 
   /** DELETE /api/v1/events/:eventId/programme/blocks/:blockId */

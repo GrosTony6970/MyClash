@@ -16,6 +16,8 @@
  *   4. Return all matches with scheduled_at timestamps.
  */
 
+import { groupBracketBranches } from '@myclash/rulesets/dist/scheduling/index';
+
 export interface SchedulerMatch {
   id: string;
   redRegistrationId: string;
@@ -43,6 +45,13 @@ export interface SchedulerMatch {
    * when unset.
    */
   matchNumberLabel?: string | null;
+  /**
+   * Bracket-slot coordinates (single-elim) used by `poolAffinity:
+   * 'bracket-branch'` to keep each quarter-final's sub-tree on one lice.
+   * Round 1 = first round … maxRound = final; 0 = play-in.
+   */
+  bracketRound?: number | null;
+  bracketPosition?: number | null;
 }
 
 export interface SchedulerLice {
@@ -68,7 +77,13 @@ export interface SchedulerOptions {
    * for their entire pool. `'off'` falls back to per-match greedy
    * placement (the original bracket-friendly behaviour).
    */
-  poolAffinity?: 'strict' | 'off';
+  poolAffinity?: 'strict' | 'off' | 'bracket-branch';
+  /**
+   * Seed for when each lice is first free (ISO) — e.g. the existing occupants
+   * on a re-fan. Lices absent here start at `startTime`. Lets a group land
+   * AFTER what's already on those lices instead of overlapping.
+   */
+  liceBusyUntil?: Record<string, string>;
 }
 
 export interface ScheduledMatch {
@@ -110,7 +125,8 @@ export function scheduleMatches(
   // Track when each Lice is next free (ms timestamp)
   const liceNextFree: Record<string, number> = {};
   for (const lice of lices) {
-    liceNextFree[lice.id] = startTime;
+    const busy = options.liceBusyUntil?.[lice.id];
+    liceNextFree[lice.id] = busy ? Math.max(startTime, new Date(busy).getTime()) : startTime;
   }
 
   // Track when each fighter is next available (ms timestamp)
@@ -151,6 +167,37 @@ export function scheduleMatches(
       if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
       return (a.poolId ?? '').localeCompare(b.poolId ?? '');
     });
+  } else if (poolAffinity === 'bracket-branch') {
+    // Each quarter-final's sub-tree → one unit (one lice); semis/final converge
+    // onto the last anchor's lice so they run after that sub-tree.
+    const byId = new Map(matches.map((m) => [m.id, m]));
+    const toUnit = (ids: string[]): SchedulerMatch[] =>
+      ids.map((id) => byId.get(id)).filter((m): m is SchedulerMatch => !!m);
+    const branchUnits = groupBracketBranches(
+      matches
+        .filter((m) => m.bracketRound != null && m.bracketPosition != null)
+        .map((m) => ({ matchId: m.id, round: m.bracketRound!, position: m.bracketPosition! })),
+      lices.length,
+    ).units;
+    const anchorUnits = branchUnits.filter((u) => u.kind === 'anchor');
+    const convergeUnit = branchUnits.find((u) => u.kind === 'converge');
+    const built = anchorUnits.map((u, i) => ({
+      poolId: null,
+      sortOrder: i,
+      matches: toUnit(u.matchIds),
+    }));
+    if (convergeUnit) {
+      const tail = toUnit(convergeUnit.matchIds);
+      if (built.length > 0) built[built.length - 1]!.matches.push(...tail);
+      else built.push({ poolId: null, sortOrder: 0, matches: tail });
+    }
+    units.push(...built);
+    // Matches without bracket coords (defensive) run last on a spare lice.
+    for (const m of matches) {
+      if (m.bracketRound == null || m.bracketPosition == null) {
+        units.push({ poolId: null, sortOrder: Number.POSITIVE_INFINITY, matches: [m] });
+      }
+    }
   } else {
     for (const m of matches) units.push({ poolId: null, sortOrder: 0, matches: [m] });
   }
@@ -187,10 +234,13 @@ export function scheduleMatches(
 
     // Schedule every match in this unit sequentially on the assigned
     // Lice — iterating in numeric label order so rest constraints
-    // catch back-to-back appearances of the same fighter.
-    const orderedMatches = [...unit.matches].sort(
-      (a, b) => matchNumericOrder(a) - matchNumericOrder(b),
-    );
+    // catch back-to-back appearances of the same fighter. Bracket-branch
+    // units are already ordered by (round, position); re-sorting by label
+    // would scramble rounds, so keep their order.
+    const orderedMatches =
+      poolAffinity === 'bracket-branch'
+        ? unit.matches
+        : [...unit.matches].sort((a, b) => matchNumericOrder(a) - matchNumericOrder(b));
 
     let cursor = liceStart;
     for (const match of orderedMatches) {

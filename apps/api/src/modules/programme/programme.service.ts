@@ -9,7 +9,12 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { shiftBreaksAfterOverlap, type MatchWindow } from './shift-breaks';
-import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
+import type {
+  SaveProgrammeDto,
+  ScheduleGroupDto,
+  SuggestProgrammeDto,
+  UpdateBlockLabelDto,
+} from './dto/programme.dto';
 
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -42,6 +47,27 @@ function computeNeededMin(
 ): number {
   if (matchCount === 0 || parallelLice === 0) return 0;
   return Math.ceil(matchCount / parallelLice) * (durationMin + gapSec / 60);
+}
+
+/**
+ * Pick the scheduler affinity for a competition block. Pools stay strict
+ * (whole pool on one lice). A single-elim bracket with derivable slot
+ * coordinates uses branch-aware grouping (each quarter-final sub-tree on one
+ * lice); anything else (double-elim, swiss, no tree) falls back to greedy.
+ */
+export function decidePoolAffinity(input: {
+  isPool: boolean;
+  matches: Array<{
+    bracket_round?: number | null;
+    bracket_position?: number | null;
+    phase_type?: string | null;
+  }>;
+}): 'strict' | 'off' | 'bracket-branch' {
+  if (input.isPool) return 'strict';
+  const hasTree = input.matches.some((m) => m.bracket_round != null && m.bracket_position != null);
+  const allSingleElim =
+    input.matches.length > 0 && input.matches.every((m) => m.phase_type === 'single_elim');
+  return hasTree && allSingleElim ? 'bracket-branch' : 'off';
 }
 
 @Injectable()
@@ -576,6 +602,10 @@ export class ProgrammeService {
           continue;
         }
 
+        const poolAffinity = decidePoolAffinity({
+          isPool: block.competitionPhase === 'pool',
+          matches,
+        });
         const result = scheduleMatches(
           matches.map((m) => ({
             id: m.id,
@@ -584,15 +614,17 @@ export class ProgrammeService {
             poolId: m.pool_id,
             poolSortOrder: m.pool_sort_order,
             matchNumberLabel: m.match_number_label,
+            bracketRound: m.bracket_round,
+            bracketPosition: m.bracket_position,
           })),
           blockLices.map((l) => ({ id: l.id, name: l.name, sortOrder: l.sort_order })),
           {
             startTime: blockStartDt.toISOString(),
             defaultMatchDurationMinutes: block.matchDurationMinutes,
             transitionMinutes: block.matchGapSeconds / 60,
-            // Pool phase: keep every match of a pool on the same Lice.
-            // Bracket / finals phases: per-match greedy (no shared pool).
-            poolAffinity: block.competitionPhase === 'pool' ? 'strict' : 'off',
+            // Pools stay on one lice; single-elim brackets use branch-aware
+            // grouping; anything else is greedy.
+            poolAffinity,
           },
         );
 
@@ -885,6 +917,172 @@ export class ProgrammeService {
   }
 
   /**
+   * Re-fan a group of matches (a pool or a single-elim bracket sub-tree) across
+   * the given lices from a start time. Branch-aware for brackets; the group is
+   * seeded to land AFTER whatever already occupies those lices (no overlap).
+   */
+  async scheduleGroup(
+    eventId: string,
+    dto: ScheduleGroupDto,
+  ): Promise<{
+    scheduled: Array<{ matchId: string; liceId: string; scheduledAt: string }>;
+    imbalancePercent: number;
+    unscheduled: string[];
+  }> {
+    if (dto.matchIds.length === 0 || dto.liceIds.length === 0) {
+      return { scheduled: [], imbalancePercent: 0, unscheduled: dto.matchIds };
+    }
+
+    const eventPhaseIds = await this.eventPhaseIds(eventId);
+
+    const { data: matchRows, error: mErr } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id',
+      )
+      .in('id', dto.matchIds);
+    if (mErr) throw new BadRequestException(mErr.message);
+    const rows = (matchRows ?? []) as Array<{
+      id: string;
+      red_registration_id: string;
+      blue_registration_id: string;
+      pool_id: string | null;
+      match_number_label: string | null;
+      phase_id: string;
+      bracket_slot_id: string | null;
+    }>;
+    if (rows.length !== dto.matchIds.length || rows.some((r) => !eventPhaseIds.has(r.phase_id))) {
+      throw new BadRequestException('Some matches do not belong to this event');
+    }
+
+    // Lices in the operator's requested order (anchor i → liceIds[i]).
+    const { data: liceRows } = await this.supabase.service
+      .from('lices')
+      .select('id, name, sort_order')
+      .in('id', dto.liceIds);
+    const liceById = new Map(
+      ((liceRows ?? []) as Array<{ id: string; name: string; sort_order: number | null }>).map(
+        (l) => [l.id, l],
+      ),
+    );
+    const lices = dto.liceIds
+      .map((id, i) => {
+        const l = liceById.get(id);
+        return l ? { id: l.id, name: l.name, sortOrder: i } : null;
+      })
+      .filter((l): l is { id: string; name: string; sortOrder: number } => l !== null);
+    if (lices.length === 0) throw new BadRequestException('No valid lices to schedule onto');
+
+    const matchDuration = dto.matchDurationMinutes ?? 5;
+
+    // Seed each lice's first-free time from its existing occupants (excluding
+    // the group) so the re-fan appends instead of overlapping them.
+    const groupIds = new Set(dto.matchIds);
+    const { data: occRows } = await this.supabase.service
+      .from('matches')
+      .select('id, lice_id, scheduled_at')
+      .in('lice_id', dto.liceIds);
+    const liceBusyUntil: Record<string, string> = {};
+    for (const o of (occRows ?? []) as Array<{
+      id: string;
+      lice_id: string | null;
+      scheduled_at: string | null;
+    }>) {
+      if (groupIds.has(o.id) || !o.lice_id || !o.scheduled_at) continue;
+      const end = new Date(
+        new Date(o.scheduled_at).getTime() + matchDuration * 60_000,
+      ).toISOString();
+      if (!liceBusyUntil[o.lice_id] || liceBusyUntil[o.lice_id]! < end) {
+        liceBusyUntil[o.lice_id] = end;
+      }
+    }
+
+    const coords =
+      dto.mode === 'bracket-branch'
+        ? await this.loadBracketCoords(
+            rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
+          )
+        : new Map<string, { round: number; position: number }>();
+
+    const result = scheduleMatches(
+      rows.map((r) => {
+        const c = r.bracket_slot_id ? coords.get(r.bracket_slot_id) : undefined;
+        return {
+          id: r.id,
+          redRegistrationId: r.red_registration_id,
+          blueRegistrationId: r.blue_registration_id,
+          poolId: dto.mode === 'pool' ? r.pool_id : null,
+          matchNumberLabel: r.match_number_label,
+          bracketRound: c?.round ?? null,
+          bracketPosition: c?.position ?? null,
+        };
+      }),
+      lices,
+      {
+        startTime: dto.startTime,
+        defaultMatchDurationMinutes: matchDuration,
+        transitionMinutes: (dto.matchGapSeconds ?? 0) / 60,
+        poolAffinity: dto.mode === 'pool' ? 'strict' : 'bracket-branch',
+        liceBusyUntil,
+      },
+    );
+
+    await Promise.all(
+      result.scheduledMatches.map(async (sm) => {
+        const { error } = await this.supabase.service
+          .from('matches')
+          .update({ lice_id: sm.liceId, scheduled_at: sm.scheduledAt })
+          .eq('id', sm.matchId);
+        if (error) throw new BadRequestException(`Failed to schedule match: ${error.message}`);
+      }),
+    );
+
+    return {
+      scheduled: result.scheduledMatches.map((sm) => ({
+        matchId: sm.matchId,
+        liceId: sm.liceId,
+        scheduledAt: sm.scheduledAt,
+      })),
+      imbalancePercent: result.imbalancePercent,
+      unscheduled: result.unscheduled,
+    };
+  }
+
+  /** Rename a single programme block (admin / break / workshop bar). */
+  async updateBlockLabel(
+    eventId: string,
+    blockId: string,
+    dto: UpdateBlockLabelDto,
+  ): Promise<{ block: ProgrammeBlock }> {
+    const { data: updatedRow, error } = await this.supabase.service
+      .from('event_programme_blocks')
+      .update({ label: dto.label })
+      .eq('id', blockId)
+      .eq('event_id', eventId)
+      .select('*')
+      .single();
+    if (error || !updatedRow) {
+      throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
+    }
+    return { block: this.mapBlock(updatedRow as Record<string, unknown>) };
+  }
+
+  /** Phase ids belonging to this event's tournaments (scope guard). */
+  private async eventPhaseIds(eventId: string): Promise<Set<string>> {
+    const { data: tournaments } = await this.supabase.service
+      .from('tournaments')
+      .select('id')
+      .eq('event_id', eventId);
+    const tournamentIds = ((tournaments ?? []) as Array<{ id: string }>).map((t) => t.id);
+    if (tournamentIds.length === 0) return new Set();
+    const { data: phases } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .in('tournament_id', tournamentIds);
+    return new Set(((phases ?? []) as Array<{ id: string }>).map((p) => p.id));
+  }
+
+  /**
    * Delete a single programme block. Matches scheduled INSIDE the
    * block's time window on the same day are unscheduled
    * (scheduled_at + lice_id → null) so they reappear in the
@@ -1001,6 +1199,9 @@ export class ProgrammeService {
       pool_sort_order: number | null;
       match_number_label: string | null;
       phase_id: string;
+      phase_type: string | null;
+      bracket_round: number | null;
+      bracket_position: number | null;
     }>
   > {
     const { data: phasesData } = await this.supabase.service
@@ -1045,15 +1246,20 @@ export class ProgrammeService {
       return rows.map((r) => ({
         ...r,
         pool_sort_order: r.pool_id ? (poolSortOrder.get(r.pool_id) ?? null) : null,
+        phase_type: 'pool',
+        bracket_round: null,
+        bracket_position: null,
       }));
     } else {
-      const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
+      const bracketPhases = phases.filter((p) => p.type !== 'pool');
+      const bracketPhaseIds = bracketPhases.map((p) => p.id);
       if (bracketPhaseIds.length === 0) return [];
+      const phaseTypeById = new Map(bracketPhases.map((p) => [p.id, p.type]));
 
       const { data: matchesData } = await this.supabase.service
         .from('matches')
         .select(
-          'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id',
+          'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id',
         )
         .in('phase_id', bracketPhaseIds)
         .order('match_number_label', { ascending: true });
@@ -1064,9 +1270,46 @@ export class ProgrammeService {
         pool_id: string | null;
         match_number_label: string | null;
         phase_id: string;
+        bracket_slot_id: string | null;
       }>;
-      return rows.map((r) => ({ ...r, pool_sort_order: null }));
+      // Join bracket_slots so the scheduler can keep each QF sub-tree on one
+      // lice (branch-aware). Skips the query entirely when no slot ids exist.
+      const coords = await this.loadBracketCoords(
+        rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
+      );
+      return rows.map((r) => {
+        const c = r.bracket_slot_id ? coords.get(r.bracket_slot_id) : undefined;
+        return {
+          id: r.id,
+          red_registration_id: r.red_registration_id,
+          blue_registration_id: r.blue_registration_id,
+          pool_id: r.pool_id,
+          pool_sort_order: null,
+          match_number_label: r.match_number_label,
+          phase_id: r.phase_id,
+          phase_type: phaseTypeById.get(r.phase_id) ?? null,
+          bracket_round: c?.round ?? null,
+          bracket_position: c?.position ?? null,
+        };
+      });
     }
+  }
+
+  /** Slot id → {round, position} for bracket matches. Empty input = no query. */
+  private async loadBracketCoords(
+    slotIds: string[],
+  ): Promise<Map<string, { round: number; position: number }>> {
+    const map = new Map<string, { round: number; position: number }>();
+    const ids = [...new Set(slotIds)];
+    if (ids.length === 0) return map;
+    const { data } = await this.supabase.service
+      .from('bracket_slots')
+      .select('id, round, position')
+      .in('id', ids);
+    for (const s of (data ?? []) as Array<{ id: string; round: number; position: number }>) {
+      map.set(s.id, { round: s.round, position: s.position });
+    }
+    return map;
   }
 
   private validateBlocks(blocks: SaveProgrammeDto['blocks']): void {

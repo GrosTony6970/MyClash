@@ -426,3 +426,89 @@ describe('scheduleMatches', () => {
     });
   });
 });
+
+// ── Branch-aware bracket scheduling ────────────────────────────────────────────
+
+/** Full single-elim bracket as scheduler matches; ids "R{r}P{p}", unique fighters. */
+function bracketMatches(size: number): SchedulerMatch[] {
+  const rounds = Math.log2(size);
+  const out: SchedulerMatch[] = [];
+  let f = 0;
+  for (let r = 1; r <= rounds; r++) {
+    const count = size / 2 ** r;
+    for (let p = 1; p <= count; p++) {
+      out.push({
+        id: `R${r}P${p}`,
+        redRegistrationId: `f${f++}`,
+        blueRegistrationId: `f${f++}`,
+        bracketRound: r,
+        bracketPosition: p,
+      });
+    }
+  }
+  return out;
+}
+
+describe('scheduleMatches — bracket-branch affinity', () => {
+  const opts = {
+    startTime: START,
+    poolAffinity: 'bracket-branch' as const,
+    defaultMatchDurationMinutes: 5,
+    transitionMinutes: 0,
+    minRestMinutes: 0,
+  };
+
+  it('keeps each quarter-final sub-tree on one lice, across four lices', () => {
+    const result = scheduleMatches(bracketMatches(32), makeLices(4), opts);
+    const liceOf = new Map(result.scheduledMatches.map((s) => [s.matchId, s.liceId]));
+    const qf1 = ['R1P1', 'R1P2', 'R1P3', 'R1P4', 'R2P1', 'R2P2', 'R3P1'];
+    expect(new Set(qf1.map((id) => liceOf.get(id))).size).toBe(1);
+    const anchorLices = new Set(['R3P1', 'R3P2', 'R3P3', 'R3P4'].map((id) => liceOf.get(id)));
+    expect(anchorLices.size).toBe(4);
+  });
+
+  it('converges the semis/final onto a contributing lice, after its sub-tree', () => {
+    const result = scheduleMatches(bracketMatches(32), makeLices(4), opts);
+    const at = (id: string) =>
+      new Date(result.scheduledMatches.find((s) => s.matchId === id)!.scheduledAt).getTime();
+    const liceOf = new Map(result.scheduledMatches.map((s) => [s.matchId, s.liceId]));
+    const anchorLices = new Set(['R3P1', 'R3P2', 'R3P3', 'R3P4'].map((id) => liceOf.get(id)));
+    expect(anchorLices.has(liceOf.get('R4P1'))).toBe(true);
+    expect(anchorLices.has(liceOf.get('R5P1'))).toBe(true);
+    // Final after the semi that shares its lice / sub-tree.
+    expect(at('R5P1')).toBeGreaterThan(at('R4P1'));
+  });
+
+  it('orders matches earliest round first within a branch', () => {
+    const result = scheduleMatches(bracketMatches(32), makeLices(4), opts);
+    const at = (id: string) =>
+      new Date(result.scheduledMatches.find((s) => s.matchId === id)!.scheduledAt).getTime();
+    expect(at('R1P1')).toBeLessThan(at('R2P1'));
+    expect(at('R2P1')).toBeLessThan(at('R3P1'));
+  });
+
+  it("leaves 'off' affinity greedy even when bracket coords are present", () => {
+    const result = scheduleMatches(bracketMatches(8), makeLices(4), {
+      startTime: START,
+      poolAffinity: 'off',
+    });
+    expect(result.scheduledMatches).toHaveLength(7);
+    expect(result.unscheduled).toHaveLength(0);
+  });
+
+  it('seeds a lice from liceBusyUntil so a group appends after occupants', () => {
+    const busyUntil = '2026-04-25T10:00:00.000Z';
+    const result = scheduleMatches(makeMatches(2), makeLices(1), {
+      startTime: START,
+      poolAffinity: 'off',
+      minRestMinutes: 0,
+      transitionMinutes: 0,
+      liceBusyUntil: { 'lice-1': busyUntil },
+    });
+    for (const sm of result.scheduledMatches) {
+      expect(new Date(sm.scheduledAt).getTime()).toBeGreaterThanOrEqual(
+        new Date(busyUntil).getTime(),
+      );
+    }
+  });
+});

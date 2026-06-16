@@ -6,18 +6,35 @@ function poolMatch(
   startIso: string | null,
   liceId: string | null,
   n = 1,
+  opts: { poolId?: string; poolName?: string; durationMinutes?: number } = {},
 ): BlockMatchInput {
   return {
     id,
     liceId,
     scheduledAt: startIso,
-    poolId: 'pool-1',
-    poolName: 'Pool 1',
+    poolId: opts.poolId ?? 'pool-1',
+    poolName: opts.poolName ?? 'Pool 1',
     roundCode: `LSW-P1-M${n}`,
     phaseType: 'pool',
     tournamentName: 'Longsword Open',
     redFighterName: `Red ${n}`,
     blueFighterName: `Blue ${n}`,
+    durationMinutes: opts.durationMinutes,
+  };
+}
+
+function qfMatch(id: string, startIso: string, liceId: string, n: number): BlockMatchInput {
+  return {
+    id,
+    liceId,
+    scheduledAt: startIso,
+    poolId: null,
+    poolName: null,
+    roundCode: `LSW-B-QF-M${n}`,
+    phaseType: 'single_elim',
+    tournamentName: 'Longsword Open',
+    redFighterName: 'X',
+    blueFighterName: 'Y',
   };
 }
 
@@ -31,12 +48,13 @@ describe('buildScheduleBlocks', () => {
     const blk = blocks[0]!;
     expect(blk.kind).toBe('pool');
     expect(blk.label).toBe('Pool 1');
-    expect(blk.liceId).toBe('lice-1');
+    expect(blk.liceIds).toEqual(['lice-1']);
     expect(blk.startIso).toBe('2027-06-21T09:00:00.000Z');
     expect(blk.matchCount).toBe(2);
     expect(blk.matches.map((m) => m.id)).toEqual(['a', 'b']); // sorted by start
     expect(blk.matches[0]).toMatchObject({
       code: 'LSW-P1-M1',
+      liceId: 'lice-1',
       startIso: '2027-06-21T09:00:00.000Z',
       redFighterName: 'Red 1',
       blueFighterName: 'Blue 1',
@@ -58,23 +76,11 @@ describe('buildScheduleBlocks', () => {
     expect(blk.endIso).toBe('2027-06-21T11:00:00.000Z'); // rounded up to 2h
   });
 
-  it('labels bracket rounds from the round code', () => {
-    const blocks = buildScheduleBlocks([
-      {
-        id: 'q1',
-        liceId: 'lice-2',
-        scheduledAt: '2027-06-21T14:00:00.000Z',
-        poolId: null,
-        poolName: null,
-        roundCode: 'LSW-B-QF-M1',
-        phaseType: 'single_elim',
-        tournamentName: 'Longsword Open',
-        redFighterName: 'X',
-        blueFighterName: 'Y',
-      } as BlockMatchInput,
-    ]);
+  it('labels bracket rounds from the round code (single lice)', () => {
+    const blocks = buildScheduleBlocks([qfMatch('q1', '2027-06-21T14:00:00.000Z', 'lice-2', 1)]);
     expect(blocks[0]!.kind).toBe('bracket');
     expect(blocks[0]!.label).toBe('Quarter-finals');
+    expect(blocks[0]!.liceIds).toEqual(['lice-2']);
   });
 
   it('excludes unscheduled matches (no lice or no time)', () => {
@@ -82,12 +88,47 @@ describe('buildScheduleBlocks', () => {
     expect(buildScheduleBlocks([poolMatch('a', '2027-06-21T09:00:00.000Z', null)])).toHaveLength(0);
   });
 
-  it('splits a pool that runs on two lices into one block per lice', () => {
+  it('a pool fanned across two lices is ONE block spanning both', () => {
     const blocks = buildScheduleBlocks([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1),
       poolMatch('b', '2027-06-21T09:00:00.000Z', 'lice-2', 2),
     ]);
+    expect(blocks).toHaveLength(1);
+    expect(new Set(blocks[0]!.liceIds)).toEqual(new Set(['lice-1', 'lice-2']));
+  });
+
+  it('a bracket round fanned across three lices is ONE block, liceIds length 3', () => {
+    const blocks = buildScheduleBlocks([
+      qfMatch('q1', '2027-06-21T14:00:00.000Z', 'lice-1', 1),
+      qfMatch('q2', '2027-06-21T14:00:00.000Z', 'lice-2', 2),
+      qfMatch('q3', '2027-06-21T14:00:00.000Z', 'lice-3', 3),
+    ]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.kind).toBe('bracket');
+    expect(blocks[0]!.liceIds).toHaveLength(3);
+    expect(new Set(blocks[0]!.liceIds)).toEqual(new Set(['lice-1', 'lice-2', 'lice-3']));
+  });
+
+  it('two different pools on the same lice at different times stay two blocks', () => {
+    const blocks = buildScheduleBlocks([
+      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, {
+        poolId: 'pool-1',
+        poolName: 'Pool 1',
+      }),
+      poolMatch('b', '2027-06-21T11:00:00.000Z', 'lice-1', 1, {
+        poolId: 'pool-2',
+        poolName: 'Pool 2',
+      }),
+    ]);
     expect(blocks).toHaveLength(2);
-    expect(new Set(blocks.map((b) => b.liceId))).toEqual(new Set(['lice-1', 'lice-2']));
+    for (const blk of blocks) expect(blk.liceIds).toEqual(['lice-1']);
+    expect(blocks.map((b) => b.label).sort()).toEqual(['Pool 1', 'Pool 2']);
+  });
+
+  it('carries durationMinutes + liceId onto each block match', () => {
+    const blk = buildScheduleBlocks([
+      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 7 }),
+    ])[0]!;
+    expect(blk.matches[0]).toMatchObject({ id: 'a', liceId: 'lice-1', durationMinutes: 7 });
   });
 });

@@ -34,6 +34,9 @@ export type {
   ConflictCheckResult,
 } from './conflict-check';
 
+export { groupBracketBranches } from './bracket-branches';
+export type { BracketSlotInput, BranchUnit, GroupBracketBranchesResult } from './bracket-branches';
+
 export { assignReferees, assignRefereesWithPools } from './referee-assigner';
 export type {
   RefereeRole,
