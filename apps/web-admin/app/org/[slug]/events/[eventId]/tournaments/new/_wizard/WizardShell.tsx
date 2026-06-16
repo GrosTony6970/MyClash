@@ -51,7 +51,10 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
   }
 
   return (
-    <main id="main-content" className="mx-auto w-full max-w-3xl px-6 py-12 lg:px-8">
+    <main
+      id="main-content"
+      className={`mx-auto w-full px-6 py-12 lg:px-8 ${step === 3 ? 'max-w-5xl' : 'max-w-3xl'}`}
+    >
       <AdminPageHeader
         eyebrow={t('organizer.tournaments.wizard.eyebrow')}
         title={t('organizer.tournaments.wizard.title')}

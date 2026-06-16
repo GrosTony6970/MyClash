@@ -11,6 +11,7 @@ import {
   type CleanButton,
   type DisplayState,
 } from './buildDisplayConfigFromRow';
+import { DisplayPreview } from './DisplayPreview';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 const DEFAULTS: DisplayState = DISPLAY_DEFAULTS;
@@ -139,249 +140,271 @@ export function Step3Display({
         {t('organizer.tournaments.wizard.display')}
       </h2>
 
-      <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
-          {t('organizer.tournaments.settings.logoLabel')}
-        </legend>
-        <div className="flex items-center gap-3">
-          <div className="h-16 w-16 rounded-full overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={t('organizer.tournaments.settings.logoPreviewAlt')}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <span className="text-[10px] text-slate-400">—</span>
-            )}
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <input
-                ref={logoInput}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void uploadLogo(file);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => logoInput.current?.click()}
-                disabled={uploadingLogo}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {uploadingLogo
-                  ? t('organizer.tournaments.settings.logoUploading')
-                  : logoUrl
-                    ? t('organizer.tournaments.settings.logoReplace')
-                    : t('organizer.tournaments.settings.logoUpload')}
-              </button>
-              {logoUrl && (
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-6">
+        <div className="space-y-6">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-slate-600">
+              {t('organizer.tournaments.settings.logoLabel')}
+            </legend>
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 rounded-full overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center shrink-0">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={t('organizer.tournaments.settings.logoPreviewAlt')}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] text-slate-400">—</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={logoInput}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void uploadLogo(file);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => logoInput.current?.click()}
+                    disabled={uploadingLogo}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {uploadingLogo
+                      ? t('organizer.tournaments.settings.logoUploading')
+                      : logoUrl
+                        ? t('organizer.tournaments.settings.logoReplace')
+                        : t('organizer.tournaments.settings.logoUpload')}
+                  </button>
+                  {logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => void removeLogo()}
+                      disabled={uploadingLogo}
+                      className="rounded-md px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {t('organizer.tournaments.settings.logoRemove')}
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {t('organizer.tournaments.settings.logoHelp')}
+                </p>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-slate-600">
+              {t('organizer.tournaments.settings.sideColors')}
+            </legend>
+            <div className="flex gap-3">
+              {(['red', 'blue'] as const).map((side) => (
+                <label key={side} className="flex-1">
+                  <span className="block text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+                    {side}
+                  </span>
+                  <select
+                    value={data.sideColors[side]}
+                    onChange={(e) =>
+                      setData({
+                        ...data,
+                        sideColors: { ...data.sideColors, [side]: e.target.value },
+                      })
+                    }
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    {COLORS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-slate-600">
+              {t('organizer.tournaments.settings.cleanButtons')}
+            </legend>
+            {data.buttons.clean.map((btn, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  value={btn.label}
+                  onChange={(e) =>
+                    setData({
+                      ...data,
+                      buttons: {
+                        ...data.buttons,
+                        clean: data.buttons.clean.map((b, j) =>
+                          j === i ? { ...b, label: e.target.value } : b,
+                        ),
+                      },
+                    })
+                  }
+                  className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Label"
+                />
+                <input
+                  type="number"
+                  value={btn.value}
+                  onChange={(e) =>
+                    setData({
+                      ...data,
+                      buttons: {
+                        ...data.buttons,
+                        clean: data.buttons.clean.map((b, j) =>
+                          j === i ? { ...b, value: Number(e.target.value) } : b,
+                        ),
+                      },
+                    })
+                  }
+                  className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="checkbox"
+                  checked={btn.visible}
+                  onChange={(e) =>
+                    setData({
+                      ...data,
+                      buttons: {
+                        ...data.buttons,
+                        clean: data.buttons.clean.map((b, j) =>
+                          j === i ? { ...b, visible: e.target.checked } : b,
+                        ),
+                      },
+                    })
+                  }
+                />
                 <button
                   type="button"
-                  onClick={() => void removeLogo()}
-                  disabled={uploadingLogo}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  onClick={() =>
+                    setData({
+                      ...data,
+                      buttons: {
+                        ...data.buttons,
+                        clean: data.buttons.clean.filter((_, j) => j !== i),
+                      },
+                    })
+                  }
+                  className="text-xs text-red-700 hover:underline"
                 >
-                  {t('organizer.tournaments.settings.logoRemove')}
+                  Remove
                 </button>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-500">
-              {t('organizer.tournaments.settings.logoHelp')}
-            </p>
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
-          {t('organizer.tournaments.settings.sideColors')}
-        </legend>
-        <div className="flex gap-3">
-          {(['red', 'blue'] as const).map((side) => (
-            <label key={side} className="flex-1">
-              <span className="block text-[11px] uppercase tracking-wide text-slate-500 mb-1">
-                {side}
-              </span>
-              <select
-                value={data.sideColors[side]}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    sideColors: { ...data.sideColors, [side]: e.target.value },
-                  })
-                }
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                {COLORS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset className="space-y-2">
-        <legend className="text-xs font-medium text-slate-600">
-          {t('organizer.tournaments.settings.cleanButtons')}
-        </legend>
-        {data.buttons.clean.map((btn, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <input
-              value={btn.label}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  buttons: {
-                    ...data.buttons,
-                    clean: data.buttons.clean.map((b, j) =>
-                      j === i ? { ...b, label: e.target.value } : b,
-                    ),
-                  },
-                })
-              }
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Label"
-            />
-            <input
-              type="number"
-              value={btn.value}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  buttons: {
-                    ...data.buttons,
-                    clean: data.buttons.clean.map((b, j) =>
-                      j === i ? { ...b, value: Number(e.target.value) } : b,
-                    ),
-                  },
-                })
-              }
-              className="w-20 rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="checkbox"
-              checked={btn.visible}
-              onChange={(e) =>
-                setData({
-                  ...data,
-                  buttons: {
-                    ...data.buttons,
-                    clean: data.buttons.clean.map((b, j) =>
-                      j === i ? { ...b, visible: e.target.checked } : b,
-                    ),
-                  },
-                })
-              }
-            />
+              </div>
+            ))}
             <button
               type="button"
               onClick={() =>
                 setData({
                   ...data,
-                  buttons: { ...data.buttons, clean: data.buttons.clean.filter((_, j) => j !== i) },
+                  buttons: {
+                    ...data.buttons,
+                    clean: [...data.buttons.clean, { label: '', value: 1, visible: true }],
+                  },
                 })
               }
-              className="text-xs text-red-700 hover:underline"
+              className="text-xs text-slate-700 hover:underline"
             >
-              Remove
+              + Add clean button
             </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() =>
-            setData({
-              ...data,
-              buttons: {
-                ...data.buttons,
-                clean: [...data.buttons.clean, { label: '', value: 1, visible: true }],
-              },
-            })
-          }
-          className="text-xs text-slate-700 hover:underline"
-        >
-          + Add clean button
-        </button>
-      </fieldset>
+          </fieldset>
 
-      {rulesetCode === 'TF_v1' && (
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-medium text-slate-600">
-            {t('organizer.tournaments.settings.afterblowButtons')}
-          </legend>
-          {data.buttons.afterblow.map((btn, i) => (
-            <div key={i} className="flex gap-2 items-center">
-              <input
-                value={btn.label}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    buttons: {
-                      ...data.buttons,
-                      afterblow: data.buttons.afterblow.map((b, j) =>
-                        j === i ? { ...b, label: e.target.value } : b,
-                      ),
-                    },
-                  })
-                }
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-                placeholder="Label"
-              />
-              <input
-                type="number"
-                value={btn.attackerPts}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    buttons: {
-                      ...data.buttons,
-                      afterblow: data.buttons.afterblow.map((b, j) =>
-                        j === i ? { ...b, attackerPts: Number(e.target.value) } : b,
-                      ),
-                    },
-                  })
-                }
-                className="w-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                value={btn.defenderPts}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    buttons: {
-                      ...data.buttons,
-                      afterblow: data.buttons.afterblow.map((b, j) =>
-                        j === i ? { ...b, defenderPts: Number(e.target.value) } : b,
-                      ),
-                    },
-                  })
-                }
-                className="w-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
-                type="checkbox"
-                checked={btn.visible}
-                onChange={(e) =>
-                  setData({
-                    ...data,
-                    buttons: {
-                      ...data.buttons,
-                      afterblow: data.buttons.afterblow.map((b, j) =>
-                        j === i ? { ...b, visible: e.target.checked } : b,
-                      ),
-                    },
-                  })
-                }
-              />
+          {rulesetCode === 'TF_v1' && (
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-medium text-slate-600">
+                {t('organizer.tournaments.settings.afterblowButtons')}
+              </legend>
+              {data.buttons.afterblow.map((btn, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    value={btn.label}
+                    onChange={(e) =>
+                      setData({
+                        ...data,
+                        buttons: {
+                          ...data.buttons,
+                          afterblow: data.buttons.afterblow.map((b, j) =>
+                            j === i ? { ...b, label: e.target.value } : b,
+                          ),
+                        },
+                      })
+                    }
+                    className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Label"
+                  />
+                  <input
+                    type="number"
+                    value={btn.attackerPts}
+                    onChange={(e) =>
+                      setData({
+                        ...data,
+                        buttons: {
+                          ...data.buttons,
+                          afterblow: data.buttons.afterblow.map((b, j) =>
+                            j === i ? { ...b, attackerPts: Number(e.target.value) } : b,
+                          ),
+                        },
+                      })
+                    }
+                    className="w-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={btn.defenderPts}
+                    onChange={(e) =>
+                      setData({
+                        ...data,
+                        buttons: {
+                          ...data.buttons,
+                          afterblow: data.buttons.afterblow.map((b, j) =>
+                            j === i ? { ...b, defenderPts: Number(e.target.value) } : b,
+                          ),
+                        },
+                      })
+                    }
+                    className="w-16 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={btn.visible}
+                    onChange={(e) =>
+                      setData({
+                        ...data,
+                        buttons: {
+                          ...data.buttons,
+                          afterblow: data.buttons.afterblow.map((b, j) =>
+                            j === i ? { ...b, visible: e.target.checked } : b,
+                          ),
+                        },
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setData({
+                        ...data,
+                        buttons: {
+                          ...data.buttons,
+                          afterblow: data.buttons.afterblow.filter((_, j) => j !== i),
+                        },
+                      })
+                    }
+                    className="text-xs text-red-700 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
               <button
                 type="button"
                 onClick={() =>
@@ -389,36 +412,22 @@ export function Step3Display({
                     ...data,
                     buttons: {
                       ...data.buttons,
-                      afterblow: data.buttons.afterblow.filter((_, j) => j !== i),
+                      afterblow: [
+                        ...data.buttons.afterblow,
+                        { label: '', attackerPts: 1, defenderPts: 1, visible: true },
+                      ],
                     },
                   })
                 }
-                className="text-xs text-red-700 hover:underline"
+                className="text-xs text-slate-700 hover:underline"
               >
-                Remove
+                + Add afterblow button
               </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              setData({
-                ...data,
-                buttons: {
-                  ...data.buttons,
-                  afterblow: [
-                    ...data.buttons.afterblow,
-                    { label: '', attackerPts: 1, defenderPts: 1, visible: true },
-                  ],
-                },
-              })
-            }
-            className="text-xs text-slate-700 hover:underline"
-          >
-            + Add afterblow button
-          </button>
-        </fieldset>
-      )}
+            </fieldset>
+          )}
+        </div>
+        <DisplayPreview data={data} logoUrl={logoUrl} rulesetCode={rulesetCode} />
+      </div>
 
       <div className="flex justify-between mt-6">
         <button
