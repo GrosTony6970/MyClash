@@ -8,6 +8,7 @@
  * so the board can be reasoned about and tested in isolation.
  */
 
+import { zonedDay } from '@myclash/time';
 import { isoToSlot, SLOT_MINUTES } from '../schedule/schedule-grid-geometry';
 
 export interface BoardVenue {
@@ -103,14 +104,6 @@ export function buildColumnBands(columns: ReadonlyArray<AreaColumn>): ColumnBand
   return bands;
 }
 
-/** Local calendar date (YYYY-MM-DD) of an ISO timestamp. */
-function localDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`;
-}
-
 /** Pick the column a session belongs to, or null when it can't be placed. */
 function matchColumn(
   columns: ReadonlyArray<AreaColumn>,
@@ -130,21 +123,22 @@ function matchColumn(
 
 const DEFAULT_BLOCK_MINUTES = 60;
 
-/** Blocks for the workshops whose session falls on `day` and maps to a column. */
+/** Blocks for the workshops whose session falls on `day` (in `tz`) and maps to a column. */
 export function buildWorkshopSessionBlocks(
   workshops: ReadonlyArray<BoardWorkshop>,
   columns: ReadonlyArray<AreaColumn>,
   day: string,
+  tz: string,
 ): WorkshopBlock[] {
   const blocks: WorkshopBlock[] = [];
   for (const w of workshops) {
     const session = w.sessions[0];
     if (!session?.startsAt) continue;
-    if (localDate(session.startsAt) !== day) continue;
+    if (zonedDay(session.startsAt, tz) !== day) continue;
     const col = matchColumn(columns, session.venueId, session.areaId);
     if (!col) continue;
 
-    const startSlot = isoToSlot(session.startsAt, day);
+    const startSlot = isoToSlot(session.startsAt, day, tz);
     const durationMin = session.endsAt
       ? Math.max(
           SLOT_MINUTES,

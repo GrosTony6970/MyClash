@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { formatInZone } from '@myclash/time';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
 
@@ -37,6 +38,7 @@ interface Workshop {
   level: string | null;
   language: string | null;
   durationMinutes: number | null;
+  eventTimezone: string | null;
   sessions: Session[];
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
@@ -157,6 +159,7 @@ export default function WorkshopDetailPage() {
 
   const instructorNames = workshop.instructors.map((i) => i.displayName);
   const description = workshop.descriptionMd ?? workshop.shortDescription;
+  const tz = workshop.eventTimezone ?? 'Europe/Paris';
 
   return (
     <main className="px-4 py-6 max-w-lg mx-auto">
@@ -247,7 +250,7 @@ export default function WorkshopDetailPage() {
                   <div>
                     {session.startsAt && (
                       <p className="font-medium text-gray-900">
-                        {new Date(session.startsAt).toLocaleDateString('fr-FR', {
+                        {formatInZone(session.startsAt, tz, {
                           weekday: 'short',
                           day: 'numeric',
                           month: 'short',
@@ -255,17 +258,15 @@ export default function WorkshopDetailPage() {
                       </p>
                     )}
                     <p className="text-sm text-gray-500">
-                      {session.startsAt &&
-                        new Date(session.startsAt).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                      {formatInZone(session.startsAt, tz, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                       {session.startsAt && session.endsAt && ' – '}
-                      {session.endsAt &&
-                        new Date(session.endsAt).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                      {formatInZone(session.endsAt, tz, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                       {session.locationLabel && ` · ${session.locationLabel}`}
                     </p>
                     {cap > 0 && (

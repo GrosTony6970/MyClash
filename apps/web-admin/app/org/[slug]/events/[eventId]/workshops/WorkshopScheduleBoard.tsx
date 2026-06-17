@@ -20,6 +20,7 @@ import {
   slotToHHMM,
   slotToTime,
 } from '../schedule/schedule-grid-geometry';
+import { minutesIntoDayInZone } from '@myclash/time';
 import { formatDayLabel } from '../schedule/event-days';
 import {
   buildAreaColumns,
@@ -50,6 +51,8 @@ interface Props {
   workshops: BoardWorkshop[];
   venues: BoardVenue[];
   days: string[];
+  /** Event IANA timezone — the board axis + placement are resolved in it. */
+  timezone: string;
   breaks?: WorkshopBreak[];
   onPlace: (workshopId: string, sessionId: string | null, placement: BoardPlacement) => void;
   onBlockClick?: (workshopId: string) => void;
@@ -61,14 +64,15 @@ const COL_WIDTH_PX = 150;
 const GUTTER_PX = 56;
 const END_HOUR_FLOOR = 20;
 
-function endSlotFor(workshops: BoardWorkshop[]): number {
+function endSlotFor(workshops: BoardWorkshop[], tz: string): number {
   // Grid runs to the later of END_HOUR_FLOOR or the latest session end.
   let maxSlot = (END_HOUR_FLOOR - GRID_START_HOUR) * (60 / SLOT_MINUTES);
   for (const w of workshops) {
     const end = w.sessions[0]?.endsAt;
     if (!end) continue;
-    const d = new Date(end);
-    const slot = ((d.getHours() - GRID_START_HOUR) * 60 + d.getMinutes()) / SLOT_MINUTES;
+    const min = minutesIntoDayInZone(end, tz);
+    if (min === null) continue;
+    const slot = (min - GRID_START_HOUR * 60) / SLOT_MINUTES;
     if (slot > maxSlot) maxSlot = Math.ceil(slot);
   }
   return maxSlot;
@@ -78,6 +82,7 @@ export function WorkshopScheduleBoard({
   workshops,
   venues,
   days,
+  timezone,
   breaks = [],
   onPlace,
   onBlockClick,
@@ -92,9 +97,9 @@ export function WorkshopScheduleBoard({
   const columns = buildAreaColumns(venues);
   const bands = buildColumnBands(columns);
   const dayIndex = Math.max(0, days.indexOf(activeDay));
-  const blocks = buildWorkshopSessionBlocks(workshops, columns, activeDay);
+  const blocks = buildWorkshopSessionBlocks(workshops, columns, activeDay, timezone);
   const drawer = unscheduledWorkshops(workshops, columns);
-  const totalSlots = endSlotFor(workshops);
+  const totalSlots = endSlotFor(workshops, timezone);
   const gridHeight = totalSlots * SLOT_HEIGHT_PX;
 
   // Resize state: which session, its column, fixed start slot, live end slot.
@@ -117,8 +122,8 @@ export function WorkshopScheduleBoard({
     startSlot: number,
     span: number,
   ) {
-    const startTime = slotToTime(startSlot, activeDay);
-    const endTime = slotToTime(startSlot + Math.max(1, span), activeDay);
+    const startTime = slotToTime(startSlot, activeDay, timezone);
+    const endTime = slotToTime(startSlot + Math.max(1, span), activeDay, timezone);
     onPlace(workshopId, sessionId, {
       venueId: column.venueId,
       areaId: column.areaId,

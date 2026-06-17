@@ -54,8 +54,11 @@ function workshop(over: Partial<BoardWorkshop> & { id: string }): BoardWorkshop 
   };
 }
 
+// Paris is CEST (UTC+2) on these June dates: 09:00 local = 07:00Z, 08:00 = 06:00Z.
+const TZ = 'Europe/Paris';
+
 describe('buildWorkshopSessionBlocks', () => {
-  it('places a session on its area column at the right slot/span', () => {
+  it('places a session on its area column at the right slot/span (in event tz)', () => {
     const ws: BoardWorkshop[] = [
       workshop({
         id: 'w1',
@@ -63,20 +66,20 @@ describe('buildWorkshopSessionBlocks', () => {
         sessions: [
           {
             id: 's1',
-            startsAt: '2027-06-01T09:00:00',
-            endsAt: '2027-06-01T10:30:00',
+            startsAt: '2027-06-01T07:00:00.000Z',
+            endsAt: '2027-06-01T08:30:00.000Z',
             venueId: 'v1',
             areaId: 'a2',
           },
         ],
       }),
     ];
-    const blocks = buildWorkshopSessionBlocks(ws, columns, '2027-06-01');
+    const blocks = buildWorkshopSessionBlocks(ws, columns, '2027-06-01', TZ);
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toMatchObject({
       workshopId: 'w1',
       columnKey: columnKey('v1', 'a2'),
-      // 09:00 is 60 min after the 08:00 axis start → 12 slots of 5 min.
+      // 09:00 Paris is 60 min after the 08:00 axis start → 12 slots of 5 min.
       startSlot: 12,
       span: 18, // 90 min / 5
     });
@@ -87,24 +90,36 @@ describe('buildWorkshopSessionBlocks', () => {
       workshop({
         id: 'w2',
         sessions: [
-          { id: 's2', startsAt: '2027-06-01T08:00:00', endsAt: null, venueId: 'v2', areaId: null },
+          {
+            id: 's2',
+            startsAt: '2027-06-01T06:00:00.000Z',
+            endsAt: null,
+            venueId: 'v2',
+            areaId: null,
+          },
         ],
       }),
     ];
-    const blocks = buildWorkshopSessionBlocks(ws, columns, '2027-06-01');
+    const blocks = buildWorkshopSessionBlocks(ws, columns, '2027-06-01', TZ);
     expect(blocks[0]).toMatchObject({ columnKey: columnKey('v2', null), startSlot: 0, span: 12 });
   });
 
-  it('excludes sessions on other days', () => {
+  it('excludes sessions on other days (in event tz)', () => {
     const ws: BoardWorkshop[] = [
       workshop({
         id: 'w3',
         sessions: [
-          { id: 's3', startsAt: '2027-06-02T09:00:00', endsAt: null, venueId: 'v1', areaId: 'a1' },
+          {
+            id: 's3',
+            startsAt: '2027-06-02T07:00:00.000Z',
+            endsAt: null,
+            venueId: 'v1',
+            areaId: 'a1',
+          },
         ],
       }),
     ];
-    expect(buildWorkshopSessionBlocks(ws, columns, '2027-06-01')).toHaveLength(0);
+    expect(buildWorkshopSessionBlocks(ws, columns, '2027-06-01', TZ)).toHaveLength(0);
   });
 });
 

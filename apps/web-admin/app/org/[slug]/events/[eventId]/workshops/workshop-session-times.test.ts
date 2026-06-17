@@ -56,29 +56,35 @@ describe('endFromStartDuration', () => {
 });
 
 describe('workshopSessionTimes', () => {
-  it('builds start/end from an explicit end', () => {
-    expect(workshopSessionTimes({ day: '2027-06-01', start: '09:00', end: '10:30' })).toEqual({
-      startTime: '2027-06-01T09:00:00',
-      endTime: '2027-06-01T10:30:00',
+  // Paris is CEST (UTC+2) in June → 09:00 local = 07:00Z.
+  const TZ = 'Europe/Paris';
+
+  it('builds start/end (as UTC instants in the event tz) from an explicit end', () => {
+    expect(
+      workshopSessionTimes({ day: '2027-06-01', start: '09:00', end: '10:30', tz: TZ }),
+    ).toEqual({
+      startTime: '2027-06-01T07:00:00.000Z',
+      endTime: '2027-06-01T08:30:00.000Z',
     });
   });
 
   it('derives end from duration when end is blank', () => {
     expect(
-      workshopSessionTimes({ day: '2027-06-01', start: '09:00', durationMinutes: 45 }),
-    ).toEqual({ startTime: '2027-06-01T09:00:00', endTime: '2027-06-01T09:45:00' });
+      workshopSessionTimes({ day: '2027-06-01', start: '09:00', durationMinutes: 45, tz: TZ }),
+    ).toEqual({ startTime: '2027-06-01T07:00:00.000Z', endTime: '2027-06-01T07:45:00.000Z' });
   });
 
   it('falls back to a 60-minute default when only day+start are given', () => {
-    expect(workshopSessionTimes({ day: '2027-06-01', start: '09:00' })).toEqual({
-      startTime: '2027-06-01T09:00:00',
-      endTime: '2027-06-01T10:00:00',
+    expect(workshopSessionTimes({ day: '2027-06-01', start: '09:00', tz: TZ })).toEqual({
+      startTime: '2027-06-01T07:00:00.000Z',
+      endTime: '2027-06-01T08:00:00.000Z',
     });
   });
 
-  it('returns null without a day or start', () => {
-    expect(workshopSessionTimes({ day: null, start: '09:00' })).toBeNull();
-    expect(workshopSessionTimes({ day: '2027-06-01', start: '' })).toBeNull();
-    expect(workshopSessionTimes({ day: '2027-06-01', start: 'bad' })).toBeNull();
+  it('returns null without a day, start, or tz', () => {
+    expect(workshopSessionTimes({ day: null, start: '09:00', tz: TZ })).toBeNull();
+    expect(workshopSessionTimes({ day: '2027-06-01', start: '', tz: TZ })).toBeNull();
+    expect(workshopSessionTimes({ day: '2027-06-01', start: 'bad', tz: TZ })).toBeNull();
+    expect(workshopSessionTimes({ day: '2027-06-01', start: '09:00', tz: '' })).toBeNull();
   });
 });

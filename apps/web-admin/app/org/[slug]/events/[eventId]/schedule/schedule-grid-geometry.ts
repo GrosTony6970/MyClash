@@ -7,9 +7,13 @@
  * the axis is dynamic (see `compute-grid-end.ts`); `DEFAULT_GRID_END_HOUR`
  * is the floor used when there's no later content.
  *
- * Pure: no React, no I/O. `slotToTime`/`isoToSlot` use the local timezone
- * (via `Date.setHours`) — assert them by roundtrip, not raw ISO equality.
+ * Pure: no React, no I/O. `slotToTime`/`isoToSlot` interpret the axis in the
+ * EVENT's timezone (via @myclash/time), so the grid reads the same wall-clock
+ * for any viewer regardless of their browser timezone. Both anchor on the same
+ * `dayStartUtcIso` instant, so they are exact inverses.
  */
+
+import { dayStartUtcIso, minutesIntoDayInZone } from '@myclash/time';
 
 export const SLOT_MINUTES = 5;
 export const GRID_START_HOUR = 8;
@@ -27,18 +31,22 @@ export function minutesToSlot(minutes: number): number {
   return Math.floor(minutes / SLOT_MINUTES);
 }
 
-export function slotToTime(slot: number, baseDate: string): string {
-  const base = new Date(baseDate);
-  base.setHours(GRID_START_HOUR, 0, 0, 0);
-  base.setMinutes(base.getMinutes() + slot * SLOT_MINUTES);
-  return base.toISOString();
+/** Slot index → UTC ISO instant, with the axis anchored at GRID_START_HOUR in `tz`. */
+export function slotToTime(slot: number, day: string, tz: string): string {
+  const start = dayStartUtcIso(day, tz, GRID_START_HOUR);
+  const base = start ? new Date(start) : new Date(`${day}T00:00:00Z`);
+  return new Date(base.getTime() + slot * SLOT_MINUTES * 60_000).toISOString();
 }
 
-export function isoToSlot(iso: string, baseDate: string): number {
-  const base = new Date(baseDate);
-  base.setHours(GRID_START_HOUR, 0, 0, 0);
-  const diff = (new Date(iso).getTime() - base.getTime()) / 60_000;
-  return Math.max(0, minutesToSlot(diff));
+/** UTC ISO instant → slot index on the `tz` axis (clamped ≥ 0). */
+export function isoToSlot(iso: string, day: string, tz: string): number {
+  const start = dayStartUtcIso(day, tz, GRID_START_HOUR);
+  if (start) {
+    const diff = (new Date(iso).getTime() - new Date(start).getTime()) / 60_000;
+    return Math.max(0, minutesToSlot(diff));
+  }
+  const min = minutesIntoDayInZone(iso, tz);
+  return min === null ? 0 : Math.max(0, minutesToSlot(min - GRID_START_HOUR * 60));
 }
 
 /** Slot index → "HH:MM" on the axis (e.g. slot 0 → "08:00"). */

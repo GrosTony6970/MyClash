@@ -13,10 +13,16 @@ const BASE = '2026-06-15';
 
 describe('schedule-grid-geometry', () => {
   describe('slotToTime / isoToSlot roundtrip', () => {
-    it('isoToSlot inverts slotToTime for every slot (tz-agnostic via roundtrip)', () => {
-      for (let s = 0; s <= 100; s++) {
-        expect(isoToSlot(slotToTime(s, BASE), BASE)).toBe(s);
+    it('isoToSlot inverts slotToTime for every slot, in a fixed event tz', () => {
+      for (const tz of ['Europe/Paris', 'America/New_York', 'Asia/Tokyo']) {
+        for (let s = 0; s <= 100; s++) {
+          expect(isoToSlot(slotToTime(s, BASE, tz), BASE, tz)).toBe(s);
+        }
       }
+    });
+
+    it('anchors slot 0 at 08:00 wall-clock in the event tz (Paris summer = 06:00Z)', () => {
+      expect(slotToTime(0, '2027-06-21', 'Europe/Paris')).toBe('2027-06-21T06:00:00.000Z');
     });
   });
 

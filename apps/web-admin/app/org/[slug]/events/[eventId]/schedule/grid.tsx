@@ -182,6 +182,18 @@ export function ScheduleGrid({
   const [matches, setMatches] = useState<ScheduleMatch[]>([]);
   const [days, setDays] = useState<string[]>([]);
   const [activeDay, setActiveDay] = useState<string>('');
+  // Event IANA timezone — the schedule axis + times are interpreted in it.
+  const [eventTz, setEventTz] = useState<string>('Europe/Paris');
+  // Thin closures so the many grid call sites stay 2-arg; both resolve the
+  // axis in the event timezone (not the browser's).
+  const slotToTimeTz = useCallback(
+    (slot: number, day: string) => slotToTime(slot, day, eventTz),
+    [eventTz],
+  );
+  const isoToSlotTz = useCallback(
+    (iso: string, day: string) => isoToSlot(iso, day, eventTz),
+    [eventTz],
+  );
   const [loading, setLoading] = useState(true);
   // When any of the schedule-page bootstrap fetches errors out (or
   // returns a non-2xx body), surface it as a banner above the grid.
@@ -416,7 +428,9 @@ export function ScheduleGrid({
         const ev = (await eventRes.json()) as {
           start_date: string;
           end_date?: string | null;
+          timezone?: string | null;
         };
+        if (ev.timezone) setEventTz(ev.timezone);
         const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
         setDays(eventDays);
         if (eventDays[0]) setActiveDay(eventDays[0]);
@@ -654,7 +668,7 @@ export function ScheduleGrid({
     }
     const match = dragMatch.current;
     if (!match || !activeDay) return;
-    const newScheduledAt = slotToTime(slot, activeDay);
+    const newScheduledAt = slotToTimeTz(slot, activeDay);
     // Same-cell drop = no-op; don't pollute the undo stack.
     if (match.liceId === liceId && match.scheduledAt === newScheduledAt) {
       dragMatch.current = null;
@@ -683,7 +697,7 @@ export function ScheduleGrid({
       )
       .map((m) => ({
         id: m.id,
-        slot: isoToSlot(m.scheduledAt!, activeDay),
+        slot: isoToSlotTz(m.scheduledAt!, activeDay),
         span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
       }));
     const placement = placeWithShift({
@@ -697,7 +711,7 @@ export function ScheduleGrid({
       if (m.id === match.id) return { ...m, liceId, scheduledAt: newScheduledAt };
       const newSlot = shiftedById.get(m.id);
       if (newSlot == null) return m;
-      return { ...m, scheduledAt: slotToTime(newSlot, activeDay) };
+      return { ...m, scheduledAt: slotToTimeTz(newSlot, activeDay) };
     });
     setMatches(updated);
     setConflicts(detectConflicts(updated));
@@ -707,7 +721,7 @@ export function ScheduleGrid({
     for (const s of placement.shifted) {
       const moved = matches.find((m) => m.id === s.id);
       if (!moved) continue;
-      void saveMatchPosition(s.id, liceId, slotToTime(s.slot, activeDay));
+      void saveMatchPosition(s.id, liceId, slotToTimeTz(s.slot, activeDay));
     }
     dragMatch.current = null;
   }
@@ -753,7 +767,7 @@ export function ScheduleGrid({
       )
       .map((m) => ({
         id: m.id,
-        slot: isoToSlot(m.scheduledAt!, activeDay),
+        slot: isoToSlotTz(m.scheduledAt!, activeDay),
         span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
       }));
 
@@ -779,7 +793,7 @@ export function ScheduleGrid({
     const updated = matches.map((m) => {
       const newSlot = slotById.get(m.id);
       if (newSlot == null) return m;
-      const newScheduledAt = slotToTime(newSlot, activeDay);
+      const newScheduledAt = slotToTimeTz(newSlot, activeDay);
       const newLiceId = groupMatchIds.has(m.id) ? targetLiceId : (m.liceId ?? targetLiceId);
       if (m.scheduledAt === newScheduledAt && m.liceId === newLiceId) return m;
       return { ...m, scheduledAt: newScheduledAt, liceId: newLiceId };
@@ -793,7 +807,7 @@ export function ScheduleGrid({
     for (const item of placement.items) {
       const original = matches.find((m) => m.id === item.id);
       if (!original) continue;
-      const newScheduledAt = slotToTime(item.slot, activeDay);
+      const newScheduledAt = slotToTimeTz(item.slot, activeDay);
       const newLiceId = groupMatchIds.has(item.id)
         ? targetLiceId
         : (original.liceId ?? targetLiceId);
@@ -1147,7 +1161,7 @@ export function ScheduleGrid({
   // [start, newEnd] so a multi-lice bracket keeps its parallel layout.
   function resizeBlockTimeTo(block: ScheduleBlock, newEndSlot: number) {
     if (!activeDay) return;
-    const startSlot = isoToSlot(block.startIso, activeDay);
+    const startSlot = isoToSlotTz(block.startIso, activeDay);
     const byLice = new Map<string, ScheduleBlockMatch[]>();
     for (const m of block.matches) {
       const arr = byLice.get(m.liceId) ?? [];
@@ -1159,7 +1173,7 @@ export function ScheduleGrid({
       const sorted = [...ms].sort((a, b) => (a.startIso < b.startIso ? -1 : 1));
       const slots = respaceMatchesEvenly({ startSlot, endSlot: newEndSlot, count: sorted.length });
       sorted.forEach((m, i) =>
-        updates.push({ id: m.id, liceId, scheduledAt: slotToTime(slots[i]!, activeDay) }),
+        updates.push({ id: m.id, liceId, scheduledAt: slotToTimeTz(slots[i]!, activeDay) }),
       );
     }
     applyMatchUpdates(updates);
@@ -1169,13 +1183,13 @@ export function ScheduleGrid({
   // its internal layout.
   function retimeBlockStart(block: ScheduleBlock, newStartSlot: number) {
     if (!activeDay) return;
-    const delta = newStartSlot - isoToSlot(block.startIso, activeDay);
+    const delta = newStartSlot - isoToSlotTz(block.startIso, activeDay);
     if (delta === 0) return;
     applyMatchUpdates(
       block.matches.map((m) => ({
         id: m.id,
         liceId: m.liceId,
-        scheduledAt: slotToTime(isoToSlot(m.startIso, activeDay) + delta, activeDay),
+        scheduledAt: slotToTimeTz(isoToSlotTz(m.startIso, activeDay) + delta, activeDay),
       })),
     );
   }
@@ -1200,7 +1214,7 @@ export function ScheduleGrid({
         body: JSON.stringify({
           matchIds,
           liceIds,
-          startTime: slotToTime(startSlot, activeDay),
+          startTime: slotToTimeTz(startSlot, activeDay),
           mode,
         }),
       });
@@ -1212,7 +1226,7 @@ export function ScheduleGrid({
 
   function changeBlockLices(block: ScheduleBlock, newLiceIds: string[]) {
     if (!newLiceIds[0] || !activeDay) return;
-    const startSlot = isoToSlot(block.startIso, activeDay);
+    const startSlot = isoToSlotTz(block.startIso, activeDay);
     if (block.kind === 'bracket') {
       // Branch-aware re-fan across the dragged lices (server-side).
       void (async () => {
@@ -1311,14 +1325,14 @@ export function ScheduleGrid({
       return;
     }
     setAutoDistributeError(null);
-    const dayStartSlot = isoToSlot(`${activeDay}T09:00:00`, activeDay);
+    const dayStartSlot = isoToSlotTz(`${activeDay}T09:00:00`, activeDay);
     const lastEnd = (liceId: string) => {
       const onLice = scheduledOnActiveDay.filter((m) => m.liceId === liceId && m.scheduledAt);
       if (onLice.length === 0) return dayStartSlot;
       return Math.max(
         ...onLice.map(
           (m) =>
-            isoToSlot(m.scheduledAt!, activeDay) +
+            isoToSlotTz(m.scheduledAt!, activeDay) +
             Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
         ),
       );
@@ -1450,7 +1464,7 @@ export function ScheduleGrid({
         id: m.id,
         key,
         liceIndex,
-        slot: isoToSlot(m.scheduledAt!, activeDay),
+        slot: isoToSlotTz(m.scheduledAt!, activeDay),
         span: Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES)),
       });
     }
@@ -1531,7 +1545,7 @@ export function ScheduleGrid({
   // block/break and the configured day-end (the detailed grid keeps its fixed
   // 08:00–20:00 window).
   const gridEndSlot = useMemo(() => {
-    const blockEndSlots = dayBlocks.map((b) => isoToSlot(b.endIso, activeDay));
+    const blockEndSlots = dayBlocks.map((b) => isoToSlotTz(b.endIso, activeDay));
     const breakEndSlots = blocksOnActiveDay
       .filter((b) => b.blockType !== 'competition')
       .map((b) => b.startSlot + b.span);
@@ -2024,6 +2038,7 @@ export function ScheduleGrid({
               breaks={bgvBreaks}
               tournamentColorByName={tournamentColorByName}
               baseDate={activeDay}
+              timezone={eventTz}
               gridEndSlot={gridEndSlot}
               drift={liceDrift}
               nowSlot={nowSlot}
@@ -2192,7 +2207,7 @@ export function ScheduleGrid({
               {scheduledOnActiveDay.map((m) => {
                 const liceIndex = lices.findIndex((l) => l.id === m.liceId);
                 if (liceIndex === -1) return null;
-                const slot = isoToSlot(m.scheduledAt!, activeDay);
+                const slot = isoToSlotTz(m.scheduledAt!, activeDay);
                 const span = Math.max(1, Math.floor(m.durationMinutes / SLOT_MINUTES));
                 const hasConflict = conflicts.some(
                   (c) => c.matchA === m.matchNumberLabel || c.matchB === m.matchNumberLabel,
@@ -2455,10 +2470,10 @@ export function ScheduleGrid({
               : {
                   label: editingBlock?.label ?? '',
                   startHHMM: editingBlock
-                    ? slotToHHMM(isoToSlot(editingBlock.startIso, activeDay))
+                    ? slotToHHMM(isoToSlotTz(editingBlock.startIso, activeDay))
                     : '',
                   endHHMM: editingBlock
-                    ? slotToHHMM(isoToSlot(editingBlock.endIso, activeDay))
+                    ? slotToHHMM(isoToSlotTz(editingBlock.endIso, activeDay))
                     : '',
                   liceIds: editingBlock?.liceIds ?? [],
                 }

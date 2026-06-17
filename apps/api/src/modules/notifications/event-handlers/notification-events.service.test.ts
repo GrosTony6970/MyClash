@@ -79,7 +79,8 @@ describe('notification event handlers', () => {
           error: null,
         },
         workshop_enrollments: {
-          data: [{ person_id: 'person-1' }, { person_id: 'person-2' }],
+          // user_id holds the persons.id (the enrollee identity).
+          data: [{ user_id: 'person-1' }, { user_id: 'person-2' }],
           error: null,
         },
         persons: {

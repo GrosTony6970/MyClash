@@ -7,6 +7,7 @@
 
 import Link from 'next/link';
 import { defaultLocale, t as tr } from '@myclash/i18n';
+import { formatInZone } from '@myclash/time';
 import { StatusBadge, formatCountryName, tournamentStatusSemantic } from '@myclash/ui';
 import { EventBackLink } from './_components/EventBackLink';
 
@@ -19,6 +20,7 @@ interface EventInfo {
   endDate: string;
   publicLandingMd: string | null;
   status: string;
+  timezone: string;
   logoUrl: string | null;
   heroImageUrl: string | null;
   organizationName: string | null;
@@ -146,6 +148,7 @@ async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventI
           ? String(raw['public_landing_md'] ?? raw['publicLandingMd'])
           : null,
       status: String(raw['status'] ?? ''),
+      timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'Europe/Paris',
       logoUrl:
         typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
           ? String(raw['logo_url'] ?? raw['logoUrl'])
@@ -515,15 +518,13 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <span className="text-slate-500">
-                      {session?.startsAt
-                        ? new Date(session.startsAt).toLocaleString('fr-FR', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : ''}
+                      {formatInZone(session?.startsAt ?? null, event?.timezone ?? 'Europe/Paris', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     </span>
                     <span className="font-semibold text-red-700 group-hover:text-red-800">→</span>
                   </div>
@@ -651,7 +652,7 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                   </div>
                   {m.scheduledAt && (
                     <span className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs text-slate-700">
-                      {new Date(m.scheduledAt).toLocaleTimeString('fr-FR', {
+                      {formatInZone(m.scheduledAt, event?.timezone ?? 'Europe/Paris', {
                         hour: '2-digit',
                         minute: '2-digit',
                         hour12: false,

@@ -118,6 +118,8 @@ export interface WorkshopView {
   sortOrder: number;
   venueId: string | null;
   venue: NamedRef | null;
+  /** Event IANA timezone — set on public reads so the FE renders in event time. */
+  eventTimezone: string | null;
   instructors: Array<{ globalPersonId: string | null; displayName: string }>;
   sessions: WorkshopSessionView[];
 }
@@ -220,7 +222,10 @@ export class WorkshopsService {
     if (error) throw new BadRequestException(error.message);
     const rows = (data ?? []) as unknown as RawWorkshop[];
     const counts = await this.confirmedCountsForWorkshops(rows);
-    const views = rows.map((row) => this.mapWorkshop(row, counts));
+    const views = rows.map((row) => ({
+      ...this.mapWorkshop(row, counts),
+      eventTimezone: event.timezone,
+    }));
     return this.applyInstructorPrivacy(event.id, views);
   }
 
@@ -241,8 +246,9 @@ export class WorkshopsService {
     if (!data) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
     const row = data as unknown as RawWorkshop;
     const counts = await this.confirmedCountsForWorkshops([row]);
-    const [view] = await this.applyInstructorPrivacy(event.id, [this.mapWorkshop(row, counts)]);
-    return view!;
+    const view = { ...this.mapWorkshop(row, counts), eventTimezone: event.timezone };
+    const [withPrivacy] = await this.applyInstructorPrivacy(event.id, [view]);
+    return withPrivacy!;
   }
 
   /** Drop instructors whose person set `hide_workshops_publicly` from public DTOs. */
@@ -262,15 +268,18 @@ export class WorkshopsService {
     }));
   }
 
-  private async resolveEventBySlug(eventSlug: string): Promise<{ id: string } | null> {
+  private async resolveEventBySlug(
+    eventSlug: string,
+  ): Promise<{ id: string; timezone: string } | null> {
     const { data } = await this.supabase.service
       .from('events')
-      .select('id')
+      .select('id, timezone')
       .eq('slug', eventSlug)
       .limit(1)
       .maybeSingle();
     if (!data) return null;
-    return { id: (data as { id: string }).id };
+    const row = data as { id: string; timezone: string | null };
+    return { id: row.id, timezone: row.timezone ?? 'Europe/Paris' };
   }
 
   // ── Get one workshop ──────────────────────────────────────────────────────────
@@ -626,6 +635,7 @@ export class WorkshopsService {
       sortOrder: row.sort_order ?? 0,
       venueId: row.venue_id,
       venue: row.venues ?? null,
+      eventTimezone: null,
       instructors: (row.workshop_instructors ?? []).map((i) => ({
         globalPersonId: i.global_person_id,
         displayName: i.display_name,

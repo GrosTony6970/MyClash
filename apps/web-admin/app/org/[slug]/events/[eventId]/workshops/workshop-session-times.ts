@@ -12,6 +12,8 @@
  * rather than throwing, so the reducer can call them on every keystroke.
  */
 
+import { zonedToUtcIso } from '@myclash/time';
+
 const HHMM = /^(\d{1,2}):(\d{2})$/;
 
 /** Parse "HH:MM" → minutes-since-midnight, or null when malformed/out-of-range. */
@@ -61,22 +63,24 @@ export interface SessionTimesInput {
   start: string | null | undefined; // HH:MM
   end?: string | null; // HH:MM
   durationMinutes?: number | null;
+  tz: string; // event IANA timezone
 }
 
 export interface SessionTimes {
-  startTime: string; // YYYY-MM-DDTHH:MM:00 (local)
-  endTime: string; // YYYY-MM-DDTHH:MM:00 (local)
+  startTime: string; // UTC ISO instant
+  endTime: string; // UTC ISO instant
 }
 
 /**
- * Build the {startTime,endTime} pair for the session endpoint, or null
- * when there is not enough information to schedule (no day/start).
- * End is taken from `end`, else derived from `durationMinutes`, else a
- * 60-minute default.
+ * Build the {startTime,endTime} UTC instants for the session endpoint, or
+ * null when there is not enough information to schedule (no day/start/tz).
+ * The wall-clock day+time are interpreted in the event timezone. End is
+ * taken from `end`, else derived from `durationMinutes`, else a 60-minute
+ * default.
  */
 export function workshopSessionTimes(input: SessionTimesInput): SessionTimes | null {
-  const { day, start } = input;
-  if (!day || !start) return null;
+  const { day, start, tz } = input;
+  if (!day || !start || !tz) return null;
   if (parseHhmm(start) === null) return null;
 
   const endHhmm =
@@ -85,5 +89,8 @@ export function workshopSessionTimes(input: SessionTimesInput): SessionTimes | n
     endFromStartDuration(start, 60);
   if (!endHhmm) return null;
 
-  return { startTime: `${day}T${start}:00`, endTime: `${day}T${endHhmm}:00` };
+  const startTime = zonedToUtcIso(day, start, tz);
+  const endTime = zonedToUtcIso(day, endHhmm, tz);
+  if (!startTime || !endTime) return null;
+  return { startTime, endTime };
 }

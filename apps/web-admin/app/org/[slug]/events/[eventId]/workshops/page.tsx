@@ -22,7 +22,14 @@ import {
   workshopSessionTimes,
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
+import { formatInZone, zonedToUtcIso } from '@myclash/time';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
+
+/** A `datetime-local` value (YYYY-MM-DDTHH:MM) → UTC instant in the event tz. */
+function datetimeLocalToUtc(value: string, tz: string): string | null {
+  const [day, hhmm] = value.split('T');
+  return zonedToUtcIso(day ?? '', (hhmm ?? '').slice(0, 5), tz);
+}
 
 interface NamedRef {
   id: string;
@@ -97,16 +104,23 @@ export default function WorkshopsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Event days (for the optional Day picker on the schedule fields).
+  // Event days + timezone (for the schedule fields + board, resolved in event tz).
   const [eventDays, setEventDays] = useState<string[]>([]);
+  const [eventTz, setEventTz] = useState<string>('Europe/Paris');
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' });
         if (!res.ok) return;
-        const ev = (await res.json()) as { start_date: string; end_date?: string | null };
-        if (!cancelled) setEventDays(eachDay(ev.start_date, ev.end_date ?? null));
+        const ev = (await res.json()) as {
+          start_date: string;
+          end_date?: string | null;
+          timezone?: string | null;
+        };
+        if (cancelled) return;
+        setEventDays(eachDay(ev.start_date, ev.end_date ?? null));
+        if (ev.timezone) setEventTz(ev.timezone);
       } catch {
         /* day picker just stays empty */
       }
@@ -261,8 +275,8 @@ export default function WorkshopsAdminPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          startTime: new Date(sessionForm.startTime).toISOString(),
-          endTime: new Date(sessionForm.endTime).toISOString(),
+          startTime: datetimeLocalToUtc(sessionForm.startTime, eventTz),
+          endTime: datetimeLocalToUtc(sessionForm.endTime, eventTz),
           location: sessionForm.location.trim() || undefined,
           venueId: sessionForm.venueId || undefined,
           areaId: sessionForm.areaId || undefined,
@@ -342,6 +356,7 @@ export default function WorkshopsAdminPage() {
         start: form.start,
         end: form.end || null,
         durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
+        tz: eventTz,
       });
       if (times) {
         await fetch(`${apiUrl}/api/v1/workshops/${created.id}/sessions`, {
@@ -349,8 +364,8 @@ export default function WorkshopsAdminPage() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            startTime: new Date(times.startTime).toISOString(),
-            endTime: new Date(times.endTime).toISOString(),
+            startTime: times.startTime,
+            endTime: times.endTime,
             venueId: form.venueId || undefined,
           }),
         });
@@ -616,6 +631,7 @@ export default function WorkshopsAdminPage() {
           workshops={workshops}
           venues={venues}
           days={eventDays}
+          timezone={eventTz}
           breaks={breaks}
           onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
           onBlockClick={(wid) => {
@@ -657,7 +673,7 @@ export default function WorkshopsAdminPage() {
                   : '—';
                 const timeRange =
                   session && session.startsAt
-                    ? `${new Date(session.startsAt).toLocaleString('fr-FR', {
+                    ? `${formatInZone(session.startsAt, eventTz, {
                         weekday: 'short',
                         day: 'numeric',
                         month: 'short',
@@ -665,7 +681,7 @@ export default function WorkshopsAdminPage() {
                         minute: '2-digit',
                       })}${
                         session.endsAt
-                          ? ` – ${new Date(session.endsAt).toLocaleTimeString('fr-FR', {
+                          ? ` – ${formatInZone(session.endsAt, eventTz, {
                               hour: '2-digit',
                               minute: '2-digit',
                             })}`

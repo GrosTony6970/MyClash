@@ -95,6 +95,28 @@ function daysUntil(start: string | null, now: number): number | null {
   return Math.ceil((startDate.getTime() - now) / 86_400_000);
 }
 
+// Common IANA timezones for the event settings picker. The current stored
+// value is always merged in, so a zone outside this list still displays.
+const COMMON_TIMEZONES = [
+  'Europe/Paris',
+  'Europe/London',
+  'Europe/Madrid',
+  'Europe/Berlin',
+  'Europe/Rome',
+  'Europe/Amsterdam',
+  'Europe/Brussels',
+  'Europe/Zurich',
+  'Europe/Stockholm',
+  'Europe/Warsaw',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Sao_Paulo',
+  'Australia/Sydney',
+  'UTC',
+];
+
 export default function EventDetailPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
@@ -114,6 +136,8 @@ export default function EventDetailPage() {
   const [spendCap, setSpendCap] = useState<string>('');
   const [savingCap, setSavingCap] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
+  const [timezone, setTimezone] = useState<string>('Europe/Paris');
+  const [savingTz, setSavingTz] = useState(false);
   const [now] = useState(() => Date.now());
 
   const reloadStats = (signal?: AbortSignal) =>
@@ -280,6 +304,38 @@ export default function EventDetailPage() {
       // Keep the previous budget value visible.
     } finally {
       setSavingCap(false);
+    }
+  }
+
+  // Load the event's current timezone for the settings picker.
+  useEffect(() => {
+    if (!eventId) return;
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const ev = (await res.json()) as { timezone?: string | null };
+        if (ev.timezone) setTimezone(ev.timezone);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [apiUrl, eventId]);
+
+  async function handleSaveTimezone(next: string) {
+    setTimezone(next);
+    setSavingTz(true);
+    try {
+      await fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ timezone: next }),
+      });
+    } finally {
+      setSavingTz(false);
     }
   }
 
@@ -718,6 +774,27 @@ export default function EventDetailPage() {
           )}
         </section>
       )}
+
+      <section className="mb-8 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <label className="block" htmlFor="eventTimezone">
+          <span className="mb-1 block text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+            {t('organizer.eventHub.timezone')}
+          </span>
+          <select
+            id="eventTimezone"
+            value={timezone}
+            disabled={savingTz || isReadOnly}
+            onChange={(e) => void handleSaveTimezone(e.target.value)}
+            className="mt-1 w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50"
+          >
+            {Array.from(new Set([timezone, ...COMMON_TIMEZONES])).map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
 
       <section>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">

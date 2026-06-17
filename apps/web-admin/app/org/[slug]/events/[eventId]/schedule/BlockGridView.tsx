@@ -55,6 +55,8 @@ interface Props {
   breaks: BgvBreak[];
   tournamentColorByName: Map<string, string | null>;
   baseDate: string;
+  /** Event IANA timezone — the time axis is resolved in it. */
+  timezone: string;
   gridEndSlot: number;
   drift: Map<string, LiceDrift>;
   nowSlot: number | null;
@@ -90,6 +92,7 @@ export function BlockGridView({
   breaks,
   tournamentColorByName,
   baseDate,
+  timezone,
   gridEndSlot,
   drift,
   nowSlot,
@@ -414,8 +417,8 @@ export function BlockGridView({
           const previewIdx = liceResize?.key === block.key ? liceResize.previewIndices : indices;
           const colStart = Math.min(...previewIdx) + 2;
           const colEnd = Math.max(...previewIdx) + 3;
-          const startSlot = isoToSlot(block.startIso, baseDate);
-          const baseEndSlot = isoToSlot(block.endIso, baseDate);
+          const startSlot = isoToSlot(block.startIso, baseDate, timezone);
+          const baseEndSlot = isoToSlot(block.endIso, baseDate, timezone);
           const endSlot = timeResize?.key === block.key ? timeResize.previewEndSlot : baseEndSlot;
           const color = tournamentColorByName.get(block.tournamentName ?? '') ?? null;
           const hasConflict = block.matches.some((m) => conflictMatchIds.has(m.id));
