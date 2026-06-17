@@ -23,6 +23,9 @@ export const en = {
         completedPoolFights: 'Completed Pool fights : {completed}/{total}',
         completedBracketFights: 'Completed Bracket fights : {completed}/{total}',
       },
+      section: {
+        workshops: 'Workshops',
+      },
     },
     home: {
       description: 'Public event app',
@@ -4077,6 +4080,9 @@ export const fr = {
         bracket: 'Tableau',
         completedPoolFights: 'Combats de poule terminés : {completed}/{total}',
         completedBracketFights: 'Combats de tableau terminés : {completed}/{total}',
+      },
+      section: {
+        workshops: 'Stages',
       },
     },
     home: {

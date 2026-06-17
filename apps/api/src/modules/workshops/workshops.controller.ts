@@ -19,6 +19,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
@@ -127,6 +128,22 @@ export class WorkshopsController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.workshops.getWorkshop(id);
+  }
+
+  // ── Public reads (slug-based, status-gated; no auth) ────────────────────────────
+
+  @Get('events/:eventSlug/public-workshops')
+  @ApiOperation({ summary: 'List public (published+) workshops for an event by slug' })
+  @ApiParam({ name: 'eventSlug', type: 'string' })
+  async listPublic(@Param('eventSlug') eventSlug: string) {
+    return this.workshops.listPublicWorkshops(eventSlug);
+  }
+
+  @Get('workshops/slug/:slug')
+  @ApiOperation({ summary: 'Get a public workshop by event slug + workshop slug' })
+  @ApiParam({ name: 'slug', type: 'string' })
+  async getPublicBySlug(@Param('slug') slug: string, @Query('eventSlug') eventSlug: string) {
+    return this.workshops.getPublicWorkshopBySlug(eventSlug, slug);
   }
 
   @Patch('workshops/:id')

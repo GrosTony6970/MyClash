@@ -54,6 +54,30 @@ interface ParticipantRow {
   tournaments: Array<{ registrationState: 'active' | 'waitlist' }>;
 }
 
+interface PublicWorkshop {
+  id: string;
+  slug: string;
+  title: string;
+  category: string | null;
+  level: string | null;
+  durationMinutes: number | null;
+  instructors: Array<{ displayName: string }>;
+  sessions: Array<{ startsAt: string | null; endsAt: string | null }>;
+}
+
+async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<PublicWorkshop[]> {
+  try {
+    const res = await fetch(
+      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/public-workshops`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return [];
+    return (await res.json()) as PublicWorkshop[];
+  } catch {
+    return [];
+  }
+}
+
 interface HighlightMatch {
   id: string;
   matchNumberLabel: string;
@@ -236,11 +260,12 @@ function formatDateRange(start: string, end: string): string {
 
 export async function PublicHome({ eventSlug, apiUrl }: Props) {
   const event = await fetchEventInfo(eventSlug, apiUrl);
-  const [highlights, tournaments, participantsCounts, venues] = await Promise.all([
+  const [highlights, tournaments, participantsCounts, venues, workshops] = await Promise.all([
     fetchHighlights(eventSlug, apiUrl),
     fetchTournaments(event?.id ?? '', apiUrl),
     fetchParticipantsCounts(eventSlug, apiUrl),
     fetchVenues(eventSlug, apiUrl),
+    fetchWorkshops(eventSlug, apiUrl),
   ]);
 
   const isCompleted = event?.status === 'completed';
@@ -444,6 +469,67 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                 </div>
               </Link>
             ))}
+          </div>
+        </section>
+      )}
+
+      {workshops.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+            {tr('publicApp.eventHome.section.workshops')}
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {workshops.map((w) => {
+              const session = w.sessions[0] ?? null;
+              const instructorNames = w.instructors.map((i) => i.displayName);
+              return (
+                <Link
+                  key={w.id}
+                  href={`/e/${eventSlug}/w/${encodeURIComponent(w.slug)}`}
+                  className="group flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                >
+                  <div className="min-w-0">
+                    <p className="font-display text-base font-semibold text-slate-900">{w.title}</p>
+                    {instructorNames.length > 0 && (
+                      <p className="mt-0.5 truncate text-sm text-slate-500">
+                        {instructorNames.join(', ')}
+                      </p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {w.category && (
+                        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
+                          {w.category}
+                        </span>
+                      )}
+                      {w.level && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                          {w.level}
+                        </span>
+                      )}
+                      {w.durationMinutes != null && (
+                        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
+                          {w.durationMinutes} min
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">
+                      {session?.startsAt
+                        ? new Date(session.startsAt).toLocaleString('fr-FR', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : ''}
+                    </span>
+                    <span className="font-semibold text-red-700 group-hover:text-red-800">→</span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}

@@ -24,24 +24,23 @@ interface Props {
 interface Workshop {
   id: string;
   slug: string;
-  name: string;
-  description: string | null;
+  title: string;
+  shortDescription: string | null;
+  descriptionMd: string | null;
   category: string | null;
   level: string | null;
   language: string | null;
-  capacity: number;
-  locationLabel: string | null;
-  workshopSessions: Array<{
+  capacity: number | null;
+  durationMinutes: number | null;
+  sessions: Array<{
     id: string;
-    startTime: string;
-    endTime: string;
-    location: string | null;
-    capacity: number;
+    startsAt: string | null;
+    endsAt: string | null;
+    locationLabel: string | null;
+    capacity: number | null;
     confirmedCount: number;
   }>;
-  workshopInstructors: Array<{
-    persons: { id: string; givenName: string; familyName: string } | null;
-  }>;
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -51,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<Workshop[]> {
   try {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/workshops`, {
+    const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/public-workshops`, {
       cache: 'no-store',
     });
     if (!res.ok) return [];
@@ -95,7 +94,7 @@ export default async function WorkshopsPage({ params, searchParams }: Props) {
     if (filters.level && w.level !== filters.level) return false;
     if (filters.language && w.language !== filters.language) return false;
     if (filters.day) {
-      const hasSessionOnDay = w.workshopSessions.some((s) => s.startTime.startsWith(filters.day!));
+      const hasSessionOnDay = w.sessions.some((s) => s.startsAt?.startsWith(filters.day!));
       if (!hasSessionOnDay) return false;
     }
     return true;
@@ -176,12 +175,10 @@ export default async function WorkshopsPage({ params, searchParams }: Props) {
       ) : (
         <div className="flex flex-col gap-4">
           {filtered.map((w) => {
-            const instructors = w.workshopInstructors.map((i) => i.persons).filter(Boolean);
-            const totalConfirmed = w.workshopSessions.reduce(
-              (s, sess) => s + sess.confirmedCount,
-              0,
-            );
-            const totalCapacity = w.workshopSessions.reduce((s, sess) => s + sess.capacity, 0);
+            const instructorNames = w.instructors.map((i) => i.displayName);
+            const totalConfirmed = w.sessions.reduce((s, sess) => s + sess.confirmedCount, 0);
+            const totalCapacity = w.sessions.reduce((s, sess) => s + (sess.capacity ?? 0), 0);
+            const description = w.descriptionMd ?? w.shortDescription;
 
             return (
               <Link
@@ -191,14 +188,12 @@ export default async function WorkshopsPage({ params, searchParams }: Props) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
-                    <h2 className="font-semibold text-gray-900 text-lg">{w.name}</h2>
-                    {instructors.length > 0 && (
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {instructors.map((i) => `${i!.givenName} ${i!.familyName}`).join(', ')}
-                      </p>
+                    <h2 className="font-semibold text-gray-900 text-lg">{w.title}</h2>
+                    {instructorNames.length > 0 && (
+                      <p className="text-sm text-gray-500 mt-0.5">{instructorNames.join(', ')}</p>
                     )}
-                    {w.description && (
-                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">{w.description}</p>
+                    {description && (
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">{description}</p>
                     )}
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {w.category && (
@@ -221,8 +216,8 @@ export default async function WorkshopsPage({ params, searchParams }: Props) {
                   <div className="flex-shrink-0 text-right">
                     {totalCapacity > 0 && capacityBadge(totalConfirmed, totalCapacity)}
                     <p className="text-xs text-gray-400 mt-1">
-                      {w.workshopSessions.length} session
-                      {w.workshopSessions.length !== 1 ? 's' : ''}
+                      {w.sessions.length} session
+                      {w.sessions.length !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>

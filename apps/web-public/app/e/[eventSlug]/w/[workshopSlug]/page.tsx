@@ -19,10 +19,10 @@ import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase
 
 interface Session {
   id: string;
-  startTime: string;
-  endTime: string;
-  location: string | null;
-  capacity: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  locationLabel: string | null;
+  capacity: number | null;
   confirmedCount: number;
   enrollmentStatus?: 'confirmed' | 'waitlisted' | null;
 }
@@ -30,21 +30,15 @@ interface Session {
 interface Workshop {
   id: string;
   slug: string;
-  name: string;
-  description: string | null;
+  title: string;
+  shortDescription: string | null;
+  descriptionMd: string | null;
   category: string | null;
   level: string | null;
   language: string | null;
-  locationLabel: string | null;
-  workshopSessions: Session[];
-  workshopInstructors: Array<{
-    persons: {
-      id: string;
-      givenName: string;
-      familyName: string;
-      clubLabel: string | null;
-    } | null;
-  }>;
+  durationMinutes: number | null;
+  sessions: Session[];
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
 }
 
 export default function WorkshopDetailPage() {
@@ -161,7 +155,8 @@ export default function WorkshopDetailPage() {
     );
   }
 
-  const instructors = workshop.workshopInstructors.map((i) => i.persons).filter(Boolean);
+  const instructorNames = workshop.instructors.map((i) => i.displayName);
+  const description = workshop.descriptionMd ?? workshop.shortDescription;
 
   return (
     <main className="px-4 py-6 max-w-lg mx-auto">
@@ -185,15 +180,12 @@ export default function WorkshopDetailPage() {
         className="text-2xl font-bold mb-1"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
       >
-        {workshop.name}
+        {workshop.title}
       </h1>
 
       {/* Instructors */}
-      {instructors.length > 0 && (
-        <p className="text-gray-500 text-sm mb-3">
-          {instructors.map((i) => `${i!.givenName} ${i!.familyName}`).join(', ')}
-          {instructors[0]?.clubLabel && ` · ${instructors[0].clubLabel}`}
-        </p>
+      {instructorNames.length > 0 && (
+        <p className="text-gray-500 text-sm mb-3">{instructorNames.join(', ')}</p>
       )}
 
       {/* Tags */}
@@ -213,17 +205,15 @@ export default function WorkshopDetailPage() {
             {workshop.language.toUpperCase()}
           </span>
         )}
-        {workshop.locationLabel && (
+        {workshop.durationMinutes != null && (
           <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-            📍 {workshop.locationLabel}
+            {workshop.durationMinutes} min
           </span>
         )}
       </div>
 
       {/* Description */}
-      {workshop.description && (
-        <p className="text-gray-600 text-sm leading-relaxed mb-6">{workshop.description}</p>
-      )}
+      {description && <p className="text-gray-600 text-sm leading-relaxed mb-6">{description}</p>}
 
       {personId && (
         <button
@@ -246,36 +236,43 @@ export default function WorkshopDetailPage() {
           Sessions
         </h2>
         <div className="flex flex-col gap-3">
-          {workshop.workshopSessions.map((session) => {
-            const isFull = session.confirmedCount >= session.capacity;
+          {workshop.sessions.map((session) => {
+            const cap = session.capacity ?? 0;
+            const isFull = cap > 0 && session.confirmedCount >= cap;
             const enrolled = session.enrollmentStatus;
 
             return (
               <div key={session.id} className="border border-gray-200 rounded-xl p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-gray-900">
-                      {new Date(session.startTime).toLocaleDateString('fr-FR', {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                      })}
-                    </p>
+                    {session.startsAt && (
+                      <p className="font-medium text-gray-900">
+                        {new Date(session.startsAt).toLocaleDateString('fr-FR', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500">
-                      {new Date(session.startTime).toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}{' '}
-                      –{' '}
-                      {new Date(session.endTime).toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {session.location && ` · ${session.location}`}
+                      {session.startsAt &&
+                        new Date(session.startsAt).toLocaleTimeString('fr-FR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      {session.startsAt && session.endsAt && ' – '}
+                      {session.endsAt &&
+                        new Date(session.endsAt).toLocaleTimeString('fr-FR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      {session.locationLabel && ` · ${session.locationLabel}`}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {session.confirmedCount}/{session.capacity} enrolled
-                    </p>
+                    {cap > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {session.confirmedCount}/{cap} enrolled
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex-shrink-0">

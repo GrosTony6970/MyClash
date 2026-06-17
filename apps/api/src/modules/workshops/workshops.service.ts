@@ -159,6 +159,9 @@ interface RawWorkshop {
   workshop_instructors: RawInstructor[] | null;
 }
 
+// Public visibility gate — mirrors TOURNAMENT_PUBLIC_STATUSES.
+const PUBLIC_WORKSHOP_STATUSES = ['published', 'running', 'completed'];
+
 const WORKSHOP_SELECT = `
   id, slug, title, short_description, description_md, category, level, language,
   capacity, duration_minutes, status, sort_order, venue_id,
@@ -190,6 +193,67 @@ export class WorkshopsService {
     const rows = (data ?? []) as unknown as RawWorkshop[];
     const counts = await this.confirmedCountsForWorkshops(rows);
     return rows.map((row) => this.mapWorkshop(row, counts));
+  }
+
+  // ── Public reads (slug-based, status-gated) ─────────────────────────────────────
+
+  /**
+   * Public workshop catalog for an event, resolved by event slug. Returns
+   * only published/running/completed workshops, and nothing at all when the
+   * event has hidden workshops publicly. No auth.
+   */
+  async listPublicWorkshops(eventSlug: string): Promise<WorkshopView[]> {
+    const event = await this.resolveEventBySlug(eventSlug);
+    if (!event || event.hideWorkshopsPublicly) return [];
+
+    const { data, error } = await this.supabase.service
+      .from('workshops')
+      .select(WORKSHOP_SELECT)
+      .eq('event_id', event.id)
+      .in('status', PUBLIC_WORKSHOP_STATUSES)
+      .order('sort_order', { ascending: true })
+      .order('title', { ascending: true });
+
+    if (error) throw new BadRequestException(error.message);
+    const rows = (data ?? []) as unknown as RawWorkshop[];
+    const counts = await this.confirmedCountsForWorkshops(rows);
+    return rows.map((row) => this.mapWorkshop(row, counts));
+  }
+
+  /** Public single workshop by (event slug, workshop slug), status-gated. */
+  async getPublicWorkshopBySlug(eventSlug: string, workshopSlug: string): Promise<WorkshopView> {
+    const event = await this.resolveEventBySlug(eventSlug);
+    if (!event || event.hideWorkshopsPublicly) {
+      throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
+    }
+
+    const { data, error } = await this.supabase.service
+      .from('workshops')
+      .select(WORKSHOP_SELECT)
+      .eq('event_id', event.id)
+      .eq('slug', workshopSlug)
+      .in('status', PUBLIC_WORKSHOP_STATUSES)
+      .maybeSingle();
+
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
+    const row = data as unknown as RawWorkshop;
+    const counts = await this.confirmedCountsForWorkshops([row]);
+    return this.mapWorkshop(row, counts);
+  }
+
+  private async resolveEventBySlug(
+    eventSlug: string,
+  ): Promise<{ id: string; hideWorkshopsPublicly: boolean } | null> {
+    const { data } = await this.supabase.service
+      .from('events')
+      .select('id, hide_workshops_publicly')
+      .eq('slug', eventSlug)
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as { id: string; hide_workshops_publicly: boolean | null };
+    return { id: row.id, hideWorkshopsPublicly: Boolean(row.hide_workshops_publicly) };
   }
 
   // ── Get one workshop ──────────────────────────────────────────────────────────
