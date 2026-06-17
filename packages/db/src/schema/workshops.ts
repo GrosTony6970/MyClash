@@ -4,7 +4,8 @@
  */
 import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { events } from './events';
-import { fighters } from './fighters';
+// `fighters` maps to the `global_persons` table (renamed in migration 0023).
+import { fighters as globalPersons } from './fighters';
 
 // ── Workshops ─────────────────────────────────────────────────────────────────
 // `venue_id` (added in migration 0090) is the workshop's default
@@ -28,8 +29,10 @@ export const workshops = pgTable('workshops', {
   capacity: integer('capacity'),
   coverImageUrl: text('cover_image_url'),
   category: text('category'),
+  // Optional default duration (added in migration 0028).
+  durationMinutes: integer('duration_minutes'),
   status: text('status').notNull().default('draft'),
-  // draft | published | cancelled
+  // draft | published | running | completed
   sortOrder: integer('sort_order').notNull().default(0),
   venueId: uuid('venue_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -42,7 +45,9 @@ export const workshopInstructors = pgTable('workshop_instructors', {
   workshopId: uuid('workshop_id')
     .notNull()
     .references(() => workshops.id, { onDelete: 'cascade' }),
-  fighterId: uuid('fighter_id').references(() => fighters.id, { onDelete: 'set null' }),
+  globalPersonId: uuid('global_person_id').references(() => globalPersons.id, {
+    onDelete: 'set null',
+  }),
   displayName: text('display_name').notNull(),
   bio: text('bio'),
   photoUrl: text('photo_url'),

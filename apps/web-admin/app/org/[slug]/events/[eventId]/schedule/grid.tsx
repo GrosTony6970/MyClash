@@ -19,6 +19,7 @@ import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
+import { eachDay, formatDayLabel } from './event-days';
 import {
   buildScheduleBlocks,
   type ScheduleBlock,
@@ -144,32 +145,8 @@ const TOTAL_SLOTS = ((DEFAULT_GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINU
 // computes the real ones (avoids a new-ref churn each render).
 const EMPTY_STRING_SET: Set<string> = new Set();
 
-/**
- * Return every ISO date (YYYY-MM-DD) between start and end inclusive.
- * Falls back to [start] when end is missing or earlier than start.
- */
-function eachDay(start: string, end: string | null | undefined): string[] {
-  if (!start) return [];
-  if (!end || end < start) return [start];
-  const days: string[] = [];
-  const startDate = new Date(`${start}T00:00:00Z`);
-  const endDate = new Date(`${end}T00:00:00Z`);
-  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
-    days.push(d.toISOString().slice(0, 10));
-  }
-  return days.length > 0 ? days : [start];
-}
-
-/** Day-of-week + DD MMM, French locale (the rest of the admin app is FR-leaning). */
-function formatDayLabel(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  return d.toLocaleDateString('fr-FR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    timeZone: 'UTC',
-  });
-}
+// `eachDay` / `formatDayLabel` moved to ./event-days (shared with the
+// workshop schedule board). Imported at the top of this module.
 
 /** True when `scheduledAtIso` falls on the same calendar day (UTC) as `dayIso`. */
 function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boolean {

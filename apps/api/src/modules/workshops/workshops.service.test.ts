@@ -1,17 +1,12 @@
 /**
  * workshops.service.test.ts
  *
- * Pins the workshop-level venue_id behaviour shipped with the
- * "venues are org-level" plan:
- *
- *   - createWorkshop persists venueId on the insert.
- *   - createWorkshop refuses cross-org venue references.
+ * Pins:
+ *   - createWorkshop persists `title` (not the legacy `name`) and never
+ *     writes the non-existent `location_label` column on workshops.
+ *   - createWorkshop persists venueId and refuses cross-org venue refs.
  *   - updateWorkshop accepts venueId (and `null` to clear).
- *
- * The slug-uniqueness + happy-path inserts are exercised indirectly
- * by the e2e tests; this file is a precise pin on the new
- * cross-org guard so future refactors of `assertVenueBelongsToEventsOrg`
- * don't silently re-open the loophole.
+ *   - write paths assert the org role before touching the DB.
  */
 
 import { BadRequestException } from '@nestjs/common';
@@ -21,15 +16,10 @@ import { WorkshopsService } from './workshops.service';
 type Result<T = unknown> = { data: T | null; error: { message: string } | null };
 
 interface Stubs {
-  /** Slug-uniqueness probe. */
   existingSlug?: Result<{ id: string } | null>;
-  /** Venue org-id lookup inside assertVenueBelongsToEventsOrg. */
   venueOrg?: Result<{ organization_id: string } | null>;
-  /** Event org-id lookup inside assertVenueBelongsToEventsOrg. */
   eventOrg?: Result<{ organization_id: string } | null>;
-  /** Workshop row probe used by updateWorkshop when re-validating the venue. */
   workshopRow?: Result<{ event_id: string } | null>;
-  /** Final INSERT/UPDATE result. */
   finalRow?: Result<Record<string, unknown>>;
 }
 
@@ -47,9 +37,8 @@ function buildSupabase(stubs: Stubs) {
           eq: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn(() => {
             workshopsMaybeSingleCalls += 1;
-            // 1st call: slug-uniqueness probe (createWorkshop) OR
-            // workshop_row probe (updateWorkshop). Caller decides
-            // via stubs.existingSlug / stubs.workshopRow.
+            // 1st workshops probe: slug-uniqueness (createWorkshop) OR
+            // event_id resolution (updateWorkshop).
             if (workshopsMaybeSingleCalls === 1) {
               return Promise.resolve(
                 stubs.existingSlug ?? stubs.workshopRow ?? { data: null, error: null },
@@ -112,39 +101,48 @@ function buildSupabase(stubs: Stubs) {
   return { service: { service }, inserts, updates };
 }
 
-function makeNotifications() {
-  return { scheduleWorkshopSessionStarting: vi.fn().mockResolvedValue(undefined) };
+const makeNotifications = () => ({
+  scheduleWorkshopSessionStarting: vi.fn().mockResolvedValue(undefined),
+});
+const makeNotificationEvents = () => ({ workshopCancelled: vi.fn().mockResolvedValue(undefined) });
+const makeOrgs = () => ({ assertOrgRole: vi.fn().mockResolvedValue(undefined) });
+
+function makeService(service: unknown) {
+  return new WorkshopsService(
+    service as never,
+    makeNotifications() as never,
+    makeNotificationEvents() as never,
+    makeOrgs() as never,
+  );
 }
 
-function makeNotificationEvents() {
-  return { workshopCancelled: vi.fn().mockResolvedValue(undefined) };
-}
-
-describe('WorkshopsService — workshop-level venue', () => {
-  it('createWorkshop persists venueId on the insert when the venue belongs to the events org', async () => {
+describe('WorkshopsService — create/update columns', () => {
+  it('createWorkshop persists `title` and never writes `name`/`location_label`', async () => {
     const { service, inserts } = buildSupabase({
       venueOrg: { data: { organization_id: 'org-1' }, error: null },
       eventOrg: { data: { organization_id: 'org-1' }, error: null },
     });
-    const svc = new WorkshopsService(
-      service as never,
-      makeNotifications() as never,
-      makeNotificationEvents() as never,
-    );
+    const svc = makeService(service);
 
-    await svc.createWorkshop('event-1', {
-      slug: 'longsword-fundamentals',
-      name: 'Longsword Fundamentals',
-      capacity: 16,
-      venueId: 'v-1',
-    });
+    await svc.createWorkshop(
+      'event-1',
+      {
+        slug: 'longsword-fundamentals',
+        title: 'Longsword Fundamentals',
+        capacity: 16,
+        venueId: 'v-1',
+      },
+      'user-1',
+    );
 
     expect(inserts[0]).toMatchObject({
       event_id: 'event-1',
       slug: 'longsword-fundamentals',
-      name: 'Longsword Fundamentals',
+      title: 'Longsword Fundamentals',
       venue_id: 'v-1',
     });
+    expect(inserts[0]).not.toHaveProperty('name');
+    expect(inserts[0]).not.toHaveProperty('location_label');
   });
 
   it('createWorkshop refuses a cross-org venue reference', async () => {
@@ -152,19 +150,14 @@ describe('WorkshopsService — workshop-level venue', () => {
       venueOrg: { data: { organization_id: 'org-A' }, error: null },
       eventOrg: { data: { organization_id: 'org-B' }, error: null },
     });
-    const svc = new WorkshopsService(
-      service as never,
-      makeNotifications() as never,
-      makeNotificationEvents() as never,
-    );
+    const svc = makeService(service);
 
     await expect(
-      svc.createWorkshop('event-1', {
-        slug: 'foo',
-        name: 'Foo',
-        capacity: 16,
-        venueId: 'v-of-other-org',
-      }),
+      svc.createWorkshop(
+        'event-1',
+        { slug: 'foo', title: 'Foo', capacity: 16, venueId: 'v-of-other-org' },
+        'user-1',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -172,13 +165,9 @@ describe('WorkshopsService — workshop-level venue', () => {
     const { service, updates } = buildSupabase({
       workshopRow: { data: { event_id: 'event-1' }, error: null },
     });
-    const svc = new WorkshopsService(
-      service as never,
-      makeNotifications() as never,
-      makeNotificationEvents() as never,
-    );
+    const svc = makeService(service);
 
-    await svc.updateWorkshop('w-1', { venueId: null });
+    await svc.updateWorkshop('w-1', { venueId: null }, 'user-1');
 
     expect(updates[0]).toMatchObject({ venue_id: null });
   });

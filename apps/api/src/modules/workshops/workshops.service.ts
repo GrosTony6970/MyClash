@@ -2,7 +2,13 @@
  * workshops.service.ts — T-801
  *
  * CRUD for workshops, instructors, sessions.
- * Capacity validated on enrollment (T-802).
+ *
+ * Column names here track the migration schema (the deploy source of
+ * truth): `workshops.title/short_description/description_md`,
+ * `workshop_sessions.starts_at/ends_at/location_label`,
+ * `workshop_instructors.global_person_id/display_name`. List/get
+ * responses are hand-mapped to a stable camelCase DTO (there is no
+ * global snake→camel transform) so both front-ends consume one shape.
  */
 
 import {
@@ -13,17 +19,21 @@ import {
 } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface CreateWorkshopDto {
   slug: string;
-  name: string;
-  description?: string;
-  category?: string;
-  level?: string;
-  language?: string;
-  capacity: number;
-  locationLabel?: string;
+  title: string;
+  shortDescription?: string | null;
+  descriptionMd?: string | null;
+  category?: string | null;
+  level?: string | null;
+  language?: string | null;
+  capacity?: number | null;
+  /** Optional default duration; sessions derive end time from it. */
+  durationMinutes?: number | null;
+  status?: string | null;
   /**
    * Default venue for this workshop. Sessions of this workshop
    * pre-fill their own venue_id from this column at create time;
@@ -35,13 +45,15 @@ export interface CreateWorkshopDto {
 }
 
 export interface UpdateWorkshopDto {
-  name?: string;
-  description?: string;
-  category?: string;
-  level?: string;
-  language?: string;
-  capacity?: number;
-  locationLabel?: string;
+  title?: string;
+  shortDescription?: string | null;
+  descriptionMd?: string | null;
+  category?: string | null;
+  level?: string | null;
+  language?: string | null;
+  capacity?: number | null;
+  durationMinutes?: number | null;
+  status?: string | null;
   /**
    * Repoint the workshop's default venue. Send `null` to clear it
    * (subsequent sessions will not pre-fill a venue).
@@ -53,7 +65,6 @@ export interface CreateSessionDto {
   startTime: string; // ISO
   endTime: string; // ISO
   location?: string;
-  capacity?: number; // override workshop capacity for this session
   status?: string;
   /**
    * Org-level venue this session happens in. The venue must belong
@@ -69,64 +80,139 @@ export interface CreateSessionDto {
   areaId?: string | null;
 }
 
+// ── DTO (stable camelCase wire contract) ───────────────────────────────────────
+
+interface NamedRef {
+  id: string;
+  name: string;
+}
+
+export interface WorkshopSessionView {
+  id: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  locationLabel: string | null;
+  venueId: string | null;
+  areaId: string | null;
+  venue: NamedRef | null;
+  area: NamedRef | null;
+  /** Effective capacity = workshop capacity (sessions have no own column). */
+  capacity: number | null;
+  confirmedCount: number;
+  status: string | null;
+}
+
+export interface WorkshopView {
+  id: string;
+  slug: string;
+  title: string;
+  shortDescription: string | null;
+  descriptionMd: string | null;
+  category: string | null;
+  level: string | null;
+  language: string | null;
+  capacity: number | null;
+  durationMinutes: number | null;
+  status: string;
+  sortOrder: number;
+  venueId: string | null;
+  venue: NamedRef | null;
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  sessions: WorkshopSessionView[];
+}
+
+// ── Raw row shapes (as returned by Supabase, snake_case) ───────────────────────
+
+interface RawSession {
+  id: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  location_label: string | null;
+  venue_id: string | null;
+  area_id: string | null;
+  venues: NamedRef | null;
+  venue_areas: NamedRef | null;
+  status: string | null;
+}
+
+interface RawInstructor {
+  global_person_id: string | null;
+  display_name: string;
+}
+
+interface RawWorkshop {
+  id: string;
+  slug: string;
+  title: string;
+  short_description: string | null;
+  description_md: string | null;
+  category: string | null;
+  level: string | null;
+  language: string | null;
+  capacity: number | null;
+  duration_minutes: number | null;
+  status: string | null;
+  sort_order: number | null;
+  venue_id: string | null;
+  venues: NamedRef | null;
+  workshop_sessions: RawSession[] | null;
+  workshop_instructors: RawInstructor[] | null;
+}
+
+const WORKSHOP_SELECT = `
+  id, slug, title, short_description, description_md, category, level, language,
+  capacity, duration_minutes, status, sort_order, venue_id,
+  venues ( id, name ),
+  workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
+  workshop_instructors ( global_person_id, display_name )
+`;
+
 @Injectable()
 export class WorkshopsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notifications: NotificationSchedulerService,
     private readonly notificationEvents: NotificationEventsService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   // ── List workshops for event ──────────────────────────────────────────────────
 
-  async listWorkshops(eventId: string) {
-    // Project the joined venue + area so the workshop admin page can
-    // render `Venue · Area` on each session row without a second
-    // round-trip. Same idea as lices.list joining venues(id, name).
-    // Workshop-level venue (id, name) is projected via `venues!workshops_venue_id_fkey`
-    // — Supabase picks the right FK by alias when more than one venue
-    // join exists in the projection.
+  async listWorkshops(eventId: string): Promise<WorkshopView[]> {
     const { data, error } = await this.supabase.service
       .from('workshops')
-      .select(
-        `
-        *,
-        venues ( id, name ),
-        workshop_sessions ( id, start_time, end_time, location, capacity, venue_id, area_id, venues(id, name), venue_areas(id, name) ),
-        workshop_instructors ( persons ( id, given_name, family_name ) )
-      `,
-      )
+      .select(WORKSHOP_SELECT)
       .eq('event_id', eventId)
-      .order('name', { ascending: true });
+      .order('sort_order', { ascending: true })
+      .order('title', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const rows = (data ?? []) as unknown as RawWorkshop[];
+    const counts = await this.confirmedCountsForWorkshops(rows);
+    return rows.map((row) => this.mapWorkshop(row, counts));
   }
 
   // ── Get one workshop ──────────────────────────────────────────────────────────
 
-  async getWorkshop(workshopId: string) {
+  async getWorkshop(workshopId: string): Promise<WorkshopView> {
     const { data, error } = await this.supabase.service
       .from('workshops')
-      .select(
-        `
-        *,
-        venues ( id, name ),
-        workshop_sessions ( *, workshop_enrollments ( id, person_id, status, waitlist_position ) ),
-        workshop_instructors ( persons ( id, given_name, family_name, clubs ( name ) ) )
-      `,
-      )
+      .select(WORKSHOP_SELECT)
       .eq('id', workshopId)
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Workshop ${workshopId} not found`);
-    return data;
+    const row = data as unknown as RawWorkshop;
+    const counts = await this.confirmedCountsForWorkshops([row]);
+    return this.mapWorkshop(row, counts);
   }
 
   // ── Create workshop ───────────────────────────────────────────────────────────
 
-  async createWorkshop(eventId: string, dto: CreateWorkshopDto) {
+  async createWorkshop(eventId: string, dto: CreateWorkshopDto, userId: string) {
+    await this.assertCanManageEvent(eventId, userId);
+
     // Check slug uniqueness within event
     const { data: existing } = await this.supabase.service
       .from('workshops')
@@ -149,50 +235,46 @@ export class WorkshopsService {
       .insert({
         event_id: eventId,
         slug: dto.slug,
-        name: dto.name.trim(),
-        description: dto.description ?? null,
+        title: dto.title.trim(),
+        short_description: dto.shortDescription ?? null,
+        description_md: dto.descriptionMd ?? null,
         category: dto.category ?? null,
-        level: dto.level ?? null,
+        level: dto.level ?? 'all',
         language: dto.language ?? 'fr',
-        capacity: dto.capacity,
-        location_label: dto.locationLabel ?? null,
+        capacity: dto.capacity ?? null,
+        duration_minutes: dto.durationMinutes ?? null,
+        status: dto.status ?? 'draft',
         venue_id: dto.venueId ?? null,
       })
       .select('*')
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    await this.notifications.scheduleWorkshopSessionStarting((data as { id: string }).id);
     return data;
   }
 
   // ── Update workshop ───────────────────────────────────────────────────────────
 
-  async updateWorkshop(workshopId: string, dto: UpdateWorkshopDto) {
+  async updateWorkshop(workshopId: string, dto: UpdateWorkshopDto, userId: string) {
+    const eventId = await this.resolveWorkshopEvent(workshopId);
+    await this.assertCanManageEvent(eventId, userId);
+
     // Repointing the workshop's default venue needs the same cross-org
-    // guard the create path enforces — look up the workshop's event_id
-    // first, then check the new venue's org matches.
+    // guard the create path enforces.
     if (dto.venueId) {
-      const { data: workshopRow } = await this.supabase.service
-        .from('workshops')
-        .select('event_id')
-        .eq('id', workshopId)
-        .maybeSingle();
-      if (!workshopRow) throw new NotFoundException(`Workshop ${workshopId} not found`);
-      await this.assertVenueBelongsToEventsOrg(
-        dto.venueId,
-        String((workshopRow as Record<string, unknown>)['event_id']),
-      );
+      await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (dto.name !== undefined) updates['name'] = dto.name.trim();
-    if (dto.description !== undefined) updates['description'] = dto.description;
+    if (dto.title !== undefined) updates['title'] = dto.title.trim();
+    if (dto.shortDescription !== undefined) updates['short_description'] = dto.shortDescription;
+    if (dto.descriptionMd !== undefined) updates['description_md'] = dto.descriptionMd;
     if (dto.category !== undefined) updates['category'] = dto.category;
     if (dto.level !== undefined) updates['level'] = dto.level;
     if (dto.language !== undefined) updates['language'] = dto.language;
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
-    if (dto.locationLabel !== undefined) updates['location_label'] = dto.locationLabel;
+    if (dto.durationMinutes !== undefined) updates['duration_minutes'] = dto.durationMinutes;
+    if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
 
     const { data, error } = await this.supabase.service
@@ -208,51 +290,78 @@ export class WorkshopsService {
 
   // ── Add instructor ────────────────────────────────────────────────────────────
 
-  async addInstructor(workshopId: string, personId: string) {
+  /**
+   * Tag a global person as an instructor on a workshop. `display_name`
+   * is NOT NULL in the schema, so it is resolved from global_persons.
+   */
+  async addInstructor(workshopId: string, globalPersonId: string, userId: string) {
+    await this.assertCanManageEvent(await this.resolveWorkshopEvent(workshopId), userId);
+
+    const { data: person } = await this.supabase.service
+      .from('global_persons')
+      .select('display_name, given_name, family_name')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (!person) throw new BadRequestException(`Global person ${globalPersonId} not found`);
+    const p = person as { display_name?: string; given_name?: string; family_name?: string };
+    const displayName =
+      p.display_name?.trim() ||
+      [p.given_name, p.family_name].filter(Boolean).join(' ').trim() ||
+      'Instructor';
+
     const { data, error } = await this.supabase.service
       .from('workshop_instructors')
-      .upsert({ workshop_id: workshopId, person_id: personId })
+      .upsert(
+        { workshop_id: workshopId, global_person_id: globalPersonId, display_name: displayName },
+        { onConflict: 'workshop_id,global_person_id' },
+      )
       .select('*')
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    await this.notifications.scheduleWorkshopSessionStarting((data as { id: string }).id);
     return data;
+  }
+
+  async removeInstructor(workshopId: string, globalPersonId: string, userId: string) {
+    await this.assertCanManageEvent(await this.resolveWorkshopEvent(workshopId), userId);
+    const { error } = await this.supabase.service
+      .from('workshop_instructors')
+      .delete()
+      .eq('workshop_id', workshopId)
+      .eq('global_person_id', globalPersonId);
+    if (error) throw new BadRequestException(error.message);
   }
 
   // ── Create session ────────────────────────────────────────────────────────────
 
-  async createSession(workshopId: string, dto: CreateSessionDto) {
-    // Get workshop capacity + event_id as default + scope guard.
-    const { data: workshop } = await this.supabase.service
-      .from('workshops')
-      .select('capacity, event_id')
-      .eq('id', workshopId)
-      .maybeSingle();
-
-    const capacity = dto.capacity ?? (workshop as { capacity: number } | null)?.capacity ?? 20;
+  async createSession(workshopId: string, dto: CreateSessionDto, userId: string) {
+    const eventId = await this.resolveWorkshopEvent(workshopId);
+    await this.assertCanManageEvent(eventId, userId);
 
     if (dto.venueId) {
-      await this.assertVenueBelongsToEventsOrg(
-        dto.venueId,
-        String((workshop as { event_id?: string } | null)?.event_id ?? ''),
-      );
+      await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
     }
     if (dto.areaId) {
       await this.assertAreaBelongsToVenue(dto.areaId, dto.venueId ?? null);
     }
 
+    // A workshop has at most one session (UNIQUE(workshop_id), migration
+    // 0098) — upsert keeps the scheduling form idempotent: re-scheduling
+    // updates the existing block instead of stacking duplicates.
     const { data, error } = await this.supabase.service
       .from('workshop_sessions')
-      .insert({
-        workshop_id: workshopId,
-        start_time: dto.startTime,
-        end_time: dto.endTime,
-        location: dto.location ?? null,
-        capacity,
-        venue_id: dto.venueId ?? null,
-        area_id: dto.areaId ?? null,
-      })
+      .upsert(
+        {
+          workshop_id: workshopId,
+          starts_at: dto.startTime,
+          ends_at: dto.endTime,
+          location_label: dto.location ?? null,
+          venue_id: dto.venueId ?? null,
+          area_id: dto.areaId ?? null,
+          status: dto.status ?? 'scheduled',
+        },
+        { onConflict: 'workshop_id' },
+      )
       .select('*')
       .single();
 
@@ -263,12 +372,13 @@ export class WorkshopsService {
 
   // ── Update session ────────────────────────────────────────────────────────────
 
-  async updateSession(sessionId: string, dto: Partial<CreateSessionDto>) {
+  async updateSession(sessionId: string, dto: Partial<CreateSessionDto>, userId: string) {
+    await this.assertCanManageSession(sessionId, userId);
+
     const updates: Record<string, unknown> = {};
-    if (dto.startTime !== undefined) updates['start_time'] = dto.startTime;
-    if (dto.endTime !== undefined) updates['end_time'] = dto.endTime;
-    if (dto.location !== undefined) updates['location'] = dto.location;
-    if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
+    if (dto.startTime !== undefined) updates['starts_at'] = dto.startTime;
+    if (dto.endTime !== undefined) updates['ends_at'] = dto.endTime;
+    if (dto.location !== undefined) updates['location_label'] = dto.location;
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
     if (dto.areaId !== undefined) updates['area_id'] = dto.areaId;
@@ -288,23 +398,152 @@ export class WorkshopsService {
     return data;
   }
 
-  // ── Session roster ────────────────────────────────────────────────────────────
+  /** Public authz hook for organizer actions routed through other services (e.g. promote). */
+  async authorizeSession(sessionId: string, userId: string): Promise<void> {
+    await this.assertCanManageSession(sessionId, userId);
+  }
 
-  async getSessionRoster(sessionId: string) {
+  // ── Session roster (organizer-only) ────────────────────────────────────────────
+
+  async getSessionRoster(sessionId: string, userId: string) {
+    await this.assertCanManageSession(sessionId, userId);
+
     const { data, error } = await this.supabase.service
       .from('workshop_enrollments')
       .select(
         `
-        id, status, waitlist_position, enrolled_at,
-        persons ( id, given_name, family_name, clubs ( name ) )
+        id, status, position, enrolled_at, user_id, global_person_id,
+        global_persons ( id, given_name, family_name )
       `,
       )
-      .eq('session_id', sessionId)
-      .order('waitlist_position', { ascending: true, nullsFirst: false })
+      .eq('workshop_session_id', sessionId)
+      .order('position', { ascending: true, nullsFirst: false })
       .order('enrolled_at', { ascending: true });
 
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    type Gp = { id: string; given_name: string; family_name: string };
+    return (data ?? []).map((raw) => {
+      const e = raw as unknown as {
+        id: string;
+        status: string;
+        position: number | null;
+        enrolled_at: string;
+        user_id: string | null;
+        global_person_id: string | null;
+        global_persons: Gp | Gp[] | null;
+      };
+      // Supabase types a joined FK as an array; a to-one link is a single row.
+      const gp = Array.isArray(e.global_persons) ? (e.global_persons[0] ?? null) : e.global_persons;
+      return {
+        id: e.id,
+        status: e.status,
+        waitlistPosition: e.position,
+        enrolledAt: e.enrolled_at,
+        global_person_id: e.global_person_id,
+        persons: gp
+          ? { id: gp.id, givenName: gp.given_name, familyName: gp.family_name, clubs: null }
+          : null,
+      };
+    });
+  }
+
+  // ── DTO mapping ────────────────────────────────────────────────────────────────
+
+  private mapWorkshop(row: RawWorkshop, counts: Map<string, number>): WorkshopView {
+    const capacity = row.capacity ?? null;
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      shortDescription: row.short_description,
+      descriptionMd: row.description_md,
+      category: row.category,
+      level: row.level,
+      language: row.language,
+      capacity,
+      durationMinutes: row.duration_minutes,
+      status: row.status ?? 'draft',
+      sortOrder: row.sort_order ?? 0,
+      venueId: row.venue_id,
+      venue: row.venues ?? null,
+      instructors: (row.workshop_instructors ?? []).map((i) => ({
+        globalPersonId: i.global_person_id,
+        displayName: i.display_name,
+      })),
+      sessions: (row.workshop_sessions ?? []).map((s) => ({
+        id: s.id,
+        startsAt: s.starts_at,
+        endsAt: s.ends_at,
+        locationLabel: s.location_label,
+        venueId: s.venue_id,
+        areaId: s.area_id,
+        venue: s.venues ?? null,
+        area: s.venue_areas ?? null,
+        capacity,
+        confirmedCount: counts.get(s.id) ?? 0,
+        status: s.status,
+      })),
+    };
+  }
+
+  /** One batched count query for all sessions across the given workshops. */
+  private async confirmedCountsForWorkshops(rows: RawWorkshop[]): Promise<Map<string, number>> {
+    const sessionIds = rows.flatMap((r) => (r.workshop_sessions ?? []).map((s) => s.id));
+    const counts = new Map<string, number>();
+    if (sessionIds.length === 0) return counts;
+    try {
+      const { data } = await this.supabase.service
+        .from('workshop_enrollments')
+        .select('workshop_session_id')
+        .in('workshop_session_id', sessionIds)
+        .eq('status', 'confirmed');
+      for (const raw of data ?? []) {
+        const sid = (raw as { workshop_session_id: string }).workshop_session_id;
+        counts.set(sid, (counts.get(sid) ?? 0) + 1);
+      }
+    } catch {
+      /* counts best-effort; default 0 */
+    }
+    return counts;
+  }
+
+  // ── Authorization helpers ───────────────────────────────────────────────────────
+
+  private async resolveWorkshopEvent(workshopId: string): Promise<string> {
+    const { data } = await this.supabase.service
+      .from('workshops')
+      .select('event_id')
+      .eq('id', workshopId)
+      .maybeSingle();
+    if (!data) throw new NotFoundException(`Workshop ${workshopId} not found`);
+    return String((data as { event_id: string }).event_id);
+  }
+
+  private async assertCanManageEvent(eventId: string, userId: string): Promise<void> {
+    const { data: event } = await this.supabase.service
+      .from('events')
+      .select('organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+    await this.orgs.assertOrgRole(
+      String((event as { organization_id: string }).organization_id),
+      userId,
+      'workshop_lead',
+    );
+  }
+
+  private async assertCanManageSession(sessionId: string, userId: string): Promise<void> {
+    const { data: session } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('workshop_id')
+      .eq('id', sessionId)
+      .maybeSingle();
+    if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
+    const eventId = await this.resolveWorkshopEvent(
+      String((session as { workshop_id: string }).workshop_id),
+    );
+    await this.assertCanManageEvent(eventId, userId);
   }
 
   // ── Cross-org guards ─────────────────────────────────────────────────────────

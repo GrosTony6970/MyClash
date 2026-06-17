@@ -16,30 +16,49 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { nextSlugFromName } from './slug-from-name';
+import {
+  durationFromStartEnd,
+  endFromStartDuration,
+  workshopSessionTimes,
+} from './workshop-session-times';
+import { eachDay } from '../schedule/event-days';
+
+interface NamedRef {
+  id: string;
+  name: string;
+}
+
+interface WorkshopSessionView {
+  id: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  locationLabel: string | null;
+  venueId: string | null;
+  areaId: string | null;
+  venue: NamedRef | null;
+  area: NamedRef | null;
+  capacity: number | null;
+  confirmedCount: number;
+  status: string | null;
+}
 
 interface Workshop {
   id: string;
   slug: string;
-  name: string;
+  title: string;
   category: string | null;
   level: string | null;
-  capacity: number;
+  language: string | null;
+  capacity: number | null;
+  durationMinutes: number | null;
+  status: string;
   // Workshop-level default venue. Sessions inherit this when the
-  // operator opens a session create modal — they can still override
-  // via the session-level Venue picker.
-  venue_id?: string | null;
-  venues?: { id: string; name: string } | null;
-  workshopSessions: Array<{
-    id: string;
-    startTime: string;
-    endTime: string;
-    location: string | null;
-    capacity: number;
-    venue_id?: string | null;
-    area_id?: string | null;
-    venues?: { id: string; name: string } | null;
-    venue_areas?: { id: string; name: string } | null;
-  }>;
+  // operator schedules — they can still override via the session
+  // Venue picker.
+  venueId: string | null;
+  venue: NamedRef | null;
+  instructors: Array<{ globalPersonId: string | null; displayName: string }>;
+  sessions: WorkshopSessionView[];
 }
 
 interface EventVenue {
@@ -77,10 +96,29 @@ export default function WorkshopsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Event days (for the optional Day picker on the schedule fields).
+  const [eventDays, setEventDays] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const ev = (await res.json()) as { start_date: string; end_date?: string | null };
+        if (!cancelled) setEventDays(eachDay(ev.start_date, ev.end_date ?? null));
+      } catch {
+        /* day picker just stays empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, eventId]);
+
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
-    name: '',
+    title: '',
     slug: '',
     category: '',
     level: '',
@@ -89,9 +127,33 @@ export default function WorkshopsAdminPage() {
     durationMinutes: '' as string | number,
     description: '',
     venueId: '' as string,
+    status: 'draft',
+    day: '',
+    start: '',
+    end: '',
   });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Reactive timing: Start+End → Duration; Start+Duration → End. Only
+  // fills the field the operator is NOT currently editing.
+  function onTimingChange(field: 'start' | 'end' | 'durationMinutes', value: string) {
+    setForm((f) => {
+      const next = { ...f, [field]: value };
+      if (field === 'start' || field === 'end') {
+        const d = durationFromStartEnd(next.start, next.end);
+        if (d !== null) next.durationMinutes = d;
+        else if (field === 'start' && next.durationMinutes) {
+          const e = endFromStartDuration(next.start, Number(next.durationMinutes));
+          if (e) next.end = e;
+        }
+      } else if (field === 'durationMinutes') {
+        const e = endFromStartDuration(next.start, value ? Number(value) : null);
+        if (e) next.end = e;
+      }
+      return next;
+    });
+  }
 
   // Roster modal
   const [rosterSession, setRosterSession] = useState<string | null>(null);
@@ -149,7 +211,7 @@ export default function WorkshopsAdminPage() {
     // Pre-fill the venue picker with the workshop's default venue (if
     // any). Operator can still override per session via the dropdown.
     const workshop = workshops.find((w) => w.id === workshopId);
-    const defaultVenueId = workshop?.venue_id ?? '';
+    const defaultVenueId = workshop?.venueId ?? '';
     setSessionForm({
       startTime: '',
       endTime: '',
@@ -216,8 +278,8 @@ export default function WorkshopsAdminPage() {
   // ── Create workshop ────────────────────────────────────────────────────────────
 
   async function handleCreate() {
-    if (!form.name.trim() || !form.slug.trim()) {
-      setFormError('Name and slug are required');
+    if (!form.title.trim() || !form.slug.trim()) {
+      setFormError('Title and slug are required');
       return;
     }
     setFormSaving(true);
@@ -229,14 +291,15 @@ export default function WorkshopsAdminPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          name: form.name.trim(),
+          title: form.title.trim(),
           slug: form.slug.trim(),
           category: form.category.trim() || null,
           level: form.level.trim() || null,
           language: form.language,
           capacity: form.capacity,
           durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
-          description: form.description.trim() || null,
+          descriptionMd: form.description.trim() || null,
+          status: form.status,
           venueId: form.venueId || undefined,
         }),
       });
@@ -245,10 +308,32 @@ export default function WorkshopsAdminPage() {
         const body = (await res.json()) as { message?: string };
         throw new Error(body.message ?? 'Create failed');
       }
+      const created = (await res.json()) as { id: string };
+
+      // Optional scheduling — if a day + start were given, place the
+      // workshop's single session now (end derived from duration / +60).
+      const times = workshopSessionTimes({
+        day: form.day,
+        start: form.start,
+        end: form.end || null,
+        durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
+      });
+      if (times) {
+        await fetch(`${apiUrl}/api/v1/workshops/${created.id}/sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            startTime: new Date(times.startTime).toISOString(),
+            endTime: new Date(times.endTime).toISOString(),
+            venueId: form.venueId || undefined,
+          }),
+        });
+      }
 
       setShowCreate(false);
       setForm({
-        name: '',
+        title: '',
         slug: '',
         category: '',
         level: '',
@@ -257,6 +342,10 @@ export default function WorkshopsAdminPage() {
         durationMinutes: '',
         description: '',
         venueId: '',
+        status: 'draft',
+        day: '',
+        start: '',
+        end: '',
       });
       setRefreshKey((k) => k + 1);
     } catch (err) {
@@ -366,78 +455,91 @@ export default function WorkshopsAdminPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {workshops.map((w) => (
-            <div key={w.id} className="border border-gray-200 rounded-xl p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h2 className="font-semibold text-gray-900">{w.name}</h2>
-                  <div className="flex gap-1.5 mt-1">
-                    {w.category && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                        {w.category}
-                      </span>
-                    )}
-                    {w.level && (
-                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                        {w.level}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-400">Cap: {w.capacity}</span>
+          {workshops.map((w) => {
+            const session = w.sessions[0] ?? null;
+            const venueLabel = session?.venue?.name ?? null;
+            const areaLabel = session?.area?.name ?? null;
+            const venueArea = venueLabel
+              ? areaLabel
+                ? `${venueLabel} · ${areaLabel}`
+                : venueLabel
+              : null;
+            return (
+              <div key={w.id} className="border border-gray-200 rounded-xl p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h2 className="font-semibold text-gray-900">{w.title}</h2>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <StatusPill status={w.status} />
+                      {w.category && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                          {w.category}
+                        </span>
+                      )}
+                      {w.level && (
+                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                          {w.level}
+                        </span>
+                      )}
+                      {w.capacity != null && (
+                        <span className="text-xs text-gray-400">Cap: {w.capacity}</span>
+                      )}
+                      {w.durationMinutes != null && (
+                        <span className="text-xs text-gray-400">{w.durationMinutes} min</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Sessions */}
-              <div className="flex flex-col gap-2">
-                {w.workshopSessions.map((s) => {
-                  const venueLabel = s.venues?.name ?? null;
-                  const areaLabel = s.venue_areas?.name ?? null;
-                  const venueArea = venueLabel
-                    ? areaLabel
-                      ? `${venueLabel} · ${areaLabel}`
-                      : venueLabel
-                    : null;
-                  return (
-                    <div
-                      key={s.id}
-                      className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <div>
-                        <span className="font-medium text-gray-700">
-                          {new Date(s.startTime).toLocaleDateString('fr-FR', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                          })}
-                        </span>
-                        <span className="text-gray-500 ml-2">
-                          {new Date(s.startTime).toLocaleTimeString('fr-FR', {
+                {/* Single scheduled session (or a prompt to schedule one) */}
+                <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                  {session && session.startsAt ? (
+                    <div>
+                      <span className="font-medium text-gray-700">
+                        {new Date(session.startsAt).toLocaleDateString('fr-FR', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </span>
+                      <span className="text-gray-500 ml-2">
+                        {new Date(session.startsAt).toLocaleTimeString('fr-FR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {session.endsAt &&
+                          ` – ${new Date(session.endsAt).toLocaleTimeString('fr-FR', {
                             hour: '2-digit',
                             minute: '2-digit',
-                          })}
-                          {venueArea && ` · ${venueArea}`}
-                          {!venueArea && s.location && ` · ${s.location}`}
-                        </span>
-                      </div>
+                          })}`}
+                        {venueArea && ` · ${venueArea}`}
+                        {!venueArea && session.locationLabel && ` · ${session.locationLabel}`}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">Not scheduled</span>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openSessionForm(w.id)}
+                      className="text-xs font-semibold text-red-700 hover:text-red-800"
+                    >
+                      {session ? 'Edit time' : 'Schedule'}
+                    </button>
+                    {session && (
                       <button
-                        onClick={() => void openRoster(s.id)}
+                        onClick={() => void openRoster(session.id)}
                         className="text-xs text-blue-600 hover:underline"
                       >
                         Roster
                       </button>
-                    </div>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => openSessionForm(w.id)}
-                  className="self-start text-xs font-semibold text-red-700 hover:text-red-800"
-                >
-                  + Add session
-                </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -448,16 +550,16 @@ export default function WorkshopsAdminPage() {
             <h2 className="text-lg font-bold mb-4">New workshop</h2>
             <div className="flex flex-col gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
                 <input
                   type="text"
-                  value={form.name}
+                  value={form.title}
                   onChange={(e) => {
-                    const name = e.target.value;
+                    const title = e.target.value;
                     setForm((f) => ({
                       ...f,
-                      name,
-                      slug: nextSlugFromName(f.slug, f.name, name),
+                      title,
+                      slug: nextSlugFromName(f.slug, f.title, title),
                     }));
                   }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -534,10 +636,77 @@ export default function WorkshopsAdminPage() {
                     value={form.durationMinutes}
                     min={1}
                     placeholder="e.g. 90"
-                    onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))}
+                    onChange={(e) => onTimingChange('durationMinutes', e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
+              </div>
+
+              {/* Optional scheduling — Day + Start + End auto-complete via Duration */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Day (optional)
+                  </label>
+                  {eventDays.length > 0 ? (
+                    <select
+                      value={form.day}
+                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    >
+                      <option value="">—</option>
+                      {eventDays.map((d) => (
+                        <option key={d} value={d}>
+                          {new Date(`${d}T00:00:00Z`).toLocaleDateString('fr-FR', {
+                            weekday: 'short',
+                            day: '2-digit',
+                            month: 'short',
+                            timeZone: 'UTC',
+                          })}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="date"
+                      value={form.day}
+                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
+                  <input
+                    type="time"
+                    value={form.start}
+                    onChange={(e) => onTimingChange('start', e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
+                  <input
+                    type="time"
+                    value={form.end}
+                    onChange={(e) => onTimingChange('end', e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="running">Running</option>
+                  <option value="completed">Completed</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -815,5 +984,19 @@ export default function WorkshopsAdminPage() {
         </div>
       )}
     </main>
+  );
+}
+
+const STATUS_PILL: Record<string, { label: string; cls: string }> = {
+  draft: { label: 'Draft', cls: 'bg-gray-100 text-gray-600' },
+  published: { label: 'Published', cls: 'bg-green-100 text-green-700' },
+  running: { label: 'Running', cls: 'bg-amber-100 text-amber-800' },
+  completed: { label: 'Completed', cls: 'bg-blue-100 text-blue-700' },
+};
+
+function StatusPill({ status }: { status: string }) {
+  const pill = STATUS_PILL[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600' };
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pill.cls}`}>{pill.label}</span>
   );
 }

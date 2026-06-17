@@ -2,6 +2,10 @@
  * workshops.controller.ts — T-801 + T-802
  *
  * All workshop endpoints from ARCHITECTURE.md §14.
+ *
+ * Authorization: write endpoints resolve the caller via `getUserId`
+ * and the service asserts the org role (`workshop_lead`+), mirroring
+ * the events controller convention. Reads stay public.
  */
 
 import {
@@ -29,28 +33,45 @@ import {
   WorkshopsService,
 } from './workshops.service';
 
+const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
+
+async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
+  const authHeader = req.headers['authorization'];
+  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : cookies?.['sb-access-token'];
+  if (!token) return 'anonymous';
+  const user = await supabase.getAuthUser(token);
+  return user?.id ?? 'anonymous';
+}
+
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
 class CreateWorkshopBody implements CreateWorkshopDto {
   @IsString() slug!: string;
-  @IsString() name!: string;
-  @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsString() category?: string;
-  @IsOptional() @IsString() level?: string;
-  @IsOptional() @IsString() language?: string;
-  @IsInt() @Min(1) capacity!: number;
-  @IsOptional() @IsString() locationLabel?: string;
+  @IsString() title!: string;
+  @IsOptional() @IsString() shortDescription?: string | null;
+  @IsOptional() @IsString() descriptionMd?: string | null;
+  @IsOptional() @IsString() category?: string | null;
+  @IsOptional() @IsString() level?: string | null;
+  @IsOptional() @IsString() language?: string | null;
+  @IsOptional() @IsInt() @Min(1) capacity?: number | null;
+  @IsOptional() @IsInt() @Min(1) durationMinutes?: number | null;
+  @IsOptional() @IsIn(WORKSHOP_STATUSES) status?: string | null;
   @IsOptional() @IsUUID() venueId?: string | null;
 }
 
 class UpdateWorkshopBody implements UpdateWorkshopDto {
-  @IsOptional() @IsString() name?: string;
-  @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsString() category?: string;
-  @IsOptional() @IsString() level?: string;
-  @IsOptional() @IsString() language?: string;
-  @IsOptional() @IsInt() @Min(1) capacity?: number;
-  @IsOptional() @IsString() locationLabel?: string;
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsString() shortDescription?: string | null;
+  @IsOptional() @IsString() descriptionMd?: string | null;
+  @IsOptional() @IsString() category?: string | null;
+  @IsOptional() @IsString() level?: string | null;
+  @IsOptional() @IsString() language?: string | null;
+  @IsOptional() @IsInt() @Min(1) capacity?: number | null;
+  @IsOptional() @IsInt() @Min(1) durationMinutes?: number | null;
+  @IsOptional() @IsIn(WORKSHOP_STATUSES) status?: string | null;
   @IsOptional() @IsUUID() venueId?: string | null;
 }
 
@@ -58,14 +79,13 @@ class CreateSessionBody implements CreateSessionDto {
   @IsISO8601() startTime!: string;
   @IsISO8601() endTime!: string;
   @IsOptional() @IsString() location?: string;
-  @IsOptional() @IsInt() @Min(1) capacity?: number;
-  @IsOptional() @IsIn(['scheduled', 'cancelled']) status?: string;
+  @IsOptional() @IsIn(['scheduled', 'running', 'completed', 'cancelled']) status?: string;
   @IsOptional() @IsUUID() venueId?: string | null;
   @IsOptional() @IsUUID() areaId?: string | null;
 }
 
 class AddInstructorBody {
-  @IsUUID() personId!: string;
+  @IsUUID() globalPersonId!: string;
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
@@ -83,7 +103,7 @@ export class WorkshopsController {
   // ── Workshops CRUD ────────────────────────────────────────────────────────────
 
   @Get('events/:eventId/workshops')
-  @ApiOperation({ summary: 'List workshops for an event (public)' })
+  @ApiOperation({ summary: 'List workshops for an event (organizer)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async list(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.workshops.listWorkshops(eventId);
@@ -91,61 +111,98 @@ export class WorkshopsController {
 
   @Post('events/:eventId/workshops')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a workshop (organizer+)' })
+  @ApiOperation({ summary: 'Create a workshop (workshop_lead+)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async create(@Param('eventId', ParseUUIDPipe) eventId: string, @Body() dto: CreateWorkshopBody) {
-    return this.workshops.createWorkshop(eventId, dto);
+  async create(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: CreateWorkshopBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.createWorkshop(eventId, dto, userId);
   }
 
   @Get('workshops/:id')
-  @ApiOperation({ summary: 'Get workshop detail (public)' })
+  @ApiOperation({ summary: 'Get workshop detail (organizer)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.workshops.getWorkshop(id);
   }
 
   @Patch('workshops/:id')
-  @ApiOperation({ summary: 'Update workshop (organizer+)' })
+  @ApiOperation({ summary: 'Update workshop (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateWorkshopBody) {
-    return this.workshops.updateWorkshop(id, dto);
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateWorkshopBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.updateWorkshop(id, dto, userId);
   }
 
   // ── Instructors ───────────────────────────────────────────────────────────────
 
   @Post('workshops/:id/instructors')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Add instructor to workshop (organizer+)' })
+  @ApiOperation({ summary: 'Add instructor to workshop (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async addInstructor(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AddInstructorBody) {
-    return this.workshops.addInstructor(id, dto.personId);
+  async addInstructor(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AddInstructorBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.addInstructor(id, dto.globalPersonId, userId);
+  }
+
+  @Delete('workshops/:id/instructors/:globalPersonId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove instructor from workshop (workshop_lead+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'globalPersonId', type: 'string', format: 'uuid' })
+  async removeInstructor(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('globalPersonId', ParseUUIDPipe) globalPersonId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.removeInstructor(id, globalPersonId, userId);
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────────
 
   @Post('workshops/:id/sessions')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a workshop session (organizer+)' })
+  @ApiOperation({ summary: 'Create a workshop session (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async createSession(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateSessionBody) {
-    return this.workshops.createSession(id, dto);
+  async createSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateSessionBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.createSession(id, dto, userId);
   }
 
   @Patch('workshop-sessions/:id')
-  @ApiOperation({ summary: 'Update a workshop session (organizer+)' })
+  @ApiOperation({ summary: 'Update a workshop session (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async updateSession(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: Partial<CreateSessionBody>,
+    @Req() req: FastifyRequest,
   ) {
-    return this.workshops.updateSession(id, dto);
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.updateSession(id, dto, userId);
   }
 
   @Get('workshop-sessions/:id/roster')
-  @ApiOperation({ summary: 'Get session roster (organizer+)' })
+  @ApiOperation({ summary: 'Get session roster (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getRoster(@Param('id', ParseUUIDPipe) id: string) {
-    return this.workshops.getSessionRoster(id);
+  async getRoster(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.getSessionRoster(id, userId);
   }
 
   // ── Enrollment ────────────────────────────────────────────────────────────────
@@ -170,14 +227,16 @@ export class WorkshopsController {
 
   @Post('workshop-sessions/:id/promote/:userId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Promote waitlisted person to confirmed (organizer+)' })
+  @ApiOperation({ summary: 'Promote waitlisted person to confirmed (workshop_lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
   async promote(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('userId', ParseUUIDPipe) userId: string,
+    @Req() req: FastifyRequest,
   ) {
     // userId here is personId (named userId in the API spec for consistency)
+    await this.workshops.authorizeSession(id, await getUserId(req, this.supabase));
     await this.enrollment.promote(id, userId);
     return { ok: true };
   }
