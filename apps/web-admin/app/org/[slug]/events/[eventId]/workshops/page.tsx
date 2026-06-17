@@ -22,6 +22,7 @@ import {
   workshopSessionTimes,
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
+import { WorkshopScheduleBoard } from './WorkshopScheduleBoard';
 
 interface NamedRef {
   id: string;
@@ -455,8 +456,42 @@ export default function WorkshopsAdminPage() {
     if (rosterSession) await openRoster(rosterSession);
   }
 
+  // ── Tabs (#list / #schedule) ────────────────────────────────────────────────────
+
+  const [tab, setTab] = useState<'list' | 'schedule'>('list');
+  useEffect(() => {
+    const sync = () => setTab(window.location.hash === '#schedule' ? 'schedule' : 'list');
+    sync();
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+  function selectTab(next: 'list' | 'schedule') {
+    window.location.hash = next === 'schedule' ? '#schedule' : '#list';
+    setTab(next);
+  }
+
+  // Drag/resize on the board → upsert the workshop's single session.
+  async function handlePlaceSession(
+    workshopId: string,
+    _sessionId: string | null,
+    placement: { venueId: string; areaId: string | null; startTime: string; endTime: string },
+  ) {
+    await fetch(`${apiUrl}/api/v1/workshops/${workshopId}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        startTime: placement.startTime,
+        endTime: placement.endTime,
+        venueId: placement.venueId,
+        areaId: placement.areaId ?? undefined,
+      }),
+    });
+    setRefreshKey((k) => k + 1);
+  }
+
   return (
-    <main className="p-8 max-w-4xl">
+    <main className="p-8 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -481,105 +516,130 @@ export default function WorkshopsAdminPage() {
         </button>
       </div>
 
-      {/* Workshop list */}
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 border-b border-gray-200">
+        {(['list', 'schedule'] as const).map((tk) => (
+          <button
+            key={tk}
+            type="button"
+            onClick={() => selectTab(tk)}
+            className={[
+              '-mb-px border-b-2 px-4 py-2 text-sm font-medium',
+              tab === tk
+                ? 'border-red-700 text-red-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700',
+            ].join(' ')}
+          >
+            {tk === 'list' ? 'Workshop list' : 'Workshop schedule'}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <p className="text-gray-400 text-sm">Loading…</p>
+      ) : tab === 'schedule' ? (
+        <WorkshopScheduleBoard
+          workshops={workshops}
+          venues={venues}
+          days={eventDays}
+          onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
+          onBlockClick={(wid) => {
+            const s = workshops.find((w) => w.id === wid)?.sessions[0];
+            if (s) void openRoster(s.id);
+          }}
+        />
       ) : workshops.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
           <p className="text-gray-400 text-sm">No workshops yet.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {workshops.map((w) => {
-            const session = w.sessions[0] ?? null;
-            const venueLabel = session?.venue?.name ?? null;
-            const areaLabel = session?.area?.name ?? null;
-            const venueArea = venueLabel
-              ? areaLabel
-                ? `${venueLabel} · ${areaLabel}`
-                : venueLabel
-              : null;
-            return (
-              <div key={w.id} className="border border-gray-200 rounded-xl p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h2 className="font-semibold text-gray-900">{w.title}</h2>
-                    {w.instructors.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {w.instructors.map((i) => i.displayName).join(', ')}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="py-2 pr-4 font-medium">Workshop name</th>
+                <th className="py-2 pr-4 font-medium">Category</th>
+                <th className="py-2 pr-4 font-medium">Level</th>
+                <th className="py-2 pr-4 font-medium">Capacity</th>
+                <th className="py-2 pr-4 font-medium">Duration</th>
+                <th className="py-2 pr-4 font-medium">Start / End</th>
+                <th className="py-2 pr-4 font-medium">Venue</th>
+                <th className="py-2 pr-4 font-medium">Status</th>
+                <th className="py-2 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workshops.map((w) => {
+                const session = w.sessions[0] ?? null;
+                const venueLabel = session?.venue?.name ?? w.venue?.name ?? null;
+                const areaLabel = session?.area?.name ?? null;
+                const venueArea = venueLabel
+                  ? areaLabel
+                    ? `${venueLabel} · ${areaLabel}`
+                    : venueLabel
+                  : '—';
+                const timeRange =
+                  session && session.startsAt
+                    ? `${new Date(session.startsAt).toLocaleString('fr-FR', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}${
+                        session.endsAt
+                          ? ` – ${new Date(session.endsAt).toLocaleTimeString('fr-FR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}`
+                          : ''
+                      }`
+                    : '—';
+                return (
+                  <tr key={w.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-2 pr-4">
+                      <p className="font-medium text-gray-900">{w.title}</p>
+                      {w.instructors.length > 0 && (
+                        <p className="text-xs text-gray-400">
+                          {w.instructors.map((i) => i.displayName).join(', ')}
+                        </p>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 text-gray-600">{w.category ?? '—'}</td>
+                    <td className="py-2 pr-4 text-gray-600">{w.level ?? '—'}</td>
+                    <td className="py-2 pr-4 text-gray-600">{w.capacity ?? '—'}</td>
+                    <td className="py-2 pr-4 text-gray-600">
+                      {w.durationMinutes != null ? `${w.durationMinutes} min` : '—'}
+                    </td>
+                    <td className="py-2 pr-4 text-gray-600">{timeRange}</td>
+                    <td className="py-2 pr-4 text-gray-600">{venueArea}</td>
+                    <td className="py-2 pr-4">
                       <StatusPill status={w.status} />
-                      {w.category && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                          {w.category}
-                        </span>
-                      )}
-                      {w.level && (
-                        <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                          {w.level}
-                        </span>
-                      )}
-                      {w.capacity != null && (
-                        <span className="text-xs text-gray-400">Cap: {w.capacity}</span>
-                      )}
-                      {w.durationMinutes != null && (
-                        <span className="text-xs text-gray-400">{w.durationMinutes} min</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Single scheduled session (or a prompt to schedule one) */}
-                <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm">
-                  {session && session.startsAt ? (
-                    <div>
-                      <span className="font-medium text-gray-700">
-                        {new Date(session.startsAt).toLocaleDateString('fr-FR', {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </span>
-                      <span className="text-gray-500 ml-2">
-                        {new Date(session.startsAt).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                        {session.endsAt &&
-                          ` – ${new Date(session.endsAt).toLocaleTimeString('fr-FR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}`}
-                        {venueArea && ` · ${venueArea}`}
-                        {!venueArea && session.locationLabel && ` · ${session.locationLabel}`}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400">Not scheduled</span>
-                  )}
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openSessionForm(w.id)}
-                      className="text-xs font-semibold text-red-700 hover:text-red-800"
-                    >
-                      {session ? 'Edit time' : 'Schedule'}
-                    </button>
-                    {session && (
-                      <button
-                        onClick={() => void openRoster(session.id)}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        Roster
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openSessionForm(w.id)}
+                          className="text-xs font-semibold text-red-700 hover:text-red-800"
+                        >
+                          {session ? 'Edit time' : 'Schedule'}
+                        </button>
+                        {session && (
+                          <button
+                            onClick={() => void openRoster(session.id)}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Roster
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
