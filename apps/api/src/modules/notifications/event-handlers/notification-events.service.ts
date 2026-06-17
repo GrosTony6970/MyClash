@@ -56,12 +56,12 @@ export class NotificationEventsService {
     const title = await this.getWorkshopTitle(sessionId);
     const { data: enrollments } = await this.supabase.service
       .from('workshop_enrollments')
-      .select('person_id')
-      .eq('session_id', sessionId)
+      .select('user_id')
+      .eq('workshop_session_id', sessionId)
       .eq('status', 'confirmed');
 
-    const personIds = ((enrollments ?? []) as Array<{ person_id: string | null }>)
-      .map((enrollment) => enrollment.person_id)
+    const personIds = ((enrollments ?? []) as Array<{ user_id: string | null }>)
+      .map((enrollment) => enrollment.user_id)
       .filter((id): id is string => Boolean(id));
     const contacts = await this.getContacts(personIds);
 

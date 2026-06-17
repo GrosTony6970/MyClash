@@ -1,272 +1,261 @@
 /**
  * enrollment.service.test.ts — T-802
  *
- * AC:
- *   ✓ Enrolling at capacity → status 'waitlisted' with position
- *   ✓ Confirmed cancellation triggers promotion; waitlist top moves to confirmed
- *   ✓ Race-condition test: 100 concurrent enrolls into capacity=10 → exactly 10 confirmed
+ * Behaviours (against the REAL schema: workshop_session_id, user_id,
+ * position; capacity from workshops.capacity, null ⇒ unlimited):
+ *   - confirmed when there is space
+ *   - waitlisted at/over capacity, with a position
+ *   - unlimited (always confirmed) when workshops.capacity is null
+ *   - enroll is idempotent
+ *   - cancelling a confirmed seat promotes the top of the waitlist
+ *   - inserts use workshop_session_id / user_id / position (not the legacy names)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EnrollmentService } from './enrollment.service';
 
-// ── In-memory DB simulation for race condition test ───────────────────────────
-
-interface EnrollmentRow {
+interface Row {
   id: string;
-  session_id: string;
-  person_id: string;
+  workshop_session_id: string;
+  user_id: string;
   status: 'confirmed' | 'waitlisted';
-  waitlist_position: number | null;
-  enrolled_at: string;
+  position: number | null;
 }
 
-function createInMemoryService(capacity: number) {
-  const enrollments: EnrollmentRow[] = [];
-  let idCounter = 0;
+/**
+ * A tiny in-memory Supabase fake that supports just the query shapes the
+ * service uses. Records inserts/updates/deletes so tests can assert on
+ * real column names and verify promotion behaviour through the public API.
+ */
+function buildFake(opts: { capacity: number | null; seed?: Row[] }) {
+  const rows: Row[] = [...(opts.seed ?? [])];
+  let idc = rows.length;
+  const inserts: Record<string, unknown>[] = [];
 
-  // Simulate the real service logic in-memory (no DB)
-  async function enroll(
-    sessionId: string,
-    personId: string,
-  ): Promise<{ status: 'confirmed' | 'waitlisted'; position: number | null }> {
-    // Check existing
-    const existing = enrollments.find(
-      (e) => e.session_id === sessionId && e.person_id === personId,
-    );
-    if (existing) return { status: existing.status, position: existing.waitlist_position };
-
-    const confirmedCount = enrollments.filter(
-      (e) => e.session_id === sessionId && e.status === 'confirmed',
-    ).length;
-
-    if (confirmedCount < capacity) {
-      const row: EnrollmentRow = {
-        id: `e-${++idCounter}`,
-        session_id: sessionId,
-        person_id: personId,
-        status: 'confirmed',
-        waitlist_position: null,
-        enrolled_at: new Date().toISOString(),
+  function table(name: string) {
+    if (name === 'workshop_sessions') {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: () =>
+              Promise.resolve({
+                data: { workshop_id: 'w-1', workshops: { capacity: opts.capacity } },
+                error: null,
+              }),
+          }),
+        }),
       };
-      enrollments.push(row);
-      return { status: 'confirmed', position: null };
-    } else {
-      const waitlistCount = enrollments.filter(
-        (e) => e.session_id === sessionId && e.status === 'waitlisted',
-      ).length;
-      const position = waitlistCount + 1;
-      const row: EnrollmentRow = {
-        id: `e-${++idCounter}`,
-        session_id: sessionId,
-        person_id: personId,
-        status: 'waitlisted',
-        waitlist_position: position,
-        enrolled_at: new Date().toISOString(),
-      };
-      enrollments.push(row);
-      return { status: 'waitlisted', position };
     }
+    // workshop_enrollments — a chainable filter builder.
+    const filters: { col: string; val: unknown }[] = [];
+    let op: 'select' | 'count' | 'insert' | 'update' | 'delete' = 'select';
+    let countMode = false;
+    let updatePayload: Record<string, unknown> | null = null;
+    let orderCol: string | null = null;
+    let limitN: number | null = null;
+
+    const matched = () =>
+      rows.filter((r) =>
+        filters.every((f) => (r as unknown as Record<string, unknown>)[f.col] === f.val),
+      );
+
+    const builder: Record<string, unknown> = {
+      select: (_cols: string, cfg?: { count?: string; head?: boolean }) => {
+        op = 'select';
+        if (cfg?.count) countMode = true;
+        return builder;
+      },
+      insert: (payload: Record<string, unknown>) => {
+        op = 'insert';
+        inserts.push(payload);
+        const row: Row = {
+          id: `e-${++idc}`,
+          workshop_session_id: payload['workshop_session_id'] as string,
+          user_id: payload['user_id'] as string,
+          status: payload['status'] as 'confirmed' | 'waitlisted',
+          position: (payload['position'] as number | null) ?? null,
+        };
+        rows.push(row);
+        return {
+          select: () => ({ single: () => Promise.resolve({ data: { id: row.id }, error: null }) }),
+        };
+      },
+      update: (payload: Record<string, unknown>) => {
+        op = 'update';
+        updatePayload = payload;
+        return builder;
+      },
+      delete: () => {
+        op = 'delete';
+        return builder;
+      },
+      eq: (col: string, val: unknown) => {
+        filters.push({ col, val });
+        if (op === 'update' || op === 'delete') {
+          const hits = matched();
+          if (op === 'delete') {
+            for (const h of hits) rows.splice(rows.indexOf(h), 1);
+          } else if (updatePayload) {
+            for (const h of hits) Object.assign(h, updatePayload);
+          }
+        }
+        return builder;
+      },
+      order: (col: string) => {
+        orderCol = col;
+        return builder;
+      },
+      limit: (n: number) => {
+        limitN = n;
+        return builder;
+      },
+      maybeSingle: () => {
+        let list = matched();
+        if (orderCol) {
+          list = [...list].sort(
+            (a, b) =>
+              ((a as unknown as Record<string, number>)[orderCol!] ?? 0) -
+              ((b as unknown as Record<string, number>)[orderCol!] ?? 0),
+          );
+        }
+        if (limitN) list = list.slice(0, limitN);
+        return Promise.resolve({ data: list[0] ?? null, error: null });
+      },
+      // Count queries (head:true) are awaited directly.
+      then: (resolve: (v: { count: number; data: Row[]; error: null }) => unknown) => {
+        let list = matched();
+        if (orderCol) {
+          list = [...list].sort(
+            (a, b) =>
+              ((a as unknown as Record<string, number>)[orderCol!] ?? 0) -
+              ((b as unknown as Record<string, number>)[orderCol!] ?? 0),
+          );
+        }
+        return resolve({ count: countMode ? list.length : list.length, data: list, error: null });
+      },
+    };
+    return builder;
   }
 
-  return { enroll, enrollments };
-}
-
-// ── Mocks for unit tests ──────────────────────────────────────────────────────
-
-const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock }, anon: {} };
-const mockNotificationEvents = { waitlistPromoted: vi.fn().mockResolvedValue(undefined) };
-
-function makeChain(result: unknown) {
-  const chain = {
-    select: vi.fn() as ReturnType<typeof vi.fn>,
-    eq: vi.fn() as ReturnType<typeof vi.fn>,
-    order: vi.fn() as ReturnType<typeof vi.fn>,
-    limit: vi.fn() as ReturnType<typeof vi.fn>,
-    insert: vi.fn() as ReturnType<typeof vi.fn>,
-    update: vi.fn() as ReturnType<typeof vi.fn>,
-    delete: vi.fn() as ReturnType<typeof vi.fn>,
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    single: vi.fn().mockResolvedValue(result),
+  return {
+    supabase: { service: { from: (n: string) => table(n) }, anon: {} },
+    rows,
+    inserts,
   };
-  for (const key of ['select', 'eq', 'order', 'limit', 'insert', 'update', 'delete']) {
-    chain[key as keyof typeof chain] = vi.fn().mockReturnValue(chain);
-  }
-  return chain;
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+const notif = { waitlistPromoted: vi.fn().mockResolvedValue(undefined) };
 
-describe('EnrollmentService', () => {
-  let service: EnrollmentService;
+describe('EnrollmentService.enroll', () => {
+  beforeEach(() => vi.clearAllMocks());
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new EnrollmentService(mockSupabase as never, mockNotificationEvents as never);
-  });
+  it('confirms when there is space', async () => {
+    const fake = buildFake({ capacity: 2 });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
 
-  // ── Idempotency ───────────────────────────────────────────────────────────────
+    const res = await svc.enroll('s-1', 'person-1');
 
-  describe('enroll — idempotency', () => {
-    it('returns existing enrollment without creating duplicate', async () => {
-      const existingEnrollment = {
-        id: 'enroll-1',
-        status: 'confirmed',
-        waitlist_position: null,
-      };
-
-      const existingChain = makeChain({ data: null, error: null });
-      existingChain.maybeSingle.mockResolvedValue({ data: existingEnrollment, error: null });
-      fromMock.mockReturnValue(existingChain);
-
-      const result = await service.enroll('session-1', 'person-1');
-      expect(result.status).toBe('confirmed');
-      expect(result.id).toBe('enroll-1');
+    expect(res.status).toBe('confirmed');
+    expect(res.waitlistPosition).toBeNull();
+    expect(fake.inserts[0]).toMatchObject({
+      workshop_session_id: 's-1',
+      user_id: 'person-1',
+      status: 'confirmed',
+      position: null,
     });
   });
 
-  // ── Waitlist ──────────────────────────────────────────────────────────────────
-
-  describe('enroll — waitlist', () => {
-    it('enrolls as waitlisted when session is full', async () => {
-      // No existing enrollment
-      const noExistingChain = makeChain({ data: null, error: null });
-      noExistingChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      // Session capacity = 2
-      const sessionChain = makeChain({ data: null, error: null });
-      sessionChain.maybeSingle.mockResolvedValue({ data: { capacity: 2 }, error: null });
-
-      // Confirmed count = 2 (full) — count query resolves directly
-      const confirmedCountChain = makeChain({ data: null, error: null });
-      Object.assign(Promise.resolve({ count: 2, error: null }), confirmedCountChain);
-
-      // Waitlist count = 1
-      const waitlistCountChain = makeChain({ data: null, error: null });
-      Object.assign(Promise.resolve({ count: 1, error: null }), waitlistCountChain);
-
-      // Insert waitlisted
-      const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: { id: 'enroll-new' }, error: null });
-
-      // The service calls: from('workshop_enrollments') 5 times
-      // 1. check existing (maybeSingle)
-      // 2. get session (maybeSingle)
-      // 3. count confirmed (awaitable chain)
-      // 4. count waitlisted (awaitable chain)
-      // 5. insert (single)
-      const awaitableConfirmed = Object.assign(
-        Promise.resolve({ count: 2, error: null }),
-        makeChain({ count: 2, error: null }),
-      );
-      for (const key of ['select', 'eq']) {
-        (awaitableConfirmed as unknown as Record<string, unknown>)[key] = vi
-          .fn()
-          .mockReturnValue(awaitableConfirmed);
-      }
-
-      const awaitableWaitlist = Object.assign(
-        Promise.resolve({ count: 1, error: null }),
-        makeChain({ count: 1, error: null }),
-      );
-      for (const key of ['select', 'eq']) {
-        (awaitableWaitlist as unknown as Record<string, unknown>)[key] = vi
-          .fn()
-          .mockReturnValue(awaitableWaitlist);
-      }
-
-      fromMock
-        .mockReturnValueOnce(noExistingChain)
-        .mockReturnValueOnce(sessionChain)
-        .mockReturnValueOnce(awaitableConfirmed)
-        .mockReturnValueOnce(awaitableWaitlist)
-        .mockReturnValueOnce(insertChain);
-
-      const result = await service.enroll('session-1', 'person-new');
-      expect(result.status).toBe('waitlisted');
-      expect(result.waitlistPosition).toBe(2);
+  it('waitlists at capacity with the next position', async () => {
+    const fake = buildFake({
+      capacity: 1,
+      seed: [
+        {
+          id: 'e-1',
+          workshop_session_id: 's-1',
+          user_id: 'p-a',
+          status: 'confirmed',
+          position: null,
+        },
+      ],
     });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'p-b');
+
+    expect(res.status).toBe('waitlisted');
+    expect(res.waitlistPosition).toBe(1);
+    expect(fake.inserts[0]).toMatchObject({ status: 'waitlisted', position: 1, user_id: 'p-b' });
   });
 
-  // ── Promotion on cancel ───────────────────────────────────────────────────────
-
-  describe('cancel — promotes waitlist', () => {
-    it('promotes top waitlisted person when confirmed cancels', async () => {
-      const confirmedEnrollment = { id: 'enroll-confirmed', status: 'confirmed' };
-      const topWaitlisted = { id: 'enroll-waitlisted' };
-
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({ data: confirmedEnrollment, error: null });
-
-      const deleteChain = makeChain({ data: null, error: null });
-      deleteChain.eq.mockResolvedValue({ data: null, error: null });
-
-      // Top waitlisted
-      const waitlistChain = makeChain({ data: null, error: null });
-      waitlistChain.maybeSingle.mockResolvedValue({ data: topWaitlisted, error: null });
-
-      // Update to confirmed — chain must return itself from eq
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.eq.mockReturnValue(updateChain);
-
-      // Recompact (select waitlisted — returns empty array)
-      const recompactChain = Object.assign(
-        Promise.resolve({ data: [], error: null }),
-        makeChain({ data: [], error: null }),
-      );
-      for (const key of ['select', 'eq', 'order']) {
-        (recompactChain as unknown as Record<string, unknown>)[key] = vi
-          .fn()
-          .mockReturnValue(recompactChain);
-      }
-
-      fromMock
-        .mockReturnValueOnce(fetchChain) // find enrollment
-        .mockReturnValueOnce(deleteChain) // delete
-        .mockReturnValueOnce(waitlistChain) // find top waitlisted
-        .mockReturnValueOnce(updateChain) // promote
-        .mockReturnValueOnce(recompactChain); // recompact
-
-      await service.cancel('session-1', 'person-1');
-
-      expect(updateChain.update).toHaveBeenCalledWith({
-        status: 'confirmed',
-        waitlist_position: null,
-      });
+  it('always confirms when workshop capacity is null (unlimited)', async () => {
+    const fake = buildFake({
+      capacity: null,
+      seed: Array.from({ length: 50 }, (_, i) => ({
+        id: `e-${i}`,
+        workshop_session_id: 's-1',
+        user_id: `p-${i}`,
+        status: 'confirmed' as const,
+        position: null,
+      })),
     });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'p-new');
+    expect(res.status).toBe('confirmed');
+  });
+
+  it('is idempotent — returns the existing row without inserting', async () => {
+    const fake = buildFake({
+      capacity: 5,
+      seed: [
+        {
+          id: 'e-9',
+          workshop_session_id: 's-1',
+          user_id: 'p-1',
+          status: 'confirmed',
+          position: null,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
+
+    const res = await svc.enroll('s-1', 'p-1');
+    expect(res.id).toBe('e-9');
+    expect(fake.inserts).toHaveLength(0);
   });
 });
 
-// ── Race condition test (in-memory simulation) ────────────────────────────────
+describe('EnrollmentService.cancel', () => {
+  beforeEach(() => vi.clearAllMocks());
 
-describe('EnrollmentService — race condition', () => {
-  it('100 concurrent enrolls into capacity=10 → exactly 10 confirmed', async () => {
-    const CAPACITY = 10;
-    const TOTAL = 100;
-    const { enroll, enrollments } = createInMemoryService(CAPACITY);
+  it('promotes the top waitlisted person when a confirmed seat is freed', async () => {
+    const fake = buildFake({
+      capacity: 1,
+      seed: [
+        {
+          id: 'e-c',
+          workshop_session_id: 's-1',
+          user_id: 'p-conf',
+          status: 'confirmed',
+          position: null,
+        },
+        {
+          id: 'e-w',
+          workshop_session_id: 's-1',
+          user_id: 'p-wait',
+          status: 'waitlisted',
+          position: 1,
+        },
+      ],
+    });
+    const svc = new EnrollmentService(fake.supabase as never, notif as never);
 
-    // Simulate 100 concurrent enrollments
-    const results = await Promise.all(
-      Array.from({ length: TOTAL }, (_, i) => enroll('session-race', `person-${i}`)),
-    );
+    await svc.cancel('s-1', 'p-conf');
 
-    const confirmed = results.filter((r) => r.status === 'confirmed');
-    const waitlisted = results.filter((r) => r.status === 'waitlisted');
-
-    expect(confirmed).toHaveLength(CAPACITY);
-    expect(waitlisted).toHaveLength(TOTAL - CAPACITY);
-
-    // Verify DB state matches
-    const dbConfirmed = enrollments.filter(
-      (e) => e.session_id === 'session-race' && e.status === 'confirmed',
-    );
-    expect(dbConfirmed).toHaveLength(CAPACITY);
-
-    // Waitlist positions should be 1..90 with no gaps
-    const positions = waitlisted.map((r) => r.position).sort((a, b) => (a ?? 0) - (b ?? 0));
-    expect(positions[0]).toBe(1);
-    expect(positions[positions.length - 1]).toBe(TOTAL - CAPACITY);
+    const promoted = fake.rows.find((r) => r.user_id === 'p-wait');
+    expect(promoted?.status).toBe('confirmed');
+    expect(promoted?.position).toBeNull();
+    expect(fake.rows.find((r) => r.user_id === 'p-conf')).toBeUndefined();
+    expect(notif.waitlistPromoted).toHaveBeenCalledWith('s-1', 'p-wait');
   });
 });

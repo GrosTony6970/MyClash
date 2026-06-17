@@ -188,32 +188,40 @@ export class PublicScheduleService {
     });
   }
 
-  private async fetchWorkshops(eventId: string, personId: string): Promise<WorkshopEnrollment[]> {
+  private async fetchWorkshops(_eventId: string, personId: string): Promise<WorkshopEnrollment[]> {
+    // `user_id` is the event-scoped persons.id, so filtering by it already
+    // scopes to this event — there is no `event_id` column on enrollments.
     const { data } = await this.supabase.service
       .from('workshop_enrollments')
       .select(
         `
         workshop_sessions (
-          id, start_time, end_time, location,
-          workshops ( name )
+          id, starts_at, ends_at, location_label,
+          workshops ( title )
         )
       `,
       )
-      .eq('person_id', personId)
-      .eq('event_id', eventId);
+      .eq('user_id', personId);
 
     if (!data) return [];
 
     return (data as Array<Record<string, unknown>>).map((e) => {
-      const session = e['workshop_sessions'] as Record<string, unknown> | null;
-      const workshop = session?.['workshops'] as { name: string } | null;
+      const sessionRaw = e['workshop_sessions'];
+      const session = (Array.isArray(sessionRaw) ? sessionRaw[0] : sessionRaw) as Record<
+        string,
+        unknown
+      > | null;
+      const workshopRaw = session?.['workshops'];
+      const workshop = (Array.isArray(workshopRaw) ? workshopRaw[0] : workshopRaw) as {
+        title?: string;
+      } | null;
 
       return {
         workshopId: (session?.['id'] as string) ?? '',
-        workshopName: workshop?.name ?? '',
-        sessionStart: (session?.['start_time'] as string | null) ?? null,
-        sessionEnd: (session?.['end_time'] as string | null) ?? null,
-        location: (session?.['location'] as string | null) ?? null,
+        workshopName: workshop?.title ?? '',
+        sessionStart: (session?.['starts_at'] as string | null) ?? null,
+        sessionEnd: (session?.['ends_at'] as string | null) ?? null,
+        location: (session?.['location_label'] as string | null) ?? null,
       };
     });
   }

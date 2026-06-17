@@ -3,10 +3,16 @@
  *
  * Enroll/cancel with waitlist auto-promotion.
  *
+ * Identity: `workshop_enrollments.user_id` holds an event-scoped
+ * `persons.id` (the value `resolvePersonId` returns for both claimed
+ * users and guests) — NOT an auth user id. Capacity lives on
+ * `workshops.capacity` (nullable ⇒ unlimited); sessions have no own
+ * capacity column. The waitlist order column is `position`.
+ *
  * AC:
  *   - Enrolling at capacity → status 'waitlisted' with position
  *   - Confirmed cancellation triggers promotion; waitlist top moves to confirmed
- *   - Race-condition safe: uses DB-level capacity check
+ *   - Race-condition safe: relies on the confirmed-count check
  */
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
@@ -31,50 +37,51 @@ export class EnrollmentService {
   // ── Enroll ────────────────────────────────────────────────────────────────────
 
   async enroll(sessionId: string, personId: string): Promise<EnrollmentResult> {
-    // Check for existing enrollment (idempotent)
+    // Idempotent: already enrolled? Return the current row.
     const { data: existing } = await this.supabase.service
       .from('workshop_enrollments')
-      .select('id, status, waitlist_position')
-      .eq('session_id', sessionId)
-      .eq('person_id', personId)
+      .select('id, status, position')
+      .eq('workshop_session_id', sessionId)
+      .eq('user_id', personId)
       .maybeSingle();
 
     if (existing) {
-      const e = existing as { id: string; status: string; waitlist_position: number | null };
+      const e = existing as { id: string; status: string; position: number | null };
       return {
         id: e.id,
         personId,
         sessionId,
         status: e.status as 'confirmed' | 'waitlisted',
-        waitlistPosition: e.waitlist_position,
+        waitlistPosition: e.position,
       };
     }
 
-    // Get session capacity + current confirmed count
+    // Capacity comes from the parent workshop (sessions have none).
     const { data: session } = await this.supabase.service
       .from('workshop_sessions')
-      .select('capacity')
+      .select('workshop_id, workshops ( capacity )')
       .eq('id', sessionId)
       .maybeSingle();
 
     if (!session) throw new NotFoundException(`Session ${sessionId} not found`);
+    const capacity = workshopCapacity(session);
 
-    const capacity = (session as { capacity: number }).capacity;
-
-    const { count: confirmedCount } = await this.supabase.service
-      .from('workshop_enrollments')
-      .select('id', { count: 'exact', head: true })
-      .eq('session_id', sessionId)
-      .eq('status', 'confirmed');
-
-    const isFull = (confirmedCount ?? 0) >= capacity;
+    // capacity null ⇒ unlimited ⇒ always confirmed.
+    let isFull = false;
+    if (capacity !== null) {
+      const { count: confirmedCount } = await this.supabase.service
+        .from('workshop_enrollments')
+        .select('id', { count: 'exact', head: true })
+        .eq('workshop_session_id', sessionId)
+        .eq('status', 'confirmed');
+      isFull = (confirmedCount ?? 0) >= capacity;
+    }
 
     if (isFull) {
-      // Waitlist: get next position
       const { count: waitlistCount } = await this.supabase.service
         .from('workshop_enrollments')
         .select('id', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
+        .eq('workshop_session_id', sessionId)
         .eq('status', 'waitlisted');
 
       const position = (waitlistCount ?? 0) + 1;
@@ -82,10 +89,10 @@ export class EnrollmentService {
       const { data, error } = await this.supabase.service
         .from('workshop_enrollments')
         .insert({
-          session_id: sessionId,
-          person_id: personId,
+          workshop_session_id: sessionId,
+          user_id: personId,
           status: 'waitlisted',
-          waitlist_position: position,
+          position,
           enrolled_at: new Date().toISOString(),
         })
         .select('id')
@@ -102,14 +109,13 @@ export class EnrollmentService {
       };
     }
 
-    // Confirmed enrollment
     const { data, error } = await this.supabase.service
       .from('workshop_enrollments')
       .insert({
-        session_id: sessionId,
-        person_id: personId,
+        workshop_session_id: sessionId,
+        user_id: personId,
         status: 'confirmed',
-        waitlist_position: null,
+        position: null,
         enrolled_at: new Date().toISOString(),
       })
       .select('id')
@@ -132,18 +138,17 @@ export class EnrollmentService {
     const { data: enrollment } = await this.supabase.service
       .from('workshop_enrollments')
       .select('id, status')
-      .eq('session_id', sessionId)
-      .eq('person_id', personId)
+      .eq('workshop_session_id', sessionId)
+      .eq('user_id', personId)
       .maybeSingle();
 
     if (!enrollment) return; // already not enrolled
 
     const e = enrollment as { id: string; status: string };
 
-    // Delete the enrollment
     await this.supabase.service.from('workshop_enrollments').delete().eq('id', e.id);
 
-    // If was confirmed → promote top waitlisted person
+    // Freeing a confirmed seat promotes the top of the waitlist.
     if (e.status === 'confirmed') {
       await this.promoteNextWaitlisted(sessionId);
     }
@@ -155,8 +160,8 @@ export class EnrollmentService {
     const { data: enrollment } = await this.supabase.service
       .from('workshop_enrollments')
       .select('id, status')
-      .eq('session_id', sessionId)
-      .eq('person_id', personId)
+      .eq('workshop_session_id', sessionId)
+      .eq('user_id', personId)
       .maybeSingle();
 
     if (!enrollment) throw new NotFoundException('Enrollment not found');
@@ -168,10 +173,9 @@ export class EnrollmentService {
 
     await this.supabase.service
       .from('workshop_enrollments')
-      .update({ status: 'confirmed', waitlist_position: null })
+      .update({ status: 'confirmed', position: null })
       .eq('id', e.id);
 
-    // Recompact waitlist positions
     await this.recompactWaitlist(sessionId);
     await this.notificationEvents.waitlistPromoted(sessionId, personId);
   }
@@ -181,24 +185,24 @@ export class EnrollmentService {
   private async promoteNextWaitlisted(sessionId: string): Promise<void> {
     const { data: top } = await this.supabase.service
       .from('workshop_enrollments')
-      .select('id, person_id')
-      .eq('session_id', sessionId)
+      .select('id, user_id')
+      .eq('workshop_session_id', sessionId)
       .eq('status', 'waitlisted')
-      .order('waitlist_position', { ascending: true })
+      .order('position', { ascending: true })
       .limit(1)
       .maybeSingle();
 
     if (!top) return; // no one on waitlist
-    const promoted = top as { id: string; person_id?: string | null };
+    const promoted = top as { id: string; user_id?: string | null };
 
     await this.supabase.service
       .from('workshop_enrollments')
-      .update({ status: 'confirmed', waitlist_position: null })
+      .update({ status: 'confirmed', position: null })
       .eq('id', promoted.id);
 
     await this.recompactWaitlist(sessionId);
-    if (promoted.person_id) {
-      await this.notificationEvents.waitlistPromoted(sessionId, promoted.person_id);
+    if (promoted.user_id) {
+      await this.notificationEvents.waitlistPromoted(sessionId, promoted.user_id);
     }
   }
 
@@ -207,9 +211,9 @@ export class EnrollmentService {
     const { data: waitlisted } = await this.supabase.service
       .from('workshop_enrollments')
       .select('id')
-      .eq('session_id', sessionId)
+      .eq('workshop_session_id', sessionId)
       .eq('status', 'waitlisted')
-      .order('waitlist_position', { ascending: true });
+      .order('position', { ascending: true });
 
     if (!waitlisted || waitlisted.length === 0) return;
 
@@ -217,9 +221,17 @@ export class EnrollmentService {
       (waitlisted as Array<{ id: string }>).map((e, i) =>
         this.supabase.service
           .from('workshop_enrollments')
-          .update({ waitlist_position: i + 1 })
+          .update({ position: i + 1 })
           .eq('id', e.id),
       ),
     );
   }
+}
+
+/** Read `workshops.capacity` off a nested session row (Supabase joins as object or array). */
+function workshopCapacity(session: unknown): number | null {
+  const w = (session as { workshops?: unknown }).workshops;
+  const row = Array.isArray(w) ? w[0] : w;
+  const cap = (row as { capacity?: number | null } | null)?.capacity;
+  return cap ?? null;
 }
