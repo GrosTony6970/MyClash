@@ -89,6 +89,12 @@ export class UpdateEventDto {
   @IsString()
   endDate?: string;
 
+  @ApiProperty({ required: false, example: 'Europe/Paris', description: 'IANA timezone' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

@@ -19,6 +19,7 @@ COPY packages/design-tokens/package.json ./packages/design-tokens/
 COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/rulesets/package.json ./packages/rulesets/
+COPY packages/time/package.json ./packages/time/
 COPY packages/feature-flags/package.json ./packages/feature-flags/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile \
@@ -29,6 +30,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
       --filter @myclash/i18n \
       --filter @myclash/api-client \
       --filter @myclash/rulesets \
+      --filter @myclash/time \
       --filter @myclash/feature-flags
 
 FROM deps AS builder
@@ -61,6 +63,7 @@ COPY packages/design-tokens/ ./packages/design-tokens/
 COPY packages/i18n/ ./packages/i18n/
 COPY packages/api-client/ ./packages/api-client/
 COPY packages/rulesets/ ./packages/rulesets/
+COPY packages/time/ ./packages/time/
 COPY packages/feature-flags/ ./packages/feature-flags/
 
 RUN pnpm --filter @myclash/types build \
@@ -68,6 +71,7 @@ RUN pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/api-client build \
  && pnpm --filter @myclash/rulesets build \
+ && pnpm --filter @myclash/time build \
  && pnpm --filter @myclash/feature-flags build \
  && pnpm --filter @myclash/ui build \
  && pnpm --filter @myclash/web-admin build

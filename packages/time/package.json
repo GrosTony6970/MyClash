@@ -1,0 +1,28 @@
+{
+  "name": "@myclash/time",
+  "version": "0.0.0",
+  "private": true,
+  "description": "MyClash shared event-timezone helpers (Luxon-based, pure).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "lint": "echo 'lint: no sources yet'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "luxon": "^3.5.0",
+    "@types/luxon": "^3.4.2"
+  }
+}

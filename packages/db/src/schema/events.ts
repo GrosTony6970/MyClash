@@ -18,6 +18,8 @@ export const events = pgTable('events', {
   country: text('country'),
   startDate: text('start_date').notNull(), // ISO date
   endDate: text('end_date').notNull(), // ISO date
+  // IANA timezone (migration 0102) — wall-clock times are entered/displayed in it.
+  timezone: text('timezone').notNull().default('Europe/Paris'),
   status: text('status').notNull().default('draft'),
   // draft | published | running | completed | archived
   publicLandingMd: text('public_landing_md'),

@@ -50,6 +50,7 @@ const nextConfig: NextConfig = {
     '@myclash/design-tokens',
     '@myclash/i18n',
     '@myclash/api-client',
+    '@myclash/time',
   ],
 
   // Permanent redirect for the legacy tournament config URL.

@@ -355,6 +355,7 @@ export class EventsService {
     if (dto.country !== undefined) updates['country'] = dto.country;
     if (dto.startDate !== undefined) updates['start_date'] = dto.startDate;
     if (dto.endDate !== undefined) updates['end_date'] = dto.endDate;
+    if (dto.timezone !== undefined) updates['timezone'] = dto.timezone;
     if (dto.publicLandingMd !== undefined) updates['public_landing_md'] = dto.publicLandingMd;
     if (dto.status !== undefined) updates['status'] = dto.status;
     if (dto.logoUrl !== undefined) updates['logo_url'] = dto.logoUrl;

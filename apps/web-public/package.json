@@ -15,6 +15,7 @@
     "@myclash/api-client": "workspace:^",
     "@myclash/design-tokens": "workspace:^",
     "@myclash/i18n": "workspace:^",
+    "@myclash/time": "workspace:^",
     "@myclash/types": "workspace:^",
     "@myclash/ui": "workspace:^",
     "@sentry/nextjs": "^10.53.1",
