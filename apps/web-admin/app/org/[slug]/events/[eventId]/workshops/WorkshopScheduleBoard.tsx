@@ -106,7 +106,9 @@ export function WorkshopScheduleBoard({
     endSlot: number;
   } | null>(null);
   const resizingRef = useRef(resizing);
-  resizingRef.current = resizing;
+  useEffect(() => {
+    resizingRef.current = resizing;
+  }, [resizing]);
 
   function place(
     workshopId: string,
