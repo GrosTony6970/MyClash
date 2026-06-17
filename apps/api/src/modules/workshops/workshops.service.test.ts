@@ -106,6 +106,9 @@ const makeNotifications = () => ({
 });
 const makeNotificationEvents = () => ({ workshopCancelled: vi.fn().mockResolvedValue(undefined) });
 const makeOrgs = () => ({ assertOrgRole: vi.fn().mockResolvedValue(undefined) });
+const makePrivacy = () => ({
+  hiddenWorkshopGlobalPersonIds: vi.fn().mockResolvedValue(new Set<string>()),
+});
 
 function makeService(service: unknown) {
   return new WorkshopsService(
@@ -113,6 +116,7 @@ function makeService(service: unknown) {
     makeNotifications() as never,
     makeNotificationEvents() as never,
     makeOrgs() as never,
+    makePrivacy() as never,
   );
 }
 

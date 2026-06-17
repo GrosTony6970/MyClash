@@ -51,6 +51,7 @@ const makeSvc = (supabase: { service: unknown }) =>
     { scheduleWorkshopSessionStarting: vi.fn().mockResolvedValue(undefined) } as never,
     { workshopCancelled: vi.fn().mockResolvedValue(undefined) } as never,
     { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+    { hiddenWorkshopGlobalPersonIds: vi.fn().mockResolvedValue(new Set<string>()) } as never,
   );
 
 describe('WorkshopsService — instructors', () => {

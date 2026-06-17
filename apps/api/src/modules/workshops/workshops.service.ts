@@ -20,6 +20,7 @@ import {
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface CreateWorkshopDto {
@@ -177,6 +178,7 @@ export class WorkshopsService {
     private readonly notifications: NotificationSchedulerService,
     private readonly notificationEvents: NotificationEventsService,
     private readonly orgs: OrganizationsService,
+    private readonly privacy: PrivacyService,
   ) {}
 
   // ── List workshops for event ──────────────────────────────────────────────────
@@ -199,12 +201,13 @@ export class WorkshopsService {
 
   /**
    * Public workshop catalog for an event, resolved by event slug. Returns
-   * only published/running/completed workshops, and nothing at all when the
-   * event has hidden workshops publicly. No auth.
+   * only published/running/completed workshops. Instructors who set the
+   * per-person "hide my workshops publicly" flag are dropped from the
+   * instructor lists (the workshop itself stays public). No auth.
    */
   async listPublicWorkshops(eventSlug: string): Promise<WorkshopView[]> {
     const event = await this.resolveEventBySlug(eventSlug);
-    if (!event || event.hideWorkshopsPublicly) return [];
+    if (!event) return [];
 
     const { data, error } = await this.supabase.service
       .from('workshops')
@@ -217,15 +220,14 @@ export class WorkshopsService {
     if (error) throw new BadRequestException(error.message);
     const rows = (data ?? []) as unknown as RawWorkshop[];
     const counts = await this.confirmedCountsForWorkshops(rows);
-    return rows.map((row) => this.mapWorkshop(row, counts));
+    const views = rows.map((row) => this.mapWorkshop(row, counts));
+    return this.applyInstructorPrivacy(event.id, views);
   }
 
   /** Public single workshop by (event slug, workshop slug), status-gated. */
   async getPublicWorkshopBySlug(eventSlug: string, workshopSlug: string): Promise<WorkshopView> {
     const event = await this.resolveEventBySlug(eventSlug);
-    if (!event || event.hideWorkshopsPublicly) {
-      throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
-    }
+    if (!event) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
 
     const { data, error } = await this.supabase.service
       .from('workshops')
@@ -239,21 +241,36 @@ export class WorkshopsService {
     if (!data) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
     const row = data as unknown as RawWorkshop;
     const counts = await this.confirmedCountsForWorkshops([row]);
-    return this.mapWorkshop(row, counts);
+    const [view] = await this.applyInstructorPrivacy(event.id, [this.mapWorkshop(row, counts)]);
+    return view!;
   }
 
-  private async resolveEventBySlug(
-    eventSlug: string,
-  ): Promise<{ id: string; hideWorkshopsPublicly: boolean } | null> {
+  /** Drop instructors whose person set `hide_workshops_publicly` from public DTOs. */
+  private async applyInstructorPrivacy(
+    eventId: string,
+    views: WorkshopView[],
+  ): Promise<WorkshopView[]> {
+    const globalIds = views.flatMap((w) =>
+      w.instructors.map((i) => i.globalPersonId).filter((id): id is string => Boolean(id)),
+    );
+    if (globalIds.length === 0) return views;
+    const hidden = await this.privacy.hiddenWorkshopGlobalPersonIds(eventId, globalIds);
+    if (hidden.size === 0) return views;
+    return views.map((w) => ({
+      ...w,
+      instructors: w.instructors.filter((i) => !(i.globalPersonId && hidden.has(i.globalPersonId))),
+    }));
+  }
+
+  private async resolveEventBySlug(eventSlug: string): Promise<{ id: string } | null> {
     const { data } = await this.supabase.service
       .from('events')
-      .select('id, hide_workshops_publicly')
+      .select('id')
       .eq('slug', eventSlug)
       .limit(1)
       .maybeSingle();
     if (!data) return null;
-    const row = data as { id: string; hide_workshops_publicly: boolean | null };
-    return { id: row.id, hideWorkshopsPublicly: Boolean(row.hide_workshops_publicly) };
+    return { id: (data as { id: string }).id };
   }
 
   // ── Get one workshop ──────────────────────────────────────────────────────────

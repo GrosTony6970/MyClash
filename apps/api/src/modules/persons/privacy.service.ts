@@ -91,6 +91,48 @@ export class PrivacyService {
     return !priv.hideWorkshopsPublicly;
   }
 
+  /**
+   * Batched public-read helper: given global-person ids tagged in an event,
+   * return the subset whose event-scoped person set `hide_workshops_publicly`.
+   * Read-only (never auto-creates rows); a missing privacy row ⇒ not hidden.
+   * Used to drop opted-out instructors from public workshop listings.
+   */
+  async hiddenWorkshopGlobalPersonIds(
+    eventId: string,
+    globalPersonIds: string[],
+  ): Promise<Set<string>> {
+    const hidden = new Set<string>();
+    const ids = [...new Set(globalPersonIds.filter(Boolean))];
+    if (ids.length === 0) return hidden;
+
+    const { data: persons } = await this.supabase.service
+      .from('persons')
+      .select('id, global_person_id')
+      .eq('event_id', eventId)
+      .in('global_person_id', ids);
+
+    const personIdToGlobal = new Map<string, string>();
+    for (const raw of persons ?? []) {
+      const p = raw as { id: string; global_person_id: string | null };
+      if (p.global_person_id) personIdToGlobal.set(p.id, p.global_person_id);
+    }
+    if (personIdToGlobal.size === 0) return hidden;
+
+    const { data: privacy } = await this.supabase.service
+      .from('person_privacy')
+      .select('person_id, hide_workshops_publicly')
+      .in('person_id', [...personIdToGlobal.keys()]);
+
+    for (const raw of privacy ?? []) {
+      const row = raw as { person_id: string; hide_workshops_publicly: boolean | null };
+      if (row.hide_workshops_publicly) {
+        const global = personIdToGlobal.get(row.person_id);
+        if (global) hidden.add(global);
+      }
+    }
+    return hidden;
+  }
+
   // ── Private ──────────────────────────────────────────────────────────────────
 
   private map(row: Record<string, unknown>): PersonPrivacy {

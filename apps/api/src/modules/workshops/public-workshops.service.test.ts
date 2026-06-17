@@ -1,10 +1,12 @@
 /**
  * public-workshops.service.test.ts
  *
- * Pins the public visibility gate:
- *   - When events.hide_workshops_publicly is true, listPublicWorkshops
- *     returns [] and never queries the workshops table (no leak).
- *   - Otherwise it queries workshops filtered to public statuses.
+ * Pins the public visibility behaviour:
+ *   - the gate is status-only (resolveEventBySlug reads no events-level
+ *     privacy column — there is none; reading one used to make every
+ *     public call return empty);
+ *   - an instructor whose person set hide_workshops_publicly is dropped
+ *     from the public DTO, while co-instructors remain.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -12,78 +14,120 @@ import { WorkshopsService } from './workshops.service';
 
 type Resp = { data: unknown; error: { message: string } | null };
 
-function buildSupabase(eventRow: unknown) {
-  const calls = { workshopsQueried: false, statusFilter: undefined as unknown };
+/** Minimal events+workshops fake for the public list path. */
+function buildSupabase(workshopRows: unknown[]) {
+  const selectedColumns: string[] = [];
   const eventsApi: Record<string, unknown> = {};
   Object.assign(eventsApi, {
-    select: vi.fn(() => eventsApi),
+    select: vi.fn((cols: string) => {
+      selectedColumns.push(cols);
+      return eventsApi;
+    }),
     eq: vi.fn(() => eventsApi),
     limit: vi.fn(() => eventsApi),
-    maybeSingle: vi.fn(() => Promise.resolve({ data: eventRow, error: null } as Resp)),
+    maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'event-1' }, error: null } as Resp)),
   });
   const workshopsApi: Record<string, unknown> = {};
   Object.assign(workshopsApi, {
-    select: vi.fn(() => {
-      calls.workshopsQueried = true;
-      return workshopsApi;
-    }),
+    select: vi.fn(() => workshopsApi),
     eq: vi.fn(() => workshopsApi),
-    in: vi.fn((_col: string, vals: unknown) => {
-      calls.statusFilter = vals;
-      return workshopsApi;
-    }),
-    order: vi.fn(() => workshopsApi),
-    then: undefined,
+    in: vi.fn(() => workshopsApi),
+    order: vi.fn(() =>
+      Object.assign(Promise.resolve({ data: workshopRows, error: null } as Resp), {
+        order: vi.fn(() => Promise.resolve({ data: workshopRows, error: null } as Resp)),
+      }),
+    ),
   });
-  // The list query is awaited at the end of the chain (.order returns the
-  // promise-like). Make the final .order resolve to a row set.
-  (workshopsApi['order'] as ReturnType<typeof vi.fn>).mockReturnValue(
-    Object.assign(Promise.resolve({ data: [], error: null } as Resp), {
-      order: vi.fn(() => Promise.resolve({ data: [], error: null } as Resp)),
-    }),
-  );
-
-  const service = {
+  // confirmed-count query lands on workshop_enrollments
+  const enrollApi: Record<string, unknown> = {};
+  Object.assign(enrollApi, {
+    select: vi.fn(() => enrollApi),
+    in: vi.fn(() => enrollApi),
+    eq: vi.fn(() => Promise.resolve({ data: [], error: null } as Resp)),
+  });
+  return {
     service: {
-      from: vi.fn((table: string) => (table === 'events' ? eventsApi : workshopsApi)),
+      from: vi.fn((table: string) =>
+        table === 'events' ? eventsApi : table === 'workshops' ? workshopsApi : enrollApi,
+      ),
     },
+    selectedColumns,
   };
-  return { service, calls };
 }
 
-const makeSvc = (service: unknown) =>
+const makeSvc = (service: unknown, hidden: Set<string> = new Set()) =>
   new WorkshopsService(
     service as never,
     { scheduleWorkshopSessionStarting: vi.fn() } as never,
     { workshopCancelled: vi.fn() } as never,
     { assertOrgRole: vi.fn() } as never,
+    { hiddenWorkshopGlobalPersonIds: vi.fn().mockResolvedValue(hidden) } as never,
   );
 
+const workshopRow = (instructors: Array<{ global_person_id: string; display_name: string }>) => ({
+  id: 'w-1',
+  slug: 'longsword',
+  title: 'Longsword',
+  short_description: null,
+  description_md: null,
+  category: null,
+  level: 'all',
+  language: 'fr',
+  capacity: null,
+  duration_minutes: null,
+  status: 'published',
+  sort_order: 0,
+  venue_id: null,
+  venues: null,
+  workshop_sessions: [],
+  workshop_instructors: instructors,
+});
+
 describe('WorkshopsService — public gate', () => {
-  it('returns [] and never queries workshops when the event hides them publicly', async () => {
-    const { service, calls } = buildSupabase({ id: 'event-1', hide_workshops_publicly: true });
-    const svc = makeSvc(service);
-
-    const result = await svc.listPublicWorkshops('fal-2027');
-
-    expect(result).toEqual([]);
-    expect(calls.workshopsQueried).toBe(false);
-  });
-
-  it('queries workshops filtered to public statuses when not hidden', async () => {
-    const { service, calls } = buildSupabase({ id: 'event-1', hide_workshops_publicly: false });
-    const svc = makeSvc(service);
+  it('resolves the event without reading an events-level privacy column', async () => {
+    const fake = buildSupabase([]);
+    const svc = makeSvc(fake);
 
     await svc.listPublicWorkshops('fal-2027');
 
-    expect(calls.workshopsQueried).toBe(true);
-    expect(calls.statusFilter).toEqual(['published', 'running', 'completed']);
+    // The bug we are guarding against: selecting events.hide_workshops_publicly
+    // 400s and makes every public call return empty.
+    expect(fake.selectedColumns.join(',')).not.toContain('hide_workshops_publicly');
   });
 
   it('returns [] for an unknown event slug', async () => {
-    const { service } = buildSupabase(null);
-    const svc = makeSvc(service);
-
+    const fake = buildSupabase([]);
+    // Override events.maybeSingle to resolve null.
+    (
+      fake.service.from('events') as unknown as { maybeSingle: ReturnType<typeof vi.fn> }
+    ).maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }));
+    const svc = makeSvc(fake);
     expect(await svc.listPublicWorkshops('nope')).toEqual([]);
+  });
+});
+
+describe('WorkshopsService — instructor privacy', () => {
+  it('drops an instructor who hid their workshops, keeping co-instructors', async () => {
+    const fake = buildSupabase([
+      workshopRow([
+        { global_person_id: 'gp-hidden', display_name: 'Hidden Teacher' },
+        { global_person_id: 'gp-shown', display_name: 'Shown Teacher' },
+      ]),
+    ]);
+    const svc = makeSvc(fake, new Set(['gp-hidden']));
+
+    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+
+    expect(workshop?.instructors.map((i) => i.displayName)).toEqual(['Shown Teacher']);
+  });
+
+  it('keeps all instructors when none opted out', async () => {
+    const fake = buildSupabase([
+      workshopRow([{ global_person_id: 'gp-1', display_name: 'Teacher One' }]),
+    ]);
+    const svc = makeSvc(fake, new Set());
+
+    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+    expect(workshop?.instructors).toHaveLength(1);
   });
 });
