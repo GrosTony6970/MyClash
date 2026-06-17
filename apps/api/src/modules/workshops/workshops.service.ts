@@ -650,6 +650,98 @@ export class WorkshopsService {
     return counts;
   }
 
+  // ── Workshop-only break blocks (separate store from event programme) ────────────
+
+  async listWorkshopBreaks(eventId: string) {
+    const { data, error } = await this.supabase.service
+      .from('workshop_breaks')
+      .select('id, event_id, day_index, start_time, end_time, label')
+      .eq('event_id', eventId)
+      .order('day_index', { ascending: true })
+      .order('start_time', { ascending: true });
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []).map((raw) => {
+      const b = raw as {
+        id: string;
+        day_index: number;
+        start_time: string;
+        end_time: string;
+        label: string | null;
+      };
+      return {
+        id: b.id,
+        dayIndex: b.day_index,
+        startTime: b.start_time,
+        endTime: b.end_time,
+        label: b.label,
+      };
+    });
+  }
+
+  async createWorkshopBreak(
+    eventId: string,
+    dto: { dayIndex?: number; startTime: string; endTime: string; label?: string | null },
+    userId: string,
+  ) {
+    await this.assertCanManageEvent(eventId, userId);
+    if (dto.endTime <= dto.startTime) {
+      throw new BadRequestException('Break end time must be after the start time');
+    }
+    const { data, error } = await this.supabase.service
+      .from('workshop_breaks')
+      .insert({
+        event_id: eventId,
+        day_index: dto.dayIndex ?? 0,
+        start_time: dto.startTime,
+        end_time: dto.endTime,
+        label: dto.label ?? null,
+      })
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async updateWorkshopBreak(
+    breakId: string,
+    dto: { dayIndex?: number; startTime?: string; endTime?: string; label?: string | null },
+    userId: string,
+  ) {
+    await this.assertCanManageBreak(breakId, userId);
+    const updates: Record<string, unknown> = {};
+    if (dto.dayIndex !== undefined) updates['day_index'] = dto.dayIndex;
+    if (dto.startTime !== undefined) updates['start_time'] = dto.startTime;
+    if (dto.endTime !== undefined) updates['end_time'] = dto.endTime;
+    if (dto.label !== undefined) updates['label'] = dto.label;
+    const { data, error } = await this.supabase.service
+      .from('workshop_breaks')
+      .update(updates)
+      .eq('id', breakId)
+      .select('*')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async deleteWorkshopBreak(breakId: string, userId: string) {
+    await this.assertCanManageBreak(breakId, userId);
+    const { error } = await this.supabase.service
+      .from('workshop_breaks')
+      .delete()
+      .eq('id', breakId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  private async assertCanManageBreak(breakId: string, userId: string): Promise<void> {
+    const { data } = await this.supabase.service
+      .from('workshop_breaks')
+      .select('event_id')
+      .eq('id', breakId)
+      .maybeSingle();
+    if (!data) throw new NotFoundException(`Break ${breakId} not found`);
+    await this.assertCanManageEvent(String((data as { event_id: string }).event_id), userId);
+  }
+
   // ── Authorization helpers ───────────────────────────────────────────────────────
 
   private async resolveWorkshopEvent(workshopId: string): Promise<string> {

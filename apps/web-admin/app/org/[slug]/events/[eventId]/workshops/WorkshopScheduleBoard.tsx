@@ -97,8 +97,6 @@ export function WorkshopScheduleBoard({
   const totalSlots = endSlotFor(workshops);
   const gridHeight = totalSlots * SLOT_HEIGHT_PX;
 
-  const colByKey = new Map(columns.map((c) => [c.key, c]));
-
   // Resize state: which session, its column, fixed start slot, live end slot.
   const [resizing, setResizing] = useState<{
     workshopId: string;

@@ -22,7 +22,7 @@ import {
   workshopSessionTimes,
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
-import { WorkshopScheduleBoard } from './WorkshopScheduleBoard';
+import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 
 interface NamedRef {
   id: string;
@@ -470,6 +470,80 @@ export default function WorkshopsAdminPage() {
     setTab(next);
   }
 
+  // Workshop-only break blocks for the schedule board.
+  const [breaks, setBreaks] = useState<WorkshopBreak[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/workshop-breaks`, {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const rows = (await res.json()) as WorkshopBreak[];
+        if (!cancelled) setBreaks(rows);
+      } catch {
+        /* board just renders no breaks */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, eventId, refreshKey]);
+
+  // Break editor modal (create when id is null, else edit existing).
+  const [breakModal, setBreakModal] = useState<WorkshopBreak | { dayIndex: number } | null>(null);
+  const [breakForm, setBreakForm] = useState({
+    dayIndex: 0,
+    startTime: '12:00',
+    endTime: '13:00',
+    label: '',
+  });
+
+  function openBreakCreate(dayIndex: number) {
+    setBreakForm({ dayIndex, startTime: '12:00', endTime: '13:00', label: '' });
+    setBreakModal({ dayIndex });
+  }
+  function openBreakEdit(b: WorkshopBreak) {
+    setBreakForm({
+      dayIndex: b.dayIndex,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      label: b.label ?? '',
+    });
+    setBreakModal(b);
+  }
+  async function saveBreak() {
+    const editing = breakModal && 'id' in breakModal ? breakModal : null;
+    const body = {
+      dayIndex: breakForm.dayIndex,
+      startTime: breakForm.startTime,
+      endTime: breakForm.endTime,
+      label: breakForm.label.trim() || null,
+    };
+    const url = editing
+      ? `${apiUrl}/api/v1/workshop-breaks/${editing.id}`
+      : `${apiUrl}/api/v1/events/${eventId}/workshop-breaks`;
+    await fetch(url, {
+      method: editing ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    setBreakModal(null);
+    setRefreshKey((k) => k + 1);
+  }
+  async function deleteBreak() {
+    const editing = breakModal && 'id' in breakModal ? breakModal : null;
+    if (!editing) return;
+    await fetch(`${apiUrl}/api/v1/workshop-breaks/${editing.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    setBreakModal(null);
+    setRefreshKey((k) => k + 1);
+  }
+
   // Drag/resize on the board → upsert the workshop's single session.
   async function handlePlaceSession(
     workshopId: string,
@@ -542,11 +616,14 @@ export default function WorkshopsAdminPage() {
           workshops={workshops}
           venues={venues}
           days={eventDays}
+          breaks={breaks}
           onPlace={(wid, sid, placement) => void handlePlaceSession(wid, sid, placement)}
           onBlockClick={(wid) => {
             const s = workshops.find((w) => w.id === wid)?.sessions[0];
             if (s) void openRoster(s.id);
           }}
+          onAddBreak={openBreakCreate}
+          onEditBreak={openBreakEdit}
         />
       ) : workshops.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
@@ -1111,6 +1188,93 @@ export default function WorkshopsAdminPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Break editor modal */}
+      {breakModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold mb-4">
+              {'id' in breakModal ? 'Edit break' : 'New break'}
+            </h2>
+            <div className="flex flex-col gap-3">
+              {eventDays.length > 1 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Day</label>
+                  <select
+                    value={breakForm.dayIndex}
+                    onChange={(e) =>
+                      setBreakForm((f) => ({ ...f, dayIndex: Number(e.target.value) }))
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  >
+                    {eventDays.map((d, i) => (
+                      <option key={d} value={i}>
+                        Jour {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
+                  <input
+                    type="time"
+                    value={breakForm.startTime}
+                    onChange={(e) => setBreakForm((f) => ({ ...f, startTime: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
+                  <input
+                    type="time"
+                    value={breakForm.endTime}
+                    onChange={(e) => setBreakForm((f) => ({ ...f, endTime: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                <input
+                  type="text"
+                  value={breakForm.label}
+                  placeholder="Lunch, changeover…"
+                  onChange={(e) => setBreakForm((f) => ({ ...f, label: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              {'id' in breakModal ? (
+                <button
+                  onClick={() => void deleteBreak()}
+                  className="text-sm text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBreakModal(null)}
+                  className="text-sm text-gray-500 px-4 py-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void saveBreak()}
+                  className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-5 rounded-lg text-sm"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

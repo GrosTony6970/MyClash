@@ -23,7 +23,16 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Min,
+} from 'class-validator';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
@@ -87,6 +96,22 @@ class CreateSessionBody implements CreateSessionDto {
 
 class AddInstructorBody {
   @IsUUID() globalPersonId!: string;
+}
+
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+class CreateBreakBody {
+  @IsOptional() @IsInt() @Min(0) dayIndex?: number;
+  @Matches(HHMM_RE) startTime!: string;
+  @Matches(HHMM_RE) endTime!: string;
+  @IsOptional() @IsString() label?: string | null;
+}
+
+class UpdateBreakBody {
+  @IsOptional() @IsInt() @Min(0) dayIndex?: number;
+  @IsOptional() @Matches(HHMM_RE) startTime?: string;
+  @IsOptional() @Matches(HHMM_RE) endTime?: string;
+  @IsOptional() @IsString() label?: string | null;
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
@@ -226,6 +251,49 @@ export class WorkshopsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     await this.workshops.untagEventInstructor(eventId, personId, userId);
+  }
+
+  // ── Workshop-only break blocks ──────────────────────────────────────────────────
+
+  @Get('events/:eventId/workshop-breaks')
+  @ApiOperation({ summary: 'List workshop-only break blocks for an event' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async listBreaks(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return this.workshops.listWorkshopBreaks(eventId);
+  }
+
+  @Post('events/:eventId/workshop-breaks')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a workshop break block (workshop_lead+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async createBreak(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: CreateBreakBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.createWorkshopBreak(eventId, dto, userId);
+  }
+
+  @Patch('workshop-breaks/:id')
+  @ApiOperation({ summary: 'Update a workshop break block (workshop_lead+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async updateBreak(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateBreakBody,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.updateWorkshopBreak(id, dto, userId);
+  }
+
+  @Delete('workshop-breaks/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a workshop break block (workshop_lead+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteBreak(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.deleteWorkshopBreak(id, userId);
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────────
