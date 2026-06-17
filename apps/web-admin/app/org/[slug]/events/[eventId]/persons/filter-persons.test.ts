@@ -48,4 +48,25 @@ describe('personMatchesFilter', () => {
     expect(personMatchesFilter(person('club-a', 'gp-2'), filter, refs)).toBe(false);
     expect(personMatchesFilter(person('club-b', 'gp-1'), filter, refs)).toBe(false);
   });
+
+  it('filters instructors via globalPersonId membership', () => {
+    const instr = new Set(['gp-9']);
+    const onlyInstr = { club: 'all', referee: 'all' as const, instructor: 'instructor' as const };
+    const nonInstr = {
+      club: 'all',
+      referee: 'all' as const,
+      instructor: 'non_instructor' as const,
+    };
+
+    expect(personMatchesFilter(person(null, 'gp-9'), onlyInstr, NO_REFS, instr)).toBe(true);
+    expect(personMatchesFilter(person(null, 'gp-1'), onlyInstr, NO_REFS, instr)).toBe(false);
+    expect(personMatchesFilter(person(null, 'gp-9'), nonInstr, NO_REFS, instr)).toBe(false);
+    expect(personMatchesFilter(person(null, null), nonInstr, NO_REFS, instr)).toBe(true);
+  });
+
+  it('absent instructor filter keeps everyone (backward compatible)', () => {
+    expect(
+      personMatchesFilter(person(null, 'gp-9'), { club: 'all', referee: 'all' }, NO_REFS),
+    ).toBe(true);
+  });
 });

@@ -3616,6 +3616,16 @@ export const en = {
     persons: {
       addAsReferee: 'Also register as referee for this event',
       refereeColumn: 'Referee',
+      addAsInstructor: 'Also tag as instructor for this event',
+      instructorColumn: 'Instructor',
+      filterByInstructor: 'Filter by instructor',
+      instructorFilterAll: 'All',
+      instructorFilterOnly: 'Instructors only',
+      instructorFilterNon: 'Non-instructors',
+      instructorTag: 'Instructor',
+      instructorRegistrationFailed:
+        'Could not tag as instructor. Try again from the Participants page.',
+      instructorUpdateFailed: 'Could not update instructor status. Other changes were saved.',
       searchPlaceholder: 'Search by name…',
       filterByClub: 'Filter by club',
       allClubs: 'All clubs',
@@ -7705,6 +7715,17 @@ export const fr = {
     persons: {
       addAsReferee: 'Inscrire aussi comme arbitre pour cet evenement',
       refereeColumn: 'Arbitre',
+      addAsInstructor: 'Marquer aussi comme instructeur pour cet evenement',
+      instructorColumn: 'Instructeur',
+      filterByInstructor: 'Filtrer par instructeur',
+      instructorFilterAll: 'Tous',
+      instructorFilterOnly: 'Instructeurs uniquement',
+      instructorFilterNon: 'Non-instructeurs',
+      instructorTag: 'Instructeur',
+      instructorRegistrationFailed:
+        'Impossible de marquer comme instructeur. Reessayez depuis la page Participants.',
+      instructorUpdateFailed:
+        "Impossible de mettre a jour le statut d'instructeur. Les autres modifications ont ete enregistrees.",
       searchPlaceholder: 'Rechercher par nom…',
       filterByClub: 'Filtrer par club',
       allClubs: 'Tous les clubs',

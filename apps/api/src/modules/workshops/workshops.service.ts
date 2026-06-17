@@ -332,6 +332,85 @@ export class WorkshopsService {
     if (error) throw new BadRequestException(error.message);
   }
 
+  // ── Event instructor roster (event-scoped; mirrors referees, no global flag) ────
+
+  /** Tagged instructors for an event: [{ personId (= global_persons.id), displayName }]. */
+  async listEventInstructors(
+    eventId: string,
+    userId: string,
+  ): Promise<Array<{ personId: string; displayName: string }>> {
+    await this.assertCanReadEvent(eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_instructors')
+      .select('person_id, global_persons ( display_name, given_name, family_name )')
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    type Gp = { display_name?: string; given_name?: string; family_name?: string };
+    return (data ?? []).map((raw) => {
+      const r = raw as unknown as { person_id: string; global_persons: Gp | Gp[] | null };
+      const gp = Array.isArray(r.global_persons) ? (r.global_persons[0] ?? null) : r.global_persons;
+      const displayName =
+        gp?.display_name?.trim() ||
+        [gp?.given_name, gp?.family_name].filter(Boolean).join(' ').trim() ||
+        'Instructor';
+      return { personId: r.person_id, displayName };
+    });
+  }
+
+  /** Tag a person as an instructor for this event (idempotent). */
+  async tagEventInstructor(eventId: string, personId: string, userId: string): Promise<void> {
+    await this.assertCanManageEvent(eventId, userId);
+    const globalPersonId = await this.resolveGlobalPersonId(personId, eventId);
+    const { error } = await this.supabase.service
+      .from('event_instructors')
+      .upsert(
+        { event_id: eventId, person_id: globalPersonId },
+        { onConflict: 'event_id,person_id', ignoreDuplicates: true },
+      );
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  /** Untag a person as an instructor for this event. */
+  async untagEventInstructor(eventId: string, personId: string, userId: string): Promise<void> {
+    await this.assertCanManageEvent(eventId, userId);
+    const globalPersonId = await this.resolveGlobalPersonId(personId, eventId);
+    const { error } = await this.supabase.service
+      .from('event_instructors')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('person_id', globalPersonId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  /**
+   * Resolve a caller-supplied id to a global_persons.id. Accepts either a
+   * global_persons.id directly or an event-scoped persons.id (resolved via
+   * persons.global_person_id) — mirrors ensureEventReferee.
+   */
+  private async resolveGlobalPersonId(personId: string, eventId: string): Promise<string> {
+    const { data: gp } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (gp) return personId;
+
+    const { data: personsRow } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .eq('event_id', eventId)
+      .maybeSingle();
+    const linked = (personsRow as { global_person_id: string | null } | null)?.global_person_id;
+    if (linked) return linked;
+    if (personsRow) {
+      throw new BadRequestException(
+        `Participant ${personId} has no global profile — link or create one first.`,
+      );
+    }
+    throw new BadRequestException(`Global person ${personId} not found.`);
+  }
+
   // ── Create session ────────────────────────────────────────────────────────────
 
   async createSession(workshopId: string, dto: CreateSessionDto, userId: string) {
@@ -520,6 +599,18 @@ export class WorkshopsService {
   }
 
   private async assertCanManageEvent(eventId: string, userId: string): Promise<void> {
+    await this.assertEventRole(eventId, userId, 'workshop_lead');
+  }
+
+  private async assertCanReadEvent(eventId: string, userId: string): Promise<void> {
+    await this.assertEventRole(eventId, userId, 'read_only');
+  }
+
+  private async assertEventRole(
+    eventId: string,
+    userId: string,
+    role: Parameters<OrganizationsService['assertOrgRole']>[2],
+  ): Promise<void> {
     const { data: event } = await this.supabase.service
       .from('events')
       .select('organization_id')
@@ -529,7 +620,7 @@ export class WorkshopsService {
     await this.orgs.assertOrgRole(
       String((event as { organization_id: string }).organization_id),
       userId,
-      'workshop_lead',
+      role,
     );
   }
 

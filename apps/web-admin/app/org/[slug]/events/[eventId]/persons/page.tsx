@@ -63,6 +63,7 @@ interface AddForm {
   hemaRatingsId: string;
   seed: string;
   isReferee: boolean;
+  isInstructor: boolean;
 }
 
 const EMPTY_ADD_FORM: AddForm = {
@@ -72,6 +73,7 @@ const EMPTY_ADD_FORM: AddForm = {
   hemaRatingsId: '',
   seed: '',
   isReferee: false,
+  isInstructor: false,
 };
 
 const CLAIM_COLORS: Record<string, string> = {
@@ -104,6 +106,7 @@ export default function ParticipantsPage() {
   // Inline header filters: 'all' | 'none' | clubId, and referee tri-state.
   const [clubFilter, setClubFilter] = useState('all');
   const [refereeFilter, setRefereeFilter] = useState<PersonFilterValue['referee']>('all');
+  const [instructorFilter, setInstructorFilter] = useState<PersonFilterValue['instructor']>('all');
   /** Slice 5: top-level mode toggle. 'persons' shows the existing roster
    *  view; 'waiting-list' renders per-tournament waitlist tables instead. */
   const [mode, setMode] = useState<'persons' | 'waiting-list'>(() => {
@@ -184,7 +187,10 @@ export default function ParticipantsPage() {
   // Post-0063: event_referees keys exclusively on person_id (= global_persons.id).
   // Claimed-vs-unclaimed is purely a display distinction now.
   const [refereePersonIds, setRefereePersonIds] = useState<Set<string>>(new Set());
-  type SortKey = 'name' | 'club' | 'claim' | 'tournaments' | 'referee';
+  // Event-scoped instructor roster (event_instructors), keyed on
+  // global_persons.id — mirrors referees but with no global flag.
+  const [instructorPersonIds, setInstructorPersonIds] = useState<Set<string>>(new Set());
+  type SortKey = 'name' | 'club' | 'claim' | 'tournaments' | 'referee' | 'instructor';
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -254,6 +260,26 @@ export default function ParticipantsPage() {
         const persons = new Set<string>();
         for (const r of rows) persons.add(r.personId);
         setRefereePersonIds(persons);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      });
+    return () => controller.abort();
+  }, [eventId, apiUrl, refreshKey]);
+
+  // Fetch the event's instructor roster once per refresh (mirrors referees).
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/instructors`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const rows = (await res.json()) as Array<{ personId: string; displayName: string }>;
+        const ids = new Set<string>();
+        for (const r of rows) ids.add(r.personId);
+        setInstructorPersonIds(ids);
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
@@ -344,9 +370,14 @@ export default function ParticipantsPage() {
       const q = search.toLowerCase();
       list = list.filter((p) => `${p.givenName} ${p.familyName}`.toLowerCase().includes(q));
     }
-    if (clubFilter !== 'all' || refereeFilter !== 'all') {
+    if (clubFilter !== 'all' || refereeFilter !== 'all' || instructorFilter !== 'all') {
       list = list.filter((p) =>
-        personMatchesFilter(p, { club: clubFilter, referee: refereeFilter }, refereePersonIds),
+        personMatchesFilter(
+          p,
+          { club: clubFilter, referee: refereeFilter, instructor: instructorFilter },
+          refereePersonIds,
+          instructorPersonIds,
+        ),
       );
     }
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -372,6 +403,11 @@ export default function ParticipantsPage() {
           const br = b.globalPersonId ? refereePersonIds.has(b.globalPersonId) : false;
           return (Number(br) - Number(ar)) * dir; // true first when asc
         }
+        case 'instructor': {
+          const ai = a.globalPersonId ? instructorPersonIds.has(a.globalPersonId) : false;
+          const bi = b.globalPersonId ? instructorPersonIds.has(b.globalPersonId) : false;
+          return (Number(bi) - Number(ai)) * dir;
+        }
         default:
           return 0;
       }
@@ -384,10 +420,12 @@ export default function ParticipantsPage() {
     search,
     clubFilter,
     refereeFilter,
+    instructorFilter,
     sortKey,
     sortDir,
     registrationsByPersonId,
     refereePersonIds,
+    instructorPersonIds,
   ]);
 
   function closeAddModal() {
@@ -460,6 +498,24 @@ export default function ParticipantsPage() {
           });
       }
 
+      // Instructor tagging — same id-resolution rules as referees.
+      if (addForm.isInstructor) {
+        const instructorId = person.globalPersonId ?? person.id;
+        const url = `${apiUrl}/api/v1/events/${eventId}/instructors/${instructorId}`;
+        fetch(url, { method: 'POST', credentials: 'include' })
+          .then(async (res) => {
+            if (!res.ok) {
+              const body = (await res.json().catch(() => null)) as { message?: string } | null;
+              console.error('Instructor tagging failed', res.status, body);
+              toast.warning(t('organizer.persons.instructorRegistrationFailed'));
+            }
+          })
+          .catch((err: unknown) => {
+            console.error('Instructor tagging network error', err);
+            toast.warning(t('organizer.persons.instructorRegistrationFailed'));
+          });
+      }
+
       // Per-tournament registrations — capture failures so a network blip
       // on one tournament doesn't silently lose the others. Full
       // tournaments (409 + reason='tournament_full') route into the
@@ -511,6 +567,9 @@ export default function ParticipantsPage() {
   function openEdit(p: Person) {
     setEditPerson(p);
     const currentlyReferee = p.globalPersonId ? refereePersonIds.has(p.globalPersonId) : false;
+    const currentlyInstructor = p.globalPersonId
+      ? instructorPersonIds.has(p.globalPersonId)
+      : false;
     setEditForm({
       givenName: p.givenName,
       familyName: p.familyName,
@@ -518,6 +577,7 @@ export default function ParticipantsPage() {
       hemaRatingsId: p.hemaRatingsId ?? '',
       seed: '',
       isReferee: currentlyReferee,
+      isInstructor: currentlyInstructor,
     });
     setEditClubSearch(p.clubLabel ?? '');
     // Load the current club_id from the loaded Person so a Save that
@@ -628,6 +688,23 @@ export default function ParticipantsPage() {
           const r = await fetch(url, { method, credentials: 'include' });
           if (!r.ok) {
             toast.warning(t('organizer.persons.refereeUpdateFailed'));
+          }
+        }
+      }
+
+      // Instructor tag toggle (event-scoped; keys on global_persons.id).
+      const wasInstructor = editPerson.globalPersonId
+        ? instructorPersonIds.has(editPerson.globalPersonId)
+        : false;
+      if (editForm.isInstructor !== wasInstructor) {
+        if (!editPerson.globalPersonId) {
+          toast.warning(t('organizer.persons.instructorUpdateFailed'));
+        } else {
+          const url = `${apiUrl}/api/v1/events/${eventId}/instructors/${editPerson.globalPersonId}`;
+          const method = editForm.isInstructor ? 'POST' : 'DELETE';
+          const r = await fetch(url, { method, credentials: 'include' });
+          if (!r.ok) {
+            toast.warning(t('organizer.persons.instructorUpdateFailed'));
           }
         }
       }
@@ -1173,6 +1250,30 @@ export default function ParticipantsPage() {
                         </option>
                       </select>
                     </SortableTh>
+                    <SortableTh
+                      label={t('organizer.persons.instructorColumn')}
+                      sortKey="instructor"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onClick={() => toggleSort('instructor')}
+                    >
+                      <select
+                        value={instructorFilter}
+                        onChange={(e) =>
+                          setInstructorFilter(e.target.value as PersonFilterValue['instructor'])
+                        }
+                        aria-label={t('organizer.persons.filterByInstructor')}
+                        className="rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-600"
+                      >
+                        <option value="all">{t('organizer.persons.instructorFilterAll')}</option>
+                        <option value="instructor">
+                          {t('organizer.persons.instructorFilterOnly')}
+                        </option>
+                        <option value="non_instructor">
+                          {t('organizer.persons.instructorFilterNon')}
+                        </option>
+                      </select>
+                    </SortableTh>
                     <th className="py-2 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -1243,6 +1344,14 @@ export default function ParticipantsPage() {
                                   ? `${t('organizer.persons.refereeTag')} · ${t('organizer.persons.refereeUnclaimedBadge')}`
                                   : t('organizer.persons.refereeTag')
                               }
+                            />
+                          ) : null}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {p.globalPersonId && instructorPersonIds.has(p.globalPersonId) ? (
+                            <SkillBadge
+                              color="amber"
+                              label={t('organizer.persons.instructorTag')}
                             />
                           ) : null}
                         </td>
@@ -1603,6 +1712,18 @@ export default function ParticipantsPage() {
                     {t('organizer.persons.addAsReferee')}
                   </label>
 
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={addForm.isInstructor}
+                      disabled={isReadOnly}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, isInstructor: e.target.checked }))
+                      }
+                    />
+                    {t('organizer.persons.addAsInstructor')}
+                  </label>
+
                   {tournaments.length > 0 && (
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-2">
@@ -1784,6 +1905,21 @@ export default function ParticipantsPage() {
                         {t('organizer.persons.refereeUnclaimedHint')}
                       </p>
                     )}
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editForm.isInstructor}
+                        onChange={(e) =>
+                          setEditForm((f) => ({ ...f, isInstructor: e.target.checked }))
+                        }
+                        className="rounded"
+                      />
+                      <span className="text-gray-700">
+                        {t('organizer.persons.addAsInstructor')}
+                      </span>
+                    </label>
                   </div>
                   {tournaments.length > 0 && (
                     <div>

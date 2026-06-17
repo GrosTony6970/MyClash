@@ -170,6 +170,47 @@ export class WorkshopsController {
     await this.workshops.removeInstructor(id, globalPersonId, userId);
   }
 
+  // ── Event instructor roster (mirrors event referees) ───────────────────────────
+
+  @Get('events/:eventId/instructors')
+  @ApiOperation({ summary: 'List instructors tagged for an event' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async listInstructors(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.workshops.listEventInstructors(eventId, userId);
+  }
+
+  @Post('events/:eventId/instructors/:personId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Tag a person as an instructor for this event (workshop_lead+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async tagInstructor(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.tagEventInstructor(eventId, personId, userId);
+  }
+
+  @Delete('events/:eventId/instructors/:personId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Untag a person as an instructor for this event (workshop_lead+)' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
+  async untagInstructor(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.untagEventInstructor(eventId, personId, userId);
+  }
+
   // ── Sessions ──────────────────────────────────────────────────────────────────
 
   @Post('workshops/:id/sessions')

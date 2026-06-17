@@ -115,6 +115,29 @@ export default function WorkshopsAdminPage() {
     };
   }, [apiUrl, eventId]);
 
+  // Event-tagged instructors (event_instructors) for the workshop picker.
+  const [eventInstructors, setEventInstructors] = useState<
+    Array<{ personId: string; displayName: string }>
+  >([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/instructors`, {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const rows = (await res.json()) as Array<{ personId: string; displayName: string }>;
+        if (!cancelled) setEventInstructors(rows);
+      } catch {
+        /* picker stays empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, eventId, refreshKey]);
+
   // Create modal
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
@@ -131,6 +154,7 @@ export default function WorkshopsAdminPage() {
     day: '',
     start: '',
     end: '',
+    instructorIds: [] as string[],
   });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -331,6 +355,16 @@ export default function WorkshopsAdminPage() {
         });
       }
 
+      // Attach the chosen event-instructors to the new workshop.
+      for (const globalPersonId of form.instructorIds) {
+        await fetch(`${apiUrl}/api/v1/workshops/${created.id}/instructors`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ globalPersonId }),
+        });
+      }
+
       setShowCreate(false);
       setForm({
         title: '',
@@ -346,6 +380,7 @@ export default function WorkshopsAdminPage() {
         day: '',
         start: '',
         end: '',
+        instructorIds: [],
       });
       setRefreshKey((k) => k + 1);
     } catch (err) {
@@ -469,6 +504,11 @@ export default function WorkshopsAdminPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h2 className="font-semibold text-gray-900">{w.title}</h2>
+                    {w.instructors.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {w.instructors.map((i) => i.displayName).join(', ')}
+                      </p>
+                    )}
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       <StatusPill status={w.status} />
                       {w.category && (
@@ -707,6 +747,37 @@ export default function WorkshopsAdminPage() {
                   <option value="running">Running</option>
                   <option value="completed">Completed</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Instructors</label>
+                {eventInstructors.length === 0 ? (
+                  <p className="text-xs text-amber-600">
+                    No instructors tagged yet. Tag participants as instructors on the Participants
+                    page.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                    {eventInstructors.map((ins) => (
+                      <label key={ins.personId} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={form.instructorIds.includes(ins.personId)}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              instructorIds: e.target.checked
+                                ? [...f.instructorIds, ins.personId]
+                                : f.instructorIds.filter((id) => id !== ins.personId),
+                            }))
+                          }
+                          className="rounded"
+                        />
+                        {ins.displayName}
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
