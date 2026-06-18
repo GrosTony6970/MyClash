@@ -18,6 +18,7 @@ import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { blockDeleteAction } from './schedule-block-actions';
+import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
 import { eachDay, formatDayLabel } from './event-days';
@@ -287,6 +288,44 @@ export function ScheduleGrid({
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('myclash.schedule.panelCollapsed', panelCollapsed ? '1' : '0');
   }, [panelCollapsed]);
+  // Sidebar width (drag-to-resize on lg+). Hydration-safe: SSR + first render
+  // use the default, then sync from localStorage.
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = Number(window.localStorage.getItem('myclash.schedule.panelWidth'));
+    if (Number.isFinite(stored) && stored > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPanelWidth(clampPanelWidth(stored));
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('myclash.schedule.panelWidth', String(panelWidth));
+  }, [panelWidth]);
+
+  function beginPanelResize(ev: React.PointerEvent<HTMLDivElement>) {
+    ev.preventDefault();
+    const handle = ev.currentTarget;
+    handle.setPointerCapture(ev.pointerId);
+    const startX = ev.clientX;
+    const startW = panelWidth;
+    function onMove(e: PointerEvent) {
+      setPanelWidth(clampPanelWidth(startW + (e.clientX - startX)));
+    }
+    function cleanup(e: PointerEvent) {
+      handle.releasePointerCapture(e.pointerId);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+    }
+    function onUp(e: PointerEvent) {
+      cleanup(e);
+    }
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  }
   // Selected (ticked) unscheduled groups for batch scheduling.
   const [tickedKeys, setTickedKeys] = useState<Set<string>>(() => new Set());
   function toggleTicked(key: string) {
@@ -1952,14 +1991,26 @@ export function ScheduleGrid({
 
       {/* Retractable LEFT panel: Unscheduled (top) + Configure (below); the
           schedule canvas takes the rest. Collapses to a thin rail. */}
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div
+          style={
+            panelCollapsed ? undefined : ({ '--panel-w': `${panelWidth}px` } as React.CSSProperties)
+          }
           className={
             panelCollapsed
-              ? 'w-full lg:w-10 lg:flex-shrink-0'
-              : 'w-full space-y-4 lg:w-80 lg:flex-shrink-0'
+              ? 'w-full lg:sticky lg:top-4 lg:w-10 lg:flex-shrink-0 lg:self-start'
+              : 'relative w-full space-y-4 lg:sticky lg:top-4 lg:w-[var(--panel-w)] lg:flex-shrink-0 lg:self-start'
           }
         >
+          {!panelCollapsed && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Drag to resize the panel"
+              onPointerDown={beginPanelResize}
+              className="absolute -right-1 top-0 z-20 hidden h-full w-2 cursor-col-resize touch-none bg-transparent hover:bg-red-300/50 lg:block"
+            />
+          )}
           <div className="mb-2 flex items-center justify-between gap-2">
             {!panelCollapsed && (
               <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">
