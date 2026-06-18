@@ -131,7 +131,6 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
         if (decision.kind === 'unauthenticated') {
           window.location.replace('/login');
         } else if (decision.kind === 'no_access') {
-          // eslint-disable-next-line no-console
           console.error('[OrganizerAdminShell] redirecting away from inaccessible slug', {
             slug,
             redirectTo: decision.redirectTo,
@@ -453,7 +452,6 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               width={32}
               height={32}
               onError={() => console.warn('[org-logo] sidebar failed to render', orgLogoUrl)}
-              onLoad={() => console.debug('[org-logo] sidebar rendered', orgLogoUrl)}
               className="h-8 w-8 shrink-0 rounded-md object-cover"
             />
           )}
