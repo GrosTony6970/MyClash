@@ -16,9 +16,13 @@
  * common correction action.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
+import { buildUnifiedTimeline, exchangeOptionLabel } from './exchange-timeline';
+import { useExchanges } from '../hooks/useExchanges';
+import { usePenalties } from '../hooks/usePenalties';
 
 interface MatchCorrectionsDrawerProps {
   open: boolean;
@@ -35,13 +39,15 @@ interface MatchCorrectionsDrawerProps {
   timerMode: 'countdown' | 'countup';
   elapsedMs: number;
   limitMs: number | null;
-}
-
-interface ExchangeSummary {
-  id: string;
-  sequence: number;
-  type: string;
-  voided: boolean;
+  // Labelling context for the exchange picker — lets the drawer build the same
+  // numbered timeline the centre history shows, so the `#`s match.
+  redName: string;
+  blueName: string;
+  redRegistrationId: string;
+  blueRegistrationId: string;
+  config: TournamentScoringConfig;
+  /** Bumped after any scoring/correction so the picker re-fetches. */
+  refreshKey: number;
 }
 
 export function MatchCorrectionsDrawer({
@@ -55,6 +61,12 @@ export function MatchCorrectionsDrawer({
   timerMode,
   elapsedMs,
   limitMs,
+  redName,
+  blueName,
+  redRegistrationId,
+  blueRegistrationId,
+  config,
+  refreshKey,
 }: MatchCorrectionsDrawerProps) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -62,26 +74,44 @@ export function MatchCorrectionsDrawer({
   const [resetText, setResetText] = useState('');
   const [reason, setReason] = useState('');
   const [adjustSeconds, setAdjustSeconds] = useState(10);
-  const [exchanges, setExchanges] = useState<ExchangeSummary[]>([]);
   const [selectedExchangeId, setSelectedExchangeId] = useState('');
 
-  useEffect(() => {
-    if (!open || !online) return;
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          const rows = ((await res.json()) as ExchangeSummary[]).filter((row) => !row.voided);
-          setExchanges(rows);
-          setSelectedExchangeId(rows.at(-1)?.id ?? '');
-        }
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [open, apiUrl, matchId, online]);
+  const { active: activeExchanges } = useExchanges(apiUrl, matchId, refreshKey);
+  const { active: activePenalties } = usePenalties(apiUrl, matchId, refreshKey);
+
+  // The same numbered timeline as the centre history; the picker only offers
+  // the exchange rows (its void/edit action is exchange-only), but their `#`
+  // come from the shared sequence so they line up with the centre.
+  const exchangeOptions = useMemo(
+    () =>
+      buildUnifiedTimeline({
+        exchanges: activeExchanges,
+        penalties: activePenalties,
+        redName,
+        blueName,
+        redRegId: redRegistrationId,
+        blueRegId: blueRegistrationId,
+        t,
+        config,
+      }).filter((ev) => ev.kind === 'exchange'),
+    [
+      activeExchanges,
+      activePenalties,
+      redName,
+      blueName,
+      redRegistrationId,
+      blueRegistrationId,
+      t,
+      config,
+    ],
+  );
+
+  // Effective pick: honour the operator's choice while it's still in the list,
+  // else default to the most-recent exchange (timeline is newest-first).
+  const effectiveExchangeId =
+    selectedExchangeId && exchangeOptions.some((ev) => ev.rawId === selectedExchangeId)
+      ? selectedExchangeId
+      : (exchangeOptions[0]?.rawId ?? '');
 
   // Escape closes
   useEffect(() => {
@@ -118,11 +148,11 @@ export function MatchCorrectionsDrawer({
   }
 
   async function editSelectedExchange() {
-    if (!selectedExchangeId) return;
+    if (!effectiveExchangeId) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/exchanges/${selectedExchangeId}/edit`, {
+      const res = await fetch(`${apiUrl}/api/v1/exchanges/${effectiveExchangeId}/edit`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -268,20 +298,20 @@ export function MatchCorrectionsDrawer({
             </p>
             <div className="grid grid-cols-[1fr_auto] gap-2">
               <select
-                value={selectedExchangeId}
+                value={effectiveExchangeId}
                 onChange={(e) => setSelectedExchangeId(e.target.value)}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="">{t('scoring.corrections.selectExchange')}</option>
-                {exchanges.map((exchange) => (
-                  <option key={exchange.id} value={exchange.id}>
-                    #{exchange.sequence} {exchange.type}
+                {exchangeOptions.map((ev) => (
+                  <option key={ev.id} value={ev.rawId}>
+                    {exchangeOptionLabel(ev)}
                   </option>
                 ))}
               </select>
               <button
                 type="button"
-                disabled={disabled || !selectedExchangeId}
+                disabled={disabled || !effectiveExchangeId}
                 onClick={() => void editSelectedExchange()}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"
               >

@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
-import { clockStatusSemantic, sideStyle, statusPillTone } from '@myclash/ui';
+import { clockStatusSemantic, statusPillTone } from '@myclash/ui';
 import {
   clockShouldTick,
   displayClockMs,
@@ -29,9 +29,9 @@ import {
   shouldWarnClock,
   type ClockState,
 } from './scoreboard-clock';
-import { exchangeDeltaLabel } from './exchange-delta-label';
-import { useExchanges, type ExchangeRow } from '../hooks/useExchanges';
-import { usePenalties, type MatchPenalty, type PenaltyCard } from '../hooks/usePenalties';
+import { buildUnifiedTimeline } from './exchange-timeline';
+import { useExchanges } from '../hooks/useExchanges';
+import { usePenalties, type PenaltyCard } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
@@ -149,16 +149,16 @@ export function ScoringCenterControls({
 
   const events = useMemo(
     () =>
-      mergeEvents(
-        activeExchanges,
-        activePenalties,
+      buildUnifiedTimeline({
+        exchanges: activeExchanges,
+        penalties: activePenalties,
         redName,
         blueName,
-        redRegistrationId,
-        blueRegistrationId,
+        redRegId: redRegistrationId,
+        blueRegId: blueRegistrationId,
         t,
         config,
-      ),
+      }),
     [
       activeExchanges,
       activePenalties,
@@ -362,7 +362,7 @@ export function ScoringCenterControls({
       {/* Exchanges count + Clear last exchange */}
       <div className="flex flex-col items-center gap-1 mt-3 w-full">
         <p className="text-xs text-gray-500">
-          {t('scoring.lice.exchangesCount', { count: String(activeExchanges.length) })}
+          {t('scoring.lice.exchangesCount', { count: String(events.length) })}
         </p>
         <button
           type="button"
@@ -386,11 +386,9 @@ export function ScoringCenterControls({
           {events.length === 0 && <p className="text-center text-xs text-gray-600 py-2">—</p>}
           {events.map((ev) => (
             <div key={ev.id} className="flex items-center gap-2 text-xs">
-              {ev.number !== null && (
-                <span className="font-mono text-gray-600 tabular-nums w-7 flex-shrink-0">
-                  #{ev.number}
-                </span>
-              )}
+              <span className="font-mono text-gray-600 tabular-nums w-7 flex-shrink-0">
+                #{ev.number}
+              </span>
               <span className="font-mono text-gray-500 tabular-nums">{ev.timeLabel}</span>
               {ev.sideColor && (
                 <span
@@ -463,7 +461,7 @@ function primaryAction(status: 'idle' | 'running' | 'halted' | 'ended'): {
   }
 }
 
-// ── Event list merge ──────────────────────────────────────────────
+// ── Event list ────────────────────────────────────────────────────
 
 // Card → swatch colour for the timeline penalty icon. Mirrors the
 // per-side counter chips in ScoringColumn (not exported there; a 3-entry
@@ -473,87 +471,3 @@ const CARD_CHIP_COLOR: Record<PenaltyCard, string> = {
   red: 'bg-red-600',
   black: 'bg-gray-900 border border-gray-600',
 };
-
-interface UnifiedEvent {
-  id: string;
-  /** Exchange sequence number (the `#N` in the history); null for penalties. */
-  number: number | null;
-  occurredAt: string;
-  timeLabel: string;
-  sideColor: string | null;
-  fighterLabel: string;
-  typeLabel: string;
-  /** Penalty card colour — when set the row shows a colour swatch icon
-   *  instead of the card word. Null for exchange rows. */
-  card: PenaltyCard | null;
-  delta: string | null;
-}
-
-function mergeEvents(
-  exchanges: ExchangeRow[],
-  penalties: MatchPenalty[],
-  redName: string,
-  blueName: string,
-  redRegId: string,
-  blueRegId: string,
-  t: (k: string, p?: Record<string, string>) => string,
-  config: TournamentScoringConfig,
-): UnifiedEvent[] {
-  const exchangeRows: UnifiedEvent[] = exchanges.map((e) => {
-    const side: 'red' | 'blue' | null = e.scoringSide ?? null;
-    const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
-    const typeLabel =
-      e.type === 'double'
-        ? t('scoring.lice.eventRowDouble')
-        : e.type === 'no_exchange'
-          ? t('scoring.lice.eventRowNoExchange')
-          : e.type === 'afterblow'
-            ? 'AB'
-            : 'clean';
-    // Scoring rows always show their delta — INCLUDING '+0' for a 1-1
-    // afterblow, so a no-point exchange still visibly registers.
-    const delta = exchangeDeltaLabel(e.type, e.scoreDelta);
-    return {
-      id: `ex-${e.id}`,
-      number: e.sequence,
-      occurredAt: e.occurredAt,
-      timeLabel: formatClockShort(e.clockTimeMs),
-      sideColor: side ? sideStyle(config, side).border : null,
-      fighterLabel: e.type === 'double' ? t('scoring.lice.eventRowDouble') : sideName,
-      typeLabel,
-      card: null,
-      delta,
-    };
-  });
-
-  const penaltyRows: UnifiedEvent[] = penalties.map((p) => {
-    const side: 'red' | 'blue' | null =
-      p.registration_id === redRegId ? 'red' : p.registration_id === blueRegId ? 'blue' : null;
-    const sideName = side === 'red' ? redName : side === 'blue' ? blueName : '—';
-    return {
-      id: `pen-${p.id}`,
-      number: null,
-      occurredAt: p.occurred_at ?? '',
-      timeLabel: formatClockShort(p.clock_time_ms),
-      sideColor: side ? sideStyle(config, side).border : null,
-      fighterLabel: sideName,
-      typeLabel: (p.short_name ?? p.reason ?? '').trim(),
-      card: p.card,
-      delta: p.score_delta ? String(p.score_delta) : null,
-    };
-  });
-
-  return [...exchangeRows, ...penaltyRows].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
-}
-
-// Match-clock time for the timeline — MM:SS from accumulated active ms
-// (the imported formatClockMs adds centiseconds, too noisy for the
-// list). Empty string when the row has no captured clock time (legacy
-// rows / pre-migration data).
-function formatClockShort(ms: number | null | undefined): string {
-  if (ms === null || ms === undefined) return '';
-  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}

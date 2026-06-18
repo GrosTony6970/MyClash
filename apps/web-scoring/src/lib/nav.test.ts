@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { safeReturnHref, scoringRoutePrefix, scoreboardPopupFeatures } from './nav';
+import { isExternalHref, safeReturnHref, scoringRoutePrefix, scoreboardPopupFeatures } from './nav';
 
 describe('safeReturnHref', () => {
   const origin = 'https://admin.myclash.fr';
@@ -25,6 +25,23 @@ describe('safeReturnHref', () => {
   it('returns null for empty/null input', () => {
     expect(safeReturnHref(null, origin)).toBeNull();
     expect(safeReturnHref('', origin)).toBeNull();
+  });
+});
+
+describe('isExternalHref', () => {
+  it('is true for an absolute http(s) URL (a hard navigation target)', () => {
+    expect(isExternalHref('https://admin.myclash.fr/org/x/events/y/pools#matches')).toBe(true);
+    expect(isExternalHref('http://example.com')).toBe(true);
+  });
+
+  it('is false for a root-relative in-app path', () => {
+    expect(isExternalHref('/lices/abc')).toBe(false);
+    expect(isExternalHref('/matches/abc')).toBe(false);
+  });
+
+  it('is false for empty/null', () => {
+    expect(isExternalHref('')).toBe(false);
+    expect(isExternalHref(null)).toBe(false);
   });
 });
 

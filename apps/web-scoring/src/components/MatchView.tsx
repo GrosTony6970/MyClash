@@ -393,6 +393,12 @@ export function MatchView({
         timerMode={matchFormat.timerMode}
         elapsedMs={clockState?.activeMs ?? 0}
         limitMs={limitMs}
+        redName={redName}
+        blueName={blueName}
+        redRegistrationId={match.redRegistrationId}
+        blueRegistrationId={match.blueRegistrationId}
+        config={scoringConfig}
+        refreshKey={refreshKey}
         onDone={() => {
           onRefresh();
           setRefreshKey((k) => k + 1);

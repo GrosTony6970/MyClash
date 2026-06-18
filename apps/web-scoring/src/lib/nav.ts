@@ -38,6 +38,17 @@ export function scoringRoutePrefix(pathname: string): string {
 }
 
 /**
+ * Whether a back-link href points OUT of the web-scoring app (an absolute
+ * http(s) URL — typically the admin `?return=` target on the same origin but
+ * a different app behind the proxy). Such hrefs must be a native `<a>` hard
+ * navigation: a Next `<Link>` would client-route them inside web-scoring,
+ * which has no `/org/...` route. Root-relative paths stay in-app (Next Link).
+ */
+export function isExternalHref(href: string | null | undefined): boolean {
+  return !!href && /^https?:\/\//.test(href);
+}
+
+/**
  * `window.open` feature string for the external-display scoreboard
  * popup: a sized, resizable, chromeless second-screen window the
  * operator can drag onto a projector.

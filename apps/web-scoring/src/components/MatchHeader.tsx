@@ -20,7 +20,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { sideStyle } from '@myclash/ui';
 import { useAdjacentMatches } from '@myclash/ui';
-import { openScoreboardPopup } from '../lib/nav';
+import { isExternalHref, openScoreboardPopup } from '../lib/nav';
 
 interface MatchHeaderProps {
   matchId: string;
@@ -60,6 +60,13 @@ export function MatchHeader({
   const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
 
   const resolvedBackHref = backHref ?? (liceId ? `/lices/${liceId}` : '/lices');
+  // An absolute `?return=` target is a different app behind the same origin
+  // (admin), so it needs a real browser navigation — a Next <Link> would try
+  // to client-route it inside web-scoring and 404. The in-app /lices fallback
+  // stays a <Link> for SPA navigation.
+  const backIsExternal = isExternalHref(resolvedBackHref);
+  const backClassName =
+    'inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50';
   const redStyle = sideStyle(config, 'red');
   const blueStyle = sideStyle(config, 'blue');
 
@@ -68,12 +75,15 @@ export function MatchHeader({
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4">
         {/* Left: back link + previous-match tile */}
         <div className="flex flex-col items-start gap-2">
-          <Link
-            href={resolvedBackHref}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-slate-500 hover:bg-slate-50"
-          >
-            ← {t('scoring.lice.backToMatchList')}
-          </Link>
+          {backIsExternal ? (
+            <a href={resolvedBackHref} className={backClassName}>
+              ← {t('scoring.lice.backToMatchList')}
+            </a>
+          ) : (
+            <Link href={resolvedBackHref} className={backClassName}>
+              ← {t('scoring.lice.backToMatchList')}
+            </Link>
+          )}
 
           {previous && (
             <Link
