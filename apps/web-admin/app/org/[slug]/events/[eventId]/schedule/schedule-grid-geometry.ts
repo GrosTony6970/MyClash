@@ -19,6 +19,15 @@ export const SLOT_MINUTES = 5;
 export const GRID_START_HOUR = 8;
 export const DEFAULT_GRID_END_HOUR = 20;
 export const SLOT_HEIGHT_PX = 16;
+// Vertical-zoom bounds for the rendered slot height (the slot math stays in
+// 5-min units; only the pixel height scales).
+export const SLOT_HEIGHT_MIN = 8;
+export const SLOT_HEIGHT_MAX = 40;
+
+/** Clamp a desired slot pixel-height into the zoom range (rounded). */
+export function zoomToSlotHeight(px: number): number {
+  return Math.max(SLOT_HEIGHT_MIN, Math.min(SLOT_HEIGHT_MAX, Math.round(px)));
+}
 // Header rows are taller than body rows so the venue + lice names read
 // clearly. The lice header's sticky `top` offset must equal
 // VENUE_HEADER_HEIGHT_PX so it sticks below the venue band on scroll.

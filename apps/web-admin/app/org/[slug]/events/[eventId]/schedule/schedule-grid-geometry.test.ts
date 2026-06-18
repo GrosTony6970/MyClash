@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SLOT_HEIGHT_MAX,
+  SLOT_HEIGHT_MIN,
   SNAP_SLOTS,
   computeVenueGroups,
   formatSlotTime,
@@ -11,6 +13,7 @@ import {
   slotToHHMM,
   slotToTime,
   snapSlot,
+  zoomToSlotHeight,
 } from './schedule-grid-geometry';
 
 const BASE = '2026-06-15';
@@ -122,6 +125,17 @@ describe('schedule-grid-geometry', () => {
 
     it('returns null on malformed input', () => {
       expect(nowSlotForDay('not-a-date', '2027-06-21', PARIS)).toBeNull();
+    });
+  });
+
+  describe('zoomToSlotHeight', () => {
+    it('keeps an in-range height (rounded)', () => {
+      expect(zoomToSlotHeight(16)).toBe(16);
+      expect(zoomToSlotHeight(20.4)).toBe(20);
+    });
+    it('clamps to the min and max', () => {
+      expect(zoomToSlotHeight(2)).toBe(SLOT_HEIGHT_MIN);
+      expect(zoomToSlotHeight(999)).toBe(SLOT_HEIGHT_MAX);
     });
   });
 

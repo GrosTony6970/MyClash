@@ -17,16 +17,16 @@
  */
 
 import { useRef, useState } from 'react';
-import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
+import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import type { ScheduleBlock } from './schedule-blocks';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
 import { blockTint } from './block-tint';
+import { liceUtilizationPct } from './lice-utilization';
 import { wouldOverlap, type SlotPlacement } from './detect-overlaps';
 import {
   LICE_HEADER_HEIGHT_PX,
   MIN_LICE_COL_PX,
-  SLOT_HEIGHT_PX,
   SNAP_SLOTS,
   TIME_LABEL_COL_PX,
   VENUE_HEADER_HEIGHT_PX,
@@ -71,6 +71,10 @@ interface Props {
   conflictMatchIds: Set<string>;
   /** Block keys overlapping another block on a shared lice — tint amber. */
   overlapBlockKeys: Set<string>;
+  /** Rendered slot height in px (vertical zoom). Slot math stays 5-min. */
+  slotHeightPx: number;
+  /** When set, dim every block from another tournament (legend focus). */
+  focusedTournament: string | null;
   onShiftLice: (liceId: string, driftMin: number) => void;
   onEditBlock: (block: ScheduleBlock) => void;
   onEditBreak: (brk: BgvBreak) => void;
@@ -117,6 +121,8 @@ export function BlockGridView({
   nowSlot,
   conflictMatchIds,
   overlapBlockKeys,
+  slotHeightPx,
+  focusedTournament,
   onShiftLice,
   onEditBlock,
   onEditBreak,
@@ -162,7 +168,7 @@ export function BlockGridView({
     const grid = gridRef.current;
     if (!grid) return 0;
     const top = grid.getBoundingClientRect().top + VENUE_HEADER_HEIGHT_PX + LICE_HEADER_HEIGHT_PX;
-    return Math.max(0, Math.floor((clientY - top) / SLOT_HEIGHT_PX));
+    return Math.max(0, Math.floor((clientY - top) / slotHeightPx));
   }
 
   // Slot ranges already occupied (other runs + every full-width break bar),
@@ -183,6 +189,13 @@ export function BlockGridView({
     }
     return out;
   }
+  // Per-lice load (match runs only, not breaks) for the column-header chip.
+  const blockOccupancy = blocks.map((b) => ({
+    liceIds: b.liceIds,
+    startSlot: isoToSlot(b.startIso, baseDate, timezone),
+    endSlot: isoToSlot(b.endIso, baseDate, timezone),
+  }));
+
   const venueGroups = computeVenueGroups(lices);
   // Body row for a slot: row 1 = venue band, row 2 = lice header, slot 0 → row 3.
   const rowFor = (slot: number): number => slot + 3;
@@ -203,7 +216,7 @@ export function BlockGridView({
 
     const clampEnd = (raw: number) => Math.max(item.startSlot + 1, Math.min(gridEndSlot, raw));
     function onMove(e: PointerEvent) {
-      const delta = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX);
+      const delta = Math.round((e.clientY - startY) / slotHeightPx);
       const next = clampEnd(item.endSlot + delta);
       setTimeResize((prev) =>
         prev && prev.key === item.key ? { ...prev, previewEndSlot: next } : prev,
@@ -217,7 +230,7 @@ export function BlockGridView({
     }
     function onUp(e: PointerEvent) {
       cleanup(e);
-      const final = clampEnd(item.endSlot + Math.round((e.clientY - startY) / SLOT_HEIGHT_PX));
+      const final = clampEnd(item.endSlot + Math.round((e.clientY - startY) / slotHeightPx));
       setTimeResize(null);
       if (final !== item.endSlot) commit(final);
     }
@@ -246,7 +259,7 @@ export function BlockGridView({
     // resizeStartSlot snaps to 15 min and clamps into [0, end − 1].
     const clampStart = (raw: number) => resizeStartSlot(raw, item.endSlot);
     function onMove(e: PointerEvent) {
-      const delta = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX);
+      const delta = Math.round((e.clientY - startY) / slotHeightPx);
       const next = clampStart(item.startSlot + delta);
       setStartResize((prev) =>
         prev && prev.key === item.key ? { ...prev, previewStartSlot: next } : prev,
@@ -260,7 +273,7 @@ export function BlockGridView({
     }
     function onUp(e: PointerEvent) {
       cleanup(e);
-      const final = clampStart(item.startSlot + Math.round((e.clientY - startY) / SLOT_HEIGHT_PX));
+      const final = clampStart(item.startSlot + Math.round((e.clientY - startY) / slotHeightPx));
       setStartResize(null);
       if (final !== item.startSlot) commit(final);
     }
@@ -339,7 +352,7 @@ export function BlockGridView({
         className="relative grid w-full"
         style={{
           gridTemplateColumns: `${TIME_LABEL_COL_PX}px repeat(${lices.length}, minmax(${MIN_LICE_COL_PX}px, 1fr))`,
-          gridAutoRows: `${SLOT_HEIGHT_PX}px`,
+          gridAutoRows: `${slotHeightPx}px`,
         }}
       >
         {/* Row 1 corner + venue band */}
@@ -376,10 +389,11 @@ export function BlockGridView({
         {lices.map((lice, idx) => {
           const d = drift.get(lice.id);
           const late = d ? d.driftMin > 0 : false;
+          const util = liceUtilizationPct(blockOccupancy, lice.id, gridEndSlot);
           return (
             <div
               key={`head-${lice.id}`}
-              className="sticky z-20 flex flex-col items-center justify-center border-b border-gray-200 bg-white px-1"
+              className="sticky z-20 flex flex-col items-center justify-center border-b border-gray-200 bg-white px-1 relative"
               style={{
                 gridColumn: idx + 2,
                 gridRow: 2,
@@ -387,6 +401,14 @@ export function BlockGridView({
                 height: LICE_HEADER_HEIGHT_PX,
               }}
             >
+              {util > 0 ? (
+                <span
+                  className="absolute right-1 top-0.5 text-[9px] font-medium text-gray-400"
+                  title={`${util}% of the day's grid scheduled on this lice`}
+                >
+                  {util}%
+                </span>
+              ) : null}
               <span className="text-xs font-bold uppercase tracking-wider text-gray-600 truncate">
                 {lice.name}
               </span>
@@ -490,7 +512,11 @@ export function BlockGridView({
               onDoubleClick={(e) => onCreateAtCell(snapSlot(slotFromClientY(e.clientY)))}
               className={[
                 'border-l border-gray-100 transition-colors',
-                isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : '',
+                isOver
+                  ? 'bg-blue-50 ring-2 ring-inset ring-blue-300'
+                  : idx % 2 === 1
+                    ? 'bg-gray-50/40'
+                    : '',
               ].join(' ')}
               style={{ gridColumn: idx + 2, gridRow: `3 / ${lastRow}`, zIndex: 1 }}
             />
@@ -595,6 +621,12 @@ export function BlockGridView({
             : hasOverlap
               ? 'border-amber-400 bg-amber-100 text-amber-800'
               : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`;
+          // Status accent (from the run's matches) + legend-focus dimming.
+          const allDone =
+            block.matches.length > 0 && block.matches.every((m) => m.status === 'completed');
+          const anyRunning = block.matches.some((m) => m.status === 'running');
+          const dimmed = focusedTournament !== null && block.tournamentName !== focusedTournament;
+          const opacityClass = dimmed ? 'opacity-30' : allDone ? 'opacity-60' : '';
           return (
             <div
               key={block.key}
@@ -612,8 +644,10 @@ export function BlockGridView({
               }}
               title={`${block.tournamentName ?? ''} · ${block.label} · ${block.matchCount} matches`}
               className={[
-                'group relative m-px flex cursor-grab flex-col overflow-hidden rounded-md border px-1.5 py-1 active:cursor-grabbing',
+                'group relative m-px flex cursor-grab flex-col overflow-hidden rounded-md border pl-2.5 pr-1.5 py-1 transition-opacity active:cursor-grabbing',
                 tone,
+                anyRunning ? 'ring-1 ring-emerald-400' : '',
+                opacityClass,
               ].join(' ')}
               style={{
                 gridColumn: `${colStart} / ${colEnd}`,
@@ -621,9 +655,15 @@ export function BlockGridView({
                 zIndex: 10,
               }}
             >
+              {/* Left color stripe — the tournament's identity accent. */}
+              <span
+                aria-hidden="true"
+                className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(color)}`}
+              />
               {block.tournamentName ? (
-                <span className="truncate text-[9px] font-semibold uppercase tracking-wide opacity-70">
-                  {block.tournamentName}
+                <span className="flex items-center gap-1 truncate text-[9px] font-semibold uppercase tracking-wide opacity-70">
+                  {anyRunning ? <span className="text-emerald-500">●</span> : null}
+                  <span className="truncate">{block.tournamentName}</span>
                 </span>
               ) : null}
               <span className="truncate text-xs font-bold leading-tight">{block.label}</span>

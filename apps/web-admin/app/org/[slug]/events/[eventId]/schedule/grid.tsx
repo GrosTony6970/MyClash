@@ -51,6 +51,7 @@ import {
   slotToHHMM,
   slotToTime,
   snapSlot,
+  zoomToSlotHeight,
 } from './schedule-grid-geometry';
 
 /**
@@ -305,6 +306,22 @@ export function ScheduleGrid({
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('myclash.schedule.panelWidth', String(panelWidth));
   }, [panelWidth]);
+  // Vertical zoom: rendered slot height in px (slot math stays 5-min).
+  const [slotHeightPx, setSlotHeightPx] = useState(SLOT_HEIGHT_PX);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = Number(window.localStorage.getItem('myclash.schedule.zoom'));
+    if (Number.isFinite(stored) && stored > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSlotHeightPx(zoomToSlotHeight(stored));
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('myclash.schedule.zoom', String(slotHeightPx));
+  }, [slotHeightPx]);
+  // Tournament legend focus — clicking a chip dims the other tournaments.
+  const [focusedTournament, setFocusedTournament] = useState<string | null>(null);
 
   function beginPanelResize(ev: React.PointerEvent<HTMLDivElement>) {
     ev.preventDefault();
@@ -1209,6 +1226,8 @@ export function ScheduleGrid({
           tournamentName: m.tournamentName,
           redFighterName: m.redFighterName,
           blueFighterName: m.blueFighterName,
+          durationMinutes: m.durationMinutes,
+          status: m.status,
         })),
       ),
     [scheduledOnActiveDay],
@@ -2232,42 +2251,103 @@ export function ScheduleGrid({
           ) : !activeDay ? (
             <p className="text-gray-400 text-sm">No event date available.</p>
           ) : viewMode === 'blocks' ? (
-            <BlockGridView
-              lices={lices}
-              blocks={dayBlocks}
-              breaks={bgvBreaks}
-              tournamentColorByName={tournamentColorByName}
-              baseDate={activeDay}
-              timezone={eventTz}
-              gridEndSlot={gridEndSlot}
-              drift={liceDrift}
-              nowSlot={nowSlot}
-              conflictMatchIds={conflictMatchIds}
-              overlapBlockKeys={overlapBlockKeys}
-              onShiftLice={shiftLiceRemaining}
-              onEditBlock={setEditingBlock}
-              onEditBreak={setEditingBreak}
-              onDeleteBlock={unscheduleRunBlock}
-              onDeleteBreak={(brk) => void deleteBlock(brk.id)}
-              onResizeBlockTime={resizeBlockTimeTo}
-              onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
-              onResizeBlockStart={retimeBlockStart}
-              onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
-              onResizeBlockLices={changeBlockLices}
-              onBlockDragStart={(block) => {
-                dragViewBlock.current = { matchIds: block.matches.map((m) => m.id) };
-                dragMatch.current = null;
-                dragPool.current = null;
-                dragBracketRound.current = null;
-              }}
-              onBlockDragEnd={() => {
-                dragViewBlock.current = null;
-              }}
-              onDropOnLice={handleBlockViewDrop}
-              onCreateAtCell={(slot) => setCreatingBreak(newBreakDraftFromCell(slot))}
-              dragOverLiceId={dragOverLiceId}
-              onDragOverLice={setDragOverLiceId}
-            />
+            <>
+              {/* Legend (click a tournament to focus) + conflict count + zoom. */}
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                {[...tournamentColorByName.keys()].map((name) => {
+                  const active = focusedTournament === name;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setFocusedTournament(active ? null : name)}
+                      className={[
+                        'flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                        active
+                          ? 'border-gray-900 bg-gray-900 text-white'
+                          : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+                      ].join(' ')}
+                    >
+                      <span
+                        className={`h-2 w-2 rounded-full ${accentClassFor(tournamentColorByName.get(name) ?? null)}`}
+                      />
+                      <span className="max-w-[10rem] truncate">{name}</span>
+                    </button>
+                  );
+                })}
+                {focusedTournament && (
+                  <button
+                    type="button"
+                    onClick={() => setFocusedTournament(null)}
+                    className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
+                  >
+                    Clear focus
+                  </button>
+                )}
+                {conflicts.length > 0 && (
+                  <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                    ⚠ {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
+                  </span>
+                )}
+                <div className="ml-auto flex items-center gap-1 text-gray-500">
+                  <span className="text-[11px] font-medium">Zoom</span>
+                  <button
+                    type="button"
+                    aria-label="Zoom out"
+                    onClick={() => setSlotHeightPx((h) => zoomToSlotHeight(h - 4))}
+                    className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom in"
+                    onClick={() => setSlotHeightPx((h) => zoomToSlotHeight(h + 4))}
+                    className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <BlockGridView
+                lices={lices}
+                blocks={dayBlocks}
+                breaks={bgvBreaks}
+                tournamentColorByName={tournamentColorByName}
+                baseDate={activeDay}
+                timezone={eventTz}
+                gridEndSlot={gridEndSlot}
+                drift={liceDrift}
+                nowSlot={nowSlot}
+                conflictMatchIds={conflictMatchIds}
+                overlapBlockKeys={overlapBlockKeys}
+                slotHeightPx={slotHeightPx}
+                focusedTournament={focusedTournament}
+                onShiftLice={shiftLiceRemaining}
+                onEditBlock={setEditingBlock}
+                onEditBreak={setEditingBreak}
+                onDeleteBlock={unscheduleRunBlock}
+                onDeleteBreak={(brk) => void deleteBlock(brk.id)}
+                onResizeBlockTime={resizeBlockTimeTo}
+                onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
+                onResizeBlockStart={retimeBlockStart}
+                onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
+                onResizeBlockLices={changeBlockLices}
+                onBlockDragStart={(block) => {
+                  dragViewBlock.current = { matchIds: block.matches.map((m) => m.id) };
+                  dragMatch.current = null;
+                  dragPool.current = null;
+                  dragBracketRound.current = null;
+                }}
+                onBlockDragEnd={() => {
+                  dragViewBlock.current = null;
+                }}
+                onDropOnLice={handleBlockViewDrop}
+                onCreateAtCell={(slot) => setCreatingBreak(newBreakDraftFromCell(slot))}
+                dragOverLiceId={dragOverLiceId}
+                onDragOverLice={setDragOverLiceId}
+              />
+            </>
           ) : (
             <div
               className="relative grid w-full"

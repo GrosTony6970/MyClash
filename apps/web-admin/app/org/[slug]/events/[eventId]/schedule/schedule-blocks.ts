@@ -23,6 +23,8 @@ export interface BlockMatchInput {
   blueFighterName: string | null;
   /** Match length in minutes — drives block height + retime-on-resize. */
   durationMinutes?: number;
+  /** 'scheduled' | 'running' | 'completed' — drives the block status accent. */
+  status?: string;
 }
 
 export interface ScheduleBlockMatch {
@@ -32,6 +34,7 @@ export interface ScheduleBlockMatch {
   code: string;
   startIso: string;
   durationMinutes?: number;
+  status?: string;
   redFighterName: string | null;
   blueFighterName: string | null;
 }
@@ -130,6 +133,7 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
         code: m.roundCode ?? m.id,
         startIso: m.scheduledAt!,
         durationMinutes: m.durationMinutes,
+        status: m.status,
         redFighterName: m.redFighterName,
         blueFighterName: m.blueFighterName,
       })),
