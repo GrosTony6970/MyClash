@@ -110,10 +110,23 @@ export function formatRoundCode(input: RoundCodeInput): string {
     }
   }
 
-  const tail =
-    input.matchNumber !== null && input.matchNumber !== undefined && input.matchNumber !== ''
-      ? `M${input.matchNumber}`
-      : '';
+  return [w, ...middle, matchSegment(input.matchNumber)].filter(Boolean).join('-');
+}
 
-  return [w, ...middle, tail].filter(Boolean).join('-');
+/**
+ * Build the trailing `M<seq>` segment.
+ *
+ * `matchNumber` is usually a bare number (or numeric string), but pool
+ * matches pass the stored `match_number_label` — a compound
+ * `L<lice>-P<pool>-M<seq>` string (e.g. "L1-PA-M1"). Prefixing that whole
+ * string with `M` produced the doubled code `LSW-P1-ML1-PA-M1`; instead we
+ * pull the trailing match sequence so a pool match reads `LSW-P1-M1`
+ * (the documented form). Bare numeric labels (bracket `slot.position`) and
+ * other strings (e.g. "R1") are left untouched.
+ */
+function matchSegment(matchNumber: number | string | null | undefined): string {
+  if (matchNumber === null || matchNumber === undefined || matchNumber === '') return '';
+  if (typeof matchNumber === 'number') return `M${matchNumber}`;
+  const trailing = /M(\d+)\s*$/.exec(matchNumber);
+  return trailing ? `M${trailing[1]}` : `M${matchNumber}`;
 }

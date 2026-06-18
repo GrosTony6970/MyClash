@@ -35,7 +35,7 @@ interface MatchRow {
   lice_id: string | null;
   referee_id: string | null;
   match_number_label: string | null;
-  /** Canonical round code (e.g. `LSW-P1-ML1-PA-M1`) built on the backend
+  /** Canonical round code (e.g. `LSW-P1-M1`) built on the backend
    *  by `listPoolsWithMatches`. The scoreboard ships the same field via
    *  `getMatchSummary` — render it verbatim, do not re-format here. */
   roundCode: string;

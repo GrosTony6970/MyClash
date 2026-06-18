@@ -1330,7 +1330,7 @@ describe('PhasesService', () => {
     // identifiers because the pool tab built the code client-side.
     // `listPoolsWithMatches` must now ship a pre-built `roundCode` so the
     // FE renders it verbatim — same shape as `getMatchSummary`.
-    it("returns a backend-built roundCode on each match (e.g. 'LSW-P1-ML1-PA-M1')", async () => {
+    it("returns a backend-built roundCode on each match (e.g. 'LSW-P1-M1')", async () => {
       fromMock.mockImplementation((tableName: string) => {
         if (tableName === 'phases') {
           const chain = makeChain({ data: { id: 'phase-1' }, error: null });
@@ -1390,7 +1390,7 @@ describe('PhasesService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]?.matches).toHaveLength(1);
-      expect((result[0]?.matches[0] as { roundCode: string }).roundCode).toBe('LSW-P1-ML1-PA-M1');
+      expect((result[0]?.matches[0] as { roundCode: string }).roundCode).toBe('LSW-P1-M1');
     });
 
     // Slice E of the per-role-referee spec: each match exposes a

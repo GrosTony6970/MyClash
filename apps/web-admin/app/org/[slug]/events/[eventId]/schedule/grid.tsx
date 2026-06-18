@@ -138,7 +138,7 @@ type GridUndo =
 interface ScheduleMatch {
   id: string;
   matchNumberLabel: string;
-  /** Canonical match code (LSW-P1-ML1-PA-M1 for pools, LSW-B-QF-M1 for brackets).
+  /** Canonical match code (LSW-P1-M1 for pools, LSW-B-QF-M1 for brackets).
    *  Backend computes it via formatRoundCode; the sidebar + grid use it as the
    *  display label, falling back to matchNumberLabel for legacy payloads. */
   roundCode?: string;

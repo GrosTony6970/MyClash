@@ -2239,7 +2239,7 @@ export class PhasesService {
     const phaseId = (phase as { id: string }).id;
 
     // 1b. Tournament weapon — needed by buildRoundCode so the FE
-    // renders the same canonical code (LSW-P1-ML1-PA-M1) that the
+    // renders the same canonical code (LSW-P1-M1) that the
     // scoreboard ships from getMatchSummary.
     // event_id is read alongside the weapon so the referee_assignments
     // fetch below can scope by event (post-0063 the FK lives on

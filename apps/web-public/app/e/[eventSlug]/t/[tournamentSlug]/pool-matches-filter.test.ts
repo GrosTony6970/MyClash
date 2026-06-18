@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { matchesQuery, type FilterableMatch } from './pool-matches-filter';
 
 const row: FilterableMatch = {
-  roundCode: 'LSW-P1-ML1-PA-M2',
+  roundCode: 'LSW-P1-M2',
   redFighterName: 'Thomas Adrien',
   blueFighterName: 'Anthony Garnier',
   redClubAbbrev: 'Compagnie Excalibur Yvelines',

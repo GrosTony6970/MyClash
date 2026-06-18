@@ -3,21 +3,9 @@ import { naturalCompare } from './pool-matches-sort';
 
 describe('naturalCompare', () => {
   it('orders embedded numbers numerically, not lexicographically', () => {
-    const codes = [
-      'LSW-P1-ML1-PA-M1',
-      'LSW-P1-ML1-PA-M10',
-      'LSW-P1-ML1-PA-M2',
-      'LSW-P1-ML1-PA-M28',
-      'LSW-P1-ML1-PA-M3',
-    ];
+    const codes = ['LSW-P1-M1', 'LSW-P1-M10', 'LSW-P1-M2', 'LSW-P1-M28', 'LSW-P1-M3'];
     const sorted = [...codes].sort(naturalCompare);
-    expect(sorted).toEqual([
-      'LSW-P1-ML1-PA-M1',
-      'LSW-P1-ML1-PA-M2',
-      'LSW-P1-ML1-PA-M3',
-      'LSW-P1-ML1-PA-M10',
-      'LSW-P1-ML1-PA-M28',
-    ]);
+    expect(sorted).toEqual(['LSW-P1-M1', 'LSW-P1-M2', 'LSW-P1-M3', 'LSW-P1-M10', 'LSW-P1-M28']);
   });
 
   it('returns 0 for equal strings and is stable on identical prefixes', () => {
@@ -27,7 +15,7 @@ describe('naturalCompare', () => {
 
   it('compares earlier numeric segments before later ones', () => {
     // Pool number dominates the match number.
-    const codes = ['LSW-P2-ML1-PA-M1', 'LSW-P1-ML1-PA-M9'];
-    expect([...codes].sort(naturalCompare)).toEqual(['LSW-P1-ML1-PA-M9', 'LSW-P2-ML1-PA-M1']);
+    const codes = ['LSW-P2-M1', 'LSW-P1-M9'];
+    expect([...codes].sort(naturalCompare)).toEqual(['LSW-P1-M9', 'LSW-P2-M1']);
   });
 });

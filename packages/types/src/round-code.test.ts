@@ -181,6 +181,47 @@ describe('formatRoundCode', () => {
     ).toBe('LSW-P1-MR1');
   });
 
+  it('extracts the bare match number from a compound pool label (no double-encoding)', () => {
+    // match_number_label for pools is "L<lice>-P<pool>-M<seq>" (e.g.
+    // "L1-PA-M1"). Feeding the whole string used to produce the doubled
+    // form LSW-P1-ML1-PA-M1; we want the documented LSW-P1-M1.
+    expect(
+      formatRoundCode({
+        weapon: 'Longsword',
+        poolNumber: 1,
+        bracketRound: null,
+        bracketSize: null,
+        matchNumber: 'L1-PA-M1',
+      }),
+    ).toBe('LSW-P1-M1');
+  });
+
+  it('keeps a two-digit sequence from a compound pool label', () => {
+    expect(
+      formatRoundCode({
+        weapon: 'Longsword',
+        poolNumber: 1,
+        bracketRound: null,
+        bracketSize: null,
+        matchNumber: 'L1-PA-M10',
+      }),
+    ).toBe('LSW-P1-M10');
+  });
+
+  it('leaves a bare numeric bracket label intact', () => {
+    // bracket_slots store match_number_label = String(slot.position),
+    // a bare number — it must still render cleanly.
+    expect(
+      formatRoundCode({
+        weapon: 'Longsword',
+        poolNumber: null,
+        bracketRound: 3,
+        bracketSize: 32,
+        matchNumber: '3',
+      }),
+    ).toBe('LSW-B-QF-M3');
+  });
+
   it('degrades gracefully on missing inputs — no dangling dashes', () => {
     expect(
       formatRoundCode({

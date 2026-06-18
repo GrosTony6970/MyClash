@@ -6,7 +6,7 @@ export interface ScheduleGridMatch {
   id: string;
   matchNumberLabel: string;
   /**
-   * Canonical match code via formatRoundCode (LSW-P1-ML1-PA-M1 for
+   * Canonical match code via formatRoundCode (LSW-P1-M1 for
    * pools, LSW-B-QF-M1 for brackets). Built per-row in the service
    * so the sidebar + grid both read the same identifier the
    * scoring app and exports already show.

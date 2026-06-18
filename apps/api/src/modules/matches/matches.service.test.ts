@@ -72,7 +72,8 @@ describe('MatchesService', () => {
       // both surfaces render the same `roundCode` field.
       //
       // Fixture: longsword tournament, pool A (sort_order=0 → number 1),
-      // match label `L1-PA-M1` → formatRoundCode yields `LSW-P1-ML1-PA-M1`.
+      // match label `L1-PA-M1` → formatRoundCode yields `LSW-P1-M1`
+      // (the bare match sequence is pulled from the compound label).
       fromMock.mockImplementation((tableName: string) => {
         if (tableName === 'vw_tournament_query_matches') {
           return makeChain({
@@ -103,7 +104,7 @@ describe('MatchesService', () => {
 
       const result = (await service.getMatchSummary('m1')) as { roundCode: string };
 
-      expect(result.roundCode).toBe('LSW-P1-ML1-PA-M1');
+      expect(result.roundCode).toBe('LSW-P1-M1');
     });
 
     it('reads bracketSize from phases.config_json so bracket matches render LSW-B-R16-M1', async () => {

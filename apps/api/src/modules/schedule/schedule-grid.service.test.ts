@@ -184,7 +184,7 @@ describe('ScheduleGridService', () => {
     await expect(service.listEventSchedule('event-1')).resolves.toEqual([]);
   });
 
-  it('projects the canonical roundCode (LSW-P1-ML1-PA-M1) for a pool match', async () => {
+  it('projects the canonical roundCode (LSW-P1-M1) for a pool match', async () => {
     queueTables({
       tournaments: [{ id: 't1', name: 'Longsword Open', weapon: 'Longsword' }],
       phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1', config_json: null }],
@@ -207,7 +207,7 @@ describe('ScheduleGridService', () => {
 
     const result = await service.listEventSchedule('event-1');
     expect(result).toHaveLength(1);
-    expect(result[0]!.roundCode).toBe('LSW-P1-ML1-PA-M1');
+    expect(result[0]!.roundCode).toBe('LSW-P1-M1');
     expect(result[0]!.poolName).toBe('Pool A');
   });
 
