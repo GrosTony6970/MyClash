@@ -18,6 +18,7 @@ import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
+import { personEmailMatchesUser } from './person-email-match';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
 import type { PasswordLoginDto } from './dto/password-login.dto';
@@ -437,12 +438,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid session');
     }
 
-    const [claimedPersons, globalPerson, refereeAssignments, workshopEnrollments] =
+    const [claimedPersons, globalPerson, refereeAssignments, workshopEnrollments, claimable] =
       await Promise.all([
         this.fetchClaimedPersons(user.id),
         this.fetchGlobalPerson(user.id),
         this.fetchRefereeAssignments(user.id),
         this.fetchWorkshopEnrollments(user.id),
+        this.fetchClaimablePersons(user.email),
       ]);
 
     const eventIds = new Set<string>();
@@ -471,7 +473,72 @@ export class AuthService {
         refereeAssignments: refereeAssignments.length,
         workshopEnrollments: workshopEnrollments.length,
       },
+      claimable,
     };
+  }
+
+  /**
+   * Confirm-to-claim: claim the given roster `persons` rows for the logged-in
+   * user. Each id is guarded by the same email-match rule the per-event claim
+   * uses (`personEmailMatchesUser`) — non-matching / foreign-owned ids are
+   * skipped. Idempotent. Returns how many were claimed/owned.
+   */
+  async claimPersons(request: FastifyRequest, personIds: string[]): Promise<{ claimed: number }> {
+    const accessToken = this.extractToken(request);
+    if (!accessToken) throw new UnauthorizedException('Authentication required');
+    const user = await this.requestAuthUser(accessToken);
+    if (!user || !user.email) throw new UnauthorizedException('Invalid session');
+
+    let claimed = 0;
+    for (const personId of personIds) {
+      const { data } = await this.supabase.service
+        .from('persons')
+        .select('id, email, claimed_by_user_id')
+        .eq('id', personId)
+        .maybeSingle();
+      const person = data as {
+        id: string;
+        email: string | null;
+        claimed_by_user_id: string | null;
+      } | null;
+      if (!person) continue;
+      // Already owned by someone else → never reassign.
+      if (person.claimed_by_user_id && person.claimed_by_user_id !== user.id) continue;
+      if (!personEmailMatchesUser(person.email, user.email)) continue;
+      await this.completeClaim(user.id, personId);
+      claimed += 1;
+    }
+    return { claimed };
+  }
+
+  /**
+   * Unclaimed roster profiles whose registered email matches the user's —
+   * the confirm-step suggestions for the /me dashboard.
+   */
+  private async fetchClaimablePersons(
+    email: string | null | undefined,
+  ): Promise<Array<{ id: string; name: string; eventName: string; roles: unknown }>> {
+    const normalized = (email ?? '').trim();
+    if (!normalized) return [];
+    try {
+      const { data, error } = await this.supabase.service
+        .from('persons')
+        .select('id, given_name, family_name, email, roles, claimed_by_user_id, events(name)')
+        .ilike('email', normalized)
+        .is('claimed_by_user_id', null);
+      if (error) return [];
+      const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      return rows
+        .filter((r) => personEmailMatchesUser(r['email'] as string | null, normalized))
+        .map((r) => ({
+          id: r['id'] as string,
+          name: `${((r['given_name'] as string) ?? '').trim()} ${((r['family_name'] as string) ?? '').trim()}`.trim(),
+          eventName: ((r['events'] as { name?: string } | null)?.name ?? '').trim(),
+          roles: r['roles'] ?? null,
+        }));
+    } catch {
+      return [];
+    }
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────
@@ -800,17 +867,14 @@ export class AuthService {
 
     const identities = (user as { identities?: Array<{ provider?: string }> }).identities ?? [];
     const hasPassword = identities.some((i) => i.provider === 'email');
-    if (!hasPassword) {
-      throw new BadRequestException({
-        code: 'no_password_set',
-        message:
-          'Set a password via Change password first (this lets us verify the deletion request).',
-      });
-    }
-
-    const tokenResponse = await this.requestPasswordTokenForPublic(user.email, currentPassword);
-    if (!tokenResponse.user?.id || tokenResponse.user.id !== user.id) {
-      throw new UnauthorizedException('Current password is incorrect');
+    // Accounts WITH a password re-authenticate to confirm. Google-only accounts
+    // (no password) delete on the authenticated session + typed confirmation
+    // alone — they sign in through Google and have no password to verify.
+    if (hasPassword) {
+      const tokenResponse = await this.requestPasswordTokenForPublic(user.email, currentPassword);
+      if (!tokenResponse.user?.id || tokenResponse.user.id !== user.id) {
+        throw new UnauthorizedException('Current password is incorrect');
+      }
     }
 
     // Strip claim linkages — historical match/referee/event facts

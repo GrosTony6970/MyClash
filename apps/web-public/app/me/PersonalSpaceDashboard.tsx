@@ -25,6 +25,14 @@ interface PersonalSpaceResponse {
     refereeAssignments: number;
     workshopEnrollments: number;
   };
+  claimable: ClaimablePerson[];
+}
+
+interface ClaimablePerson {
+  id: string;
+  name: string;
+  eventName: string;
+  roles: unknown;
 }
 
 interface GlobalPersonSearchResult {
@@ -74,6 +82,19 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
     return () => controller.abort();
   }, [apiUrl]);
 
+  // Re-fetch after a user action (e.g. claiming a profile). Not called from an
+  // effect, so it stays clear of the set-state-in-effect rule.
+  async function reload(): Promise<void> {
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/me/personal-space`, {
+        credentials: 'include',
+      });
+      if (response.ok) setData((await response.json()) as PersonalSpaceResponse);
+    } catch {
+      // keep current state on failure
+    }
+  }
+
   const globalPerson = data?.profiles.globalPerson ?? null;
   const displayName =
     data?.user.display_name ||
@@ -112,26 +133,40 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
 
         {data && (
           <>
+            {data.claimable.length > 0 && (
+              <ClaimableCard
+                apiUrl={apiUrl}
+                claimable={data.claimable}
+                onClaimed={() => void reload()}
+              />
+            )}
+
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 label={t('publicApp.personalSpace.stats.claimedProfiles')}
                 value={data.counts.claimedPersons}
+                hint={t('publicApp.personalSpace.stats.emptyHint')}
               />
               <StatCard
                 label={t('publicApp.personalSpace.stats.events')}
                 value={data.counts.events}
+                href="/"
+                hint={t('publicApp.personalSpace.stats.emptyHint')}
               />
               <StatCard
                 label={t('publicApp.personalSpace.stats.refereeAssignments')}
                 value={data.counts.refereeAssignments}
+                href="/me/referee"
+                hint={t('publicApp.personalSpace.stats.emptyHint')}
               />
               <StatCard
                 label={t('publicApp.personalSpace.stats.workshops')}
                 value={data.counts.workshopEnrollments}
+                hint={t('publicApp.personalSpace.stats.emptyHint')}
               />
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
+            <section className="grid gap-4">
               <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="text-lg font-black text-[#0f172a]">
                   {t('publicApp.personalSpace.profileTitle')}
@@ -142,14 +177,17 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_fighter')}
                         label={t('publicApp.personalSpace.roles.fighter')}
+                        href="/me/fighter"
                       />
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_referee')}
                         label={t('publicApp.personalSpace.roles.referee')}
+                        href="/me/referee"
                       />
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_workshop_participant')}
                         label={t('publicApp.personalSpace.roles.workshopParticipant')}
+                        href="/"
                       />
                     </div>
                     {typeof globalPerson['date_of_birth'] === 'string' &&
@@ -181,20 +219,6 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                   <ClaimSearchSection apiUrl={apiUrl} />
                 )}
               </div>
-
-              <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-black text-[#0f172a]">
-                  {t('publicApp.personalSpace.quickActions')}
-                </h2>
-                <div className="mt-4 grid gap-2">
-                  <QuickLink href="/me/fighter" label={t('publicApp.personalShell.nav.fighter')} />
-                  <QuickLink href="/me/referee" label={t('publicApp.personalShell.nav.referee')} />
-                  <QuickLink
-                    href="/me/notifications"
-                    label={t('publicApp.personalShell.nav.notifications')}
-                  />
-                </div>
-              </aside>
             </section>
           </>
         )}
@@ -374,28 +398,51 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+function StatCard({
+  label,
+  value,
+  href,
+  hint,
+}: {
+  label: string;
+  value: number;
+  href?: string;
+  hint?: string;
+}) {
+  const body = (
+    <>
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
       <p className="mt-3 text-3xl font-black tabular-nums text-[#0f172a]">{value}</p>
-    </article>
+      {value === 0 && hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    </>
   );
+  const base = 'block rounded-lg border border-slate-200 bg-white p-5 shadow-sm';
+  if (href) {
+    return (
+      <Link href={href} className={`${base} transition hover:border-[#1d4ed8]/40 hover:shadow-md`}>
+        {body}
+      </Link>
+    );
+  }
+  return <article className={base}>{body}</article>;
 }
 
-function RolePill({ active, label }: { active: boolean; label: string }) {
-  return (
-    <div
-      className={[
-        'rounded-md border px-3 py-3 text-sm font-bold',
-        active
-          ? 'border-[#1d4ed8]/30 bg-[#1d4ed8]/10 text-[#1d4ed8]'
-          : 'border-slate-200 bg-slate-50 text-slate-400',
-      ].join(' ')}
-    >
-      {label}
-    </div>
-  );
+function RolePill({ active, label, href }: { active: boolean; label: string; href?: string }) {
+  const className = [
+    'block rounded-md border px-3 py-3 text-sm font-bold',
+    active
+      ? 'border-[#1d4ed8]/30 bg-[#1d4ed8]/10 text-[#1d4ed8]'
+      : 'border-slate-200 bg-slate-50 text-slate-400',
+    href ? 'transition hover:border-[#1d4ed8]/50' : '',
+  ].join(' ');
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {label}
+      </Link>
+    );
+  }
+  return <div className={className}>{label}</div>;
 }
 
 type UnlinkUi = { kind: 'idle' } | { kind: 'confirming' } | { kind: 'pending' } | { kind: 'error' };
@@ -474,13 +521,90 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
   );
 }
 
-function QuickLink({ href, label }: { href: string; label: string }) {
+function ClaimableCard({
+  apiUrl,
+  claimable,
+  onClaimed,
+}: {
+  apiUrl: string;
+  claimable: ClaimablePerson[];
+  onClaimed: () => void;
+}) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function claim(personIds: string[]): Promise<void> {
+    setBusy(true);
+    setError(false);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/me/claim-persons`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personIds }),
+      });
+      if (!res.ok) throw new Error('claim');
+      onClaimed();
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Link
-      href={href}
-      className="rounded-md border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-[#1d4ed8]/40 hover:bg-[#1d4ed8]/10 hover:text-[#1d4ed8]"
-    >
-      {label}
-    </Link>
+    <section className="rounded-lg border border-[#1d4ed8]/30 bg-[#1d4ed8]/5 p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-[#0f172a]">
+            {t('publicApp.personalSpace.claimable.title')}
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            {t('publicApp.personalSpace.claimable.description')}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void claim(claimable.map((c) => c.id))}
+          className="rounded-md bg-[#1d4ed8] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#1e40af] disabled:opacity-60"
+        >
+          {busy
+            ? t('common.loading')
+            : t('publicApp.personalSpace.claimable.claimAll', { count: claimable.length })}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-3 text-sm text-red-700" role="alert">
+          {t('publicApp.personalSpace.claimable.error')}
+        </p>
+      )}
+
+      <ul className="mt-4 space-y-2">
+        {claimable.map((person) => (
+          <li
+            key={person.id}
+            className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
+          >
+            <span className="min-w-0">
+              <span className="font-semibold text-slate-800">{person.name}</span>
+              {person.eventName && (
+                <span className="text-sm text-slate-500"> · {person.eventName}</span>
+              )}
+            </span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void claim([person.id])}
+              className="shrink-0 rounded-md border border-[#1d4ed8]/40 px-3 py-1.5 text-xs font-bold text-[#1d4ed8] transition hover:bg-[#1d4ed8]/10 disabled:opacity-60"
+            >
+              {t('publicApp.personalSpace.claimable.claim')}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

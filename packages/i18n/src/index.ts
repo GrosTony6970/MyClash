@@ -157,6 +157,7 @@ export const en = {
       loggingOut: 'Logging out...',
       logoutAriaLabel: 'Log out of personal space',
       checkingSession: 'Checking your session...',
+      viaGoogle: 'via Google',
       nav: {
         dashboard: 'Dashboard',
         fighter: 'Fighter profile',
@@ -195,6 +196,15 @@ export const en = {
         events: 'Events',
         refereeAssignments: 'Referee assignments',
         workshops: 'Workshop enrollments',
+        emptyHint: 'Nothing yet',
+      },
+      claimable: {
+        title: 'Claim your profiles',
+        description:
+          'We found roster profiles registered to your email. Confirm they are you to link them to your account.',
+        claim: 'This is me',
+        claimAll: 'Claim all ({count})',
+        error: 'Could not claim — please try again.',
       },
     },
     fighterProfile: {
@@ -343,9 +353,8 @@ export const en = {
         'Password updated. Sign in again with the new password on any other device.',
       currentPassword: 'Current password',
       newPassword: 'New password',
-      googleOnlyTitle: 'You signed in with Google',
-      googleOnlyBody:
-        "You don't have a password set yet. We'll email you a link to set one — after that you can sign in with email + password too.",
+      googleOnlyTitle: 'You sign in with Google',
+      googleOnlyBody: 'No password is needed — keep signing in with Google.',
       sendSetPasswordLink: 'Send set-password link',
       setPasswordEmailSent: 'Check your inbox for the set-password link.',
       deleteTitle: 'Delete my account',
@@ -4221,6 +4230,7 @@ export const fr = {
       loggingOut: 'Deconnexion...',
       logoutAriaLabel: 'Se deconnecter de l espace personnel',
       checkingSession: 'Verification de votre session...',
+      viaGoogle: 'via Google',
       nav: {
         dashboard: 'Tableau de bord',
         fighter: 'Profil combattant',
@@ -4260,6 +4270,15 @@ export const fr = {
         events: 'Evenements',
         refereeAssignments: 'Affectations arbitre',
         workshops: 'Inscriptions ateliers',
+        emptyHint: 'Rien pour le moment',
+      },
+      claimable: {
+        title: 'Revendiquez vos profils',
+        description:
+          "Nous avons trouve des profils de roster enregistres avec votre e-mail. Confirmez qu'il s'agit de vous pour les lier a votre compte.",
+        claim: "C'est moi",
+        claimAll: 'Tout revendiquer ({count})',
+        error: 'Echec de la revendication — reessayez.',
       },
     },
     fighterProfile: {
@@ -4410,9 +4429,8 @@ export const fr = {
         'Mot de passe mis à jour. Reconnectez-vous avec le nouveau sur vos autres appareils.',
       currentPassword: 'Mot de passe actuel',
       newPassword: 'Nouveau mot de passe',
-      googleOnlyTitle: 'Vous êtes connecté avec Google',
-      googleOnlyBody:
-        "Vous n'avez pas encore de mot de passe. Nous vous enverrons un lien pour en définir un — vous pourrez ensuite vous connecter aussi par email + mot de passe.",
+      googleOnlyTitle: 'Vous vous connectez avec Google',
+      googleOnlyBody: 'Aucun mot de passe nécessaire — continuez avec Google.',
       sendSetPasswordLink: 'Envoyer le lien',
       setPasswordEmailSent: 'Consultez votre boîte mail pour le lien de création de mot de passe.',
       deleteTitle: 'Supprimer mon compte',

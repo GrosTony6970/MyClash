@@ -118,27 +118,6 @@ function ChangePasswordSection({
     }
   }
 
-  async function sendMagicLink(): Promise<void> {
-    if (!status.email) return;
-    setBusy(true);
-    setMessage(null);
-    setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: status.email }),
-      });
-      if (!res.ok) throw new Error('reset');
-      setMessage(t('publicApp.security.setPasswordEmailSent'));
-    } catch {
-      setError(t('publicApp.security.errors.network'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-black text-[#0f172a]">
@@ -146,19 +125,10 @@ function ChangePasswordSection({
       </h2>
 
       {!status.hasPassword ? (
-        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <p className="font-semibold">{t('publicApp.security.googleOnlyTitle')}</p>
-          <p className="mt-2">{t('publicApp.security.googleOnlyBody')}</p>
-          <Button
-            type="button"
-            disabled={busy}
-            loading={busy}
-            variant="next"
-            className="mt-3"
-            onClick={() => void sendMagicLink()}
-          >
-            {t('publicApp.security.sendSetPasswordLink')}
-          </Button>
+        // Google-only accounts sign in through Google — no password to set.
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <p className="font-semibold text-slate-700">{t('publicApp.security.googleOnlyTitle')}</p>
+          <p className="mt-1">{t('publicApp.security.googleOnlyBody')}</p>
         </div>
       ) : (
         <div className="mt-4 space-y-3">
@@ -231,7 +201,10 @@ function DeleteAccountSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = currentPassword && confirmation === 'DELETE' && status.hasPassword;
+  // Password re-auth only for accounts that have a password; Google-only
+  // accounts delete via the typed confirmation alone.
+  const canSubmit =
+    confirmation === 'DELETE' && (status.hasPassword ? Boolean(currentPassword) : true);
 
   async function submit(): Promise<void> {
     setBusy(true);
@@ -273,19 +246,12 @@ function DeleteAccountSection({
       <h2 className="text-lg font-black text-red-800">{t('publicApp.security.deleteTitle')}</h2>
       <p className="mt-2 text-sm text-slate-600">{t('publicApp.security.deleteSubtitle')}</p>
 
-      {!status.hasPassword && (
-        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          {t('publicApp.security.errors.noPasswordSet')}
-        </div>
-      )}
-
       {!open ? (
         <Button
           type="button"
           variant="ghost"
           className="mt-3 border border-red-300 text-red-700 hover:bg-red-50"
           onClick={() => setOpen(true)}
-          disabled={!status.hasPassword}
         >
           {t('publicApp.security.deleteAction')}
         </Button>
@@ -301,12 +267,14 @@ function DeleteAccountSection({
           </p>
           <p className="mt-2 text-sm text-red-700">{t('publicApp.security.deleteModalBody')}</p>
           <div className="mt-3 space-y-3">
-            <PasswordField
-              label={t('publicApp.security.currentPassword')}
-              value={currentPassword}
-              onChange={setCurrentPassword}
-              autoComplete="current-password"
-            />
+            {status.hasPassword && (
+              <PasswordField
+                label={t('publicApp.security.currentPassword')}
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                autoComplete="current-password"
+              />
+            )}
             <label className="block">
               <span className="text-sm font-semibold text-slate-700">
                 {t('publicApp.security.deleteConfirmationLabel')}

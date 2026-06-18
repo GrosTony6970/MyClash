@@ -27,4 +27,9 @@ export class PersonalSpaceResponseDto {
     refereeAssignments: number;
     workshopEnrollments: number;
   };
+
+  /** Unclaimed roster profiles whose registered email matches the user's —
+   *  surfaced for a one-tap confirm-to-claim on the dashboard. */
+  @ApiProperty()
+  claimable!: Array<{ id: string; name: string; eventName: string; roles: unknown }>;
 }

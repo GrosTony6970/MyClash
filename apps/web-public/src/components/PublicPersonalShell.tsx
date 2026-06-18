@@ -11,7 +11,7 @@ const navItems = [
   { href: '/me/fighter', labelKey: 'publicApp.personalShell.nav.fighter', badge: 'F' },
   { href: '/me/referee', labelKey: 'publicApp.personalShell.nav.referee', badge: 'R' },
   { href: '/me/notifications', labelKey: 'publicApp.personalShell.nav.notifications', badge: 'N' },
-  { href: '/profile/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
+  { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
   { href: '/', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
 ] as const;
 
@@ -27,6 +27,9 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [account, setAccount] = useState<{ email: string | null; hasPassword: boolean } | null>(
+    null,
+  );
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   useEffect(() => {
@@ -56,6 +59,22 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
         }
       });
 
+    return () => controller.abort();
+  }, [apiUrl]);
+
+  // Who's signed in (for the sidebar footer) + whether it's a Google-only
+  // account. Best-effort; the footer just hides if it can't load.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/me/security-status`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok)
+          setAccount((await res.json()) as { email: string | null; hasPassword: boolean });
+      })
+      .catch(() => undefined);
     return () => controller.abort();
   }, [apiUrl]);
 
@@ -106,6 +125,19 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
       })}
     </nav>
   );
+
+  const accountFooter = account?.email ? (
+    <div className="px-1">
+      <p className="truncate text-xs font-medium text-slate-300" title={account.email}>
+        {account.email}
+      </p>
+      {!account.hasPassword && (
+        <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
+          {t('publicApp.personalShell.viaGoogle')}
+        </p>
+      )}
+    </div>
+  ) : null;
 
   const logoutAction = (
     <button
@@ -161,7 +193,10 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
           </div>
         </Link>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebar}</div>
-        <div className="mt-4 border-t border-slate-800 pt-4">{logoutAction}</div>
+        <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+          {accountFooter}
+          {logoutAction}
+        </div>
       </aside>
 
       <header className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur lg:left-72">

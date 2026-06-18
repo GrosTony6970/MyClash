@@ -784,4 +784,48 @@ describe('AuthService', () => {
       expect(result.counts.claimedPersons).toBe(0);
     });
   });
+
+  describe('claimPersons', () => {
+    it('claims roster profiles whose email matches and skips the rest', async () => {
+      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      fromMock
+        // 'ok' lookup — email matches (case-insensitive), unclaimed
+        .mockReturnValueOnce(
+          makeQueryChain({
+            data: { id: 'ok', email: 'Fighter@example.com', claimed_by_user_id: null },
+          }),
+        )
+        // completeClaim('ok') update
+        .mockReturnValueOnce(makeQueryChain({ data: null }))
+        // 'bad' lookup — different email
+        .mockReturnValueOnce(
+          makeQueryChain({
+            data: { id: 'bad', email: 'someone@else.com', claimed_by_user_id: null },
+          }),
+        );
+
+      const result = await service.claimPersons(
+        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+        ['ok', 'bad'],
+      );
+
+      expect(result.claimed).toBe(1);
+    });
+
+    it('never reassigns a profile already owned by another user', async () => {
+      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      fromMock.mockReturnValueOnce(
+        makeQueryChain({
+          data: { id: 'p', email: 'fighter@example.com', claimed_by_user_id: 'someone-else' },
+        }),
+      );
+
+      const result = await service.claimPersons(
+        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+        ['p'],
+      );
+
+      expect(result.claimed).toBe(0);
+    });
+  });
 });

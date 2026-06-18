@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { AuthService, type GlobalPersonSearchResult } from './auth.service';
 import {
   GlobalPersonClaimConfirmDto,
@@ -27,6 +27,13 @@ class GlobalPersonSearchQueryDto {
   @IsString()
   @MaxLength(100)
   q?: string;
+}
+
+class ClaimPersonsDto {
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsUUID('all', { each: true })
+  personIds: string[] = [];
 }
 
 @ApiTags('auth')
@@ -58,6 +65,22 @@ export class MeController {
   @ApiResponse({ status: 200, type: PersonalSpaceResponseDto })
   async getPersonalSpace(@Req() req: FastifyRequest): Promise<PersonalSpaceResponseDto> {
     return this.auth.getPersonalSpace(req);
+  }
+
+  /**
+   * POST /api/v1/me/claim-persons
+   *
+   * Confirm-to-claim roster profiles surfaced in `personal-space.claimable`.
+   * Each id is guarded by the email-match rule; non-matching ids are skipped.
+   */
+  @Post('me/claim-persons')
+  @ApiOperation({ summary: 'Claim roster profiles whose registered email matches the user' })
+  @ApiResponse({ status: 200, description: '{ claimed: number }' })
+  async claimPersons(
+    @Req() req: FastifyRequest,
+    @Body() dto: ClaimPersonsDto,
+  ): Promise<{ claimed: number }> {
+    return this.auth.claimPersons(req, dto.personIds);
   }
 
   /**
