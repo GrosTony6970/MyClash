@@ -10,6 +10,7 @@ import { FollowNotificationSchedulerService } from '../../workers/follow-notific
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildRoundCode } from './round-code.helper';
+import { resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import type { BracketAdvanceService } from '../phases/bracket-advance.service';
@@ -101,7 +102,7 @@ export class MatchesService {
     const { data, error } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id, phase_id, phase_type',
+        'match_id, match_number_label, status, pool_id, pool_name, bracket_round, red_name, blue_name, red_club, blue_club, tournament_id, event_id, phase_id, phase_type',
       )
       .eq('match_id', matchId)
       .maybeSingle();
@@ -121,6 +122,7 @@ export class MatchesService {
       red_club: string | null;
       blue_club: string | null;
       tournament_id: string;
+      event_id: string;
       phase_id: string | null;
       phase_type: string | null;
     };
@@ -172,6 +174,18 @@ export class MatchesService {
       roundNumber: null,
     });
 
+    // Event timezone — so the public match view can format started/ended
+    // times in the venue's wall clock (default Europe/Paris).
+    const { data: eventRow } = await this.supabase.service
+      .from('events')
+      .select('timezone')
+      .eq('id', row.event_id)
+      .maybeSingle();
+    const eventTimezone =
+      (eventRow as { timezone?: string | null } | null)?.timezone ?? 'Europe/Paris';
+
+    const referees = await this.resolveMatchRefereesForSummary(row.event_id, matchId, row.pool_id);
+
     return {
       matchLabel: row.match_number_label ?? '',
       roundCode,
@@ -181,6 +195,8 @@ export class MatchesService {
       redClub: row.red_club ?? null,
       blueName: row.blue_name ?? '',
       blueClub: row.blue_club ?? null,
+      eventTimezone,
+      referees,
       weapon: weapon ?? '',
       // Surface tournamentId + phaseType so the cross-app scoring
       // pad can fetch the right scoring config + drive phase-specific
@@ -189,6 +205,69 @@ export class MatchesService {
       tournamentId: row.tournament_id,
       phaseType: row.phase_type ?? null,
     };
+  }
+
+  /**
+   * Referee name(s) officiating a match, by scope precedence
+   * match → pool → lice (see resolveMatchReferees). Post-0063 assignments
+   * key on `person_id`, resolved to a display name via `global_persons`.
+   */
+  private async resolveMatchRefereesForSummary(
+    eventId: string,
+    matchId: string,
+    poolId: string | null,
+  ): Promise<string[]> {
+    // The match's lice — for lice-scope assignments (last-resort tier).
+    const { data: matchRow } = await this.supabase.service
+      .from('matches')
+      .select('lice_id')
+      .eq('id', matchId)
+      .maybeSingle();
+    const liceId = (matchRow as { lice_id?: string | null } | null)?.lice_id ?? null;
+
+    const { data: assignmentRows } = await this.supabase.service
+      .from('referee_assignments')
+      .select('scope_type, match_id, pool_id, lice_id, person_id, status')
+      .eq('event_id', eventId)
+      .in('status', ['assigned', 'confirmed', 'pending']);
+    const assignments = (assignmentRows ?? []) as Array<{
+      scope_type: string;
+      match_id: string | null;
+      pool_id: string | null;
+      lice_id: string | null;
+      person_id: string | null;
+    }>;
+    if (assignments.length === 0) return [];
+
+    const personIds = Array.from(
+      new Set(assignments.map((a) => a.person_id).filter((id): id is string => !!id)),
+    );
+    const nameById = new Map<string, string>();
+    if (personIds.length > 0) {
+      const { data: personRows } = await this.supabase.service
+        .from('global_persons')
+        .select('id, given_name, family_name')
+        .in('id', personIds);
+      for (const p of (personRows ?? []) as Array<{
+        id: string;
+        given_name: string | null;
+        family_name: string | null;
+      }>) {
+        const name = `${(p.given_name ?? '').trim()} ${(p.family_name ?? '').trim()}`.trim();
+        if (name) nameById.set(p.id, name);
+      }
+    }
+
+    return resolveMatchReferees(
+      assignments.map((a) => ({
+        scopeType: a.scope_type,
+        matchId: a.match_id,
+        poolId: a.pool_id,
+        liceId: a.lice_id,
+        name: a.person_id ? (nameById.get(a.person_id) ?? '') : '',
+      })),
+      { matchId, poolId, liceId },
+    );
   }
 
   async createMatch(dto: CreateMatchDto) {

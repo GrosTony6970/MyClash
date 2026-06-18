@@ -1,9 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { matchStatusSemantic, statusPillTone } from '@myclash/ui';
+import { formatMatchClock } from '@myclash/ui';
+import { formatInZone } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { showReconnecting } from './show-reconnecting';
+import { resolveMatchWinner } from './resolve-match-winner';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,27 +16,38 @@ export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 export interface MatchRow {
   id: string;
   matchNumberLabel: string | null;
-  rulesetCode: string;
   redScore: number;
   blueScore: number;
   status: MatchStatus;
   startedAt: string | null;
   endedAt: string | null;
+  winnerRegistrationId: string | null;
+  redRegistrationId: string;
+  blueRegistrationId: string;
 }
 
+/** Header labels from `/matches/:id/summary` (fighter names, schools, referee, tz). */
+export interface MatchSummary {
+  roundCode: string;
+  redName: string;
+  blueName: string;
+  redClub: string | null;
+  blueClub: string | null;
+  eventTimezone: string;
+  referees: string[];
+}
+
+/** Mirrors the API's `listExchanges` shape (scoringSide/scoreDelta/clockTimeMs). */
 export interface ExchangeRow {
   id: string;
   sequence: number;
   type: ExchangeType;
-  firstStrikerColor: 'red' | 'blue' | null;
-  firstStrikeValue: number | null;
-  afterblowValue: number | null;
-  noExchangeReason: string | null;
-  redScoreDelta: number;
-  blueScoreDelta: number;
   voided: boolean;
-  voidedReason: string | null;
-  occurredAt: string;
+  noExchangeReason: string | null;
+  scoringSide: 'red' | 'blue' | null;
+  scoreDelta: number | null;
+  defenderDelta: number | null;
+  clockTimeMs: number | null;
 }
 
 export interface MatchPenaltyRow {
@@ -48,6 +62,7 @@ export interface MatchPenaltyRow {
   causes_match_forfeit: boolean;
   voided: boolean;
   occurred_at: string;
+  clock_time_ms: number | null;
 }
 
 // Supabase Realtime postgres_changes payloads use raw DB column names (snake_case).
@@ -57,49 +72,61 @@ interface ExchangeChangeRaw {
   sequence: number;
   type: ExchangeType;
   first_striker_color: 'red' | 'blue' | null;
-  first_strike_value: number | null;
   afterblow_value: number | null;
   no_exchange_reason: string | null;
   red_score_delta: number;
   blue_score_delta: number;
+  clock_time_ms: number | null;
   voided: boolean;
-  voided_reason: string | null;
-  occurred_at: string;
-}
-
-interface MatchChangeRaw {
-  id: string;
-  red_score: number;
-  blue_score: number;
-  status: MatchStatus;
-  started_at: string | null;
-  ended_at: string | null;
 }
 
 interface MatchPenaltyChangeRaw extends MatchPenaltyRow {
   match_id: string;
 }
 
+/** Map a raw `matches` row (snake_case, from REST or realtime) to MatchRow. */
+export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
+  return {
+    id: raw['id'] as string,
+    matchNumberLabel: (raw['match_number_label'] as string | null) ?? null,
+    redScore: (raw['red_score'] as number | null) ?? 0,
+    blueScore: (raw['blue_score'] as number | null) ?? 0,
+    status: (raw['status'] as MatchStatus) ?? 'scheduled',
+    startedAt: (raw['started_at'] as string | null) ?? null,
+    endedAt: (raw['ended_at'] as string | null) ?? null,
+    winnerRegistrationId: (raw['winner_registration_id'] as string | null) ?? null,
+    redRegistrationId: (raw['red_registration_id'] as string | null) ?? '',
+    blueRegistrationId: (raw['blue_registration_id'] as string | null) ?? '',
+  };
+}
+
+// Derive the API's exchange aliases from a raw realtime row, so realtime and
+// server-fetched rows share one shape.
 function toExchangeRow(raw: ExchangeChangeRaw): ExchangeRow {
+  const scoringSide =
+    raw.type === 'clean' || raw.type === 'afterblow' ? raw.first_striker_color : null;
+  const scoreDelta =
+    scoringSide === 'red'
+      ? raw.red_score_delta
+      : scoringSide === 'blue'
+        ? raw.blue_score_delta
+        : null;
   return {
     id: raw.id,
     sequence: raw.sequence,
     type: raw.type,
-    firstStrikerColor: raw.first_striker_color,
-    firstStrikeValue: raw.first_strike_value,
-    afterblowValue: raw.afterblow_value,
-    noExchangeReason: raw.no_exchange_reason,
-    redScoreDelta: raw.red_score_delta,
-    blueScoreDelta: raw.blue_score_delta,
     voided: raw.voided,
-    voidedReason: raw.voided_reason,
-    occurredAt: raw.occurred_at,
+    noExchangeReason: raw.no_exchange_reason,
+    scoringSide,
+    scoreDelta,
+    defenderDelta: raw.afterblow_value,
+    clockTimeMs: raw.clock_time_ms,
   };
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function ScoreBoard({ match }: { match: MatchRow }) {
+function ScoreBoard({ match, summary }: { match: MatchRow; summary: MatchSummary }) {
   const { t } = useI18n();
   const statusLabel: Record<MatchStatus, string> = {
     scheduled: t('scoring.liveMatch.status.scheduled'),
@@ -109,41 +136,85 @@ function ScoreBoard({ match }: { match: MatchRow }) {
     voided: t('scoring.liveMatch.status.voided'),
   };
 
-  const tone = statusPillTone(matchStatusSemantic(match.status), 'light');
+  const winner = resolveMatchWinner({
+    status: match.status,
+    winnerRegistrationId: match.winnerRegistrationId,
+    redRegistrationId: match.redRegistrationId,
+    blueRegistrationId: match.blueRegistrationId,
+    redScore: match.redScore,
+    blueScore: match.blueScore,
+  });
+  const winnerName = winner === 'red' ? summary.redName : winner === 'blue' ? summary.blueName : '';
+  const label = match.matchNumberLabel || summary.roundCode;
+
+  // Score emphasis: when there's a winner, dim the loser; otherwise both full.
+  const scoreClass = (side: 'red' | 'blue') => {
+    const base = side === 'red' ? 'text-red-600' : 'text-blue-600';
+    if (!winner) return base;
+    return winner === side ? `${base} font-black` : `${base} opacity-40`;
+  };
+
+  const fmtTime = (iso: string | null) =>
+    formatInZone(iso, summary.eventTimezone, {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      {match.matchNumberLabel && (
+      {label && (
         <p className="mb-3 text-center text-xs font-medium tracking-widest text-gray-400 uppercase">
-          {match.matchNumberLabel}
+          {label}
         </p>
       )}
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         {/* Red side */}
-        <div className="flex flex-1 flex-col items-center gap-1">
+        <div className="flex flex-1 flex-col items-center gap-1 text-center">
           <div className="h-3 w-3 rounded-full bg-red-600" />
-          <span className="text-sm font-medium text-gray-500">{t('scoring.liveMatch.red')}</span>
-          <span className="text-6xl font-bold tabular-nums text-red-600">{match.redScore}</span>
+          <span className={`text-6xl font-bold tabular-nums ${scoreClass('red')}`}>
+            {match.redScore}
+          </span>
+          <span className="text-sm font-semibold text-gray-800">
+            {summary.redName || t('scoring.liveMatch.red')}
+          </span>
+          {summary.redClub && <span className="text-xs text-gray-500">{summary.redClub}</span>}
         </div>
 
         {/* Divider */}
-        <span className="text-3xl font-light text-gray-300">–</span>
+        <span className="mt-8 text-3xl font-light text-gray-300">–</span>
 
         {/* Blue side */}
-        <div className="flex flex-1 flex-col items-center gap-1">
+        <div className="flex flex-1 flex-col items-center gap-1 text-center">
           <div className="h-3 w-3 rounded-full bg-blue-600" />
-          <span className="text-sm font-medium text-gray-500">{t('scoring.liveMatch.blue')}</span>
-          <span className="text-6xl font-bold tabular-nums text-blue-600">{match.blueScore}</span>
+          <span className={`text-6xl font-bold tabular-nums ${scoreClass('blue')}`}>
+            {match.blueScore}
+          </span>
+          <span className="text-sm font-semibold text-gray-800">
+            {summary.blueName || t('scoring.liveMatch.blue')}
+          </span>
+          {summary.blueClub && <span className="text-xs text-gray-500">{summary.blueClub}</span>}
         </div>
       </div>
 
-      <div className="mt-4 flex justify-center">
-        <span
-          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${tone.className} ${
-            tone.pulse ? 'animate-pulse' : ''
-          }`}
-        >
+      {/* Meta: winner, start/end, referee, status */}
+      <div className="mt-5 flex flex-col items-center gap-1 border-t border-gray-100 pt-4 text-center">
+        {winnerName && <p className="text-lg font-black text-gray-900">🏆 {winnerName}</p>}
+        {(match.startedAt || match.endedAt) && (
+          <p className="text-xs text-gray-500">
+            {match.startedAt && `${t('scoring.liveMatch.started')} ${fmtTime(match.startedAt)}`}
+            {match.startedAt && match.endedAt && ' · '}
+            {match.endedAt && `${t('scoring.liveMatch.ended')} ${fmtTime(match.endedAt)}`}
+          </p>
+        )}
+        {summary.referees.length > 0 && (
+          <p className="text-xs text-gray-500">
+            {t('scoring.liveMatch.referee')}: {summary.referees.join(', ')}
+          </p>
+        )}
+        <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
           {statusLabel[match.status]}
         </span>
       </div>
@@ -151,7 +222,15 @@ function ScoreBoard({ match }: { match: MatchRow }) {
   );
 }
 
-function ExchangeLabel({ exchange }: { exchange: ExchangeRow }) {
+function ExchangeLabel({
+  exchange,
+  redName,
+  blueName,
+}: {
+  exchange: ExchangeRow;
+  redName: string;
+  blueName: string;
+}) {
   const { t } = useI18n();
   if (exchange.type === 'no_exchange') {
     return (
@@ -168,22 +247,21 @@ function ExchangeLabel({ exchange }: { exchange: ExchangeRow }) {
     );
   }
 
-  const color = exchange.firstStrikerColor ?? 'red';
-  const value = exchange.firstStrikeValue ?? 1;
-  const colorLabel = color === 'red' ? t('scoring.liveMatch.red') : t('scoring.liveMatch.blue');
-  const colorClass = color === 'red' ? 'text-red-600' : 'text-blue-600';
+  const side = exchange.scoringSide ?? 'red';
+  const value = exchange.scoreDelta ?? 0;
+  const name = side === 'red' ? redName : blueName;
+  const nameClass = side === 'red' ? 'text-red-600' : 'text-blue-600';
 
   if (exchange.type === 'afterblow') {
-    const abValue = exchange.afterblowValue ?? 1;
-    const opponentLabel =
-      color === 'red' ? t('scoring.liveMatch.blue') : t('scoring.liveMatch.red');
-    const opponentClass = color === 'red' ? 'text-blue-600' : 'text-red-600';
+    const abValue = exchange.defenderDelta ?? 0;
+    const oppName = side === 'red' ? blueName : redName;
+    const oppClass = side === 'red' ? 'text-blue-600' : 'text-red-600';
     return (
       <span>
-        <span className={`font-medium ${colorClass}`}>{colorLabel}</span>
+        <span className={`font-medium ${nameClass}`}>{name}</span>
         {` ${value}pt`}
         {` + ${t('scoring.liveMatch.afterblow')} `}
-        <span className={`font-medium ${opponentClass}`}>{opponentLabel}</span>
+        <span className={`font-medium ${oppClass}`}>{oppName}</span>
         {` ${abValue}pt`}
       </span>
     );
@@ -192,13 +270,21 @@ function ExchangeLabel({ exchange }: { exchange: ExchangeRow }) {
   // clean hit
   return (
     <span>
-      <span className={`font-medium ${colorClass}`}>{colorLabel}</span>
+      <span className={`font-medium ${nameClass}`}>{name}</span>
       {` ${t('scoring.liveMatch.hit')} - ${value}pt`}
     </span>
   );
 }
 
-function ExchangeFeed({ exchanges }: { exchanges: ExchangeRow[] }) {
+function ExchangeFeed({
+  exchanges,
+  redName,
+  blueName,
+}: {
+  exchanges: ExchangeRow[];
+  redName: string;
+  blueName: string;
+}) {
   const { t } = useI18n();
   const active = [...exchanges].reverse().filter((e) => !e.voided);
   const voided = exchanges.filter((e) => e.voided);
@@ -223,15 +309,10 @@ function ExchangeFeed({ exchanges }: { exchanges: ExchangeRow[] }) {
           >
             <span className="mr-3 text-xs tabular-nums text-gray-400">#{ex.sequence}</span>
             <span className="flex-1">
-              <ExchangeLabel exchange={ex} />
+              <ExchangeLabel exchange={ex} redName={redName} blueName={blueName} />
             </span>
             <span className="ml-3 tabular-nums text-xs text-gray-400">
-              {new Date(ex.occurredAt).toLocaleTimeString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false,
-              })}
+              {formatMatchClock(ex.clockTimeMs)}
             </span>
           </li>
         ))}
@@ -249,7 +330,17 @@ function ExchangeFeed({ exchanges }: { exchanges: ExchangeRow[] }) {
   );
 }
 
-function PenaltyFeed({ penalties }: { penalties: MatchPenaltyRow[] }) {
+function PenaltyFeed({
+  penalties,
+  match,
+  redName,
+  blueName,
+}: {
+  penalties: MatchPenaltyRow[];
+  match: MatchRow;
+  redName: string;
+  blueName: string;
+}) {
   const { t } = useI18n();
   const active = penalties
     .filter((penalty) => !penalty.voided)
@@ -263,31 +354,45 @@ function PenaltyFeed({ penalties }: { penalties: MatchPenaltyRow[] }) {
     black: 'border-gray-900 bg-gray-900 text-white',
   };
 
+  const fighterFor = (registrationId: string): { name: string; className: string } | null => {
+    if (registrationId === match.redRegistrationId)
+      return { name: redName, className: 'text-red-600' };
+    if (registrationId === match.blueRegistrationId)
+      return { name: blueName, className: 'text-blue-600' };
+    return null;
+  };
+
   return (
     <div className="mt-4">
       <h2 className="mb-2 text-sm font-semibold tracking-wide text-gray-500 uppercase">
         {t('scoring.liveMatch.cards')}
       </h2>
       <ol className="space-y-2">
-        {active.map((penalty) => (
-          <li
-            key={penalty.id}
-            className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm shadow-xs"
-          >
-            <span>
-              <span
-                className={`mr-2 rounded border px-2 py-0.5 text-xs font-black uppercase ${cardClass[penalty.card]}`}
-              >
-                {penalty.card}
+        {active.map((penalty) => {
+          const fighter = fighterFor(penalty.registration_id);
+          return (
+            <li
+              key={penalty.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm shadow-xs"
+            >
+              <span className="flex-1">
+                <span
+                  className={`mr-2 rounded border px-2 py-0.5 text-xs font-black uppercase ${cardClass[penalty.card]}`}
+                >
+                  {penalty.card}
+                </span>
+                {fighter && (
+                  <span className={`font-semibold ${fighter.className}`}>{fighter.name} · </span>
+                )}
+                {penalty.short_name ?? penalty.reason ?? t('scoring.liveMatch.directCard')}
               </span>
-              {penalty.short_name ?? penalty.reason ?? t('scoring.liveMatch.directCard')}
-            </span>
-            <span className="text-xs text-gray-400">
-              {penalty.score_delta !== 0 ? penalty.score_delta : ''}
-              {penalty.causes_match_forfeit ? ` ${t('scoring.liveMatch.matchLost')}` : ''}
-            </span>
-          </li>
-        ))}
+              <span className="ml-2 shrink-0 tabular-nums text-xs text-gray-400">
+                {penalty.causes_match_forfeit ? `${t('scoring.liveMatch.matchLost')} · ` : ''}
+                {formatMatchClock(penalty.clock_time_ms)}
+              </span>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -298,6 +403,7 @@ function PenaltyFeed({ penalties }: { penalties: MatchPenaltyRow[] }) {
 interface Props {
   matchId: string;
   initialMatch: MatchRow;
+  initialSummary: MatchSummary;
   initialExchanges: ExchangeRow[];
   initialPenalties: MatchPenaltyRow[];
   apiUrl: string;
@@ -306,25 +412,32 @@ interface Props {
 export function MatchLiveView({
   matchId,
   initialMatch,
+  initialSummary,
   initialExchanges,
   initialPenalties,
   apiUrl,
 }: Props) {
   const { t } = useI18n();
   const [match, setMatch] = useState<MatchRow>(initialMatch);
+  const [summary, setSummary] = useState<MatchSummary>(initialSummary);
   const [exchanges, setExchanges] = useState<ExchangeRow[]>(initialExchanges);
   const [penalties, setPenalties] = useState<MatchPenaltyRow[]>(initialPenalties);
   const [connected, setConnected] = useState(true);
   const wasDisconnected = useRef(false);
 
+  // A finished match is static — no realtime channel needed.
+  const isFinal = initialMatch.status === 'completed' || initialMatch.status === 'voided';
+
   const refresh = useCallback(async () => {
     try {
-      const [matchRes, exRes, penaltyRes] = await Promise.all([
+      const [matchRes, summaryRes, exRes, penaltyRes] = await Promise.all([
         fetch(`${apiUrl}/api/v1/matches/${matchId}`, { credentials: 'include' }),
+        fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
         fetch(`${apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
       ]);
-      if (matchRes.ok) setMatch((await matchRes.json()) as MatchRow);
+      if (matchRes.ok) setMatch(mapMatchRow((await matchRes.json()) as Record<string, unknown>));
+      if (summaryRes.ok) setSummary((await summaryRes.json()) as MatchSummary);
       if (exRes.ok) setExchanges((await exRes.json()) as ExchangeRow[]);
       if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as MatchPenaltyRow[]);
     } catch {
@@ -333,6 +446,9 @@ export function MatchLiveView({
   }, [matchId, apiUrl]);
 
   useEffect(() => {
+    // Finished matches don't stream — skip the channel entirely (no banner).
+    if (isFinal) return;
+
     const channel = supabase
       .channel(`match:${matchId}:live`)
       .on(
@@ -387,15 +503,7 @@ export function MatchLiveView({
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
         (payload) => {
-          const raw = payload.new as MatchChangeRaw;
-          setMatch((prev) => ({
-            ...prev,
-            redScore: raw.red_score,
-            blueScore: raw.blue_score,
-            status: raw.status,
-            startedAt: raw.started_at,
-            endedAt: raw.ended_at,
-          }));
+          setMatch(mapMatchRow(payload.new as Record<string, unknown>));
         },
       )
       .subscribe((status) => {
@@ -415,21 +523,30 @@ export function MatchLiveView({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [matchId, refresh]);
+  }, [matchId, refresh, isFinal]);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
-      {/* Connection indicator */}
-      {!connected && (
+      {/* Connection indicator — only for a live match that lost its channel. */}
+      {showReconnecting(connected, match.status) && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-yellow-50 px-4 py-2 text-sm text-yellow-700">
           <span className="h-2 w-2 rounded-full bg-yellow-400" />
           {t('scoring.liveMatch.reconnecting')}
         </div>
       )}
 
-      <ScoreBoard match={match} />
-      <PenaltyFeed penalties={penalties} />
-      <ExchangeFeed exchanges={exchanges} />
+      <ScoreBoard match={match} summary={summary} />
+      <PenaltyFeed
+        penalties={penalties}
+        match={match}
+        redName={summary.redName || t('scoring.liveMatch.red')}
+        blueName={summary.blueName || t('scoring.liveMatch.blue')}
+      />
+      <ExchangeFeed
+        exchanges={exchanges}
+        redName={summary.redName || t('scoring.liveMatch.red')}
+        blueName={summary.blueName || t('scoring.liveMatch.blue')}
+      />
     </div>
   );
 }

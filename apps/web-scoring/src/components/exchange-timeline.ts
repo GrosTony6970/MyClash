@@ -11,7 +11,7 @@
  */
 
 import type { TournamentScoringConfig } from '@myclash/types';
-import { sideStyle } from '@myclash/ui';
+import { formatMatchClock, sideStyle } from '@myclash/ui';
 import { exchangeDeltaLabel } from './exchange-delta-label';
 import type { ExchangeRow } from '../hooks/useExchanges';
 import type { MatchPenalty, PenaltyCard } from '../hooks/usePenalties';
@@ -54,15 +54,6 @@ export function orderedWithNumbers<T extends { occurredAt: string; seq: number }
   return numbered.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.seq - a.seq);
 }
 
-// MM:SS from accumulated active ms; empty for legacy rows without a clock time.
-function formatClockShort(ms: number | null | undefined): string {
-  if (ms === null || ms === undefined) return '';
-  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
 export interface BuildTimelineArgs {
   exchanges: ExchangeRow[];
   penalties: MatchPenalty[];
@@ -103,7 +94,7 @@ export function buildUnifiedTimeline({
       rawId: e.id,
       seq: e.sequence,
       occurredAt: e.occurredAt,
-      timeLabel: formatClockShort(e.clockTimeMs),
+      timeLabel: formatMatchClock(e.clockTimeMs),
       sideColor: side ? sideStyle(config, side).border : null,
       fighterLabel: e.type === 'double' ? t('scoring.lice.eventRowDouble') : sideName,
       typeLabel,
@@ -122,7 +113,7 @@ export function buildUnifiedTimeline({
       rawId: p.id,
       seq: p.sequence,
       occurredAt: p.occurred_at ?? '',
-      timeLabel: formatClockShort(p.clock_time_ms),
+      timeLabel: formatMatchClock(p.clock_time_ms),
       sideColor: side ? sideStyle(config, side).border : null,
       fighterLabel: sideName,
       typeLabel: (p.short_name ?? p.reason ?? '').trim(),

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getApiUrl } from '@/lib/api-url';
-import type { ExchangeRow, MatchPenaltyRow, MatchRow } from './match-live-view';
-import { MatchLiveView } from './match-live-view';
+import type { ExchangeRow, MatchPenaltyRow, MatchRow, MatchSummary } from './match-live-view';
+import { MatchLiveView, mapMatchRow } from './match-live-view';
 
 const API_URL = getApiUrl();
 
@@ -11,7 +11,26 @@ async function fetchMatch(matchId: string): Promise<MatchRow | null> {
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to fetch match: ${res.status}`);
-  return (await res.json()) as MatchRow;
+  // `/matches/:id` returns the raw snake_case row — normalise to MatchRow.
+  return mapMatchRow((await res.json()) as Record<string, unknown>);
+}
+
+async function fetchSummary(matchId: string): Promise<MatchSummary> {
+  const res = await fetch(`${API_URL}/api/v1/matches/${matchId}/summary`, {
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) {
+    return {
+      roundCode: '',
+      redName: '',
+      blueName: '',
+      redClub: null,
+      blueClub: null,
+      eventTimezone: 'Europe/Paris',
+      referees: [],
+    };
+  }
+  return (await res.json()) as MatchSummary;
 }
 
 async function fetchExchanges(matchId: string): Promise<ExchangeRow[]> {
@@ -37,8 +56,9 @@ interface Props {
 export default async function MatchPage({ params }: Props) {
   const { matchId } = await params;
 
-  const [match, exchanges, penalties] = await Promise.all([
+  const [match, summary, exchanges, penalties] = await Promise.all([
     fetchMatch(matchId),
+    fetchSummary(matchId),
     fetchExchanges(matchId),
     fetchPenalties(matchId),
   ]);
@@ -49,6 +69,7 @@ export default async function MatchPage({ params }: Props) {
     <MatchLiveView
       matchId={matchId}
       initialMatch={match}
+      initialSummary={summary}
       initialExchanges={exchanges}
       initialPenalties={penalties}
       apiUrl={API_URL}

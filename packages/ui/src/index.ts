@@ -146,6 +146,8 @@ export type { ColorToken } from './utils/color-token';
 export { sideStyle, styleForToken } from './utils/side-color';
 export type { SideColorToken, SideColorStyle } from './utils/side-color';
 
+export { formatMatchClock } from './utils/format-match-clock';
+
 export {
   statusPillTone,
   tournamentStatusSemantic,
