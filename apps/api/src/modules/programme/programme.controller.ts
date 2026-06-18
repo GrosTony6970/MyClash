@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ProgrammeService } from './programme.service';
 import {
+  CreateBlockDto,
   MoveBlockDto,
   ResizeBlockDto,
   SaveProgrammeDto,
@@ -69,6 +70,19 @@ export class ProgrammeController {
     @Body() dto?: { dayIndices?: number[] },
   ) {
     return this.programme.generate(eventId, dto ?? {});
+  }
+
+  /** POST /api/v1/events/:eventId/programme/blocks */
+  @Post('events/:eventId/programme/blocks')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Create a single programme block (admin / break bar). Appends one row at the next sort_order on its day — used by the grid add-break + undo-after-delete paths.',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  createBlock(@Param('eventId', ParseUUIDPipe) eventId: string, @Body() dto: CreateBlockDto) {
+    return this.programme.createBlock(eventId, dto);
   }
 
   /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId/move */

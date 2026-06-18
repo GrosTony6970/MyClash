@@ -10,6 +10,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { shiftBreaksAfterOverlap, type MatchWindow } from './shift-breaks';
 import type {
+  CreateBlockDto,
   SaveProgrammeDto,
   ScheduleGroupDto,
   SuggestProgrammeDto,
@@ -997,6 +998,47 @@ export class ProgrammeService {
   }
 
   /** Rename a single programme block (admin / break / workshop bar). */
+  /**
+   * Create a SINGLE programme block (the grid's "add break" + Undo-after-
+   * delete paths). Appends one row at the next sort_order on its day, so it
+   * lands after any existing blocks. Competition-only fields fall back to the
+   * non-competition zero values when omitted.
+   */
+  async createBlock(eventId: string, dto: CreateBlockDto): Promise<{ block: ProgrammeBlock }> {
+    // Next sort_order on the day = max existing + 1 (computed in JS — PostgREST
+    // has no MAX without an RPC). Ordered desc so the first row is the highest.
+    const { data: existing } = await this.supabase.service
+      .from('event_programme_blocks')
+      .select('sort_order')
+      .eq('event_id', eventId)
+      .eq('day_index', dto.dayIndex)
+      .order('sort_order', { ascending: false });
+    const highest = ((existing ?? [])[0] as { sort_order: number } | undefined)?.sort_order ?? -1;
+
+    const { data, error } = await this.supabase.service
+      .from('event_programme_blocks')
+      .insert({
+        event_id: eventId,
+        day_index: dto.dayIndex,
+        sort_order: highest + 1,
+        block_type: dto.blockType,
+        label: dto.label,
+        competition_id: dto.competitionId ?? null,
+        competition_phase: dto.competitionPhase ?? null,
+        workshop_id: dto.workshopId ?? null,
+        lice_count: dto.liceCount ?? 0,
+        start_time: dto.startTime,
+        end_time: dto.endTime,
+        match_gap_seconds: dto.matchGapSeconds ?? 0,
+        match_duration_minutes: dto.matchDurationMinutes ?? 0,
+      })
+      .select('*')
+      .single();
+    if (error || !data)
+      throw new BadRequestException(error?.message ?? 'Failed to create programme block');
+    return { block: this.mapBlock(data as Record<string, unknown>) };
+  }
+
   async updateBlockLabel(
     eventId: string,
     blockId: string,

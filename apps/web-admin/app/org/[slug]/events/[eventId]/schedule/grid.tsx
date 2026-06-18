@@ -17,6 +17,7 @@ import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { blockDeleteAction } from './schedule-block-actions';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
 import { eachDay, formatDayLabel } from './event-days';
@@ -102,6 +103,32 @@ interface ProgrammeBlockRow {
   startTime: string;
   endTime: string;
 }
+
+/**
+ * One reversible grid-block deletion, surfaced as an Undo toast:
+ *  - `unschedule` — a pool/bracket/other run was unscheduled; restore each
+ *    match to the position it held before.
+ *  - `delete-block` — an admin/break bar was deleted; re-create it from the
+ *    captured payload (matches that were inside its window stay in the
+ *    Unscheduled list, recoverable on their own).
+ */
+type GridUndo =
+  | {
+      kind: 'unschedule';
+      label: string;
+      matches: Array<{ id: string; liceId: string | null; scheduledAt: string | null }>;
+    }
+  | {
+      kind: 'delete-block';
+      label: string;
+      block: {
+        dayIndex: number;
+        blockType: ProgrammeBlockRow['blockType'];
+        label: string;
+        startTime: string;
+        endTime: string;
+      };
+    };
 
 interface ScheduleMatch {
   id: string;
@@ -301,6 +328,8 @@ export function ScheduleGrid({
   // + time window in the description.
   const [pendingBlockDelete, setPendingBlockDelete] = useState<ProgrammeBlockRow | null>(null);
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
+  // Last reversible grid-block deletion — drives the Undo toast (auto-dismisses).
+  const [lastUndo, setLastUndo] = useState<GridUndo | null>(null);
   // P8 — bottom-edge resize state. `previewSpan` is the live row-span
   // the operator is dragging toward; commits to a PATCH resize on
   // pointerup. Tracked here so the active block's render and the
@@ -626,6 +655,8 @@ export function ScheduleGrid({
   }
 
   async function deleteBlock(blockId: string): Promise<void> {
+    // Snapshot the row first so Undo can re-create it (the DELETE removes it).
+    const row = programmeBlocks.find((b) => b.id === blockId);
     setDeletingBlockId(blockId);
     try {
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}`, {
@@ -633,6 +664,19 @@ export function ScheduleGrid({
         credentials: 'include',
       });
       if (!res.ok) return;
+      if (row) {
+        setLastUndo({
+          kind: 'delete-block',
+          label: row.label,
+          block: {
+            dayIndex: row.dayIndex,
+            blockType: row.blockType,
+            label: row.label,
+            startTime: row.startTime,
+            endTime: row.endTime,
+          },
+        });
+      }
       await refetchScheduleAndBlocks();
       onProgrammeMutated?.();
     } finally {
@@ -640,6 +684,76 @@ export function ScheduleGrid({
       setPendingBlockDelete(null);
     }
   }
+
+  /**
+   * Inline × on a pool/bracket/other block: unschedule its matches (they
+   * return to the Unscheduled list) and stage an Undo. No confirm dialog —
+   * the Undo toast is the safety net for this one-click affordance.
+   */
+  function unscheduleRunBlock(block: ScheduleBlock): void {
+    const action = blockDeleteAction({
+      kind: block.kind,
+      matchIds: block.matches.map((m) => m.id),
+      blockId: block.key,
+    });
+    if (action.kind !== 'unschedule') return;
+    const ids = new Set(action.matchIds);
+    const prior = matches
+      .filter((m) => ids.has(m.id))
+      .map((m) => ({ id: m.id, liceId: m.liceId, scheduledAt: m.scheduledAt }));
+    if (prior.length === 0) return;
+
+    const updated = matches.map((m) =>
+      ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
+    );
+    setMatches(updated);
+    setConflicts(detectConflicts(updated));
+    for (const id of action.matchIds) void saveMatchPosition(id, '', '');
+    setLastUndo({ kind: 'unschedule', label: block.label, matches: prior });
+  }
+
+  /** Reverse the last grid-block deletion captured in `lastUndo`. */
+  async function performUndo(): Promise<void> {
+    const u = lastUndo;
+    if (!u) return;
+    setLastUndo(null);
+    if (u.kind === 'unschedule') {
+      const byId = new Map(u.matches.map((m) => [m.id, m]));
+      const restored = matches.map((m) => {
+        const prev = byId.get(m.id);
+        return prev ? { ...m, liceId: prev.liceId, scheduledAt: prev.scheduledAt } : m;
+      });
+      setMatches(restored);
+      setConflicts(detectConflicts(restored));
+      await Promise.all(
+        u.matches.map((m) =>
+          fetch(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ liceId: m.liceId, scheduledAt: m.scheduledAt }),
+          }),
+        ),
+      );
+    } else {
+      await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(u.block),
+      });
+      await refetchScheduleAndBlocks();
+      onProgrammeMutated?.();
+    }
+  }
+
+  // Auto-dismiss the Undo toast after a few seconds (the action already
+  // persisted; the toast is only a convenience to reverse it).
+  useEffect(() => {
+    if (!lastUndo) return;
+    const t = window.setTimeout(() => setLastUndo(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [lastUndo]);
 
   function handleDrop(liceId: string, slot: number) {
     // Programme-block drop: the operator dragged a fixed bar. Block
@@ -2047,6 +2161,8 @@ export function ScheduleGrid({
               onShiftLice={shiftLiceRemaining}
               onEditBlock={setEditingBlock}
               onEditBreak={setEditingBreak}
+              onDeleteBlock={unscheduleRunBlock}
+              onDeleteBreak={(brk) => void deleteBlock(brk.id)}
               onResizeBlockTime={resizeBlockTimeTo}
               onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
               onResizeBlockLices={changeBlockLices}
@@ -2535,6 +2651,38 @@ export function ScheduleGrid({
         danger
         busy={deletingBlockId !== null}
       />
+
+      {/* Undo toast — surfaces after an inline × unschedule / block delete. */}
+      {lastUndo && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-gray-900 px-4 py-2.5 text-sm text-white shadow-lg"
+        >
+          <span>
+            {lastUndo.kind === 'unschedule'
+              ? `Unscheduled ${lastUndo.matches.length} match${
+                  lastUndo.matches.length === 1 ? '' : 'es'
+                } from ${lastUndo.label}`
+              : `Deleted "${lastUndo.label}"`}
+          </span>
+          <button
+            type="button"
+            onClick={() => void performUndo()}
+            className="rounded bg-white/15 px-2 py-1 font-semibold text-white hover:bg-white/25"
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setLastUndo(null)}
+            className="text-gray-400 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

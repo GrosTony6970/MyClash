@@ -201,6 +201,52 @@ describe('ProgrammeService', () => {
     );
   });
 
+  it('creates a single programme block and returns it mapped (next sort_order on the day)', async () => {
+    fromMock
+      // existing blocks on the day → highest sort_order is 2, so the new one is 3
+      .mockReturnValueOnce(makeChain({ data: [{ sort_order: 2 }], error: null }))
+      // insert → returns the created row
+      .mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'blk-new',
+            event_id: 'e1',
+            day_index: 0,
+            sort_order: 3,
+            block_type: 'break',
+            label: 'Lunch',
+            competition_id: null,
+            competition_phase: null,
+            workshop_id: null,
+            lice_count: 0,
+            start_time: '12:00:00',
+            end_time: '12:30:00',
+            match_gap_seconds: 0,
+            match_duration_minutes: 0,
+            generated_at: null,
+          },
+          error: null,
+        }),
+      );
+
+    const { block } = await service.createBlock('e1', {
+      dayIndex: 0,
+      blockType: 'break',
+      label: 'Lunch',
+      startTime: '12:00',
+      endTime: '12:30',
+    } as never);
+
+    expect(block).toMatchObject({
+      id: 'blk-new',
+      blockType: 'break',
+      label: 'Lunch',
+      startTime: '12:00',
+      endTime: '12:30',
+      sortOrder: 3,
+    });
+  });
+
   it('does not suggest workshop blocks (workshops live on their own board)', async () => {
     // buildSuggestion reads lices then tournaments; with no tournaments it
     // builds only admin/break blocks — and never a workshop block.

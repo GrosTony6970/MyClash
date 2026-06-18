@@ -67,6 +67,10 @@ interface Props {
   onShiftLice: (liceId: string, driftMin: number) => void;
   onEditBlock: (block: ScheduleBlock) => void;
   onEditBreak: (brk: BgvBreak) => void;
+  /** × on a pool/bracket/other run → unschedule its matches. */
+  onDeleteBlock: (block: ScheduleBlock) => void;
+  /** × on an admin/break bar → delete the programme block. */
+  onDeleteBreak: (brk: BgvBreak) => void;
   onResizeBlockTime: (block: ScheduleBlock, newEndSlot: number) => void;
   onResizeBreakTime: (brk: BgvBreak, newEndSlot: number) => void;
   onResizeBlockLices: (block: ScheduleBlock, newLiceIds: string[]) => void;
@@ -101,6 +105,8 @@ export function BlockGridView({
   onShiftLice,
   onEditBlock,
   onEditBreak,
+  onDeleteBlock,
+  onDeleteBreak,
   onResizeBlockTime,
   onResizeBreakTime,
   onResizeBlockLices,
@@ -380,14 +386,25 @@ export function BlockGridView({
               <span className="truncate">
                 {brk.label} ({brk.startTime}–{brk.endTime})
               </span>
-              <button
-                type="button"
-                aria-label={`Edit ${brk.label}`}
-                onClick={() => onEditBreak(brk)}
-                className="absolute right-1 top-0.5 rounded bg-white/70 px-1 text-[11px] leading-none text-gray-600 opacity-0 hover:bg-white group-hover:opacity-100"
-              >
-                ✎
-              </button>
+              <div className="absolute right-1 top-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100">
+                <button
+                  type="button"
+                  aria-label={`Edit ${brk.label}`}
+                  onClick={() => onEditBreak(brk)}
+                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-gray-600 hover:bg-white"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Delete ${brk.label}`}
+                  title="Delete this block"
+                  onClick={() => onDeleteBreak(brk)}
+                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-red-600 hover:bg-red-50"
+                >
+                  ✕
+                </button>
+              </div>
               <div
                 role="separator"
                 aria-label={`Resize ${brk.label}`}
@@ -454,17 +471,31 @@ export function BlockGridView({
               <span className="truncate text-[10px] opacity-80">
                 {block.matchCount} · {formatSlotTime(startSlot)}–{formatSlotTime(baseEndSlot)}
               </span>
-              <button
-                type="button"
-                aria-label={`Edit ${block.label}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditBlock(block);
-                }}
-                className="absolute right-0.5 top-0.5 rounded bg-white/70 px-1 text-[11px] leading-none text-gray-600 opacity-0 hover:bg-white group-hover:opacity-100"
-              >
-                ✎
-              </button>
+              <div className="absolute right-0.5 top-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100">
+                <button
+                  type="button"
+                  aria-label={`Edit ${block.label}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditBlock(block);
+                  }}
+                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-gray-600 hover:bg-white"
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Unschedule ${block.label}`}
+                  title="Unschedule — return these matches to the Unscheduled list"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteBlock(block);
+                  }}
+                  className="rounded bg-white/70 px-1 text-[11px] leading-none text-red-600 hover:bg-red-50"
+                >
+                  ✕
+                </button>
+              </div>
               {/* bottom edge — resize TIME */}
               <div
                 role="separator"

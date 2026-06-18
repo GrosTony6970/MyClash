@@ -183,3 +183,57 @@ export class UpdateBlockLabelDto {
   @IsNotEmpty()
   label: string = '';
 }
+
+/**
+ * Create ONE programme block (used by the grid's "double-click → add break"
+ * affordance and by Undo after a block is deleted). Unlike the bulk save this
+ * appends a single row; `sortOrder` is assigned server-side (next on the day).
+ * Competition-only fields default to the non-competition zero values.
+ */
+export class CreateBlockDto {
+  @IsInt()
+  @Min(0)
+  dayIndex: number = 0;
+
+  @IsIn(['admin', 'competition', 'workshop', 'break'])
+  blockType: string = 'break';
+
+  @IsString()
+  @IsNotEmpty()
+  label: string = '';
+
+  @IsString()
+  @Matches(HH_MM)
+  startTime: string = '08:00';
+
+  @IsString()
+  @Matches(HH_MM)
+  endTime: string = '09:00';
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  liceCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  matchGapSeconds?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  matchDurationMinutes?: number;
+
+  @IsOptional()
+  @IsUUID()
+  competitionId?: string | null;
+
+  @IsOptional()
+  @IsIn(['pool', 'bracket', 'finals'])
+  competitionPhase?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  workshopId?: string | null;
+}
