@@ -241,7 +241,8 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
         </legend>
         {data.buttons.clean.length > 0 && (
           <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
-            <span className="flex-1">{t('organizer.tournaments.settings.buttonNameHeader')}</span>
+            <span className="flex-1" aria-hidden />
+            {/* name column is labelled by the legend */}
             <span className="w-20">{t('organizer.tournaments.settings.buttonValueHeader')}</span>
             {/* Invisible spacers mirror the trailing checkbox + Remove so "Value" sits over its field. */}
             <span aria-hidden className="invisible w-4" />
@@ -335,7 +336,8 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
           </legend>
           {data.buttons.afterblow.length > 0 && (
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
-              <span className="flex-1">{t('organizer.tournaments.settings.buttonNameHeader')}</span>
+              <span className="flex-1" aria-hidden />
+              {/* name column is labelled by the legend */}
               <span className="w-16">
                 {t('organizer.tournaments.settings.afterblowAttackerHeader')}
               </span>
