@@ -201,6 +201,31 @@ describe('ProgrammeService', () => {
     );
   });
 
+  it('does not suggest workshop blocks (workshops live on their own board)', async () => {
+    // buildSuggestion reads lices then tournaments; with no tournaments it
+    // builds only admin/break blocks — and never a workshop block.
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })); // tournaments
+
+    const suggestion = await service.suggest('event-1', {
+      dayStartTime: '08:00',
+      dayEndTime: '18:00',
+      parallelLiceCount: 1,
+      matchDurationMinutes: 5,
+      matchGapSeconds: 15,
+      breakBetweenSessionsMinutes: 10,
+      middayBreakStart: '12:00',
+      middayBreakEnd: '13:00',
+      registrationDurationMinutes: 30,
+      gearCheckDurationMinutes: 15,
+      refereeMeetingDurationMinutes: 15,
+    } as never);
+
+    expect(suggestion.blocks.length).toBeGreaterThan(0);
+    expect(suggestion.blocks.some((b) => b.blockType === 'workshop')).toBe(false);
+  });
+
   it('rejects competition blocks with zero match duration before deleting saved blocks', async () => {
     const dto = programmeDto({
       blocks: [

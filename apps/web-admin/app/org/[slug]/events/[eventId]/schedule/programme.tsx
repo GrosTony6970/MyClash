@@ -11,17 +11,17 @@ import type {
 } from '@myclash/types';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 
+// Workshops are managed on the dedicated workshop board, not the event
+// programme — no 'workshop' entry here (any legacy rows are filtered out).
 const BLOCK_TYPE_ICONS: Record<string, string> = {
   admin: '📋',
   competition: '⚔️',
-  workshop: '🎓',
   break: '☕',
 };
 
 const BLOCK_TYPE_COLORS: Record<string, string> = {
   admin: 'bg-purple-50 border-purple-200',
   competition: 'bg-blue-50 border-blue-200',
-  workshop: 'bg-green-50 border-green-200',
   break: 'bg-gray-50 border-gray-200',
 };
 
@@ -128,7 +128,8 @@ export function ProgrammePlanner({
 
   // Number of days from blocks
   const numDays = Math.max(1, ...blocks.map((b) => b.dayIndex + 1));
-  const dayBlocks = blocks.filter((b) => b.dayIndex === activeDay);
+  // Workshops live on their own board — never list legacy workshop blocks here.
+  const dayBlocks = blocks.filter((b) => b.dayIndex === activeDay && b.blockType !== 'workshop');
 
   // ── Load saved blocks + default parallel-lice count ───────────────────────
 
@@ -522,8 +523,7 @@ export function ProgrammePlanner({
             ].join(' ')}
           >
             <div className="font-semibold">
-              Generated {generateResult.matchesScheduled} matches and{' '}
-              {generateResult.workshopSessionsCreated} workshop sessions.
+              Generated {generateResult.matchesScheduled} matches.
             </div>
             {generateResult.matchesScheduled === 0 && (
               <div className="mt-1">
@@ -706,8 +706,8 @@ export function ProgrammePlanner({
           <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <h2 className="text-lg font-bold mb-2">Generate schedule?</h2>
             <p className="text-sm text-gray-600 mb-4">
-              This will assign match start times and lices, and create workshop sessions based on
-              the saved programme. Existing scheduled matches will be overwritten.
+              This will assign match start times and lices based on the saved programme. Existing
+              scheduled matches will be overwritten.
             </p>
             <div className="flex gap-2 justify-end">
               <button

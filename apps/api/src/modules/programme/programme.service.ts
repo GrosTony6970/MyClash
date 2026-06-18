@@ -267,16 +267,8 @@ export class ProgrammeService {
       tournamentStats.push({ id: t.id, name: t.name, poolMatchCount, bracketMatchCount });
     }
 
-    // Load workshops with duration
-    const { data: workshopsData } = await this.supabase.service
-      .from('workshops')
-      .select('id, title, duration_minutes')
-      .eq('event_id', eventId);
-    const workshops = (workshopsData ?? []) as Array<{
-      id: string;
-      title: string;
-      duration_minutes: number | null;
-    }>;
+    // Workshops are scheduled on the dedicated workshop board, not the event
+    // programme — the generator no longer emits workshop blocks/sessions.
 
     // Build blocks with simple sequential placement
     const blocks: ProgrammeBlock[] = [];
@@ -458,26 +450,6 @@ export class ProgrammeService {
       advance(Math.ceil(neededMin));
     }
 
-    // Workshops
-    for (const w of workshops) {
-      const durationMin = w.duration_minutes ?? 60;
-      maybeInsertMidday();
-      push({
-        dayIndex,
-        blockType: 'workshop',
-        label: w.title ?? 'Workshop',
-        competitionId: null,
-        competitionPhase: null,
-        workshopId: w.id,
-        liceCount: 0,
-        startTime: minToTime(cursor),
-        endTime: minToTime(cursor + durationMin),
-        matchGapSeconds: 0,
-        matchDurationMinutes: 0,
-      });
-      advance(durationMin);
-    }
-
     return { blocks, warnings };
   }
 
@@ -530,7 +502,8 @@ export class ProgrammeService {
     }
 
     let matchesScheduled = 0;
-    let workshopSessionsCreated = 0;
+    // Workshops are no longer scheduled by the programme generator (own board).
+    const workshopSessionsCreated = 0;
     const warnings: Array<{
       blockId: string;
       message: string;
@@ -689,33 +662,8 @@ export class ProgrammeService {
         });
       }
 
-      if (block.blockType === 'workshop' && block.workshopId) {
-        const dayDate = new Date(startDate);
-        dayDate.setDate(dayDate.getDate() + block.dayIndex);
-
-        const [sh, sm] = block.startTime.split(':').map(Number);
-        const [eh, em] = block.endTime.split(':').map(Number);
-
-        const startsAt = new Date(dayDate);
-        startsAt.setHours(sh ?? 0, sm ?? 0, 0, 0);
-        const endsAt = new Date(dayDate);
-        endsAt.setHours(eh ?? 0, em ?? 0, 0, 0);
-
-        const { error: wsErr } = await this.supabase.service.from('workshop_sessions').upsert(
-          {
-            workshop_id: block.workshopId,
-            starts_at: startsAt.toISOString(),
-            ends_at: endsAt.toISOString(),
-          },
-          { onConflict: 'workshop_id' },
-        );
-        if (wsErr) {
-          throw new BadRequestException(
-            `Failed to create workshop session for workshop ${block.workshopId}: ${wsErr.message}`,
-          );
-        }
-        workshopSessionsCreated++;
-      }
+      // Workshop sessions are owned by the workshop board; the programme
+      // generator no longer creates them.
     }
 
     // Shift break blocks so they never overlap the scheduled pool/bracket
