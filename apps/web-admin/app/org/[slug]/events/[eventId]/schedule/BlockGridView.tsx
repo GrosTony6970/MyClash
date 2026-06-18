@@ -413,6 +413,23 @@ export function BlockGridView({
           );
         })}
 
+        {/* Faint 15-min gridlines (skip the hour rows, which draw a darker
+            line below) so the snap target reads clearly behind the columns. */}
+        {Array.from({ length: gridEndSlot }, (_, slot) =>
+          slot % SNAP_SLOTS === 0 && slot % 12 !== 0 ? (
+            <div
+              key={`q-${slot}`}
+              aria-hidden="true"
+              className="pointer-events-none"
+              style={{
+                gridColumn: '2 / -1',
+                gridRow: rowFor(slot),
+                borderTop: '1px solid #f8fafc',
+              }}
+            />
+          ) : null,
+        )}
+
         {/* Left ruler: hour labels + faint full-width hour lines */}
         {Array.from({ length: gridEndSlot }, (_, slot) =>
           slot % 12 === 0 ? (

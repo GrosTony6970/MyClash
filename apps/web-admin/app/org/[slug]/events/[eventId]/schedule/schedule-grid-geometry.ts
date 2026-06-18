@@ -13,7 +13,7 @@
  * `dayStartUtcIso` instant, so they are exact inverses.
  */
 
-import { dayStartUtcIso, minutesIntoDayInZone } from '@myclash/time';
+import { dayStartUtcIso, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 
 export const SLOT_MINUTES = 5;
 export const GRID_START_HOUR = 8;
@@ -79,6 +79,20 @@ export function slotToHHMM(slot: number): string {
 
 /** Alias used for the grid's hourly ruler labels — same mapping as `slotToHHMM`. */
 export const formatSlotTime = slotToHHMM;
+
+/**
+ * Current-time slot for the "now" line: the slot `nowIso` maps to on `day`'s
+ * axis in the event zone, or null when the instant isn't on `day` (event zone)
+ * or falls before the grid start hour. Pure — resolved entirely in `tz`, so the
+ * line lands on the right row regardless of the viewer's browser timezone.
+ */
+export function nowSlotForDay(nowIso: string, day: string, tz: string): number | null {
+  if (zonedDay(nowIso, tz) !== day) return null;
+  const min = minutesIntoDayInZone(nowIso, tz);
+  if (min === null) return null;
+  const slot = minutesToSlot(min - GRID_START_HOUR * 60);
+  return slot < 0 ? null : slot;
+}
 
 /** "HH:MM" → slot index on the axis; clamps times before `GRID_START_HOUR` to 0. */
 export function hhmmToSlot(hhmm: string): number {

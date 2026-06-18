@@ -6,6 +6,7 @@ import {
   hhmmToSlot,
   isoToSlot,
   minutesToSlot,
+  nowSlotForDay,
   resizeStartSlot,
   slotToHHMM,
   slotToTime,
@@ -98,6 +99,29 @@ describe('schedule-grid-geometry', () => {
 
     it('clamps to 0 at the top', () => {
       expect(resizeStartSlot(-3, 12)).toBe(0);
+    });
+  });
+
+  describe('nowSlotForDay', () => {
+    const PARIS = 'Europe/Paris';
+
+    it('returns the slot for an instant on the day, in the event zone', () => {
+      // 2027-06-21 09:30 Paris (CEST = UTC+2) → 07:30Z; 90 min past 08:00 → slot 18.
+      expect(nowSlotForDay('2027-06-21T07:30:00.000Z', '2027-06-21', PARIS)).toBe(18);
+    });
+
+    it('returns null when the instant falls on another day in the zone', () => {
+      // 2027-06-21 23:00Z is already 2027-06-22 01:00 in Paris.
+      expect(nowSlotForDay('2027-06-21T23:00:00.000Z', '2027-06-21', PARIS)).toBeNull();
+    });
+
+    it('returns null before the grid start hour', () => {
+      // 06:30 Paris = 04:30Z, before 08:00 → negative slot → null.
+      expect(nowSlotForDay('2027-06-21T04:30:00.000Z', '2027-06-21', PARIS)).toBeNull();
+    });
+
+    it('returns null on malformed input', () => {
+      expect(nowSlotForDay('not-a-date', '2027-06-21', PARIS)).toBeNull();
     });
   });
 

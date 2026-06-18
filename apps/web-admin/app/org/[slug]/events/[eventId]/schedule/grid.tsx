@@ -46,7 +46,7 @@ import {
   formatSlotTime,
   hhmmToSlot,
   isoToSlot,
-  minutesToSlot,
+  nowSlotForDay,
   slotToHHMM,
   slotToTime,
   snapSlot,
@@ -1762,14 +1762,12 @@ export function ScheduleGrid({
   // those cases.
   const nowSlot = useMemo<number | null>(() => {
     if (!activeDay) return null;
-    const todayIso = now.toISOString().slice(0, 10);
-    if (todayIso !== activeDay) return null;
-    const start = new Date(activeDay);
-    start.setHours(GRID_START_HOUR, 0, 0, 0);
-    const slot = minutesToSlot((now.getTime() - start.getTime()) / 60_000);
-    if (slot < 0 || slot >= TOTAL_SLOTS) return null;
+    // Resolved in the EVENT timezone so the line lands on the right row even
+    // when the operator's browser timezone differs from the venue's.
+    const slot = nowSlotForDay(now.toISOString(), activeDay, eventTz);
+    if (slot === null || slot >= TOTAL_SLOTS) return null;
     return slot;
-  }, [activeDay, now]);
+  }, [activeDay, now, eventTz]);
 
   if (loading) {
     return (
