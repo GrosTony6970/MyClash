@@ -104,6 +104,7 @@ interface ProgrammeBlockRow {
   label: string;
   startTime: string;
   endTime: string;
+  colorHex?: string | null;
 }
 
 /**
@@ -1391,12 +1392,14 @@ export function ScheduleGrid({
   async function saveBreakEdit(brk: BgvBreak, draft: BlockEditDraft) {
     setBlockEditBusy(true);
     try {
-      if (draft.label !== brk.label) {
+      // Label + color share the same update endpoint ('' color → null = default).
+      const draftColor = draft.colorHex || null;
+      if (draft.label !== brk.label || draftColor !== (brk.colorHex ?? null)) {
         await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ label: draft.label }),
+          body: JSON.stringify({ label: draft.label, colorHex: draftColor }),
         });
       }
       if (draft.startHHMM !== brk.startTime) {
@@ -1724,6 +1727,7 @@ export function ScheduleGrid({
           startTime: b.startTime,
           endTime: b.endTime,
           kind: b.blockType,
+          colorHex: b.colorHex ?? null,
         })),
     [blocksOnActiveDay],
   );
@@ -2636,6 +2640,7 @@ export function ScheduleGrid({
                   startHHMM: editingBreak.startTime,
                   endHHMM: editingBreak.endTime,
                   liceIds: [],
+                  colorHex: editingBreak.colorHex ?? '',
                 }
               : {
                   label: editingBlock?.label ?? '',
@@ -2646,6 +2651,7 @@ export function ScheduleGrid({
                     ? slotToHHMM(isoToSlotTz(editingBlock.endIso, activeDay))
                     : '',
                   liceIds: editingBlock?.liceIds ?? [],
+                  colorHex: '',
                 }
           }
           lices={lices}

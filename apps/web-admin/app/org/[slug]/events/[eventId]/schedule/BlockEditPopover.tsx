@@ -14,12 +14,15 @@
  */
 
 import { useState } from 'react';
+import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 
 export interface BlockEditDraft {
   label: string;
   startHHMM: string;
   endHHMM: string;
   liceIds: string[];
+  /** "#rrggbb" or '' for the per-kind default. Only used in `break` mode. */
+  colorHex: string;
 }
 
 interface Props {
@@ -51,6 +54,7 @@ export function BlockEditPopover({
   const [startHHMM, setStartHHMM] = useState(initial.startHHMM);
   const [endHHMM, setEndHHMM] = useState(initial.endHHMM);
   const [liceIds, setLiceIds] = useState<string[]>(initial.liceIds);
+  const [colorHex, setColorHex] = useState(initial.colorHex);
 
   // The parent gives this popover a `key` per target, so each edit remounts
   // with fresh state — no re-seed effect needed.
@@ -123,6 +127,24 @@ export function BlockEditPopover({
             ) : null}
           </div>
 
+          {mode === 'break' ? (
+            <div className="flex flex-col gap-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-gray-500">Color</span>
+                {colorHex ? (
+                  <button
+                    type="button"
+                    onClick={() => setColorHex('')}
+                    className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
+                  >
+                    Default
+                  </button>
+                ) : null}
+              </div>
+              <ColorSwatchPicker value={colorHex} onChange={setColorHex} ariaLabel="Block color" />
+            </div>
+          ) : null}
+
           {mode === 'block' ? (
             <fieldset className="flex flex-col gap-1 text-xs">
               <span className="font-semibold text-gray-500">Lices</span>
@@ -155,7 +177,7 @@ export function BlockEditPopover({
           <button
             type="button"
             disabled={busy}
-            onClick={() => onSave({ label, startHHMM, endHHMM, liceIds })}
+            onClick={() => onSave({ label, startHHMM, endHHMM, liceIds, colorHex })}
             className="rounded bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
           >
             Save

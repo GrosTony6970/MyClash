@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 
 const HH_MM = /^\d{2}:\d{2}$/;
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 export class SuggestProgrammeDto {
   @IsString()
@@ -111,6 +112,10 @@ export class ProgrammeBlockDto {
   @IsInt()
   @Min(0)
   matchDurationMinutes: number = 5;
+
+  @IsOptional()
+  @Matches(HEX_COLOR)
+  colorHex?: string | null;
 }
 
 export class SaveProgrammeDto {
@@ -183,11 +188,15 @@ export class ScheduleGroupDto {
   matchGapSeconds?: number;
 }
 
-/** Rename a single programme block (admin / break / workshop bar). */
+/** Update a single programme block (admin / break / workshop bar): label + color. */
 export class UpdateBlockLabelDto {
   @IsString()
   @IsNotEmpty()
   label: string = '';
+
+  @IsOptional()
+  @Matches(HEX_COLOR)
+  colorHex?: string | null;
 }
 
 /**
@@ -242,4 +251,8 @@ export class CreateBlockDto {
   @IsOptional()
   @IsUUID()
   workshopId?: string | null;
+
+  @IsOptional()
+  @Matches(HEX_COLOR)
+  colorHex?: string | null;
 }

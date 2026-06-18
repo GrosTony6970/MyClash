@@ -247,6 +247,45 @@ describe('ProgrammeService', () => {
     });
   });
 
+  it('round-trips a block color through create', async () => {
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // existing sort_orders
+      .mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'blk-c',
+            event_id: 'e1',
+            day_index: 0,
+            sort_order: 0,
+            block_type: 'break',
+            label: 'Coffee',
+            competition_id: null,
+            competition_phase: null,
+            workshop_id: null,
+            lice_count: 0,
+            start_time: '10:00:00',
+            end_time: '10:15:00',
+            match_gap_seconds: 0,
+            match_duration_minutes: 0,
+            color_hex: '#0ea5e9',
+            generated_at: null,
+          },
+          error: null,
+        }),
+      );
+
+    const { block } = await service.createBlock('e1', {
+      dayIndex: 0,
+      blockType: 'break',
+      label: 'Coffee',
+      startTime: '10:00',
+      endTime: '10:15',
+      colorHex: '#0ea5e9',
+    } as never);
+
+    expect(block.colorHex).toBe('#0ea5e9');
+  });
+
   it('resizes a block from the top edge by setting start_time (end fixed)', async () => {
     fromMock
       // load the block

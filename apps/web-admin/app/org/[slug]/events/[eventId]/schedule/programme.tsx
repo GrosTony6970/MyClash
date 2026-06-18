@@ -10,6 +10,8 @@ import type {
   ProgrammeSuggestion,
 } from '@myclash/types';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
+import { blockTint } from './block-tint';
+import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 
 // Workshops are managed on the dedicated workshop board, not the event
 // programme — no 'workshop' entry here (any legacy rows are filtered out).
@@ -244,6 +246,7 @@ export function ProgrammePlanner({
       endTime: b.endTime,
       matchGapSeconds: b.matchGapSeconds,
       matchDurationMinutes: b.matchDurationMinutes,
+      colorHex: b.colorHex ?? null,
     }));
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
       method: 'PUT',
@@ -374,6 +377,7 @@ export function ProgrammePlanner({
       endTime,
       matchGapSeconds: 0,
       matchDurationMinutes: 0,
+      colorHex: null,
       generatedAt: null,
     };
     setBlocks((prev) => [...prev, newBlock]);
@@ -756,6 +760,7 @@ function BlockRow({
   onDismissWarning: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const tint = blockTint(block.colorHex);
 
   return (
     <div
@@ -763,9 +768,10 @@ function BlockRow({
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
+      style={tint ?? undefined}
       className={[
         'border rounded-xl transition-opacity',
-        BLOCK_TYPE_COLORS[block.blockType] ?? 'bg-gray-50 border-gray-200',
+        tint ? '' : (BLOCK_TYPE_COLORS[block.blockType] ?? 'bg-gray-50 border-gray-200'),
         dragging ? 'opacity-40' : '',
       ].join(' ')}
     >
@@ -893,6 +899,26 @@ function BlockRow({
               className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-600"
             />
           </label>
+          {block.blockType !== 'competition' && (
+            <div className="col-span-2 flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Color</span>
+                {block.colorHex ? (
+                  <button
+                    onClick={() => onChange({ colorHex: null })}
+                    className="text-[11px] font-medium text-gray-400 hover:text-gray-600"
+                  >
+                    Default
+                  </button>
+                ) : null}
+              </div>
+              <ColorSwatchPicker
+                value={block.colorHex ?? ''}
+                onChange={(hex) => onChange({ colorHex: hex })}
+                ariaLabel="Block color"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -16,6 +16,8 @@ export interface ProgrammeBlock {
   endTime: string;
   matchGapSeconds: number;
   matchDurationMinutes: number;
+  /** Optional "#rrggbb" override for the bar tint; null = per-kind default. */
+  colorHex: string | null;
   generatedAt: string | null;
 }
 

@@ -116,6 +116,7 @@ export class ProgrammeService {
         end_time: b.endTime,
         match_gap_seconds: b.matchGapSeconds,
         match_duration_minutes: b.matchDurationMinutes,
+        color_hex: b.colorHex ?? null,
       };
       if (b.id && !b.id.startsWith('new-')) row['id'] = b.id;
       return row;
@@ -288,13 +289,14 @@ export class ProgrammeService {
     let middayInserted = false;
 
     const push = (
-      partial: Omit<ProgrammeBlock, 'id' | 'eventId' | 'sortOrder' | 'generatedAt'>,
+      partial: Omit<ProgrammeBlock, 'id' | 'eventId' | 'sortOrder' | 'generatedAt' | 'colorHex'>,
       neededMin = 0,
     ): void => {
       const b: ProgrammeBlock = {
         id: `new-${sortOrder}`,
         eventId,
         sortOrder: sortOrder++,
+        colorHex: null,
         generatedAt: null,
         ...partial,
       };
@@ -1040,6 +1042,7 @@ export class ProgrammeService {
         end_time: dto.endTime,
         match_gap_seconds: dto.matchGapSeconds ?? 0,
         match_duration_minutes: dto.matchDurationMinutes ?? 0,
+        color_hex: dto.colorHex ?? null,
       })
       .select('*')
       .single();
@@ -1053,9 +1056,12 @@ export class ProgrammeService {
     blockId: string,
     dto: UpdateBlockLabelDto,
   ): Promise<{ block: ProgrammeBlock }> {
+    // Label is required; color is optional — only patch what was sent.
+    const patch: Record<string, unknown> = { label: dto.label };
+    if (dto.colorHex !== undefined) patch['color_hex'] = dto.colorHex;
     const { data: updatedRow, error } = await this.supabase.service
       .from('event_programme_blocks')
-      .update({ label: dto.label })
+      .update(patch)
       .eq('id', blockId)
       .eq('event_id', eventId)
       .select('*')
@@ -1357,6 +1363,7 @@ export class ProgrammeService {
       endTime: trimSeconds(raw['end_time'] as string),
       matchGapSeconds: raw['match_gap_seconds'] as number,
       matchDurationMinutes: raw['match_duration_minutes'] as number,
+      colorHex: (raw['color_hex'] as string | null) ?? null,
       generatedAt: (raw['generated_at'] as string | null) ?? null,
     };
   }

@@ -17,6 +17,7 @@ function block(p: Partial<ProgrammeBlock> & { id: string }): ProgrammeBlock {
     endTime: '09:30',
     matchGapSeconds: 0,
     matchDurationMinutes: 0,
+    colorHex: null,
     generatedAt: null,
     ...p,
   };

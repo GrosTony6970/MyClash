@@ -21,6 +21,7 @@ import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/u
 import type { ScheduleBlock } from './schedule-blocks';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
+import { blockTint } from './block-tint';
 import { wouldOverlap, type SlotPlacement } from './detect-overlaps';
 import {
   LICE_HEADER_HEIGHT_PX,
@@ -51,6 +52,8 @@ export interface BgvBreak {
   endTime: string;
   /** 'break' | 'admin' | 'workshop' — drives the bar tint. */
   kind: string;
+  /** Optional "#rrggbb" override; falls back to the per-kind tint when null. */
+  colorHex?: string | null;
 }
 
 interface Props {
@@ -480,17 +483,19 @@ export function BlockGridView({
             startResize?.key === brkKey ? startResize.previewStartSlot : brk.startSlot;
           const endSlot =
             timeResize?.key === brkKey ? timeResize.previewEndSlot : brk.startSlot + brk.span;
+          const tint = blockTint(brk.colorHex);
           return (
             <div
               key={`brk-${brk.id}`}
               className={[
                 'group relative flex items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide',
-                breakBarClasses(brk.kind),
+                tint ? 'text-gray-700' : breakBarClasses(brk.kind),
               ].join(' ')}
               style={{
                 gridColumn: '2 / -1',
                 gridRow: `${rowFor(startSlot)} / ${rowFor(Math.max(startSlot + 1, endSlot))}`,
                 zIndex: 6,
+                ...(tint ?? {}),
               }}
             >
               <span className="truncate">
