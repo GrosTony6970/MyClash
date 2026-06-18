@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  SNAP_SLOTS,
   computeVenueGroups,
   formatSlotTime,
   hhmmToSlot,
   isoToSlot,
   minutesToSlot,
+  resizeStartSlot,
   slotToHHMM,
   slotToTime,
+  snapSlot,
 } from './schedule-grid-geometry';
 
 const BASE = '2026-06-15';
@@ -62,6 +65,39 @@ describe('schedule-grid-geometry', () => {
       expect(minutesToSlot(9)).toBe(1);
       expect(minutesToSlot(10)).toBe(2);
       expect(minutesToSlot(0)).toBe(0);
+    });
+  });
+
+  describe('snapSlot', () => {
+    it('rounds a 5-min slot to the nearest 15-min boundary', () => {
+      expect(SNAP_SLOTS).toBe(3);
+      expect(snapSlot(0)).toBe(0);
+      expect(snapSlot(1)).toBe(0); // 08:05 → 08:00
+      expect(snapSlot(2)).toBe(3); // 08:10 → 08:15
+      expect(snapSlot(3)).toBe(3); // 08:15 stays
+      expect(snapSlot(4)).toBe(3); // 08:20 → 08:15
+      expect(snapSlot(5)).toBe(6); // 08:25 → 08:30
+      expect(snapSlot(13)).toBe(12); // 09:05 → 09:00
+    });
+
+    it('never returns a negative slot', () => {
+      expect(snapSlot(-1)).toBe(0);
+    });
+  });
+
+  describe('resizeStartSlot', () => {
+    it('snaps the dragged start to 15 min', () => {
+      expect(resizeStartSlot(2, 12)).toBe(3); // drag to 08:10 → 08:15
+      expect(resizeStartSlot(7, 12)).toBe(6); // drag to 08:35 → 08:30
+    });
+
+    it('clamps to at least one slot before the fixed end', () => {
+      expect(resizeStartSlot(20, 12)).toBe(11); // can't pass/meet the end
+      expect(resizeStartSlot(12, 12)).toBe(11);
+    });
+
+    it('clamps to 0 at the top', () => {
+      expect(resizeStartSlot(-3, 12)).toBe(0);
     });
   });
 

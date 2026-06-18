@@ -48,6 +48,7 @@ import {
   minutesToSlot,
   slotToHHMM,
   slotToTime,
+  snapSlot,
 } from './schedule-grid-geometry';
 
 /**
@@ -756,6 +757,8 @@ export function ScheduleGrid({
   }, [lastUndo]);
 
   function handleDrop(liceId: string, slot: number) {
+    // Land on the 15-min grid (the axis still renders in 5-min slots).
+    slot = snapSlot(slot);
     // Programme-block drop: the operator dragged a fixed bar. Block
     // drop takes precedence — the bar spans every lice column so any
     // cell at the target row is a valid landing.
@@ -1180,7 +1183,7 @@ export function ScheduleGrid({
   // Drop a dragged block / unscheduled pool / round onto a lice in the block
   // view: place its matches sequentially (5-min apart) after that lice's last
   // scheduled match (or 09:00 if empty). Persists each via the schedule PATCH.
-  function handleBlockViewDrop(liceId: string) {
+  function handleBlockViewDrop(liceId: string, slot: number) {
     const ids =
       dragViewBlock.current?.matchIds ??
       dragPool.current?.matchIds ??
@@ -1193,23 +1196,9 @@ export function ScheduleGrid({
     setDragOverLiceId(null);
     if (ids.length === 0 || !activeDay) return;
 
-    const exclude = new Set(ids);
-    const onLice = scheduledOnActiveDay.filter(
-      (m) => m.liceId === liceId && !exclude.has(m.id) && m.scheduledAt,
-    );
-    // Append after the lice's last match (or 09:00 when the lice is empty).
-    const startMs = onLice.length
-      ? Math.max(...onLice.map((m) => new Date(m.scheduledAt!).getTime())) + 5 * 60_000
-      : new Date(`${activeDay}T09:00:00`).getTime();
-
-    const atFor = (i: number) => new Date(startMs + i * 5 * 60_000).toISOString();
-    const byId = new Map(ids.map((id, i) => [id, atFor(i)]));
-    const updated = matches.map((m) =>
-      byId.has(m.id) ? { ...m, liceId, scheduledAt: byId.get(m.id)! } : m,
-    );
-    setMatches(updated);
-    setConflicts(detectConflicts(updated));
-    ids.forEach((id, i) => void saveMatchPosition(id, liceId, atFor(i)));
+    // Drop at the grid slot the operator released over (snapped to 15 min),
+    // re-fanning the run onto the target lice and shifting any occupants.
+    void handleGroupDrop(new Set(ids), liceId, snapSlot(slot));
   }
 
   // ── Live drift: how late/early each lice is running on the active day ──────
@@ -1400,6 +1389,18 @@ export function ScheduleGrid({
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newEndTime: slotToHHMM(newEndSlot) }),
+    });
+    await refetchScheduleAndBlocks();
+    onProgrammeMutated?.();
+  }
+
+  // Top-edge resize of a break/admin bar — moves start_time, end_time stays put.
+  async function resizeBreakStartTo(brk: BgvBreak, newStartSlot: number) {
+    await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newStartTime: slotToHHMM(newStartSlot) }),
     });
     await refetchScheduleAndBlocks();
     onProgrammeMutated?.();
@@ -2165,6 +2166,8 @@ export function ScheduleGrid({
               onDeleteBreak={(brk) => void deleteBlock(brk.id)}
               onResizeBlockTime={resizeBlockTimeTo}
               onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
+              onResizeBlockStart={retimeBlockStart}
+              onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
               onResizeBlockLices={changeBlockLices}
               onBlockDragStart={(block) => {
                 dragViewBlock.current = { matchIds: block.matches.map((m) => m.id) };

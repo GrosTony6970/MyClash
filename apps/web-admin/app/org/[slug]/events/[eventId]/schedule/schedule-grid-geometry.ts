@@ -27,8 +27,28 @@ export const LICE_HEADER_HEIGHT_PX = 40;
 export const TIME_LABEL_COL_PX = 64;
 export const MIN_LICE_COL_PX = 140;
 
+// Moves/resizes land on a coarser 15-minute grid even though the axis is
+// rendered in 5-minute slots — keeps existing data untouched while giving the
+// operator clean :00/:15/:30/:45 drops.
+export const SNAP_MINUTES = 15;
+export const SNAP_SLOTS = SNAP_MINUTES / SLOT_MINUTES;
+
 export function minutesToSlot(minutes: number): number {
   return Math.floor(minutes / SLOT_MINUTES);
+}
+
+/** Round a 5-min slot index to the nearest 15-min boundary (never negative). */
+export function snapSlot(slot: number): number {
+  return Math.max(0, Math.round(slot / SNAP_SLOTS) * SNAP_SLOTS);
+}
+
+/**
+ * New START slot when dragging a block's TOP edge, with its END fixed: snap
+ * the dragged slot to 15 min, then clamp into [0, end − 1] so the block keeps
+ * at least one slot of height and never crosses its own end.
+ */
+export function resizeStartSlot(dragSlot: number, fixedEndSlot: number): number {
+  return Math.min(snapSlot(dragSlot), fixedEndSlot - 1);
 }
 
 /** Slot index → UTC ISO instant, with the axis anchored at GRID_START_HOUR in `tz`. */

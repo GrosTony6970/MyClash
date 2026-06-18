@@ -133,15 +133,21 @@ export class MoveBlockDto {
 }
 
 /**
- * Resize a block by setting a new end time. The operator drags the
- * block's bottom edge on the schedule grid; the FE rounds to the
- * grid's 5-min slot and PATCHes the new HH:MM. The block's start
- * time stays unchanged — only the duration grows or shrinks.
+ * Resize a block by setting a new end and/or start time. The operator drags
+ * the block's bottom edge (newEndTime) or top edge (newStartTime) on the grid;
+ * the FE rounds to a 15-min slot and PATCHes the new HH:MM. Whichever field is
+ * omitted keeps its current value, so a top-edge drag sends newStartTime alone.
  */
 export class ResizeBlockDto {
+  @IsOptional()
   @IsString()
   @Matches(HH_MM)
-  newEndTime: string = '10:00';
+  newStartTime?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(HH_MM)
+  newEndTime?: string;
 }
 
 /**

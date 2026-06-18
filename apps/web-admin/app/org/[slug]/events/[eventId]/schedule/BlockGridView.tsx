@@ -21,15 +21,19 @@ import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/u
 import type { ScheduleBlock } from './schedule-blocks';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
+import { wouldOverlap, type SlotPlacement } from './detect-overlaps';
 import {
   LICE_HEADER_HEIGHT_PX,
   MIN_LICE_COL_PX,
   SLOT_HEIGHT_PX,
+  SNAP_SLOTS,
   TIME_LABEL_COL_PX,
   VENUE_HEADER_HEIGHT_PX,
   computeVenueGroups,
   formatSlotTime,
   isoToSlot,
+  resizeStartSlot,
+  snapSlot,
 } from './schedule-grid-geometry';
 
 export interface ViewLice {
@@ -73,10 +77,15 @@ interface Props {
   onDeleteBreak: (brk: BgvBreak) => void;
   onResizeBlockTime: (block: ScheduleBlock, newEndSlot: number) => void;
   onResizeBreakTime: (brk: BgvBreak, newEndSlot: number) => void;
+  /** Top-edge drag of a run → re-time it to start at the new slot. */
+  onResizeBlockStart: (block: ScheduleBlock, newStartSlot: number) => void;
+  /** Top-edge drag of an admin/break bar → move its start, end fixed. */
+  onResizeBreakStart: (brk: BgvBreak, newStartSlot: number) => void;
   onResizeBlockLices: (block: ScheduleBlock, newLiceIds: string[]) => void;
   onBlockDragStart: (block: ScheduleBlock) => void;
   onBlockDragEnd: () => void;
-  onDropOnLice: (liceId: string) => void;
+  /** Drop on a lice column at a 15-min-snapped slot (vertical position). */
+  onDropOnLice: (liceId: string, slot: number) => void;
   dragOverLiceId: string | null;
   onDragOverLice: (liceId: string | null) => void;
 }
@@ -88,6 +97,7 @@ function breakBarClasses(kind: string): string {
 }
 
 type TimeResize = { key: string; startSlot: number; previewEndSlot: number };
+type StartResize = { key: string; previewStartSlot: number; endSlot: number };
 type LiceResize = { key: string; previewIndices: number[] };
 
 export function BlockGridView({
@@ -109,6 +119,8 @@ export function BlockGridView({
   onDeleteBreak,
   onResizeBlockTime,
   onResizeBreakTime,
+  onResizeBlockStart,
+  onResizeBreakStart,
   onResizeBlockLices,
   onBlockDragStart,
   onBlockDragEnd,
@@ -118,13 +130,53 @@ export function BlockGridView({
 }: Props) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [timeResize, setTimeResize] = useState<TimeResize | null>(null);
+  const [startResize, setStartResize] = useState<StartResize | null>(null);
   const [liceResize, setLiceResize] = useState<LiceResize | null>(null);
+  // Live drag preview ("ghost"): where the dragged block would land + whether
+  // it would clash. Span comes from the dragged block (or a 15-min default for
+  // sidebar drags); dragKeyRef excludes the moving block from the clash check.
+  const [ghost, setGhost] = useState<{
+    liceId: string;
+    slot: number;
+    span: number;
+    conflict: boolean;
+  } | null>(null);
+  const dragSpanRef = useRef<number | null>(null);
+  const dragKeyRef = useRef<string | null>(null);
 
   if (lices.length === 0) {
     return <p className="text-sm text-gray-400">No lices configured for this event.</p>;
   }
 
   const liceIndexById = new Map(lices.map((l, i) => [l.id, i]));
+
+  // Slot under a pointer Y, relative to the grid's first body row (after the
+  // venue + lice header rows). Used to give block-view drops time precision.
+  function slotFromClientY(clientY: number): number {
+    const grid = gridRef.current;
+    if (!grid) return 0;
+    const top = grid.getBoundingClientRect().top + VENUE_HEADER_HEIGHT_PX + LICE_HEADER_HEIGHT_PX;
+    return Math.max(0, Math.floor((clientY - top) / SLOT_HEIGHT_PX));
+  }
+
+  // Slot ranges already occupied (other runs + every full-width break bar),
+  // excluding the block currently being dragged, for the live clash tint.
+  function occupantsExcept(excludeKey: string | null): SlotPlacement[] {
+    const out: SlotPlacement[] = [];
+    for (const b of blocks) {
+      if (b.key === excludeKey) continue;
+      out.push({
+        liceIds: b.liceIds,
+        startSlot: isoToSlot(b.startIso, baseDate, timezone),
+        endSlot: isoToSlot(b.endIso, baseDate, timezone),
+      });
+    }
+    const allLice = lices.map((l) => l.id);
+    for (const brk of breaks) {
+      out.push({ liceIds: allLice, startSlot: brk.startSlot, endSlot: brk.startSlot + brk.span });
+    }
+    return out;
+  }
   const venueGroups = computeVenueGroups(lices);
   // Body row for a slot: row 1 = venue band, row 2 = lice header, slot 0 → row 3.
   const rowFor = (slot: number): number => slot + 3;
@@ -166,6 +218,49 @@ export function BlockGridView({
     function onCancel(e: PointerEvent) {
       cleanup(e);
       setTimeResize(null);
+    }
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onCancel);
+  }
+
+  // ── Top-edge (start) resize: drag a block/break's top edge, end fixed ─────
+  function beginStartResize(
+    ev: React.PointerEvent<HTMLDivElement>,
+    item: { key: string; startSlot: number; endSlot: number },
+    commit: (newStartSlot: number) => void,
+  ): void {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const handle = ev.currentTarget;
+    handle.setPointerCapture(ev.pointerId);
+    const startY = ev.clientY;
+    setStartResize({ key: item.key, previewStartSlot: item.startSlot, endSlot: item.endSlot });
+
+    // resizeStartSlot snaps to 15 min and clamps into [0, end − 1].
+    const clampStart = (raw: number) => resizeStartSlot(raw, item.endSlot);
+    function onMove(e: PointerEvent) {
+      const delta = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX);
+      const next = clampStart(item.startSlot + delta);
+      setStartResize((prev) =>
+        prev && prev.key === item.key ? { ...prev, previewStartSlot: next } : prev,
+      );
+    }
+    function cleanup(e: PointerEvent) {
+      handle.releasePointerCapture(e.pointerId);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onCancel);
+    }
+    function onUp(e: PointerEvent) {
+      cleanup(e);
+      const final = clampStart(item.startSlot + Math.round((e.clientY - startY) / SLOT_HEIGHT_PX));
+      setStartResize(null);
+      if (final !== item.startSlot) commit(final);
+    }
+    function onCancel(e: PointerEvent) {
+      cleanup(e);
+      setStartResize(null);
     }
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
@@ -347,13 +442,27 @@ export function BlockGridView({
               onDragOver={(e) => {
                 e.preventDefault();
                 if (!isOver) onDragOverLice(lice.id);
+                const slot = snapSlot(slotFromClientY(e.clientY));
+                const span = dragSpanRef.current ?? SNAP_SLOTS;
+                const conflict = wouldOverlap(
+                  { liceIds: [lice.id], startSlot: slot, endSlot: slot + span },
+                  occupantsExcept(dragKeyRef.current),
+                );
+                setGhost({ liceId: lice.id, slot, span, conflict });
               }}
               onDragLeave={() => {
                 if (isOver) onDragOverLice(null);
+                // Clear the ghost when leaving a column; re-set on entering the
+                // next one. Leaving the grid entirely thus clears it cleanly.
+                setGhost((g) => (g?.liceId === lice.id ? null : g));
               }}
-              onDrop={() => {
+              onDrop={(e) => {
+                const slot = snapSlot(slotFromClientY(e.clientY));
                 onDragOverLice(null);
-                onDropOnLice(lice.id);
+                setGhost(null);
+                dragSpanRef.current = null;
+                dragKeyRef.current = null;
+                onDropOnLice(lice.id, slot);
               }}
               className={[
                 'border-l border-gray-100 transition-colors',
@@ -366,10 +475,11 @@ export function BlockGridView({
 
         {/* Break / admin bars — full width */}
         {breaks.map((brk) => {
+          const brkKey = `brk:${brk.id}`;
+          const startSlot =
+            startResize?.key === brkKey ? startResize.previewStartSlot : brk.startSlot;
           const endSlot =
-            timeResize?.key === `brk:${brk.id}`
-              ? timeResize.previewEndSlot
-              : brk.startSlot + brk.span;
+            timeResize?.key === brkKey ? timeResize.previewEndSlot : brk.startSlot + brk.span;
           return (
             <div
               key={`brk-${brk.id}`}
@@ -379,7 +489,7 @@ export function BlockGridView({
               ].join(' ')}
               style={{
                 gridColumn: '2 / -1',
-                gridRow: `${rowFor(brk.startSlot)} / ${rowFor(endSlot)}`,
+                gridRow: `${rowFor(startSlot)} / ${rowFor(Math.max(startSlot + 1, endSlot))}`,
                 zIndex: 6,
               }}
             >
@@ -407,12 +517,24 @@ export function BlockGridView({
               </div>
               <div
                 role="separator"
+                aria-label={`Resize start of ${brk.label}`}
+                onPointerDown={(ev) =>
+                  beginStartResize(
+                    ev,
+                    { key: brkKey, startSlot: brk.startSlot, endSlot: brk.startSlot + brk.span },
+                    (newStart) => onResizeBreakStart(brk, newStart),
+                  )
+                }
+                className="absolute inset-x-0 top-0 z-30 h-1.5 cursor-row-resize bg-transparent hover:bg-slate-500/40"
+              />
+              <div
+                role="separator"
                 aria-label={`Resize ${brk.label}`}
                 onPointerDown={(ev) =>
                   beginTimeResize(
                     ev,
                     {
-                      key: `brk:${brk.id}`,
+                      key: brkKey,
                       startSlot: brk.startSlot,
                       endSlot: brk.startSlot + brk.span,
                     },
@@ -437,6 +559,8 @@ export function BlockGridView({
           const startSlot = isoToSlot(block.startIso, baseDate, timezone);
           const baseEndSlot = isoToSlot(block.endIso, baseDate, timezone);
           const endSlot = timeResize?.key === block.key ? timeResize.previewEndSlot : baseEndSlot;
+          const effStartSlot =
+            startResize?.key === block.key ? startResize.previewStartSlot : startSlot;
           const color = tournamentColorByName.get(block.tournamentName ?? '') ?? null;
           const hasConflict = block.matches.some((m) => conflictMatchIds.has(m.id));
           const hasOverlap = overlapBlockKeys.has(block.key);
@@ -449,8 +573,17 @@ export function BlockGridView({
             <div
               key={block.key}
               draggable
-              onDragStart={() => onBlockDragStart(block)}
-              onDragEnd={onBlockDragEnd}
+              onDragStart={() => {
+                dragSpanRef.current = Math.max(1, baseEndSlot - startSlot);
+                dragKeyRef.current = block.key;
+                onBlockDragStart(block);
+              }}
+              onDragEnd={() => {
+                dragSpanRef.current = null;
+                dragKeyRef.current = null;
+                setGhost(null);
+                onBlockDragEnd();
+              }}
               title={`${block.tournamentName ?? ''} · ${block.label} · ${block.matchCount} matches`}
               className={[
                 'group relative m-px flex cursor-grab flex-col overflow-hidden rounded-md border px-1.5 py-1 active:cursor-grabbing',
@@ -458,7 +591,7 @@ export function BlockGridView({
               ].join(' ')}
               style={{
                 gridColumn: `${colStart} / ${colEnd}`,
-                gridRow: `${rowFor(startSlot)} / ${rowFor(Math.max(startSlot + 1, endSlot))}`,
+                gridRow: `${rowFor(effStartSlot)} / ${rowFor(Math.max(effStartSlot + 1, endSlot))}`,
                 zIndex: 10,
               }}
             >
@@ -496,6 +629,19 @@ export function BlockGridView({
                   ✕
                 </button>
               </div>
+              {/* top edge — resize START (re-time the run) */}
+              <div
+                role="separator"
+                aria-label={`Resize start of ${block.label}`}
+                onPointerDown={(ev) =>
+                  beginStartResize(
+                    ev,
+                    { key: block.key, startSlot, endSlot: baseEndSlot },
+                    (newStart) => onResizeBlockStart(block, newStart),
+                  )
+                }
+                className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize bg-transparent hover:bg-black/20"
+              />
               {/* bottom edge — resize TIME */}
               <div
                 role="separator"
@@ -519,6 +665,29 @@ export function BlockGridView({
             </div>
           );
         })}
+
+        {/* Drag ghost — where the block would land, red when it would clash */}
+        {ghost &&
+          (() => {
+            const idx = liceIndexById.get(ghost.liceId);
+            if (idx == null) return null;
+            return (
+              <div
+                aria-hidden="true"
+                className={[
+                  'pointer-events-none m-px rounded-md border-2 border-dashed',
+                  ghost.conflict
+                    ? 'border-red-500 bg-red-300/40'
+                    : 'border-blue-500 bg-blue-300/40',
+                ].join(' ')}
+                style={{
+                  gridColumn: idx + 2,
+                  gridRow: `${rowFor(ghost.slot)} / ${rowFor(ghost.slot + Math.max(1, ghost.span))}`,
+                  zIndex: 13,
+                }}
+              />
+            );
+          })()}
 
         {/* "Now" marker — full-width line on the active day */}
         {nowSlot !== null && nowSlot < gridEndSlot ? (

@@ -20,6 +20,29 @@ export interface Overlap {
   bKey: string;
 }
 
+/** A prospective placement in slot units — what a drag would land on. */
+export interface SlotPlacement {
+  liceIds: string[];
+  startSlot: number;
+  endSlot: number;
+}
+
+/**
+ * Would dropping `placement` clash with any `occupants`? True when they share a
+ * lice AND their [startSlot, endSlot) ranges intersect (touching = no clash).
+ * Drives the live red tint on the drag ghost. The caller excludes the block
+ * being moved from `occupants` so a same-spot drop doesn't read as a conflict.
+ */
+export function wouldOverlap(placement: SlotPlacement, occupants: SlotPlacement[]): boolean {
+  const lices = new Set(placement.liceIds);
+  return occupants.some(
+    (o) =>
+      o.liceIds.some((l) => lices.has(l)) &&
+      placement.startSlot < o.endSlot &&
+      o.startSlot < placement.endSlot,
+  );
+}
+
 export function detectScheduleOverlaps(blocks: OverlapInput[]): Overlap[] {
   const byLice = new Map<string, Array<{ key: string; start: number; end: number }>>();
   for (const b of blocks) {

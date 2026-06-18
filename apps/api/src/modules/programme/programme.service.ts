@@ -830,7 +830,7 @@ export class ProgrammeService {
   async resizeBlock(
     eventId: string,
     blockId: string,
-    dto: { newEndTime: string },
+    dto: { newStartTime?: string; newEndTime?: string },
   ): Promise<{ block: ProgrammeBlock }> {
     const { data: blockRow, error: blockErr } = await this.supabase.service
       .from('event_programme_blocks')
@@ -843,15 +843,24 @@ export class ProgrammeService {
     }
     const block = this.mapBlock(blockRow as Record<string, unknown>);
 
-    if (timeToMin(dto.newEndTime) <= timeToMin(block.startTime)) {
+    // Whichever edge wasn't dragged keeps its current value; the resulting
+    // window must still be start < end.
+    const nextStart = dto.newStartTime ?? block.startTime;
+    const nextEnd = dto.newEndTime ?? block.endTime;
+    if (timeToMin(nextEnd) <= timeToMin(nextStart)) {
       throw new BadRequestException(
-        `Block "${block.label}" newEndTime (${dto.newEndTime}) must be after startTime (${block.startTime})`,
+        `Block "${block.label}" end (${nextEnd}) must be after start (${nextStart})`,
       );
     }
 
+    const patch: Record<string, unknown> = {};
+    if (dto.newStartTime) patch['start_time'] = dto.newStartTime;
+    if (dto.newEndTime) patch['end_time'] = dto.newEndTime;
+    if (Object.keys(patch).length === 0) return { block };
+
     const { data: updatedRow, error: updErr } = await this.supabase.service
       .from('event_programme_blocks')
-      .update({ end_time: dto.newEndTime })
+      .update(patch)
       .eq('id', blockId)
       .eq('event_id', eventId)
       .select('*')
@@ -861,7 +870,7 @@ export class ProgrammeService {
     }
     const updatedBlock = updatedRow
       ? this.mapBlock(updatedRow as Record<string, unknown>)
-      : { ...block, endTime: dto.newEndTime };
+      : { ...block, startTime: nextStart, endTime: nextEnd };
     return { block: updatedBlock };
   }
 

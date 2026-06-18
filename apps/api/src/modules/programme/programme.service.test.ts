@@ -247,6 +247,88 @@ describe('ProgrammeService', () => {
     });
   });
 
+  it('resizes a block from the top edge by setting start_time (end fixed)', async () => {
+    fromMock
+      // load the block
+      .mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'b1',
+            event_id: 'e1',
+            day_index: 0,
+            sort_order: 0,
+            block_type: 'break',
+            label: 'Lunch',
+            competition_id: null,
+            competition_phase: null,
+            workshop_id: null,
+            lice_count: 0,
+            start_time: '12:00:00',
+            end_time: '13:00:00',
+            match_gap_seconds: 0,
+            match_duration_minutes: 0,
+            generated_at: null,
+          },
+          error: null,
+        }),
+      )
+      // update → returns the row with the new start
+      .mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'b1',
+            event_id: 'e1',
+            day_index: 0,
+            sort_order: 0,
+            block_type: 'break',
+            label: 'Lunch',
+            competition_id: null,
+            competition_phase: null,
+            workshop_id: null,
+            lice_count: 0,
+            start_time: '12:15:00',
+            end_time: '13:00:00',
+            match_gap_seconds: 0,
+            match_duration_minutes: 0,
+            generated_at: null,
+          },
+          error: null,
+        }),
+      );
+
+    const { block } = await service.resizeBlock('e1', 'b1', { newStartTime: '12:15' });
+    expect(block).toMatchObject({ startTime: '12:15', endTime: '13:00' });
+  });
+
+  it('rejects a top-edge resize that would meet or cross the end', async () => {
+    fromMock.mockReturnValueOnce(
+      makeChain({
+        data: {
+          id: 'b1',
+          event_id: 'e1',
+          day_index: 0,
+          sort_order: 0,
+          block_type: 'break',
+          label: 'Lunch',
+          competition_id: null,
+          competition_phase: null,
+          workshop_id: null,
+          lice_count: 0,
+          start_time: '12:00:00',
+          end_time: '13:00:00',
+          match_gap_seconds: 0,
+          match_duration_minutes: 0,
+          generated_at: null,
+        },
+        error: null,
+      }),
+    );
+
+    await expect(service.resizeBlock('e1', 'b1', { newStartTime: '13:00' })).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
   it('does not suggest workshop blocks (workshops live on their own board)', async () => {
     // buildSuggestion reads lices then tournaments; with no tournaments it
     // builds only admin/break blocks — and never a workshop block.
