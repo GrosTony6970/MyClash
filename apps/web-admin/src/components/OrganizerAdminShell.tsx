@@ -9,6 +9,7 @@ import { useI18n } from '../i18n/I18nProvider';
 import { useOrganizerSelectedEvent } from './organizer-event-context';
 import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
+import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
 
 const orgNavItems = [
   { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
@@ -31,24 +32,10 @@ const orgNavItems = [
   { href: 'venues', labelKey: 'organizer.shell.nav.venues', badge: 'V' },
 ] as const;
 
-const eventNavItems = [
-  { href: '', labelKey: 'organizer.shell.nav.eventOverview', badge: 'E' },
-  { href: 'tournaments', labelKey: 'organizer.shell.nav.tournaments', badge: 'TR' },
-  { href: 'persons', labelKey: 'organizer.eventHub.sections.persons', badge: 'P' },
-  { href: 'clubs', labelKey: 'organizer.shell.nav.clubs', badge: 'CL' },
-  { href: 'referees', labelKey: 'organizer.eventHub.sections.referees', badge: 'J' },
-  { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'P' },
-  { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
-  { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
-  { href: 'compensation', labelKey: 'organizer.eventHub.sections.compensation', badge: 'C' },
-  { href: 'workshops', labelKey: 'organizer.eventHub.sections.workshops', badge: 'W' },
-  { href: 'staff', labelKey: 'organizer.eventHub.sections.staff', badge: 'ST' },
-  { href: 'notifications', labelKey: 'organizer.eventHub.sections.notifications', badge: 'N' },
-  { href: 'ai-assistant', labelKey: 'organizer.eventHub.sections.aiAssistant', badge: 'AI' },
-  { href: 'theme', labelKey: 'organizer.eventHub.sections.theme', badge: 'T' },
-  { href: 'leagues', labelKey: 'admin.dashboard.leaguesTitle', badge: 'L' },
-  { href: 'archive', labelKey: 'organizer.archive.navLabel', badge: 'A' },
-] as const;
+// Flat list of every event-scoped nav item (overview + all themed groups).
+// The themed grouping itself lives in ./event-nav-groups; this derived list
+// drives active-link detection (pickActiveHref, longest-match across groups).
+const eventNavItems = [EVENT_NAV_OVERVIEW, ...EVENT_NAV_GROUPS.flatMap((g) => g.items)] as const;
 
 function asString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';
@@ -171,6 +158,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // Event base resolved from the context's selectedEventId — survives nav
   // to org-scoped routes that have no eventId in the URL.
   const eventBase = selectedEventId ? `/org/${slug}/events/${selectedEventId}` : '';
+  const eventGroups = useEventNavGroups();
   const navSections = useMemo(
     () => [
       {
@@ -186,6 +174,21 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
             {
               key: 'event' as const,
               title: t('organizer.shell.eventSection'),
+              // Ungrouped overview pinned under the event switcher.
+              overview: {
+                ...EVENT_NAV_OVERVIEW,
+                href: joinPath(eventBase, EVENT_NAV_OVERVIEW.href),
+              },
+              // Themed collapsible groups.
+              groups: EVENT_NAV_GROUPS.map((group) => ({
+                key: group.key,
+                headingKey: group.headingKey,
+                items: group.items.map((item) => ({
+                  ...item,
+                  href: joinPath(eventBase, item.href),
+                })),
+              })),
+              // Flat resolved list for active-link detection across all groups.
               items: eventNavItems.map((item) => ({
                 ...item,
                 href: joinPath(eventBase, item.href),
@@ -218,6 +221,39 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
     setSwitcherOpen(false);
     router.push(`/org/${slug}/events/${id}`);
   }
+
+  const renderNavItem = (
+    item: { href: string; labelKey: string; badge: string },
+    activeHref: string | null,
+  ) => {
+    const active = item.href === activeHref;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setOpen(false)}
+        className={[
+          'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
+          active
+            ? 'bg-red-800 text-white shadow-sm'
+            : 'text-slate-300 hover:bg-white/10 hover:text-white',
+        ].join(' ')}
+      >
+        <span
+          className={[
+            'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
+            active
+              ? 'border-white/30 bg-white/15 text-white'
+              : 'border-slate-600 bg-slate-900 text-amber-500 group-hover:border-slate-400',
+          ].join(' ')}
+          aria-hidden="true"
+        >
+          {item.badge}
+        </span>
+        <span>{t(item.labelKey)}</span>
+      </Link>
+    );
+  };
 
   const sidebar = (
     <nav aria-label={t('organizer.shell.navigationLabel')} className="flex flex-col gap-6">
@@ -308,37 +344,50 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
                 {section.title}
               </p>
             )}
-            <div className="flex flex-col gap-1">
-              {section.items.map((item) => {
-                const active = item.href === activeHref;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={[
-                      'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-                      active
-                        ? 'bg-red-800 text-white shadow-sm'
-                        : 'text-slate-300 hover:bg-white/10 hover:text-white',
-                    ].join(' ')}
-                  >
-                    <span
-                      className={[
-                        'flex h-7 w-7 shrink-0 items-center justify-center rounded border text-[0.65rem] font-bold',
-                        active
-                          ? 'border-white/30 bg-white/15 text-white'
-                          : 'border-slate-600 bg-slate-900 text-amber-500 group-hover:border-slate-400',
-                      ].join(' ')}
-                      aria-hidden="true"
-                    >
-                      {item.badge}
-                    </span>
-                    <span>{t(item.labelKey)}</span>
-                  </Link>
-                );
-              })}
-            </div>
+            {section.key === 'event' ? (
+              <>
+                <div className="flex flex-col gap-1">
+                  {renderNavItem(section.overview, activeHref)}
+                </div>
+                <div className="mt-4 flex flex-col gap-4">
+                  {section.groups.map((group) => {
+                    const groupOpen = eventGroups.isOpen(group.key);
+                    const groupHasActive = group.items.some((it) => it.href === activeHref);
+                    const groupPanelId = `nav-group-${group.key}`;
+                    return (
+                      <div key={group.key}>
+                        <button
+                          type="button"
+                          onClick={() => eventGroups.toggle(group.key)}
+                          aria-expanded={groupOpen}
+                          aria-controls={groupPanelId}
+                          className={[
+                            'flex w-full items-center justify-between gap-2 rounded-md px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors',
+                            !groupOpen && groupHasActive
+                              ? 'text-slate-200'
+                              : 'text-slate-500 hover:text-slate-300',
+                          ].join(' ')}
+                        >
+                          <span>{t(group.headingKey)}</span>
+                          <span aria-hidden="true" className="shrink-0 text-slate-500">
+                            {groupOpen ? '▾' : '▸'}
+                          </span>
+                        </button>
+                        {groupOpen && (
+                          <div id={groupPanelId} className="mt-1 flex flex-col gap-1">
+                            {group.items.map((item) => renderNavItem(item, activeHref))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {section.items.map((item) => renderNavItem(item, activeHref))}
+              </div>
+            )}
           </div>
         );
       })}
