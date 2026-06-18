@@ -158,8 +158,17 @@ interface RawWorkshop {
   sort_order: number | null;
   venue_id: string | null;
   venues: NamedRef | null;
-  workshop_sessions: RawSession[] | null;
+  // PostgREST embeds a to-one relationship as a single object. Migration 0098's
+  // UNIQUE(workshop_id) on workshop_sessions flips this embed from array → object,
+  // so it can arrive either way — always read it through `toArray`.
+  workshop_sessions: RawSession | RawSession[] | null;
   workshop_instructors: RawInstructor[] | null;
+}
+
+/** Normalize a PostgREST embed (object | array | null) to an array. */
+function toArray<T>(value: T | T[] | null | undefined): T[] {
+  if (Array.isArray(value)) return value;
+  return value == null ? [] : [value];
 }
 
 // Public visibility gate — mirrors TOURNAMENT_PUBLIC_STATUSES.
@@ -640,7 +649,7 @@ export class WorkshopsService {
         globalPersonId: i.global_person_id,
         displayName: i.display_name,
       })),
-      sessions: (row.workshop_sessions ?? []).map((s) => ({
+      sessions: toArray(row.workshop_sessions).map((s) => ({
         id: s.id,
         startsAt: s.starts_at,
         endsAt: s.ends_at,
@@ -658,7 +667,7 @@ export class WorkshopsService {
 
   /** One batched count query for all sessions across the given workshops. */
   private async confirmedCountsForWorkshops(rows: RawWorkshop[]): Promise<Map<string, number>> {
-    const sessionIds = rows.flatMap((r) => (r.workshop_sessions ?? []).map((s) => s.id));
+    const sessionIds = rows.flatMap((r) => toArray(r.workshop_sessions).map((s) => s.id));
     const counts = new Map<string, number>();
     if (sessionIds.length === 0) return counts;
     try {

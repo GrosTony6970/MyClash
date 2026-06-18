@@ -71,4 +71,20 @@ describe('formatInZone', () => {
   it('returns empty string on bad input', () => {
     expect(formatInZone(null, PARIS, { hour: '2-digit' })).toBe('');
   });
+
+  it('forces 24-hour even for a 12-hour locale (en-US)', () => {
+    const iso = zonedToUtcIso('2027-06-21', '14:30', PARIS)!;
+    expect(formatInZone(iso, PARIS, { hour: '2-digit', minute: '2-digit' }, 'en-US')).toBe('14:30');
+  });
+
+  it('respects an explicit hour12: true override', () => {
+    const iso = zonedToUtcIso('2027-06-21', '14:30', PARIS)!;
+    const out = formatInZone(
+      iso,
+      PARIS,
+      { hour: 'numeric', minute: '2-digit', hour12: true },
+      'en-US',
+    );
+    expect(out).toMatch(/PM/);
+  });
 });

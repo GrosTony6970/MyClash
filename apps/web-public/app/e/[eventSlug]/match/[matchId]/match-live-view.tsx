@@ -226,10 +226,11 @@ function ExchangeFeed({ exchanges }: { exchanges: ExchangeRow[] }) {
               <ExchangeLabel exchange={ex} />
             </span>
             <span className="ml-3 tabular-nums text-xs text-gray-400">
-              {new Date(ex.occurredAt).toLocaleTimeString([], {
+              {new Date(ex.occurredAt).toLocaleTimeString('fr-FR', {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
+                hour12: false,
               })}
             </span>
           </li>

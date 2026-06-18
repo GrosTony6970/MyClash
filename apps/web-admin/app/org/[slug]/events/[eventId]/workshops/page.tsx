@@ -872,6 +872,7 @@ export default function WorkshopsAdminPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
                   <input
                     type="time"
+                    lang="en-GB"
                     value={form.start}
                     onChange={(e) => onTimingChange('start', e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -881,6 +882,7 @@ export default function WorkshopsAdminPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
                   <input
                     type="time"
+                    lang="en-GB"
                     value={form.end}
                     onChange={(e) => onTimingChange('end', e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -1001,6 +1003,7 @@ export default function WorkshopsAdminPage() {
                       </label>
                       <input
                         type="datetime-local"
+                        lang="en-GB"
                         value={sessionForm.startTime}
                         onChange={(e) =>
                           setSessionForm((f) => ({ ...f, startTime: e.target.value }))
@@ -1012,6 +1015,7 @@ export default function WorkshopsAdminPage() {
                       <label className="block text-xs font-medium text-gray-700 mb-1">End *</label>
                       <input
                         type="datetime-local"
+                        lang="en-GB"
                         value={sessionForm.endTime}
                         onChange={(e) => setSessionForm((f) => ({ ...f, endTime: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -1239,6 +1243,7 @@ export default function WorkshopsAdminPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
                   <input
                     type="time"
+                    lang="en-GB"
                     value={breakForm.startTime}
                     onChange={(e) => setBreakForm((f) => ({ ...f, startTime: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -1248,6 +1253,7 @@ export default function WorkshopsAdminPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
                   <input
                     type="time"
+                    lang="en-GB"
                     value={breakForm.endTime}
                     onChange={(e) => setBreakForm((f) => ({ ...f, endTime: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"

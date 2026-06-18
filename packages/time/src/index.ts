@@ -85,5 +85,11 @@ export function formatInZone(
   if (!iso) return '';
   const dt = DateTime.fromISO(iso, { zone: 'utc' }).setZone(tz);
   if (!dt.isValid) return '';
-  return dt.setLocale(locale).toLocaleString(options);
+  // Force 24-hour clock for any time-bearing format unless the caller opted
+  // into a specific cycle — so the display never shows AM/PM regardless of locale.
+  const opts: Intl.DateTimeFormatOptions =
+    options.hour !== undefined && options.hour12 === undefined && options.hourCycle === undefined
+      ? { ...options, hour12: false }
+      : options;
+  return dt.setLocale(locale).toLocaleString(opts);
 }
