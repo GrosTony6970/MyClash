@@ -1422,7 +1422,7 @@ export default function BracketPage() {
             backend wipes the assignment. */}
         {overrideModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
               <h2 className="text-lg font-bold mb-3">
                 {t('organizer.bracket.overrideModal.title')}
               </h2>
@@ -1453,7 +1453,7 @@ export default function BracketPage() {
                       <div className="border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                         {sideLabel}
                       </div>
-                      <div className="max-h-64 overflow-y-auto">
+                      <div className="max-h-48 overflow-y-auto">
                         {filteredRegistrations.length === 0 ? (
                           <p className="px-3 py-3 text-xs italic text-gray-500">
                             {t('organizer.bracket.overrideModal.empty')}
