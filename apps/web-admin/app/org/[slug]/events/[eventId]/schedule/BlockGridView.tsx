@@ -89,6 +89,8 @@ interface Props {
   onBlockDragEnd: () => void;
   /** Drop on a lice column at a 15-min-snapped slot (vertical position). */
   onDropOnLice: (liceId: string, slot: number) => void;
+  /** Double-click an empty cell → start a new break at that 15-min slot. */
+  onCreateAtCell: (slot: number) => void;
   dragOverLiceId: string | null;
   onDragOverLice: (liceId: string | null) => void;
 }
@@ -128,6 +130,7 @@ export function BlockGridView({
   onBlockDragStart,
   onBlockDragEnd,
   onDropOnLice,
+  onCreateAtCell,
   dragOverLiceId,
   onDragOverLice,
 }: Props) {
@@ -484,6 +487,7 @@ export function BlockGridView({
                 dragKeyRef.current = null;
                 onDropOnLice(lice.id, slot);
               }}
+              onDoubleClick={(e) => onCreateAtCell(snapSlot(slotFromClientY(e.clientY)))}
               className={[
                 'border-l border-gray-100 transition-colors',
                 isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : '',

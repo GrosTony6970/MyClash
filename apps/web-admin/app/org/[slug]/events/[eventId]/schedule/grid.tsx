@@ -18,6 +18,7 @@ import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
 import { blockDeleteAction } from './schedule-block-actions';
+import { newBreakDraftFromCell } from './new-break-draft';
 import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
@@ -1284,6 +1285,8 @@ export function ScheduleGrid({
   // ── Block grid: edit popover + resize/edit commit handlers ────────────────
   const [editingBlock, setEditingBlock] = useState<ScheduleBlock | null>(null);
   const [editingBreak, setEditingBreak] = useState<BgvBreak | null>(null);
+  // Double-click an empty cell → seed a new break draft for the create popover.
+  const [creatingBreak, setCreatingBreak] = useState<BlockEditDraft | null>(null);
   const [blockEditBusy, setBlockEditBusy] = useState(false);
 
   // Optimistic apply + per-match PATCH for a set of (id, lice, time) updates.
@@ -1434,6 +1437,35 @@ export function ScheduleGrid({
     });
     await refetchScheduleAndBlocks();
     onProgrammeMutated?.();
+  }
+
+  // Create a new break from the double-click-an-empty-cell flow: POST a single
+  // programme block on the active day, then refetch.
+  async function createBreakBlock(draft: BlockEditDraft) {
+    if (!activeDay) return;
+    const dayIndex = days.indexOf(activeDay);
+    if (dayIndex < 0) return;
+    setBlockEditBusy(true);
+    try {
+      await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dayIndex,
+          blockType: 'break',
+          label: draft.label || 'Break',
+          startTime: draft.startHHMM,
+          endTime: draft.endHHMM,
+          colorHex: draft.colorHex || null,
+        }),
+      });
+      await refetchScheduleAndBlocks();
+      onProgrammeMutated?.();
+    } finally {
+      setBlockEditBusy(false);
+      setCreatingBreak(null);
+    }
   }
 
   // Top-edge resize of a break/admin bar — moves start_time, end_time stays put.
@@ -2232,6 +2264,7 @@ export function ScheduleGrid({
                 dragViewBlock.current = null;
               }}
               onDropOnLice={handleBlockViewDrop}
+              onCreateAtCell={(slot) => setCreatingBreak(newBreakDraftFromCell(slot))}
               dragOverLiceId={dragOverLiceId}
               onDragOverLice={setDragOverLiceId}
             />
@@ -2659,6 +2692,20 @@ export function ScheduleGrid({
             setEditingBreak(null);
           }}
           onSave={savePopover}
+        />
+      )}
+
+      {/* Create-break popover (double-click an empty grid cell). */}
+      {creatingBreak && (
+        <BlockEditPopover
+          open
+          mode="break"
+          title="Add break"
+          initial={creatingBreak}
+          lices={lices}
+          busy={blockEditBusy}
+          onCancel={() => setCreatingBreak(null)}
+          onSave={(draft) => void createBreakBlock(draft)}
         />
       )}
 
