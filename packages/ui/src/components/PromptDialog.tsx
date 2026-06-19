@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
@@ -67,7 +68,9 @@ export function PromptDialog({
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, busy, onCancel]);
 
-  if (!open) return null;
+  // Portal to <body> so the dialog escapes any sticky/transformed ancestor's
+  // stacking context (see ConfirmDialog).
+  if (!open || typeof document === 'undefined') return null;
 
   const canConfirm = allowEmpty || value.trim().length > 0;
   const confirmClasses = danger
@@ -80,7 +83,7 @@ export function PromptDialog({
     onConfirm(value);
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 dialog-enter"
       onClick={(e) => {
@@ -142,6 +145,74 @@ export function PromptDialog({
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
+}
+
+export interface PromptOptions {
+  title: ReactNode;
+  description?: ReactNode;
+  placeholder?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  allowEmpty?: boolean;
+  multiline?: boolean;
+  initialValue?: string;
+}
+
+/**
+ * Promise-based prompt backed by {@link PromptDialog} — the in-app
+ * replacement for `window.prompt`. Resolves to the entered string, or `null`
+ * when cancelled. Usage:
+ *
+ *   const { prompt, promptDialog } = usePrompt();
+ *   const reason = await prompt({ title: 'Reason for rejection' });
+ *   if (reason === null) return;
+ *   // …render {promptDialog} once in the component tree.
+ */
+export function usePrompt(): {
+  prompt: (opts: PromptOptions) => Promise<string | null>;
+  promptDialog: ReactNode;
+} {
+  const [state, setState] = useState<PromptOptions & { open: boolean }>({
+    open: false,
+    title: '',
+  });
+  const resolver = useRef<((value: string | null) => void) | null>(null);
+
+  const prompt = useCallback(
+    (opts: PromptOptions) =>
+      new Promise<string | null>((resolve) => {
+        resolver.current = resolve;
+        setState({ ...opts, open: true });
+      }),
+    [],
+  );
+
+  const settle = useCallback((value: string | null) => {
+    setState((s) => ({ ...s, open: false }));
+    resolver.current?.(value);
+    resolver.current = null;
+  }, []);
+
+  const promptDialog = (
+    <PromptDialog
+      open={state.open}
+      title={state.title}
+      description={state.description}
+      placeholder={state.placeholder}
+      confirmLabel={state.confirmLabel}
+      cancelLabel={state.cancelLabel}
+      danger={state.danger}
+      allowEmpty={state.allowEmpty}
+      multiline={state.multiline}
+      initialValue={state.initialValue}
+      onConfirm={(value) => settle(value)}
+      onCancel={() => settle(null)}
+    />
+  );
+
+  return { prompt, promptDialog };
 }

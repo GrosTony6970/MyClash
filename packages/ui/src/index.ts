@@ -98,11 +98,14 @@ export type { HelpTooltipProps } from './components/HelpTooltip';
 export { ConfirmDialog } from './components/ConfirmDialog';
 export type { ConfirmDialogProps } from './components/ConfirmDialog';
 
+export { useConfirm } from './components/useConfirm';
+export type { ConfirmOptions } from './components/useConfirm';
+
 export { Drawer } from './components/Drawer';
 export type { DrawerProps } from './components/Drawer';
 
-export { PromptDialog } from './components/PromptDialog';
-export type { PromptDialogProps } from './components/PromptDialog';
+export { PromptDialog, usePrompt } from './components/PromptDialog';
+export type { PromptDialogProps, PromptOptions } from './components/PromptDialog';
 
 export { ToastProvider, useToast } from './components/Toast';
 export type { ToastVariant } from './components/Toast';

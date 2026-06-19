@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useConfirm } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 const ORG_ROLES = [
@@ -43,6 +44,7 @@ export default function AdminUserEditPage() {
   const userId = params.id;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { t } = useI18n();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [user, setUser] = useState<AdminUser | null>(null);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
@@ -116,7 +118,8 @@ export default function AdminUserEditPage() {
   }, [apiUrl, userId]);
 
   async function lockTempPassword() {
-    if (!window.confirm(t('admin.users.edit.tempPasswordLockConfirm'))) return;
+    if (!(await confirm({ title: t('admin.users.edit.tempPasswordLockConfirm'), danger: true })))
+      return;
     setBusy(true);
     try {
       const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/temp-password`, {
@@ -232,7 +235,13 @@ export default function AdminUserEditPage() {
   }
 
   async function removeMembership(org: UserOrgMembership) {
-    if (!window.confirm(t('admin.users.edit.confirmRemove', { organization: org.name }))) return;
+    if (
+      !(await confirm({
+        title: t('admin.users.edit.confirmRemove', { organization: org.name }),
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -258,7 +267,7 @@ export default function AdminUserEditPage() {
     const confirmMsg = isCurrentlySuperAdmin
       ? t('admin.users.edit.superAdminRevokeConfirm')
       : t('admin.users.edit.superAdminGrantConfirm');
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirm({ title: confirmMsg, danger: true }))) return;
 
     setBusy(true);
     setError(null);
@@ -532,6 +541,7 @@ export default function AdminUserEditPage() {
           </button>
         </div>
       </section>
+      {confirmDialog}
     </main>
   );
 }

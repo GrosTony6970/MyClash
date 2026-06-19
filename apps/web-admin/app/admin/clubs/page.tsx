@@ -8,6 +8,7 @@ import {
   RowActionButton,
   SortableHeader,
   fuzzyMatch,
+  useConfirm,
   useSelection,
   useSortableList,
   useToast,
@@ -128,6 +129,7 @@ export default function AdminClubsPage() {
 
   // Bulk-action selection + dialog state
   const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
   const selection = useSelection();
   const [pendingBulk, setPendingBulk] = useState<BulkAction | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -410,7 +412,13 @@ export default function AdminClubsPage() {
   }
 
   async function removeLogoFromLightbox(club: ClubRow) {
-    if (!window.confirm(t('admin.clubs.logoRemoveConfirm', { club: club.name }))) return;
+    if (
+      !(await confirm({
+        title: t('admin.clubs.logoRemoveConfirm', { club: club.name }),
+        danger: true,
+      }))
+    )
+      return;
     setLightboxBusy(true);
     setError(null);
     setCreateSuccess(null);
@@ -536,7 +544,7 @@ export default function AdminClubsPage() {
           ? 'admin.clubs.confirmArchive'
           : 'admin.clubs.confirmCleanupDelete';
 
-    if (!window.confirm(t(confirmKey, { club: club.name }))) return;
+    if (!(await confirm({ title: t(confirmKey, { club: club.name }), danger: true }))) return;
 
     setDeletingId(club.id);
     setError(null);
@@ -1587,6 +1595,8 @@ export default function AdminClubsPage() {
           </div>
         </div>
       )}
+
+      {confirmDialog}
     </main>
   );
 }

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useConfirm } from '@myclash/ui';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -134,6 +135,7 @@ const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 
 export default function EditLeaguePage() {
   const { t } = useI18n();
+  const { confirm, confirmDialog } = useConfirm();
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
   const searchParams = useSearchParams();
@@ -292,7 +294,8 @@ export default function EditLeaguePage() {
   }
 
   async function deleteGroup(groupId: string) {
-    if (!window.confirm(t('admin.leagues.editPage.groups.deleteConfirm'))) return;
+    if (!(await confirm({ title: t('admin.leagues.editPage.groups.deleteConfirm'), danger: true })))
+      return;
     setBusy(true);
     try {
       await fetch(`${apiUrl}/api/v1/admin/league-groups/${groupId}`, {
@@ -468,7 +471,8 @@ export default function EditLeaguePage() {
   }
 
   async function removeLogo() {
-    if (!window.confirm(t('admin.leagues.editPage.logo.removeConfirm'))) return;
+    if (!(await confirm({ title: t('admin.leagues.editPage.logo.removeConfirm'), danger: true })))
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -509,7 +513,8 @@ export default function EditLeaguePage() {
   }
 
   async function removeOwner(userIdSel: string) {
-    if (!window.confirm(t('admin.leagues.editPage.owners.detachConfirm'))) return;
+    if (!(await confirm({ title: t('admin.leagues.editPage.owners.detachConfirm'), danger: true })))
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -549,7 +554,8 @@ export default function EditLeaguePage() {
   }
 
   async function removeOrg(orgId: string) {
-    if (!window.confirm(t('admin.leagues.editPage.orgs.detachConfirm'))) return;
+    if (!(await confirm({ title: t('admin.leagues.editPage.orgs.detachConfirm'), danger: true })))
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -594,7 +600,13 @@ export default function EditLeaguePage() {
   }
 
   async function removeTournamentLink(linkId: string) {
-    if (!window.confirm(t('admin.leagues.editPage.tournaments.detachConfirm'))) return;
+    if (
+      !(await confirm({
+        title: t('admin.leagues.editPage.tournaments.detachConfirm'),
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -1309,6 +1321,7 @@ export default function EditLeaguePage() {
       <section className="mb-6">
         <LeagueRequestsPanel leagueId={leagueId} />
       </section>
+      {confirmDialog}
     </main>
   );
 }

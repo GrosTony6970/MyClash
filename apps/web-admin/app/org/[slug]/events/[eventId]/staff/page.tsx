@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { usePrompt } from '@myclash/ui';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 
 interface StaffAccount {
@@ -28,6 +29,7 @@ interface EventInfo {
 export default function EventStaffPage() {
   const { slug, eventId } = useParams<{ slug: string; eventId: string }>();
   const { t } = useI18n();
+  const { prompt, promptDialog } = usePrompt();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
 
@@ -117,7 +119,7 @@ export default function EventStaffPage() {
   }
 
   async function resetPin(account: StaffAccount) {
-    const pin = window.prompt(t('organizer.staff.pin'));
+    const pin = await prompt({ title: t('organizer.staff.pin') });
     if (!pin) return;
     await fetch(`${apiUrl}/api/v1/events/${eventId}/staff-accounts/${account.id}/reset-pin`, {
       method: 'POST',
@@ -290,6 +292,8 @@ export default function EventStaffPage() {
           </section>
         ))}
       </div>
+
+      {promptDialog}
     </main>
   );
 }

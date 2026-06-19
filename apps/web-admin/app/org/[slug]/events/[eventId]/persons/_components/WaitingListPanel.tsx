@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useToast } from '@myclash/ui';
+import { useConfirm, useToast } from '@myclash/ui';
 import { formatRosterName } from '../roster-name';
 
 /**
@@ -52,6 +52,7 @@ export function WaitingListPanel({
   onChange,
 }: Props) {
   const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
   const grouped = useMemo(() => {
     const map = new Map<string, WaitlistRegistration[]>();
     for (const reg of registrations) {
@@ -74,7 +75,7 @@ export function WaitingListPanel({
       if (res.status === 409) {
         const body = (await res.json().catch(() => null)) as { reason?: string } | null;
         if (body?.reason === 'tournament_full') {
-          if (confirm('Tournament is full. Promote anyway and exceed the cap?')) {
+          if (await confirm({ title: 'Tournament is full. Promote anyway and exceed the cap?' })) {
             return promote(reg, true);
           }
           return;
@@ -89,7 +90,7 @@ export function WaitingListPanel({
   }
 
   async function remove(reg: WaitlistRegistration) {
-    if (!confirm('Remove this person from the waitlist?')) return;
+    if (!(await confirm({ title: 'Remove this person from the waitlist?', danger: true }))) return;
     try {
       const res = await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
         method: 'DELETE',
@@ -152,6 +153,7 @@ export function WaitingListPanel({
           </section>
         );
       })}
+      {confirmDialog}
     </div>
   );
 }

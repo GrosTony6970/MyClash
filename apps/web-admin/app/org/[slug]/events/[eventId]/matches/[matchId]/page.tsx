@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useConfirm, useToast } from '@myclash/ui';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,8 @@ export default function MatchDetailPage() {
   }>();
   const { slug, eventId, matchId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
 
   const [match, setMatch] = useState<Match | null>(null);
   // Canonical header data — roundCode (LSW-B-R16-M1) + fighter names
@@ -228,7 +231,13 @@ export default function MatchDetailPage() {
   // ── Revert void ───────────────────────────────────────────────────────────────
 
   async function handleRevert(exchangeId: string) {
-    if (!confirm('Restore this exchange? The score will be recomputed.')) return;
+    if (
+      !(await confirm({
+        title: 'Restore this exchange? The score will be recomputed.',
+        danger: true,
+      }))
+    )
+      return;
 
     const res = await fetch(`${apiUrl}/api/v1/exchanges/${exchangeId}/revert-void`, {
       method: 'PATCH',
@@ -245,7 +254,7 @@ export default function MatchDetailPage() {
       setRefreshKey((k) => k + 1);
     } else {
       const body = (await res.json()) as { message?: string };
-      alert(body.message ?? 'Revert failed');
+      toast.error(body.message ?? 'Revert failed');
     }
   }
 
@@ -262,16 +271,18 @@ export default function MatchDetailPage() {
       setRefreshKey((key) => key + 1);
     } else {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      alert(body.message ?? 'Lock operation failed');
+      toast.error(body.message ?? 'Lock operation failed');
     }
   }
 
   async function handleReopen() {
     if (!match) return;
     if (
-      !window.confirm(
-        'Re-open this match? The lice will be able to score again. The current scores and exchanges are preserved.',
-      )
+      !(await confirm({
+        title:
+          'Re-open this match? The lice will be able to score again. The current scores and exchanges are preserved.',
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -285,7 +296,7 @@ export default function MatchDetailPage() {
       setRefreshKey((key) => key + 1);
     } else {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      alert(body.message ?? 'Could not re-open the match.');
+      toast.error(body.message ?? 'Could not re-open the match.');
     }
   }
 
@@ -295,7 +306,7 @@ export default function MatchDetailPage() {
     const blueId = match.blueRegistrationId ?? match.blue_registration_id;
     const forfeitingRegistrationId = forfeitSide === 'red' ? redId : blueId;
     if (!forfeitingRegistrationId) {
-      alert('Missing registration id for this side');
+      toast.error('Missing registration id for this side');
       return;
     }
     setForfeitSaving(true);
@@ -314,7 +325,7 @@ export default function MatchDetailPage() {
     setForfeitSaving(false);
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      alert(body.message ?? 'Forfeit failed');
+      toast.error(body.message ?? 'Forfeit failed');
       return;
     }
     setRefreshKey((key) => key + 1);
@@ -626,6 +637,7 @@ export default function MatchDetailPage() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </main>
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { t } from '@myclash/i18n';
+import { useConfirm } from '@myclash/ui';
 
 interface VenueArea {
   id: string;
@@ -32,6 +33,7 @@ const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 export default function OrgVenuesPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
+  const { confirm, confirmDialog } = useConfirm();
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [venues, setVenues] = useState<VenueRow[]>([]);
@@ -73,7 +75,13 @@ export default function OrgVenuesPage() {
   }, [slug, loadVenues]);
 
   const onDelete = async (venue: VenueRow) => {
-    if (!window.confirm(t('organizer.venues.deleteConfirm').replace('{name}', venue.name))) return;
+    if (
+      !(await confirm({
+        title: t('organizer.venues.deleteConfirm').replace('{name}', venue.name),
+        danger: true,
+      }))
+    )
+      return;
     try {
       const res = await fetch(`${apiUrl}/api/v1/venues/${venue.id}`, {
         method: 'DELETE',
@@ -198,6 +206,7 @@ export default function OrgVenuesPage() {
           }}
         />
       )}
+      {confirmDialog}
     </main>
   );
 }

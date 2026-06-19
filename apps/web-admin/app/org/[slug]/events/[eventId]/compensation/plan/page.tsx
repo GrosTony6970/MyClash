@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { useConfirm } from '@myclash/ui';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationPlan, RefereeRole, CompensationPhase } from '@myclash/types';
@@ -55,6 +56,7 @@ export default function OrgCompensationPlansPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { confirm, confirmDialog } = useConfirm();
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [plans, setPlans] = useState<CompensationPlan[]>([]);
@@ -162,7 +164,10 @@ export default function OrgCompensationPlansPage() {
   }
 
   async function deletePlan(planId: string) {
-    if (!confirm(t('organizer.compensationSettings.deleteConfirm'))) return;
+    if (
+      !(await confirm({ title: t('organizer.compensationSettings.deleteConfirm'), danger: true }))
+    )
+      return;
     try {
       await fetch(`${apiUrl}/api/v1/compensation-plans/${planId}`, {
         method: 'DELETE',
@@ -573,6 +578,7 @@ export default function OrgCompensationPlansPage() {
           ))}
         </div>
       </section>
+      {confirmDialog}
     </main>
   );
 }

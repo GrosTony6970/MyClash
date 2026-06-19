@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ConfirmDialog, SkillBadge, TournamentColorDot, useToast } from '@myclash/ui';
+import { ConfirmDialog, SkillBadge, TournamentColorDot, useConfirm, useToast } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
@@ -96,6 +96,7 @@ export default function ParticipantsPage() {
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const toast = useToast();
+  const { confirm, confirmDialog } = useConfirm();
   const { isReadOnly } = useEventStatus(eventId);
 
   const [persons, setPersons] = useState<Person[]>([]);
@@ -730,7 +731,7 @@ export default function ParticipantsPage() {
 
   async function handleBulkCheckIn() {
     if (selected.size === 0 || activeTab === 'all') return;
-    if (!confirm(`Check in ${selected.size} participant(s)?`)) return;
+    if (!(await confirm({ title: `Check in ${selected.size} participant(s)?` }))) return;
     setBulkLoading(true);
     for (const personId of selected) {
       const reg = (registrationsByPersonId.get(personId) ?? []).find(
@@ -833,7 +834,11 @@ export default function ParticipantsPage() {
 
   async function handleBulkRegisterReferee() {
     if (selected.size === 0) return;
-    if (!confirm(t('organizer.persons.bulk.registerRefereeConfirm', { count: selected.size }))) {
+    if (
+      !(await confirm({
+        title: t('organizer.persons.bulk.registerRefereeConfirm', { count: selected.size }),
+      }))
+    ) {
       return;
     }
     setBulkLoading(true);
@@ -858,7 +863,12 @@ export default function ParticipantsPage() {
 
   async function handleBulkUnregisterReferee() {
     if (selected.size === 0) return;
-    if (!confirm(t('organizer.persons.bulk.unregisterRefereeConfirm', { count: selected.size }))) {
+    if (
+      !(await confirm({
+        title: t('organizer.persons.bulk.unregisterRefereeConfirm', { count: selected.size }),
+        danger: true,
+      }))
+    ) {
       return;
     }
     setBulkLoading(true);
@@ -2010,6 +2020,7 @@ export default function ParticipantsPage() {
         onConfirm={() => void confirmWaitlist()}
         onCancel={() => setWaitlistPrompt(null)}
       />
+      {confirmDialog}
     </main>
   );
 }

@@ -2,7 +2,7 @@
 
 import { t } from '@myclash/i18n';
 import { getDateFormat } from '@myclash/types';
-import { SortableHeader, useSortableList } from '@myclash/ui';
+import { SortableHeader, useConfirm, useSortableList } from '@myclash/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../../src/i18n/I18nProvider';
@@ -183,6 +183,7 @@ export default function AdminFightersPage() {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
   const { locale } = useI18n();
   const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
+  const { confirm, confirmDialog } = useConfirm();
   const [tab, setTab] = useState<Tab>('profiles');
 
   // ── Global persons list ──────────────────────────────────────────────────────
@@ -488,7 +489,8 @@ export default function AdminFightersPage() {
   }
 
   async function revertMerge(auditId: string) {
-    if (!confirm(t('admin.globalProfiles.merge.revertConfirm'))) return;
+    if (!(await confirm({ title: t('admin.globalProfiles.merge.revertConfirm'), danger: true })))
+      return;
     const res = await fetch(`${apiUrl}/api/v1/fighters/merge/${auditId}/revert`, {
       method: 'POST',
       credentials: 'include',
@@ -1160,6 +1162,7 @@ export default function AdminFightersPage() {
           </section>
         </div>
       )}
+      {confirmDialog}
     </main>
   );
 }

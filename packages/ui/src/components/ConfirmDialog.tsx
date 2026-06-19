@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /**
@@ -53,13 +54,16 @@ export function ConfirmDialog({
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, busy, onCancel]);
 
-  if (!open) return null;
+  // Portal to <body> so the dialog escapes any sticky/transformed ancestor
+  // (e.g. the schedule board's sticky sidebar) that would otherwise scope its
+  // stacking context and let the page paint over it.
+  if (!open || typeof document === 'undefined') return null;
 
   const confirmClasses = danger
     ? 'bg-red-800 hover:bg-red-900 text-white'
     : 'bg-slate-900 hover:bg-slate-700 text-white';
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 dialog-enter"
       onClick={(e) => {
@@ -101,6 +105,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

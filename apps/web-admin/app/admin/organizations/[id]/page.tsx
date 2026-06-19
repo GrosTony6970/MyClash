@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useConfirm, useToast } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 
 interface Member {
@@ -96,6 +97,8 @@ function accountLabel(account: PlatformAccount): string {
 
 export default function AdminOrgDetailPage({ params }: Props) {
   const { t } = useI18n();
+  const { confirm, confirmDialog } = useConfirm();
+  const toast = useToast();
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
   const [org, setOrg] = useState<OrgDetail | null>(null);
@@ -155,7 +158,12 @@ export default function AdminOrgDetailPage({ params }: Props) {
       reactivate: t('admin.organizations.actions.reactivate'),
       delete: t('admin.organizations.actions.delete'),
     };
-    if (!confirm(t('admin.organizations.actions.confirm', { action: labels[action] }))) return;
+    if (
+      !(await confirm({
+        title: t('admin.organizations.actions.confirm', { action: labels[action] }),
+      }))
+    )
+      return;
 
     const method = action === 'delete' ? 'DELETE' : 'PATCH';
     const url = `${apiUrl}/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
@@ -169,7 +177,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
       }
     } else {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      alert(data?.message ?? t('admin.organizations.actions.failed'));
+      toast.error(data?.message ?? t('admin.organizations.actions.failed'));
     }
   }
 
@@ -224,7 +232,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
 
   async function submitAssignOwner(body: Record<string, unknown>, confirmLabel?: string) {
     if (!orgId || actionLoading) return;
-    if (confirmLabel && !confirm(confirmLabel)) return;
+    if (confirmLabel && !(await confirm({ title: confirmLabel }))) return;
 
     setActionLoading(true);
     const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}/reassign-owner`, {
@@ -239,7 +247,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
       window.location.reload();
     } else {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      alert(data?.message ?? t('admin.organizations.detail.reassignFailed'));
+      toast.error(data?.message ?? t('admin.organizations.detail.reassignFailed'));
     }
   }
 
@@ -274,7 +282,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
       window.location.reload();
     } else {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      alert(data?.message ?? t('admin.organizations.detail.addMemberFailed'));
+      toast.error(data?.message ?? t('admin.organizations.detail.addMemberFailed'));
     }
   }
 
@@ -295,18 +303,19 @@ export default function AdminOrgDetailPage({ params }: Props) {
       window.location.reload();
     } else {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      alert(data?.message ?? t('admin.organizations.detail.roleUpdateFailed'));
+      toast.error(data?.message ?? t('admin.organizations.detail.roleUpdateFailed'));
     }
   }
 
   async function handleRemoveMember(member: Member) {
     if (!orgId || actionLoading) return;
     if (
-      !confirm(
-        t('admin.organizations.detail.confirmRemoveMember', {
+      !(await confirm({
+        title: t('admin.organizations.detail.confirmRemoveMember', {
           account: member.username || member.email || member.user_id,
         }),
-      )
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -323,7 +332,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
       window.location.reload();
     } else {
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      alert(data?.message ?? t('admin.organizations.detail.removeMemberFailed'));
+      toast.error(data?.message ?? t('admin.organizations.detail.removeMemberFailed'));
     }
   }
 
@@ -815,6 +824,7 @@ export default function AdminOrgDetailPage({ params }: Props) {
           </div>
         </div>
       ) : null}
+      {confirmDialog}
     </main>
   );
 }

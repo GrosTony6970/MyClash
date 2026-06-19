@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { useConfirm, usePrompt } from '@myclash/ui';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
 import type {
   FormulaConstants,
@@ -58,6 +59,8 @@ export default function EditRulesetPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { t } = useI18n();
+  const { confirm, confirmDialog } = useConfirm();
+  const { prompt, promptDialog } = usePrompt();
   const id = params.id;
 
   const [loading, setLoading] = useState(true);
@@ -147,9 +150,9 @@ export default function EditRulesetPage() {
 
   async function handleRestore(snapshot: VersionSnapshot) {
     if (!id) return;
-    const confirmed = window.confirm(
-      t('admin.rulesets.versionRestoreConfirm').replace('{version}', snapshot.version),
-    );
+    const confirmed = await confirm({
+      title: t('admin.rulesets.versionRestoreConfirm').replace('{version}', snapshot.version),
+    });
     if (!confirmed) return;
     setBusy(true);
     setError(null);
@@ -172,7 +175,10 @@ export default function EditRulesetPage() {
 
   async function handlePublishNewVersion() {
     if (!id) return;
-    const nextVersion = window.prompt(t('admin.rulesets.publishNewVersionPrompt'));
+    const nextVersion = await prompt({
+      title: t('admin.rulesets.publishNewVersionPrompt'),
+      allowEmpty: true,
+    });
     // Empty string = auto-bump; null (cancel) = abort.
     if (nextVersion === null) return;
     setBusy(true);
@@ -332,6 +338,9 @@ export default function EditRulesetPage() {
           </div>
         </aside>
       )}
+
+      {confirmDialog}
+      {promptDialog}
     </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
+import { useConfirm } from '@myclash/ui';
 
 interface League {
   id: string;
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export function RequestsTab({ eventId, apiUrl }: Props) {
+  const { confirm, confirmDialog } = useConfirm();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -141,7 +143,8 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
   };
 
   const detach = async (attachment: Attachment) => {
-    if (!window.confirm(t('admin.leagues.myRequests.leaveConfirm'))) return;
+    if (!(await confirm({ title: t('admin.leagues.myRequests.leaveConfirm'), danger: true })))
+      return;
     setBusyDetach(attachment.id);
     try {
       const res = await fetch(
@@ -304,6 +307,7 @@ export function RequestsTab({ eventId, apiUrl }: Props) {
           </ul>
         )}
       </section>
+      {confirmDialog}
     </div>
   );
 }

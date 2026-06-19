@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@myclash/i18n';
+import { useConfirm } from '@myclash/ui';
 import { useEffect, useState } from 'react';
 
 type AIProvider = 'anthropic' | 'openai' | 'mistral';
@@ -20,6 +21,7 @@ export default function AdminAISettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -72,7 +74,7 @@ export default function AdminAISettingsPage() {
   }
 
   async function removeSettings() {
-    if (!confirm(t('admin.aiSettings.removeConfirm'))) return;
+    if (!(await confirm({ title: t('admin.aiSettings.removeConfirm'), danger: true }))) return;
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -175,6 +177,7 @@ export default function AdminAISettingsPage() {
           )}
         </div>
       </section>
+      {confirmDialog}
     </main>
   );
 }
