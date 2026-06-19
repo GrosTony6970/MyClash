@@ -4,6 +4,7 @@
 import { useSearchParams } from 'next/navigation';
 import { getApiUrl } from '@/lib/api-url';
 import { Suspense, useState } from 'react';
+import { GoogleIcon } from '@myclash/ui';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
 
@@ -132,8 +133,9 @@ function ClaimForm() {
           void handleGoogleClaim();
         }}
         disabled={loading || !personId}
-        className="mt-3 w-full border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+        className="mt-3 w-full inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-red-500 disabled:opacity-50 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
       >
+        <GoogleIcon />
         {t('auth.oauth.continueWithGoogle')}
       </button>
 

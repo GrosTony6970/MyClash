@@ -5,7 +5,7 @@ import { getApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Button } from '@myclash/ui';
+import { Button, GoogleIcon } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
@@ -371,6 +371,7 @@ export default function PublicLoginPage() {
                     type="button"
                     variant="ghost"
                     className="w-full py-3"
+                    leftIcon={<GoogleIcon />}
                     onClick={() => void continueWithGoogle()}
                   >
                     {t('auth.oauth.continueWithGoogle')}

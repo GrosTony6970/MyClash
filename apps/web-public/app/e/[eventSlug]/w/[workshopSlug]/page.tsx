@@ -15,6 +15,7 @@ import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatInZone } from '@myclash/time';
+import { GoogleIcon } from '@myclash/ui';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
 
@@ -224,8 +225,9 @@ export default function WorkshopDetailPage() {
           onClick={() => {
             void handleGoogleClaim();
           }}
-          className="w-full mb-6 border border-gray-300 hover:border-red-500 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+          className="w-full mb-6 inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-red-500 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
         >
+          <GoogleIcon />
           {t('auth.oauth.continueWithGoogle')}
         </button>
       )}

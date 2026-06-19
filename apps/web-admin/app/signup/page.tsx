@@ -2,6 +2,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { GoogleIcon } from '@myclash/ui';
 import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
@@ -453,8 +454,9 @@ export default function SignupPage() {
               <button
                 type="submit"
                 disabled={loading || slugStatus.available === false || slugStatus.checking}
-                className="flex-1 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md transition-colors"
               >
+                {method === 'google' && <GoogleIcon />}
                 {method === 'google'
                   ? t('auth.oauth.continueWithGoogle')
                   : loading

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button } from '@myclash/ui';
+import { Button, GoogleIcon } from '@myclash/ui';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
@@ -204,6 +204,7 @@ export default function LoginPage() {
           }}
           disabled={loading}
           loading={loadingAction === 'google'}
+          leftIcon={<GoogleIcon />}
           variant="back"
           className="mt-3 w-full"
         >

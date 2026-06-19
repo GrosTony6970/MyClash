@@ -11,6 +11,9 @@ export type { PillProps, PillVariant } from './components/Pill';
 export { ShieldBg, ShieldIcon } from './components/ShieldBg';
 export type { ShieldBgProps } from './components/ShieldBg';
 
+export { GoogleIcon } from './components/GoogleIcon';
+export type { GoogleIconProps } from './components/GoogleIcon';
+
 export { ScoreDisplay } from './components/ScoreDisplay';
 export type { ScoreDisplayProps } from './components/ScoreDisplay';
 
