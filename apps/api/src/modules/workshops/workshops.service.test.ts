@@ -176,3 +176,50 @@ describe('WorkshopsService — create/update columns', () => {
     expect(updates[0]).toMatchObject({ venue_id: null });
   });
 });
+
+describe('WorkshopsService — deleteSession (unschedule)', () => {
+  function build() {
+    const captures: { deletedId?: string } = {};
+    const sessionsApi: Record<string, unknown> = {};
+    Object.assign(sessionsApi, {
+      select: vi.fn(() => sessionsApi),
+      eq: vi.fn(() => sessionsApi),
+      maybeSingle: vi.fn(() => Promise.resolve({ data: { workshop_id: 'w-1' }, error: null })),
+      delete: vi.fn(() => ({
+        eq: vi.fn((_col: string, val: string) => {
+          captures.deletedId = val;
+          return Promise.resolve({ error: null });
+        }),
+      })),
+    });
+    const workshopsApi = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(() => Promise.resolve({ data: { event_id: 'event-1' }, error: null })),
+    };
+    const eventsApi = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn(() =>
+        Promise.resolve({ data: { organization_id: 'org-1' }, error: null }),
+      ),
+    };
+    const supabase = {
+      service: {
+        from: vi.fn((t: string) =>
+          t === 'workshop_sessions' ? sessionsApi : t === 'workshops' ? workshopsApi : eventsApi,
+        ),
+      },
+    };
+    return { supabase, captures };
+  }
+
+  it('deletes the session row after asserting management rights', async () => {
+    const { supabase, captures } = build();
+    const svc = makeService(supabase);
+
+    await svc.deleteSession('sess-1', 'user-1');
+
+    expect(captures.deletedId).toBe('sess-1');
+  });
+});

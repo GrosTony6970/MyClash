@@ -76,4 +76,17 @@ describe('WorkshopsService — workshop breaks', () => {
       label: 'Lunch',
     });
   });
+
+  it('persists the chosen colour', async () => {
+    const captures: Record<string, unknown[]> = {};
+    const svc = makeSvc(buildSupabase(captures));
+
+    await svc.createWorkshopBreak(
+      'event-1',
+      { startTime: '12:00', endTime: '13:00', color: '#f59e0b' },
+      'user-1',
+    );
+
+    expect(captures['insert']?.[0]).toMatchObject({ color: '#f59e0b' });
+  });
 });

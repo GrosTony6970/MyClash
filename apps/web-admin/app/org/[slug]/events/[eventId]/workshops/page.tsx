@@ -22,14 +22,9 @@ import {
   workshopSessionTimes,
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
-import { formatInZone, zonedToUtcIso } from '@myclash/time';
+import { formatInZone, zonedDay } from '@myclash/time';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
-
-/** A `datetime-local` value (YYYY-MM-DDTHH:MM) → UTC instant in the event tz. */
-function datetimeLocalToUtc(value: string, tz: string): string | null {
-  const [day, hhmm] = value.split('T');
-  return zonedToUtcIso(day ?? '', (hhmm ?? '').slice(0, 5), tz);
-}
+import { Time24Input } from '@/components/Time24Input';
 
 interface NamedRef {
   id: string;
@@ -95,6 +90,23 @@ interface RosterEntry {
   } | null;
 }
 
+const EMPTY_FORM = {
+  title: '',
+  slug: '',
+  category: '',
+  level: '',
+  language: 'fr',
+  capacity: 20,
+  durationMinutes: '' as string | number,
+  description: '',
+  venueId: '' as string,
+  status: 'draft',
+  day: '',
+  start: '',
+  end: '',
+  instructorIds: [] as string[],
+};
+
 export default function WorkshopsAdminPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
@@ -153,24 +165,10 @@ export default function WorkshopsAdminPage() {
     };
   }, [apiUrl, eventId, refreshKey]);
 
-  // Create modal
+  // Create / edit modal. `editingId` null → create, else editing that workshop.
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({
-    title: '',
-    slug: '',
-    category: '',
-    level: '',
-    language: 'fr',
-    capacity: 20,
-    durationMinutes: '' as string | number,
-    description: '',
-    venueId: '' as string,
-    status: 'draft',
-    day: '',
-    start: '',
-    end: '',
-    instructorIds: [] as string[],
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -194,6 +192,60 @@ export default function WorkshopsAdminPage() {
     });
   }
 
+  function hhmmInZone(iso: string): string {
+    return formatInZone(iso, eventTz, { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFormError(null);
+    setShowCreate(true);
+  }
+
+  function openEdit(w: Workshop) {
+    const s = w.sessions[0] ?? null;
+    setEditingId(w.id);
+    setForm({
+      title: w.title,
+      slug: w.slug,
+      category: w.category ?? '',
+      level: w.level ?? '',
+      language: w.language ?? 'fr',
+      capacity: w.capacity ?? 20,
+      durationMinutes: w.durationMinutes ?? '',
+      description: '',
+      venueId: w.venueId ?? '',
+      status: w.status,
+      day: s?.startsAt ? (zonedDay(s.startsAt, eventTz) ?? '') : '',
+      start: s?.startsAt ? hhmmInZone(s.startsAt) : '',
+      end: s?.endsAt ? hhmmInZone(s.endsAt) : '',
+      instructorIds: w.instructors
+        .map((i) => i.globalPersonId)
+        .filter((x): x is string => Boolean(x)),
+    });
+    setFormError(null);
+    setShowCreate(true);
+    // Enrich with the long description (not present in the list payload).
+    void (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/workshops/${w.id}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const full = (await res.json()) as { descriptionMd?: string | null };
+        setForm((f) => ({ ...f, description: full.descriptionMd ?? '' }));
+      } catch {
+        /* description just stays blank */
+      }
+    })();
+  }
+
+  function closeModal() {
+    setShowCreate(false);
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFormError(null);
+  }
+
   // Roster modal
   const [rosterSession, setRosterSession] = useState<string | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
@@ -203,17 +255,6 @@ export default function WorkshopsAdminPage() {
   const [gpResults, setGpResults] = useState<GlobalPersonResult[]>([]);
 
   // Session create modal
-  const [sessionFormWorkshopId, setSessionFormWorkshopId] = useState<string | null>(null);
-  const [sessionForm, setSessionForm] = useState({
-    startTime: '',
-    endTime: '',
-    location: '',
-    venueId: '' as string,
-    areaId: '' as string,
-  });
-  const [sessionSaving, setSessionSaving] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-
   // Org venues for the workshop + session venue pickers. Source is
   // the org-level catalogue so a freshly-added org venue is pickable
   // immediately, even before any session here uses it. Filtered to
@@ -245,56 +286,6 @@ export default function WorkshopsAdminPage() {
     };
   }, [apiUrl, slug, refreshKey]);
 
-  function openSessionForm(workshopId: string) {
-    setSessionFormWorkshopId(workshopId);
-    // Pre-fill the venue picker with the workshop's default venue (if
-    // any). Operator can still override per session via the dropdown.
-    const workshop = workshops.find((w) => w.id === workshopId);
-    const defaultVenueId = workshop?.venueId ?? '';
-    setSessionForm({
-      startTime: '',
-      endTime: '',
-      location: '',
-      venueId: defaultVenueId,
-      areaId: '',
-    });
-    setSessionError(null);
-  }
-
-  async function handleCreateSession() {
-    if (!sessionFormWorkshopId) return;
-    if (!sessionForm.startTime || !sessionForm.endTime) {
-      setSessionError('Start and end time are required');
-      return;
-    }
-    setSessionSaving(true);
-    setSessionError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/workshops/${sessionFormWorkshopId}/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          startTime: datetimeLocalToUtc(sessionForm.startTime, eventTz),
-          endTime: datetimeLocalToUtc(sessionForm.endTime, eventTz),
-          location: sessionForm.location.trim() || undefined,
-          venueId: sessionForm.venueId || undefined,
-          areaId: sessionForm.areaId || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? 'Create session failed');
-      }
-      setSessionFormWorkshopId(null);
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      setSessionError(err instanceof Error ? err.message : 'Create session failed');
-    } finally {
-      setSessionSaving(false);
-    }
-  }
-
   // ── Fetch workshops ────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -316,7 +307,17 @@ export default function WorkshopsAdminPage() {
 
   // ── Create workshop ────────────────────────────────────────────────────────────
 
-  async function handleCreate() {
+  function sessionTimesFromForm() {
+    return workshopSessionTimes({
+      day: form.day,
+      start: form.start,
+      end: form.end || null,
+      durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
+      tz: eventTz,
+    });
+  }
+
+  async function handleSubmit() {
     if (!form.title.trim() || !form.slug.trim()) {
       setFormError('Title and slug are required');
       return;
@@ -325,6 +326,84 @@ export default function WorkshopsAdminPage() {
     setFormError(null);
 
     try {
+      if (editingId) {
+        const patchRes = await fetch(`${apiUrl}/api/v1/workshops/${editingId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            title: form.title.trim(),
+            category: form.category.trim() || null,
+            level: form.level.trim() || null,
+            language: form.language,
+            capacity: form.capacity,
+            durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
+            status: form.status,
+            venueId: form.venueId || null,
+            // Only touch the description when one was typed, so editing
+            // other fields never silently wipes an existing description.
+            ...(form.description.trim() ? { descriptionMd: form.description.trim() } : {}),
+          }),
+        });
+        if (!patchRes.ok) {
+          const body = (await patchRes.json()) as { message?: string };
+          throw new Error(body.message ?? 'Save failed');
+        }
+
+        // Reconcile instructors against the chosen set.
+        const current = workshops.find((w) => w.id === editingId);
+        const currentIds = new Set(
+          (current?.instructors ?? [])
+            .map((i) => i.globalPersonId)
+            .filter((x): x is string => Boolean(x)),
+        );
+        const nextIds = new Set(form.instructorIds);
+        for (const id of nextIds) {
+          if (!currentIds.has(id)) {
+            await fetch(`${apiUrl}/api/v1/workshops/${editingId}/instructors`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ globalPersonId: id }),
+            });
+          }
+        }
+        for (const id of currentIds) {
+          if (!nextIds.has(id)) {
+            await fetch(`${apiUrl}/api/v1/workshops/${editingId}/instructors/${id}`, {
+              method: 'DELETE',
+              credentials: 'include',
+            });
+          }
+        }
+
+        // Session: upsert when a day+time is set, else delete an existing one.
+        const times = sessionTimesFromForm();
+        const existing = current?.sessions[0] ?? null;
+        if (times) {
+          await fetch(`${apiUrl}/api/v1/workshops/${editingId}/sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              startTime: times.startTime,
+              endTime: times.endTime,
+              venueId: form.venueId || undefined,
+            }),
+          });
+        } else if (existing) {
+          await fetch(`${apiUrl}/api/v1/workshop-sessions/${existing.id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+        }
+
+        closeModal();
+        setRefreshKey((k) => k + 1);
+        return;
+      }
+
+      // ── Create path ──
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/workshops`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -342,22 +421,13 @@ export default function WorkshopsAdminPage() {
           venueId: form.venueId || undefined,
         }),
       });
-
       if (!res.ok) {
         const body = (await res.json()) as { message?: string };
         throw new Error(body.message ?? 'Create failed');
       }
       const created = (await res.json()) as { id: string };
 
-      // Optional scheduling — if a day + start were given, place the
-      // workshop's single session now (end derived from duration / +60).
-      const times = workshopSessionTimes({
-        day: form.day,
-        start: form.start,
-        end: form.end || null,
-        durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
-        tz: eventTz,
-      });
+      const times = sessionTimesFromForm();
       if (times) {
         await fetch(`${apiUrl}/api/v1/workshops/${created.id}/sessions`, {
           method: 'POST',
@@ -371,7 +441,6 @@ export default function WorkshopsAdminPage() {
         });
       }
 
-      // Attach the chosen event-instructors to the new workshop.
       for (const globalPersonId of form.instructorIds) {
         await fetch(`${apiUrl}/api/v1/workshops/${created.id}/instructors`, {
           method: 'POST',
@@ -381,29 +450,24 @@ export default function WorkshopsAdminPage() {
         });
       }
 
-      setShowCreate(false);
-      setForm({
-        title: '',
-        slug: '',
-        category: '',
-        level: '',
-        language: 'fr',
-        capacity: 20,
-        durationMinutes: '',
-        description: '',
-        venueId: '',
-        status: 'draft',
-        day: '',
-        start: '',
-        end: '',
-        instructorIds: [],
-      });
+      closeModal();
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Create failed');
+      setFormError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setFormSaving(false);
     }
+  }
+
+  async function changeStatus(w: Workshop, next: string) {
+    if (next === w.status) return;
+    await fetch(`${apiUrl}/api/v1/workshops/${w.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status: next }),
+    });
+    setRefreshKey((k) => k + 1);
   }
 
   // ── Roster ────────────────────────────────────────────────────────────────────
@@ -513,10 +577,11 @@ export default function WorkshopsAdminPage() {
     startTime: '12:00',
     endTime: '13:00',
     label: '',
+    color: '',
   });
 
   function openBreakCreate(dayIndex: number) {
-    setBreakForm({ dayIndex, startTime: '12:00', endTime: '13:00', label: '' });
+    setBreakForm({ dayIndex, startTime: '12:00', endTime: '13:00', label: '', color: '' });
     setBreakModal({ dayIndex });
   }
   function openBreakEdit(b: WorkshopBreak) {
@@ -525,6 +590,7 @@ export default function WorkshopsAdminPage() {
       startTime: b.startTime,
       endTime: b.endTime,
       label: b.label ?? '',
+      color: b.color ?? '',
     });
     setBreakModal(b);
   }
@@ -535,6 +601,7 @@ export default function WorkshopsAdminPage() {
       startTime: breakForm.startTime,
       endTime: breakForm.endTime,
       label: breakForm.label.trim() || null,
+      color: breakForm.color || null,
     };
     const url = editing
       ? `${apiUrl}/api/v1/workshop-breaks/${editing.id}`
@@ -579,6 +646,15 @@ export default function WorkshopsAdminPage() {
     setRefreshKey((k) => k + 1);
   }
 
+  // ✕ on a card → delete its session, returning the workshop to the drawer.
+  async function handleUnschedule(sessionId: string) {
+    await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    setRefreshKey((k) => k + 1);
+  }
+
   return (
     <main className="p-8 max-w-6xl">
       {/* Header */}
@@ -598,7 +674,7 @@ export default function WorkshopsAdminPage() {
           <h1 className="text-2xl font-bold">Workshops</h1>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={openCreate}
           className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
         >
           + New workshop
@@ -628,7 +704,10 @@ export default function WorkshopsAdminPage() {
         <p className="text-gray-400 text-sm">Loading…</p>
       ) : tab === 'schedule' ? (
         <WorkshopScheduleBoard
-          workshops={workshops}
+          workshops={workshops.map((w) => ({
+            ...w,
+            instructorNames: w.instructors.map((i) => i.displayName),
+          }))}
           venues={venues}
           days={eventDays}
           timezone={eventTz}
@@ -638,6 +717,7 @@ export default function WorkshopsAdminPage() {
             const s = workshops.find((w) => w.id === wid)?.sessions[0];
             if (s) void openRoster(s.id);
           }}
+          onUnschedule={(sessionId) => void handleUnschedule(sessionId)}
           onAddBreak={openBreakCreate}
           onEditBreak={openBreakEdit}
         />
@@ -707,16 +787,29 @@ export default function WorkshopsAdminPage() {
                     <td className="py-2 pr-4 text-gray-600">{timeRange}</td>
                     <td className="py-2 pr-4 text-gray-600">{venueArea}</td>
                     <td className="py-2 pr-4">
-                      <StatusPill status={w.status} />
+                      <select
+                        value={w.status}
+                        onChange={(e) => void changeStatus(w, e.target.value)}
+                        aria-label="Workshop status"
+                        className={`cursor-pointer rounded-full border-0 px-2 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 ${
+                          STATUS_PILL[w.status]?.cls ?? 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {['draft', 'published', 'running', 'completed'].map((s) => (
+                          <option key={s} value={s}>
+                            {STATUS_PILL[s]?.label ?? s}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="py-2">
                       <div className="flex gap-3">
                         <button
                           type="button"
-                          onClick={() => openSessionForm(w.id)}
+                          onClick={() => openEdit(w)}
                           className="text-xs font-semibold text-red-700 hover:text-red-800"
                         >
-                          {session ? 'Edit time' : 'Schedule'}
+                          Edit
                         </button>
                         {session && (
                           <button
@@ -739,8 +832,10 @@ export default function WorkshopsAdminPage() {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold mb-4">New workshop</h2>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold mb-4">
+              {editingId ? 'Edit workshop' : 'New workshop'}
+            </h2>
             <div className="flex flex-col gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
@@ -870,22 +965,18 @@ export default function WorkshopsAdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
-                  <input
-                    type="time"
-                    lang="en-GB"
+                  <Time24Input
                     value={form.start}
-                    onChange={(e) => onTimingChange('start', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    onChange={(v) => onTimingChange('start', v)}
+                    aria-label="Start time"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
-                  <input
-                    type="time"
-                    lang="en-GB"
+                  <Time24Input
                     value={form.end}
-                    onChange={(e) => onTimingChange('end', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    onChange={(v) => onTimingChange('end', v)}
+                    aria-label="End time"
                   />
                 </div>
               </div>
@@ -968,132 +1059,20 @@ export default function WorkshopsAdminPage() {
             </div>
             {formError && <p className="text-sm text-red-600 mt-2">{formError}</p>}
             <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setShowCreate(false)}
-                className="text-sm text-gray-500 px-4 py-2"
-              >
+              <button onClick={closeModal} className="text-sm text-gray-500 px-4 py-2">
                 Cancel
               </button>
               <button
-                onClick={() => void handleCreate()}
+                onClick={() => void handleSubmit()}
                 disabled={formSaving}
                 className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm"
               >
-                {formSaving ? 'Creating…' : 'Create'}
+                {formSaving ? 'Saving…' : editingId ? 'Save' : 'Create'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Session create modal */}
-      {sessionFormWorkshopId &&
-        (() => {
-          const pickedVenue = venues.find((v) => v.id === sessionForm.venueId) ?? null;
-          const areas = pickedVenue?.venue_areas ?? [];
-          return (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                <h2 className="text-lg font-bold mb-4">New session</h2>
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Start *
-                      </label>
-                      <input
-                        type="datetime-local"
-                        lang="en-GB"
-                        value={sessionForm.startTime}
-                        onChange={(e) =>
-                          setSessionForm((f) => ({ ...f, startTime: e.target.value }))
-                        }
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">End *</label>
-                      <input
-                        type="datetime-local"
-                        lang="en-GB"
-                        value={sessionForm.endTime}
-                        onChange={(e) => setSessionForm((f) => ({ ...f, endTime: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Venue</label>
-                    <select
-                      value={sessionForm.venueId}
-                      onChange={(e) =>
-                        setSessionForm((f) => ({ ...f, venueId: e.target.value, areaId: '' }))
-                      }
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                    >
-                      <option value="">No venue</option>
-                      {venues.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                    </select>
-                    {venues.length === 0 && (
-                      <p className="mt-1 text-xs text-amber-600">
-                        No workshop-capable venues for this event yet. Add one from the Venues tab.
-                      </p>
-                    )}
-                  </div>
-                  {pickedVenue && areas.length >= 2 && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Area</label>
-                      <select
-                        value={sessionForm.areaId}
-                        onChange={(e) => setSessionForm((f) => ({ ...f, areaId: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                      >
-                        <option value="">Whole venue</option>
-                        {areas.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Location label (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={sessionForm.location}
-                      placeholder="Door A, mat 2…"
-                      onChange={(e) => setSessionForm((f) => ({ ...f, location: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
-                    />
-                  </div>
-                </div>
-                {sessionError && <p className="text-sm text-red-600 mt-2">{sessionError}</p>}
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    onClick={() => setSessionFormWorkshopId(null)}
-                    className="text-sm text-gray-500 px-4 py-2"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => void handleCreateSession()}
-                    disabled={sessionSaving}
-                    className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm"
-                  >
-                    {sessionSaving ? 'Creating…' : 'Create'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
       {/* Roster modal */}
       {rosterSession && (
@@ -1241,22 +1220,18 @@ export default function WorkshopsAdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Start</label>
-                  <input
-                    type="time"
-                    lang="en-GB"
+                  <Time24Input
                     value={breakForm.startTime}
-                    onChange={(e) => setBreakForm((f) => ({ ...f, startTime: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    onChange={(v) => setBreakForm((f) => ({ ...f, startTime: v }))}
+                    aria-label="Break start time"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">End</label>
-                  <input
-                    type="time"
-                    lang="en-GB"
+                  <Time24Input
                     value={breakForm.endTime}
-                    onChange={(e) => setBreakForm((f) => ({ ...f, endTime: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                    onChange={(v) => setBreakForm((f) => ({ ...f, endTime: v }))}
+                    aria-label="Break end time"
                   />
                 </div>
               </div>
@@ -1269,6 +1244,29 @@ export default function WorkshopsAdminPage() {
                   onChange={(e) => setBreakForm((f) => ({ ...f, label: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6', '#64748b'].map(
+                    (c) => (
+                      <button
+                        key={c || 'none'}
+                        type="button"
+                        aria-label={c ? `Color ${c}` : 'No color'}
+                        onClick={() => setBreakForm((f) => ({ ...f, color: c }))}
+                        className={[
+                          'flex h-6 w-6 items-center justify-center rounded-full border text-[10px]',
+                          breakForm.color === c ? 'ring-2 ring-slate-700 ring-offset-1' : '',
+                          c ? '' : 'bg-white text-gray-400',
+                        ].join(' ')}
+                        style={c ? { backgroundColor: c, borderColor: c } : undefined}
+                      >
+                        {c ? '' : '∅'}
+                      </button>
+                    ),
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center justify-between mt-4">
@@ -1310,10 +1308,3 @@ const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   running: { label: 'Running', cls: 'bg-amber-100 text-amber-800' },
   completed: { label: 'Completed', cls: 'bg-blue-100 text-blue-700' },
 };
-
-function StatusPill({ status }: { status: string }) {
-  const pill = STATUS_PILL[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600' };
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${pill.cls}`}>{pill.label}</span>
-  );
-}

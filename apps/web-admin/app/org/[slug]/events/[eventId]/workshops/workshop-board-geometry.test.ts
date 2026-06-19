@@ -104,6 +104,39 @@ describe('buildWorkshopSessionBlocks', () => {
     expect(blocks[0]).toMatchObject({ columnKey: columnKey('v2', null), startSlot: 0, span: 12 });
   });
 
+  it('carries card fields (category/level/instructors/capacity/confirmed) and endSlot', () => {
+    const ws: BoardWorkshop[] = [
+      workshop({
+        id: 'w1',
+        category: 'Longsword',
+        level: 'beginner',
+        capacity: 20,
+        instructorNames: ['Rémi Arbache'],
+        sessions: [
+          {
+            id: 's1',
+            startsAt: '2027-06-01T07:00:00.000Z',
+            endsAt: '2027-06-01T08:30:00.000Z',
+            venueId: 'v1',
+            areaId: 'a2',
+            confirmedCount: 8,
+          },
+        ],
+      }),
+    ];
+    const [b] = buildWorkshopSessionBlocks(ws, columns, '2027-06-01', TZ);
+    expect(b).toMatchObject({
+      startSlot: 12,
+      endSlot: 30,
+      span: 18,
+      category: 'Longsword',
+      level: 'beginner',
+      capacity: 20,
+      instructorNames: ['Rémi Arbache'],
+      confirmedCount: 8,
+    });
+  });
+
   it('excludes sessions on other days (in event tz)', () => {
     const ws: BoardWorkshop[] = [
       workshop({

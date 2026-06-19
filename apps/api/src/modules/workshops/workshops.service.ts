@@ -576,6 +576,18 @@ export class WorkshopsService {
     return data;
   }
 
+  // ── Delete session (unschedule) ─────────────────────────────────────────────────
+
+  /** Delete a workshop's session, returning the workshop to the unscheduled drawer. */
+  async deleteSession(sessionId: string, userId: string) {
+    await this.assertCanManageSession(sessionId, userId);
+    const { error } = await this.supabase.service
+      .from('workshop_sessions')
+      .delete()
+      .eq('id', sessionId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
   /** Public authz hook for organizer actions routed through other services (e.g. promote). */
   async authorizeSession(sessionId: string, userId: string): Promise<void> {
     await this.assertCanManageSession(sessionId, userId);
@@ -691,7 +703,7 @@ export class WorkshopsService {
   async listWorkshopBreaks(eventId: string) {
     const { data, error } = await this.supabase.service
       .from('workshop_breaks')
-      .select('id, event_id, day_index, start_time, end_time, label')
+      .select('id, event_id, day_index, start_time, end_time, label, color')
       .eq('event_id', eventId)
       .order('day_index', { ascending: true })
       .order('start_time', { ascending: true });
@@ -703,6 +715,7 @@ export class WorkshopsService {
         start_time: string;
         end_time: string;
         label: string | null;
+        color: string | null;
       };
       return {
         id: b.id,
@@ -710,13 +723,20 @@ export class WorkshopsService {
         startTime: b.start_time,
         endTime: b.end_time,
         label: b.label,
+        color: b.color ?? null,
       };
     });
   }
 
   async createWorkshopBreak(
     eventId: string,
-    dto: { dayIndex?: number; startTime: string; endTime: string; label?: string | null },
+    dto: {
+      dayIndex?: number;
+      startTime: string;
+      endTime: string;
+      label?: string | null;
+      color?: string | null;
+    },
     userId: string,
   ) {
     await this.assertCanManageEvent(eventId, userId);
@@ -731,6 +751,7 @@ export class WorkshopsService {
         start_time: dto.startTime,
         end_time: dto.endTime,
         label: dto.label ?? null,
+        color: dto.color ?? null,
       })
       .select('*')
       .single();
@@ -740,7 +761,13 @@ export class WorkshopsService {
 
   async updateWorkshopBreak(
     breakId: string,
-    dto: { dayIndex?: number; startTime?: string; endTime?: string; label?: string | null },
+    dto: {
+      dayIndex?: number;
+      startTime?: string;
+      endTime?: string;
+      label?: string | null;
+      color?: string | null;
+    },
     userId: string,
   ) {
     await this.assertCanManageBreak(breakId, userId);
@@ -749,6 +776,7 @@ export class WorkshopsService {
     if (dto.startTime !== undefined) updates['start_time'] = dto.startTime;
     if (dto.endTime !== undefined) updates['end_time'] = dto.endTime;
     if (dto.label !== undefined) updates['label'] = dto.label;
+    if (dto.color !== undefined) updates['color'] = dto.color;
     const { data, error } = await this.supabase.service
       .from('workshop_breaks')
       .update(updates)

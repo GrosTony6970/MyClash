@@ -30,12 +30,18 @@ export interface BoardWorkshop {
   id: string;
   title: string;
   durationMinutes: number | null;
+  /** Discipline shown as the card's "weapon" (e.g. Longsword). */
+  category?: string | null;
+  level?: string | null;
+  capacity?: number | null;
+  instructorNames?: string[];
   sessions: Array<{
     id: string;
     startsAt: string | null;
     endsAt: string | null;
     venueId: string | null;
     areaId: string | null;
+    confirmedCount?: number;
   }>;
 }
 
@@ -45,9 +51,16 @@ export interface WorkshopBlock {
   title: string;
   columnKey: string;
   startSlot: number;
+  endSlot: number;
   span: number; // in slots, ≥ 1
   startsAt: string;
   endsAt: string | null;
+  // Card fields.
+  category: string | null;
+  level: string | null;
+  capacity: number | null;
+  instructorNames: string[];
+  confirmedCount: number;
 }
 
 export function columnKey(venueId: string, areaId: string | null): string {
@@ -153,9 +166,15 @@ export function buildWorkshopSessionBlocks(
       title: w.title,
       columnKey: col.key,
       startSlot,
+      endSlot: startSlot + span,
       span,
       startsAt: session.startsAt,
       endsAt: session.endsAt,
+      category: w.category ?? null,
+      level: w.level ?? null,
+      capacity: w.capacity ?? null,
+      instructorNames: w.instructorNames ?? [],
+      confirmedCount: session.confirmedCount ?? 0,
     });
   }
   return blocks;

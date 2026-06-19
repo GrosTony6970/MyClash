@@ -105,6 +105,7 @@ class CreateBreakBody {
   @Matches(HHMM_RE) startTime!: string;
   @Matches(HHMM_RE) endTime!: string;
   @IsOptional() @IsString() label?: string | null;
+  @IsOptional() @IsString() color?: string | null;
 }
 
 class UpdateBreakBody {
@@ -112,6 +113,7 @@ class UpdateBreakBody {
   @IsOptional() @Matches(HHMM_RE) startTime?: string;
   @IsOptional() @Matches(HHMM_RE) endTime?: string;
   @IsOptional() @IsString() label?: string | null;
+  @IsOptional() @IsString() color?: string | null;
 }
 
 // ── Controller ────────────────────────────────────────────────────────────────
@@ -321,6 +323,17 @@ export class WorkshopsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.workshops.updateSession(id, dto, userId);
+  }
+
+  @Delete('workshop-sessions/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a workshop session — unschedules the workshop (workshop_lead+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async deleteSession(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.workshops.deleteSession(id, userId);
   }
 
   @Get('workshop-sessions/:id/roster')

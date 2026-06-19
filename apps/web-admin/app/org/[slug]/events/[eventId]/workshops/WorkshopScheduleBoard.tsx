@@ -5,23 +5,28 @@
 /**
  * WorkshopScheduleBoard — the `#schedule` tab.
  *
- * Mirrors the event schedule canvas, scoped to workshops: day tabs, a time
- * gutter on the left, venue bands → area columns across the top, one block
- * per workshop's single session, an unscheduled-workshops drawer on the
- * right, drag-to-(re)schedule and a bottom grip to resize the end time.
- * Custom workshop-only break bars (Phase E) render as full-width rows.
+ * Mirrors the event schedule planner, scoped to workshops: day tabs, an
+ * unscheduled drawer + add-block on the LEFT, the calendar grid on the
+ * RIGHT, a toolbar (zoom / CSV / print), drag-to-(re)schedule with a
+ * 15-minute snap + drop-shadow ghost, a bottom grip to resize the end
+ * time, and a ✕ to unschedule a card back to the drawer. Workshop-only
+ * break bars render as full-width rows, optionally colour-tinted.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import {
   GRID_START_HOUR,
-  SLOT_HEIGHT_PX,
+  SLOT_HEIGHT_MAX,
+  SLOT_HEIGHT_MIN,
   SLOT_MINUTES,
   slotToHHMM,
   slotToTime,
+  snapSlot,
+  zoomToSlotHeight,
 } from '../schedule/schedule-grid-geometry';
 import { minutesIntoDayInZone } from '@myclash/time';
 import { formatDayLabel } from '../schedule/event-days';
+import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import {
   buildAreaColumns,
   buildColumnBands,
@@ -38,6 +43,7 @@ export interface WorkshopBreak {
   startTime: string; // HH:MM
   endTime: string; // HH:MM
   label: string | null;
+  color?: string | null;
 }
 
 export interface BoardPlacement {
@@ -56,16 +62,18 @@ interface Props {
   breaks?: WorkshopBreak[];
   onPlace: (workshopId: string, sessionId: string | null, placement: BoardPlacement) => void;
   onBlockClick?: (workshopId: string) => void;
+  onUnschedule?: (sessionId: string) => void;
   onAddBreak?: (dayIndex: number) => void;
   onEditBreak?: (b: WorkshopBreak) => void;
 }
 
-const COL_WIDTH_PX = 150;
+const COL_WIDTH_PX = 280;
 const GUTTER_PX = 56;
 const END_HOUR_FLOOR = 20;
+const DEFAULT_ZOOM = 28;
+const ZOOM_KEY = 'myclash.workshops.zoom';
 
 function endSlotFor(workshops: BoardWorkshop[], tz: string): number {
-  // Grid runs to the later of END_HOUR_FLOOR or the latest session end.
   let maxSlot = (END_HOUR_FLOOR - GRID_START_HOUR) * (60 / SLOT_MINUTES);
   for (const w of workshops) {
     const end = w.sessions[0]?.endsAt;
@@ -86,6 +94,7 @@ export function WorkshopScheduleBoard({
   breaks = [],
   onPlace,
   onBlockClick,
+  onUnschedule,
   onAddBreak,
   onEditBreak,
 }: Props) {
@@ -94,15 +103,36 @@ export function WorkshopScheduleBoard({
     if (days.length > 0 && !days.includes(activeDay)) setActiveDay(days[0]!);
   }, [days, activeDay]);
 
+  // Zoom (row height). Lazy-read from localStorage; persisted on toggle so we
+  // never call setState in an effect.
+  const [slotHeightPx, setSlotHeightPx] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_ZOOM;
+    const stored = Number(window.localStorage.getItem(ZOOM_KEY));
+    return Number.isFinite(stored) && stored > 0 ? zoomToSlotHeight(stored) : DEFAULT_ZOOM;
+  });
+  function zoom(delta: number) {
+    setSlotHeightPx((h) => {
+      const next = zoomToSlotHeight(h + delta);
+      if (typeof window !== 'undefined') window.localStorage.setItem(ZOOM_KEY, String(next));
+      return next;
+    });
+  }
+
   const columns = buildAreaColumns(venues);
   const bands = buildColumnBands(columns);
   const dayIndex = Math.max(0, days.indexOf(activeDay));
   const blocks = buildWorkshopSessionBlocks(workshops, columns, activeDay, timezone);
   const drawer = unscheduledWorkshops(workshops, columns);
   const totalSlots = endSlotFor(workshops, timezone);
-  const gridHeight = totalSlots * SLOT_HEIGHT_PX;
+  const gridHeight = totalSlots * slotHeightPx;
 
-  // Resize state: which session, its column, fixed start slot, live end slot.
+  // Span (in slots) of whatever is being dragged — set on dragStart so the
+  // ghost can be sized during dragOver (dataTransfer.getData is unavailable then).
+  const dragSpanRef = useRef<number>(12);
+  const [ghost, setGhost] = useState<{ columnKey: string; slot: number; span: number } | null>(
+    null,
+  );
+
   const [resizing, setResizing] = useState<{
     workshopId: string;
     sessionId: string;
@@ -132,19 +162,29 @@ export function WorkshopScheduleBoard({
     });
   }
 
+  function slotFromEvent(rect: DOMRect, clientY: number): number {
+    return snapSlot(Math.max(0, Math.round((clientY - rect.top) / slotHeightPx)));
+  }
+
+  function handleDragOver(c: AreaColumn, e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setGhost({ columnKey: c.key, slot: slotFromEvent(rect, e.clientY), span: dragSpanRef.current });
+  }
+
   function handleDrop(column: AreaColumn, e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
+    setGhost(null);
     const workshopId = e.dataTransfer.getData('workshopId');
     if (!workshopId) return;
     const sessionId = e.dataTransfer.getData('sessionId') || null;
     const spanStr = e.dataTransfer.getData('span');
     const span = spanStr ? Number(spanStr) : 12;
     const rect = e.currentTarget.getBoundingClientRect();
-    const slot = Math.max(0, Math.round((e.clientY - rect.top) / SLOT_HEIGHT_PX));
-    place(workshopId, sessionId, column, slot, span);
+    place(workshopId, sessionId, column, slotFromEvent(rect, e.clientY), span);
   }
 
-  // Resize via pointer: track the grip, commit on release.
+  // Resize via pointer: track the grip (15-min snapped), commit on release.
   useEffect(() => {
     if (!resizing) return;
     const startY = { current: 0, captured: false };
@@ -155,8 +195,8 @@ export function WorkshopScheduleBoard({
         startY.current = ev.clientY;
         startY.captured = true;
       }
-      const deltaSlots = Math.round((ev.clientY - startY.current) / SLOT_HEIGHT_PX);
-      const nextEnd = Math.max(r.startSlot + 1, r.startSlot + 1 + deltaSlots);
+      const deltaSlots = Math.round((ev.clientY - startY.current) / slotHeightPx);
+      const nextEnd = Math.max(r.startSlot + 1, snapSlot(r.startSlot + 1 + deltaSlots));
       setResizing((cur) => (cur ? { ...cur, endSlot: nextEnd } : cur));
     }
     function onUp() {
@@ -178,12 +218,66 @@ export function WorkshopScheduleBoard({
 
   const dayBreaks = breaks.filter((b) => b.dayIndex === dayIndex);
 
+  function exportCsv() {
+    const csv = workshopScheduleToCsv(
+      workshops.map((w) => ({
+        title: w.title,
+        category: w.category ?? null,
+        level: w.level ?? null,
+        capacity: w.capacity ?? null,
+        instructorNames: w.instructorNames ?? [],
+        sessions: w.sessions,
+      })),
+      venues,
+      timezone,
+    );
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'workshops.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printDay() {
+    const colName = (key: string) => {
+      const c = columns.find((x) => x.key === key);
+      return c ? `${c.venueName}${c.areaName ? ` · ${c.areaName}` : ''}` : '';
+    };
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const rows = [...blocks]
+      .sort((a, b) => a.startSlot - b.startSlot)
+      .map(
+        (bl) =>
+          `<tr><td>${slotToHHMM(bl.startSlot)}–${slotToHHMM(bl.endSlot)}</td><td>${esc(
+            colName(bl.columnKey),
+          )}</td><td>${esc(bl.title)}</td><td>${esc(bl.instructorNames.join(', '))}</td><td>${esc(
+            [bl.category, bl.level].filter(Boolean).join(' · '),
+          )}</td><td>${bl.confirmedCount}/${bl.capacity ?? '∞'}</td></tr>`,
+      )
+      .join('');
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(
+      `<!doctype html><html><head><title>Workshops — ${esc(formatDayLabel(activeDay))}</title>` +
+        `<style>body{font-family:system-ui,sans-serif;padding:24px;color:#111}h1{font-size:18px}` +
+        `table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left}th{background:#f3f4f6}</style></head>` +
+        `<body><h1>Workshops — ${esc(formatDayLabel(activeDay))}</h1><table><thead><tr>` +
+        `<th>Time</th><th>Venue</th><th>Workshop</th><th>Instructor</th><th>Category · Level</th><th>Slots</th>` +
+        `</tr></thead><tbody>${rows}</tbody></table></body></html>`,
+    );
+    w.document.close();
+    w.focus();
+    w.print();
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      {/* Day tabs */}
-      {days.length > 1 && (
-        <div className="flex flex-wrap gap-1">
-          {days.map((d, i) => (
+      {/* Day tabs + toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        {days.length > 1 &&
+          days.map((d, i) => (
             <button
               key={d}
               type="button"
@@ -195,14 +289,103 @@ export function WorkshopScheduleBoard({
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
               ].join(' ')}
             >
-              {days.length > 1 ? `Jour ${i + 1} · ${formatDayLabel(d)}` : formatDayLabel(d)}
+              {`Jour ${i + 1} · ${formatDayLabel(d)}`}
             </button>
           ))}
+        <div className="ml-auto flex items-center gap-1 text-gray-500">
+          <span className="text-[11px] font-medium">Zoom</span>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => zoom(-4)}
+            disabled={slotHeightPx <= SLOT_HEIGHT_MIN}
+            className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50 disabled:opacity-40"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => zoom(4)}
+            disabled={slotHeightPx >= SLOT_HEIGHT_MAX}
+            className="rounded border border-gray-300 px-1.5 leading-none hover:bg-gray-50 disabled:opacity-40"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="ml-2 rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={printDay}
+            className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Print
+          </button>
         </div>
-      )}
+      </div>
 
       <div className="flex gap-4">
-        {/* Board */}
+        {/* Unscheduled drawer + add-block (LEFT) */}
+        <aside
+          className="w-60 shrink-0"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            // Drop back onto the drawer = unschedule.
+            const sessionId = e.dataTransfer.getData('sessionId');
+            if (sessionId && onUnschedule) onUnschedule(sessionId);
+            setGhost(null);
+          }}
+        >
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-500">
+            Unscheduled
+          </h3>
+          <div className="flex flex-col gap-2">
+            {drawer.length === 0 ? (
+              <p className="text-xs text-gray-400">All workshops are scheduled.</p>
+            ) : (
+              drawer.map((w) => (
+                <div
+                  key={w.id}
+                  draggable
+                  onDragStart={(e) => {
+                    const span = w.durationMinutes
+                      ? Math.round(w.durationMinutes / SLOT_MINUTES)
+                      : 12;
+                    dragSpanRef.current = span;
+                    e.dataTransfer.setData('workshopId', w.id);
+                    e.dataTransfer.setData('sessionId', w.sessions[0]?.id ?? '');
+                    e.dataTransfer.setData('span', String(span));
+                  }}
+                  onDragEnd={() => setGhost(null)}
+                  className="cursor-grab rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm hover:border-red-300"
+                  title={w.title}
+                >
+                  <span className="block truncate font-medium text-gray-800">{w.title}</span>
+                  <span className="text-xs text-gray-400">
+                    {[w.category, w.level].filter(Boolean).join(' · ') ||
+                      (w.durationMinutes != null ? `${w.durationMinutes} min` : '—')}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+          {onAddBreak && (
+            <button
+              type="button"
+              onClick={() => onAddBreak(dayIndex)}
+              className="mt-3 w-full rounded-lg border border-dashed border-gray-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-800"
+            >
+              + Add block
+            </button>
+          )}
+        </aside>
+
+        {/* Grid (RIGHT) */}
         <div className="flex-1 overflow-x-auto">
           {columns.length === 0 ? (
             <p className="text-sm text-amber-600">
@@ -243,7 +426,7 @@ export function WorkshopScheduleBoard({
                     <div
                       key={s}
                       className="absolute right-1 -translate-y-1/2 font-mono text-[10px] text-gray-400"
-                      style={{ top: s * SLOT_HEIGHT_PX }}
+                      style={{ top: s * slotHeightPx }}
                     >
                       {slotToHHMM(s)}
                     </div>
@@ -254,65 +437,105 @@ export function WorkshopScheduleBoard({
                 {columns.map((c) => (
                   <div
                     key={c.key}
-                    onDragOver={(e) => e.preventDefault()}
+                    onDragOver={(e) => handleDragOver(c, e)}
                     onDrop={(e) => handleDrop(c, e)}
                     className="relative border-r border-gray-100"
                     style={{ width: COL_WIDTH_PX, height: gridHeight }}
                   >
-                    {/* Hour gridlines */}
                     {hourLines.map((s) => (
                       <div
                         key={s}
                         className="absolute left-0 right-0 border-t border-gray-100"
-                        style={{ top: s * SLOT_HEIGHT_PX }}
+                        style={{ top: s * slotHeightPx }}
                       />
                     ))}
 
-                    {/* Break bars (full width within the column) */}
+                    {/* Break bars */}
                     {dayBreaks.map((b) => {
-                      const top = hhmmToSlotLocal(b.startTime) * SLOT_HEIGHT_PX;
+                      const top = hhmmToSlotLocal(b.startTime) * slotHeightPx;
                       const h =
-                        (hhmmToSlotLocal(b.endTime) - hhmmToSlotLocal(b.startTime)) *
-                        SLOT_HEIGHT_PX;
+                        (hhmmToSlotLocal(b.endTime) - hhmmToSlotLocal(b.startTime)) * slotHeightPx;
+                      const tint = b.color
+                        ? { backgroundColor: `${b.color}22`, borderColor: b.color }
+                        : undefined;
                       return (
                         <button
                           type="button"
                           key={`${b.id}-${c.key}`}
                           onClick={() => onEditBreak?.(b)}
-                          className="absolute left-0 right-0 bg-slate-200/70 border-y border-slate-300 text-[10px] text-slate-600 overflow-hidden"
-                          style={{ top, height: Math.max(SLOT_HEIGHT_PX, h) }}
+                          className="absolute left-0 right-0 overflow-hidden border-y border-slate-300 bg-slate-200/70 text-[10px] text-slate-600"
+                          style={{ top, height: Math.max(slotHeightPx, h), ...tint }}
                         >
                           {b.label ?? 'Break'}
                         </button>
                       );
                     })}
 
-                    {/* Blocks for this column */}
+                    {/* Drop-shadow ghost */}
+                    {ghost && ghost.columnKey === c.key && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-0.5 right-0.5 rounded-md border-2 border-dashed border-red-400 bg-red-200/40 shadow-lg"
+                        style={{
+                          top: ghost.slot * slotHeightPx,
+                          height: ghost.span * slotHeightPx,
+                        }}
+                      />
+                    )}
+
+                    {/* Workshop cards */}
                     {blocks
                       .filter((bl) => bl.columnKey === c.key)
                       .map((bl) => {
                         const isResizing = resizing?.sessionId === bl.sessionId;
-                        const span = isResizing ? resizing!.endSlot - resizing!.startSlot : bl.span;
+                        const startSlot = bl.startSlot;
+                        const endSlot = isResizing ? resizing!.endSlot : bl.endSlot;
+                        const span = endSlot - startSlot;
                         return (
                           <div
                             key={bl.sessionId}
                             draggable
                             onDragStart={(e) => {
+                              dragSpanRef.current = bl.span;
                               e.dataTransfer.setData('workshopId', bl.workshopId);
                               e.dataTransfer.setData('sessionId', bl.sessionId);
                               e.dataTransfer.setData('span', String(bl.span));
                             }}
+                            onDragEnd={() => setGhost(null)}
                             onClick={() => onBlockClick?.(bl.workshopId)}
-                            className="absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border border-red-300 bg-red-50 px-1.5 py-0.5 text-[11px] text-red-900 shadow-sm hover:bg-red-100"
-                            style={{
-                              top: bl.startSlot * SLOT_HEIGHT_PX,
-                              height: span * SLOT_HEIGHT_PX,
-                            }}
+                            className="group absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border border-red-300 bg-red-50 px-1.5 py-1 text-red-900 shadow-sm hover:bg-red-100"
+                            style={{ top: startSlot * slotHeightPx, height: span * slotHeightPx }}
                             title={bl.title}
                           >
-                            <span className="block truncate font-medium">{bl.title}</span>
-                            <span className="block font-mono text-[9px] text-red-700">
-                              {slotToHHMM(bl.startSlot)}
+                            {onUnschedule && (
+                              <button
+                                type="button"
+                                aria-label="Unschedule"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUnschedule(bl.sessionId);
+                                }}
+                                className="absolute right-0.5 top-0.5 z-10 rounded px-1 text-xs leading-none text-red-400 opacity-0 hover:bg-red-200 hover:text-red-700 group-hover:opacity-100"
+                              >
+                                ×
+                              </button>
+                            )}
+                            <span className="block truncate text-sm font-semibold">{bl.title}</span>
+                            <span className="block font-mono text-[10px] text-red-700">
+                              {slotToHHMM(startSlot)}–{slotToHHMM(endSlot)}
+                            </span>
+                            {bl.instructorNames.length > 0 && (
+                              <span className="block truncate text-[10px] text-red-800">
+                                {bl.instructorNames.join(', ')}
+                              </span>
+                            )}
+                            {(bl.category || bl.level) && (
+                              <span className="block truncate text-[10px] text-red-700">
+                                {[bl.category, bl.level].filter(Boolean).join(' · ')}
+                              </span>
+                            )}
+                            <span className="block text-[10px] text-red-700">
+                              {bl.confirmedCount}/{bl.capacity ?? '∞'}
                             </span>
                             {/* Resize grip */}
                             <span
@@ -323,7 +546,7 @@ export function WorkshopScheduleBoard({
                                   sessionId: bl.sessionId,
                                   column: c,
                                   startSlot: bl.startSlot,
-                                  endSlot: bl.startSlot + bl.span,
+                                  endSlot: bl.endSlot,
                                 });
                               }}
                               className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-red-300/60"
@@ -334,53 +557,9 @@ export function WorkshopScheduleBoard({
                   </div>
                 ))}
               </div>
-
-              {onAddBreak && (
-                <button
-                  type="button"
-                  onClick={() => onAddBreak(dayIndex)}
-                  className="mt-2 self-start text-xs font-semibold text-slate-600 hover:text-slate-800"
-                >
-                  + Break
-                </button>
-              )}
             </div>
           )}
         </div>
-
-        {/* Unscheduled drawer */}
-        <aside className="w-56 shrink-0">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-gray-500">
-            Unscheduled
-          </h3>
-          <div className="flex flex-col gap-2">
-            {drawer.length === 0 ? (
-              <p className="text-xs text-gray-400">All workshops are scheduled.</p>
-            ) : (
-              drawer.map((w) => (
-                <div
-                  key={w.id}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('workshopId', w.id);
-                    e.dataTransfer.setData('sessionId', w.sessions[0]?.id ?? '');
-                    e.dataTransfer.setData(
-                      'span',
-                      String(w.durationMinutes ? Math.round(w.durationMinutes / SLOT_MINUTES) : 12),
-                    );
-                  }}
-                  className="cursor-grab rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm hover:border-red-300"
-                  title={w.title}
-                >
-                  <span className="block truncate font-medium text-gray-800">{w.title}</span>
-                  {w.durationMinutes != null && (
-                    <span className="text-xs text-gray-400">{w.durationMinutes} min</span>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </aside>
       </div>
     </div>
   );
