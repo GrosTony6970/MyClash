@@ -60,27 +60,37 @@ export function resizeStartSlot(dragSlot: number, fixedEndSlot: number): number 
   return Math.min(snapSlot(dragSlot), fixedEndSlot - 1);
 }
 
-/** Slot index → UTC ISO instant, with the axis anchored at GRID_START_HOUR in `tz`. */
-export function slotToTime(slot: number, day: string, tz: string): string {
-  const start = dayStartUtcIso(day, tz, GRID_START_HOUR);
+/** Slot index → UTC ISO instant, with the axis anchored at `startHour` in `tz`. */
+export function slotToTime(
+  slot: number,
+  day: string,
+  tz: string,
+  startHour = GRID_START_HOUR,
+): string {
+  const start = dayStartUtcIso(day, tz, startHour);
   const base = start ? new Date(start) : new Date(`${day}T00:00:00Z`);
   return new Date(base.getTime() + slot * SLOT_MINUTES * 60_000).toISOString();
 }
 
 /** UTC ISO instant → slot index on the `tz` axis (clamped ≥ 0). */
-export function isoToSlot(iso: string, day: string, tz: string): number {
-  const start = dayStartUtcIso(day, tz, GRID_START_HOUR);
+export function isoToSlot(
+  iso: string,
+  day: string,
+  tz: string,
+  startHour = GRID_START_HOUR,
+): number {
+  const start = dayStartUtcIso(day, tz, startHour);
   if (start) {
     const diff = (new Date(iso).getTime() - new Date(start).getTime()) / 60_000;
     return Math.max(0, minutesToSlot(diff));
   }
   const min = minutesIntoDayInZone(iso, tz);
-  return min === null ? 0 : Math.max(0, minutesToSlot(min - GRID_START_HOUR * 60));
+  return min === null ? 0 : Math.max(0, minutesToSlot(min - startHour * 60));
 }
 
 /** Slot index → "HH:MM" on the axis (e.g. slot 0 → "08:00"). */
-export function slotToHHMM(slot: number): string {
-  const totalMin = GRID_START_HOUR * 60 + slot * SLOT_MINUTES;
+export function slotToHHMM(slot: number, startHour = GRID_START_HOUR): string {
+  const totalMin = startHour * 60 + slot * SLOT_MINUTES;
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
@@ -95,18 +105,23 @@ export const formatSlotTime = slotToHHMM;
  * or falls before the grid start hour. Pure — resolved entirely in `tz`, so the
  * line lands on the right row regardless of the viewer's browser timezone.
  */
-export function nowSlotForDay(nowIso: string, day: string, tz: string): number | null {
+export function nowSlotForDay(
+  nowIso: string,
+  day: string,
+  tz: string,
+  startHour = GRID_START_HOUR,
+): number | null {
   if (zonedDay(nowIso, tz) !== day) return null;
   const min = minutesIntoDayInZone(nowIso, tz);
   if (min === null) return null;
-  const slot = minutesToSlot(min - GRID_START_HOUR * 60);
+  const slot = minutesToSlot(min - startHour * 60);
   return slot < 0 ? null : slot;
 }
 
-/** "HH:MM" → slot index on the axis; clamps times before `GRID_START_HOUR` to 0. */
-export function hhmmToSlot(hhmm: string): number {
+/** "HH:MM" → slot index on the axis; clamps times before the start hour to 0. */
+export function hhmmToSlot(hhmm: string, startHour = GRID_START_HOUR): number {
   const [h, m] = hhmm.split(':').map((s) => Number(s));
-  const min = (h ?? 0) * 60 + (m ?? 0) - GRID_START_HOUR * 60;
+  const min = (h ?? 0) * 60 + (m ?? 0) - startHour * 60;
   return Math.max(0, Math.floor(min / SLOT_MINUTES));
 }
 

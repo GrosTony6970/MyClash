@@ -23,6 +23,7 @@ import {
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
 import { formatInZone, zonedDay } from '@myclash/time';
+import { useConfirm } from '@myclash/ui';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { Time24Input } from '@/components/Time24Input';
 
@@ -111,6 +112,7 @@ export default function WorkshopsAdminPage() {
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { confirm, confirmDialog } = useConfirm();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -491,7 +493,7 @@ export default function WorkshopsAdminPage() {
   }
 
   async function handleRemove(sessionId: string, _personId: string) {
-    if (!confirm('Remove this enrollment?')) return;
+    if (!(await confirm({ title: 'Remove this enrollment?', danger: true }))) return;
     await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/enroll`, {
       method: 'DELETE',
       credentials: 'include',
@@ -655,6 +657,28 @@ export default function WorkshopsAdminPage() {
     setRefreshKey((k) => k + 1);
   }
 
+  // Drag/resize a break bar on the board → PATCH its new HH:MM window.
+  async function handleUpdateBreak(
+    b: WorkshopBreak,
+    times: { startTime: string; endTime: string },
+  ) {
+    await fetch(`${apiUrl}/api/v1/workshop-breaks/${b.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(times),
+    });
+    setRefreshKey((k) => k + 1);
+  }
+
+  async function handleDeleteBreakById(id: string) {
+    await fetch(`${apiUrl}/api/v1/workshop-breaks/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    setRefreshKey((k) => k + 1);
+  }
+
   return (
     <main className="p-8 max-w-6xl">
       {/* Header */}
@@ -720,6 +744,8 @@ export default function WorkshopsAdminPage() {
           onUnschedule={(sessionId) => void handleUnschedule(sessionId)}
           onAddBreak={openBreakCreate}
           onEditBreak={openBreakEdit}
+          onUpdateBreak={(b, times) => void handleUpdateBreak(b, times)}
+          onDeleteBreak={(id) => void handleDeleteBreakById(id)}
         />
       ) : workshops.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
@@ -1298,6 +1324,7 @@ export default function WorkshopsAdminPage() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </main>
   );
 }

@@ -9,7 +9,7 @@
  */
 
 import { zonedDay } from '@myclash/time';
-import { isoToSlot, SLOT_MINUTES } from '../schedule/schedule-grid-geometry';
+import { GRID_START_HOUR, isoToSlot, SLOT_MINUTES } from '../schedule/schedule-grid-geometry';
 
 export interface BoardVenue {
   id: string;
@@ -142,6 +142,7 @@ export function buildWorkshopSessionBlocks(
   columns: ReadonlyArray<AreaColumn>,
   day: string,
   tz: string,
+  startHour = GRID_START_HOUR,
 ): WorkshopBlock[] {
   const blocks: WorkshopBlock[] = [];
   for (const w of workshops) {
@@ -151,7 +152,7 @@ export function buildWorkshopSessionBlocks(
     const col = matchColumn(columns, session.venueId, session.areaId);
     if (!col) continue;
 
-    const startSlot = isoToSlot(session.startsAt, day, tz);
+    const startSlot = isoToSlot(session.startsAt, day, tz, startHour);
     const durationMin = session.endsAt
       ? Math.max(
           SLOT_MINUTES,

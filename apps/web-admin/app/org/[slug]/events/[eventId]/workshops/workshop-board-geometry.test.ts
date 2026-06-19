@@ -137,6 +137,26 @@ describe('buildWorkshopSessionBlocks', () => {
     });
   });
 
+  it('shifts startSlot when the grid start hour changes', () => {
+    const ws: BoardWorkshop[] = [
+      workshop({
+        id: 'w1',
+        sessions: [
+          {
+            id: 's1',
+            startsAt: '2027-06-01T07:00:00.000Z', // 09:00 Paris
+            endsAt: '2027-06-01T08:00:00.000Z',
+            venueId: 'v1',
+            areaId: 'a1',
+          },
+        ],
+      }),
+    ];
+    // Default 08:00 axis → 09:00 is slot 12; a 09:00 axis → slot 0.
+    expect(buildWorkshopSessionBlocks(ws, columns, '2027-06-01', TZ)[0]?.startSlot).toBe(12);
+    expect(buildWorkshopSessionBlocks(ws, columns, '2027-06-01', TZ, 9)[0]?.startSlot).toBe(0);
+  });
+
   it('excludes sessions on other days (in event tz)', () => {
     const ws: BoardWorkshop[] = [
       workshop({

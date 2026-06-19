@@ -128,6 +128,28 @@ describe('schedule-grid-geometry', () => {
     });
   });
 
+  describe('configurable start hour', () => {
+    const PARIS = 'Europe/Paris';
+    it('slotToHHMM / hhmmToSlot honour a non-default start hour', () => {
+      expect(slotToHHMM(0, 9)).toBe('09:00');
+      expect(slotToHHMM(12, 9)).toBe('10:00');
+      expect(hhmmToSlot('09:00', 9)).toBe(0);
+      expect(hhmmToSlot('10:00', 9)).toBe(12);
+    });
+    it('slotToTime / isoToSlot round-trip with a start hour', () => {
+      for (let s = 0; s <= 50; s++) {
+        expect(isoToSlot(slotToTime(s, BASE, PARIS, 9), BASE, PARIS, 9)).toBe(s);
+      }
+    });
+    it('anchors slot 0 at the start hour wall-clock (09:00 Paris summer = 07:00Z)', () => {
+      expect(slotToTime(0, '2027-06-21', PARIS, 9)).toBe('2027-06-21T07:00:00.000Z');
+    });
+    it('nowSlotForDay measures from the start hour', () => {
+      // 09:30 Paris (07:30Z) with a 09:00 axis → 30 min → slot 6.
+      expect(nowSlotForDay('2027-06-21T07:30:00.000Z', '2027-06-21', PARIS, 9)).toBe(6);
+    });
+  });
+
   describe('zoomToSlotHeight', () => {
     it('keeps an in-range height (rounded)', () => {
       expect(zoomToSlotHeight(16)).toBe(16);
