@@ -34,6 +34,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
       --filter @myclash/feature-flags
 
 FROM deps AS builder
+# Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
+# on Node 26 — harmless upstream deprecation. Disables only this warning.
+ENV NODE_OPTIONS=--disable-warning=DEP0205
 ARG GIT_COMMIT=unknown
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_SUPABASE_URL
@@ -79,6 +82,9 @@ RUN pnpm --filter @myclash/types build \
 FROM node:${NODE_VERSION}-alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
+# on Node 26 — harmless upstream deprecation. Disables only this warning.
+ENV NODE_OPTIONS=--disable-warning=DEP0205
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs \

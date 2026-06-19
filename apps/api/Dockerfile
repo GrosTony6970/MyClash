@@ -65,6 +65,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
 
+# Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
+# on Node 26 — harmless upstream deprecation. Disables only this warning.
+# (Build stage is tsc, so only the runtime needs it.)
+ENV NODE_OPTIONS=--disable-warning=DEP0205
+
 WORKDIR /app
 
 # Non-root user
