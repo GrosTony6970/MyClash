@@ -311,17 +311,23 @@ export default async function TournamentPage({ params }: Props) {
     apiUrl,
   );
 
+  // A draft tournament isn't public yet, so it exposes nothing structural —
+  // only the Participants list (the Pool/Standings tabs already hide because
+  // the API returns empty pools for non-public statuses).
+  const isDraft = tournament.status === 'draft';
   const poolsTabVisible = pools.length > 0;
   const standingsTabVisible = pools.length > 0;
-  // Bracket tab is ALWAYS visible — visitors should know the section
-  // exists even before the operator generates the bracket. The panel
-  // renders a placeholder when bracketSlots is empty.
-  const bracketTabVisible = true;
+  // Bracket tab is visible once the tournament is public — visitors should
+  // know the section exists even before the operator generates the bracket
+  // (the panel renders a placeholder when bracketSlots is empty). Hidden
+  // while still draft.
+  const bracketTabVisible = !isDraft;
   const podiumTabVisible = podiumDecided;
   const participantsTabVisible = participantsTabEntries.length > 0;
-  // Final Ranking tab is ALWAYS visible too — content gates on
-  // `tournament.status === 'completed'`; otherwise placeholder.
-  const finalRankingTabVisible = true;
+  // Final Ranking tab is visible once public too — content gates on
+  // `tournament.status === 'completed'`; otherwise placeholder. Hidden
+  // while still draft.
+  const finalRankingTabVisible = !isDraft;
 
   // Default tab adapts to status. Falls back to the first visible tab
   // when the preferred default isn't available yet.
