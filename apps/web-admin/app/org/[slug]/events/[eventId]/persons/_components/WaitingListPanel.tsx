@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useToast } from '@myclash/ui';
+import { formatRosterName } from '../roster-name';
 
 /**
  * Slice 5 of the tournament capacity + waitlist overhaul.
@@ -229,7 +230,12 @@ function WaitingListTable({
                 {reg.waitlistPosition}
               </td>
               <td className="py-2 pr-3 font-medium text-gray-900">
-                {person ? `${person.givenName} ${person.familyName}` : reg.personId}
+                {person
+                  ? formatRosterName({
+                      familyName: person.familyName,
+                      givenName: person.givenName,
+                    })
+                  : reg.personId}
               </td>
               <td className="py-2 pr-3 text-gray-600">{person?.clubLabel ?? '—'}</td>
               <td className="py-2 pr-3 text-right">

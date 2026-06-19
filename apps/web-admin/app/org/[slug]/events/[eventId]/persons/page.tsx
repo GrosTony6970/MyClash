@@ -7,6 +7,7 @@ import { ConfirmDialog, SkillBadge, TournamentColorDot, useToast } from '@myclas
 import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
+import { formatRosterName } from './roster-name';
 import { personMatchesFilter, type PersonFilterValue } from './filter-persons';
 import {
   computeClubPickerRows,
@@ -901,7 +902,7 @@ export default function ParticipantsPage() {
   }
 
   return (
-    <main className="p-8 max-w-6xl">
+    <main className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
@@ -1274,7 +1275,9 @@ export default function ParticipantsPage() {
                         </option>
                       </select>
                     </SortableTh>
-                    <th className="py-2 font-medium">Actions</th>
+                    <th className="sticky right-0 z-10 bg-white py-2 pl-3 font-medium whitespace-nowrap shadow-[inset_1px_0_0_rgb(229_231_235)]">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1283,7 +1286,7 @@ export default function ParticipantsPage() {
                     const displayRegs =
                       activeTab === 'all' ? regs : regs.filter((r) => r.tournamentId === activeTab);
                     return (
-                      <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr key={p.id} className="group border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-2 pr-3">
                           <input
                             type="checkbox"
@@ -1294,7 +1297,7 @@ export default function ParticipantsPage() {
                         </td>
                         <td className="py-2 pr-4">
                           <p className="font-medium text-gray-900">
-                            {p.givenName} {p.familyName}
+                            {formatRosterName({ familyName: p.familyName, givenName: p.givenName })}
                           </p>
                           {p.email && <p className="text-xs text-gray-400 font-mono">{p.email}</p>}
                         </td>
@@ -1355,7 +1358,7 @@ export default function ParticipantsPage() {
                             />
                           ) : null}
                         </td>
-                        <td className="py-2">
+                        <td className="sticky right-0 z-10 bg-white py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_rgb(229_231_235)] group-hover:bg-gray-50">
                           <div className="flex gap-2">
                             <button
                               onClick={() => openEdit(p)}

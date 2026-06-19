@@ -12,7 +12,9 @@ import { pickActiveHref } from './pick-active-href';
 import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
 
 const orgNavItems = [
-  { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O' },
+  // `exact` so the org Overview (root) doesn't prefix-match and stay
+  // highlighted on every `/org/{slug}/...` sub-route (incl. event pages).
+  { href: '', labelKey: 'organizer.shell.nav.overview', badge: 'O', exact: true },
   // `exact` prevents the events list from staying highlighted once
   // the operator drills into an event — sub-routes
   // `/org/{slug}/events/{eventId}/...` belong to the Event section.
