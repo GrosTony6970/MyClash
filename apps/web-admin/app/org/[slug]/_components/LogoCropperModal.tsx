@@ -2,9 +2,10 @@
 
 /* eslint-disable myclash/no-literal-string */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { computeMinZoom, type Size } from './logo-cropper-zoom';
 
 interface Props {
   /** File freshly picked from the operator's file picker. */
@@ -33,6 +34,13 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [saving, setSaving] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
+
+  // Auto-fit: react-easy-crop reports the rendered media + crop sizes; the
+  // smallest zoom at which the whole logo fits the square is derived from
+  // them so wide/tall logos can be shown in full (with white margins).
+  const [mediaSize, setMediaSize] = useState<Size | null>(null);
+  const [cropSize, setCropSize] = useState<Size | null>(null);
+  const minZoom = useMemo(() => computeMinZoom(mediaSize, cropSize), [mediaSize, cropSize]);
 
   // Read the picked File once. The object URL is revoked when the
   // modal closes so we don't leak between consecutive uploads.
@@ -89,30 +97,48 @@ export function LogoCropperModal({ file, onCancel, onSave }: Props) {
               crop={crop}
               zoom={zoom}
               aspect={1}
+              minZoom={minZoom}
+              maxZoom={4}
+              restrictPosition={false}
               onCropChange={setCrop}
               onZoomChange={setZoom}
               onCropComplete={onCropComplete}
+              onMediaLoaded={(m) => setMediaSize({ width: m.width, height: m.height })}
+              onCropSizeChange={(s) => setCropSize({ width: s.width, height: s.height })}
               objectFit="contain"
             />
           )}
         </div>
 
-        <label className="grid gap-1">
+        <div className="grid gap-1">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             {t('organizer.dashboard.brand.cropper.zoomLabel')}
           </span>
-          <input
-            type="range"
-            min={1}
-            max={4}
-            step={0.01}
-            value={zoom}
-            onChange={(ev) => setZoom(Number(ev.target.value))}
-            disabled={saving}
-            className="w-full"
-            aria-label={t('organizer.dashboard.brand.cropper.zoomLabel')}
-          />
-        </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={minZoom}
+              max={4}
+              step={0.01}
+              value={zoom}
+              onChange={(ev) => setZoom(Number(ev.target.value))}
+              disabled={saving}
+              className="w-full flex-1"
+              aria-label={t('organizer.dashboard.brand.cropper.zoomLabel')}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setZoom(minZoom);
+                setCrop({ x: 0, y: 0 });
+              }}
+              disabled={saving}
+              className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:opacity-50"
+            >
+              {t('organizer.dashboard.brand.cropper.fit')}
+            </button>
+          </div>
+        </div>
 
         <footer className="flex items-center justify-end gap-2">
           <button

@@ -2635,8 +2635,9 @@ export const en = {
         previewEventDate: 'Soon',
         cropper: {
           title: 'Crop your logo',
-          instructions: 'Drag to reposition, scroll to zoom.',
+          instructions: 'Drag to reposition, scroll to zoom, or Fit to frame the whole logo.',
           zoomLabel: 'Zoom',
+          fit: 'Fit',
           cancel: 'Cancel',
           save: 'Save logo',
           saving: 'Saving…',
@@ -6740,8 +6741,10 @@ export const fr = {
         previewEventDate: 'Bientot',
         cropper: {
           title: 'Recadrer votre logo',
-          instructions: 'Glissez pour repositionner, molette pour zoomer.',
+          instructions:
+            'Glissez pour repositionner, molette pour zoomer, ou Ajuster pour cadrer tout le logo.',
           zoomLabel: 'Zoom',
+          fit: 'Ajuster',
           cancel: 'Annuler',
           save: 'Enregistrer le logo',
           saving: 'Enregistrement…',

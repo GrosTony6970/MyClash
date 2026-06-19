@@ -14,6 +14,7 @@
 
 import { useRef, useState } from 'react';
 import { validateLogoFile } from '../../../../../../src/lib/validate-logo-file';
+import { LogoCropperModal } from '../../../_components/LogoCropperModal';
 
 interface Props {
   apiUrl: string;
@@ -54,6 +55,9 @@ export function EventLogoCard({
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Picked file awaiting crop. The shared LogoCropperModal bakes it to a
+  // square PNG (with zoom-out / Fit) before we upload.
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   function openPicker() {
     if (disabled || uploading) return;
@@ -61,12 +65,19 @@ export function EventLogoCard({
     fileInput.current?.click();
   }
 
-  async function handleFile(file: File) {
+  // Validate up front so a bad file doesn't open the cropper, then stage it
+  // for the crop modal instead of uploading the raw file directly.
+  function handleFile(file: File) {
     const check = validateLogoFile(file);
     if (!check.ok) {
       setError(check.errorKey === 'organizer.events.logoTooLarge' ? tooLargeLabel : wrongTypeLabel);
       return;
     }
+    setError(null);
+    setPendingFile(file);
+  }
+
+  async function uploadCropped(file: File) {
     setUploading(true);
     setError(null);
     try {
@@ -86,7 +97,6 @@ export function EventLogoCard({
       setError(err instanceof Error ? err.message : failedLabel);
     } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = '';
     }
   }
 
@@ -143,9 +153,20 @@ export function EventLogoCard({
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void handleFile(file);
+          if (file) handleFile(file);
+          e.target.value = '';
         }}
       />
+      {pendingFile && (
+        <LogoCropperModal
+          file={pendingFile}
+          onCancel={() => setPendingFile(null)}
+          onSave={async (blob) => {
+            setPendingFile(null);
+            await uploadCropped(new File([blob], 'logo.png', { type: 'image/png' }));
+          }}
+        />
+      )}
     </div>
   );
 }
