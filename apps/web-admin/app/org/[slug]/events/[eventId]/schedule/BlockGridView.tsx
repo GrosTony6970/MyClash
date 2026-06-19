@@ -91,6 +91,9 @@ interface Props {
   onResizeBlockLices: (block: ScheduleBlock, newLiceIds: string[]) => void;
   onBlockDragStart: (block: ScheduleBlock) => void;
   onBlockDragEnd: () => void;
+  /** Drag a full-width admin/break bar to re-time it (cascades later blocks). */
+  onBreakDragStart: (brk: BgvBreak) => void;
+  onBreakDragEnd: () => void;
   /** Drop on a lice column at a 15-min-snapped slot (vertical position). */
   onDropOnLice: (liceId: string, slot: number) => void;
   /** Double-click an empty cell → start a new break at that 15-min slot. */
@@ -135,6 +138,8 @@ export function BlockGridView({
   onResizeBlockLices,
   onBlockDragStart,
   onBlockDragEnd,
+  onBreakDragStart,
+  onBreakDragEnd,
   onDropOnLice,
   onCreateAtCell,
   dragOverLiceId,
@@ -152,6 +157,8 @@ export function BlockGridView({
     slot: number;
     span: number;
     conflict: boolean;
+    /** Full-width (admin/break bar) vs single-lice (pool/bracket) preview. */
+    full: boolean;
   } | null>(null);
   const dragSpanRef = useRef<number | null>(null);
   const dragKeyRef = useRef<string | null>(null);
@@ -185,6 +192,7 @@ export function BlockGridView({
     }
     const allLice = lices.map((l) => l.id);
     for (const brk of breaks) {
+      if (`brk:${brk.id}` === excludeKey) continue; // the bar being dragged
       out.push({ liceIds: allLice, startSlot: brk.startSlot, endSlot: brk.startSlot + brk.span });
     }
     return out;
@@ -363,7 +371,7 @@ export function BlockGridView({
         {venueGroups.map((g, i) => (
           <div
             key={`venue-${i}`}
-            className="flex items-center justify-center border-b border-blue-200 bg-blue-50 px-2 text-sm font-semibold text-blue-800 truncate"
+            className="sticky top-0 z-20 flex items-center justify-center border-b border-blue-200 bg-blue-50 px-2 text-sm font-semibold text-blue-800 truncate"
             style={{
               gridColumn: `${g.startIndex + 2} / span ${g.span}`,
               gridRow: 1,
@@ -489,11 +497,18 @@ export function BlockGridView({
                 if (!isOver) onDragOverLice(lice.id);
                 const slot = snapSlot(slotFromClientY(e.clientY));
                 const span = dragSpanRef.current ?? SNAP_SLOTS;
+                const full = dragKeyRef.current?.startsWith('brk:') ?? false;
+                // A full-width bar clashes against every lice; a pool/bracket
+                // block only against its own target column.
                 const conflict = wouldOverlap(
-                  { liceIds: [lice.id], startSlot: slot, endSlot: slot + span },
+                  {
+                    liceIds: full ? lices.map((l) => l.id) : [lice.id],
+                    startSlot: slot,
+                    endSlot: slot + span,
+                  },
                   occupantsExcept(dragKeyRef.current),
                 );
-                setGhost({ liceId: lice.id, slot, span, conflict });
+                setGhost({ liceId: lice.id, slot, span, conflict, full });
               }}
               onDragLeave={() => {
                 if (isOver) onDragOverLice(null);
@@ -534,8 +549,20 @@ export function BlockGridView({
           return (
             <div
               key={`brk-${brk.id}`}
+              draggable
+              onDragStart={() => {
+                dragSpanRef.current = Math.max(1, brk.span);
+                dragKeyRef.current = brkKey;
+                onBreakDragStart(brk);
+              }}
+              onDragEnd={() => {
+                dragSpanRef.current = null;
+                dragKeyRef.current = null;
+                setGhost(null);
+                onBreakDragEnd();
+              }}
               className={[
-                'group relative flex items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide',
+                'group relative flex cursor-grab items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide active:cursor-grabbing',
                 tint ? 'text-gray-700' : breakBarClasses(brk.kind),
               ].join(' ')}
               style={{
@@ -661,14 +688,15 @@ export function BlockGridView({
                 className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(color)}`}
               />
               {block.tournamentName ? (
-                <span className="flex items-center gap-1 truncate text-[9px] font-semibold uppercase tracking-wide opacity-70">
+                <span className="flex items-center gap-1 truncate text-[11px] font-semibold uppercase tracking-wide opacity-70">
                   {anyRunning ? <span className="text-emerald-500">●</span> : null}
                   <span className="truncate">{block.tournamentName}</span>
                 </span>
               ) : null}
-              <span className="truncate text-xs font-bold leading-tight">{block.label}</span>
-              <span className="truncate text-[10px] opacity-80">
-                {block.matchCount} · {formatSlotTime(startSlot)}–{formatSlotTime(baseEndSlot)}
+              <span className="truncate text-sm font-bold leading-tight">{block.label}</span>
+              <span className="truncate text-xs font-medium opacity-80">
+                {block.matchCount} fights · {formatSlotTime(startSlot)}–
+                {formatSlotTime(baseEndSlot)}
               </span>
               <div className="absolute right-0.5 top-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100">
                 <button
@@ -732,26 +760,30 @@ export function BlockGridView({
           );
         })}
 
-        {/* Drag ghost — where the block would land, red when it would clash */}
+        {/* Drag ghost — where the block/bar would land, with a live time
+            readout. Full-width for admin/break bars, single-lice otherwise;
+            red when it would clash. */}
         {ghost &&
           (() => {
             const idx = liceIndexById.get(ghost.liceId);
-            if (idx == null) return null;
+            if (!ghost.full && idx == null) return null;
             return (
               <div
                 aria-hidden="true"
                 className={[
-                  'pointer-events-none m-px rounded-md border-2 border-dashed',
+                  'pointer-events-none m-px flex items-center justify-center rounded-md border-2 border-dashed text-[11px] font-semibold',
                   ghost.conflict
-                    ? 'border-red-500 bg-red-300/40'
-                    : 'border-blue-500 bg-blue-300/40',
+                    ? 'border-red-500 bg-red-300/40 text-red-700'
+                    : 'border-blue-500 bg-blue-300/40 text-blue-700',
                 ].join(' ')}
                 style={{
-                  gridColumn: idx + 2,
+                  gridColumn: ghost.full ? '2 / -1' : (idx ?? 0) + 2,
                   gridRow: `${rowFor(ghost.slot)} / ${rowFor(ghost.slot + Math.max(1, ghost.span))}`,
                   zIndex: 13,
                 }}
-              />
+              >
+                {formatSlotTime(ghost.slot)}–{formatSlotTime(ghost.slot + Math.max(1, ghost.span))}
+              </div>
             );
           })()}
 

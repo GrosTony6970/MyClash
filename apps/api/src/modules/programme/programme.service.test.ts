@@ -451,6 +451,8 @@ describe('ProgrammeService', () => {
       // the row count returned by .select('id'), not from the
       // scheduler's optimistic intent.
       .mockReturnValueOnce(makeChain({ data: [{ id: 'match-1' }], error: null }))
+      // realized-window sync: rewrite the competition block's end_time + lice_count
+      .mockReturnValueOnce(makeChain({ data: null, error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
     const result = await service.generate('event-1');
@@ -594,6 +596,8 @@ describe('ProgrammeService', () => {
         }),
       )
       .mockReturnValueOnce(makeChain({ data: [{ id: 'match-1' }], error: null }))
+      // realized-window sync: rewrite the competition block's end_time + lice_count
+      .mockReturnValueOnce(makeChain({ data: null, error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
     const result = await service.generate('event-1');
@@ -607,6 +611,77 @@ describe('ProgrammeService', () => {
       scheduledMatches: 1,
       licesAvailable: 1,
     });
+  });
+
+  it('rewrites the competition block end_time + lice_count from the realized schedule', async () => {
+    // The planner estimates 10:00–10:30, but 8 distinct-fighter matches at
+    // 5 min each on one lice actually run 40 min → rounds up to a 60-min
+    // window (11:00) on a single lice. Generate must sync the block to that.
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '10:00',
+        end_time: '10:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+    const matches = Array.from({ length: 8 }, (_, i) => ({
+      id: `m${i}`,
+      red_registration_id: `r${i}`,
+      blue_registration_id: `b${i}`,
+      pool_id: 'pool-1',
+    }));
+
+    let syncPayload: Record<string, unknown> | null = null;
+    const syncChain = (() => {
+      const result = { data: null, error: null };
+      const promise = Promise.resolve(result);
+      const chain = Object.assign(promise, {
+        select: vi.fn(),
+        eq: vi.fn(),
+        in: vi.fn(),
+        order: vi.fn(),
+        insert: vi.fn(),
+        update: vi.fn(),
+        upsert: vi.fn(),
+        delete: vi.fn(),
+        single: vi.fn().mockResolvedValue(result),
+      });
+      chain.update = vi.fn((p: Record<string, unknown>) => {
+        syncPayload = p;
+        return chain;
+      });
+      for (const k of ['select', 'eq', 'in', 'order', 'insert', 'upsert', 'delete']) {
+        (chain as unknown as Record<string, unknown>)[k] = vi.fn().mockReturnValue(chain);
+      }
+      return chain;
+    })();
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: matches, error: null }))
+      .mockReturnValueOnce(makeChain({ data: matches.map((m) => ({ id: m.id })), error: null }))
+      .mockReturnValueOnce(syncChain) // realized-window sync update
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    await service.generate('event-1');
+
+    expect(syncPayload).toEqual({ end_time: '11:00', lice_count: 1 });
   });
 
   // ── Slice 5: drag a fixed block + cascade-shift later matches ──────────────
@@ -755,6 +830,84 @@ describe('ProgrammeService', () => {
 
       expect(updates).toEqual([{ id: 'match-after', scheduled_at: '2026-06-02T13:45:00.000Z' }]);
       expect(result.deltaMinutes).toBe(-60);
+    });
+
+    it('cascades following same-day blocks by Δ (the moved block included)', async () => {
+      const movedBlock = {
+        id: 'moved',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 1,
+        block_type: 'admin',
+        label: 'Referee Meeting',
+        competition_id: null,
+        competition_phase: null,
+        workshop_id: null,
+        lice_count: 0,
+        start_time: '09:00',
+        end_time: '09:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 0,
+        generated_at: null,
+      };
+      const blockUpdates: Array<{ id: string; payload: Record<string, unknown> }> = [];
+      function recChain() {
+        let pending: Record<string, unknown> | undefined;
+        const result = {
+          data: { ...movedBlock, start_time: '10:00', end_time: '10:30' },
+          error: null,
+        };
+        const promise = Promise.resolve(result);
+        const chain = Object.assign(promise, {
+          select: vi.fn(),
+          eq: vi.fn(),
+          in: vi.fn(),
+          order: vi.fn(),
+          insert: vi.fn(),
+          update: vi.fn(),
+          upsert: vi.fn(),
+          delete: vi.fn(),
+          single: vi.fn().mockResolvedValue(result),
+        });
+        chain.update = vi.fn((p: Record<string, unknown>) => {
+          pending = p;
+          return chain;
+        });
+        chain.eq = vi.fn((col: string, val: string) => {
+          if (col === 'id' && pending) blockUpdates.push({ id: val, payload: pending });
+          return chain;
+        });
+        for (const k of ['select', 'in', 'order', 'insert', 'upsert', 'delete']) {
+          (chain as unknown as Record<string, unknown>)[k] = vi.fn().mockReturnValue(chain);
+        }
+        return chain;
+      }
+
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: movedBlock, error: null })) // block fetch
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null })) // event
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournaments → skip match shift
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              { id: 'reg', start_time: '08:00:00', end_time: '09:00:00' },
+              { id: 'moved', start_time: '09:00:00', end_time: '09:30:00' },
+              { id: 'pool', start_time: '09:30:00', end_time: '12:00:00' },
+            ],
+            error: null,
+          }),
+        ) // day-blocks fetch
+        .mockReturnValueOnce(recChain()) // update moved
+        .mockReturnValueOnce(recChain()); // update pool
+
+      const result = await service.moveBlock('event-1', 'moved', { newStartTime: '10:00' });
+
+      expect(result.deltaMinutes).toBe(60);
+      // moved (09:00→10:00) and pool (09:30→10:30) shift +60; reg (08:00) stays.
+      expect(blockUpdates).toEqual([
+        { id: 'moved', payload: { start_time: '10:00', end_time: '10:30' } },
+        { id: 'pool', payload: { start_time: '10:30', end_time: '13:00' } },
+      ]);
     });
   });
 

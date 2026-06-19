@@ -306,8 +306,11 @@ export function ScheduleGrid({
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('myclash.schedule.panelWidth', String(panelWidth));
   }, [panelWidth]);
-  // Vertical zoom: rendered slot height in px (slot math stays 5-min).
-  const [slotHeightPx, setSlotHeightPx] = useState(SLOT_HEIGHT_PX);
+  // Vertical zoom: rendered slot height in px (slot math stays 5-min). The
+  // default is a touch taller than the base slot so block cards have room for
+  // the tournament / pool / fight-count / time lines; the operator can zoom
+  // down. A stored preference (below) overrides this.
+  const [slotHeightPx, setSlotHeightPx] = useState(zoomToSlotHeight(22));
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = Number(window.localStorage.getItem('myclash.schedule.zoom'));
@@ -358,6 +361,9 @@ export function ScheduleGrid({
   const [dragOverLiceId, setDragOverLiceId] = useState<string | null>(null);
   // Match ids of the block being dragged in the block view.
   const dragViewBlock = useRef<{ matchIds: string[] } | null>(null);
+  // Programme bar (registration / break / referee) being dragged in the block
+  // view — re-times the block (and cascades later blocks) via moveBlockTo.
+  const dragViewBreak = useRef<{ id: string; startTime: string } | null>(null);
 
   const dragMatch = useRef<ScheduleMatch | null>(null);
   // Slice 4 of the polish pass: dropping a whole pool onto a cell.
@@ -1244,6 +1250,15 @@ export function ScheduleGrid({
   // view: place its matches sequentially (5-min apart) after that lice's last
   // scheduled match (or 09:00 if empty). Persists each via the schedule PATCH.
   function handleBlockViewDrop(liceId: string, slot: number) {
+    // A programme bar drag re-times the block (and cascades later blocks) —
+    // the lice is irrelevant since these bars are full-width.
+    if (dragViewBreak.current) {
+      const { id } = dragViewBreak.current;
+      dragViewBreak.current = null;
+      setDragOverLiceId(null);
+      void moveBlockTo(id, snapSlot(slot));
+      return;
+    }
     const ids =
       dragViewBlock.current?.matchIds ??
       dragPool.current?.matchIds ??
@@ -2341,6 +2356,16 @@ export function ScheduleGrid({
                 }}
                 onBlockDragEnd={() => {
                   dragViewBlock.current = null;
+                }}
+                onBreakDragStart={(brk) => {
+                  dragViewBreak.current = { id: brk.id, startTime: brk.startTime };
+                  dragViewBlock.current = null;
+                  dragMatch.current = null;
+                  dragPool.current = null;
+                  dragBracketRound.current = null;
+                }}
+                onBreakDragEnd={() => {
+                  dragViewBreak.current = null;
                 }}
                 onDropOnLice={handleBlockViewDrop}
                 onCreateAtCell={(slot) => setCreatingBreak(newBreakDraftFromCell(slot))}

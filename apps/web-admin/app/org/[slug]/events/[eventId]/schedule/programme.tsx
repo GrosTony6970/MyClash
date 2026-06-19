@@ -9,6 +9,7 @@ import type {
   ProgrammeBlock,
   ProgrammeSuggestion,
 } from '@myclash/types';
+import { useConfirm } from '@myclash/ui';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 import { blockTint } from './block-tint';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
@@ -102,6 +103,7 @@ export function ProgrammePlanner({
   generateGridLabel?: string;
 }) {
   const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+  const { confirm, confirmDialog } = useConfirm();
 
   const [blocks, setBlocks] = useState<ProgrammeBlock[]>([]);
   const [warnings, setWarnings] = useState<BlockWarning[]>([]);
@@ -112,8 +114,6 @@ export function ProgrammePlanner({
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateResult, setGenerateResult] = useState<GenerateResult | null>(null);
-  const [confirmGenerate, setConfirmGenerate] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -279,9 +279,19 @@ export function ProgrammePlanner({
    * scheduled match time + lice assignment in the event. Tournaments,
    * pools, brackets stay; only their schedule is erased.
    */
+  async function confirmAndReset() {
+    const ok = await confirm({
+      title: 'Reset the schedule?',
+      description:
+        'This clears every programme block AND removes every match from the lice grid. The tournaments, pools, and brackets themselves stay — only their schedule is erased.',
+      confirmLabel: 'Reset everything',
+      danger: true,
+    });
+    if (ok) await resetSchedule();
+  }
+
   async function resetSchedule() {
     setResetting(true);
-    setConfirmReset(false);
     setError(null);
     try {
       const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/full`, {
@@ -302,9 +312,18 @@ export function ProgrammePlanner({
 
   // ── Generate ───────────────────────────────────────────────────────────────
 
+  async function confirmAndGenerate() {
+    const ok = await confirm({
+      title: 'Generate schedule?',
+      description:
+        'This will assign match start times and lices based on the saved programme. Existing scheduled matches will be overwritten.',
+      confirmLabel: 'Generate',
+    });
+    if (ok) await generate();
+  }
+
   async function generate() {
     setGenerating(true);
-    setConfirmGenerate(false);
     setError(null);
     try {
       const saved = await persistProgramme();
@@ -660,14 +679,14 @@ export function ProgrammePlanner({
             {saving ? 'Saving…' : 'Save programme'}
           </button>
           <button
-            onClick={() => setConfirmGenerate(true)}
+            onClick={() => void confirmAndGenerate()}
             disabled={generating || blocks.length === 0}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
           >
             {generating ? 'Generating…' : `${generateGridLabel ?? 'Generate Grid'} →`}
           </button>
           <button
-            onClick={() => setConfirmReset(true)}
+            onClick={() => void confirmAndReset()}
             disabled={resetting}
             className="ml-auto rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
             title="Wipe the programme + clear every scheduled match"
@@ -677,59 +696,7 @@ export function ProgrammePlanner({
         </div>
       </div>
 
-      {/* Confirm reset modal */}
-      {confirmReset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold">Reset the schedule?</h2>
-            <p className="mb-4 text-sm text-gray-600">
-              This clears every programme block AND removes every match from the lice grid. The
-              tournaments, pools, and brackets themselves stay — only their schedule is erased.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmReset(false)}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void resetSchedule()}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
-              >
-                Reset everything
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm generate modal */}
-      {confirmGenerate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h2 className="text-lg font-bold mb-2">Generate schedule?</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              This will assign match start times and lices based on the saved programme. Existing
-              scheduled matches will be overwritten.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirmGenerate(false)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void generate()}
-                className="px-4 py-2 text-sm bg-red-700 text-white rounded-md hover:bg-red-800 font-semibold"
-              >
-                Generate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmDialog}
     </div>
   );
 }

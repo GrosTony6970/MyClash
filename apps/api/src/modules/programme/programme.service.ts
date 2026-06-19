@@ -9,6 +9,8 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { shiftBreaksAfterOverlap, type MatchWindow } from './shift-breaks';
+import { poolBottleneckMinutes } from './pool-bottleneck';
+import { cascadeBlockShift } from './block-cascade';
 import type {
   CreateBlockDto,
   SaveProgrammeDto,
@@ -227,6 +229,9 @@ export class ProgrammeService {
       id: string;
       name: string;
       poolMatchCount: number;
+      /** Matches per pool, ordered by pool sort order — drives the strict
+       *  one-pool-per-lice bottleneck estimate. */
+      poolPerPoolCounts: number[];
       bracketMatchCount: number;
     }
     const tournamentStats: TournamentStats[] = [];
@@ -242,6 +247,7 @@ export class ProgrammeService {
       const bracketPhaseIds = phases.filter((p) => p.type !== 'pool').map((p) => p.id);
 
       let poolMatchCount = 0;
+      let poolPerPoolCounts: number[] = [];
       if (poolPhaseIds.length > 0) {
         const { data: poolsData } = await this.supabase.service
           .from('pools')
@@ -249,11 +255,28 @@ export class ProgrammeService {
           .in('phase_id', poolPhaseIds);
         const poolIds = (poolsData ?? []).map((p) => (p as Record<string, string>)['id']);
         if (poolIds.length > 0) {
-          const { count } = await this.supabase.service
+          // Per-pool match counts (ordered by pool sort order) so the
+          // estimate models strict one-pool-per-lice placement — the busiest
+          // lice, not total/lices. One row per match; tally in JS.
+          const { data: poolMatchRows } = await this.supabase.service
             .from('matches')
-            .select('id', { count: 'exact', head: true })
+            .select('pool_id, pool_sort_order')
             .in('pool_id', poolIds);
-          poolMatchCount = count ?? 0;
+          const byPool = new Map<string, { count: number; sortOrder: number }>();
+          for (const r of (poolMatchRows ?? []) as Array<{
+            pool_id: string | null;
+            pool_sort_order: number | null;
+          }>) {
+            if (!r.pool_id) continue;
+            const cur = byPool.get(r.pool_id) ?? { count: 0, sortOrder: r.pool_sort_order ?? 0 };
+            cur.count += 1;
+            if (r.pool_sort_order != null) cur.sortOrder = r.pool_sort_order;
+            byPool.set(r.pool_id, cur);
+          }
+          poolPerPoolCounts = [...byPool.values()]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((v) => v.count);
+          poolMatchCount = poolPerPoolCounts.reduce((sum, c) => sum + c, 0);
         }
       }
 
@@ -266,7 +289,13 @@ export class ProgrammeService {
         bracketMatchCount = count ?? 0;
       }
 
-      tournamentStats.push({ id: t.id, name: t.name, poolMatchCount, bracketMatchCount });
+      tournamentStats.push({
+        id: t.id,
+        name: t.name,
+        poolMatchCount,
+        poolPerPoolCounts,
+        bracketMatchCount,
+      });
     }
 
     // Workshops are scheduled on the dedicated workshop board, not the event
@@ -382,8 +411,10 @@ export class ProgrammeService {
     for (const t of tournamentStats) {
       if (t.poolMatchCount === 0) continue;
       maybeInsertMidday();
-      const neededMin = computeNeededMin(
-        t.poolMatchCount,
+      // Pools run strict one-per-lice, so wall-clock = the busiest lice, not
+      // ceil(total / lices). liceCount reflects the lices actually occupied.
+      const { minutes: neededMin, licesUsed } = poolBottleneckMinutes(
+        t.poolPerPoolCounts,
         parallelLice,
         cfg.matchDurationMinutes,
         cfg.matchGapSeconds,
@@ -397,7 +428,7 @@ export class ProgrammeService {
           competitionId: t.id,
           competitionPhase: 'pool',
           workshopId: null,
-          liceCount: parallelLice,
+          liceCount: Math.max(1, licesUsed),
           startTime: minToTime(cursor),
           endTime: minToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
@@ -517,10 +548,6 @@ export class ProgrammeService {
     // Scheduled competition match windows per day (minutes-of-day), used
     // after the loop to push breaks out of overlap with pools.
     const matchWindowsByDay: Record<number, MatchWindow[]> = {};
-    const utcMinOfDay = (iso: string) => {
-      const d = new Date(iso);
-      return d.getUTCHours() * 60 + d.getUTCMinutes();
-    };
 
     for (const rawBlock of blocksData ?? []) {
       const block = this.mapBlock(rawBlock as Record<string, unknown>);
@@ -645,12 +672,35 @@ export class ProgrammeService {
         const persistedCount = (upserted ?? []).length;
         matchesScheduled += persistedCount;
 
-        // Record each scheduled match's window (start → start + match
-        // duration) so breaks can be shifted clear of them below.
-        const windows = (matchWindowsByDay[block.dayIndex] ??= []);
-        for (const sm of result.scheduledMatches) {
-          const startMin = utcMinOfDay(sm.scheduledAt);
-          windows.push({ startMin, endMin: startMin + block.matchDurationMinutes });
+        // Realized-window sync: the scheduler may run a phase far longer than
+        // the planner's estimate (strict pools serialize on one lice). Rewrite
+        // the competition block's end_time + lice_count from what actually
+        // landed so the sidebar mirrors the grid, and register the realized
+        // window (local minutes) as the obstacle for break-shifting below.
+        if (result.scheduledMatches.length > 0) {
+          const startMsList = result.scheduledMatches.map((sm) =>
+            new Date(sm.scheduledAt).getTime(),
+          );
+          const endMsList = result.scheduledMatches.map((sm) =>
+            new Date(sm.estimatedEndAt).getTime(),
+          );
+          const rawDurationMin = (Math.max(...endMsList) - Math.min(...startMsList)) / 60_000;
+          // Round up to the next 30 min, matching the grid's block geometry.
+          const durationMin = Math.max(30, Math.ceil(rawDurationMin / 30) * 30);
+          const licesUsed = new Set(result.scheduledMatches.map((sm) => sm.liceId)).size;
+          const realizedStartMin = timeToMin(block.startTime);
+          const realizedEndMin = realizedStartMin + durationMin;
+
+          const { error: syncErr } = await this.supabase.service
+            .from('event_programme_blocks')
+            .update({ end_time: minToTime(realizedEndMin), lice_count: licesUsed })
+            .eq('id', block.id);
+          if (syncErr) throw new BadRequestException(syncErr.message);
+
+          (matchWindowsByDay[block.dayIndex] ??= []).push({
+            startMin: realizedStartMin,
+            endMin: realizedEndMin,
+          });
         }
 
         blockDiagnostics.push({
@@ -807,16 +857,43 @@ export class ProgrammeService {
       }
     }
 
-    // Persist the block's new times.
-    const { data: updatedRow } = await this.supabase.service
+    // Cascade across the day's programme blocks: every block at or after the
+    // moved block's OLD start shifts by the same Δ (the moved block included),
+    // so later blocks stay in order behind the one that moved.
+    const { data: dayBlockRows } = await this.supabase.service
       .from('event_programme_blocks')
-      .update({ start_time: dto.newStartTime, end_time: newEndTime })
-      .eq('id', blockId)
-      .select('*')
-      .single();
-    const updatedBlock = updatedRow
-      ? this.mapBlock(updatedRow as Record<string, unknown>)
-      : { ...block, startTime: dto.newStartTime, endTime: newEndTime };
+      .select('id, start_time, end_time')
+      .eq('event_id', eventId)
+      .eq('day_index', block.dayIndex);
+    const dayBlocks = (
+      (dayBlockRows ?? []) as Array<{
+        id: string;
+        start_time: string;
+        end_time: string;
+      }>
+    ).map((b) => ({
+      id: b.id,
+      startMin: timeToMin(trimSeconds(b.start_time)),
+      endMin: timeToMin(trimSeconds(b.end_time)),
+    }));
+    const shifts = cascadeBlockShift(dayBlocks, blockId, deltaMin);
+
+    let updatedBlock: ProgrammeBlock = {
+      ...block,
+      startTime: dto.newStartTime,
+      endTime: newEndTime,
+    };
+    for (const s of shifts) {
+      const { data: updatedRow } = await this.supabase.service
+        .from('event_programme_blocks')
+        .update({ start_time: minToTime(s.startMin), end_time: minToTime(s.endMin) })
+        .eq('id', s.id)
+        .select('*')
+        .single();
+      if (s.id === blockId && updatedRow) {
+        updatedBlock = this.mapBlock(updatedRow as Record<string, unknown>);
+      }
+    }
 
     return { block: updatedBlock, deltaMinutes: deltaMin, shiftedMatches };
   }
