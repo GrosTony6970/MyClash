@@ -23,7 +23,8 @@ import {
 } from './workshop-session-times';
 import { eachDay } from '../schedule/event-days';
 import { formatInZone, zonedDay } from '@myclash/time';
-import { useConfirm } from '@myclash/ui';
+import { TournamentColorDot, accentClassFor, useConfirm } from '@myclash/ui';
+import { TOURNAMENT_COLORS } from '../tournaments/_lib/tournament-colors';
 import { WorkshopScheduleBoard, type WorkshopBreak } from './WorkshopScheduleBoard';
 import { Time24Input } from '@/components/Time24Input';
 
@@ -56,6 +57,8 @@ interface Workshop {
   capacity: number | null;
   durationMinutes: number | null;
   status: string;
+  /** Optional identity color (ColorToken string), like tournaments. */
+  color: string | null;
   // Workshop-level default venue. Sessions inherit this when the
   // operator schedules — they can still override via the session
   // Venue picker.
@@ -101,6 +104,7 @@ const EMPTY_FORM = {
   durationMinutes: '' as string | number,
   description: '',
   venueId: '' as string,
+  color: '' as string,
   status: 'draft',
   day: '',
   start: '',
@@ -218,6 +222,7 @@ export default function WorkshopsAdminPage() {
       durationMinutes: w.durationMinutes ?? '',
       description: '',
       venueId: w.venueId ?? '',
+      color: w.color ?? '',
       status: w.status,
       day: s?.startsAt ? (zonedDay(s.startsAt, eventTz) ?? '') : '',
       start: s?.startsAt ? hhmmInZone(s.startsAt) : '',
@@ -341,6 +346,7 @@ export default function WorkshopsAdminPage() {
             capacity: form.capacity,
             durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
             status: form.status,
+            color: form.color || null,
             venueId: form.venueId || null,
             // Only touch the description when one was typed, so editing
             // other fields never silently wipes an existing description.
@@ -420,6 +426,7 @@ export default function WorkshopsAdminPage() {
           durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
           descriptionMd: form.description.trim() || null,
           status: form.status,
+          color: form.color || undefined,
           venueId: form.venueId || undefined,
         }),
       });
@@ -796,7 +803,13 @@ export default function WorkshopsAdminPage() {
                     : '—';
                 return (
                   <tr key={w.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 pr-4">
+                    <td className="relative py-2 pl-3 pr-4">
+                      {w.color ? (
+                        <span
+                          aria-hidden="true"
+                          className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
+                        />
+                      ) : null}
                       <p className="font-medium text-gray-900">{w.title}</p>
                       {w.instructors.length > 0 && (
                         <p className="text-xs text-gray-400">
@@ -1072,6 +1085,27 @@ export default function WorkshopsAdminPage() {
                     No workshop-capable venues in this org yet. Add one from /org/{slug}/venues.
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
+                <div className="flex items-center gap-2">
+                  <TournamentColorDot color={form.color || null} size="md" />
+                  <select
+                    value={form.color}
+                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
+                  >
+                    <option value="">No color</option>
+                    {TOURNAMENT_COLORS.map((c) => (
+                      <option key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Shown as a left band on the schedule and the public workshop cards.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>

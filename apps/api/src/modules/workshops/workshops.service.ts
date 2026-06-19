@@ -35,6 +35,8 @@ export interface CreateWorkshopDto {
   /** Optional default duration; sessions derive end time from it. */
   durationMinutes?: number | null;
   status?: string | null;
+  /** Optional identity color (ColorToken string), like tournaments.color. */
+  color?: string | null;
   /**
    * Default venue for this workshop. Sessions of this workshop
    * pre-fill their own venue_id from this column at create time;
@@ -55,6 +57,8 @@ export interface UpdateWorkshopDto {
   capacity?: number | null;
   durationMinutes?: number | null;
   status?: string | null;
+  /** Optional identity color (ColorToken string); send `null` to clear. */
+  color?: string | null;
   /**
    * Repoint the workshop's default venue. Send `null` to clear it
    * (subsequent sessions will not pre-fill a venue).
@@ -116,6 +120,8 @@ export interface WorkshopView {
   durationMinutes: number | null;
   status: string;
   sortOrder: number;
+  /** Optional identity color (ColorToken string), like tournaments.color. */
+  color: string | null;
   venueId: string | null;
   venue: NamedRef | null;
   /** Event IANA timezone — set on public reads so the FE renders in event time. */
@@ -156,6 +162,7 @@ interface RawWorkshop {
   duration_minutes: number | null;
   status: string | null;
   sort_order: number | null;
+  color: string | null;
   venue_id: string | null;
   venues: NamedRef | null;
   // PostgREST embeds a to-one relationship as a single object. Migration 0098's
@@ -176,7 +183,7 @@ const PUBLIC_WORKSHOP_STATUSES = ['published', 'running', 'completed'];
 
 const WORKSHOP_SELECT = `
   id, slug, title, short_description, description_md, category, level, language,
-  capacity, duration_minutes, status, sort_order, venue_id,
+  capacity, duration_minutes, status, sort_order, color, venue_id,
   venues ( id, name ),
   workshop_sessions ( id, starts_at, ends_at, location_label, venue_id, area_id, status, venues ( id, name ), venue_areas ( id, name ) ),
   workshop_instructors ( global_person_id, display_name )
@@ -343,6 +350,7 @@ export class WorkshopsService {
         capacity: dto.capacity ?? null,
         duration_minutes: dto.durationMinutes ?? null,
         status: dto.status ?? 'draft',
+        color: dto.color ?? null,
         venue_id: dto.venueId ?? null,
       })
       .select('*')
@@ -374,6 +382,7 @@ export class WorkshopsService {
     if (dto.capacity !== undefined) updates['capacity'] = dto.capacity;
     if (dto.durationMinutes !== undefined) updates['duration_minutes'] = dto.durationMinutes;
     if (dto.status !== undefined) updates['status'] = dto.status;
+    if (dto.color !== undefined) updates['color'] = dto.color;
     if (dto.venueId !== undefined) updates['venue_id'] = dto.venueId;
 
     const { data, error } = await this.supabase.service
@@ -654,6 +663,7 @@ export class WorkshopsService {
       durationMinutes: row.duration_minutes,
       status: row.status ?? 'draft',
       sortOrder: row.sort_order ?? 0,
+      color: row.color ?? null,
       venueId: row.venue_id,
       venue: row.venues ?? null,
       eventTimezone: null,

@@ -15,7 +15,8 @@ import { getApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatInZone } from '@myclash/time';
-import { GoogleIcon } from '@myclash/ui';
+import { GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
+import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
 
@@ -38,6 +39,7 @@ interface Workshop {
   category: string | null;
   level: string | null;
   language: string | null;
+  color: string | null;
   durationMinutes: number | null;
   eventTimezone: string | null;
   sessions: Session[];
@@ -52,10 +54,22 @@ export default function WorkshopDetailPage() {
   const apiUrl = getApiUrl();
 
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
+  const [eventInfo, setEventInfo] = useState<EventInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const personId = searchParams.get('personId');
+
+  // Event identity for the shared header band — mirrors the event home page.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchEventInfo(eventSlug, apiUrl).then((info) => {
+      if (!cancelled) setEventInfo(info);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventSlug, apiUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -163,7 +177,7 @@ export default function WorkshopDetailPage() {
   const tz = workshop.eventTimezone ?? 'Europe/Paris';
 
   return (
-    <main className="px-4 py-6 max-w-lg mx-auto">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 lg:max-w-6xl">
       {/* Toast */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-sm px-4 py-2 rounded-xl shadow-lg">
@@ -171,144 +185,170 @@ export default function WorkshopDetailPage() {
         </div>
       )}
 
-      {/* Back */}
-      <Link
-        href={`/e/${eventSlug}/workshops`}
-        className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-block"
-      >
-        ← Workshops
-      </Link>
-
-      {/* Header */}
-      <h1
-        className="text-2xl font-bold mb-1"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
-      >
-        {workshop.title}
-      </h1>
-
-      {/* Instructors */}
-      {instructorNames.length > 0 && (
-        <p className="text-gray-500 text-sm mb-3">{instructorNames.join(', ')}</p>
-      )}
-
-      {/* Tags */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
-        {workshop.category && (
-          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-            {workshop.category}
-          </span>
-        )}
-        {workshop.level && (
-          <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-            {workshop.level}
-          </span>
-        )}
-        {workshop.language && (
-          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-            {workshop.language.toUpperCase()}
-          </span>
-        )}
-        {workshop.durationMinutes != null && (
-          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-            {workshop.durationMinutes} min
-          </span>
-        )}
+      {/* Back links — to the workshop list and the event home */}
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <Link
+          href={`/e/${eventSlug}/workshops`}
+          className="text-gray-500 transition-colors hover:text-gray-700"
+        >
+          ← Workshops
+        </Link>
+        <Link
+          href={`/e/${eventSlug}/home`}
+          className="text-gray-500 transition-colors hover:text-gray-700"
+        >
+          ← Event home
+        </Link>
       </div>
 
-      {/* Description */}
-      {description && <p className="text-gray-600 text-sm leading-relaxed mb-6">{description}</p>}
+      {/* Shared event identity band — matches the event home page. */}
+      {eventInfo && <EventHeader event={eventInfo} />}
 
-      {personId && (
-        <button
-          type="button"
-          onClick={() => {
-            void handleGoogleClaim();
-          }}
-          className="w-full mb-6 inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-red-500 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+      {/* Workshop content — readable column with a left color band when set. */}
+      <section className={`relative max-w-3xl ${workshop.color ? 'pl-4' : ''}`}>
+        {workshop.color && (
+          <span
+            aria-hidden="true"
+            className={`absolute inset-y-0 left-0 w-1 rounded ${accentClassFor(workshop.color)}`}
+          />
+        )}
+
+        {/* Header */}
+        <h1
+          className="mb-1 flex items-center gap-2 text-2xl font-bold"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
         >
-          <GoogleIcon />
-          {t('auth.oauth.continueWithGoogle')}
-        </button>
-      )}
+          <TournamentColorDot color={workshop.color} size="md" />
+          {workshop.title}
+        </h1>
 
-      {/* Sessions */}
-      <section>
-        <h2
-          className="text-xs font-bold uppercase tracking-widest mb-3"
-          style={{ color: 'var(--event-accent, #f59e0b)' }}
-        >
-          Sessions
-        </h2>
-        <div className="flex flex-col gap-3">
-          {workshop.sessions.map((session) => {
-            const cap = session.capacity ?? 0;
-            const isFull = cap > 0 && session.confirmedCount >= cap;
-            const enrolled = session.enrollmentStatus;
+        {/* Instructors */}
+        {instructorNames.length > 0 && (
+          <p className="text-gray-500 text-sm mb-3">{instructorNames.join(', ')}</p>
+        )}
 
-            return (
-              <div key={session.id} className="border border-gray-200 rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    {session.startsAt && (
-                      <p className="font-medium text-gray-900">
+        {/* Tags */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {workshop.category && (
+            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+              {workshop.category}
+            </span>
+          )}
+          {workshop.level && (
+            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+              {workshop.level}
+            </span>
+          )}
+          {workshop.language && (
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              {workshop.language.toUpperCase()}
+            </span>
+          )}
+          {workshop.durationMinutes != null && (
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              {workshop.durationMinutes} min
+            </span>
+          )}
+        </div>
+
+        {/* Description — paragraphs/line breaks preserved */}
+        {description && (
+          <div className="prose prose-sm mb-6 max-w-none whitespace-pre-line text-sm leading-relaxed text-gray-600">
+            {description}
+          </div>
+        )}
+
+        {personId && (
+          <button
+            type="button"
+            onClick={() => {
+              void handleGoogleClaim();
+            }}
+            className="w-full mb-6 inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-red-500 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+          >
+            <GoogleIcon />
+            {t('auth.oauth.continueWithGoogle')}
+          </button>
+        )}
+
+        {/* Sessions */}
+        <section>
+          <h2
+            className="text-xs font-bold uppercase tracking-widest mb-3"
+            style={{ color: 'var(--event-accent, #f59e0b)' }}
+          >
+            Sessions
+          </h2>
+          <div className="flex flex-col gap-3">
+            {workshop.sessions.map((session) => {
+              const cap = session.capacity ?? 0;
+              const isFull = cap > 0 && session.confirmedCount >= cap;
+              const enrolled = session.enrollmentStatus;
+
+              return (
+                <div key={session.id} className="border border-gray-200 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      {session.startsAt && (
+                        <p className="font-medium text-gray-900">
+                          {formatInZone(session.startsAt, tz, {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-500">
                         {formatInZone(session.startsAt, tz, {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
                         })}
+                        {session.startsAt && session.endsAt && ' – '}
+                        {formatInZone(session.endsAt, tz, {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {session.locationLabel && ` · ${session.locationLabel}`}
                       </p>
-                    )}
-                    <p className="text-sm text-gray-500">
-                      {formatInZone(session.startsAt, tz, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {session.startsAt && session.endsAt && ' – '}
-                      {formatInZone(session.endsAt, tz, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {session.locationLabel && ` · ${session.locationLabel}`}
-                    </p>
-                    {cap > 0 && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {session.confirmedCount}/{cap} enrolled
-                      </p>
-                    )}
-                  </div>
+                      {cap > 0 && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {session.confirmedCount}/{cap} enrolled
+                        </p>
+                      )}
+                    </div>
 
-                  <div className="flex-shrink-0">
-                    {enrolled === 'confirmed' ? (
-                      <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
-                        ✓ Enrolled
-                      </span>
-                    ) : enrolled === 'waitlisted' ? (
-                      <span className="text-xs font-bold text-yellow-600 bg-yellow-50 px-3 py-1.5 rounded-lg">
-                        Waitlisted
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => void handleEnroll(session.id)}
-                        disabled={enrolling === session.id}
-                        className="text-sm font-semibold px-4 py-1.5 rounded-lg text-white disabled:opacity-50 transition-colors"
-                        style={{
-                          backgroundColor: isFull ? '#6b7280' : 'var(--event-primary, #c0392b)',
-                        }}
-                      >
-                        {enrolling === session.id
-                          ? '…'
-                          : isFull
-                            ? 'Join waitlist'
-                            : 'Add to schedule'}
-                      </button>
-                    )}
+                    <div className="flex-shrink-0">
+                      {enrolled === 'confirmed' ? (
+                        <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
+                          ✓ Enrolled
+                        </span>
+                      ) : enrolled === 'waitlisted' ? (
+                        <span className="text-xs font-bold text-yellow-600 bg-yellow-50 px-3 py-1.5 rounded-lg">
+                          Waitlisted
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => void handleEnroll(session.id)}
+                          disabled={enrolling === session.id}
+                          className="text-sm font-semibold px-4 py-1.5 rounded-lg text-white disabled:opacity-50 transition-colors"
+                          style={{
+                            backgroundColor: isFull ? '#6b7280' : 'var(--event-primary, #c0392b)',
+                          }}
+                        >
+                          {enrolling === session.id
+                            ? '…'
+                            : isFull
+                              ? 'Join waitlist'
+                              : 'Add to schedule'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </section>
       </section>
     </main>
   );

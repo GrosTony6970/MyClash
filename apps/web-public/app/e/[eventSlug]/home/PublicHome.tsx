@@ -6,32 +6,11 @@
  */
 
 import Link from 'next/link';
-import { defaultLocale, t as tr } from '@myclash/i18n';
+import { t as tr } from '@myclash/i18n';
 import { formatInZone } from '@myclash/time';
-import { StatusBadge, formatCountryName, tournamentStatusSemantic } from '@myclash/ui';
+import { StatusBadge, accentClassFor, tournamentStatusSemantic } from '@myclash/ui';
 import { EventBackLink } from './_components/EventBackLink';
-
-interface EventInfo {
-  id: string;
-  name: string;
-  city: string | null;
-  country: string | null;
-  startDate: string;
-  endDate: string;
-  publicLandingMd: string | null;
-  status: string;
-  timezone: string;
-  logoUrl: string | null;
-  heroImageUrl: string | null;
-  organizationName: string | null;
-  organizationLogoUrl: string | null;
-}
-
-function formatEventPlace(event: Pick<EventInfo, 'city' | 'country'>): string | null {
-  const countryName = formatCountryName(event.country, defaultLocale);
-  const parts = [event.city, countryName].filter((v): v is string => Boolean(v));
-  return parts.length === 0 ? null : parts.join(', ');
-}
+import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
 
 interface Tournament {
   id: string;
@@ -62,6 +41,7 @@ interface PublicWorkshop {
   title: string;
   category: string | null;
   level: string | null;
+  color: string | null;
   durationMinutes: number | null;
   instructors: Array<{ displayName: string }>;
   sessions: Array<{ startsAt: string | null; endsAt: string | null }>;
@@ -118,48 +98,6 @@ async function fetchVenues(eventSlug: string, apiUrl: string): Promise<PublicVen
 interface Props {
   eventSlug: string;
   apiUrl: string;
-}
-
-async function fetchEventInfo(eventSlug: string, apiUrl: string): Promise<EventInfo | null> {
-  try {
-    const res = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const raw = (await res.json()) as Record<string, unknown>;
-    const org = raw['organizations'] as { name?: string; logo_url?: string } | null;
-    // Supabase projects `themes(*)` either as a single object or as
-    // an array depending on the joined cardinality; handle both.
-    const themesRaw = raw['themes'] as
-      | { hero_image_url?: string | null }
-      | Array<{ hero_image_url?: string | null }>
-      | null
-      | undefined;
-    const theme = Array.isArray(themesRaw) ? (themesRaw[0] ?? null) : (themesRaw ?? null);
-    return {
-      id: String(raw['id'] ?? ''),
-      name: String(raw['name'] ?? ''),
-      city: typeof raw['city'] === 'string' ? raw['city'] : null,
-      country: typeof raw['country'] === 'string' ? raw['country'] : null,
-      startDate: String(raw['start_date'] ?? raw['startDate'] ?? ''),
-      endDate: String(raw['end_date'] ?? raw['endDate'] ?? ''),
-      publicLandingMd:
-        typeof (raw['public_landing_md'] ?? raw['publicLandingMd']) === 'string'
-          ? String(raw['public_landing_md'] ?? raw['publicLandingMd'])
-          : null,
-      status: String(raw['status'] ?? ''),
-      timezone: typeof raw['timezone'] === 'string' ? raw['timezone'] : 'Europe/Paris',
-      logoUrl:
-        typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
-          ? String(raw['logo_url'] ?? raw['logoUrl'])
-          : null,
-      heroImageUrl: typeof theme?.hero_image_url === 'string' ? theme.hero_image_url : null,
-      organizationName: typeof org?.name === 'string' ? org.name : null,
-      organizationLogoUrl: typeof org?.logo_url === 'string' ? org.logo_url : null,
-    };
-  } catch {
-    return null;
-  }
 }
 
 async function fetchTournaments(eventId: string, apiUrl: string): Promise<Tournament[]> {
@@ -248,19 +186,6 @@ function colorTokenToHex(token: string | null | undefined): string {
   }
 }
 
-function formatDateRange(start: string, end: string): string {
-  const s = new Date(start);
-  const e = new Date(end);
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
-  if (s.getFullYear() !== e.getFullYear()) {
-    return `${s.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })} – ${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
-  }
-  if (s.getMonth() !== e.getMonth()) {
-    return `${s.toLocaleDateString('fr-FR', opts)} – ${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
-  }
-  return `${s.getDate()}–${e.toLocaleDateString('fr-FR', { ...opts, year: 'numeric' })}`;
-}
-
 export async function PublicHome({ eventSlug, apiUrl }: Props) {
   const event = await fetchEventInfo(eventSlug, apiUrl);
   const [highlights, tournaments, participantsCounts, venues, workshops] = await Promise.all([
@@ -279,74 +204,7 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl">
       <EventBackLink />
 
-      {event?.heroImageUrl && (
-        <section
-          aria-label="Event hero"
-          className="relative -mx-4 aspect-[16/7] max-h-[200px] overflow-hidden rounded-none sm:aspect-[9/2] sm:rounded-xl"
-        >
-          {/* Decorative banner — event name is in the H1 below, so
-              alt="" is correct here. eslint-disable for plain <img>:
-              the storage host isn't whitelisted in next.config.ts
-              remotePatterns yet; promoting to next/image is a
-              separate change. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.heroImageUrl} alt="" className="h-full w-full object-cover" />
-        </section>
-      )}
-
-      {event && (
-        <section className="flex flex-col gap-4 border-y border-stone-200 py-6 sm:flex-row sm:items-start sm:justify-between sm:py-8">
-          <div className="flex items-start gap-3 min-w-0">
-            {event.organizationLogoUrl && (
-              /* Org logo — rounded square, kept on the left of the event name. */
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={event.organizationLogoUrl}
-                alt=""
-                className="h-14 w-14 shrink-0 rounded-lg border border-stone-200 bg-white object-contain"
-              />
-            )}
-            <div className="min-w-0 flex-1">
-              <h1 className="mb-1 font-display text-3xl font-bold text-slate-900 sm:text-4xl">
-                {event.name}
-              </h1>
-              {event.organizationName && (
-                <p className="text-sm font-semibold text-slate-700">{event.organizationName}</p>
-              )}
-              {(() => {
-                const place = formatEventPlace(event);
-                return place ? <p className="text-sm text-slate-500">{place}</p> : null;
-              })()}
-              <p className="mt-0.5 text-sm text-slate-500">
-                {formatDateRange(event.startDate, event.endDate)}
-              </p>
-
-              {event.status === 'running' && (
-                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/60 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-                  Live now
-                </span>
-              )}
-
-              {event.publicLandingMd && (
-                <div className="prose prose-sm mt-4 max-w-none text-sm leading-relaxed text-slate-700">
-                  <p>{event.publicLandingMd}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {event.logoUrl && (
-            /* Event logo — moved to the right of the event name. */
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={event.logoUrl}
-              alt=""
-              className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white object-cover sm:ml-4"
-            />
-          )}
-        </section>
-      )}
+      {event && <EventHeader event={event} />}
 
       {(participantsCounts.active > 0 || participantsCounts.waitlist > 0) && (
         <section>
@@ -478,19 +336,33 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
 
       {workshops.length > 0 && (
         <section>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
-            {tr('publicApp.eventHome.section.workshops')}
-          </h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              {tr('publicApp.eventHome.section.workshops')}
+            </h2>
+            <Link
+              href={`/e/${eventSlug}/workshops`}
+              className="text-xs font-semibold text-red-700 hover:text-red-800"
+            >
+              {tr('publicApp.eventHome.workshops.seeFullList')}
+            </Link>
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {workshops.map((w) => {
+            {workshops.slice(0, 6).map((w) => {
               const session = w.sessions[0] ?? null;
               const instructorNames = w.instructors.map((i) => i.displayName);
               return (
                 <Link
                   key={w.id}
                   href={`/e/${eventSlug}/w/${encodeURIComponent(w.slug)}`}
-                  className="group flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                  className="group relative flex min-h-32 flex-col justify-between overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
                 >
+                  {w.color && (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute inset-y-0 left-0 w-1 ${accentClassFor(w.color)}`}
+                    />
+                  )}
                   <div className="min-w-0">
                     <p className="font-display text-base font-semibold text-slate-900">{w.title}</p>
                     {instructorNames.length > 0 && (

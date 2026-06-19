@@ -26,6 +26,9 @@ export const en = {
       section: {
         workshops: 'Workshops',
       },
+      workshops: {
+        seeFullList: 'See full list →',
+      },
     },
     home: {
       description: 'Public event app',
@@ -4103,6 +4106,9 @@ export const fr = {
       },
       section: {
         workshops: 'Stages',
+      },
+      workshops: {
+        seeFullList: 'Voir la liste complète →',
       },
     },
     home: {

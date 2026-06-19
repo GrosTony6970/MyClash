@@ -69,6 +69,7 @@ class CreateWorkshopBody implements CreateWorkshopDto {
   @IsOptional() @IsInt() @Min(1) capacity?: number | null;
   @IsOptional() @IsInt() @Min(1) durationMinutes?: number | null;
   @IsOptional() @IsIn(WORKSHOP_STATUSES) status?: string | null;
+  @IsOptional() @IsString() color?: string | null;
   @IsOptional() @IsUUID() venueId?: string | null;
 }
 
@@ -82,6 +83,7 @@ class UpdateWorkshopBody implements UpdateWorkshopDto {
   @IsOptional() @IsInt() @Min(1) capacity?: number | null;
   @IsOptional() @IsInt() @Min(1) durationMinutes?: number | null;
   @IsOptional() @IsIn(WORKSHOP_STATUSES) status?: string | null;
+  @IsOptional() @IsString() color?: string | null;
   @IsOptional() @IsUUID() venueId?: string | null;
 }
 
