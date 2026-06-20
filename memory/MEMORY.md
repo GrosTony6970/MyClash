@@ -114,6 +114,7 @@ Key invariants:
 - Person uniqueness within an event: `(event_id, lower(email))`.
 - Claimed users can change their Supabase login email and all their claimed `persons.email` rows through a new-email confirmation workflow. Requests are stored in `person_email_change_requests` with SHA-256 token hashes and one active pending request per user.
 - Public claimed users can sign in outside event context at `app.myclash.fr/login` and land in the event-independent `/me` personal space. This is for existing Supabase users from claim/signup flows only; it does not create free-floating participant self-registration.
+- Explicit Person claims link that Person's `global_person_id` to the claiming user's global Fighter profile only when safe: never override another user's global profile, and never auto-switch users who already own a different global profile. Public login can repair existing accounts only when already-claimed Persons resolve to exactly one distinct unclaimed global profile; it does not claim new Persons.
 - Guest sessions sign with `MYCLASH_GUEST_JWT_SECRET`, distinct from Supabase secret. They can never escalate to Supabase tokens.
 - Event staff local accounts use a separate `mc_staff` httpOnly cookie signed with `MYCLASH_STAFF_JWT_SECRET`; they are event-scoped username+PIN accounts for scoring tablets and can only score assigned Lices.
 - `persons.claim_status` is one of: `unclaimed`, `guest_active`, `claimed`.

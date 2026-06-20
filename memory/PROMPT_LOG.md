@@ -911,3 +911,7 @@ Implement the Schedule Save/Generate Bug Fix Plan: fix programme save validation
 ## 18:41:41_22-05-2026
 
 Implement the Referee Workspace Consolidation Plan: collapse Referees and Referee Assignments into one tabbed Referee workspace; keep pool generation separate; add assignment board payload, auto-assign preview/apply/manual assignment flow, optional swap suggestions, redirects, and tests.
+
+## 17:40:37_20-06-2026
+
+Implement the plan "Fix Google OAuth First-Run Failure And Fighter Linking": keep roster claiming explicit, prevent duplicate PKCE code exchange in public/admin OAuth callbacks, link Person global profiles on explicit claim when safe, repair existing claimed-person users with exactly one unclaimed global profile, add RED/GREEN API and callback tests, and run targeted plus broader verification.

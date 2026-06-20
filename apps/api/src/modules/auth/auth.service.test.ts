@@ -24,10 +24,15 @@ const mockSupabase = {
 };
 
 function makeQueryChain(result: unknown) {
+  const resolved = result && typeof result === 'object' ? (result as Record<string, unknown>) : {};
   return {
+    ...resolved,
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    ilike: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     update: vi.fn().mockReturnThis(),
@@ -38,13 +43,19 @@ function makeAwaitableQueryChain(result: unknown) {
   const chain = Object.assign(Promise.resolve(result), {
     select: vi.fn(),
     eq: vi.fn(),
+    is: vi.fn(),
+    ilike: vi.fn(),
     in: vi.fn(),
+    limit: vi.fn(),
     order: vi.fn(),
     update: vi.fn(),
   });
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
+  chain.is.mockReturnValue(chain);
+  chain.ilike.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
   chain.order.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
   return chain;
@@ -495,7 +506,28 @@ describe('AuthService', () => {
         error: null,
       });
       const updateChain = makeQueryChain({ data: null, error: null });
-      fromMock.mockReturnValueOnce(personChain).mockReturnValueOnce(updateChain);
+      const claimedPersonChain = makeQueryChain({
+        data: { global_person_id: 'global-1' },
+        error: null,
+      });
+      const existingGlobalChain = makeQueryChain({ data: null, error: null });
+      const targetGlobalChain = makeQueryChain({
+        data: { id: 'global-1', claimed_by_user_id: null },
+        error: null,
+      });
+      const globalUpdateChain = makeQueryChain({ data: null, error: null });
+      const existingGlobalAfterOAuthChain = makeQueryChain({
+        data: { id: 'global-1' },
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(personChain)
+        .mockReturnValueOnce(updateChain)
+        .mockReturnValueOnce(claimedPersonChain)
+        .mockReturnValueOnce(existingGlobalChain)
+        .mockReturnValueOnce(targetGlobalChain)
+        .mockReturnValueOnce(globalUpdateChain)
+        .mockReturnValueOnce(existingGlobalAfterOAuthChain);
 
       const reply = makeReply();
       await service.acceptOAuthSession(
@@ -512,6 +544,11 @@ describe('AuthService', () => {
         claim_status: 'claimed',
         claimed_by_user_id: 'user-123',
       });
+      expect(globalUpdateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ claimed_by_user_id: 'user-123' }),
+      );
+      expect(globalUpdateChain.eq).toHaveBeenCalledWith('id', 'global-1');
+      expect(globalUpdateChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
       expect(reply.send).toHaveBeenCalledWith({ next: '/' });
       expect(getUserMock).not.toHaveBeenCalled();
     });
@@ -530,14 +567,14 @@ describe('AuthService', () => {
         reply as never,
       );
 
-      // Autolink runs even on public_login (queries global_persons) but
-      // no-ops cleanly when there's no match (the default mock returns
-      // null data). Only global_persons should be queried — no persons,
-      // no platform_roles, no claim mutation.
+      // Autolink runs even on public_login: it tries global_persons by
+      // email and then checks already-claimed persons for a repairable
+      // global_person_id. It must not claim new persons, platform roles,
+      // or other admin-only tables.
       expect(fromMock).toHaveBeenCalledWith('global_persons');
       const otherTables = fromMock.mock.calls
         .map((call: unknown[]) => call[0] as string)
-        .filter((name: string) => name !== 'global_persons');
+        .filter((name: string) => name !== 'global_persons' && name !== 'persons');
       expect(otherTables).toEqual([]);
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
@@ -788,16 +825,27 @@ describe('AuthService', () => {
   describe('claimPersons', () => {
     it('claims roster profiles whose email matches and skips the rest', async () => {
       mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      const okLookupChain = makeQueryChain({
+        data: { id: 'ok', email: 'Fighter@example.com', claimed_by_user_id: null },
+      });
+      const okUpdateChain = makeQueryChain({ data: null });
+      const okPersonChain = makeQueryChain({
+        data: { global_person_id: 'global-ok' },
+        error: null,
+      });
+      const existingGlobalChain = makeQueryChain({ data: null, error: null });
+      const targetGlobalChain = makeQueryChain({
+        data: { id: 'global-ok', claimed_by_user_id: null },
+        error: null,
+      });
+      const globalUpdateChain = makeQueryChain({ data: null, error: null });
       fromMock
-        // 'ok' lookup — email matches (case-insensitive), unclaimed
-        .mockReturnValueOnce(
-          makeQueryChain({
-            data: { id: 'ok', email: 'Fighter@example.com', claimed_by_user_id: null },
-          }),
-        )
-        // completeClaim('ok') update
-        .mockReturnValueOnce(makeQueryChain({ data: null }))
-        // 'bad' lookup — different email
+        .mockReturnValueOnce(okLookupChain)
+        .mockReturnValueOnce(okUpdateChain)
+        .mockReturnValueOnce(okPersonChain)
+        .mockReturnValueOnce(existingGlobalChain)
+        .mockReturnValueOnce(targetGlobalChain)
+        .mockReturnValueOnce(globalUpdateChain)
         .mockReturnValueOnce(
           makeQueryChain({
             data: { id: 'bad', email: 'someone@else.com', claimed_by_user_id: null },
@@ -810,6 +858,11 @@ describe('AuthService', () => {
       );
 
       expect(result.claimed).toBe(1);
+      expect(globalUpdateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ claimed_by_user_id: 'user-1' }),
+      );
+      expect(globalUpdateChain.eq).toHaveBeenCalledWith('id', 'global-ok');
+      expect(globalUpdateChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
     });
 
     it('never reassigns a profile already owned by another user', async () => {
@@ -826,6 +879,79 @@ describe('AuthService', () => {
       );
 
       expect(result.claimed).toBe(0);
+    });
+  });
+
+  describe('tryAutolinkGlobalPerson', () => {
+    it('repairs an existing claimed Person with exactly one unclaimed global profile', async () => {
+      const existingGlobalChain = makeQueryChain({ data: null, error: null });
+      const emailCandidatesChain = makeAwaitableQueryChain({ data: [], error: null });
+      const claimedPersonsChain = makeAwaitableQueryChain({
+        data: [{ global_person_id: 'global-1' }, { global_person_id: 'global-1' }],
+        error: null,
+      });
+      const existingGlobalBeforeLinkChain = makeQueryChain({ data: null, error: null });
+      const targetGlobalChain = makeQueryChain({
+        data: { id: 'global-1', claimed_by_user_id: null },
+        error: null,
+      });
+      const updateChain = makeQueryChain({ data: null, error: null });
+      fromMock
+        .mockReturnValueOnce(existingGlobalChain)
+        .mockReturnValueOnce(emailCandidatesChain)
+        .mockReturnValueOnce(claimedPersonsChain)
+        .mockReturnValueOnce(existingGlobalBeforeLinkChain)
+        .mockReturnValueOnce(targetGlobalChain)
+        .mockReturnValueOnce(updateChain);
+
+      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+
+      expect(updateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ claimed_by_user_id: 'user-1' }),
+      );
+      expect(updateChain.eq).toHaveBeenCalledWith('id', 'global-1');
+      expect(updateChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+    });
+
+    it('does not repair when claimed Persons point at multiple global profiles', async () => {
+      const existingGlobalChain = makeQueryChain({ data: null, error: null });
+      const emailCandidatesChain = makeAwaitableQueryChain({ data: [], error: null });
+      const claimedPersonsChain = makeAwaitableQueryChain({
+        data: [{ global_person_id: 'global-1' }, { global_person_id: 'global-2' }],
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(existingGlobalChain)
+        .mockReturnValueOnce(emailCandidatesChain)
+        .mockReturnValueOnce(claimedPersonsChain);
+
+      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+
+      expect(fromMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not repair when the target global profile is owned by another user', async () => {
+      const existingGlobalChain = makeQueryChain({ data: null, error: null });
+      const emailCandidatesChain = makeAwaitableQueryChain({ data: [], error: null });
+      const claimedPersonsChain = makeAwaitableQueryChain({
+        data: [{ global_person_id: 'global-1' }],
+        error: null,
+      });
+      const existingGlobalBeforeLinkChain = makeQueryChain({ data: null, error: null });
+      const targetGlobalChain = makeQueryChain({
+        data: { id: 'global-1', claimed_by_user_id: 'other-user' },
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(existingGlobalChain)
+        .mockReturnValueOnce(emailCandidatesChain)
+        .mockReturnValueOnce(claimedPersonsChain)
+        .mockReturnValueOnce(existingGlobalBeforeLinkChain)
+        .mockReturnValueOnce(targetGlobalChain);
+
+      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+
+      expect(fromMock).toHaveBeenCalledTimes(5);
     });
   });
 });

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '../i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../lib/oauth-supabase';
+import { runOAuthCodeOnce } from '../lib/oauth-single-flight';
 import { resolvePostAuthDestination } from '../lib/post-auth-destination';
 
 type OAuthMode = 'admin_login' | 'organizer_signup';
@@ -11,6 +12,12 @@ type OAuthResponse = { next?: string };
 type PendingSignup = { orgName: string; orgSlug: string };
 
 const SIGNUP_STORAGE_KEY = 'myclash.oauth.organizerSignup';
+
+class OAuthCallbackFailure extends Error {
+  constructor(readonly messageKey: string) {
+    super(messageKey);
+  }
+}
 
 export function savePendingOrganizerSignup(value: PendingSignup) {
   sessionStorage.setItem(SIGNUP_STORAGE_KEY, JSON.stringify(value));
@@ -46,52 +53,58 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
         return;
       }
 
-      const { data, error: exchangeError } =
-        await createOAuthSupabaseClient().auth.exchangeCodeForSession(code);
-      if (exchangeError || !data.session) {
-        if (!cancelled) setError(t('auth.oauth.errors.exchangeFailed'));
-        return;
+      try {
+        await runOAuthCodeOnce(code, async () => {
+          const { data, error: exchangeError } =
+            await createOAuthSupabaseClient().auth.exchangeCodeForSession(code);
+          if (exchangeError || !data.session) {
+            throw new OAuthCallbackFailure('auth.oauth.errors.exchangeFailed');
+          }
+
+          const body: Record<string, string> = {
+            accessToken: data.session.access_token,
+            refreshToken: data.session.refresh_token ?? '',
+            mode,
+            next: searchParams.get('next') ?? '/',
+          };
+
+          if (mode === 'organizer_signup') {
+            const pending = readPendingOrganizerSignup();
+            if (!pending) {
+              throw new OAuthCallbackFailure('auth.oauth.errors.signupContextMissing');
+            }
+            body['orgName'] = pending.orgName;
+            body['orgSlug'] = pending.orgSlug;
+          }
+
+          const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+          const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          });
+
+          if (!response.ok) {
+            throw new OAuthCallbackFailure('auth.oauth.errors.notAuthorized');
+          }
+
+          if (mode === 'organizer_signup') {
+            sessionStorage.removeItem(SIGNUP_STORAGE_KEY);
+          }
+
+          const result = (await response.json()) as OAuthResponse;
+          // Mirror the password-login path: server-picked `next` wins, otherwise
+          // auto-route organizers into their primary org's auto-selected event.
+          const destination = result.next ?? (await resolvePostAuthDestination('/dashboard'));
+          router.replace(destination);
+        });
+      } catch (err) {
+        if (cancelled) return;
+        const key =
+          err instanceof OAuthCallbackFailure ? err.messageKey : 'auth.oauth.errors.exchangeFailed';
+        setError(t(key));
       }
-
-      const body: Record<string, string> = {
-        accessToken: data.session.access_token,
-        refreshToken: data.session.refresh_token ?? '',
-        mode,
-        next: searchParams.get('next') ?? '/',
-      };
-
-      if (mode === 'organizer_signup') {
-        const pending = readPendingOrganizerSignup();
-        if (!pending) {
-          if (!cancelled) setError(t('auth.oauth.errors.signupContextMissing'));
-          return;
-        }
-        body['orgName'] = pending.orgName;
-        body['orgSlug'] = pending.orgSlug;
-      }
-
-      const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        if (!cancelled) setError(t('auth.oauth.errors.notAuthorized'));
-        return;
-      }
-
-      if (mode === 'organizer_signup') {
-        sessionStorage.removeItem(SIGNUP_STORAGE_KEY);
-      }
-
-      const result = (await response.json()) as OAuthResponse;
-      // Mirror the password-login path: server-picked `next` wins, otherwise
-      // auto-route organizers into their primary org's auto-selected event.
-      const destination = result.next ?? (await resolvePostAuthDestination('/dashboard'));
-      router.replace(destination);
     }
 
     void completeOAuth();

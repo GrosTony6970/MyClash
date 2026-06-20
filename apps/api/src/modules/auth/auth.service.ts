@@ -664,13 +664,16 @@ export class AuthService {
 
   private async completeClaim(userId: string, personId: string): Promise<void> {
     try {
-      await this.supabase.service
+      const { error } = await this.supabase.service
         .from('persons')
         .update({
           claim_status: 'claimed',
           claimed_by_user_id: userId,
         })
         .eq('id', personId);
+      if (error) throw error;
+
+      await this.linkClaimedPersonGlobalProfile(userId, personId);
     } catch {
       this.logger.warn(
         `Could not update claim_status for person ${personId} — persons table not yet created`,
@@ -719,7 +722,10 @@ export class AuthService {
         .is('claimed_by_user_id', null)
         .is('merged_into_id', null)
         .limit(2);
-      if (candidatesError || !Array.isArray(candidates) || candidates.length !== 1) return;
+      if (candidatesError || !Array.isArray(candidates) || candidates.length !== 1) {
+        await this.tryAutolinkClaimedPersonGlobalProfile(userId);
+        return;
+      }
 
       const target = candidates[0] as { id: string };
       const { error: updateError } = await this.supabase.service
@@ -731,14 +737,89 @@ export class AuthService {
         this.logger.warn(
           `autolink: update failed for global_persons ${target.id}: ${updateError.message}`,
         );
+      } else {
+        this.logger.log(`autolink: user ${userId} linked to global_persons ${target.id}`);
         return;
       }
 
-      this.logger.log(`autolink: user ${userId} linked to global_persons ${target.id}`);
+      await this.tryAutolinkClaimedPersonGlobalProfile(userId);
     } catch (err) {
       // Column or table missing pre-migration — silent no-op so login still works.
       const message = err instanceof Error ? err.message : String(err);
       this.logger.debug(`autolink skipped (likely pre-migration): ${message}`);
+    }
+  }
+
+  private async linkClaimedPersonGlobalProfile(userId: string, personId: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error || !data) return;
+
+    const globalPersonId = (data as { global_person_id: string | null }).global_person_id;
+    if (!globalPersonId) return;
+
+    await this.linkGlobalPersonToUserIfSafe(userId, globalPersonId);
+  }
+
+  private async tryAutolinkClaimedPersonGlobalProfile(userId: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('claimed_by_user_id', userId);
+    if (error || !Array.isArray(data)) return;
+
+    const globalPersonIds = new Set(
+      (data as Array<{ global_person_id: string | null }>)
+        .map((row) => row.global_person_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    if (globalPersonIds.size !== 1) return;
+
+    const globalPersonId = Array.from(globalPersonIds)[0];
+    if (!globalPersonId) return;
+
+    await this.linkGlobalPersonToUserIfSafe(userId, globalPersonId);
+  }
+
+  private async linkGlobalPersonToUserIfSafe(
+    userId: string,
+    globalPersonId: string,
+  ): Promise<void> {
+    const { data: existing } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .eq('claimed_by_user_id', userId)
+      .is('merged_into_id', null)
+      .limit(1)
+      .maybeSingle();
+    if (existing) return;
+
+    const { data: target, error: targetError } = await this.supabase.service
+      .from('global_persons')
+      .select('id, claimed_by_user_id, merged_into_id')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (targetError || !target) return;
+
+    const row = target as {
+      id: string;
+      claimed_by_user_id: string | null;
+      merged_into_id?: string | null;
+    };
+    if (row.merged_into_id || row.claimed_by_user_id) return;
+
+    const { error: updateError } = await this.supabase.service
+      .from('global_persons')
+      .update({ claimed_by_user_id: userId, updated_at: new Date().toISOString() })
+      .eq('id', globalPersonId)
+      .is('claimed_by_user_id', null);
+    if (updateError) {
+      this.logger.warn(
+        `global-person link failed for user ${userId} and global_persons ${globalPersonId}: ${updateError.message}`,
+      );
     }
   }
 

@@ -6,6 +6,7 @@ import { Button } from '@myclash/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
+import { runOAuthCodeOnce } from './single-flight';
 
 type OAuthResponse = { next?: string };
 
@@ -105,42 +106,44 @@ function PublicOAuthCallback() {
           throw new ValidationError('auth.oauth.errors.personMissing');
         }
 
-        phase = 'exchanging';
-        const { data, error: exchangeError } =
-          await createOAuthSupabaseClient().auth.exchangeCodeForSession(code);
-        if (exchangeError || !data.session) {
-          throw exchangeError ?? new Error('No session returned from PKCE exchange');
-        }
+        await runOAuthCodeOnce(code, async () => {
+          phase = 'exchanging';
+          const { data, error: exchangeError } =
+            await createOAuthSupabaseClient().auth.exchangeCodeForSession(code);
+          if (exchangeError || !data.session) {
+            throw exchangeError ?? new Error('No session returned from PKCE exchange');
+          }
 
-        phase = 'posting';
-        const apiUrl = getApiUrl();
-        const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          signal: AbortSignal.timeout(15000),
-          body: JSON.stringify({
-            accessToken: data.session.access_token,
-            refreshToken: data.session.refresh_token ?? '',
-            mode,
-            ...(personId ? { personId } : {}),
-            next,
-          }),
+          phase = 'posting';
+          const apiUrl = getApiUrl();
+          const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            signal: AbortSignal.timeout(15000),
+            body: JSON.stringify({
+              accessToken: data.session.access_token,
+              refreshToken: data.session.refresh_token ?? '',
+              mode,
+              ...(personId ? { personId } : {}),
+              next,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new ServerRejectedError(response.status, response.statusText);
+          }
+
+          let result: OAuthResponse;
+          try {
+            result = (await response.json()) as OAuthResponse;
+          } catch (parseErr) {
+            throw new ParseFailedError(parseErr);
+          }
+
+          phase = 'redirecting';
+          router.replace(result.next ?? next);
         });
-
-        if (!response.ok) {
-          throw new ServerRejectedError(response.status, response.statusText);
-        }
-
-        let result: OAuthResponse;
-        try {
-          result = (await response.json()) as OAuthResponse;
-        } catch (parseErr) {
-          throw new ParseFailedError(parseErr);
-        }
-
-        phase = 'redirecting';
-        router.replace(result.next ?? next);
       } catch (err) {
         if (cancelled) return;
         const classified = classifyError(phase, err);
