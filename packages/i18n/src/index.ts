@@ -8238,7 +8238,26 @@ export const messages = {
 
 type DeepString<T> = T extends string ? string : { readonly [K in keyof T]: DeepString<T[K]> };
 export type Messages = DeepString<typeof en>;
-export type TranslationKey = string;
+
+/** Dot-path union of every leaf key in the `en` message tree (the compile-time key list). */
+type LeafPaths<T> = {
+  [K in keyof T & string]: T[K] extends string ? K : `${K}.${LeafPaths<T[K]>}`;
+}[keyof T & string];
+
+/**
+ * Strict union of all known translation keys. Use it to type key-bearing values
+ * (component props, config fields) so typos are caught at `tsc` —
+ * e.g. `labelKey: KnownTranslationKey`.
+ */
+export type KnownTranslationKey = LeafPaths<typeof en>;
+
+/**
+ * Key type accepted by `t()`. Known keys get IDE autocomplete; the `(string & {})`
+ * arm preserves dynamically-built keys (template literals) and runtime strings, so
+ * existing dynamic call sites keep compiling. Inline-literal typos remain covered by
+ * the `t-key-references.test.ts` CI guard.
+ */
+export type TranslationKey = KnownTranslationKey | (string & {});
 export type TranslationValues = Record<string, string | number | boolean | null | undefined>;
 
 export function getMessages(locale: Locale | string = defaultLocale): Messages {

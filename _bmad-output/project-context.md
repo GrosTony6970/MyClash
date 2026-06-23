@@ -101,7 +101,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 
 - **All user-facing strings go through i18n** (`@myclash/i18n`). Never hardcode English.
 - **Every `t()` key must resolve in both EN and FR.** Missing keys are caught by `packages/i18n/src/t-key-references.test.ts`. Add the key to both locales when you introduce it.
-- **Keys are compile-time typed** _(adopted)_: `@myclash/i18n` exports a generated union of valid keys so `t('…')` fails at `tsc` for unknown keys — don't cast around it; add the key (EN+FR) and regenerate.
+- **Translation keys are typed**: `t()` accepts `TranslationKey = KnownTranslationKey | (string & {})` — IDE autocomplete for all valid keys, while dynamically-built keys (template literals, variables) still compile. To catch typos at `tsc`, type key-bearing props/fields as the strict **`KnownTranslationKey`** union. Inline-literal typos are caught by the `t-key-references.test.ts` CI guard. Add new keys to **both** EN and FR.
 
 ### Testing
 
@@ -142,7 +142,7 @@ These conventions are **decided** (apply to all new code now). Each still needs 
 - **RFC 9457 `problem+json` error envelope** — ✅ **shipped** (API): `ApiExceptionFilter` emits the standard members + `application/problem+json`, as a superset of the legacy fields so existing clients keep working. _Follow-up:_ migrate FE consumers to read `detail`/`status` (today they read `message`).
 - **Conventional Commits via commitlint** — ✅ **shipped** (`commitlint.config.cjs` + `commit-msg` hook via `simple-git-hooks`; `@commitlint/config-conventional`).
 - **Per-package coverage thresholds** (`@myclash/rulesets` highest) — ✅ **shipped**: `rulesets` 78/80/84/78, `api` 70, `web-scoring` 60; enforced by the CI `coverage` job. _Follow-up:_ extend to `db`/`web-admin`/`web-public` (each needs a `coverage` script first).
-- **Compile-time-typed i18n keys** — _rollout:_ generate a key-union type in `@myclash/i18n`; export a typed `t()`.
+- **Compile-time-typed i18n keys** — ✅ **shipped** (non-breaking): `@myclash/i18n` derives `KnownTranslationKey` from `en` and types `t()` as `KnownTranslationKey | (string & {})` (autocomplete + opt-in strict prop typing). _Follow-up (optional):_ refactor the ~100 dynamic call sites for full strict `t()` enforcement.
 - **Module resolution: apps `bundler` / libs `nodenext`** — _rollout:_ normalize each package `tsconfig` to the shared template.
 
 > Each rollout item is separate follow-up work (one PR each per "one task = one PR"). This file records the decision; it does not perform the migration.
