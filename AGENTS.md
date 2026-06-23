@@ -25,6 +25,20 @@ This file is your **first read on every task**. It defines hard rules, the persi
 
 ---
 
+## BMad planning toolkit
+
+BMad (planning/PRD/architecture toolkit, v6.9.0) is **not installed in this repo** — it lives in the user's home dir. When you run any `bmad-*` skill from this project, resolve its path variables against the home install (don't assume `_bmad/` is in the repo):
+
+- `{project-root}` → `C:\Users\Tony` (the parent of `_bmad`)
+- `{skill-root}` → `C:\Users\Tony\.claude\skills\<skill-name>`
+- Scripts → `uv run C:/Users/Tony/_bmad/scripts/<script>.py` (e.g. `memlog.py`; `resolve_config.py` needs `--project-root C:/Users/Tony`)
+- Central config → `C:\Users\Tony\_bmad\bmm\config.yaml` (project_name `MyClash`, English)
+- Planning output → `C:\Users\Tony\_bmad-output\planning-artifacts\` (PRDs under `.../prds/`)
+
+`resolve_customization.py` auto-discovers this by walking up from the skill dir until it finds `_bmad/` or `.git/`, so it lands on `C:\Users\Tony` on its own — but the home-dir location is non-obvious, so check here first.
+
+---
+
 ## Hard rules
 
 1. **Never bypass the ruleset engine.** Scores are always derived from exchanges via `@myclash/rulesets`. Do not store computed scores as the source of truth.
