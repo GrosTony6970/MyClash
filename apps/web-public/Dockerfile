@@ -56,7 +56,7 @@ ENV SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
 ENV SENTRY_RELEASE=${SENTRY_RELEASE}
 ENV SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
 
-COPY tsconfig.base.json ./
+COPY tsconfig.base.json tsconfig.lib.json ./
 COPY eslint.config.mjs ./
 COPY eslint-rules/ ./eslint-rules/
 COPY apps/web-public/ ./apps/web-public/

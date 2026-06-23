@@ -36,7 +36,7 @@ FROM deps AS builder
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 # Copy source
-COPY tsconfig.base.json ./
+COPY tsconfig.base.json tsconfig.lib.json ./
 COPY apps/api/ ./apps/api/
 COPY packages/types/ ./packages/types/
 COPY packages/rulesets/ ./packages/rulesets/
