@@ -119,7 +119,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 
 ### Development Workflow
 
-- Branch naming: `feat/<scope>-<short-name>` (also `fix/…`, `chore/…`). Commits follow **Conventional Commits** with a scope, e.g. `fix(schedule): …`, `feat(workshops): …` — **enforced by commitlint** _(adopted)_ via a `commit-msg` git hook (`@commitlint/config-conventional`). A non-conforming message fails the commit.
+- Branch naming: `feat/<scope>-<short-name>` (also `fix/…`, `chore/…`). Commits follow **Conventional Commits** with a scope, e.g. `fix(schedule): …`, `feat(workshops): …` — **enforced by commitlint** via a `commit-msg` git hook (`@commitlint/config-conventional`; config in `commitlint.config.cjs`). A non-conforming message fails the commit.
 - **One task = one PR.** Atomic, reviewable, testable; reference the `docs/BUILD_ORDER.md` task ID and relevant ARCHITECTURE sections.
 - If a task is ambiguous or contradicts ARCHITECTURE/HIERARCHY, **stop and ask** — don't improvise. If it needs owner action (`[needs O-NNN]`), stop and notify.
 - Maintain the persistent-memory files (`memory/MEMORY.md`, `LESSONS_LEARNED.md`, `PROMPT_LOG.md`) per `AGENTS.md`.
@@ -140,7 +140,7 @@ These conventions are **decided** (apply to all new code now). Each still needs 
 
 - **Zod-via-`nestjs-zod` HTTP validation** — _rollout:_ add `nestjs-zod` + a `ZodValidationPipe`, migrate `class-validator` DTOs incrementally.
 - **RFC 9457 `problem+json` error envelope** — _rollout:_ global Nest exception filter + FE error parser.
-- **Conventional Commits via commitlint** — _rollout:_ add `@commitlint/config-conventional` + a `commit-msg` hook to `simple-git-hooks`.
+- **Conventional Commits via commitlint** — ✅ **shipped** (`commitlint.config.cjs` + `commit-msg` hook via `simple-git-hooks`; `@commitlint/config-conventional`).
 - **Per-package coverage thresholds** (`@myclash/rulesets` highest) — _rollout:_ set Vitest `coverage.thresholds` per package + wire into CI.
 - **Compile-time-typed i18n keys** — _rollout:_ generate a key-union type in `@myclash/i18n`; export a typed `t()`.
 - **Module resolution: apps `bundler` / libs `nodenext`** — _rollout:_ normalize each package `tsconfig` to the shared template.
