@@ -109,7 +109,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 - Acceptance criteria are **testable assertions** — if an AC says "X works", demonstrate X with a test.
 - The **Golden Paths** (`docs/GOLDEN_PATHS.md`) GP-1…GP-4 are required passes before ship; matrix = desktop Chrome · mobile Safari · mobile Chrome.
 - For the scoring engine, **write the test first** and guard with the FAL 2026 golden snapshot.
-- **Coverage is gated** _(adopted)_: CI enforces per-package Vitest coverage thresholds; **`@myclash/rulesets` is held to the highest bar** (it's the integrity core). Don't lower a threshold to make CI pass — add tests.
+- **Coverage is gated in CI** (the `coverage` job runs `pnpm coverage`): enforced Vitest `coverage.thresholds` per package — **`@myclash/rulesets` holds the highest bar** (stmts/lines 78, branches 80, funcs 84), `apps/api` 70, `apps/web-scoring` 60. Don't lower a threshold to make CI pass — add tests. Packages without a `coverage` script (e.g. `db`, `web-admin`, `web-public`) aren't gated yet.
 
 ### Code Quality & CI Gates
 
@@ -141,7 +141,7 @@ These conventions are **decided** (apply to all new code now). Each still needs 
 - **Zod-via-`nestjs-zod` HTTP validation** — _rollout:_ add `nestjs-zod` + a `ZodValidationPipe`, migrate `class-validator` DTOs incrementally.
 - **RFC 9457 `problem+json` error envelope** — _rollout:_ global Nest exception filter + FE error parser.
 - **Conventional Commits via commitlint** — ✅ **shipped** (`commitlint.config.cjs` + `commit-msg` hook via `simple-git-hooks`; `@commitlint/config-conventional`).
-- **Per-package coverage thresholds** (`@myclash/rulesets` highest) — _rollout:_ set Vitest `coverage.thresholds` per package + wire into CI.
+- **Per-package coverage thresholds** (`@myclash/rulesets` highest) — ✅ **shipped**: `rulesets` 78/80/84/78, `api` 70, `web-scoring` 60; enforced by the CI `coverage` job. _Follow-up:_ extend to `db`/`web-admin`/`web-public` (each needs a `coverage` script first).
 - **Compile-time-typed i18n keys** — _rollout:_ generate a key-union type in `@myclash/i18n`; export a typed `t()`.
 - **Module resolution: apps `bundler` / libs `nodenext`** — _rollout:_ normalize each package `tsconfig` to the shared template.
 

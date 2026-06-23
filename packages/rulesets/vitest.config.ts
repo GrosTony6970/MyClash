@@ -9,6 +9,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
+      // Highest coverage bar in the monorepo — the scoring engine is the integrity core.
+      // Floors sit just below current coverage; ratchet upward as coverage improves, never down.
+      thresholds: {
+        statements: 78,
+        branches: 80,
+        functions: 84,
+        lines: 78,
+      },
     },
   },
 });
