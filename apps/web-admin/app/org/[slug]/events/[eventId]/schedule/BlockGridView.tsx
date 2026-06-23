@@ -162,6 +162,11 @@ export function BlockGridView({
   } | null>(null);
   const dragSpanRef = useRef<number | null>(null);
   const dragKeyRef = useRef<string | null>(null);
+  // While a block/bar is being dragged, blocks/bars go pointer-events:none so
+  // HTML5 drag events fall through to the drop columns beneath them — otherwise
+  // a block covering a lane (e.g. a long pool) eats every drop over its own
+  // footprint and you can't re-time it onto its own area.
+  const [dragging, setDragging] = useState(false);
 
   if (lices.length === 0) {
     return <p className="text-sm text-gray-400">No lices configured for this event.</p>;
@@ -553,17 +558,20 @@ export function BlockGridView({
               onDragStart={() => {
                 dragSpanRef.current = Math.max(1, brk.span);
                 dragKeyRef.current = brkKey;
+                setDragging(true);
                 onBreakDragStart(brk);
               }}
               onDragEnd={() => {
                 dragSpanRef.current = null;
                 dragKeyRef.current = null;
+                setDragging(false);
                 setGhost(null);
                 onBreakDragEnd();
               }}
               className={[
                 'group relative flex cursor-grab items-center justify-center overflow-hidden border-y px-2 text-[11px] font-semibold uppercase tracking-wide active:cursor-grabbing',
                 tint ? 'text-gray-700' : breakBarClasses(brk.kind),
+                dragging ? 'pointer-events-none' : '',
               ].join(' ')}
               style={{
                 gridColumn: '2 / -1',
@@ -661,11 +669,13 @@ export function BlockGridView({
               onDragStart={() => {
                 dragSpanRef.current = Math.max(1, baseEndSlot - startSlot);
                 dragKeyRef.current = block.key;
+                setDragging(true);
                 onBlockDragStart(block);
               }}
               onDragEnd={() => {
                 dragSpanRef.current = null;
                 dragKeyRef.current = null;
+                setDragging(false);
                 setGhost(null);
                 onBlockDragEnd();
               }}
@@ -675,6 +685,7 @@ export function BlockGridView({
                 tone,
                 anyRunning ? 'ring-1 ring-emerald-400' : '',
                 opacityClass,
+                dragging ? 'pointer-events-none' : '',
               ].join(' ')}
               style={{
                 gridColumn: `${colStart} / ${colEnd}`,
