@@ -122,6 +122,23 @@ export class ClaimRequestsService {
         .eq('id', request.global_person_id);
     }
 
+    // Back-fill the linked event participant rows so the admin Participants
+    // list reflects the claim. Guarded so we never overwrite a row owned by
+    // another user; best-effort so it never blocks the approval.
+    try {
+      const { error: syncError } = await this.supabase.service
+        .from('persons')
+        .update({ claim_status: 'claimed', claimed_by_user_id: request.user_id })
+        .eq('global_person_id', request.global_person_id)
+        .is('claimed_by_user_id', null);
+      if (syncError) throw syncError;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `persons claim-status sync skipped for global_persons ${request.global_person_id}: ${message}`,
+      );
+    }
+
     await this.markDecided(requestId, 'approved', actorUserId, null);
     this.logger.log(
       `claim-request approved: ${requestId} (user ${request.user_id} → global_persons ${request.global_person_id}) by ${actorUserId}`,

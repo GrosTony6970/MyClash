@@ -688,6 +688,40 @@ export class AuthService {
   }
 
   /**
+   * Propagate a global-person claim to every linked event participant row.
+   *
+   * The fighter dashboard reads `global_persons.claimed_by_user_id`, but the
+   * admin Participants list reads `persons.claim_status`. The paths that link
+   * a user to a global identity (autolink, magic-link self-service confirm,
+   * admin approval) only ever set `global_persons.claimed_by_user_id`, leaving
+   * the `persons` rows showing "unclaimed". This back-fills them.
+   *
+   * Keyed by `global_person_id` so ALL events the person appears in flip at
+   * once. Guarded with `.is('claimed_by_user_id', null)` so we never overwrite
+   * a row already owned by another user (and still flip unowned guest rows).
+   * Best-effort: a failure (e.g. pre-migration schema) is logged, never thrown
+   * — it must not block login or claim confirmation.
+   */
+  private async syncPersonsForClaimedGlobalPerson(
+    userId: string,
+    globalPersonId: string,
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase.service
+        .from('persons')
+        .update({ claim_status: 'claimed', claimed_by_user_id: userId })
+        .eq('global_person_id', globalPersonId)
+        .is('claimed_by_user_id', null);
+      if (error) throw error;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `persons claim-status sync skipped for global_persons ${globalPersonId}: ${message}`,
+      );
+    }
+  }
+
+  /**
    * Silent auto-link of an authenticated user to a matching global_persons
    * row by email. Runs at the tail of every successful login path.
    *
@@ -739,6 +773,7 @@ export class AuthService {
         );
       } else {
         this.logger.log(`autolink: user ${userId} linked to global_persons ${target.id}`);
+        await this.syncPersonsForClaimedGlobalPerson(userId, target.id);
         return;
       }
 
@@ -1413,6 +1448,8 @@ export class AuthService {
     }
 
     await this.supabase.service.from('global_person_claim_tokens').delete().eq('token', t.token);
+
+    await this.syncPersonsForClaimedGlobalPerson(user.id, t.global_person_id);
 
     this.logger.log(`global-person claim confirmed: user ${user.id} → ${t.global_person_id}`);
 

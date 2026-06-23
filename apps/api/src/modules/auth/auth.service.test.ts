@@ -953,5 +953,69 @@ describe('AuthService', () => {
 
       expect(fromMock).toHaveBeenCalledTimes(5);
     });
+
+    it('flips linked persons to claimed when autolinking by email match', async () => {
+      const existingGlobalChain = makeQueryChain({ data: null, error: null });
+      const emailCandidatesChain = makeAwaitableQueryChain({
+        data: [{ id: 'global-1' }],
+        error: null,
+      });
+      const globalUpdateChain = makeQueryChain({ data: null, error: null });
+      const personsSyncChain = makeQueryChain({ data: null, error: null });
+      fromMock
+        .mockReturnValueOnce(existingGlobalChain)
+        .mockReturnValueOnce(emailCandidatesChain)
+        .mockReturnValueOnce(globalUpdateChain)
+        .mockReturnValueOnce(personsSyncChain);
+
+      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+
+      expect(globalUpdateChain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ claimed_by_user_id: 'user-1' }),
+      );
+      expect(personsSyncChain.update).toHaveBeenCalledWith({
+        claim_status: 'claimed',
+        claimed_by_user_id: 'user-1',
+      });
+      expect(personsSyncChain.eq).toHaveBeenCalledWith('global_person_id', 'global-1');
+      expect(personsSyncChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+    });
+  });
+
+  describe('confirmGlobalPersonClaim', () => {
+    it('flips linked persons to claimed on magic-link claim confirmation', async () => {
+      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      const future = new Date(Date.now() + 3_600_000).toISOString();
+      const tokenLoadChain = makeQueryChain({
+        data: {
+          token: 'claim-token',
+          user_id: 'user-1',
+          global_person_id: 'global-1',
+          expires_at: future,
+        },
+        error: null,
+      });
+      const globalUpdateChain = makeQueryChain({ data: { id: 'global-1' }, error: null });
+      const tokenDeleteChain = { delete: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() };
+      const personsSyncChain = makeQueryChain({ data: null, error: null });
+      fromMock
+        .mockReturnValueOnce(tokenLoadChain)
+        .mockReturnValueOnce(globalUpdateChain)
+        .mockReturnValueOnce(tokenDeleteChain)
+        .mockReturnValueOnce(personsSyncChain);
+
+      const result = await service.confirmGlobalPersonClaim(
+        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+        'claim-token',
+      );
+
+      expect(result).toEqual({ status: 'claimed', globalPersonId: 'global-1' });
+      expect(personsSyncChain.update).toHaveBeenCalledWith({
+        claim_status: 'claimed',
+        claimed_by_user_id: 'user-1',
+      });
+      expect(personsSyncChain.eq).toHaveBeenCalledWith('global_person_id', 'global-1');
+      expect(personsSyncChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+    });
   });
 });
