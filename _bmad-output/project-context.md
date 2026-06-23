@@ -78,7 +78,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 - `noUncheckedIndexedAccess` is on: index access yields `T | undefined` — narrow before use; don't add non-null `!` to silence it.
 - Cross-package shared types live in **`@myclash/types`** only. Leaking app-local types across the boundary is caught by `pnpm quality:shared-types` (`check-shared-type-leaks.mjs`).
 - Library packages (`rulesets`, `db`, `types`, …) build to `dist/` via `tsc` and are consumed as `workspace:^`.
-- **Module-resolution convention** _(adopted)_: **apps use `bundler`**, **publishable libraries use `nodenext`** (matches the existing `node16`-style ESM in libs like the rulesets Mistral adapter). Don't introduce per-package drift — follow the convention and the shared per-package tsconfig template; don't assume the base `bundler` config applies to a lib.
+- **Module resolution is fixed per build target** (no per-package drift): browser/Next.js apps (`web-*`) use `module: ESNext` + `moduleResolution: bundler`; the Node API (`apps/api`) and all publishable libs use `Node16`. Libraries extend the shared **`tsconfig.lib.json`** (sets `Node16` + declaration emit) — a new lib MUST extend it, not `tsconfig.base.json` (whose `bundler` default suits apps, not libs). Path options (`outDir`/`rootDir`/`tsBuildInfoFile`) stay per-package (`extends` resolves them relative to the defining file).
 
 ### Frameworks
 
@@ -143,7 +143,7 @@ These conventions are **decided** (apply to all new code now). Each still needs 
 - **Conventional Commits via commitlint** — ✅ **shipped** (`commitlint.config.cjs` + `commit-msg` hook via `simple-git-hooks`; `@commitlint/config-conventional`).
 - **Per-package coverage thresholds** (`@myclash/rulesets` highest) — ✅ **shipped**: `rulesets` 78/80/84/78, `api` 70, `web-scoring` 60; enforced by the CI `coverage` job. _Follow-up:_ extend to `db`/`web-admin`/`web-public` (each needs a `coverage` script first).
 - **Compile-time-typed i18n keys** — ✅ **shipped** (non-breaking): `@myclash/i18n` derives `KnownTranslationKey` from `en` and types `t()` as `KnownTranslationKey | (string & {})` (autocomplete + opt-in strict prop typing). _Follow-up (optional):_ refactor the ~100 dynamic call sites for full strict `t()` enforcement.
-- **Module resolution: apps `bundler` / libs `nodenext`** — _rollout:_ normalize each package `tsconfig` to the shared template.
+- **Module resolution: apps `bundler` / Node + libs `node16`** — ✅ **shipped**: added root `tsconfig.lib.json` (shared lib template: `Node16` + declaration); all 9 `packages/*` extend it (registered in Turbo `globalDependencies`). Web apps stay `bundler`; the Node API stays `node16`. (`node16` ≡ `nodenext` today.)
 
 > Each rollout item is separate follow-up work (one PR each per "one task = one PR"). This file records the decision; it does not perform the migration.
 

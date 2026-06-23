@@ -1,12 +1,8 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
-    "module": "Node16",
-    "moduleResolution": "node16",
     "outDir": "dist",
     "rootDir": "src",
-    "declaration": true,
-    "declarationMap": true,
     "tsBuildInfoFile": ".turbo/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
