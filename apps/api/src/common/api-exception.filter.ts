@@ -1,15 +1,32 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 
+/**
+ * RFC 9457 (Problem Details for HTTP APIs) error envelope.
+ *
+ * The first five members are the RFC 9457 standard fields, and responses are
+ * sent with `Content-Type: application/problem+json`. The remaining fields are
+ * extension members retained for backward compatibility with existing clients
+ * (which read `message`, `code`, `statusCode`, and structured `details`).
+ */
 export interface ApiErrorResponse {
-  statusCode: number;
+  // ── RFC 9457 standard members ──
+  type: string;
+  title: string;
+  status: number;
+  detail: string;
+  instance: string;
+  // ── Extension members (backward compatibility + extra context) ──
   code: string;
   message: string;
+  statusCode: number;
   details?: unknown;
   path: string;
   method: string;
   timestamp: string;
   requestId?: string;
 }
+
+export const PROBLEM_JSON_CONTENT_TYPE = 'application/problem+json; charset=utf-8';
 
 interface RequestLike {
   method?: string;
@@ -18,7 +35,9 @@ interface RequestLike {
 }
 
 interface ReplyLike {
-  status: (statusCode: number) => { send: (body: ApiErrorResponse) => void };
+  status: (statusCode: number) => ReplyLike;
+  header: (name: string, value: string) => ReplyLike;
+  send: (body: ApiErrorResponse) => void;
 }
 
 export type ApiExceptionReporter = (
@@ -50,16 +69,27 @@ export class ApiExceptionFilter implements ExceptionFilter {
       });
     }
 
-    response.status(statusCode).send({
-      statusCode,
+    const body: ApiErrorResponse = {
+      // RFC 9457 standard members. `type` stays "about:blank" because the
+      // status code + `code` extension fully describe the problem; `title` is
+      // therefore the HTTP status phrase (per RFC 9457 §4.2.1).
+      type: 'about:blank',
+      title: httpStatusCodeToTitle(statusCode),
+      status: statusCode,
+      detail: normalized.message,
+      instance: path,
+      // Extension members (backward compatibility with existing clients).
       code: normalized.code,
       message: normalized.message,
+      statusCode,
       ...(normalized.details === undefined ? {} : { details: normalized.details }),
       path,
       method,
       timestamp: new Date().toISOString(),
       ...(requestId ? { requestId } : {}),
-    });
+    };
+
+    response.status(statusCode).header('content-type', PROBLEM_JSON_CONTENT_TYPE).send(body);
   }
 }
 
@@ -171,6 +201,26 @@ function httpStatusCodeToMessage(statusCode: number): string {
       return 'Conflict';
     default:
       return statusCode >= 500 ? 'Internal server error' : 'Request failed';
+  }
+}
+
+/** RFC 9457 `title`: the HTTP status reason phrase for an `about:blank` problem. */
+function httpStatusCodeToTitle(statusCode: number): string {
+  switch (statusCode) {
+    case HttpStatus.BAD_REQUEST:
+      return 'Bad Request';
+    case HttpStatus.UNAUTHORIZED:
+      return 'Unauthorized';
+    case HttpStatus.PAYMENT_REQUIRED:
+      return 'Payment Required';
+    case HttpStatus.FORBIDDEN:
+      return 'Forbidden';
+    case HttpStatus.NOT_FOUND:
+      return 'Not Found';
+    case HttpStatus.CONFLICT:
+      return 'Conflict';
+    default:
+      return statusCode >= 500 ? 'Internal Server Error' : 'Request Failed';
   }
 }
 

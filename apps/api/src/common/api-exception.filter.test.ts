@@ -8,11 +8,16 @@ import {
 } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiExceptionFilter, type ApiErrorResponse } from './api-exception.filter';
+import {
+  ApiExceptionFilter,
+  PROBLEM_JSON_CONTENT_TYPE,
+  type ApiErrorResponse,
+} from './api-exception.filter';
 
 function makeHost(overrides: { method?: string; url?: string; requestId?: string } = {}) {
   const send = vi.fn();
-  const status = vi.fn(() => ({ send }));
+  const header = vi.fn(() => ({ send }));
+  const status = vi.fn(() => ({ header, send }));
   const request = {
     method: overrides.method ?? 'GET',
     url: overrides.url ?? '/api/v1/test',
@@ -26,7 +31,7 @@ function makeHost(overrides: { method?: string; url?: string; requestId?: string
     }),
   } as unknown as ArgumentsHost;
 
-  return { host, status, send };
+  return { host, status, header, send };
 }
 
 describe('ApiExceptionFilter', () => {
@@ -35,21 +40,37 @@ describe('ApiExceptionFilter', () => {
     vi.setSystemTime(new Date('2026-05-12T21:30:00.000Z'));
   });
 
-  it('formats standard HTTP exceptions using the shared envelope', () => {
-    const { host, status, send } = makeHost({ requestId: 'req-1' });
+  it('formats standard HTTP exceptions using the RFC 9457 envelope', () => {
+    const { host, status, header, send } = makeHost({ requestId: 'req-1' });
 
     new ApiExceptionFilter().catch(new NotFoundException('Person not found'), host);
 
     expect(status).toHaveBeenCalledWith(404);
+    expect(header).toHaveBeenCalledWith('content-type', PROBLEM_JSON_CONTENT_TYPE);
     expect(send).toHaveBeenCalledWith({
-      statusCode: 404,
+      // RFC 9457 standard members
+      type: 'about:blank',
+      title: 'Not Found',
+      status: 404,
+      detail: 'Person not found',
+      instance: '/api/v1/test',
+      // extension members
       code: 'NOT_FOUND',
       message: 'Person not found',
+      statusCode: 404,
       path: '/api/v1/test',
       method: 'GET',
       timestamp: '2026-05-12T21:30:00.000Z',
       requestId: 'req-1',
     } satisfies ApiErrorResponse);
+  });
+
+  it('emits application/problem+json content type', () => {
+    const { host, header } = makeHost();
+
+    new ApiExceptionFilter().catch(new BadRequestException('bad'), host);
+
+    expect(header).toHaveBeenCalledWith('content-type', 'application/problem+json; charset=utf-8');
   });
 
   it('keeps validation details for BadRequestException arrays', () => {
@@ -60,6 +81,10 @@ describe('ApiExceptionFilter', () => {
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
+        type: 'about:blank',
+        title: 'Bad Request',
+        status: 400,
+        detail: 'email must be an email',
         statusCode: 400,
         code: 'BAD_REQUEST',
         message: 'email must be an email',
@@ -80,6 +105,7 @@ describe('ApiExceptionFilter', () => {
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
+        status: 409,
         statusCode: 409,
         code: 'CONFLICT',
         message: 'Conflict Exception',
@@ -100,9 +126,14 @@ describe('ApiExceptionFilter', () => {
     new ApiExceptionFilter(report).catch(error, host);
 
     expect(send).toHaveBeenCalledWith({
-      statusCode: 500,
+      type: 'about:blank',
+      title: 'Internal Server Error',
+      status: 500,
+      detail: 'Internal server error',
+      instance: '/api/v1/test',
       code: 'INTERNAL_SERVER_ERROR',
       message: 'Internal server error',
+      statusCode: 500,
       path: '/api/v1/test',
       method: 'GET',
       timestamp: '2026-05-12T21:30:00.000Z',
@@ -123,9 +154,11 @@ describe('ApiExceptionFilter', () => {
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
+        status: 500,
         statusCode: 500,
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Internal server error',
+        detail: 'Internal server error',
       }),
     );
     expect(send.mock.calls[0]?.[0]).not.toHaveProperty('details');
@@ -152,9 +185,12 @@ describe('ApiExceptionFilter', () => {
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
+        status: 402,
         statusCode: 402,
+        title: 'Payment Required',
         code: 'SPEND_CAP_EXCEEDED',
         message: 'Event has reached its AI spend cap',
+        detail: 'Event has reached its AI spend cap',
       }),
     );
   });

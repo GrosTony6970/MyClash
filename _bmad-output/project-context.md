@@ -84,7 +84,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 
 - **API = NestJS on Fastify** (not Express). Use Nest DI/modules; request/response are Fastify types.
 - **HTTP validation standard → Zod via `nestjs-zod`** _(adopted; migration in progress)_. New API inputs are validated with **Zod 4** schemas (shared FE↔BE), driving the DTO + OpenAPI + the React Hook Form. **Legacy endpoints still use `class-validator`/`class-transformer`** — do not add new `class-validator` DTOs; migrate the endpoint you touch when feasible. (Zod remains the rulesets/config validator throughout.)
-- **API error envelope → RFC 9457 `application/problem+json`** _(adopted)_, emitted by a global Nest exception filter (`type`/`title`/`status`/`detail`/`instance`). New error paths must use it; the FE and Sentry grouping rely on the consistent shape.
+- **API error envelope = RFC 9457 `application/problem+json`** — the global `ApiExceptionFilter` (`apps/api/src/common/api-exception.filter.ts`, registered in `main.ts`) emits the standard `type`/`title`/`status`/`detail`/`instance` members plus legacy extension fields (`code`/`message`/`statusCode`/`details`) for back-compat, with `Content-Type: application/problem+json`. Throw standard Nest `HttpException`s and let the filter shape the body — don't hand-roll error responses. 5xx internals are never leaked.
 - **Web = Next.js 16 App Router + React 19.** Default to Server Components; mark Client Components with `'use client'` only when needed. Public results pages are SSR for speed.
 - Client/server data split: **mutations → NestJS API**; live reads → **Supabase Realtime**; aggregations → API endpoints. PostgREST/Supabase embeds are used for reads (see gotcha below).
 - **Tailwind v4** (CSS-first config via `@tailwindcss/postcss`) — no `tailwind.config.js` v3 assumptions. Shared UI lives in `@myclash/ui`; tokens in `@myclash/design-tokens`.
@@ -139,7 +139,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 These conventions are **decided** (apply to all new code now). Each still needs a one-time _rollout_ task to enforce repo-wide; until that lands, follow the convention for new code and don't fight existing code that predates it.
 
 - **Zod-via-`nestjs-zod` HTTP validation** — _rollout:_ add `nestjs-zod` + a `ZodValidationPipe`, migrate `class-validator` DTOs incrementally.
-- **RFC 9457 `problem+json` error envelope** — _rollout:_ global Nest exception filter + FE error parser.
+- **RFC 9457 `problem+json` error envelope** — ✅ **shipped** (API): `ApiExceptionFilter` emits the standard members + `application/problem+json`, as a superset of the legacy fields so existing clients keep working. _Follow-up:_ migrate FE consumers to read `detail`/`status` (today they read `message`).
 - **Conventional Commits via commitlint** — ✅ **shipped** (`commitlint.config.cjs` + `commit-msg` hook via `simple-git-hooks`; `@commitlint/config-conventional`).
 - **Per-package coverage thresholds** (`@myclash/rulesets` highest) — ✅ **shipped**: `rulesets` 78/80/84/78, `api` 70, `web-scoring` 60; enforced by the CI `coverage` job. _Follow-up:_ extend to `db`/`web-admin`/`web-public` (each needs a `coverage` script first).
 - **Compile-time-typed i18n keys** — _rollout:_ generate a key-union type in `@myclash/i18n`; export a typed `t()`.
