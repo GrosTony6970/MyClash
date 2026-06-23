@@ -1,273 +1,123 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsISO8601,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  Min,
-  ValidateIf,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export type BlackCardForfeitScopeDto = 'match' | 'tournament' | 'none';
-const FORFEIT_SCOPE_VALUES: BlackCardForfeitScopeDto[] = ['match', 'tournament', 'none'];
+// Shared enums
+const cardSchema = z.enum(['yellow', 'red', 'black']);
+const accumulationScopeSchema = z.enum(['match', 'phase', 'tournament']);
+const forfeitScopeSchema = z.enum(['match', 'tournament', 'none']);
 
-export class CreatePenaltyDto {
-  @ApiProperty()
-  @IsUUID()
-  clientUuid!: string;
+export type BlackCardForfeitScopeDto = z.infer<typeof forfeitScopeSchema>;
 
-  @ApiProperty({ type: Number })
-  @IsInt()
-  @Min(1)
-  sequence!: number;
-
-  @ApiProperty()
-  @IsUUID()
-  registrationId!: string;
-
-  @ApiProperty({ required: false })
-  @ValidateIf((dto: CreatePenaltyDto) => !dto.directCard)
-  @IsUUID()
-  rulesetEntryId?: string;
-
-  @ApiProperty({ required: false, enum: ['yellow', 'red', 'black'] })
-  @ValidateIf((dto: CreatePenaltyDto) => !dto.rulesetEntryId)
-  @IsIn(['yellow', 'red', 'black'])
-  directCard?: 'yellow' | 'red' | 'black';
-
-  @ApiProperty()
-  @IsISO8601()
-  occurredAt!: string;
-
-  /**
-   * Match-clock position (accumulated active ms) when the penalty was
-   * recorded. Persisted to match_penalties.clock_time_ms so the
-   * timeline shows match-clock time. Whitelisted here so the global
-   * forbidNonWhitelisted pipe doesn't 400 the POST.
-   */
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  clockTimeMs?: number;
-
-  @ApiProperty({ required: false })
-  @ValidateIf((dto: CreatePenaltyDto) => Boolean(dto.directCard))
-  @IsString()
-  @MaxLength(500)
-  reason?: string;
-}
-
-export class VoidPenaltyDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  reason?: string;
-}
-
-export class CreatePenaltyRulesetDto {
-  @ApiProperty()
-  @IsUUID()
-  ownerOrganizationId!: string;
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(100)
-  code!: string;
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(50)
-  version!: string;
-
-  @ApiProperty()
-  @IsString()
-  @MaxLength(200)
-  name!: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiProperty({ enum: ['match', 'phase', 'tournament'], default: 'match' })
-  @IsIn(['match', 'phase', 'tournament'])
-  accumulationScope!: 'match' | 'phase' | 'tournament';
-
-  @ApiProperty({ default: false })
-  @IsBoolean()
-  publicVisibility!: boolean;
-
-  @ApiProperty({ type: Array })
-  @IsArray()
-  entries!: Array<{
-    groupNumber: number;
-    // String to allow alphanumeric rulebook IDs like "R7a" or "B-12".
-    // Validation (non-empty + safe-char + length) happens in the service.
-    refNumber: string;
-    shortName: string;
-    description: string;
-    sanctions: Array<'yellow' | 'red' | 'black'>;
-  }>;
-
-  @ApiProperty({ required: false, description: 'Score delta applied per yellow card (default 0)' })
-  @IsOptional()
-  @IsNumber()
-  yellowCardPoints?: number;
-
-  @ApiProperty({ required: false, description: 'Score delta applied per red card (default -1)' })
-  @IsOptional()
-  @IsNumber()
-  redCardPoints?: number;
-
-  @ApiProperty({ required: false, description: 'Score delta applied per black card (default 0)' })
-  @IsOptional()
-  @IsNumber()
-  blackCardPoints?: number;
-
-  @ApiProperty({
-    required: false,
-    enum: FORFEIT_SCOPE_VALUES,
-    description: "Scope of the forfeit triggered by the registration's first black card.",
-  })
-  @IsOptional()
-  @IsIn(FORFEIT_SCOPE_VALUES)
-  firstBlackCardForfeit?: BlackCardForfeitScopeDto;
-
-  @ApiProperty({
-    required: false,
-    enum: FORFEIT_SCOPE_VALUES,
-    description: 'Scope of the forfeit triggered by a second (or later) black card.',
-  })
-  @IsOptional()
-  @IsIn(FORFEIT_SCOPE_VALUES)
-  secondBlackCardForfeit?: BlackCardForfeitScopeDto;
-}
-
-export class ImportPenaltyRulesetCsvDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  ownerOrganizationId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  eventId?: string;
-
-  @ApiProperty()
-  @IsString()
-  code!: string;
-
-  @ApiProperty()
-  @IsString()
-  version!: string;
-
-  @ApiProperty()
-  @IsString()
-  name!: string;
-
-  @ApiProperty({ enum: ['match', 'phase', 'tournament'], default: 'match' })
-  @IsIn(['match', 'phase', 'tournament'])
-  accumulationScope!: 'match' | 'phase' | 'tournament';
-
-  @ApiProperty()
-  @IsString()
-  csv!: string;
-}
-
-export class UpdatePenaltyRulesetDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  name?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiProperty({ required: false, enum: ['match', 'phase', 'tournament'] })
-  @IsOptional()
-  @IsIn(['match', 'phase', 'tournament'])
-  accumulationScope?: 'match' | 'phase' | 'tournament';
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  publicVisibility?: boolean;
-
-  /**
-   * Full replacement set of entries. When provided, the service deletes any
-   * existing entries for this ruleset and inserts these. Omit to leave
-   * entries untouched.
-   */
-  @ApiProperty({ required: false, type: Array })
-  @IsOptional()
-  @IsArray()
-  entries?: Array<{
-    groupNumber: number;
-    refNumber: string;
-    shortName: string;
-    description: string;
-    sanctions: Array<'yellow' | 'red' | 'black'>;
-  }>;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  yellowCardPoints?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  redCardPoints?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumber()
-  blackCardPoints?: number;
-
-  @ApiProperty({ required: false, enum: FORFEIT_SCOPE_VALUES })
-  @IsOptional()
-  @IsIn(FORFEIT_SCOPE_VALUES)
-  firstBlackCardForfeit?: BlackCardForfeitScopeDto;
-
-  @ApiProperty({ required: false, enum: FORFEIT_SCOPE_VALUES })
-  @IsOptional()
-  @IsIn(FORFEIT_SCOPE_VALUES)
-  secondBlackCardForfeit?: BlackCardForfeitScopeDto;
-}
+const penaltyRulesetEntrySchema = z.object({
+  groupNumber: z.number(),
+  // String to allow alphanumeric rulebook IDs like "R7a" or "B-12".
+  // Deeper validation (non-empty + safe-char + length) happens in the service.
+  refNumber: z.string(),
+  shortName: z.string(),
+  description: z.string(),
+  sanctions: z.array(cardSchema),
+});
 
 /**
- * R3: payload for super-admin rejection of a penalty-ruleset sharing
- * request. The reason is shown to the organizer so they can fix the
- * issue and resubmit.
+ * Record a match penalty card. Either `rulesetEntryId` (a configured penalty
+ * entry) or `directCard` (a manual referee card) must be provided; `reason` is
+ * required when a manual `directCard` is given. Exported for unit testing of
+ * this conditional logic.
  */
-export class RejectPenaltyRulesetSharingDto {
-  @ApiProperty()
-  @IsString()
-  @MaxLength(1000)
-  reason!: string;
-}
+export const createPenaltySchema = z
+  .object({
+    clientUuid: z.uuid(),
+    sequence: z.number().int().min(1),
+    registrationId: z.uuid(),
+    rulesetEntryId: z.uuid().optional(),
+    directCard: cardSchema.optional(),
+    occurredAt: z.iso.datetime(),
+    /**
+     * Match-clock position (accumulated active ms) when the penalty was
+     * recorded. Persisted to match_penalties.clock_time_ms so the timeline
+     * shows match-clock time.
+     */
+    clockTimeMs: z.number().int().min(0).optional(),
+    reason: z.string().max(500).optional(),
+  })
+  .strict()
+  .refine((d) => Boolean(d.rulesetEntryId) || Boolean(d.directCard), {
+    message: 'Either rulesetEntryId or directCard is required',
+    path: ['rulesetEntryId'],
+  })
+  .refine((d) => !d.directCard || typeof d.reason === 'string', {
+    message: 'reason is required when directCard is set',
+    path: ['reason'],
+  });
+export class CreatePenaltyDto extends createZodDto(createPenaltySchema) {}
 
-export class AssignPenaltyRulesetDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  penaltyRulesetId?: string | null;
-}
+const voidPenaltySchema = z.object({ reason: z.string().max(500).optional() }).strict();
+export class VoidPenaltyDto extends createZodDto(voidPenaltySchema) {}
 
-export class ReviewPenaltyDto {
-  @ApiProperty({ enum: ['confirmed', 'dismissed'] })
-  @IsIn(['confirmed', 'dismissed'])
-  status!: 'confirmed' | 'dismissed';
-}
+const createPenaltyRulesetSchema = z
+  .object({
+    ownerOrganizationId: z.uuid(),
+    code: z.string().max(100),
+    version: z.string().max(50),
+    name: z.string().max(200),
+    description: z.string().optional(),
+    accumulationScope: accumulationScopeSchema,
+    publicVisibility: z.boolean(),
+    entries: z.array(penaltyRulesetEntrySchema),
+    yellowCardPoints: z.number().optional(),
+    redCardPoints: z.number().optional(),
+    blackCardPoints: z.number().optional(),
+    firstBlackCardForfeit: forfeitScopeSchema.optional(),
+    secondBlackCardForfeit: forfeitScopeSchema.optional(),
+  })
+  .strict();
+export class CreatePenaltyRulesetDto extends createZodDto(createPenaltyRulesetSchema) {}
+
+const importPenaltyRulesetCsvSchema = z
+  .object({
+    ownerOrganizationId: z.uuid().optional(),
+    eventId: z.uuid().optional(),
+    code: z.string(),
+    version: z.string(),
+    name: z.string(),
+    accumulationScope: accumulationScopeSchema,
+    csv: z.string(),
+  })
+  .strict();
+export class ImportPenaltyRulesetCsvDto extends createZodDto(importPenaltyRulesetCsvSchema) {}
+
+const updatePenaltyRulesetSchema = z
+  .object({
+    name: z.string().max(200).optional(),
+    description: z.string().optional(),
+    accumulationScope: accumulationScopeSchema.optional(),
+    publicVisibility: z.boolean().optional(),
+    /**
+     * Full replacement set of entries. When provided, the service deletes any
+     * existing entries for this ruleset and inserts these. Omit to leave
+     * entries untouched.
+     */
+    entries: z.array(penaltyRulesetEntrySchema).optional(),
+    yellowCardPoints: z.number().optional(),
+    redCardPoints: z.number().optional(),
+    blackCardPoints: z.number().optional(),
+    firstBlackCardForfeit: forfeitScopeSchema.optional(),
+    secondBlackCardForfeit: forfeitScopeSchema.optional(),
+  })
+  .strict();
+export class UpdatePenaltyRulesetDto extends createZodDto(updatePenaltyRulesetSchema) {}
+
+/**
+ * R3: payload for super-admin rejection of a penalty-ruleset sharing request.
+ * The reason is shown to the organizer so they can fix the issue and resubmit.
+ */
+const rejectPenaltyRulesetSharingSchema = z.object({ reason: z.string().max(1000) }).strict();
+export class RejectPenaltyRulesetSharingDto extends createZodDto(
+  rejectPenaltyRulesetSharingSchema,
+) {}
+
+const assignPenaltyRulesetSchema = z.object({ penaltyRulesetId: z.uuid().nullish() }).strict();
+export class AssignPenaltyRulesetDto extends createZodDto(assignPenaltyRulesetSchema) {}
+
+const reviewPenaltySchema = z.object({ status: z.enum(['confirmed', 'dismissed']) }).strict();
+export class ReviewPenaltyDto extends createZodDto(reviewPenaltySchema) {}

@@ -138,7 +138,7 @@ _Critical rules and patterns AI agents MUST follow when writing code in MyClash.
 
 These conventions are **decided** (apply to all new code now). Each still needs a one-time _rollout_ task to enforce repo-wide; until that lands, follow the convention for new code and don't fight existing code that predates it.
 
-- **Zod-via-`nestjs-zod` HTTP validation** — 🚧 **infra shipped**: `nestjs-zod` 5.4 + dispatching `ZodOrClassValidationPipe` + `cleanupOpenApiDoc`; pilot `PasswordLoginDto` migrated. _Remaining:_ convert the other ~45 `class-validator` DTOs module-by-module (start with `penalties`/`persons`/`compensation`).
+- **Zod-via-`nestjs-zod` HTTP validation** — 🚧 **infra shipped + migrating**: `nestjs-zod` 5.4 + dispatching `ZodOrClassValidationPipe` + `cleanupOpenApiDoc`. Migrated: `auth/PasswordLoginDto` (pilot), `penalties/*` (8 DTOs incl. conditional logic). _Remaining:_ convert the rest module-by-module (next `persons`/`compensation`, then the others).
 - **RFC 9457 `problem+json` error envelope** — ✅ **shipped** (API): `ApiExceptionFilter` emits the standard members + `application/problem+json`, as a superset of the legacy fields so existing clients keep working. _Follow-up:_ migrate FE consumers to read `detail`/`status` (today they read `message`).
 - **Conventional Commits via commitlint** — ✅ **shipped** (`commitlint.config.cjs` + `commit-msg` hook via `simple-git-hooks`; `@commitlint/config-conventional`).
 - **Per-package coverage thresholds** (`@myclash/rulesets` highest) — ✅ **shipped**: `rulesets` 78/80/84/78, `api` 70, `web-scoring` 60; enforced by the CI `coverage` job. _Follow-up:_ extend to `db`/`web-admin`/`web-public` (each needs a `coverage` script first).
