@@ -23,12 +23,6 @@ function makeChain(result: { data?: unknown; error?: unknown } = {}) {
   return chain;
 }
 
-const validFormula = {
-  type: 'binop' as const,
-  op: '-' as const,
-  left: { type: 'var' as const, name: 'victories' as const },
-  right: { type: 'var' as const, name: 'losses' as const },
-};
 const validConstants = { pointsPerVictory: 3, pointsPerTie: 1, pointsPerLoss: 0, doublePenalty: 0 };
 const validTiebreakers = [{ variable: 'victories' as const, direction: 'desc' as const }];
 

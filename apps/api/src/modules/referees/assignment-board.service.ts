@@ -272,16 +272,6 @@ interface QualificationRow {
   rating: number | null;
 }
 
-interface PersonRow {
-  id: string;
-  claimed_by_user_id: string | null;
-  given_name: string | null;
-  family_name: string | null;
-  display_name: string | null;
-  club_id: string | null;
-  clubs?: { name: string | null } | Array<{ name: string | null }> | null;
-}
-
 interface RegistrationRow {
   id: string;
   /** Event-scoped `persons.id` — DO NOT compare against referee

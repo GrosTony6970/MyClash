@@ -414,8 +414,6 @@ export class PhasesService {
 
     let configJson: Record<string, unknown>;
     let slotInserts: Array<Record<string, unknown>>;
-    let totalSlots: number;
-    let summaryRounds: number;
 
     if (isDoubleElim) {
       let bracket: ReturnType<typeof doubleElimBracket>;
@@ -449,8 +447,6 @@ export class PhasesService {
         registration_a_id: null,
         registration_b_id: null,
       }));
-      totalSlots = bracket.slots.length;
-      summaryRounds = bracket.wbRounds + bracket.lbRounds + 1;
     } else {
       let bracket: ReturnType<typeof singleElimBracket>;
       try {
@@ -481,8 +477,6 @@ export class PhasesService {
         registration_a_id: null,
         registration_b_id: null,
       }));
-      totalSlots = bracket.slots.length;
-      summaryRounds = (configJson['rounds'] as number) ?? 0;
     }
 
     // Create phase

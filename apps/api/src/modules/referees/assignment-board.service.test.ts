@@ -61,7 +61,6 @@ function makeChain(result: unknown) {
 // `persons.id === global_persons.id`.
 const FIGHTER_REF_PERSONS_ID = 'persons-row-fighter-ref'; // event-scoped persons.id
 const FIGHTER_REF_GLOBAL_ID = 'person-ref-a'; // global_persons.id, candidate side
-const PURE_REF_PERSONS_ID = 'persons-row-pure-ref';
 const PURE_REF_GLOBAL_ID = 'person-ref-b';
 const BLUE_PERSONS_ID = 'persons-row-blue';
 const BLUE_GLOBAL_ID = 'person-b-global';

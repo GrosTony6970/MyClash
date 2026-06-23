@@ -377,7 +377,7 @@ function parseComposeImages(composeText: string): Record<string, string> {
   const images: Record<string, string> = {};
   let currentService: string | null = null;
   for (const line of composeText.split(/\r?\n/u)) {
-    const serviceMatch = /^  ([A-Za-z0-9_-]+):\s*$/u.exec(line);
+    const serviceMatch = /^ {2}([A-Za-z0-9_-]+):\s*$/u.exec(line);
     if (serviceMatch) {
       currentService = serviceMatch[1] ?? null;
       continue;

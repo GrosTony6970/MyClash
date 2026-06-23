@@ -11,7 +11,7 @@
  */
 
 import { BadRequestException } from '@nestjs/common';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ReviewQueueService } from './review-queue.service';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -407,7 +407,6 @@ describe('ReviewQueueService', () => {
     const pendingRow = { status: 'pending' };
 
     const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
-    const auditInsert = vi.fn().mockResolvedValue({ data: null, error: null });
     let capturedUpdate: Record<string, unknown> | null = null;
     let capturedAudit: Record<string, unknown> | null = null;
 
@@ -521,13 +520,11 @@ describe('ReviewQueueService', () => {
       if (table === 'club_review_requests') {
         return {
           select: vi.fn().mockReturnValue({
-            eq: vi
-              .fn()
-              .mockResolvedValue({
-                count: null,
-                error: { message: 'relation missing' },
-                data: null,
-              }),
+            eq: vi.fn().mockResolvedValue({
+              count: null,
+              error: { message: 'relation missing' },
+              data: null,
+            }),
           }),
         };
       }

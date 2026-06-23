@@ -148,7 +148,7 @@ export function validateDoublePenaltyFormula(raw: string): string {
   // input has already been character-whitelisted.
   let fn: (n: number) => number;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    // eslint-disable-next-line no-new-func
     fn = new Function('n', `return (${trimmed});`) as (n: number) => number;
   } catch {
     throw new BadRequestException('Double-penalty formula is not a valid expression');

@@ -9,7 +9,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventArchiveWorker, EVENT_ARCHIVE_QUEUE } from './event-archive.worker';
+import { EventArchiveWorker } from './event-archive.worker';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 

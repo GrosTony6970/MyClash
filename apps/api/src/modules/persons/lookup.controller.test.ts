@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
 import { LookupController } from './lookup.controller';
 import { CsvImportService } from './csv-import.service';
 

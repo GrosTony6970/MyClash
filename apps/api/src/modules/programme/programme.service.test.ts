@@ -930,7 +930,6 @@ describe('ProgrammeService', () => {
       // type strictly because of the Promise<T> + Record<string, unknown>
       // intersection, and the service only cares that each method
       // returns the chain.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chain: any = promise;
       chain.update = vi.fn((payload: Record<string, unknown>) => {
         captured.payload = payload;
