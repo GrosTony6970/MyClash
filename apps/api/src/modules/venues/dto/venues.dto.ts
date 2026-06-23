@@ -1,92 +1,40 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreateVenueDto {
-  @ApiProperty({ example: 'Gymnase Lyon-Sud' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  name!: string;
+const createVenueSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    address: z.string().max(500).optional(),
+    hostsTournament: z.boolean().optional(),
+    hostsWorkshop: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export class CreateVenueDto extends createZodDto(createVenueSchema) {}
 
-  @ApiProperty({ required: false, example: '12 rue des Lilas, 69008 Lyon' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  address?: string;
+const updateVenueSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    address: z.string().max(500).optional(),
+    hostsTournament: z.boolean().optional(),
+    hostsWorkshop: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export class UpdateVenueDto extends createZodDto(updateVenueSchema) {}
 
-  @ApiProperty({ required: false, default: true })
-  @IsOptional()
-  @IsBoolean()
-  hostsTournament?: boolean;
+const createVenueAreaSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export class CreateVenueAreaDto extends createZodDto(createVenueAreaSchema) {}
 
-  @ApiProperty({ required: false, default: true })
-  @IsOptional()
-  @IsBoolean()
-  hostsWorkshop?: boolean;
-
-  @ApiProperty({ required: false, default: 0 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-}
-
-export class UpdateVenueDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  name?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  address?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  hostsTournament?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  hostsWorkshop?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-}
-
-export class CreateVenueAreaDto {
-  @ApiProperty({ example: 'Mat 1' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  name!: string;
-
-  @ApiProperty({ required: false, default: 0 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-}
-
-export class UpdateVenueAreaDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  name?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-}
+const updateVenueAreaSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export class UpdateVenueAreaDto extends createZodDto(updateVenueAreaSchema) {}

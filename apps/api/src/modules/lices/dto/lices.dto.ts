@@ -1,81 +1,33 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreateLiceDto {
-  @ApiProperty({ example: 'Lice 1' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  name!: string;
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  locationLabel?: string;
-
-  @ApiProperty({ required: false, example: '#c0392b' })
-  @IsOptional()
-  @IsString()
-  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'colorHex must be a valid hex color (#rrggbb)' })
-  colorHex?: string;
-
-  @ApiProperty({ required: false, default: 0 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-
-  @ApiProperty({
-    required: false,
-    description: "Venue (org-level) the lice lives inside. Must belong to the event's org.",
+const createLiceSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    locationLabel: z.string().max(200).optional(),
+    colorHex: z
+      .string()
+      .regex(HEX_COLOR, 'colorHex must be a valid hex color (#rrggbb)')
+      .optional(),
+    sortOrder: z.number().int().min(0).optional(),
+    venueId: z.uuid().optional(),
   })
-  @IsOptional()
-  @IsUUID()
-  venueId?: string;
-}
+  .strict();
+export class CreateLiceDto extends createZodDto(createLiceSchema) {}
 
-export class UpdateLiceDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  name?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  locationLabel?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'colorHex must be a valid hex color (#rrggbb)' })
-  colorHex?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-
-  @ApiProperty({
-    required: false,
-    nullable: true,
-    description: 'Venue (org-level) the lice lives inside, or null to detach.',
+const updateLiceSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    locationLabel: z.string().max(200).optional(),
+    colorHex: z
+      .string()
+      .regex(HEX_COLOR, 'colorHex must be a valid hex color (#rrggbb)')
+      .optional(),
+    sortOrder: z.number().int().min(0).optional(),
+    // org-level venue the lice lives inside, or null to detach
+    venueId: z.uuid().nullish(),
   })
-  @IsOptional()
-  @IsUUID()
-  venueId?: string | null;
-}
+  .strict();
+export class UpdateLiceDto extends createZodDto(updateLiceSchema) {}
