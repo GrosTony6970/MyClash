@@ -23,7 +23,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -31,18 +32,14 @@ import { DeletionRequestsService } from './deletion-requests.service';
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
-export class CreateDeletionRequestDto {
-  @IsIn(['event', 'tournament'])
-  targetType!: 'event' | 'tournament';
-
-  @IsUUID()
-  targetId!: string;
-
-  @IsString()
-  @MinLength(10)
-  @MaxLength(500)
-  reason!: string;
-}
+const createDeletionRequestSchema = z
+  .object({
+    targetType: z.enum(['event', 'tournament']),
+    targetId: z.uuid(),
+    reason: z.string().min(10).max(500),
+  })
+  .strict();
+export class CreateDeletionRequestDto extends createZodDto(createDeletionRequestSchema) {}
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 

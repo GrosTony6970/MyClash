@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { ArrayMaxSize, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { AuthService, type GlobalPersonSearchResult } from './auth.service';
 import {
   GlobalPersonClaimConfirmDto,
@@ -22,19 +23,19 @@ import { MeResponseDto } from './dto/me-response.dto';
 import { PersonalSpaceResponseDto } from './dto/personal-space-response.dto';
 import { ChangePasswordDto, DeleteAccountDto } from './dto/security.dto';
 
-class GlobalPersonSearchQueryDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  q?: string;
-}
+const globalPersonSearchQuerySchema = z
+  .object({
+    q: z.string().max(100).optional(),
+  })
+  .strict();
+class GlobalPersonSearchQueryDto extends createZodDto(globalPersonSearchQuerySchema) {}
 
-class ClaimPersonsDto {
-  @IsArray()
-  @ArrayMaxSize(50)
-  @IsUUID('all', { each: true })
-  personIds: string[] = [];
-}
+const claimPersonsSchema = z
+  .object({
+    personIds: z.array(z.uuid()).max(50),
+  })
+  .strict();
+class ClaimPersonsDto extends createZodDto(claimPersonsSchema) {}
 
 @ApiTags('auth')
 @Controller()

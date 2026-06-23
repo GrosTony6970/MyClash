@@ -23,25 +23,12 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import {
-  IsIn,
-  IsInt,
-  IsISO8601,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  Min,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
-import {
-  type CreateSessionDto,
-  type CreateWorkshopDto,
-  type UpdateWorkshopDto,
-  WorkshopsService,
-} from './workshops.service';
+import { WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
 
@@ -58,65 +45,79 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 
-class CreateWorkshopBody implements CreateWorkshopDto {
-  @IsString() slug!: string;
-  @IsString() title!: string;
-  @IsOptional() @IsString() shortDescription?: string | null;
-  @IsOptional() @IsString() descriptionMd?: string | null;
-  @IsOptional() @IsString() category?: string | null;
-  @IsOptional() @IsString() level?: string | null;
-  @IsOptional() @IsString() language?: string | null;
-  @IsOptional() @IsInt() @Min(1) capacity?: number | null;
-  @IsOptional() @IsInt() @Min(1) durationMinutes?: number | null;
-  @IsOptional() @IsIn(WORKSHOP_STATUSES) status?: string | null;
-  @IsOptional() @IsString() color?: string | null;
-  @IsOptional() @IsUUID() venueId?: string | null;
-}
+const createWorkshopSchema = z
+  .object({
+    slug: z.string(),
+    title: z.string(),
+    shortDescription: z.string().nullish(),
+    descriptionMd: z.string().nullish(),
+    category: z.string().nullish(),
+    level: z.string().nullish(),
+    language: z.string().nullish(),
+    capacity: z.number().int().min(1).nullish(),
+    durationMinutes: z.number().int().min(1).nullish(),
+    status: z.enum(WORKSHOP_STATUSES).nullish(),
+    color: z.string().nullish(),
+    venueId: z.uuid().nullish(),
+  })
+  .strict();
+class CreateWorkshopBody extends createZodDto(createWorkshopSchema) {}
 
-class UpdateWorkshopBody implements UpdateWorkshopDto {
-  @IsOptional() @IsString() title?: string;
-  @IsOptional() @IsString() shortDescription?: string | null;
-  @IsOptional() @IsString() descriptionMd?: string | null;
-  @IsOptional() @IsString() category?: string | null;
-  @IsOptional() @IsString() level?: string | null;
-  @IsOptional() @IsString() language?: string | null;
-  @IsOptional() @IsInt() @Min(1) capacity?: number | null;
-  @IsOptional() @IsInt() @Min(1) durationMinutes?: number | null;
-  @IsOptional() @IsIn(WORKSHOP_STATUSES) status?: string | null;
-  @IsOptional() @IsString() color?: string | null;
-  @IsOptional() @IsUUID() venueId?: string | null;
-}
+const updateWorkshopSchema = z
+  .object({
+    title: z.string().optional(),
+    shortDescription: z.string().nullish(),
+    descriptionMd: z.string().nullish(),
+    category: z.string().nullish(),
+    level: z.string().nullish(),
+    language: z.string().nullish(),
+    capacity: z.number().int().min(1).nullish(),
+    durationMinutes: z.number().int().min(1).nullish(),
+    status: z.enum(WORKSHOP_STATUSES).nullish(),
+    color: z.string().nullish(),
+    venueId: z.uuid().nullish(),
+  })
+  .strict();
+class UpdateWorkshopBody extends createZodDto(updateWorkshopSchema) {}
 
-class CreateSessionBody implements CreateSessionDto {
-  @IsISO8601() startTime!: string;
-  @IsISO8601() endTime!: string;
-  @IsOptional() @IsString() location?: string;
-  @IsOptional() @IsIn(['scheduled', 'running', 'completed', 'cancelled']) status?: string;
-  @IsOptional() @IsUUID() venueId?: string | null;
-  @IsOptional() @IsUUID() areaId?: string | null;
-}
+const createSessionSchema = z
+  .object({
+    startTime: z.iso.datetime(),
+    endTime: z.iso.datetime(),
+    location: z.string().optional(),
+    status: z.enum(['scheduled', 'running', 'completed', 'cancelled']).optional(),
+    venueId: z.uuid().nullish(),
+    areaId: z.uuid().nullish(),
+  })
+  .strict();
+class CreateSessionBody extends createZodDto(createSessionSchema) {}
 
-class AddInstructorBody {
-  @IsUUID() globalPersonId!: string;
-}
+const addInstructorSchema = z.object({ globalPersonId: z.uuid() }).strict();
+class AddInstructorBody extends createZodDto(addInstructorSchema) {}
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-class CreateBreakBody {
-  @IsOptional() @IsInt() @Min(0) dayIndex?: number;
-  @Matches(HHMM_RE) startTime!: string;
-  @Matches(HHMM_RE) endTime!: string;
-  @IsOptional() @IsString() label?: string | null;
-  @IsOptional() @IsString() color?: string | null;
-}
+const createBreakSchema = z
+  .object({
+    dayIndex: z.number().int().min(0).optional(),
+    startTime: z.string().regex(HHMM_RE),
+    endTime: z.string().regex(HHMM_RE),
+    label: z.string().nullish(),
+    color: z.string().nullish(),
+  })
+  .strict();
+class CreateBreakBody extends createZodDto(createBreakSchema) {}
 
-class UpdateBreakBody {
-  @IsOptional() @IsInt() @Min(0) dayIndex?: number;
-  @IsOptional() @Matches(HHMM_RE) startTime?: string;
-  @IsOptional() @Matches(HHMM_RE) endTime?: string;
-  @IsOptional() @IsString() label?: string | null;
-  @IsOptional() @IsString() color?: string | null;
-}
+const updateBreakSchema = z
+  .object({
+    dayIndex: z.number().int().min(0).optional(),
+    startTime: z.string().regex(HHMM_RE).optional(),
+    endTime: z.string().regex(HHMM_RE).optional(),
+    label: z.string().nullish(),
+    color: z.string().nullish(),
+  })
+  .strict();
+class UpdateBreakBody extends createZodDto(updateBreakSchema) {}
 
 // ── Controller ────────────────────────────────────────────────────────────────
 

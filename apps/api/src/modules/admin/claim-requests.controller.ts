@@ -11,17 +11,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { ClaimRequestsService } from './claim-requests.service';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
-class RejectClaimRequestDto {
-  @IsString()
-  @MinLength(2)
-  @MaxLength(500)
-  reason!: string;
-}
+const rejectClaimRequestSchema = z.object({ reason: z.string().min(2).max(500) }).strict();
+class RejectClaimRequestDto extends createZodDto(rejectClaimRequestSchema) {}
 
 function getActorId(req: FastifyRequest): string {
   return (req as FastifyRequest & { actorUserId?: string }).actorUserId ?? 'unknown';

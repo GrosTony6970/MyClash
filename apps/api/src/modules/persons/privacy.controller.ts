@@ -19,24 +19,20 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
 
-class UpdatePrivacyDto {
-  @IsOptional()
-  @IsBoolean()
-  hideWorkshopsPublicly?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  allowBeingFollowed?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  showRealEmailToFollowers?: boolean;
-}
+const updatePrivacySchema = z
+  .object({
+    hideWorkshopsPublicly: z.boolean().optional(),
+    allowBeingFollowed: z.boolean().optional(),
+    showRealEmailToFollowers: z.boolean().optional(),
+  })
+  .strict();
+class UpdatePrivacyDto extends createZodDto(updatePrivacySchema) {}
 
 @ApiTags('persons')
 @Controller('persons/me')

@@ -10,8 +10,9 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { SuperAdminGuard } from './guards/super-admin.guard';
@@ -19,19 +20,13 @@ import { ReviewQueueService } from './review-queue.service';
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
-export class ApproveQueueItemDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  typedConfirmation?: string;
-}
+const approveQueueItemSchema = z
+  .object({ typedConfirmation: z.string().max(50).optional() })
+  .strict();
+export class ApproveQueueItemDto extends createZodDto(approveQueueItemSchema) {}
 
-export class RejectQueueItemDto {
-  @IsString()
-  @MinLength(10)
-  @MaxLength(500)
-  rejectionReason!: string;
-}
+const rejectQueueItemSchema = z.object({ rejectionReason: z.string().min(10).max(500) }).strict();
+export class RejectQueueItemDto extends createZodDto(rejectQueueItemSchema) {}
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

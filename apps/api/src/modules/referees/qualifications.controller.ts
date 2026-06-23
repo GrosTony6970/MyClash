@@ -18,108 +18,67 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { QualificationsService } from './qualifications.service';
 
-class UpsertQualificationDto {
-  @IsUUID()
-  personId!: string;
+const upsertQualificationSchema = z
+  .object({
+    personId: z.uuid(),
+    role: z.string().min(1).max(80),
+    rating: z.number().int().min(1).max(5).nullish(),
+  })
+  .strict();
+class UpsertQualificationDto extends createZodDto(upsertQualificationSchema) {}
 
-  @IsString()
-  @MinLength(1)
-  @MaxLength(80)
-  role!: string;
+const createRefereeSkillSchema = z
+  .object({
+    name: z.string().min(1).max(60),
+    color: z.string().max(32),
+    description: z.string().max(500).optional(),
+  })
+  .strict();
+class CreateRefereeSkillDto extends createZodDto(createRefereeSkillSchema) {}
 
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(5)
-  rating?: number | null;
-}
+const updateRefereeSkillSchema = z
+  .object({
+    name: z.string().min(1).max(60).optional(),
+    color: z.string().max(32).optional(),
+    /** R4: editable on system skills. */
+    description: z.string().max(500).optional(),
+    /** R4: editable on system skills (drag-reorder support). */
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+class UpdateRefereeSkillDto extends createZodDto(updateRefereeSkillSchema) {}
 
-class CreateRefereeSkillDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(60)
-  name!: string;
+const reorderRefereeSkillsSchema = z
+  .object({
+    orderedSkillIds: z.array(z.string()),
+  })
+  .strict();
+class ReorderRefereeSkillsDto extends createZodDto(reorderRefereeSkillsSchema) {}
 
-  @IsString()
-  @MaxLength(32)
-  color!: string;
+const setSkillVisibilitySchema = z
+  .object({
+    isHidden: z.boolean(),
+  })
+  .strict();
+class SetSkillVisibilityDto extends createZodDto(setSkillVisibilitySchema) {}
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
-}
-
-class UpdateRefereeSkillDto {
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(60)
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(32)
-  color?: string;
-
-  /** R4: editable on system skills. */
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
-
-  /** R4: editable on system skills (drag-reorder support). */
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sortOrder?: number;
-}
-
-class ReorderRefereeSkillsDto {
-  @IsString({ each: true })
-  orderedSkillIds!: string[];
-}
-
-class SetSkillVisibilityDto {
-  @IsBoolean()
-  isHidden!: boolean;
-}
-
-export class UpdateRefereeAvailabilityDto {
-  @IsOptional()
-  @IsBoolean()
-  availableAllTournaments?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  availableAllEventDuration?: boolean;
-
-  /** Slice 8: explicit per-tournament allowlist; replaces the row set. */
-  @IsOptional()
-  @IsUUID('all', { each: true })
-  tournamentIds?: string[];
-
-  /** Slice 8: explicit per-day allowlist (0 = event start_date). */
-  @IsOptional()
-  @IsInt({ each: true })
-  @Min(0, { each: true })
-  dayIndices?: number[];
-}
+const updateRefereeAvailabilitySchema = z
+  .object({
+    availableAllTournaments: z.boolean().optional(),
+    availableAllEventDuration: z.boolean().optional(),
+    /** Slice 8: explicit per-tournament allowlist; replaces the row set. */
+    tournamentIds: z.array(z.uuid()).optional(),
+    /** Slice 8: explicit per-day allowlist (0 = event start_date). */
+    dayIndices: z.array(z.number().int().min(0)).optional(),
+  })
+  .strict();
+export class UpdateRefereeAvailabilityDto extends createZodDto(updateRefereeAvailabilitySchema) {}
 
 /** Resolve the authenticated user UUID from the Supabase access token. */
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {

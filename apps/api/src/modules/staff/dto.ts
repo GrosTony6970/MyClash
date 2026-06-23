@@ -1,81 +1,65 @@
-import {
-  ArrayMaxSize,
-  ArrayUnique,
-  IsArray,
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Length,
-  Matches,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreateStaffAccountDto {
-  @IsString()
-  @Length(1, 120)
-  displayName!: string;
+const createStaffAccountSchema = z
+  .object({
+    displayName: z.string().min(1).max(120),
+    username: z
+      .string()
+      .min(3)
+      .max(64)
+      .regex(/^[a-zA-Z0-9._-]+$/),
+    pin: z
+      .string()
+      .min(4)
+      .max(12)
+      .regex(/^[0-9]+$/),
+    role: z.enum(['arbitre_table', 'event_staff']).optional(),
+  })
+  .strict();
+export class CreateStaffAccountDto extends createZodDto(createStaffAccountSchema) {}
 
-  @IsString()
-  @Length(3, 64)
-  @Matches(/^[a-zA-Z0-9._-]+$/)
-  username!: string;
+const updateStaffAccountSchema = z
+  .object({
+    displayName: z.string().min(1).max(120).optional(),
+    username: z
+      .string()
+      .min(3)
+      .max(64)
+      .regex(/^[a-zA-Z0-9._-]+$/)
+      .optional(),
+    role: z.enum(['arbitre_table', 'event_staff']).optional(),
+    status: z.enum(['active', 'disabled']).optional(),
+  })
+  .strict();
+export class UpdateStaffAccountDto extends createZodDto(updateStaffAccountSchema) {}
 
-  @IsString()
-  @Length(4, 12)
-  @Matches(/^[0-9]+$/)
-  pin!: string;
+const resetStaffPinSchema = z
+  .object({
+    pin: z
+      .string()
+      .min(4)
+      .max(12)
+      .regex(/^[0-9]+$/),
+  })
+  .strict();
+export class ResetStaffPinDto extends createZodDto(resetStaffPinSchema) {}
 
-  @IsOptional()
-  @IsIn(['arbitre_table', 'event_staff'])
-  role?: 'arbitre_table' | 'event_staff';
-}
+const setStaffLicesSchema = z
+  .object({
+    liceIds: z
+      .array(z.uuid())
+      .max(64)
+      .refine((a) => new Set(a).size === a.length, 'must be unique'),
+  })
+  .strict();
+export class SetStaffLicesDto extends createZodDto(setStaffLicesSchema) {}
 
-export class UpdateStaffAccountDto {
-  @IsOptional()
-  @IsString()
-  @Length(1, 120)
-  displayName?: string;
-
-  @IsOptional()
-  @IsString()
-  @Length(3, 64)
-  @Matches(/^[a-zA-Z0-9._-]+$/)
-  username?: string;
-
-  @IsOptional()
-  @IsIn(['arbitre_table', 'event_staff'])
-  role?: 'arbitre_table' | 'event_staff';
-
-  @IsOptional()
-  @IsIn(['active', 'disabled'])
-  status?: 'active' | 'disabled';
-}
-
-export class ResetStaffPinDto {
-  @IsString()
-  @Length(4, 12)
-  @Matches(/^[0-9]+$/)
-  pin!: string;
-}
-
-export class SetStaffLicesDto {
-  @IsArray()
-  @ArrayUnique()
-  @ArrayMaxSize(64)
-  @IsUUID('4', { each: true })
-  liceIds!: string[];
-}
-
-export class StaffLoginDto {
-  @IsString()
-  @Length(1, 160)
-  eventSlugOrCode!: string;
-
-  @IsString()
-  @Length(3, 64)
-  username!: string;
-
-  @IsString()
-  @Length(4, 12)
-  pin!: string;
-}
+const staffLoginSchema = z
+  .object({
+    eventSlugOrCode: z.string().min(1).max(160),
+    username: z.string().min(3).max(64),
+    pin: z.string().min(4).max(12),
+  })
+  .strict();
+export class StaffLoginDto extends createZodDto(staffLoginSchema) {}

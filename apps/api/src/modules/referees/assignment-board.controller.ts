@@ -10,28 +10,25 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsUUID } from 'class-validator';
-import {
-  AssignmentBoardService,
-  REFEREE_ASSIGNMENT_ROLES,
-  type ManualAssignmentDto,
-} from './assignment-board.service';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+import { AssignmentBoardService, REFEREE_ASSIGNMENT_ROLES } from './assignment-board.service';
 
-class ManualAssignmentRequestDto {
-  @IsUUID()
-  poolId!: string;
+const manualAssignmentRequestSchema = z
+  .object({
+    poolId: z.uuid(),
+    role: z.enum(REFEREE_ASSIGNMENT_ROLES as [string, ...string[]]),
+    personId: z.uuid(),
+  })
+  .strict();
+class ManualAssignmentRequestDto extends createZodDto(manualAssignmentRequestSchema) {}
 
-  @IsIn(REFEREE_ASSIGNMENT_ROLES)
-  role!: ManualAssignmentDto['role'];
-
-  @IsUUID()
-  personId!: string;
-}
-
-class LegacyManualAssignmentRequestDto extends ManualAssignmentRequestDto {
-  @IsUUID()
-  eventId!: string;
-}
+const legacyManualAssignmentRequestSchema = manualAssignmentRequestSchema
+  .extend({
+    eventId: z.uuid(),
+  })
+  .strict();
+class LegacyManualAssignmentRequestDto extends createZodDto(legacyManualAssignmentRequestSchema) {}
 
 @ApiTags('referees')
 @Controller()

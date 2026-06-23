@@ -1,17 +1,17 @@
 import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { HemaRatingsService } from './hema-ratings.service';
 
-class HemaRatingsSearchQueryDto {
-  @IsString()
-  @MaxLength(100)
-  q!: string;
-
-  @IsOptional()
-  @IsString()
-  limit?: string;
-}
+const hemaRatingsSearchQuerySchema = z
+  .object({
+    q: z.string().max(100),
+    // Arrives as a query-string value; the controller parses it via parseInt.
+    limit: z.string().optional(),
+  })
+  .strict();
+class HemaRatingsSearchQueryDto extends createZodDto(hemaRatingsSearchQuerySchema) {}
 
 @ApiTags('hema-ratings')
 @Controller('hema-ratings')

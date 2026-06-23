@@ -21,26 +21,27 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsUUID } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { type FollowIdentity, FollowsService } from './follows.service';
 
-class FollowDto {
-  @IsUUID()
-  personId!: string;
-}
+const followSchema = z
+  .object({
+    personId: z.uuid(),
+  })
+  .strict();
+class FollowDto extends createZodDto(followSchema) {}
 
-class UpdateFollowDto {
-  @IsOptional()
-  @IsBoolean()
-  notifyMatchStart?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  notifyWorkshopStart?: boolean;
-}
+const updateFollowSchema = z
+  .object({
+    notifyMatchStart: z.boolean().optional(),
+    notifyWorkshopStart: z.boolean().optional(),
+  })
+  .strict();
+class UpdateFollowDto extends createZodDto(updateFollowSchema) {}
 
 @ApiTags('follows')
 @Controller()

@@ -16,10 +16,11 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StaffService } from '../staff/staff.service';
-import { ClockService, type ClockAction } from './clock.service';
+import { ClockService } from './clock.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesService } from './matches.service';
 import {
@@ -35,24 +36,22 @@ import {
   VoidExchangeDto,
 } from './dto/matches.dto';
 
-class ClockActionDto {
-  @IsIn(['start', 'halt', 'resume', 'end', 'reopen', 'reset_clock'])
-  action!: ClockAction;
+const clockActionSchema = z
+  .object({
+    action: z.enum(['start', 'halt', 'resume', 'end', 'reopen', 'reset_clock']),
+    reason: z.string().optional(),
+  })
+  .strict();
+class ClockActionDto extends createZodDto(clockActionSchema) {}
 
-  @IsOptional()
-  @IsString()
-  reason?: string;
-}
-
-class RefereeRoleAssignmentDto {
-  @IsString()
-  role!: string;
-
-  // Null clears the assignment for this (match, role) pair.
-  @ValidateIf((_, v) => v !== null)
-  @IsUUID()
-  refereeId!: string | null;
-}
+const refereeRoleAssignmentSchema = z
+  .object({
+    role: z.string(),
+    // Null clears the assignment for this (match, role) pair.
+    refereeId: z.uuid().nullable(),
+  })
+  .strict();
+class RefereeRoleAssignmentDto extends createZodDto(refereeRoleAssignmentSchema) {}
 
 @ApiTags('matches')
 @ApiBearerAuth()

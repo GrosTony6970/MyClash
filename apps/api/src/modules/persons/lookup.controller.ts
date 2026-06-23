@@ -1,21 +1,22 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CsvImportService } from './csv-import.service';
 
-class LookupQueryDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  q?: string;
-
-  @IsOptional()
-  @IsString()
-  limit?: string;
-}
+// Query DTO: values arrive as strings. `limit` is kept as a string because the
+// handler parses it via parseInt(query.limit, 10); coercing to a number here
+// would break that call site.
+const lookupQuerySchema = z
+  .object({
+    q: z.string().max(100).optional(),
+    limit: z.string().optional(),
+  })
+  .strict();
+class LookupQueryDto extends createZodDto(lookupQuerySchema) {}
 
 export interface LookupResult {
   id: string;

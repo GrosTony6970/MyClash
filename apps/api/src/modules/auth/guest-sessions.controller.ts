@@ -12,17 +12,20 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { GuestJwtService } from './guest-jwt.service';
 
-class CreateGuestSessionDto {
-  @IsUUID()
-  person_id!: string;
-}
+const createGuestSessionSchema = z
+  .object({
+    person_id: z.uuid(),
+  })
+  .strict();
+class CreateGuestSessionDto extends createZodDto(createGuestSessionSchema) {}
 
 const COOKIE_NAME = 'mc_guest';
 
