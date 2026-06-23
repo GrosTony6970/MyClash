@@ -1,518 +1,196 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsBoolean,
-  IsEmail,
-  IsIn,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-  Min,
-  MinLength,
-  ValidateIf,
-  ValidateNested,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreateFighterDto {
-  @ApiProperty({ example: 'Jean' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  givenName!: string;
-
-  @ApiProperty({ example: 'Dupont' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  familyName!: string;
-
-  @ApiProperty({ example: 'Jean Dupont' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  displayName!: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  clubId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2)
-  countryCode?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  hemaRatingsId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  photoUrl?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  bio?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  dateOfBirth?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  genderCategory?: string;
-}
-
-export class UpdateFighterDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  givenName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  familyName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  displayName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  clubId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2)
-  countryCode?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  hemaRatingsId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  photoUrl?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  bio?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  dateOfBirth?: string;
-}
-
-export class FighterClubInputDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  clubId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  clubName?: string;
-}
-
-export class FighterWeaponInputDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  weaponId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  weaponName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  favorite?: boolean;
-}
-
-export class UpdateMyFighterProfileDto extends UpdateFighterDto {
-  @ApiProperty({ description: 'Global Fighter profile ID being edited' })
-  @IsUUID()
-  fighterId!: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  mainClub?: FighterClubInputDto;
-
-  @ApiProperty({ required: false, type: [FighterClubInputDto] })
-  @IsOptional()
-  @IsArray()
-  secondaryClubs?: FighterClubInputDto[];
-
-  @ApiProperty({ required: false, type: [FighterClubInputDto] })
-  @IsOptional()
-  @IsArray()
-  previousClubs?: FighterClubInputDto[];
-
-  @ApiProperty({ required: false, type: [FighterWeaponInputDto] })
-  @IsOptional()
-  @IsArray()
-  weapons?: FighterWeaponInputDto[];
-}
-
-export class FighterQueryDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  q?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  club?: string;
-}
-
-export class PromoteFighterDto {
-  @ApiProperty({ description: 'Person ID to promote to global Fighter' })
-  @IsUUID()
-  personId!: string;
-}
-
-export class MergeFightersDto {
-  @ApiProperty({ description: 'Source fighter ID (will be merged into target)' })
-  @IsUUID()
-  sourceId!: string;
-
-  @ApiProperty({ description: 'Target fighter ID (kept after merge)' })
-  @IsUUID()
-  targetId!: string;
-
-  @ApiProperty({ required: false, description: 'Reason shown in the merge audit log' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  reason?: string;
-}
-
-export class CreateGlobalPersonDto {
-  @ApiProperty({ example: 'Jean' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  givenName!: string;
-
-  @ApiProperty({ example: 'Dupont' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  familyName!: string;
-
-  @ApiProperty({ example: 'Jean Dupont' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  displayName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  clubId?: string | null;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  clubName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  clubAbbreviation?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  clubCity?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  hemaRatingsId?: string;
-
-  @ApiProperty({ required: false, format: 'email' })
-  @IsOptional()
-  @IsEmail()
-  @MaxLength(254)
-  email?: string;
-
-  @ApiProperty({ required: false, description: 'ISO YYYY-MM-DD' })
-  @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'dateOfBirth must be ISO YYYY-MM-DD',
+const createFighterSchema = z
+  .object({
+    givenName: z.string().min(1).max(100),
+    familyName: z.string().min(1).max(100),
+    displayName: z.string().min(1).max(200),
+    clubId: z.uuid().optional(),
+    countryCode: z.string().max(2).optional(),
+    hemaRatingsId: z.string().optional(),
+    photoUrl: z.string().optional(),
+    bio: z.string().max(2000).optional(),
+    dateOfBirth: z.string().optional(),
+    genderCategory: z.string().optional(),
   })
-  dateOfBirth?: string;
+  .strict();
+export class CreateFighterDto extends createZodDto(createFighterSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isFighter?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isReferee?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isWorkshopParticipant?: boolean;
-}
-
-export class UpdateGlobalPersonDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  givenName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(100)
-  familyName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  displayName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  clubId?: string | null;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  clubName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  clubAbbreviation?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  clubCity?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  hemaRatingsId?: string | null;
-
-  @ApiProperty({ required: false, format: 'email', nullable: true })
-  @IsOptional()
-  @ValidateIf((_obj, value) => value !== null && value !== '')
-  @IsEmail()
-  @MaxLength(254)
-  email?: string | null;
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @ValidateIf((_obj, value) => value !== null && value !== '')
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'dateOfBirth must be ISO YYYY-MM-DD',
+const updateFighterSchema = z
+  .object({
+    givenName: z.string().min(1).max(100).optional(),
+    familyName: z.string().min(1).max(100).optional(),
+    displayName: z.string().min(1).max(200).optional(),
+    clubId: z.uuid().optional(),
+    countryCode: z.string().max(2).optional(),
+    hemaRatingsId: z.string().optional(),
+    photoUrl: z.string().optional(),
+    bio: z.string().max(2000).optional(),
+    dateOfBirth: z.string().optional(),
   })
-  dateOfBirth?: string | null;
+  .strict();
+export class UpdateFighterDto extends createZodDto(updateFighterSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isFighter?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isReferee?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isWorkshopParticipant?: boolean;
-}
-
-export class FighterRolesDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isFighter?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isReferee?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  isWorkshopParticipant?: boolean;
-}
-
-export class GlobalPersonQueryDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  q?: string;
-
-  @ApiProperty({
-    required: false,
-    type: [String],
-    enum: ['fighter', 'referee', 'workshop_participant'],
+const fighterClubInputSchema = z
+  .object({
+    clubId: z.uuid().optional(),
+    clubName: z.string().max(200).optional(),
   })
-  @IsOptional()
-  @IsArray()
-  @IsIn(['fighter', 'referee', 'workshop_participant'], { each: true })
-  roles?: string[];
-}
+  .strict();
+export class FighterClubInputDto extends createZodDto(fighterClubInputSchema) {}
 
-export class RefereeProfileDto {
-  @ApiProperty({ required: false, type: [Object] })
-  @IsOptional()
-  @IsArray()
-  certifications?: object[];
+const fighterWeaponInputSchema = z
+  .object({
+    weaponId: z.uuid().optional(),
+    weaponName: z.string().max(100).optional(),
+    favorite: z.boolean().optional(),
+  })
+  .strict();
+export class FighterWeaponInputDto extends createZodDto(fighterWeaponInputSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  notes?: string;
-}
+// Extends UpdateFighterDto's fields plus the global-profile editing payload.
+// The nested club/weapon arrays were only shape-checked as arrays under
+// class-validator (no @ValidateNested), so the element schemas here stay
+// permissive and merely document the shape the service reads.
+const updateMyFighterProfileSchema = updateFighterSchema
+  .extend({
+    fighterId: z.uuid(),
+    mainClub: fighterClubInputSchema.optional(),
+    secondaryClubs: z.array(fighterClubInputSchema).optional(),
+    previousClubs: z.array(fighterClubInputSchema).optional(),
+    weapons: z.array(fighterWeaponInputSchema).optional(),
+  })
+  .strict();
+export class UpdateMyFighterProfileDto extends createZodDto(updateMyFighterProfileSchema) {}
 
-export class LinkQualificationDto {
-  @ApiProperty({ description: 'Referee qualification ID to link to this global person' })
-  @IsUUID()
-  qualificationId!: string;
-}
+const fighterQuerySchema = z
+  .object({
+    q: z.string().max(100).optional(),
+    club: z.string().optional(),
+  })
+  .strict();
+export class FighterQueryDto extends createZodDto(fighterQuerySchema) {}
 
-export class LinkEnrollmentDto {
-  @ApiProperty({ description: 'Workshop enrollment ID to link to this global person' })
-  @IsUUID()
-  enrollmentId!: string;
-}
+const promoteFighterSchema = z.object({ personId: z.uuid() }).strict();
+export class PromoteFighterDto extends createZodDto(promoteFighterSchema) {}
 
-export class ImportDecisionDto {
-  @ApiProperty({ description: 'Source row number (CSV line)' })
-  @IsInt()
-  @Min(0)
-  index!: number;
+const mergeFightersSchema = z
+  .object({
+    sourceId: z.uuid(),
+    targetId: z.uuid(),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+export class MergeFightersDto extends createZodDto(mergeFightersSchema) {}
 
-  @ApiProperty({ enum: ['skip', 'create_new', 'overwrite'] })
-  @IsIn(['skip', 'create_new', 'overwrite'])
-  action!: 'skip' | 'create_new' | 'overwrite';
+const createGlobalPersonSchema = z
+  .object({
+    givenName: z.string().min(1).max(100),
+    familyName: z.string().min(1).max(100),
+    displayName: z.string().max(200).optional(),
+    clubId: z.uuid().nullish(),
+    clubName: z.string().max(200).optional(),
+    clubAbbreviation: z.string().max(20).optional(),
+    clubCity: z.string().max(100).optional(),
+    hemaRatingsId: z.string().max(100).optional(),
+    email: z.email().max(254).optional(),
+    // ISO YYYY-MM-DD
+    dateOfBirth: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be ISO YYYY-MM-DD')
+      .optional(),
+    isFighter: z.boolean().optional(),
+    isReferee: z.boolean().optional(),
+    isWorkshopParticipant: z.boolean().optional(),
+  })
+  .strict();
+export class CreateGlobalPersonDto extends createZodDto(createGlobalPersonSchema) {}
 
-  @ApiProperty({ required: false, description: 'Existing global person id when action=overwrite' })
-  @IsOptional()
-  @IsUUID()
-  targetGlobalPersonId?: string;
+const updateGlobalPersonSchema = z
+  .object({
+    givenName: z.string().min(1).max(100).optional(),
+    familyName: z.string().min(1).max(100).optional(),
+    displayName: z.string().max(200).optional(),
+    clubId: z.uuid().nullish(),
+    clubName: z.string().max(200).optional(),
+    clubAbbreviation: z.string().max(20).optional(),
+    clubCity: z.string().max(100).optional(),
+    hemaRatingsId: z.string().max(100).nullish(),
+    // @ValidateIf skipped validation when value was null or '' — replicate by
+    // accepting null/'' and only enforcing email shape on other strings.
+    email: z.union([z.email().max(254), z.literal(''), z.null()]).optional(),
+    // Likewise skipped for null/'' — accept those, else require ISO YYYY-MM-DD.
+    dateOfBirth: z
+      .union([
+        z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be ISO YYYY-MM-DD'),
+        z.literal(''),
+        z.null(),
+      ])
+      .optional(),
+    isFighter: z.boolean().optional(),
+    isReferee: z.boolean().optional(),
+    isWorkshopParticipant: z.boolean().optional(),
+  })
+  .strict();
+export class UpdateGlobalPersonDto extends createZodDto(updateGlobalPersonSchema) {}
 
-  @ApiProperty()
-  @IsString()
-  givenName!: string;
+const fighterRolesSchema = z
+  .object({
+    isFighter: z.boolean().optional(),
+    isReferee: z.boolean().optional(),
+    isWorkshopParticipant: z.boolean().optional(),
+  })
+  .strict();
+export class FighterRolesDto extends createZodDto(fighterRolesSchema) {}
 
-  @ApiProperty()
-  @IsString()
-  familyName!: string;
+const globalPersonQuerySchema = z
+  .object({
+    q: z.string().max(100).optional(),
+    roles: z.array(z.enum(['fighter', 'referee', 'workshop_participant'])).optional(),
+  })
+  .strict();
+export class GlobalPersonQueryDto extends createZodDto(globalPersonQuerySchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  displayName?: string;
+const refereeProfileSchema = z
+  .object({
+    certifications: z.array(z.object({}).loose()).optional(),
+    notes: z.string().max(2000).optional(),
+  })
+  .strict();
+export class RefereeProfileDto extends createZodDto(refereeProfileSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  hemaRatingsId?: string;
+const linkQualificationSchema = z.object({ qualificationId: z.uuid() }).strict();
+export class LinkQualificationDto extends createZodDto(linkQualificationSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  email?: string;
+const linkEnrollmentSchema = z.object({ enrollmentId: z.uuid() }).strict();
+export class LinkEnrollmentDto extends createZodDto(linkEnrollmentSchema) {}
 
-  @ApiProperty({ required: false, description: 'ISO YYYY-MM-DD' })
-  @IsOptional()
-  @IsString()
-  dateOfBirth?: string;
+const importDecisionSchema = z
+  .object({
+    index: z.number().int().min(0),
+    action: z.enum(['skip', 'create_new', 'overwrite']),
+    targetGlobalPersonId: z.uuid().optional(),
+    givenName: z.string(),
+    familyName: z.string(),
+    displayName: z.string().optional(),
+    hemaRatingsId: z.string().optional(),
+    email: z.string().optional(),
+    // ISO YYYY-MM-DD
+    dateOfBirth: z.string().optional(),
+    clubLabel: z.string().optional(),
+    clubAbbreviation: z.string().optional(),
+    clubCity: z.string().optional(),
+    isFighter: z.boolean(),
+    isReferee: z.boolean(),
+    isWorkshopParticipant: z.boolean(),
+  })
+  .strict();
+export class ImportDecisionDto extends createZodDto(importDecisionSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  clubLabel?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  clubAbbreviation?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  clubCity?: string;
-
-  @ApiProperty()
-  @IsBoolean()
-  isFighter!: boolean;
-
-  @ApiProperty()
-  @IsBoolean()
-  isReferee!: boolean;
-
-  @ApiProperty()
-  @IsBoolean()
-  isWorkshopParticipant!: boolean;
-}
-
-export class ImportCommitDto {
-  @ApiProperty({ type: [ImportDecisionDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ImportDecisionDto)
-  decisions!: ImportDecisionDto[];
-}
+const importCommitSchema = z
+  .object({
+    decisions: z.array(importDecisionSchema),
+  })
+  .strict();
+export class ImportCommitDto extends createZodDto(importCommitSchema) {}

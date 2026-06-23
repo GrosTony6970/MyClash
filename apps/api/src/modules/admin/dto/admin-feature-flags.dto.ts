@@ -1,46 +1,37 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 /**
  * Narrow payload — only `maintenance_banner` opts in today, so the
  * shape is captured directly here rather than as an open `Record`.
  * Other flag keys reject any payload.
  */
-export class MaintenanceBannerPayloadDto {
-  @ApiProperty()
-  @IsString()
-  message!: string;
+const maintenanceBannerPayloadSchema = z
+  .object({
+    message: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']),
+  })
+  .strict();
+export class MaintenanceBannerPayloadDto extends createZodDto(maintenanceBannerPayloadSchema) {}
 
-  @ApiProperty({ enum: ['info', 'warning', 'critical'] })
-  @IsString()
-  @IsIn(['info', 'warning', 'critical'])
-  severity!: 'info' | 'warning' | 'critical';
-}
+const upsertFeatureFlagSchema = z
+  .object({
+    description: z.string().optional(),
+    enabled: z.boolean(),
+    /**
+     * Structured config attached to flags that declare `payload` in the
+     * registry (today only `maintenance_banner`). Sent as a plain object
+     * to keep the contract simple; the service validates the shape
+     * against the registry entry before persisting.
+     */
+    payloadJson: z.record(z.string(), z.unknown()).nullish(),
+  })
+  .strict();
+export class UpsertFeatureFlagDto extends createZodDto(upsertFeatureFlagSchema) {}
 
-export class UpsertFeatureFlagDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiProperty()
-  @IsBoolean()
-  enabled!: boolean;
-
-  /**
-   * Structured config attached to flags that declare `payload` in the
-   * registry (today only `maintenance_banner`). Sent as a plain object
-   * to keep the contract simple; the service validates the shape
-   * against the registry entry before persisting.
-   */
-  @ApiProperty({ required: false, type: Object })
-  @IsOptional()
-  payloadJson?: Record<string, unknown> | null;
-}
-
-export class FeatureFlagKeyParamDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  key!: string;
-}
+const featureFlagKeyParamSchema = z
+  .object({
+    key: z.string().min(1),
+  })
+  .strict();
+export class FeatureFlagKeyParamDto extends createZodDto(featureFlagKeyParamSchema) {}

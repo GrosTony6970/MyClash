@@ -1,25 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsString, MaxLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class ChangePasswordDto {
-  @ApiProperty()
-  @IsString()
-  @MaxLength(256)
-  currentPassword!: string;
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().max(256),
+    newPassword: z.string().max(256),
+  })
+  .strict();
+export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
 
-  @ApiProperty({ minLength: 12 })
-  @IsString()
-  @MaxLength(256)
-  newPassword!: string;
-}
-
-export class DeleteAccountDto {
-  @ApiProperty()
-  @IsString()
-  @MaxLength(256)
-  currentPassword!: string;
-
-  @ApiProperty({ enum: ['DELETE'] })
-  @IsIn(['DELETE'])
-  confirmation!: 'DELETE';
-}
+const deleteAccountSchema = z
+  .object({
+    currentPassword: z.string().max(256),
+    confirmation: z.enum(['DELETE']),
+  })
+  .strict();
+export class DeleteAccountDto extends createZodDto(deleteAccountSchema) {}

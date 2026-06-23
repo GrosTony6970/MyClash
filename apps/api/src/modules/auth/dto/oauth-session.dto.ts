@@ -1,36 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class OAuthSessionDto {
-  @ApiProperty()
-  @IsString()
-  accessToken!: string;
-
-  @ApiProperty()
-  @IsString()
-  refreshToken!: string;
-
-  @ApiProperty({ enum: ['admin_login', 'organizer_signup', 'person_claim', 'public_login'] })
-  @IsIn(['admin_login', 'organizer_signup', 'person_claim', 'public_login'])
-  mode!: 'admin_login' | 'organizer_signup' | 'person_claim' | 'public_login';
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  personId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  orgName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  orgSlug?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  next?: string;
-}
+const oAuthSessionSchema = z
+  .object({
+    accessToken: z.string(),
+    refreshToken: z.string(),
+    mode: z.enum(['admin_login', 'organizer_signup', 'person_claim', 'public_login']),
+    personId: z.uuid().optional(),
+    orgName: z.string().optional(),
+    orgSlug: z.string().optional(),
+    next: z.string().optional(),
+  })
+  .strict();
+export class OAuthSessionDto extends createZodDto(oAuthSessionSchema) {}

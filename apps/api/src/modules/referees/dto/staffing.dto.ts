@@ -1,19 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  ArrayNotEmpty,
-  IsArray,
-  IsBoolean,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 /**
  * A single staffing slot inside a phase-type's config.
@@ -22,64 +8,31 @@ import {
  * sequential slot_index values; reading rebuilds the dense list.
  * `allowedSkillIds` MUST contain at least one referee_skills.id.
  */
-export class StaffingSlotDto {
-  @ApiProperty({ minimum: 1, maximum: 6 })
-  @IsInt()
-  @Min(1)
-  @Max(6)
-  index!: number;
-
-  @ApiProperty({ required: false, nullable: true, maxLength: 100 })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  displayName?: string | null;
-
-  @ApiProperty({ type: 'array', items: { type: 'string' }, minItems: 1 })
-  @IsArray()
-  @ArrayNotEmpty()
-  @ArrayMaxSize(20)
-  @IsString({ each: true })
-  allowedSkillIds!: string[];
-}
+const staffingSlotSchema = z
+  .object({
+    index: z.number().int().min(1).max(6),
+    displayName: z.string().max(100).nullish(),
+    allowedSkillIds: z.array(z.string()).min(1).max(20),
+  })
+  .strict();
+export class StaffingSlotDto extends createZodDto(staffingSlotSchema) {}
 
 /**
  * Whole-config payload for a (tournament|event) PUT. The three
  * phase-type arrays are independent and can each carry 1..6 slots.
  */
-export class StaffingConfigPayloadDto {
-  @ApiProperty({ type: [StaffingSlotDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(6)
-  @ValidateNested({ each: true })
-  @Type(() => StaffingSlotDto)
-  pool!: StaffingSlotDto[];
-
-  @ApiProperty({ type: [StaffingSlotDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(6)
-  @ValidateNested({ each: true })
-  @Type(() => StaffingSlotDto)
-  bracket!: StaffingSlotDto[];
-
-  @ApiProperty({ type: [StaffingSlotDto] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(6)
-  @ValidateNested({ each: true })
-  @Type(() => StaffingSlotDto)
-  finals!: StaffingSlotDto[];
-
-  /**
-   * When true, the caller has reviewed the affected-assignment list and
-   * accepts that those `referee_assignments` rows will be deleted as
-   * part of this write. When false (default), the service throws
-   * ConflictException listing the affected assignments instead.
-   */
-  @ApiProperty({ required: false, default: false })
-  @IsOptional()
-  @IsBoolean()
-  confirmDestructive?: boolean;
-}
+const staffingConfigPayloadSchema = z
+  .object({
+    pool: z.array(staffingSlotSchema).min(1).max(6),
+    bracket: z.array(staffingSlotSchema).min(1).max(6),
+    finals: z.array(staffingSlotSchema).min(1).max(6),
+    /**
+     * When true, the caller has reviewed the affected-assignment list and
+     * accepts that those `referee_assignments` rows will be deleted as
+     * part of this write. When false (default), the service throws
+     * ConflictException listing the affected assignments instead.
+     */
+    confirmDestructive: z.boolean().optional(),
+  })
+  .strict();
+export class StaffingConfigPayloadDto extends createZodDto(staffingConfigPayloadSchema) {}

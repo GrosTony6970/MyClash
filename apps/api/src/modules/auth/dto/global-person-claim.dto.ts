@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 /**
  * POST /api/v1/me/global-person-claim
@@ -9,11 +9,8 @@ import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
  * confirmation link (happy path) or, when no email is on file,
  * queues a pending request for organizer approval (handled in §8).
  */
-export class GlobalPersonClaimRequestDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID()
-  globalPersonId!: string;
-}
+const globalPersonClaimRequestSchema = z.object({ globalPersonId: z.uuid() }).strict();
+export class GlobalPersonClaimRequestDto extends createZodDto(globalPersonClaimRequestSchema) {}
 
 /**
  * POST /api/v1/me/claim-confirm
@@ -22,10 +19,5 @@ export class GlobalPersonClaimRequestDto {
  * web-public `/me/claim-confirm` page posts this server-side after
  * the user clicks the magic link.
  */
-export class GlobalPersonClaimConfirmDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(20)
-  @MaxLength(64)
-  token!: string;
-}
+const globalPersonClaimConfirmSchema = z.object({ token: z.string().min(20).max(64) }).strict();
+export class GlobalPersonClaimConfirmDto extends createZodDto(globalPersonClaimConfirmSchema) {}

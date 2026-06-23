@@ -1,13 +1,5 @@
-import {
-  IsBoolean,
-  IsEmail,
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 export const ORG_ROLES = [
   'owner',
@@ -21,41 +13,34 @@ export const ORG_ROLES = [
 
 export type OrgRole = (typeof ORG_ROLES)[number];
 
-export class CreatePlatformUserDto {
-  @IsEmail()
-  email!: string;
+const createPlatformUserSchema = z
+  .object({
+    email: z.email(),
+    displayName: z.string().min(1).max(120).optional(),
+    makeSuperAdmin: z.boolean().optional(),
+  })
+  .strict();
+export class CreatePlatformUserDto extends createZodDto(createPlatformUserSchema) {}
 
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  displayName?: string;
+const updatePlatformUserSchema = z
+  .object({
+    email: z.email().optional(),
+    displayName: z.string().max(120).optional(),
+  })
+  .strict();
+export class UpdatePlatformUserDto extends createZodDto(updatePlatformUserSchema) {}
 
-  @IsOptional()
-  @IsBoolean()
-  makeSuperAdmin?: boolean;
-}
+const addOrgMembershipSchema = z
+  .object({
+    organizationId: z.uuid(),
+    role: z.enum(ORG_ROLES),
+  })
+  .strict();
+export class AddOrgMembershipDto extends createZodDto(addOrgMembershipSchema) {}
 
-export class UpdatePlatformUserDto {
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  displayName?: string;
-}
-
-export class AddOrgMembershipDto {
-  @IsUUID()
-  organizationId!: string;
-
-  @IsIn(ORG_ROLES)
-  role!: OrgRole;
-}
-
-export class UpdateOrgMembershipRoleDto {
-  @IsIn(ORG_ROLES)
-  role!: OrgRole;
-}
+const updateOrgMembershipRoleSchema = z
+  .object({
+    role: z.enum(ORG_ROLES),
+  })
+  .strict();
+export class UpdateOrgMembershipRoleDto extends createZodDto(updateOrgMembershipRoleSchema) {}

@@ -1,48 +1,27 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  IsArray,
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class ListRulesetsQueryDto {
-  @ApiProperty({ required: false, enum: ['pending', 'approved', 'rejected'] })
-  @IsOptional()
-  @IsIn(['pending', 'approved', 'rejected'])
-  status?: 'pending' | 'approved' | 'rejected';
-}
+const listRulesetsQuerySchema = z
+  .object({
+    status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  })
+  .strict();
+export class ListRulesetsQueryDto extends createZodDto(listRulesetsQuerySchema) {}
 
-export class RejectRulesetDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  reason!: string;
-}
+const rejectRulesetSchema = z.object({ reason: z.string().min(1) }).strict();
+export class RejectRulesetDto extends createZodDto(rejectRulesetSchema) {}
 
-export class BulkApproveRulesetsDto {
-  @ApiProperty({ type: [String] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(200)
-  @IsUUID('all', { each: true })
-  ids!: string[];
-}
+const bulkApproveRulesetsSchema = z
+  .object({
+    ids: z.array(z.uuid()).min(1).max(200),
+  })
+  .strict();
+export class BulkApproveRulesetsDto extends createZodDto(bulkApproveRulesetsSchema) {}
 
-export class BulkRejectRulesetsDto {
-  @ApiProperty({ type: [String] })
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(200)
-  @IsUUID('all', { each: true })
-  ids!: string[];
-
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  reason!: string;
-}
+const bulkRejectRulesetsSchema = z
+  .object({
+    ids: z.array(z.uuid()).min(1).max(200),
+    reason: z.string().min(1),
+  })
+  .strict();
+export class BulkRejectRulesetsDto extends createZodDto(bulkRejectRulesetsSchema) {}

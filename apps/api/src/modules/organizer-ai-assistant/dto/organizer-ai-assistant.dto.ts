@@ -1,4 +1,5 @@
-import { IsArray, IsIn, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 export const ORGANIZER_AI_DRAFT_TYPES = [
   'tournament_config',
@@ -10,33 +11,21 @@ export const ORGANIZER_AI_DRAFT_TYPES = [
 
 export type OrganizerAIDraftType = (typeof ORGANIZER_AI_DRAFT_TYPES)[number];
 
-export class CreateOrganizerAIDraftDto {
-  @IsIn(ORGANIZER_AI_DRAFT_TYPES)
-  draftType!: OrganizerAIDraftType;
+const createOrganizerAIDraftSchema = z
+  .object({
+    draftType: z.enum(ORGANIZER_AI_DRAFT_TYPES),
+    prompt: z.string().min(4),
+    tournamentId: z.uuid().optional(),
+  })
+  .strict();
+export class CreateOrganizerAIDraftDto extends createZodDto(createOrganizerAIDraftSchema) {}
 
-  @IsString()
-  @MinLength(4)
-  prompt!: string;
-
-  @IsOptional()
-  @IsUUID()
-  tournamentId?: string;
-}
-
-export class UpdateOrganizerAIDraftDto {
-  @IsOptional()
-  @IsString()
-  summary?: string;
-
-  @IsOptional()
-  @IsArray()
-  proposedActions?: Array<Record<string, unknown>>;
-
-  @IsOptional()
-  @IsObject()
-  validationState?: Record<string, unknown>;
-
-  @IsOptional()
-  @IsIn(['ready', 'rejected'])
-  status?: 'ready' | 'rejected';
-}
+const updateOrganizerAIDraftSchema = z
+  .object({
+    summary: z.string().optional(),
+    proposedActions: z.array(z.record(z.string(), z.unknown())).optional(),
+    validationState: z.record(z.string(), z.unknown()).optional(),
+    status: z.enum(['ready', 'rejected']).optional(),
+  })
+  .strict();
+export class UpdateOrganizerAIDraftDto extends createZodDto(updateOrganizerAIDraftSchema) {}

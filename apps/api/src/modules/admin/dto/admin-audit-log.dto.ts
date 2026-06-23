@@ -1,39 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class ListAuditLogQueryDto {
-  @ApiProperty({ required: false, description: 'Filter by actor_user_id' })
-  @IsOptional()
-  @IsString()
-  actor?: string;
-
-  @ApiProperty({ required: false, description: 'Filter by exact audit action' })
-  @IsOptional()
-  @IsString()
-  action?: string;
-
-  @ApiProperty({ required: false, description: 'Filter by exact entity_type' })
-  @IsOptional()
-  @IsString()
-  entityType?: string;
-
-  @ApiProperty({ required: false, description: 'Inclusive created_at lower bound' })
-  @IsOptional()
-  @IsString()
-  from?: string;
-
-  @ApiProperty({ required: false, description: 'Inclusive created_at upper bound' })
-  @IsOptional()
-  @IsString()
-  to?: string;
-
-  @ApiProperty({ required: false, default: 1 })
-  @IsOptional()
-  @IsString()
-  page?: string;
-
-  @ApiProperty({ required: false, default: 50 })
-  @IsOptional()
-  @IsString()
-  perPage?: string;
-}
+// Query DTO: every value arrives as a string. `page`/`perPage` are kept as
+// strings (matching the original @IsString) because the service parses them
+// itself via Number.parseInt and expects `string | undefined`.
+const listAuditLogQuerySchema = z
+  .object({
+    actor: z.string().optional(),
+    action: z.string().optional(),
+    entityType: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    page: z.string().optional(),
+    perPage: z.string().optional(),
+  })
+  .strict();
+export class ListAuditLogQueryDto extends createZodDto(listAuditLogQuerySchema) {}

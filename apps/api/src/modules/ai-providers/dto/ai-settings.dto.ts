@@ -1,14 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsString, MinLength } from 'class-validator';
-import type { AIProvider } from '../adapters/provider-adapter.interface';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class SaveAISettingsDto {
-  @ApiProperty({ enum: ['anthropic', 'openai', 'mistral'] })
-  @IsIn(['anthropic', 'openai', 'mistral'])
-  provider!: AIProvider;
-
-  @ApiProperty({ example: 'sk-ant-...' })
-  @IsString()
-  @MinLength(10)
-  apiKey!: string;
-}
+const saveAISettingsSchema = z
+  .object({
+    provider: z.enum(['anthropic', 'openai', 'mistral']),
+    apiKey: z.string().min(10),
+  })
+  .strict();
+export class SaveAISettingsDto extends createZodDto(saveAISettingsSchema) {}

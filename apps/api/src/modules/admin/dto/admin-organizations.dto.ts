@@ -1,148 +1,51 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsEmail,
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class ListOrgsQueryDto {
-  @ApiProperty({ required: false, description: 'Filter by status' })
-  @IsOptional()
-  @IsIn(['active', 'suspended'])
-  status?: 'active' | 'suspended';
+const SLUG = /^[a-z0-9-]+$/;
+const SLUG_MSG = 'Slug must contain only lowercase letters, digits, and hyphens';
 
-  @ApiProperty({ required: false, description: 'Search by name or slug' })
-  @IsOptional()
-  @IsString()
-  q?: string;
-
-  @ApiProperty({
-    required: false,
-    enum: ['name', 'created_at', 'last_activity'],
-    default: 'created_at',
+const listOrgsQuerySchema = z
+  .object({
+    status: z.enum(['active', 'suspended']).optional(),
+    q: z.string().optional(),
+    sortBy: z.enum(['name', 'created_at', 'last_activity']).optional(),
+    order: z.enum(['asc', 'desc']).optional(),
+    // Query string 'true' (or boolean true) → exclude platform-owned orgs;
+    // anything else (incl. omitted) → no exclusion. Mirrors the prior @Transform.
+    excludePlatform: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
   })
-  @IsOptional()
-  @IsIn(['name', 'created_at', 'last_activity'])
-  sortBy?: 'name' | 'created_at' | 'last_activity';
+  .strict();
+export class ListOrgsQueryDto extends createZodDto(listOrgsQuerySchema) {}
 
-  @ApiProperty({ required: false, enum: ['asc', 'desc'], default: 'desc' })
-  @IsOptional()
-  @IsIn(['asc', 'desc'])
-  order?: 'asc' | 'desc';
-
-  @ApiProperty({
-    required: false,
-    description: 'Exclude organizations flagged as platform-owned (is_platform=true).',
+const createOrganizationSchema = z
+  .object({
+    name: z.string().min(2).max(100),
+    slug: z.string().min(3).max(50).regex(SLUG, SLUG_MSG),
+    ownerEmail: z.email().optional(),
+    ownerDisplayName: z.string().min(2).max(100).optional(),
+    ownerUserId: z.uuid().optional(),
   })
-  @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
-  @IsBoolean()
-  excludePlatform?: boolean;
-}
+  .strict();
+export class CreateOrganizationDto extends createZodDto(createOrganizationSchema) {}
 
-export class CreateOrganizationDto {
-  @ApiProperty({ example: 'Lyon AMHE' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  name!: string;
-
-  @ApiProperty({ example: 'lyon-amhe' })
-  @IsString()
-  @MinLength(3)
-  @MaxLength(50)
-  @Matches(/^[a-z0-9-]+$/, {
-    message: 'Slug must contain only lowercase letters, digits, and hyphens',
+const updateOrganizationSchema = z
+  .object({
+    name: z.string().min(2).max(100).optional(),
+    slug: z.string().min(3).max(50).regex(SLUG, SLUG_MSG).optional(),
   })
-  slug!: string;
+  .strict();
+export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema) {}
 
-  @ApiProperty({
-    example: 'organizer@example.com',
-    required: false,
-    description: 'Email for a new owner account. Use with ownerDisplayName.',
+const reassignOwnerSchema = z
+  .object({
+    ownerUserId: z.uuid().optional(),
+    ownerEmail: z.email().optional(),
+    ownerDisplayName: z.string().min(2).max(100).optional(),
+    /** @deprecated Use `ownerUserId` instead. Kept for backwards compatibility. */
+    newOwnerUserId: z.uuid().optional(),
   })
-  @IsOptional()
-  @IsEmail()
-  ownerEmail?: string;
+  .strict();
+export class ReassignOwnerDto extends createZodDto(reassignOwnerSchema) {}
 
-  @ApiProperty({ example: 'Jean Dupont', required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  ownerDisplayName?: string;
-
-  @ApiProperty({
-    required: false,
-    description:
-      'Existing platform user ID to assign as owner. Mutually exclusive with ownerEmail.',
-  })
-  @IsOptional()
-  @IsUUID()
-  ownerUserId?: string;
-}
-
-export class UpdateOrganizationDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  name?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(50)
-  @Matches(/^[a-z0-9-]+$/, {
-    message: 'Slug must contain only lowercase letters, digits, and hyphens',
-  })
-  slug?: string;
-}
-
-export class ReassignOwnerDto {
-  @ApiProperty({
-    required: false,
-    description:
-      'Existing platform user ID to assign as owner. Mutually exclusive with ownerEmail.',
-  })
-  @IsOptional()
-  @IsUUID()
-  ownerUserId?: string;
-
-  @ApiProperty({
-    required: false,
-    example: 'organizer@example.com',
-    description: 'Email for a new owner account. Use with ownerDisplayName.',
-  })
-  @IsOptional()
-  @IsEmail()
-  ownerEmail?: string;
-
-  @ApiProperty({ required: false, example: 'Jean Dupont' })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  ownerDisplayName?: string;
-
-  /** @deprecated Use `ownerUserId` instead. Kept for backwards compatibility. */
-  @ApiProperty({ required: false, description: 'Deprecated alias for ownerUserId.' })
-  @IsOptional()
-  @IsUUID()
-  newOwnerUserId?: string;
-}
-
-export class PromoteSuperAdminDto {
-  @ApiProperty({ description: 'User ID to promote to super_admin' })
-  @IsUUID()
-  userId!: string;
-}
+const promoteSuperAdminSchema = z.object({ userId: z.uuid() }).strict();
+export class PromoteSuperAdminDto extends createZodDto(promoteSuperAdminSchema) {}

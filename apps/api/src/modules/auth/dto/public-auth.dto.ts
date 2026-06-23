@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 /**
  * DTOs for the public email + password account flow on app.${DOMAIN}.
@@ -9,46 +9,29 @@ import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
  * public app sign-in / sign-up / reset forms talk to.
  */
 
-export class PublicSignupDto {
-  @ApiProperty({ format: 'email' })
-  @IsEmail()
-  @MaxLength(254)
-  email!: string;
+const publicSignupSchema = z
+  .object({
+    email: z.email().max(254),
+    password: z.string().max(256),
+  })
+  .strict();
+export class PublicSignupDto extends createZodDto(publicSignupSchema) {}
 
-  @ApiProperty({ minLength: 12 })
-  @IsString()
-  @MaxLength(256)
-  password!: string;
-}
+const publicLoginSchema = z
+  .object({
+    email: z.email().max(254),
+    password: z.string().max(256),
+  })
+  .strict();
+export class PublicLoginDto extends createZodDto(publicLoginSchema) {}
 
-export class PublicLoginDto {
-  @ApiProperty({ format: 'email' })
-  @IsEmail()
-  @MaxLength(254)
-  email!: string;
+const publicPasswordResetSchema = z.object({ email: z.email().max(254) }).strict();
+export class PublicPasswordResetDto extends createZodDto(publicPasswordResetSchema) {}
 
-  @ApiProperty()
-  @IsString()
-  @MaxLength(256)
-  password!: string;
-}
-
-export class PublicPasswordResetDto {
-  @ApiProperty({ format: 'email' })
-  @IsEmail()
-  @MaxLength(254)
-  email!: string;
-}
-
-export class PublicPasswordResetConfirmDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(10)
-  @MaxLength(2048)
-  token!: string;
-
-  @ApiProperty({ minLength: 12 })
-  @IsString()
-  @MaxLength(256)
-  password!: string;
-}
+const publicPasswordResetConfirmSchema = z
+  .object({
+    token: z.string().min(10).max(2048),
+    password: z.string().max(256),
+  })
+  .strict();
+export class PublicPasswordResetConfirmDto extends createZodDto(publicPasswordResetConfirmSchema) {}

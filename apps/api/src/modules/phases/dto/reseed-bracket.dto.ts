@@ -1,15 +1,13 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 /**
  * Re-apply Round 1 seeding to an already-generated bracket without
  * destroying the existing matches.
  */
-export class ReseedBracketDto {
-  @ApiProperty({
-    enum: ['snake', 'by-rating', 'random', 'by-pool-rank'],
-    description: 'Seeding strategy. Only `snake` is implemented today; the others return 501.',
+const reseedBracketSchema = z
+  .object({
+    strategy: z.enum(['snake', 'by-rating', 'random', 'by-pool-rank']),
   })
-  @IsIn(['snake', 'by-rating', 'random', 'by-pool-rank'])
-  strategy!: 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
-}
+  .strict();
+export class ReseedBracketDto extends createZodDto(reseedBracketSchema) {}

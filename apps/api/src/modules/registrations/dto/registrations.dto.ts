@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 // Valid status transitions: registered → checked_in → done.
 // Slice 3 of the capacity overhaul: also allow registered → withdrawn
@@ -17,36 +17,20 @@ export const REGISTRATION_STATUS_TRANSITIONS: Record<string, string[]> = {
   waitlist: ['registered'],
 };
 
-export class CreateRegistrationDto {
-  @ApiProperty()
-  @IsUUID()
-  personId!: string;
+const createRegistrationSchema = z
+  .object({
+    personId: z.uuid(),
+    fighterId: z.uuid().optional(),
+    seed: z.number().int().min(1).optional(),
+    bibNumber: z.number().int().min(1).optional(),
+    hemaRatingsId: z.string().optional(),
+  })
+  .strict();
+export class CreateRegistrationDto extends createZodDto(createRegistrationSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  fighterId?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  seed?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  bibNumber?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  hemaRatingsId?: string;
-}
-
-export class UpdateRegistrationStatusDto {
-  @ApiProperty({ enum: ['registered', 'checked_in', 'done', 'withdrawn', 'disqualified'] })
-  @IsIn(['registered', 'checked_in', 'done', 'withdrawn', 'disqualified'])
-  status!: string;
-}
+const updateRegistrationStatusSchema = z
+  .object({
+    status: z.enum(['registered', 'checked_in', 'done', 'withdrawn', 'disqualified']),
+  })
+  .strict();
+export class UpdateRegistrationStatusDto extends createZodDto(updateRegistrationStatusSchema) {}

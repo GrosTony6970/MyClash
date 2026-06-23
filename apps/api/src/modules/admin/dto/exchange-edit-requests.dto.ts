@@ -1,15 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class ListExchangeEditRequestsDto {
-  @ApiProperty({ required: false, enum: ['pending', 'approved', 'rejected', 'all'] })
-  @IsOptional()
-  @IsIn(['pending', 'approved', 'rejected', 'all'])
-  status?: 'pending' | 'approved' | 'rejected' | 'all';
-}
+const listExchangeEditRequestsSchema = z
+  .object({
+    status: z.enum(['pending', 'approved', 'rejected', 'all']).optional(),
+  })
+  .strict();
+export class ListExchangeEditRequestsDto extends createZodDto(listExchangeEditRequestsSchema) {}
 
-export class RejectExchangeEditRequestDto {
-  @ApiProperty()
-  @IsString()
-  reason!: string;
-}
+const rejectExchangeEditRequestSchema = z.object({ reason: z.string() }).strict();
+export class RejectExchangeEditRequestDto extends createZodDto(rejectExchangeEditRequestSchema) {}

@@ -1,96 +1,49 @@
-import { Type } from 'class-transformer';
-import {
-  ArrayMaxSize,
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUrl,
-  IsUUID,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-  ValidateNested,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class PushSubscriptionKeysDto {
-  @IsString()
-  @MinLength(1)
-  p256dh!: string;
+// Nested element schema for SubscribeDto.keys (was PushSubscriptionKeysDto).
+// Not whitelisted (no .strict()) to match prior @ValidateNested behavior.
+const pushSubscriptionKeysSchema = z.object({
+  p256dh: z.string().min(1),
+  auth: z.string().min(1),
+});
 
-  @IsString()
-  @MinLength(1)
-  auth!: string;
-}
+const subscribeSchema = z
+  .object({
+    endpoint: z.url(),
+    keys: pushSubscriptionKeysSchema,
+  })
+  .strict();
+export class SubscribeDto extends createZodDto(subscribeSchema) {}
 
-export class SubscribeDto {
-  @IsUrl({ require_tld: false })
-  endpoint!: string;
+const updateNotificationPreferencesSchema = z
+  .object({
+    matchStartingMinutesBefore: z.number().int().min(0).max(240).optional(),
+    workshopStartingMinutesBefore: z.number().int().min(0).max(240).optional(),
+    refereeStartingMinutesBefore: z.number().int().min(0).max(240).optional(),
+    scheduleChanges: z.boolean().optional(),
+    resultsPublished: z.boolean().optional(),
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+export class UpdateNotificationPreferencesDto extends createZodDto(
+  updateNotificationPreferencesSchema,
+) {}
 
-  @ValidateNested()
-  @Type(() => PushSubscriptionKeysDto)
-  keys!: PushSubscriptionKeysDto;
-}
-
-export class UpdateNotificationPreferencesDto {
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(240)
-  matchStartingMinutesBefore?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(240)
-  workshopStartingMinutesBefore?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(240)
-  refereeStartingMinutesBefore?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  scheduleChanges?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  resultsPublished?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  enabled?: boolean;
-}
-
-export class SendBroadcastNotificationDto {
-  @IsIn(['all', 'fighters', 'referees', 'fighters_and_referees', 'specific_persons'])
-  targetType!: 'all' | 'fighters' | 'referees' | 'fighters_and_referees' | 'specific_persons';
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(500)
-  @IsUUID('4', { each: true })
-  personIds?: string[];
-
-  @IsOptional()
-  @IsUUID('4')
-  tournamentId?: string;
-
-  @IsIn(['info', 'warning', 'alert'])
-  severity!: 'info' | 'warning' | 'alert';
-
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  title!: string;
-
-  @IsString()
-  @MinLength(1)
-  @MaxLength(1000)
-  body!: string;
-}
+const sendBroadcastNotificationSchema = z
+  .object({
+    targetType: z.enum([
+      'all',
+      'fighters',
+      'referees',
+      'fighters_and_referees',
+      'specific_persons',
+    ]),
+    personIds: z.array(z.uuid()).max(500).optional(),
+    tournamentId: z.uuid().optional(),
+    severity: z.enum(['info', 'warning', 'alert']),
+    title: z.string().min(1).max(120),
+    body: z.string().min(1).max(1000),
+  })
+  .strict();
+export class SendBroadcastNotificationDto extends createZodDto(sendBroadcastNotificationSchema) {}

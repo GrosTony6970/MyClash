@@ -1,129 +1,52 @@
-import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsIn,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 const HH_MM = /^\d{2}:\d{2}$/;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
-export class SuggestProgrammeDto {
-  @IsString()
-  @Matches(HH_MM)
-  dayStartTime: string = '08:00';
+const suggestProgrammeSchema = z
+  .object({
+    dayStartTime: z.string().regex(HH_MM),
+    dayEndTime: z.string().regex(HH_MM),
+    parallelLiceCount: z.number().int().min(1),
+    matchDurationMinutes: z.number().int().min(1),
+    matchGapSeconds: z.number().int().min(0),
+    breakBetweenSessionsMinutes: z.number().int().min(0),
+    middayBreakStart: z.string().regex(HH_MM),
+    middayBreakEnd: z.string().regex(HH_MM),
+    registrationDurationMinutes: z.number().int().min(0),
+    gearCheckDurationMinutes: z.number().int().min(0),
+    refereeMeetingDurationMinutes: z.number().int().min(0),
+  })
+  .strict();
+export class SuggestProgrammeDto extends createZodDto(suggestProgrammeSchema) {}
 
-  @IsString()
-  @Matches(HH_MM)
-  dayEndTime: string = '19:00';
+const programmeBlockSchema = z
+  .object({
+    id: z.string().min(1),
+    dayIndex: z.number().int().min(0),
+    sortOrder: z.number().int().min(0),
+    blockType: z.enum(['admin', 'competition', 'workshop', 'break']),
+    label: z.string().min(1),
+    competitionId: z.uuid().nullish(),
+    competitionPhase: z.enum(['pool', 'bracket', 'finals']).nullish(),
+    workshopId: z.uuid().nullish(),
+    liceCount: z.number().int().min(0),
+    startTime: z.string().regex(HH_MM),
+    endTime: z.string().regex(HH_MM),
+    matchGapSeconds: z.number().int().min(0),
+    matchDurationMinutes: z.number().int().min(0),
+    colorHex: z.string().regex(HEX_COLOR).nullish(),
+  })
+  .strict();
+export class ProgrammeBlockDto extends createZodDto(programmeBlockSchema) {}
 
-  @IsInt()
-  @Min(1)
-  parallelLiceCount: number = 1;
-
-  @IsInt()
-  @Min(1)
-  matchDurationMinutes: number = 5;
-
-  @IsInt()
-  @Min(0)
-  matchGapSeconds: number = 15;
-
-  @IsInt()
-  @Min(0)
-  breakBetweenSessionsMinutes: number = 20;
-
-  @IsString()
-  @Matches(HH_MM)
-  middayBreakStart: string = '12:00';
-
-  @IsString()
-  @Matches(HH_MM)
-  middayBreakEnd: string = '13:00';
-
-  @IsInt()
-  @Min(0)
-  registrationDurationMinutes: number = 60;
-
-  @IsInt()
-  @Min(0)
-  gearCheckDurationMinutes: number = 30;
-
-  @IsInt()
-  @Min(0)
-  refereeMeetingDurationMinutes: number = 30;
-}
-
-export class ProgrammeBlockDto {
-  @IsString()
-  @IsNotEmpty()
-  id: string = '';
-
-  @IsInt()
-  @Min(0)
-  dayIndex: number = 0;
-
-  @IsInt()
-  @Min(0)
-  sortOrder: number = 0;
-
-  @IsIn(['admin', 'competition', 'workshop', 'break'])
-  blockType: string = 'break';
-
-  @IsString()
-  @IsNotEmpty()
-  label: string = '';
-
-  @IsOptional()
-  @IsUUID()
-  competitionId: string | null = null;
-
-  @IsOptional()
-  @IsIn(['pool', 'bracket', 'finals'])
-  competitionPhase: string | null = null;
-
-  @IsOptional()
-  @IsUUID()
-  workshopId: string | null = null;
-
-  @IsInt()
-  @Min(0)
-  liceCount: number = 1;
-
-  @IsString()
-  @Matches(HH_MM)
-  startTime: string = '08:00';
-
-  @IsString()
-  @Matches(HH_MM)
-  endTime: string = '09:00';
-
-  @IsInt()
-  @Min(0)
-  matchGapSeconds: number = 15;
-
-  @IsInt()
-  @Min(0)
-  matchDurationMinutes: number = 5;
-
-  @IsOptional()
-  @Matches(HEX_COLOR)
-  colorHex?: string | null;
-}
-
-export class SaveProgrammeDto {
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => ProgrammeBlockDto)
-  blocks: ProgrammeBlockDto[] = [];
-}
+const saveProgrammeSchema = z
+  .object({
+    blocks: z.array(programmeBlockSchema),
+  })
+  .strict();
+export class SaveProgrammeDto extends createZodDto(saveProgrammeSchema) {}
 
 /**
  * Move a single programme block to a new start time on the same day.
@@ -131,11 +54,12 @@ export class SaveProgrammeDto {
  * start by the same Δ — keeps the visual ordering of the grid intact
  * when the operator drags a fixed bar.
  */
-export class MoveBlockDto {
-  @IsString()
-  @Matches(HH_MM)
-  newStartTime: string = '09:00';
-}
+const moveBlockSchema = z
+  .object({
+    newStartTime: z.string().regex(HH_MM),
+  })
+  .strict();
+export class MoveBlockDto extends createZodDto(moveBlockSchema) {}
 
 /**
  * Resize a block by setting a new end and/or start time. The operator drags
@@ -143,17 +67,13 @@ export class MoveBlockDto {
  * the FE rounds to a 15-min slot and PATCHes the new HH:MM. Whichever field is
  * omitted keeps its current value, so a top-edge drag sends newStartTime alone.
  */
-export class ResizeBlockDto {
-  @IsOptional()
-  @IsString()
-  @Matches(HH_MM)
-  newStartTime?: string;
-
-  @IsOptional()
-  @IsString()
-  @Matches(HH_MM)
-  newEndTime?: string;
-}
+const resizeBlockSchema = z
+  .object({
+    newStartTime: z.string().regex(HH_MM).optional(),
+    newEndTime: z.string().regex(HH_MM).optional(),
+  })
+  .strict();
+export class ResizeBlockDto extends createZodDto(resizeBlockSchema) {}
 
 /**
  * Re-fan a group of matches (a pool or a bracket sub-tree) across the given
@@ -161,43 +81,26 @@ export class ResizeBlockDto {
  * branch' applies branch-aware grouping (each quarter-final sub-tree on one
  * lice). The group lands after whatever already occupies those lices.
  */
-export class ScheduleGroupDto {
-  @IsArray()
-  @IsUUID('all', { each: true })
-  matchIds: string[] = [];
-
-  @IsArray()
-  @IsUUID('all', { each: true })
-  liceIds: string[] = [];
-
-  @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}T/)
-  startTime: string = '';
-
-  @IsIn(['pool', 'bracket-branch'])
-  mode: 'pool' | 'bracket-branch' = 'bracket-branch';
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  matchDurationMinutes?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  matchGapSeconds?: number;
-}
+const scheduleGroupSchema = z
+  .object({
+    matchIds: z.array(z.uuid()),
+    liceIds: z.array(z.uuid()),
+    startTime: z.string().regex(/^\d{4}-\d{2}-\d{2}T/),
+    mode: z.enum(['pool', 'bracket-branch']),
+    matchDurationMinutes: z.number().int().min(1).optional(),
+    matchGapSeconds: z.number().int().min(0).optional(),
+  })
+  .strict();
+export class ScheduleGroupDto extends createZodDto(scheduleGroupSchema) {}
 
 /** Update a single programme block (admin / break / workshop bar): label + color. */
-export class UpdateBlockLabelDto {
-  @IsString()
-  @IsNotEmpty()
-  label: string = '';
-
-  @IsOptional()
-  @Matches(HEX_COLOR)
-  colorHex?: string | null;
-}
+const updateBlockLabelSchema = z
+  .object({
+    label: z.string().min(1),
+    colorHex: z.string().regex(HEX_COLOR).nullish(),
+  })
+  .strict();
+export class UpdateBlockLabelDto extends createZodDto(updateBlockLabelSchema) {}
 
 /**
  * Create ONE programme block (used by the grid's "double-click → add break"
@@ -205,54 +108,20 @@ export class UpdateBlockLabelDto {
  * appends a single row; `sortOrder` is assigned server-side (next on the day).
  * Competition-only fields default to the non-competition zero values.
  */
-export class CreateBlockDto {
-  @IsInt()
-  @Min(0)
-  dayIndex: number = 0;
-
-  @IsIn(['admin', 'competition', 'workshop', 'break'])
-  blockType: string = 'break';
-
-  @IsString()
-  @IsNotEmpty()
-  label: string = '';
-
-  @IsString()
-  @Matches(HH_MM)
-  startTime: string = '08:00';
-
-  @IsString()
-  @Matches(HH_MM)
-  endTime: string = '09:00';
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  liceCount?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  matchGapSeconds?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  matchDurationMinutes?: number;
-
-  @IsOptional()
-  @IsUUID()
-  competitionId?: string | null;
-
-  @IsOptional()
-  @IsIn(['pool', 'bracket', 'finals'])
-  competitionPhase?: string | null;
-
-  @IsOptional()
-  @IsUUID()
-  workshopId?: string | null;
-
-  @IsOptional()
-  @Matches(HEX_COLOR)
-  colorHex?: string | null;
-}
+const createBlockSchema = z
+  .object({
+    dayIndex: z.number().int().min(0),
+    blockType: z.enum(['admin', 'competition', 'workshop', 'break']),
+    label: z.string().min(1),
+    startTime: z.string().regex(HH_MM),
+    endTime: z.string().regex(HH_MM),
+    liceCount: z.number().int().min(0).optional(),
+    matchGapSeconds: z.number().int().min(0).optional(),
+    matchDurationMinutes: z.number().int().min(0).optional(),
+    competitionId: z.uuid().nullish(),
+    competitionPhase: z.enum(['pool', 'bracket', 'finals']).nullish(),
+    workshopId: z.uuid().nullish(),
+    colorHex: z.string().regex(HEX_COLOR).nullish(),
+  })
+  .strict();
+export class CreateBlockDto extends createZodDto(createBlockSchema) {}

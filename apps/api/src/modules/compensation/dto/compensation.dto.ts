@@ -1,118 +1,68 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  Min,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreatePlanDto {
-  @ApiProperty({ example: 'Mon plan' })
-  @IsString()
-  @MaxLength(100)
-  name!: string;
+const createPlanSchema = z
+  .object({
+    name: z.string().max(100),
+    description: z.string().max(500).optional(),
+    publicVisibility: z.boolean().optional(),
+  })
+  .strict();
+export class CreatePlanDto extends createZodDto(createPlanSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
+const updatePlanSchema = z
+  .object({
+    name: z.string().max(100).optional(),
+    description: z.string().max(500).optional(),
+    publicVisibility: z.boolean().optional(),
+  })
+  .strict();
+export class UpdatePlanDto extends createZodDto(updatePlanSchema) {}
 
-  @ApiProperty({ required: false, default: false })
-  @IsOptional()
-  @IsBoolean()
-  publicVisibility?: boolean;
-}
+// Nested element schema for UpsertRoleRatesDto.rates. Not whitelisted
+// (no .strict()) to match prior @ValidateNested element behavior.
+const roleRateEntrySchema = z.object({
+  refereeRole: z.enum(['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table']),
+  compensationPhase: z.enum(['pool', 'bracket', 'finals']),
+  tokensPerMatch: z.number().min(0),
+});
+// Exported as a DTO so it remains usable as a type (consumed by the service).
+export class RoleRateEntryDto extends createZodDto(roleRateEntrySchema) {}
 
-export class UpdatePlanDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  name?: string;
+const upsertRoleRatesSchema = z
+  .object({
+    rates: z.array(roleRateEntrySchema),
+  })
+  .strict();
+export class UpsertRoleRatesDto extends createZodDto(upsertRoleRatesSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  description?: string;
+// Nested element schema for UpsertTiersDto.tiers. Not whitelisted (no .strict()).
+const tierEntrySchema = z.object({
+  minTokens: z.number().min(0),
+  maxTokens: z.number().min(0).nullish(),
+  amount: z.number().min(0),
+});
+// Exported as a DTO so it remains usable as a type (consumed by the service).
+export class TierEntryDto extends createZodDto(tierEntrySchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  publicVisibility?: boolean;
-}
+const upsertTiersSchema = z
+  .object({
+    tiers: z.array(tierEntrySchema),
+  })
+  .strict();
+export class UpsertTiersDto extends createZodDto(upsertTiersSchema) {}
 
-export class RoleRateEntryDto {
-  @ApiProperty({ enum: ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'] })
-  @IsIn(['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'])
-  refereeRole!: string;
+const upsertEventSettingsSchema = z
+  .object({
+    planId: z.uuid(),
+    maxCompensationAmount: z.number().min(0).nullish(),
+  })
+  .strict();
+export class UpsertEventSettingsDto extends createZodDto(upsertEventSettingsSchema) {}
 
-  @ApiProperty({ enum: ['pool', 'bracket', 'finals'] })
-  @IsIn(['pool', 'bracket', 'finals'])
-  compensationPhase!: string;
-
-  @ApiProperty({ minimum: 0 })
-  @IsNumber()
-  @Min(0)
-  tokensPerMatch!: number;
-}
-
-export class UpsertRoleRatesDto {
-  @ApiProperty({ type: [RoleRateEntryDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => RoleRateEntryDto)
-  rates!: RoleRateEntryDto[];
-}
-
-export class TierEntryDto {
-  @ApiProperty({ minimum: 0 })
-  @IsNumber()
-  @Min(0)
-  minTokens!: number;
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  maxTokens?: number | null;
-
-  @ApiProperty({ minimum: 0 })
-  @IsNumber()
-  @Min(0)
-  amount!: number;
-}
-
-export class UpsertTiersDto {
-  @ApiProperty({ type: [TierEntryDto] })
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => TierEntryDto)
-  tiers!: TierEntryDto[];
-}
-
-export class UpsertEventSettingsDto {
-  @ApiProperty()
-  @IsUUID()
-  planId!: string;
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  maxCompensationAmount?: number | null;
-}
-
-export class TogglePaidDto {
-  @ApiProperty()
-  @IsBoolean()
-  paid!: boolean;
-}
+const togglePaidSchema = z
+  .object({
+    paid: z.boolean(),
+  })
+  .strict();
+export class TogglePaidDto extends createZodDto(togglePaidSchema) {}

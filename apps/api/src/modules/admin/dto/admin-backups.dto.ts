@@ -1,4 +1,5 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
 export type BackupArtifactKind = 'db' | 'storage';
 export type BackupLocation = 'local' | 's3' | 'upload';
@@ -111,62 +112,33 @@ export interface BackupDeleteResponseDto {
   deletedArtifacts: string[];
 }
 
-export class RestoreBackupDto {
-  @IsIn(['local', 's3', 'upload'])
-  location!: BackupLocation;
+const restoreBackupSchema = z
+  .object({
+    location: z.enum(['local', 's3', 'upload']),
+    backupId: z.string().regex(/^\d{8}T\d{6}Z$|^[A-Za-z0-9_-]{8,80}$/),
+    includeStorage: z.boolean().optional(),
+    confirmed: z.boolean(),
+  })
+  .strict();
+export class RestoreBackupDto extends createZodDto(restoreBackupSchema) {}
 
-  @IsString()
-  @Matches(/^\d{8}T\d{6}Z$|^[A-Za-z0-9_-]{8,80}$/)
-  backupId!: string;
+const updateBackupScheduleSchema = z
+  .object({
+    enabled: z.boolean(),
+    frequency: z.enum(BACKUP_FREQUENCIES as unknown as [BackupFrequency, ...BackupFrequency[]]),
+    hourUtc: z.number().int().min(0).max(23),
+    minuteUtc: z.number().int().min(0).max(59),
+    dayOfWeek: z.number().int().min(0).max(6),
+    dayOfMonth: z.number().int().min(1).max(28),
+    retentionCountLocal: z.number().int().min(1).max(365),
+    retentionCountCloud: z.number().int().min(1).max(3650),
+  })
+  .strict();
+export class UpdateBackupScheduleDto extends createZodDto(updateBackupScheduleSchema) {}
 
-  @IsOptional()
-  @IsBoolean()
-  includeStorage?: boolean;
-
-  @IsBoolean()
-  confirmed!: boolean;
-}
-
-export class UpdateBackupScheduleDto {
-  @IsBoolean()
-  enabled!: boolean;
-
-  @IsIn(BACKUP_FREQUENCIES as unknown as string[])
-  frequency!: BackupFrequency;
-
-  @IsInt()
-  @Min(0)
-  @Max(23)
-  hourUtc!: number;
-
-  @IsInt()
-  @Min(0)
-  @Max(59)
-  minuteUtc!: number;
-
-  @IsInt()
-  @Min(0)
-  @Max(6)
-  dayOfWeek!: number;
-
-  @IsInt()
-  @Min(1)
-  @Max(28)
-  dayOfMonth!: number;
-
-  @IsInt()
-  @Min(1)
-  @Max(365)
-  retentionCountLocal!: number;
-
-  @IsInt()
-  @Min(1)
-  @Max(3650)
-  retentionCountCloud!: number;
-}
-
-export class DeleteAllBackupsDto {
-  @IsString()
-  @Matches(/^DELETE ALL MYCLASH BACKUPS$/)
-  confirmation!: string;
-}
+const deleteAllBackupsSchema = z
+  .object({
+    confirmation: z.string().regex(/^DELETE ALL MYCLASH BACKUPS$/),
+  })
+  .strict();
+export class DeleteAllBackupsDto extends createZodDto(deleteAllBackupsSchema) {}

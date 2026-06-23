@@ -1,182 +1,93 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsObject,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Matches,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 import type { LeagueScoringConfig, LeagueTieBreaker } from '../league.types';
 
-export class CreateLeagueDto {
-  @ApiProperty({ example: 'French National League 2026' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(200)
-  name!: string;
-
-  @ApiProperty({ example: 'french-national-league-2026' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  @Matches(/^[a-z0-9-]+$/)
-  slug!: string;
-
-  @ApiProperty({ example: 2026 })
-  @IsInt()
-  @Min(2000)
-  @Max(2100)
-  seasonYear!: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  logoUrl?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsUUID()
-  ownerOrganizationId?: string;
-
-  @ApiProperty({ required: false, enum: ['ffamhe_tf_2026', 'custom'] })
-  @IsOptional()
-  @IsIn(['ffamhe_tf_2026', 'custom'])
-  scoringSystem?: 'ffamhe_tf_2026' | 'custom';
-
-  @ApiProperty({ required: false, enum: ['weapon', 'weapon_category'] })
-  @IsOptional()
-  @IsIn(['weapon', 'weapon_category'])
-  rankingDimensions?: 'weapon' | 'weapon_category';
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsObject()
-  customPointsByRank?: Record<number, number>;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsArray()
-  tieBreakers?: LeagueTieBreaker[];
-}
-
-export class UpdateLeagueDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(200)
-  name?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  logoUrl?: string;
-
-  @ApiProperty({ required: false, enum: ['draft', 'published', 'archived'] })
-  @IsOptional()
-  @IsIn(['draft', 'published', 'archived'])
-  status?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  publicVisibility?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsObject()
-  scoringConfig?: LeagueScoringConfig;
-}
-
-export class AddLeagueOrganizationRoleDto {
-  @ApiProperty()
-  @IsUUID()
-  organizationId!: string;
-
-  @ApiProperty({ enum: ['member', 'admin', 'owner'] })
-  @IsIn(['member', 'admin', 'owner'])
-  role!: 'member' | 'admin' | 'owner';
-}
-
-export class AddLeagueUserRoleDto {
-  @ApiProperty()
-  @IsUUID()
-  userId!: string;
-
-  @ApiProperty({ enum: ['admin', 'owner'] })
-  @IsIn(['admin', 'owner'])
-  role!: 'admin' | 'owner';
-}
-
-export class ReviewLeagueTournamentLinkDto {
-  @ApiProperty({ enum: ['approved', 'rejected', 'removed'], required: false })
-  @IsOptional()
-  @IsIn(['approved', 'rejected', 'removed'])
-  status?: 'approved' | 'rejected' | 'removed';
-
-  @ApiProperty({
-    required: false,
-    nullable: true,
-    description: 'Assign this link to a league group, or null to clear.',
+const createLeagueSchema = z
+  .object({
+    name: z.string().min(2).max(200),
+    slug: z
+      .string()
+      .min(2)
+      .max(100)
+      .regex(/^[a-z0-9-]+$/),
+    seasonYear: z.number().int().min(2000).max(2100),
+    description: z.string().optional(),
+    logoUrl: z.string().optional(),
+    ownerOrganizationId: z.uuid().optional(),
+    scoringSystem: z.enum(['ffamhe_tf_2026', 'custom']).optional(),
+    rankingDimensions: z.enum(['weapon', 'weapon_category']).optional(),
+    // Was @IsObject: any object keyed by rank → points.
+    customPointsByRank: z.custom<Record<number, number>>().optional(),
+    // Was @IsArray: list of tie-breaker descriptors.
+    tieBreakers: z.custom<LeagueTieBreaker[]>().optional(),
   })
-  @IsOptional()
-  @IsUUID()
-  groupId?: string | null;
-}
+  .strict();
+export class CreateLeagueDto extends createZodDto(createLeagueSchema) {}
 
-export class LeagueGroupDto {
-  @ApiProperty({ example: 'Sabre Mixed' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  name!: string;
+const updateLeagueSchema = z
+  .object({
+    name: z.string().min(2).max(200).optional(),
+    description: z.string().optional(),
+    logoUrl: z.string().optional(),
+    status: z.enum(['draft', 'published', 'archived']).optional(),
+    publicVisibility: z.boolean().optional(),
+    // Was @IsObject: full scoring configuration object.
+    scoringConfig: z.custom<LeagueScoringConfig>().optional(),
+  })
+  .strict();
+export class UpdateLeagueDto extends createZodDto(updateLeagueSchema) {}
 
-  @ApiProperty({ required: false, default: 0 })
-  @IsOptional()
-  sortOrder?: number;
-}
+const addLeagueOrganizationRoleSchema = z
+  .object({
+    organizationId: z.uuid(),
+    role: z.enum(['member', 'admin', 'owner']),
+  })
+  .strict();
+export class AddLeagueOrganizationRoleDto extends createZodDto(addLeagueOrganizationRoleSchema) {}
 
-export class UpdateLeagueGroupDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
-  name?: string;
+const addLeagueUserRoleSchema = z
+  .object({
+    userId: z.uuid(),
+    role: z.enum(['admin', 'owner']),
+  })
+  .strict();
+export class AddLeagueUserRoleDto extends createZodDto(addLeagueUserRoleSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  sortOrder?: number;
-}
+const reviewLeagueTournamentLinkSchema = z
+  .object({
+    status: z.enum(['approved', 'rejected', 'removed']).optional(),
+    // Assign this link to a league group, or null to clear.
+    groupId: z.uuid().nullish(),
+  })
+  .strict();
+export class ReviewLeagueTournamentLinkDto extends createZodDto(reviewLeagueTournamentLinkSchema) {}
 
-export class LinkTournamentDto {
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsUUID()
-  groupId?: string | null;
-}
+const leagueGroupSchema = z
+  .object({
+    name: z.string().min(1).max(120),
+    sortOrder: z.number().optional(),
+  })
+  .strict();
+export class LeagueGroupDto extends createZodDto(leagueGroupSchema) {}
 
-export class LeagueStandingsQueryDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  group?: string;
-}
+const updateLeagueGroupSchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    sortOrder: z.number().optional(),
+  })
+  .strict();
+export class UpdateLeagueGroupDto extends createZodDto(updateLeagueGroupSchema) {}
+
+const linkTournamentSchema = z
+  .object({
+    groupId: z.uuid().nullish(),
+  })
+  .strict();
+export class LinkTournamentDto extends createZodDto(linkTournamentSchema) {}
+
+const leagueStandingsQuerySchema = z
+  .object({
+    group: z.string().optional(),
+  })
+  .strict();
+export class LeagueStandingsQueryDto extends createZodDto(leagueStandingsQuerySchema) {}

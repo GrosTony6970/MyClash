@@ -1,49 +1,33 @@
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
-import { CreatePersonDto } from './persons.dto';
+import { createPersonSchema } from './persons.dto';
 
 /**
  * Locks the "newClubName" invariants for the add-participant flow:
- *   - the field is optional and accepts a non-empty trimmed string;
- *   - it is mutually exclusive with `clubId` (sending both → 400);
+ *   - optional, accepts a non-empty trimmed string;
+ *   - mutually exclusive with `clubId` (both → rejected);
  *   - whitespace-only values are rejected.
- *
- * The class-level validator enforces both rules so a malformed
- * payload is rejected at the ValidationPipe boundary, before it
- * reaches PersonsService.createPerson.
  */
-describe('CreatePersonDto — newClubName', () => {
+describe('createPersonSchema — newClubName', () => {
   const base = { givenName: 'Jean', familyName: 'Dupont' };
 
-  it('accepts a valid newClubName when clubId is absent', async () => {
-    const dto = plainToInstance(CreatePersonDto, { ...base, newClubName: 'Lyon AMHE' });
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
-    expect(errors).toEqual([]);
+  it('accepts a valid newClubName when clubId is absent', () => {
+    expect(createPersonSchema.safeParse({ ...base, newClubName: 'Lyon AMHE' }).success).toBe(true);
   });
 
-  it('accepts neither newClubName nor clubId', async () => {
-    const dto = plainToInstance(CreatePersonDto, base);
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
-    expect(errors).toEqual([]);
+  it('accepts neither newClubName nor clubId', () => {
+    expect(createPersonSchema.safeParse(base).success).toBe(true);
   });
 
-  it('rejects sending both clubId and newClubName', async () => {
-    const dto = plainToInstance(CreatePersonDto, {
+  it('rejects sending both clubId and newClubName', () => {
+    const r = createPersonSchema.safeParse({
       ...base,
-      clubId: '00000000-0000-0000-0000-000000000001',
+      clubId: '00000000-0000-4000-8000-000000000001',
       newClubName: 'Lyon AMHE',
     });
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
-    expect(errors.length).toBeGreaterThan(0);
-    expect(JSON.stringify(errors)).toMatch(
-      /clubId.*newClubName|newClubName.*clubId|mutually exclusive/i,
-    );
+    expect(r.success).toBe(false);
   });
 
-  it('rejects a whitespace-only newClubName', async () => {
-    const dto = plainToInstance(CreatePersonDto, { ...base, newClubName: '   ' });
-    const errors = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
-    expect(errors.length).toBeGreaterThan(0);
+  it('rejects a whitespace-only newClubName', () => {
+    expect(createPersonSchema.safeParse({ ...base, newClubName: '   ' }).success).toBe(false);
   });
 });

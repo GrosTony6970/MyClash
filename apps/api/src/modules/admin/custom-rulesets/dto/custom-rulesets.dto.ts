@@ -1,157 +1,71 @@
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsObject,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreateCustomRulesetDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  name!: string;
+const tiebreakerSchema = z.object({
+  variable: z.string(),
+  direction: z.enum(['asc', 'desc']),
+});
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  description?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  version?: string;
-
-  @ApiProperty({ description: 'Score formula AST (FormulaNode tree)' })
-  @IsObject()
-  scoreFormula!: Record<string, unknown>;
-
-  @ApiProperty({
-    description:
-      'Per-ruleset numeric constants: pointsPerVictory, pointsPerTie, pointsPerLoss, doublePenalty.',
+const createCustomRulesetSchema = z
+  .object({
+    name: z.string().min(2).max(100),
+    description: z.string().max(1000).optional(),
+    version: z.string().max(50).optional(),
+    // Score formula AST (FormulaNode tree) — arbitrary JSON object.
+    scoreFormula: z.record(z.string(), z.unknown()),
+    // Per-ruleset numeric constants: pointsPerVictory, pointsPerTie, pointsPerLoss, doublePenalty.
+    constants: z.record(z.string(), z.number()),
+    // Ordered list of tiebreakers ({ variable, direction }).
+    tiebreakers: z.array(tiebreakerSchema),
+    // MatchFormatConfig used as the default for tournaments created with this ruleset.
+    matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
+    // Free-string expression in terms of `n` (double-hit count). Validated server-side.
+    doublePenaltyFormula: z.string().max(200).optional(),
   })
-  @IsObject()
-  constants!: Record<string, number>;
+  .strict();
+export class CreateCustomRulesetDto extends createZodDto(createCustomRulesetSchema) {}
 
-  @ApiProperty({ description: 'Ordered list of tiebreakers ({ variable, direction }).' })
-  @IsArray()
-  tiebreakers!: Array<{ variable: string; direction: 'asc' | 'desc' }>;
-
-  @ApiProperty({
-    required: false,
-    description: 'MatchFormatConfig used as the default for tournaments created with this ruleset.',
+const updateCustomRulesetSchema = z
+  .object({
+    name: z.string().min(2).max(100).optional(),
+    description: z.string().max(1000).optional(),
+    version: z.string().max(50).optional(),
+    scoreFormula: z.record(z.string(), z.unknown()).optional(),
+    constants: z.record(z.string(), z.number()).optional(),
+    tiebreakers: z.array(tiebreakerSchema).optional(),
+    matchFormatDefaults: z.record(z.string(), z.unknown()).optional(),
+    doublePenaltyFormula: z.string().max(200).optional(),
+    // Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults
+    // (winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy).
+    // Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.
+    tfConfig: z.record(z.string(), z.unknown()).optional(),
   })
-  @IsOptional()
-  @IsObject()
-  matchFormatDefaults?: Record<string, unknown>;
+  .strict();
+export class UpdateCustomRulesetDto extends createZodDto(updateCustomRulesetSchema) {}
 
-  @ApiProperty({
-    required: false,
-    description:
-      'Free-string expression in terms of `n` (double-hit count). Validated server-side.',
+const customRulesetStatusSchema = z
+  .object({
+    status: z.enum(['draft', 'published', 'archived']),
   })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  doublePenaltyFormula?: string;
-}
+  .strict();
+export class CustomRulesetStatusDto extends createZodDto(customRulesetStatusSchema) {}
 
-export class UpdateCustomRulesetDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  name?: string;
+const setDefaultSchema = z.object({ isDefault: z.boolean() }).strict();
+export class SetDefaultDto extends createZodDto(setDefaultSchema) {}
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  description?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  version?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsObject()
-  scoreFormula?: Record<string, unknown>;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsObject()
-  constants?: Record<string, number>;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsArray()
-  tiebreakers?: Array<{ variable: string; direction: 'asc' | 'desc' }>;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsObject()
-  matchFormatDefaults?: Record<string, unknown>;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  doublePenaltyFormula?: string;
-
-  @ApiProperty({
-    required: false,
-    description:
-      "Super-admin overrides for TF v1's TFv1ConfigSchema-shaped defaults " +
-      '(winBonus, targetValues, matchFormat, doublePenaltyFormula, forfeitPolicy). ' +
-      'Merged over the static TFv1DefaultConfig by resolveRulesetConfigDefaults.',
+const publishRulesetSchema = z
+  .object({
+    // Optional explicit version string for the new draft after publish.
+    // When omitted the server auto-bumps the patch component (1.0.0 -> 1.0.1).
+    nextVersion: z.string().max(50).optional(),
   })
-  @IsOptional()
-  @IsObject()
-  tfConfig?: Record<string, unknown>;
-}
+  .strict();
+export class PublishRulesetDto extends createZodDto(publishRulesetSchema) {}
 
-export class CustomRulesetStatusDto {
-  @ApiProperty({ enum: ['draft', 'published', 'archived'] })
-  @IsIn(['draft', 'published', 'archived'])
-  status!: 'draft' | 'published' | 'archived';
-}
-
-export class SetDefaultDto {
-  @ApiProperty()
-  @IsBoolean()
-  isDefault!: boolean;
-}
-
-export class PublishRulesetDto {
-  @ApiProperty({
-    required: false,
-    description:
-      'Optional explicit version string for the new draft after publish. ' +
-      'When omitted the server auto-bumps the patch component (1.0.0 -> 1.0.1).',
+const rejectSubmissionSchema = z
+  .object({
+    // Reason shown to the organizer so they know what to fix before resubmitting.
+    reason: z.string().min(2).max(1000),
   })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  nextVersion?: string;
-}
-
-export class RejectSubmissionDto {
-  @ApiProperty({
-    description: 'Reason shown to the organizer so they know what to fix before resubmitting.',
-  })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(1000)
-  reason!: string;
-}
+  .strict();
+export class RejectSubmissionDto extends createZodDto(rejectSubmissionSchema) {}
