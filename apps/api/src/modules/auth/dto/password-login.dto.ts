@@ -1,19 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class PasswordLoginDto {
-  @ApiProperty({ example: 'admin@example.com' })
-  @IsEmail()
-  email!: string;
+/**
+ * Pilot DTO for the class-validator → Zod migration (adopted standard #1).
+ * `.strict()` rejects unknown fields, preserving the global pipe's
+ * `forbidNonWhitelisted` behaviour.
+ */
+export const passwordLoginSchema = z
+  .object({
+    email: z.email(),
+    password: z.string().min(1),
+    /** Optional redirect path after successful auth (validated server-side). */
+    redirectTo: z.string().optional(),
+  })
+  .strict();
 
-  @ApiProperty()
-  @IsString()
-  @MinLength(1)
-  password!: string;
-
-  /** Optional redirect path after successful auth (validated server-side). */
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  redirectTo?: string;
-}
+export class PasswordLoginDto extends createZodDto(passwordLoginSchema) {}

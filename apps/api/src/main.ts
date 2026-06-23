@@ -1,12 +1,13 @@
 import 'reflect-metadata';
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/api-exception.filter';
 import { captureApiException, initApiSentry } from './common/observability/sentry';
 import { registerProcessFailureHandlers } from './common/process-failure-handlers';
+import { ZodOrClassValidationPipe } from './common/zod-or-class-validation.pipe';
 import { buildCorsOrigins } from './security/http-security';
 
 const PORT = process.env['PORT'] ? Number(process.env['PORT']) : 4000;
@@ -46,8 +47,8 @@ async function bootstrap(): Promise<void> {
 
   // ── Global validation pipe ───────────────────────────────────────────────
   app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true, // strip unknown properties
+    new ZodOrClassValidationPipe({
+      whitelist: true, // strip unknown properties (class-validator DTOs)
       forbidNonWhitelisted: true,
       transform: true, // auto-transform payloads to DTO instances
     }),
@@ -77,7 +78,7 @@ async function bootstrap(): Promise<void> {
       .addCookieAuth('sb-access-token')
       .build();
 
-    const document = SwaggerModule.createDocument(app, config);
+    const document = cleanupOpenApiDoc(SwaggerModule.createDocument(app, config));
     SwaggerModule.setup('api/docs', app, document);
   }
 
