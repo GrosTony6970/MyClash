@@ -1,0 +1,167 @@
+---
+project_name: 'MyClash'
+user_name: 'Tony'
+date: '2026-06-23'
+sections_completed:
+  [
+    'technology_stack',
+    'domain_vocabulary',
+    'scoring_integrity',
+    'security_data',
+    'language_typescript',
+    'frameworks',
+    'database',
+    'i18n',
+    'testing',
+    'code_quality_ci',
+    'workflow',
+    'gotchas',
+    'adopted_standards',
+  ]
+existing_patterns_found: 14
+status: 'complete'
+rule_count: 53
+optimized_for_llm: true
+---
+
+# Project Context for AI Agents
+
+_Critical rules and patterns AI agents MUST follow when writing code in MyClash. Focus is on the **unobvious** — things an LLM would otherwise get wrong. The authoritative long-form sources are `AGENTS.md` (rules), `docs/HIERARCHY.md` (vocabulary), `docs/ARCHITECTURE.md` (design). When any of those conflict, HIERARCHY wins for naming and ARCHITECTURE wins for design — but **verify versions against `package.json`, not ARCHITECTURE.md** (the doc has drifted; see below)._
+
+---
+
+## Technology Stack & Versions
+
+**Monorepo:** pnpm 10.27 workspaces + Turborepo 2.1 · Node **≥26** · TypeScript 5.6 (`strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `isolatedModules`; base `moduleResolution: bundler`).
+
+**Apps** (`apps/*`): `api`, `web-admin`, `web-public`, `web-scoring`, `web-marketing` (static `index.html`, no Next runtime), `pictures`.
+**Packages** (`packages/*`): `rulesets`, `db`, `types`, `i18n`, `ui`, `api-client`, `design-tokens`, `feature-flags`, `time`.
+
+- **API** — **NestJS 11.1** on **Fastify 5** (`@nestjs/platform-fastify`) · BullMQ 5 / `@nestjs/bullmq` · `@nestjs/throttler` · `@nestjs/swagger` · `class-validator`/`class-transformer` · `jsonwebtoken` · `web-push` · `resend` (email) · `@supabase/supabase-js` · `pg` · `@sentry/nestjs`
+- **Web** — **Next.js 16.2.6** (App Router) · **React 19.2** · **Tailwind v4** (`@tailwindcss/postcss`) · `@sentry/nextjs` · `@supabase/supabase-js`
+- **DB** — **Drizzle ORM 0.45** + `drizzle-kit` 0.31 · `postgres` / `pg` · Postgres via **Supabase** (Auth, Storage, Realtime, RLS)
+- **Rulesets** — **Zod 4.3** · TF_v1 engine · subpath export `@myclash/rulesets/scheduling`
+- **AI** — `@anthropic-ai/sdk` · `@mistralai/mistralai` · `openai` (server-side only, in `api`)
+- **Testing** — **Vitest 2** (unit) · **Playwright 1.59** (E2E, incl. offline) · `@axe-core/playwright` (a11y)
+
+> ⚠️ **Version drift:** `docs/ARCHITECTURE.md` (draft v1.4) says NestJS 10 / Next 15. The code is **NestJS 11 / Next 16 / React 19 / Tailwind 4**. Trust `package.json`.
+
+---
+
+## Critical Implementation Rules
+
+### Domain & Vocabulary (HIERARCHY.md is authoritative)
+
+- Hierarchy: **Organization › Event › Tournament › (Pool | Bracket) › Match › Exchange**; Event also › Workshop › WorkshopSession.
+- An **Event** is the public-facing gathering; a **Tournament** is what people register for and compete in. URLs mirror this: `/e/<event-slug>/t/<tournament-slug>`, `/e/<event-slug>/w/<workshop-slug>`.
+- **Persons are scoped to the Event, not the Tournament.** One registration per event, then per-tournament registrations within it.
+- Locked names — do not rename: tables `events, tournaments, workshops, workshop_sessions, pools, matches, exchanges, registrations`; routes `/api/v1/events/:id`, `/api/v1/tournaments/:id`, etc.
+- French domain terms are fixed: Event→Événement, Tournament→Tournoi, Workshop→Atelier/Stage, Pool→Poule, Match→Assaut, Exchange→Échange.
+
+### Scoring & Ruleset Integrity (the crown jewels — never compromise)
+
+- **Never bypass the ruleset engine.** All scores derive from exchanges via `@myclash/rulesets`. **Do not store computed scores as the source of truth** — exchanges are the truth.
+- **TF_v1 must reproduce the FAL 2026 reference data byte-for-byte.** If the snapshot test against `scripts/import-fal2026.ts` fails, **fix the engine, never edit the snapshot.**
+- **Offline scoring is non-negotiable.** Any change to `web-scoring` must preserve full offline functionality (IndexedDB queue → sync on reconnect). Offline E2E tests must pass.
+- **No `eval` / `Function()` / dynamic code execution** for user-supplied formulas. Ruleset configs are validated with **Zod** and dispatched to **whitelisted** functions only.
+
+### Security & Data
+
+- **RLS first, application checks second.** Every new table gets an RLS policy. Never disable RLS in production code paths.
+- **Hard constraint `enforce_fighter_referee_no_overlap` cannot be disabled** — a fighter may not referee a pool overlapping their own match (safety/integrity invariant).
+- **Don't commit secrets.** `.env.example` is the canonical key list. Client-exposed env must respect the client-secret boundary — enforced by `pnpm security:client-secrets` (`scripts/check-client-secret-boundaries.mjs`).
+- API route auth is enforced/audited by `pnpm security:routes` (`scripts/check-api-route-security.mjs`). New routes must satisfy it.
+- Auth is cookie/JWT based (Supabase Auth: magic-link + Google OAuth); `@fastify/cookie` + `jsonwebtoken` on the API.
+
+### Language / TypeScript
+
+- `noUncheckedIndexedAccess` is on: index access yields `T | undefined` — narrow before use; don't add non-null `!` to silence it.
+- Cross-package shared types live in **`@myclash/types`** only. Leaking app-local types across the boundary is caught by `pnpm quality:shared-types` (`check-shared-type-leaks.mjs`).
+- Library packages (`rulesets`, `db`, `types`, …) build to `dist/` via `tsc` and are consumed as `workspace:^`.
+- **Module-resolution convention** _(adopted)_: **apps use `bundler`**, **publishable libraries use `nodenext`** (matches the existing `node16`-style ESM in libs like the rulesets Mistral adapter). Don't introduce per-package drift — follow the convention and the shared per-package tsconfig template; don't assume the base `bundler` config applies to a lib.
+
+### Frameworks
+
+- **API = NestJS on Fastify** (not Express). Use Nest DI/modules; request/response are Fastify types.
+- **HTTP validation standard → Zod via `nestjs-zod`** _(adopted; migration in progress)_. New API inputs are validated with **Zod 4** schemas (shared FE↔BE), driving the DTO + OpenAPI + the React Hook Form. **Legacy endpoints still use `class-validator`/`class-transformer`** — do not add new `class-validator` DTOs; migrate the endpoint you touch when feasible. (Zod remains the rulesets/config validator throughout.)
+- **API error envelope → RFC 9457 `application/problem+json`** _(adopted)_, emitted by a global Nest exception filter (`type`/`title`/`status`/`detail`/`instance`). New error paths must use it; the FE and Sentry grouping rely on the consistent shape.
+- **Web = Next.js 16 App Router + React 19.** Default to Server Components; mark Client Components with `'use client'` only when needed. Public results pages are SSR for speed.
+- Client/server data split: **mutations → NestJS API**; live reads → **Supabase Realtime**; aggregations → API endpoints. PostgREST/Supabase embeds are used for reads (see gotcha below).
+- **Tailwind v4** (CSS-first config via `@tailwindcss/postcss`) — no `tailwind.config.js` v3 assumptions. Shared UI lives in `@myclash/ui`; tokens in `@myclash/design-tokens`.
+- Heavy compute (bracket gen, ranking, stats) belongs off the main thread (Web Workers) so the scoring tablet never freezes.
+
+### Database & Drizzle
+
+- Schema, migrations, and client live in **`@myclash/db`**. Generate with `drizzle-kit generate`, apply with `drizzle-kit migrate`.
+- Migrations are **forward-only and numbered** (e.g. `0058`, `0060`, `0061`). **Never edit a migration that has shipped** — add a new one.
+- A `UNIQUE` constraint on a child table's FK-to-parent **flips** its PostgREST/Supabase `select(child(...))` embed from **array → object**. Normalize the shape (or `.map`) or you get runtime 500s. (See `memory/`.)
+- DB review/perf is gated: `pnpm db:review`, `db:migrations:replay`, `db:perf:fixture`, `db:perf:explain`.
+
+### Internationalization
+
+- **All user-facing strings go through i18n** (`@myclash/i18n`). Never hardcode English.
+- **Every `t()` key must resolve in both EN and FR.** Missing keys are caught by `packages/i18n/src/t-key-references.test.ts`. Add the key to both locales when you introduce it.
+- **Keys are compile-time typed** _(adopted)_: `@myclash/i18n` exports a generated union of valid keys so `t('…')` fails at `tsc` for unknown keys — don't cast around it; add the key (EN+FR) and regenerate.
+
+### Testing
+
+- Unit/integration: **Vitest** (`pnpm test` → `turbo run test`). E2E: **Playwright** (`pnpm test:e2e`), including the **offline** scoring suite.
+- Acceptance criteria are **testable assertions** — if an AC says "X works", demonstrate X with a test.
+- The **Golden Paths** (`docs/GOLDEN_PATHS.md`) GP-1…GP-4 are required passes before ship; matrix = desktop Chrome · mobile Safari · mobile Chrome.
+- For the scoring engine, **write the test first** and guard with the FAL 2026 golden snapshot.
+- **Coverage is gated** _(adopted)_: CI enforces per-package Vitest coverage thresholds; **`@myclash/rulesets` is held to the highest bar** (it's the integrity core). Don't lower a threshold to make CI pass — add tests.
+
+### Code Quality & CI Gates
+
+- "Done" = `pnpm lint && pnpm typecheck && pnpm test` green (all via Turborepo). `--max-warnings 0` — warnings fail lint.
+- Prettier is the formatter; a **pre-commit hook** (`simple-git-hooks` + `lint-staged`) auto-formats staged files.
+- Custom repo rules live in `eslint-rules/`. Extra gates exist as scripts: `quality:todos`, `quality:api-docs`, `quality:complexity`, plus the security/db/infra/observability/perf checks in root `package.json` — run the relevant one when touching that area.
+
+### Development Workflow
+
+- Branch naming: `feat/<scope>-<short-name>` (also `fix/…`, `chore/…`). Commits follow **Conventional Commits** with a scope, e.g. `fix(schedule): …`, `feat(workshops): …` — **enforced by commitlint** _(adopted)_ via a `commit-msg` git hook (`@commitlint/config-conventional`). A non-conforming message fails the commit.
+- **One task = one PR.** Atomic, reviewable, testable; reference the `docs/BUILD_ORDER.md` task ID and relevant ARCHITECTURE sections.
+- If a task is ambiguous or contradicts ARCHITECTURE/HIERARCHY, **stop and ask** — don't improvise. If it needs owner action (`[needs O-NNN]`), stop and notify.
+- Maintain the persistent-memory files (`memory/MEMORY.md`, `LESSONS_LEARNED.md`, `PROMPT_LOG.md`) per `AGENTS.md`.
+
+### Critical Don't-Miss Gotchas
+
+- **PostgREST embed array↔object flip** on `UNIQUE(fk)` — normalize embeds (above).
+- **Prod uses an untrusted dev cert on `api.myclash.fr`.** Prefer **same-origin `app.myclash.fr/api/*`** over cross-origin `api.myclash.fr` to avoid TLS/CORS failures in the browser.
+- Don't trust `docs/ARCHITECTURE.md` for **versions** (drifted) — trust `package.json`.
+- Don't store derived scores; don't disable RLS; don't edit shipped migrations; don't adjust the FAL golden snapshot to make a test pass.
+- AI SDKs (Anthropic/Mistral/OpenAI) are **server-side only** (`apps/api`) — never ship their keys to a Next client bundle.
+
+---
+
+## Adopted Standards — Rollout Status
+
+These conventions are **decided** (apply to all new code now). Each still needs a one-time _rollout_ task to enforce repo-wide; until that lands, follow the convention for new code and don't fight existing code that predates it.
+
+- **Zod-via-`nestjs-zod` HTTP validation** — _rollout:_ add `nestjs-zod` + a `ZodValidationPipe`, migrate `class-validator` DTOs incrementally.
+- **RFC 9457 `problem+json` error envelope** — _rollout:_ global Nest exception filter + FE error parser.
+- **Conventional Commits via commitlint** — _rollout:_ add `@commitlint/config-conventional` + a `commit-msg` hook to `simple-git-hooks`.
+- **Per-package coverage thresholds** (`@myclash/rulesets` highest) — _rollout:_ set Vitest `coverage.thresholds` per package + wire into CI.
+- **Compile-time-typed i18n keys** — _rollout:_ generate a key-union type in `@myclash/i18n`; export a typed `t()`.
+- **Module resolution: apps `bundler` / libs `nodenext`** — _rollout:_ normalize each package `tsconfig` to the shared template.
+
+> Each rollout item is separate follow-up work (one PR each per "one task = one PR"). This file records the decision; it does not perform the migration.
+
+---
+
+## Usage Guidelines
+
+**For AI agents:**
+
+- Read this file before implementing any code; it supplements `AGENTS.md`, `docs/HIERARCHY.md`, and `docs/ARCHITECTURE.md`.
+- Follow all rules exactly. When in doubt, prefer the more restrictive option and **stop and ask** rather than improvise.
+- Treat _adopted_ standards as binding for new code even where the rollout task is still _pending_.
+- Verify versions against `package.json`, never against `docs/ARCHITECTURE.md`.
+
+**For humans (maintenance):**
+
+- Keep this file lean and agent-focused; update it when the stack or a convention changes.
+- When a _pending_ rollout task ships, drop its "_rollout:_" note (the convention becomes plain reality).
+- Remove rules that become obvious; review periodically for drift.
+
+Last Updated: 2026-06-23
