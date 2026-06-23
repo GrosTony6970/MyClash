@@ -681,7 +681,224 @@ describe('ProgrammeService', () => {
 
     await service.generate('event-1');
 
-    expect(syncPayload).toEqual({ end_time: '11:00', lice_count: 1 });
+    // The block is first on its day, so its start stays 10:00; end + lice_count
+    // sync to the realized run. (start_time is now always written by the pack.)
+    expect(syncPayload).toEqual({ start_time: '10:00', end_time: '11:00', lice_count: 1 });
+  });
+
+  it('clamps a competition block to start after a preceding admin block (no overlap)', async () => {
+    // Admin 08:00–10:00 (sort 0) then a pool whose STORED start is a stale
+    // 09:00 (sort 1). The sequential pack must push the pool's matches to 10:00
+    // — after the admin block — and persist the block's start_time as 10:00.
+    const blockRows = [
+      {
+        id: 'admin-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'admin',
+        label: 'Registration & Gear Check',
+        competition_id: null,
+        competition_phase: null,
+        workshop_id: null,
+        lice_count: 0,
+        start_time: '08:00',
+        end_time: '10:00',
+        match_gap_seconds: 0,
+        match_duration_minutes: 0,
+        generated_at: null,
+      },
+      {
+        id: 'pool-block',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 1,
+        block_type: 'competition',
+        label: 'Longsword — Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '09:00',
+        end_time: '09:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+
+    let upsertPayload: Array<Record<string, unknown>> | null = null;
+    const upsertChain = makeChain({ data: [{ id: 'match-1' }], error: null });
+    upsertChain.upsert = vi.fn((p: Array<Record<string, unknown>>) => {
+      upsertPayload = p;
+      return upsertChain;
+    });
+    let syncPayload: Record<string, unknown> | null = null;
+    const syncChain = makeChain({ data: null, error: null });
+    syncChain.update = vi.fn((p: Record<string, unknown>) => {
+      syncPayload = p;
+      return syncChain;
+    });
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
+      // admin block is first + unshifted → no DB write; then the pool block:
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            {
+              id: 'match-1',
+              red_registration_id: 'r1',
+              blue_registration_id: 'b1',
+              pool_id: 'pool-1',
+            },
+          ],
+          error: null,
+        }),
+      ) // matches select
+      .mockReturnValueOnce(upsertChain) // matches upsert
+      .mockReturnValueOnce(syncChain) // competition block sync update
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    await service.generate('event-1');
+
+    // Block start clamped to 10:00 (after admin), not its stale 09:00.
+    expect(syncPayload).toMatchObject({ start_time: '10:00' });
+    // The match itself lands at 10:00 wall-clock (compute via the same
+    // setHours formula the scheduler uses, so this holds on any runner TZ).
+    const expectedStart = new Date('2026-05-21T00:00:00');
+    expectedStart.setHours(10, 0, 0, 0);
+    expect(upsertPayload).not.toBeNull();
+    expect(upsertPayload![0]!['scheduled_at']).toBe(expectedStart.toISOString());
+  });
+
+  it('cascades a later break after a competition run that overflows its slot', async () => {
+    // A pool that actually runs 09:00–12:30 (7×30 min on one lice) must push a
+    // Lunch break stored at 12:00–13:00 down to 12:30–13:30 — no overlap. This
+    // covers the case the old break-only shift handled, now via the unified pack.
+    const blockRows = [
+      {
+        id: 'pool-block',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Longsword — Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '09:00',
+        end_time: '09:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 30,
+        generated_at: null,
+      },
+      {
+        id: 'lunch',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 1,
+        block_type: 'break',
+        label: 'Lunch',
+        competition_id: null,
+        competition_phase: null,
+        workshop_id: null,
+        lice_count: 0,
+        start_time: '12:00',
+        end_time: '13:00',
+        match_gap_seconds: 0,
+        match_duration_minutes: 0,
+        generated_at: null,
+      },
+    ];
+    const matches = Array.from({ length: 7 }, (_, i) => ({
+      id: `m${i}`,
+      red_registration_id: `r${i}`,
+      blue_registration_id: `b${i}`,
+      pool_id: 'pool-1',
+    }));
+
+    let breakPayload: Record<string, unknown> | null = null;
+    const breakChain = makeChain({ data: null, error: null });
+    breakChain.update = vi.fn((p: Record<string, unknown>) => {
+      breakPayload = p;
+      return breakChain;
+    });
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
+      .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches select
+      .mockReturnValueOnce(makeChain({ data: matches.map((m) => ({ id: m.id })), error: null })) // upsert
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // competition sync update
+      .mockReturnValueOnce(breakChain) // break shift update
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    await service.generate('event-1');
+
+    expect(breakPayload).toEqual({ start_time: '12:30', end_time: '13:30' });
+  });
+
+  it('leaves already-sequential blocks untouched (idempotent; preserves gaps)', async () => {
+    // Admin 08:00–09:00 then a break at 10:00–10:30 (an intentional 1 h gap).
+    // Neither overlaps, so the pack shifts nothing — only generated_at writes.
+    // Re-running Generate Grid on a clean layout is a no-op.
+    const blockRows = [
+      {
+        id: 'admin-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'admin',
+        label: 'Registration',
+        competition_id: null,
+        competition_phase: null,
+        workshop_id: null,
+        lice_count: 0,
+        start_time: '08:00',
+        end_time: '09:00',
+        match_gap_seconds: 0,
+        match_duration_minutes: 0,
+        generated_at: null,
+      },
+      {
+        id: 'coffee',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 1,
+        block_type: 'break',
+        label: 'Coffee',
+        competition_id: null,
+        competition_phase: null,
+        workshop_id: null,
+        lice_count: 0,
+        start_time: '10:00',
+        end_time: '10:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 0,
+        generated_at: null,
+      },
+    ];
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    const result = await service.generate('event-1');
+
+    expect(result.matchesScheduled).toBe(0);
+    // blocks + event + lices + stamp = 4; no per-block shift writes.
+    expect(fromMock).toHaveBeenCalledTimes(4);
   });
 
   // ── Slice 5: drag a fixed block + cascade-shift later matches ──────────────

@@ -8,7 +8,6 @@ import type {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { scheduleMatches } from '../schedule/match-scheduler';
-import { shiftBreaksAfterOverlap, type MatchWindow } from './shift-breaks';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import { cascadeBlockShift } from './block-cascade';
 import type {
@@ -545,25 +544,37 @@ export class ProgrammeService {
       overflowMinutes: number;
     }> = [];
     const blockDiagnostics: BlockDiagnostic[] = [];
-    // Scheduled competition match windows per day (minutes-of-day), used
-    // after the loop to push breaks out of overlap with pools.
-    const matchWindowsByDay: Record<number, MatchWindow[]> = {};
+    // Sequential, no-overlap pack: sweep each day's blocks in (day, sort_order)
+    // order with a running cursor (minutes-of-day). Every block starts no
+    // earlier than the previous one ends, so competition runs land after the
+    // admin/break blocks above them and any block below a long run cascades
+    // later. Blocks only ever move later, never earlier; operator gaps
+    // (storedStart > cursor) are preserved. Competition durations come from the
+    // realized schedule, so the cursor reflects how long pools actually run.
+    const cursorByDay: Record<number, number> = {};
 
     for (const rawBlock of blocksData ?? []) {
       const block = this.mapBlock(rawBlock as Record<string, unknown>);
       if (dayFilter && !dayFilter.has(block.dayIndex)) continue;
 
+      const storedStartMin = timeToMin(block.startTime);
+      const storedDurationMin = Math.max(0, timeToMin(block.endTime) - storedStartMin);
+      const prevEnd = cursorByDay[block.dayIndex];
+      const effStartMin = prevEnd == null ? storedStartMin : Math.max(storedStartMin, prevEnd);
+      const allocatedEndMin = effStartMin + storedDurationMin;
+
       if (block.blockType === 'competition' && block.competitionId) {
         const dayDate = new Date(startDate);
         dayDate.setDate(dayDate.getDate() + block.dayIndex);
 
-        const [sh, sm] = block.startTime.split(':').map(Number);
-        const [eh, em] = block.endTime.split(':').map(Number);
-
+        // Anchor the run at the swept start (not the stored start) so it begins
+        // after whatever precedes it on the day. blockEndDt is the allocated
+        // window (stored duration shifted to the swept start) — only used for
+        // the advisory overflow warning; the real end is the realized one.
         const blockStartDt = new Date(dayDate);
-        blockStartDt.setHours(sh ?? 0, sm ?? 0, 0, 0);
+        blockStartDt.setHours(Math.floor(effStartMin / 60), effStartMin % 60, 0, 0);
         const blockEndDt = new Date(dayDate);
-        blockEndDt.setHours(eh ?? 0, em ?? 0, 0, 0);
+        blockEndDt.setHours(Math.floor(allocatedEndMin / 60), allocatedEndMin % 60, 0, 0);
 
         const matches = await this.fetchCompetitionMatches(
           block.competitionId,
@@ -589,6 +600,9 @@ export class ProgrammeService {
             scheduledMatches: 0,
             licesAvailable: blockLices.length,
           });
+          // Empty block (no draw yet): place nothing, but keep its nominal
+          // slot so later blocks don't slide up over where the operator put it.
+          cursorByDay[block.dayIndex] = allocatedEndMin;
           continue;
         }
         if (blockLices.length === 0) {
@@ -602,6 +616,7 @@ export class ProgrammeService {
             scheduledMatches: 0,
             licesAvailable: 0,
           });
+          cursorByDay[block.dayIndex] = allocatedEndMin;
           continue;
         }
 
@@ -641,7 +656,7 @@ export class ProgrammeService {
             warnings.push({
               blockId: block.id,
               message: `Schedule overflows by ${overflowMin} minutes`,
-              suggestedEndTime: minToTime(timeToMin(block.endTime) + overflowMin),
+              suggestedEndTime: minToTime(allocatedEndMin + overflowMin),
               overflowMinutes: overflowMin,
             });
           }
@@ -674,9 +689,9 @@ export class ProgrammeService {
 
         // Realized-window sync: the scheduler may run a phase far longer than
         // the planner's estimate (strict pools serialize on one lice). Rewrite
-        // the competition block's end_time + lice_count from what actually
-        // landed so the sidebar mirrors the grid, and register the realized
-        // window (local minutes) as the obstacle for break-shifting below.
+        // the competition block's start_time (the swept start) + end_time +
+        // lice_count from what actually landed so the sidebar mirrors the grid,
+        // and advance the day cursor so the next block packs after this run.
         if (result.scheduledMatches.length > 0) {
           const startMsList = result.scheduledMatches.map((sm) =>
             new Date(sm.scheduledAt).getTime(),
@@ -688,19 +703,21 @@ export class ProgrammeService {
           // Round up to the next 30 min, matching the grid's block geometry.
           const durationMin = Math.max(30, Math.ceil(rawDurationMin / 30) * 30);
           const licesUsed = new Set(result.scheduledMatches.map((sm) => sm.liceId)).size;
-          const realizedStartMin = timeToMin(block.startTime);
-          const realizedEndMin = realizedStartMin + durationMin;
+          const realizedEndMin = effStartMin + durationMin;
 
           const { error: syncErr } = await this.supabase.service
             .from('event_programme_blocks')
-            .update({ end_time: minToTime(realizedEndMin), lice_count: licesUsed })
+            .update({
+              start_time: minToTime(effStartMin),
+              end_time: minToTime(realizedEndMin),
+              lice_count: licesUsed,
+            })
             .eq('id', block.id);
           if (syncErr) throw new BadRequestException(syncErr.message);
 
-          (matchWindowsByDay[block.dayIndex] ??= []).push({
-            startMin: realizedStartMin,
-            endMin: realizedEndMin,
-          });
+          cursorByDay[block.dayIndex] = realizedEndMin;
+        } else {
+          cursorByDay[block.dayIndex] = allocatedEndMin;
         }
 
         blockDiagnostics.push({
@@ -713,36 +730,21 @@ export class ProgrammeService {
           scheduledMatches: persistedCount,
           licesAvailable: blockLices.length,
         });
-      }
-
-      // Workshop sessions are owned by the workshop board; the programme
-      // generator no longer creates them.
-    }
-
-    // Shift break blocks so they never overlap the scheduled pool/bracket
-    // matches (push each break to after the matches it overlapped, keeping
-    // its duration; later breaks cascade). Only the generated days' breaks.
-    const breakBlocks = (blocksData ?? [])
-      .map((raw) => this.mapBlock(raw as Record<string, unknown>))
-      .filter((b) => b.blockType === 'break' && (!dayFilter || dayFilter.has(b.dayIndex)))
-      .map((b) => ({
-        id: b.id,
-        dayIndex: b.dayIndex,
-        blockType: b.blockType,
-        startMin: timeToMin(b.startTime),
-        endMin: timeToMin(b.endTime),
-      }));
-    if (breakBlocks.length > 0) {
-      const shifted = shiftBreaksAfterOverlap(breakBlocks, matchWindowsByDay);
-      for (let i = 0; i < shifted.length; i++) {
-        const before = breakBlocks[i]!;
-        const after = shifted[i]!;
-        if (after.startMin === before.startMin && after.endMin === before.endMin) continue;
-        const { error: shiftErr } = await this.supabase.service
-          .from('event_programme_blocks')
-          .update({ start_time: minToTime(after.startMin), end_time: minToTime(after.endMin) })
-          .eq('id', after.id);
-        if (shiftErr) throw new BadRequestException(shiftErr.message);
+      } else {
+        // Fixed block (admin / break / workshop, or a competition block missing
+        // its tournament link). Keep its duration but slide it to the swept
+        // start so it never overlaps the block above it, then advance the
+        // cursor. This generalizes the old break-only shift to admin
+        // (Referee Meeting) and breaks (Lunch) alike — blocks only move later.
+        const effEndMin = effStartMin + storedDurationMin;
+        if (effStartMin !== storedStartMin) {
+          const { error: shiftErr } = await this.supabase.service
+            .from('event_programme_blocks')
+            .update({ start_time: minToTime(effStartMin), end_time: minToTime(effEndMin) })
+            .eq('id', block.id);
+          if (shiftErr) throw new BadRequestException(shiftErr.message);
+        }
+        cursorByDay[block.dayIndex] = effEndMin;
       }
     }
 

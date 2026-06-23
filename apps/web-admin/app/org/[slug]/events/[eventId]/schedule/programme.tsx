@@ -343,6 +343,18 @@ export function ProgrammePlanner({
       });
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to generate'));
       const result = (await res.json()) as GenerateResult;
+      // Generation packs the day sequentially, so it may have shifted
+      // admin/break/competition block times to remove overlaps. Re-fetch the
+      // programme so the drawer list mirrors the persisted times instead of the
+      // pre-generate ones (the grid already re-fetches via its refresh key).
+      try {
+        const refreshed = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
+          credentials: 'include',
+        });
+        if (refreshed.ok) setBlocks((await refreshed.json()) as ProgrammeBlock[]);
+      } catch {
+        // Non-fatal — the list catches up on next drawer open.
+      }
       // When 0 matches landed (e.g. no lices, no draw run), keep the
       // result on-screen here so the operator can read per-block
       // diagnostics. Only bubble up the success → drawer auto-close
