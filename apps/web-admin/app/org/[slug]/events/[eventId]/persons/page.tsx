@@ -931,12 +931,14 @@ export default function ParticipantsPage() {
         <div className="flex items-center gap-2">
           <Link
             href={`/org/${slug}/events/${eventId}/persons/import`}
+            data-testid="persons-import-link"
             className="border border-gray-300 hover:border-gray-400 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors"
           >
             CSV import
           </Link>
           <button
             onClick={() => setShowAdd(true)}
+            data-testid="persons-add"
             disabled={isReadOnly}
             title={isReadOnly ? t('organizer.deletionRequest.archivedReadOnly') : undefined}
             className="bg-red-700 hover:bg-red-800 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors disabled:opacity-50"
@@ -1569,6 +1571,7 @@ export default function ParticipantsPage() {
                       </label>
                       <input
                         type="text"
+                        data-testid="person-given-name"
                         value={addForm.givenName}
                         onChange={(e) => setAddForm((f) => ({ ...f, givenName: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -1580,6 +1583,7 @@ export default function ParticipantsPage() {
                       </label>
                       <input
                         type="text"
+                        data-testid="person-family-name"
                         value={addForm.familyName}
                         onChange={(e) => setAddForm((f) => ({ ...f, familyName: e.target.value }))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
@@ -1797,6 +1801,7 @@ export default function ParticipantsPage() {
                   </button>
                   <button
                     onClick={() => void handleAdd()}
+                    data-testid="persons-add-submit"
                     disabled={addSaving}
                     className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-5 rounded-lg text-sm transition-colors"
                   >

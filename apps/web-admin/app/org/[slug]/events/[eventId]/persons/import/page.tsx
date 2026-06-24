@@ -321,6 +321,7 @@ export default function CsvImportPage() {
             </p>
             <input
               ref={fileRef}
+              data-testid="import-file-input"
               type="file"
               accept=".csv,text/csv"
               className="hidden"
@@ -341,6 +342,7 @@ export default function CsvImportPage() {
 
           <button
             onClick={() => void handlePreview()}
+            data-testid="import-validate"
             disabled={!file || uploading}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-6 rounded-lg text-sm transition-colors self-end"
           >
@@ -444,6 +446,7 @@ export default function CsvImportPage() {
                   <button
                     type="button"
                     onClick={() => void handleCommit()}
+                    data-testid="import-commit"
                     disabled={uploading || willCreate + willLink === 0}
                     className="rounded-lg bg-red-700 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:opacity-50"
                   >

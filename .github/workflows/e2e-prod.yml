@@ -1,0 +1,56 @@
+name: E2E (prod)
+
+# Opt-in only. This drives a DEPLOYED environment and writes real data
+# (scoped to a throwaway event that is hard-deleted in teardown), so it never
+# runs on push/PR. Trigger it manually, or let the nightly schedule run it.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC nightly
+
+concurrency:
+  group: e2e-prod
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '26'
+  PNPM_VERSION: '10.27.0'
+
+jobs:
+  e2e-prod:
+    name: Playwright against deployed env
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run prod E2E suite
+        run: pnpm test:e2e:prod
+        env:
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'https://admin.myclash.fr' }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_ORG_SLUG: ${{ secrets.E2E_ORG_SLUG }}
+          E2E_RUN_ID: ${{ github.run_id }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-prod
+          path: playwright-report
+          retention-days: 7

@@ -3,7 +3,13 @@
 .env.bak
 .env.local
 .env.deploy
+.env.e2e
 .env.*.local
+
+# Prod E2E session + run context (created by tests/e2e/global-setup.ts)
+tests/e2e/.auth/
+# Real participant rosters used for import tests stay local (contain PII)
+tests/e2e/fixtures/*.local.csv
 
 # ── MyClash runtime data (matches MyFAL pattern) ─────────────────
 data/

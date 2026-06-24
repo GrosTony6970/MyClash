@@ -168,6 +168,7 @@ export function Step1Basics({
           {t('organizer.tournaments.wizard.name')}
         </span>
         <input
+          data-testid="tournament-name"
           value={name}
           onChange={(e) => {
             const v = e.target.value;
@@ -317,6 +318,7 @@ export function Step1Basics({
         <button
           type="button"
           onClick={() => void submit()}
+          data-testid="tournament-create"
           disabled={submitting || !name.trim()}
           className="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-900 disabled:opacity-50"
         >

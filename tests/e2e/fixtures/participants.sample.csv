@@ -1,0 +1,6 @@
+given_name;family_name;display_name;club;club_abv;club_city;hema_ratings_id;email;date_of_birth;is_fighter;is_referee;is_workshop_participant
+Testy;McTestface;Testy McTestface;E2E Fencing Club;E2EFC;Testville;;testy@example.com;01/01/1990;1;0;0
+Ada;Lovelace;Ada Lovelace;E2E Fencing Club;E2EFC;Testville;;ada@example.com;;1;1;0
+Guy;Windsor;Guy Windsor;Auld Toon;ATA;Testville;;;;1;0;0
+Fiore;deiLiberi;Fiore dei Liberi;E2E Fencing Club;E2EFC;Testville;;;;1;0;0
+Joachim;Meyer;Joachim Meyer;Freifechter;FRF;Testville;;joachim@example.com;;1;0;1

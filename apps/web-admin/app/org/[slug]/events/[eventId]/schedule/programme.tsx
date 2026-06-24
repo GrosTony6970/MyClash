@@ -533,6 +533,7 @@ export function ProgrammePlanner({
         </div>
         <button
           onClick={() => void suggest()}
+          data-testid="schedule-suggest"
           disabled={suggesting}
           className="w-full bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
         >
@@ -692,6 +693,7 @@ export function ProgrammePlanner({
           </button>
           <button
             onClick={() => void confirmAndGenerate()}
+            data-testid="schedule-generate"
             disabled={generating || blocks.length === 0}
             className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-md text-sm"
           >
