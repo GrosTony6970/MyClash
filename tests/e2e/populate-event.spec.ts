@@ -1,5 +1,6 @@
 import { test, expect, type APIResponse } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { runContext } from './_context';
 
 /**
@@ -10,6 +11,10 @@ import { runContext } from './_context';
  *     deductive-afterblow scoring, pools scheduled in parallel across the 4
  *     lices, a bracket of 16
  *   - 25 referees registered + skilled + assigned across both tournaments' pools
+ *   - every pool match played with a realistic mix of clean hits, afterblows
+ *     and cards (yellow / red / occasional black-card forfeit) — so pools flip
+ *     to completed, standings populate, and the bracket of 16 auto-populates
+ *     with the real qualifiers
  *   - a workshop venue (3 areas) + 6 workshops scheduled into it at staggered
  *     times, each with a randomly-picked instructor; all published
  *   - tournaments + event published
@@ -17,8 +22,7 @@ import { runContext } from './_context';
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
  * skip it. By default this runs UNPACED (fast) assuming a whitelisted IP — set
  * E2E_PACE_MS (e.g. 550) to pace under the limit from a non-whitelisted IP. It
- * is gated off normal/CI runs. Pool matches are NOT played, so the bracket is
- * structure-only.
+ * is gated off normal/CI runs.
  */
 const POPULATE = ['1', 'true', 'yes'].includes((process.env.E2E_POPULATE ?? '').toLowerCase());
 const SKILLS = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
@@ -32,7 +36,7 @@ type Person = { id: string; givenName: string; familyName: string; globalPersonI
 
 test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ request }) => {
   test.skip(!POPULATE, 'set E2E_POPULATE=1 to populate a demo event');
-  test.setTimeout(600_000);
+  test.setTimeout(1_800_000);
 
   const { eventId, orgId, orgSlug, baseURL } = runContext();
   const api = (p: string) => `/api/v1/${p}`;
@@ -110,7 +114,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   console.log(`  ✓ ${liceIds.length} lices`);
 
-  // ── Build one tournament (structure only — matches not played) ────────────────
+  // ── Build one tournament (structure only — matches played later) ──────────────
   const buildTournament = async (
     name: string,
     weapon: string,
@@ -249,6 +253,164 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   console.log(`  ✓ assigned ${assigned} referee slots across ${allPoolIds.length} pools`);
 
+  // ── Play every pool match: clean hits, afterblows, cards ───────────────────────
+  // Scores are derived from exchanges; the API never infers the winner, so we
+  // set winnerRegistrationId explicitly and keep the winner clearly ahead on
+  // clean hits (5–2) regardless of how the ruleset nets the afterblow. A black
+  // card forfeits the match (opponent wins) and a 2nd black card for a fighter
+  // would DQ them tournament-wide — so black cards go to distinct fighters only
+  // and those matches skip the complete-PATCH (the forfeit already completed it).
+  type PwmMatch = {
+    id: string;
+    status: string;
+    red_registration_id: string | null;
+    blue_registration_id: string | null;
+  };
+  const iso = () => new Date().toISOString();
+  const exchange = (mid: string, body: Record<string, unknown>) =>
+    post(`matches/${mid}/exchanges`, {
+      data: { clientUuid: randomUUID(), occurredAt: iso(), ...body },
+    });
+  const penalty = (mid: string, body: Record<string, unknown>) =>
+    post(`matches/${mid}/penalties`, {
+      data: { clientUuid: randomUUID(), occurredAt: iso(), ...body },
+    });
+
+  const blackCarded = new Set<string>(); // registrations already black-carded (avoid 2nd → DQ)
+  let played = 0;
+  let exchangesPosted = 0;
+  let cardsPosted = 0;
+
+  const playMatch = async (m: PwmMatch, idx: number): Promise<void> => {
+    const red = m.red_registration_id;
+    const blue = m.blue_registration_id;
+    if (!red || !blue || m.status === 'completed') return; // bye or already played
+
+    await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
+
+    const winnerColor = idx % 2 === 0 ? 'red' : 'blue';
+    const loserColor = winnerColor === 'red' ? 'blue' : 'red';
+    const winnerReg = winnerColor === 'red' ? red : blue;
+    const loserReg = winnerColor === 'red' ? blue : red;
+
+    let seq = 1;
+    let clock = 12_000;
+    await exchange(m.id, {
+      sequence: seq++,
+      type: 'clean',
+      firstStrikerColor: winnerColor,
+      firstStrikeValue: 2,
+      clockTimeMs: clock,
+    });
+    clock += 30_000;
+    await exchange(m.id, {
+      sequence: seq++,
+      type: 'clean',
+      firstStrikerColor: winnerColor,
+      firstStrikeValue: 2,
+      clockTimeMs: clock,
+    });
+    clock += 30_000;
+    await exchange(m.id, {
+      sequence: seq++,
+      type: 'afterblow',
+      firstStrikerColor: winnerColor,
+      firstStrikeValue: 1,
+      afterblowValue: 1,
+      clockTimeMs: clock,
+    });
+    clock += 30_000;
+    await exchange(m.id, {
+      sequence: seq++,
+      type: 'clean',
+      firstStrikerColor: loserColor,
+      firstStrikeValue: 1,
+      clockTimeMs: clock,
+    });
+    exchangesPosted += 4;
+
+    // Cards mix (penalty sequence is numbered independently of exchanges).
+    let pseq = 1;
+    if (idx % 41 === 0 && !blackCarded.has(loserReg)) {
+      blackCarded.add(loserReg);
+      await penalty(m.id, {
+        sequence: pseq++,
+        registrationId: loserReg,
+        directCard: 'black',
+        reason: 'E2E demo: black card (forfeit)',
+        clockTimeMs: clock,
+      });
+      cardsPosted++;
+      played++;
+      return; // forfeit auto-completed the match (winner = opponent)
+    }
+    if (idx % 3 === 0) {
+      await penalty(m.id, {
+        sequence: pseq++,
+        registrationId: loserReg,
+        directCard: 'yellow',
+        reason: 'E2E demo: warning',
+        clockTimeMs: clock,
+      });
+      cardsPosted++;
+    }
+    if (idx % 7 === 0) {
+      await penalty(m.id, {
+        sequence: pseq++,
+        registrationId: loserReg,
+        directCard: 'red',
+        reason: 'E2E demo: penalty',
+        clockTimeMs: clock,
+      });
+      cardsPosted++;
+    }
+
+    await patch(`matches/${m.id}/status`, {
+      data: { status: 'completed', winnerRegistrationId: winnerReg },
+    });
+    played++;
+  };
+
+  for (const tid of tournamentIds) {
+    const pools = (await (
+      await reqOk(await get(`tournaments/${tid}/pools-with-matches`))
+    ).json()) as Array<{ matches?: PwmMatch[] }>;
+    const matches = pools.flatMap((p) => p.matches ?? []);
+    let idx = 0;
+    for (const m of matches) {
+      try {
+        await playMatch(m, idx);
+      } catch (e) {
+        console.log(`    ✗ match ${m.id.slice(0, 8)}: ${(e as Error).message}`);
+      }
+      idx++;
+    }
+  }
+  console.log(
+    `  ✓ played ${played} pool matches (${exchangesPosted} exchanges, ${cardsPosted} cards)`,
+  );
+
+  // Verify pools completed + standings populated (one query per tournament).
+  for (const tid of tournamentIds) {
+    const standings = (await (
+      await reqOk(await get(`tournaments/${tid}/pool-standings?mode=by-pool`))
+    ).json()) as {
+      pools?: Array<{
+        poolName: string;
+        status: string;
+        rows: Array<{ displayName: string }>;
+      }>;
+    };
+    const pools = standings.pools ?? [];
+    const done = pools.filter((p) => p.status === 'completed').length;
+    const leader = pools[0]?.rows?.[0];
+    console.log(
+      `  ✓ ${tid.slice(0, 8)}: ${done}/${pools.length} pools completed` +
+        (leader ? ` — ${pools[0].poolName} leader: ${leader.displayName}` : ''),
+    );
+    if (pools.length > 0) expect(done).toBe(pools.length);
+  }
+
   // ── Workshop venue + areas, then 6 scheduled workshops ─────────────────────────
   const venue = await step('create workshop venue', async () =>
     (
@@ -323,10 +485,11 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   console.log(
     `\n[e2e] populated demo data — inspect it:\n` +
       `        referees:    ${baseURL}/org/${orgSlug}/events/${eventId}/referees#assignments\n` +
-      `        tournaments: ${baseURL}/org/${orgSlug}/events/${eventId}/tournaments\n` +
+      `        tournaments: ${baseURL}/org/${orgSlug}/events/${eventId}/tournaments  (open one → Pools for scores/standings, Bracket for qualifiers)\n` +
       `        schedule:    ${baseURL}/org/${orgSlug}/events/${eventId}/schedule\n` +
       `        workshops:   ${baseURL}/org/${orgSlug}/events/${eventId}/workshops`,
   );
 
   expect(allPoolIds.length).toBeGreaterThan(0);
+  expect(played).toBeGreaterThan(0);
 });
