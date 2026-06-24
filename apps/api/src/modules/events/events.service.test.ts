@@ -46,6 +46,35 @@ function makeAwaitableChain(result: unknown) {
   return chain;
 }
 
+// Awaitable AND chainable AND terminable (maybeSingle/single/delete) — resolves
+// to `result` however the query ends. Handy for multi-query flows like the
+// ordered event teardown.
+function makeFullChain(result: unknown) {
+  const chain = Object.assign(Promise.resolve(result), {}) as Record<
+    string,
+    ReturnType<typeof vi.fn>
+  > &
+    Promise<unknown>;
+  for (const key of [
+    'select',
+    'eq',
+    'in',
+    'neq',
+    'order',
+    'is',
+    'or',
+    'limit',
+    'lt',
+    'delete',
+    'insert',
+  ]) {
+    (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+  }
+  (chain as unknown as Record<string, unknown>)['maybeSingle'] = vi.fn().mockResolvedValue(result);
+  (chain as unknown as Record<string, unknown>)['single'] = vi.fn().mockResolvedValue(result);
+  return chain as unknown as Record<string, ReturnType<typeof vi.fn>>;
+}
+
 describe('EventsService', () => {
   let service: EventsService;
 
@@ -63,8 +92,13 @@ describe('EventsService', () => {
       data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
       error: null,
     });
+    // No tournaments → the result-graph teardown is skipped.
+    const tournamentsChain = makeChain({ data: [], error: null });
     const deleteChain = makeChain({ data: null, error: null });
-    fromMock.mockReturnValueOnce(eventChain).mockReturnValueOnce(deleteChain);
+    fromMock
+      .mockReturnValueOnce(eventChain)
+      .mockReturnValueOnce(tournamentsChain)
+      .mockReturnValueOnce(deleteChain);
     assertOrgRole.mockResolvedValue(undefined);
 
     await expect(service.deleteEvent('event-1', 'hard', 'user-1')).resolves.toEqual({
@@ -74,6 +108,54 @@ describe('EventsService', () => {
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
     expect(deleteChain.delete).toHaveBeenCalled();
     expect(deleteChain.eq).toHaveBeenCalledWith('id', 'event-1');
+  });
+
+  it('hard delete refuses when the event has recorded match results', async () => {
+    const byTable: Record<string, unknown> = {
+      events: makeFullChain({
+        data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+        error: null,
+      }),
+      tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
+      phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
+      matches: makeFullChain({ count: 1, error: null }), // one match past 'scheduled'
+    };
+    fromMock.mockImplementation((table: string) => byTable[table]);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(service.deleteEvent('event-1', 'hard', 'user-1')).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('hard delete tears down forfeits/matches/registrations before deleting the event', async () => {
+    const eventsChain = makeFullChain({
+      data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
+      error: null,
+    });
+    const matchesChain = makeFullChain({ count: 0, data: [], error: null }); // scheduled-only
+    const forfeitsChain = makeFullChain({ data: null, error: null });
+    const registrationsChain = makeFullChain({ data: null, error: null });
+    const byTable: Record<string, unknown> = {
+      events: eventsChain,
+      tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
+      phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
+      matches: matchesChain,
+      match_forfeits: forfeitsChain,
+      registrations: registrationsChain,
+    };
+    fromMock.mockImplementation((table: string) => byTable[table]);
+    assertOrgRole.mockResolvedValue(undefined);
+
+    await expect(service.deleteEvent('event-1', 'hard', 'user-1')).resolves.toEqual({
+      deleted: true,
+      id: 'event-1',
+    });
+    // Result graph cleared in dependency order, then the event itself deleted.
+    expect(forfeitsChain['delete']).toHaveBeenCalled();
+    expect(matchesChain['delete']).toHaveBeenCalled();
+    expect(registrationsChain['delete']).toHaveBeenCalled();
+    expect(eventsChain['delete']).toHaveBeenCalled();
   });
 
   it('refuses event delete without explicit hard mode', async () => {
