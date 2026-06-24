@@ -11,9 +11,9 @@ const createEventSchema = z
       .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, digits, and hyphens'),
     startDate: z.string(),
     endDate: z.string(),
-    city: z.string().max(500).optional(),
+    city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
-    country: z.string().min(2).max(2).optional(),
+    country: z.string().min(2).max(2).nullable().optional(),
     publicLandingMd: z.string().optional(),
   })
   .strict();
@@ -22,9 +22,9 @@ export class CreateEventDto extends createZodDto(createEventSchema) {}
 const updateEventSchema = z
   .object({
     name: z.string().min(2).max(200).optional(),
-    city: z.string().max(500).optional(),
+    city: z.string().max(500).nullable().optional(),
     // ISO 3166-1 alpha-2 country code
-    country: z.string().min(2).max(2).optional(),
+    country: z.string().min(2).max(2).nullable().optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     // IANA timezone
