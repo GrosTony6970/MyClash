@@ -22,6 +22,9 @@ import { runContext } from './_context';
  */
 const POPULATE = ['1', 'true', 'yes'].includes((process.env.E2E_POPULATE ?? '').toLowerCase());
 const SKILLS = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
+const COLORS = ['red', 'blue', 'green', 'amber', 'violet', 'teal', 'orange', 'gold'];
+const WS_LEVELS = ['all', 'beginner', 'intermediate', 'advanced'];
+const WS_TOPICS = ['Longsword', 'Sidesword', 'Rapier', 'Sabre', 'Messer', 'Dagger'];
 const LOCAL_CSV = 'tests/e2e/fixtures/participants.local.csv';
 const SAMPLE_CSV = 'tests/e2e/fixtures/participants.sample.csv';
 
@@ -113,12 +116,13 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     weapon: string,
     fighters: Person[],
     startHour: string,
+    color: string,
   ): Promise<{ id: string; poolIds: string[] }> => {
     const t = await step(`create ${name}`, async () =>
       (
         await reqOk(
           await post(`events/${eventId}/tournaments`, {
-            data: { name, slug: `${weapon}-open-${tok}`, weapon },
+            data: { name, slug: `${weapon}-open-${tok}`, weapon, color },
           }),
         )
       ).json(),
@@ -184,8 +188,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     return { id: tournamentId, poolIds }; // publish later — published pools aren't editable
   };
 
-  const long = await buildTournament('Longsword Open', 'longsword', fightersA, '09');
-  const side = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13');
+  const long = await buildTournament('Longsword Open', 'longsword', fightersA, '09', 'red');
+  const side = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13', 'blue');
   const allPoolIds = [...long.poolIds, ...side.poolIds];
   const tournamentIds = [long.id, side.id].filter(Boolean);
 
@@ -277,6 +281,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
             slug: `demo-ws-${tok}-${i}`,
             title: `Demo Workshop ${i + 1}`,
             durationMinutes: 45,
+            level: WS_LEVELS[i % WS_LEVELS.length],
+            category: WS_TOPICS[i % WS_TOPICS.length], // no weapon field on workshops; use category
+            capacity: 12 + i * 2,
+            color: COLORS[i % COLORS.length],
             venueId,
           },
         }),
