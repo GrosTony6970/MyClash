@@ -41,6 +41,22 @@ your **real roster** at `fixtures/participants.local.csv` — it is git-ignored
 (contains PII) and picked up automatically. Only the synthetic
 `participants.sample.csv` is committed and used in CI.
 
+> To use the real roster, leave `E2E_PARTICIPANTS_CSV` **blank** in `.env.e2e`
+> (it auto-resolves to `participants.local.csv`). If it's set to the sample path,
+> the import uses the sample instead.
+
+## Populate a rich demo event (opt-in)
+
+`E2E_POPULATE=1 pnpm test:e2e:prod` additionally runs `populate-event.spec.ts`,
+which builds a fully-featured, **published** tournament + workshop in the test
+event: registers a fighter who is also a referee (with skills + pool
+assignment), runs the pool matches, creates + populates a bracket, tags an
+instructor, and creates + publishes a workshop. Each step logs `✓`/`✗` and the
+end prints links to the tournament / schedule / referees / workshops tabs.
+
+It **scores matches**, so the event can no longer be hard-deleted (by the
+recorded-results guard) — keep it for inspection or recreate the env.
+
 ## Status
 
 | Flow                              | Spec                          | State                                    |
