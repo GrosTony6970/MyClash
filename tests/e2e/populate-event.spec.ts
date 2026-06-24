@@ -3,26 +3,31 @@ import { runContext } from './_context';
 
 /**
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Into the preserved test
- * event it builds a rich, inspectable tournament + workshop: registers Anthony
- * Garnier as a fighter AND referee, assigns referee skills + a pool, runs the
- * pool matches, creates a bracket, tags an instructor, creates + publishes a
- * workshop, and publishes the tournament + event.
+ * event it builds a rich, inspectable, published tournament + workshop:
+ *   - registers 12 fighters (incl. Anthony Garnier) across several round-robin pools
+ *   - makes Anthony a referee too (skills + pool assignment)
+ *   - registers 25 more random referees, gives each all referee skills, and
+ *     assigns them across the pools (manual per-pool + auto-assign engine)
+ *   - runs all pool matches, then creates + populates a bracket
+ *   - tags an instructor, creates + publishes a workshop
+ *   - publishes the tournament + event
  *
- * Each step is best-effort and logged (✓/✗) so a single run surfaces everything
- * that worked vs. needs attention. Scoring matches makes the event un-hard-
- * deletable by design, so this is gated off normal/CI runs.
+ * Each step is best-effort and logged (✓/✗). Scoring matches makes the event
+ * un-hard-deletable by design, so this is gated off normal/CI runs.
  */
 const POPULATE = ['1', 'true', 'yes'].includes((process.env.E2E_POPULATE ?? '').toLowerCase());
+const SKILLS = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
 
 type Person = { id: string; givenName: string; familyName: string; globalPersonId: string | null };
 
-test('populate: rich tournament + referees + workshop + publish', async ({ request }) => {
+test('populate: rich tournament + 25 referees + workshop + publish', async ({ request }) => {
   test.skip(!POPULATE, 'set E2E_POPULATE=1 to populate a demo event');
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
 
   const { eventId, orgSlug, baseURL } = runContext();
   const api = (p: string) => `/api/v1/${p}`;
   const tok = Date.now().toString(36);
+  const gid = (p: Person) => p.globalPersonId ?? p.id; // referee assignments key on the global id
 
   const reqOk = async (res: APIResponse): Promise<APIResponse> => {
     if (!res.ok()) throw new Error(`${res.status()} ${(await res.text()).slice(0, 300)}`);
@@ -39,18 +44,14 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
     }
   };
 
-  // ── People ────────────────────────────────────────────────────────────────
+  // ── People ──────────────────────────────────────────────────────────────────
   const listPersons = async () =>
     (await (await reqOk(await request.get(api(`events/${eventId}/persons`)))).json()) as Person[];
   let persons = await listPersons();
-  // Standalone runs (no import spec) start empty — bootstrap a few, incl Anthony.
-  if (persons.length < 4) {
-    for (const [givenName, familyName] of [
-      ['Anthony', 'Garnier'],
-      ['Demo', 'Fighter A'],
-      ['Demo', 'Fighter B'],
-      ['Demo', 'Fighter C'],
-    ]) {
+  // Standalone runs (no import) start empty — bootstrap enough, incl. Anthony.
+  if (persons.length < 45) {
+    for (let i = persons.length; i < 45; i++) {
+      const [givenName, familyName] = i === 0 ? ['Anthony', 'Garnier'] : [`Demo${i}`, `Person${i}`];
       await request.post(api(`events/${eventId}/persons`), { data: { givenName, familyName } });
     }
     persons = await listPersons();
@@ -58,11 +59,13 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
   const anthony =
     persons.find((p) => /garnier/i.test(p.familyName) && /anthony/i.test(p.givenName)) ??
     persons[0];
-  const others = persons.filter((p) => p.id !== anthony.id).slice(0, 3);
-  const instructor = persons.find((p) => p.id !== anthony.id && !others.includes(p)) ?? others[0];
-  console.log(`  → fighters: ${anthony.givenName} ${anthony.familyName} + ${others.length} others`);
+  const rest = persons.filter((p) => p.id !== anthony.id);
+  const fighters = [anthony, ...rest.slice(0, 11)]; // 12 fighters incl. Anthony
+  const referees = rest.slice(11, 36); // 25 distinct referees
+  const instructor = rest[36] ?? rest[0];
+  console.log(`  → ${fighters.length} fighters, ${referees.length} referees`);
 
-  // ── Tournament + registrations ──────────────────────────────────────────────
+  // ── Tournament + fighters ─────────────────────────────────────────────────────
   const tournament = await step('create tournament', async () =>
     (
       await reqOk(
@@ -73,96 +76,125 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
     ).json(),
   );
   const tournamentId = tournament?.id as string | undefined;
-  if (!tournamentId) return; // nothing else makes sense without it
+  if (!tournamentId) return;
 
-  for (const p of [anthony, ...others]) {
-    await step(`register fighter ${p.familyName}`, async () =>
-      reqOk(
-        await request.post(api(`tournaments/${tournamentId}/registrations`), {
-          data: { personId: p.id },
-        }),
-      ),
-    );
+  let fReg = 0;
+  for (const p of fighters) {
+    const r = await request.post(api(`tournaments/${tournamentId}/registrations`), {
+      data: { personId: p.id },
+    });
+    if (r.ok()) fReg++;
   }
+  console.log(
+    `  ✓ registered ${fReg}/${fighters.length} fighters (incl. ${anthony.givenName} ${anthony.familyName})`,
+  );
 
-  // ── Anthony as referee + skills ─────────────────────────────────────────────
+  // ── Anthony as referee (he's also a fighter) ──────────────────────────────────
   await step('register Anthony as referee', async () =>
     reqOk(await request.post(api(`events/${eventId}/referees/${anthony.id}`))),
   );
-  await step('assign referee skill (declarant, 5)', async () =>
-    reqOk(
-      await request.put(api(`events/${eventId}/referee-qualifications`), {
-        data: {
-          personId: anthony.globalPersonId ?? anthony.id,
-          role: 'arbitre_declarant',
-          rating: 5,
-        },
-      }),
-    ),
-  );
 
-  // ── Pools + run the matches ─────────────────────────────────────────────────
+  // ── Pools ─────────────────────────────────────────────────────────────────────
   await step('generate pools', async () =>
     reqOk(
       await request.post(api(`tournaments/${tournamentId}/generate-pools`), {
-        data: { poolCount: 1 },
+        data: { targetSize: 4 },
       }),
     ),
   );
-
   const pwm = await step('load pools-with-matches', async () =>
     (await reqOk(await request.get(api(`tournaments/${tournamentId}/pools-with-matches`)))).json(),
   );
   const pools = (Array.isArray(pwm) ? pwm : (pwm?.pools ?? [])) as Array<Record<string, unknown>>;
-  const pool = pools[0];
-  const poolId = (pool?.['id'] ?? pool?.['pool_id']) as string | undefined;
-  const matches = ((pool?.['matches'] ?? []) as Array<Record<string, unknown>>).map((m) => ({
-    id: m['id'] as string,
-    red: (m['redRegistrationId'] ?? m['red_registration_id']) as string | undefined,
-  }));
+  const poolIds = pools
+    .map((p) => (p['poolId'] ?? p['id'] ?? p['pool_id']) as string)
+    .filter(Boolean);
+  const allMatches = pools.flatMap((p) =>
+    ((p['matches'] ?? []) as Array<Record<string, unknown>>).map((m) => ({
+      id: m['id'] as string,
+      red: (m['redRegistrationId'] ?? m['red_registration_id']) as string | undefined,
+    })),
+  );
+  console.log(`  → ${poolIds.length} pools, ${allMatches.length} matches`);
 
-  if (poolId) {
-    // person_id resolution for assignments is fuzzy across the schema — try the
-    // global id, fall back to the event person id.
-    await step('assign Anthony as pool referee', async () => {
-      const body = (id: string) => ({ data: { role: 'referee', refereeId: id } });
-      let res = await request.put(
-        api(`pools/${poolId}/referee-role-assignments`),
-        body(anthony.globalPersonId ?? anthony.id),
-      );
-      if (!res.ok() && anthony.globalPersonId) {
-        res = await request.put(api(`pools/${poolId}/referee-role-assignments`), body(anthony.id));
-      }
-      return reqOk(res);
+  // ── 25 referees: register, then resolve canonical (global) ids ─────────────────
+  let rReg = 0;
+  for (const r of referees) {
+    const reg = await request.post(api(`events/${eventId}/referees/${r.id}`));
+    if (reg.ok()) rReg++;
+  }
+  // Registration backfills each person's global id, which the qualification +
+  // assignment endpoints key on (imported rows list it null until then).
+  const globalOf = new Map((await listPersons()).map((p) => [p.id, p.globalPersonId ?? p.id]));
+  const refId = (p: Person) => globalOf.get(p.id) ?? gid(p);
+  console.log(`  ✓ registered ${rReg}/25 referees`);
+
+  // ── Skills: Anthony + the 25 (all three roles, random rating) ─────────────────
+  let rSkill = 0;
+  for (const r of [anthony, ...referees]) {
+    for (const role of SKILLS) {
+      const q = await request.put(api(`events/${eventId}/referee-qualifications`), {
+        data: { personId: refId(r), role, rating: 3 + Math.floor(Math.random() * 3) },
+      });
+      if (q.ok()) rSkill++;
+    }
+  }
+  console.log(`  ✓ granted ${rSkill} referee skills`);
+
+  // ── Assign referees across the pools (manual round-robin + auto-assign) ─────────
+  let assigned = 0;
+  let ri = 0;
+  for (const poolId of poolIds) {
+    for (const role of SKILLS) {
+      const ref = referees[ri % Math.max(referees.length, 1)];
+      ri++;
+      if (!ref) continue;
+      const res = await request.put(api(`pools/${poolId}/referee-role-assignments`), {
+        data: { role, refereeId: refId(ref) },
+      });
+      if (res.ok()) assigned++;
+    }
+  }
+  // Anthony is both a fighter AND a pool referee.
+  if (poolIds[0]) {
+    await request.put(api(`pools/${poolIds[0]}/referee-role-assignments`), {
+      data: { role: 'arbitre_declarant', refereeId: refId(anthony) },
     });
   }
+  console.log(`  ✓ assigned ${assigned} pool referee slots`);
+  await step('auto-assign referees (apply)', async () =>
+    reqOk(await request.post(api(`events/${eventId}/auto-assign-referees?dryRun=false`))),
+  );
 
+  // ── Run all pool matches ────────────────────────────────────────────────────────
   let played = 0;
-  for (const m of matches) {
+  for (const m of allMatches) {
     if (!m.id || !m.red) continue;
-    const ran = await step(`run match ${played + 1}`, async () => {
+    try {
       await reqOk(
         await request.patch(api(`matches/${m.id}/status`), { data: { status: 'running' } }),
       );
-      return reqOk(
+      await reqOk(
         await request.patch(api(`matches/${m.id}/status`), {
           data: { status: 'completed', winnerRegistrationId: m.red },
         }),
       );
-    });
-    if (ran) played++;
+      played++;
+    } catch {
+      /* best-effort */
+    }
   }
-  console.log(`  → ran ${played}/${matches.length} pool matches`);
+  console.log(`  ✓ ran ${played}/${allMatches.length} pool matches`);
 
-  // ── Bracket ─────────────────────────────────────────────────────────────────
+  // ── Bracket ─────────────────────────────────────────────────────────────────────
   await step('generate bracket', async () =>
     reqOk(
       await request.post(api(`tournaments/${tournamentId}/generate-bracket`), {
-        data: { phaseType: 'single_elim', qualifyCount: 4, bracketSize: 4 },
+        data: { phaseType: 'single_elim', qualifyCount: 8, bracketSize: 8 },
       }),
     ),
   );
-  await step('populate bracket (needs completed pools)', async () =>
+  await step('populate bracket', async () =>
     reqOk(
       await request.post(api(`tournaments/${tournamentId}/populate-bracket`), {
         data: { seedingMode: 'overall' },
@@ -170,7 +202,7 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
     ),
   );
 
-  // ── Instructor + workshop ────────────────────────────────────────────────────
+  // ── Instructor + workshop ─────────────────────────────────────────────────────────
   await step(`tag instructor ${instructor.familyName}`, async () =>
     reqOk(await request.post(api(`events/${eventId}/instructors/${instructor.id}`))),
   );
@@ -188,7 +220,7 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
     await step('add workshop instructor', async () =>
       reqOk(
         await request.post(api(`workshops/${workshopId}/instructors`), {
-          data: { globalPersonId: instructor.globalPersonId ?? instructor.id },
+          data: { globalPersonId: gid(instructor) },
         }),
       ),
     );
@@ -204,7 +236,7 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
     );
   }
 
-  // ── Publish ───────────────────────────────────────────────────────────────────
+  // ── Publish ───────────────────────────────────────────────────────────────────────
   await step('publish tournament', async () =>
     reqOk(await request.post(api(`tournaments/${tournamentId}/publish`))),
   );
@@ -214,9 +246,9 @@ test('populate: rich tournament + referees + workshop + publish', async ({ reque
 
   console.log(
     `\n[e2e] populated demo data — inspect it:\n` +
+      `        referees:   ${baseURL}/org/${orgSlug}/events/${eventId}/referees#assignments\n` +
       `        tournament: ${baseURL}/org/${orgSlug}/events/${eventId}/tournaments\n` +
       `        schedule:   ${baseURL}/org/${orgSlug}/events/${eventId}/schedule\n` +
-      `        referees:   ${baseURL}/org/${orgSlug}/events/${eventId}/referees\n` +
       `        workshops:  ${baseURL}/org/${orgSlug}/events/${eventId}/workshops`,
   );
 
