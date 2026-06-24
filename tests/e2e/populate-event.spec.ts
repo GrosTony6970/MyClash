@@ -10,7 +10,8 @@ import { runContext } from './_context';
  *     deductive-afterblow scoring, pools scheduled in parallel across the 4
  *     lices, a bracket of 16
  *   - 25 referees registered + skilled + assigned across both tournaments' pools
- *   - 6 workshops, each with a randomly-picked instructor; all published
+ *   - a workshop venue (3 areas) + 6 workshops scheduled into it at staggered
+ *     times, each with a randomly-picked instructor; all published
  *   - tournaments + event published
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
@@ -30,7 +31,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   test.skip(!POPULATE, 'set E2E_POPULATE=1 to populate a demo event');
   test.setTimeout(600_000);
 
-  const { eventId, orgSlug, baseURL } = runContext();
+  const { eventId, orgId, orgSlug, baseURL } = runContext();
   const api = (p: string) => `/api/v1/${p}`;
   const tok = Date.now().toString(36);
   const gid = (p: Person) => p.globalPersonId ?? p.id;
@@ -244,7 +245,28 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   console.log(`  ✓ assigned ${assigned} referee slots across ${allPoolIds.length} pools`);
 
-  // ── 6 workshops, each with a random instructor ─────────────────────────────────
+  // ── Workshop venue + areas, then 6 scheduled workshops ─────────────────────────
+  const venue = await step('create workshop venue', async () =>
+    (
+      await reqOk(
+        await post(`organizations/${orgId}/venues`, {
+          data: { name: `Workshop Hall ${tok}`, hostsWorkshop: true },
+        }),
+      )
+    ).json(),
+  );
+  const venueId = venue?.id as string | undefined;
+  const areaIds: string[] = [];
+  if (venueId) {
+    for (let i = 1; i <= 3; i++) {
+      const a = await post(`venues/${venueId}/areas`, {
+        data: { name: `Area ${i}`, sortOrder: i },
+      });
+      if (a.ok()) areaIds.push(((await a.json()) as { id: string }).id);
+    }
+  }
+  console.log(`  ✓ workshop venue + ${areaIds.length} areas`);
+
   let wMade = 0;
   for (let i = 0; i < 6; i++) {
     const instructor = instructors[i % Math.max(instructors.length, 1)];
@@ -254,7 +276,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
           data: {
             slug: `demo-ws-${tok}-${i}`,
             title: `Demo Workshop ${i + 1}`,
-            durationMinutes: 60,
+            durationMinutes: 45,
+            venueId,
           },
         }),
       );
@@ -265,8 +288,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
           data: { globalPersonId: refId(instructor) },
         });
       }
+      // Schedule each workshop into the venue/area at a staggered time slot.
+      const hour = String(9 + i).padStart(2, '0');
       await post(`workshops/${workshopId}/sessions`, {
-        data: { startTime: '2099-01-02T10:00:00Z', endTime: '2099-01-02T11:00:00Z' },
+        data: {
+          startTime: `2099-01-02T${hour}:00:00Z`,
+          endTime: `2099-01-02T${hour}:45:00Z`,
+          venueId,
+          areaId: areaIds.length ? areaIds[i % areaIds.length] : undefined,
+        },
       });
       await patch(`workshops/${workshopId}`, { data: { status: 'published' } });
       return true;
