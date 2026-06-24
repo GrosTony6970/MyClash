@@ -112,7 +112,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     weapon: string,
     fighters: Person[],
     startHour: string,
-  ): Promise<string[]> => {
+  ): Promise<{ id: string; poolIds: string[] }> => {
     const t = await step(`create ${name}`, async () =>
       (
         await reqOk(
@@ -123,7 +123,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       ).json(),
     );
     const tournamentId = t?.id as string | undefined;
-    if (!tournamentId) return [];
+    if (!tournamentId) return { id: '', poolIds: [] };
 
     await step(`${name}: deductive afterblow`, async () =>
       reqOk(
@@ -151,15 +151,26 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       .map((p) => (p['poolId'] ?? p['id'] ?? p['pool_id']) as string)
       .filter(Boolean);
 
-    // 4 pools across the 4 lices, all starting at the same time → parallel.
-    for (let i = 0; i < poolIds.length; i++) {
-      await post(`pools/${poolIds[i]}/reschedule`, {
-        data: {
-          liceId: liceIds[i % Math.max(liceIds.length, 1)],
-          startAtIso: `2099-01-01T${startHour}:00:00Z`,
-        },
-      });
-    }
+    // One competition block for this tournament's pool phase; programme/generate
+    // (after both tournaments) lays its matches across the 4 lices in parallel.
+    await step(`${name}: programme block`, async () =>
+      reqOk(
+        await post(`events/${eventId}/programme/blocks`, {
+          data: {
+            dayIndex: 0,
+            blockType: 'competition',
+            label: name,
+            startTime: `${startHour}:00`,
+            endTime: `${Number(startHour) + 4}:00`,
+            liceCount: liceIds.length,
+            matchGapSeconds: 30,
+            matchDurationMinutes: 5,
+            competitionId: tournamentId,
+            competitionPhase: 'pool',
+          },
+        }),
+      ),
+    );
 
     await step(`${name}: bracket of 16`, async () =>
       reqOk(
@@ -168,16 +179,29 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         }),
       ),
     );
-    await step(`${name}: publish`, async () =>
-      reqOk(await post(`tournaments/${tournamentId}/publish`)),
-    );
     console.log(`  → ${name}: ${reg} fighters, ${poolIds.length} pools, deductive afterblow`);
-    return poolIds;
+    return { id: tournamentId, poolIds }; // publish later — published pools aren't editable
   };
 
-  const poolsLong = await buildTournament('Longsword Open', 'longsword', fightersA, '09');
-  const poolsSide = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13');
-  const allPoolIds = [...poolsLong, ...poolsSide];
+  const long = await buildTournament('Longsword Open', 'longsword', fightersA, '09');
+  const side = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13');
+  const allPoolIds = [...long.poolIds, ...side.poolIds];
+  const tournamentIds = [long.id, side.id].filter(Boolean);
+
+  // Schedule both tournaments' pool matches across the 4 lices (parallel).
+  const gen = (await step('generate schedule across 4 lices', async () =>
+    (await reqOk(await post(`events/${eventId}/programme/generate`, { data: {} }))).json(),
+  )) as { matchesScheduled?: number; blockDiagnostics?: unknown } | null;
+  console.log(`    ↳ matchesScheduled: ${gen?.matchesScheduled}`);
+
+  // generate() times the matches but fans each pool across all lices; the
+  // assignment board wants one pool per lice (one referee per pool), so pin
+  // each pool to a single lice (round-robin → 4 lices in parallel).
+  for (let i = 0; i < allPoolIds.length; i++) {
+    await put(`pools/${allPoolIds[i]}/lice`, {
+      data: { liceId: liceIds[i % Math.max(liceIds.length, 1)] },
+    });
+  }
 
   // ── 25 referees: register → resolve global ids → skills → assign ───────────────
   let rReg = 0;
@@ -191,14 +215,18 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
 
   let rSkill = 0;
   for (const r of referees) {
-    const role = SKILLS[Math.floor(Math.random() * SKILLS.length)];
-    const q = await put(`events/${eventId}/referee-qualifications`, {
-      data: { personId: refId(r), role, rating: 3 + Math.floor(Math.random() * 3) },
-    });
-    if (q.ok()) rSkill++;
+    for (const role of SKILLS) {
+      const q = await put(`events/${eventId}/referee-qualifications`, {
+        data: { personId: refId(r), role, rating: 3 + Math.floor(Math.random() * 3) },
+      });
+      if (q.ok()) rSkill++;
+    }
   }
   console.log(`  ✓ granted ${rSkill} referee skills`);
 
+  // Assign referees to each pool's role slots via the board's manual-assign
+  // endpoint (the "click a slot → pick a referee" tab action). Round-robin the
+  // 25 referees across 8 pools × 3 roles.
   let assigned = 0;
   let ri = 0;
   for (const poolId of allPoolIds) {
@@ -206,16 +234,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       const ref = referees[ri % Math.max(referees.length, 1)];
       ri++;
       if (!ref) continue;
-      const res = await put(`pools/${poolId}/referee-role-assignments`, {
-        data: { role, refereeId: refId(ref) },
+      const res = await post(`events/${eventId}/referee-assignments`, {
+        data: { poolId, role, personId: refId(ref) },
       });
       if (res.ok()) assigned++;
+      else if (assigned === 0 && ri <= 2)
+        console.log(`    ↳ assign failed: ${res.status()} ${(await res.text()).slice(0, 200)}`);
     }
   }
-  console.log(`  ✓ assigned ${assigned} pool referee slots across ${allPoolIds.length} pools`);
-  await step('auto-assign referees (apply)', async () =>
-    reqOk(await post(`events/${eventId}/auto-assign-referees?dryRun=false`)),
-  );
+  console.log(`  ✓ assigned ${assigned} referee slots across ${allPoolIds.length} pools`);
 
   // ── 6 workshops, each with a random instructor ─────────────────────────────────
   let wMade = 0;
@@ -248,6 +275,11 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   }
   console.log(`  ✓ ${wMade}/6 workshops published`);
 
+  for (const id of tournamentIds) {
+    await step(`publish tournament ${id.slice(0, 8)}`, async () =>
+      reqOk(await post(`tournaments/${id}/publish`)),
+    );
+  }
   await step('publish event', async () => reqOk(await post(`events/${eventId}/publish`)));
 
   console.log(
