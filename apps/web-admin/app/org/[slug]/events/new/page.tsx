@@ -352,6 +352,7 @@ function Step2({
         <button
           type="button"
           role="tab"
+          data-testid="venue-mode-new"
           aria-selected={state.venueMode === 'new'}
           onClick={() => dispatch({ type: 'SET_VENUE_MODE', mode: 'new' })}
           className={[
@@ -464,6 +465,7 @@ function Step2({
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
+                data-testid="venue-hosts-tournament"
                 checked={state.newVenueHostsTournament}
                 onChange={(event) =>
                   dispatch({
@@ -1137,13 +1139,14 @@ export default function NewEventPage() {
         </Button>
 
         {state.step < 4 ? (
-          <Button type="button" variant="next" onClick={handleNext}>
+          <Button type="button" variant="next" data-testid="wizard-next" onClick={handleNext}>
             {t('organizer.newEvent.next')}
           </Button>
         ) : (
           <Button
             type="button"
             variant="next"
+            data-testid="wizard-create"
             onClick={() => void handleCreate()}
             disabled={state.submitting}
             loading={state.submitting}

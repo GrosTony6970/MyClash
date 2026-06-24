@@ -2,31 +2,67 @@ import { test, expect } from '@playwright/test';
 import { runContext } from './_context';
 
 /**
- * Event-creation wizard coverage.
- *
- * NOTE: the create-event API itself is already exercised every run by
- * global-setup. This spec covers the *UI* wizard. Step 1 (basics) is verified
- * here; the full happy path (venue + lices step, review, create, then API
- * hard-delete of the created event) is scaffolded below and finalized during
- * the interactive Playwright-MCP validation pass, which confirms the venue/lice
- * step selectors and the IsoDatePicker fill behaviour.
+ * Event-creation wizard (full UI). The create-event API is also exercised every
+ * run by global-setup; this covers the 4-step wizard end to end and cleans up
+ * the event it creates (a separate event from the shared throwaway one).
+ * Locale-proof: targets ids/testids and the date-picker's numeric day cells
+ * rather than i18n button text.
  */
 test('event wizard: step 1 basics renders and accepts input', async ({ page }) => {
   const { orgSlug } = runContext();
 
   await page.goto(`/org/${orgSlug}/events/new`);
 
-  // Step 1 fields carry stable ids (#wizard-event-name, #wizard-event-slug, …).
   const name = page.locator('#wizard-event-name');
   await expect(name).toBeVisible();
   await name.fill('E2E Wizard Event');
-  // Slug auto-derives from the name.
   await expect(page.locator('#wizard-event-slug')).toHaveValue(/e2e-wizard-event/);
 });
 
-// eslint-disable-next-line no-empty-pattern
-test.fixme('event wizard: full happy path creates and cleans up an event', async ({}) => {
-  // TODO(live-validation): fill dates (IsoDatePicker), advance to the venue
-  // step, add a lice, complete review, click Create, capture the new eventId
-  // from the URL, then DELETE /api/v1/events/:id?mode=hard to clean up.
+test('event wizard: full happy path creates and cleans up an event', async ({ page, request }) => {
+  const { orgSlug } = runContext();
+
+  // Robust against both the current and future deploys: prefer the data-testid
+  // added in this change; fall back to the live build's controls (English text
+  // / DOM order) until those testids ship.
+  const next = page
+    .getByTestId('wizard-next')
+    .or(page.getByRole('button', { name: 'Next', exact: true }));
+
+  await page.goto(`/org/${orgSlug}/events/new`);
+
+  // Step 1 — basics. Unique slug avoids cross-run collisions. Dates come from
+  // the calendar popover (day cells are locale-independent numbers).
+  await page.locator('#wizard-event-name').fill('E2E Full Wizard');
+  await page.locator('#wizard-event-slug').fill(`e2e-full-wizard-${Date.now().toString(36)}`);
+  await page.locator('#wizard-start-date').click();
+  await page.getByRole('button', { name: '15', exact: true }).click();
+  await page.locator('#wizard-end-date').click();
+  await page.getByRole('button', { name: '20', exact: true }).click();
+  await next.click();
+
+  // Step 2 — venue & lices. New venue + tournament capability; lices are
+  // pre-filled (Lice 1/2), which already satisfies step-2 validation.
+  await page.getByTestId('venue-mode-new').or(page.getByRole('tab').nth(1)).click();
+  await page.locator('#wizard-venue-name').fill('E2E Venue');
+  const hostsTournament = page
+    .getByTestId('venue-hosts-tournament')
+    .or(page.getByRole('checkbox').first());
+  if (!(await hostsTournament.isChecked())) await hostsTournament.check();
+  await next.click();
+
+  // Step 3 — theme (no required fields) → Step 4 — review → create.
+  await next.click();
+  await page
+    .getByTestId('wizard-create')
+    .or(page.getByRole('button', { name: /create/i }))
+    .click();
+
+  // Success redirects to /org/:slug/events/:eventId — capture and hard-delete.
+  await page.waitForURL(/\/org\/[^/]+\/events\/[0-9a-f-]{36}(\/|\?|$)/i, { timeout: 20_000 });
+  const eventId = page.url().split('/events/')[1].split(/[/?#]/)[0];
+  expect(eventId).toMatch(/^[0-9a-f-]{36}$/i);
+
+  const del = await request.delete(`/api/v1/events/${eventId}?mode=hard`);
+  expect(del.ok()).toBeTruthy();
 });
