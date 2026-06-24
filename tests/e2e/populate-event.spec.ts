@@ -1,36 +1,59 @@
 import { test, expect, type APIResponse } from '@playwright/test';
+import { existsSync, readFileSync } from 'node:fs';
 import { runContext } from './_context';
 
 /**
- * Opt-in demo-data populator (run with E2E_POPULATE=1). Into the preserved test
- * event it builds a rich, inspectable, published tournament + workshop:
- *   - registers 12 fighters (incl. Anthony Garnier) across several round-robin pools
- *   - makes Anthony a referee too (skills + pool assignment)
- *   - registers 25 more random referees, gives each all referee skills, and
- *     assigns them across the pools (manual per-pool + auto-assign engine)
- *   - runs all pool matches, then creates + populates a bracket
- *   - tags an instructor, creates + publishes a workshop
- *   - publishes the tournament + event
+ * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
+ * inspectable, published event:
+ *   - imports the roster (if the event is empty), 4 lices
+ *   - 2 tournaments (Longsword Open, Sidesword Open): 32 fighters, 4 pools,
+ *     deductive-afterblow scoring, pools scheduled in parallel across the 4
+ *     lices, a bracket of 16
+ *   - 25 referees registered + skilled + assigned across both tournaments' pools
+ *   - 6 workshops, each with a randomly-picked instructor; all published
+ *   - tournaments + event published
  *
- * Each step is best-effort and logged (✓/✗). Scoring matches makes the event
- * un-hard-deletable by design, so this is gated off normal/CI runs.
+ * The API throttles writes per IP; whitelisted IPs (the organizer's network)
+ * skip it. By default this runs UNPACED (fast) assuming a whitelisted IP — set
+ * E2E_PACE_MS (e.g. 550) to pace under the limit from a non-whitelisted IP. It
+ * is gated off normal/CI runs. Pool matches are NOT played, so the bracket is
+ * structure-only.
  */
 const POPULATE = ['1', 'true', 'yes'].includes((process.env.E2E_POPULATE ?? '').toLowerCase());
 const SKILLS = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
+const LOCAL_CSV = 'tests/e2e/fixtures/participants.local.csv';
+const SAMPLE_CSV = 'tests/e2e/fixtures/participants.sample.csv';
 
 type Person = { id: string; givenName: string; familyName: string; globalPersonId: string | null };
 
-test('populate: rich tournament + 25 referees + workshop + publish', async ({ request }) => {
+test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ request }) => {
   test.skip(!POPULATE, 'set E2E_POPULATE=1 to populate a demo event');
-  test.setTimeout(240_000);
+  test.setTimeout(600_000);
 
   const { eventId, orgSlug, baseURL } = runContext();
   const api = (p: string) => `/api/v1/${p}`;
   const tok = Date.now().toString(36);
-  const gid = (p: Person) => p.globalPersonId ?? p.id; // referee assignments key on the global id
+  const gid = (p: Person) => p.globalPersonId ?? p.id;
+
+  // Pace requests only when asked (E2E_PACE_MS); a whitelisted IP needs none.
+  let lastAt = 0;
+  const MIN_MS = Number(process.env.E2E_PACE_MS ?? '0') || 0;
+  const paced = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const wait = lastAt + MIN_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastAt = Date.now();
+    return fn();
+  };
+  const get = (u: string) => paced(() => request.get(api(u)));
+  const post = (u: string, o?: Parameters<typeof request.post>[1]) =>
+    paced(() => request.post(api(u), o));
+  const put = (u: string, o?: Parameters<typeof request.put>[1]) =>
+    paced(() => request.put(api(u), o));
+  const patch = (u: string, o?: Parameters<typeof request.patch>[1]) =>
+    paced(() => request.patch(api(u), o));
 
   const reqOk = async (res: APIResponse): Promise<APIResponse> => {
-    if (!res.ok()) throw new Error(`${res.status()} ${(await res.text()).slice(0, 300)}`);
+    if (!res.ok()) throw new Error(`${res.status()} ${(await res.text()).slice(0, 200)}`);
     return res;
   };
   const step = async <T>(label: string, fn: () => Promise<T>): Promise<T | null> => {
@@ -43,214 +66,197 @@ test('populate: rich tournament + 25 referees + workshop + publish', async ({ re
       return null;
     }
   };
-
-  // ── People ──────────────────────────────────────────────────────────────────
   const listPersons = async () =>
-    (await (await reqOk(await request.get(api(`events/${eventId}/persons`)))).json()) as Person[];
+    (await (await reqOk(await get(`events/${eventId}/persons`))).json()) as Person[];
+
+  // ── People: import the roster if the event is empty (1 request) ───────────────
   let persons = await listPersons();
-  // Standalone runs (no import) start empty — bootstrap enough, incl. Anthony.
-  if (persons.length < 45) {
-    for (let i = persons.length; i < 45; i++) {
-      const [givenName, familyName] = i === 0 ? ['Anthony', 'Garnier'] : [`Demo${i}`, `Person${i}`];
-      await request.post(api(`events/${eventId}/persons`), { data: { givenName, familyName } });
-    }
+  if (persons.length < 95) {
+    const csv = existsSync(LOCAL_CSV)
+      ? LOCAL_CSV
+      : (process.env.E2E_PARTICIPANTS_CSV ?? SAMPLE_CSV);
+    await step(`import roster (${csv})`, async () =>
+      reqOk(
+        await post(`events/${eventId}/persons/import`, {
+          multipart: {
+            file: { name: 'roster.csv', mimeType: 'text/csv', buffer: readFileSync(csv) },
+          },
+        }),
+      ),
+    );
     persons = await listPersons();
   }
   const anthony =
     persons.find((p) => /garnier/i.test(p.familyName) && /anthony/i.test(p.givenName)) ??
     persons[0];
   const rest = persons.filter((p) => p.id !== anthony.id);
-  const fighters = [anthony, ...rest.slice(0, 11)]; // 12 fighters incl. Anthony
-  const referees = rest.slice(11, 36); // 25 distinct referees
-  const instructor = rest[36] ?? rest[0];
-  console.log(`  → ${fighters.length} fighters, ${referees.length} referees`);
-
-  // ── Tournament + fighters ─────────────────────────────────────────────────────
-  const tournament = await step('create tournament', async () =>
-    (
-      await reqOk(
-        await request.post(api(`events/${eventId}/tournaments`), {
-          data: { name: `Demo Cup ${tok}`, slug: `demo-cup-${tok}`, weapon: 'longsword' },
-        }),
-      )
-    ).json(),
-  );
-  const tournamentId = tournament?.id as string | undefined;
-  if (!tournamentId) return;
-
-  let fReg = 0;
-  for (const p of fighters) {
-    const r = await request.post(api(`tournaments/${tournamentId}/registrations`), {
-      data: { personId: p.id },
-    });
-    if (r.ok()) fReg++;
-  }
+  const fightersA = [anthony, ...rest.slice(0, 31)]; // 32, Longsword (incl. Anthony)
+  const fightersB = rest.slice(31, 63); // 32, Sidesword
+  const referees = rest.slice(63, 88); // 25
+  const instructors = rest.slice(88, 94); // 6
   console.log(
-    `  ✓ registered ${fReg}/${fighters.length} fighters (incl. ${anthony.givenName} ${anthony.familyName})`,
+    `  → ${persons.length} persons: ${fightersA.length}+${fightersB.length} fighters, ${referees.length} referees, ${instructors.length} instructors`,
   );
 
-  // ── Anthony as referee (he's also a fighter) ──────────────────────────────────
-  await step('register Anthony as referee', async () =>
-    reqOk(await request.post(api(`events/${eventId}/referees/${anthony.id}`))),
-  );
+  // ── 4 lices ──────────────────────────────────────────────────────────────────
+  const liceIds: string[] = [];
+  for (let i = 1; i <= 4; i++) {
+    const r = await post(`events/${eventId}/lices`, { data: { name: `Piste ${i}` } });
+    if (r.ok()) liceIds.push(((await r.json()) as { id: string }).id);
+  }
+  console.log(`  ✓ ${liceIds.length} lices`);
 
-  // ── Pools ─────────────────────────────────────────────────────────────────────
-  await step('generate pools', async () =>
-    reqOk(
-      await request.post(api(`tournaments/${tournamentId}/generate-pools`), {
-        data: { targetSize: 4 },
-      }),
-    ),
-  );
-  const pwm = await step('load pools-with-matches', async () =>
-    (await reqOk(await request.get(api(`tournaments/${tournamentId}/pools-with-matches`)))).json(),
-  );
-  const pools = (Array.isArray(pwm) ? pwm : (pwm?.pools ?? [])) as Array<Record<string, unknown>>;
-  const poolIds = pools
-    .map((p) => (p['poolId'] ?? p['id'] ?? p['pool_id']) as string)
-    .filter(Boolean);
-  const allMatches = pools.flatMap((p) =>
-    ((p['matches'] ?? []) as Array<Record<string, unknown>>).map((m) => ({
-      id: m['id'] as string,
-      red: (m['redRegistrationId'] ?? m['red_registration_id']) as string | undefined,
-    })),
-  );
-  console.log(`  → ${poolIds.length} pools, ${allMatches.length} matches`);
+  // ── Build one tournament (structure only — matches not played) ────────────────
+  const buildTournament = async (
+    name: string,
+    weapon: string,
+    fighters: Person[],
+    startHour: string,
+  ): Promise<string[]> => {
+    const t = await step(`create ${name}`, async () =>
+      (
+        await reqOk(
+          await post(`events/${eventId}/tournaments`, {
+            data: { name, slug: `${weapon}-open-${tok}`, weapon },
+          }),
+        )
+      ).json(),
+    );
+    const tournamentId = t?.id as string | undefined;
+    if (!tournamentId) return [];
 
-  // ── 25 referees: register, then resolve canonical (global) ids ─────────────────
+    await step(`${name}: deductive afterblow`, async () =>
+      reqOk(
+        await patch(`tournaments/${tournamentId}`, {
+          data: { scoringConfig: { afterblowMode: 'deductive' } },
+        }),
+      ),
+    );
+
+    let reg = 0;
+    for (const p of fighters) {
+      const r = await post(`tournaments/${tournamentId}/registrations`, {
+        data: { personId: p.id },
+      });
+      if (r.ok()) reg++;
+    }
+    await step(`${name}: 4 pools`, async () =>
+      reqOk(await post(`tournaments/${tournamentId}/generate-pools`, { data: { poolCount: 4 } })),
+    );
+
+    const pwm = (await (
+      await reqOk(await get(`tournaments/${tournamentId}/pools-with-matches`))
+    ).json()) as Array<Record<string, unknown>>;
+    const poolIds = pwm
+      .map((p) => (p['poolId'] ?? p['id'] ?? p['pool_id']) as string)
+      .filter(Boolean);
+
+    // 4 pools across the 4 lices, all starting at the same time → parallel.
+    for (let i = 0; i < poolIds.length; i++) {
+      await post(`pools/${poolIds[i]}/reschedule`, {
+        data: {
+          liceId: liceIds[i % Math.max(liceIds.length, 1)],
+          startAtIso: `2099-01-01T${startHour}:00:00Z`,
+        },
+      });
+    }
+
+    await step(`${name}: bracket of 16`, async () =>
+      reqOk(
+        await post(`tournaments/${tournamentId}/generate-bracket`, {
+          data: { phaseType: 'single_elim', qualifyCount: 16, bracketSize: 16 },
+        }),
+      ),
+    );
+    await step(`${name}: publish`, async () =>
+      reqOk(await post(`tournaments/${tournamentId}/publish`)),
+    );
+    console.log(`  → ${name}: ${reg} fighters, ${poolIds.length} pools, deductive afterblow`);
+    return poolIds;
+  };
+
+  const poolsLong = await buildTournament('Longsword Open', 'longsword', fightersA, '09');
+  const poolsSide = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13');
+  const allPoolIds = [...poolsLong, ...poolsSide];
+
+  // ── 25 referees: register → resolve global ids → skills → assign ───────────────
   let rReg = 0;
   for (const r of referees) {
-    const reg = await request.post(api(`events/${eventId}/referees/${r.id}`));
+    const reg = await post(`events/${eventId}/referees/${r.id}`);
     if (reg.ok()) rReg++;
   }
-  // Registration backfills each person's global id, which the qualification +
-  // assignment endpoints key on (imported rows list it null until then).
   const globalOf = new Map((await listPersons()).map((p) => [p.id, p.globalPersonId ?? p.id]));
   const refId = (p: Person) => globalOf.get(p.id) ?? gid(p);
   console.log(`  ✓ registered ${rReg}/25 referees`);
 
-  // ── Skills: Anthony + the 25 (all three roles, random rating) ─────────────────
   let rSkill = 0;
-  for (const r of [anthony, ...referees]) {
-    for (const role of SKILLS) {
-      const q = await request.put(api(`events/${eventId}/referee-qualifications`), {
-        data: { personId: refId(r), role, rating: 3 + Math.floor(Math.random() * 3) },
-      });
-      if (q.ok()) rSkill++;
-    }
+  for (const r of referees) {
+    const role = SKILLS[Math.floor(Math.random() * SKILLS.length)];
+    const q = await put(`events/${eventId}/referee-qualifications`, {
+      data: { personId: refId(r), role, rating: 3 + Math.floor(Math.random() * 3) },
+    });
+    if (q.ok()) rSkill++;
   }
   console.log(`  ✓ granted ${rSkill} referee skills`);
 
-  // ── Assign referees across the pools (manual round-robin + auto-assign) ─────────
   let assigned = 0;
   let ri = 0;
-  for (const poolId of poolIds) {
+  for (const poolId of allPoolIds) {
     for (const role of SKILLS) {
       const ref = referees[ri % Math.max(referees.length, 1)];
       ri++;
       if (!ref) continue;
-      const res = await request.put(api(`pools/${poolId}/referee-role-assignments`), {
+      const res = await put(`pools/${poolId}/referee-role-assignments`, {
         data: { role, refereeId: refId(ref) },
       });
       if (res.ok()) assigned++;
     }
   }
-  // Anthony is both a fighter AND a pool referee.
-  if (poolIds[0]) {
-    await request.put(api(`pools/${poolIds[0]}/referee-role-assignments`), {
-      data: { role: 'arbitre_declarant', refereeId: refId(anthony) },
-    });
-  }
-  console.log(`  ✓ assigned ${assigned} pool referee slots`);
+  console.log(`  ✓ assigned ${assigned} pool referee slots across ${allPoolIds.length} pools`);
   await step('auto-assign referees (apply)', async () =>
-    reqOk(await request.post(api(`events/${eventId}/auto-assign-referees?dryRun=false`))),
+    reqOk(await post(`events/${eventId}/auto-assign-referees?dryRun=false`)),
   );
 
-  // ── Run all pool matches ────────────────────────────────────────────────────────
-  let played = 0;
-  for (const m of allMatches) {
-    if (!m.id || !m.red) continue;
-    try {
-      await reqOk(
-        await request.patch(api(`matches/${m.id}/status`), { data: { status: 'running' } }),
-      );
-      await reqOk(
-        await request.patch(api(`matches/${m.id}/status`), {
-          data: { status: 'completed', winnerRegistrationId: m.red },
+  // ── 6 workshops, each with a random instructor ─────────────────────────────────
+  let wMade = 0;
+  for (let i = 0; i < 6; i++) {
+    const instructor = instructors[i % Math.max(instructors.length, 1)];
+    const ok = await step(`workshop ${i + 1}`, async () => {
+      const res = await reqOk(
+        await post(`events/${eventId}/workshops`, {
+          data: {
+            slug: `demo-ws-${tok}-${i}`,
+            title: `Demo Workshop ${i + 1}`,
+            durationMinutes: 60,
+          },
         }),
       );
-      played++;
-    } catch {
-      /* best-effort */
-    }
+      const workshopId = ((await res.json()) as { id: string }).id;
+      if (instructor) {
+        await post(`events/${eventId}/instructors/${instructor.id}`);
+        await post(`workshops/${workshopId}/instructors`, {
+          data: { globalPersonId: refId(instructor) },
+        });
+      }
+      await post(`workshops/${workshopId}/sessions`, {
+        data: { startTime: '2099-01-02T10:00:00Z', endTime: '2099-01-02T11:00:00Z' },
+      });
+      await patch(`workshops/${workshopId}`, { data: { status: 'published' } });
+      return true;
+    });
+    if (ok) wMade++;
   }
-  console.log(`  ✓ ran ${played}/${allMatches.length} pool matches`);
+  console.log(`  ✓ ${wMade}/6 workshops published`);
 
-  // ── Bracket ─────────────────────────────────────────────────────────────────────
-  await step('generate bracket', async () =>
-    reqOk(
-      await request.post(api(`tournaments/${tournamentId}/generate-bracket`), {
-        data: { phaseType: 'single_elim', qualifyCount: 8, bracketSize: 8 },
-      }),
-    ),
-  );
-  await step('populate bracket', async () =>
-    reqOk(
-      await request.post(api(`tournaments/${tournamentId}/populate-bracket`), {
-        data: { seedingMode: 'overall' },
-      }),
-    ),
-  );
-
-  // ── Instructor + workshop ─────────────────────────────────────────────────────────
-  await step(`tag instructor ${instructor.familyName}`, async () =>
-    reqOk(await request.post(api(`events/${eventId}/instructors/${instructor.id}`))),
-  );
-  const workshop = await step('create workshop', async () =>
-    (
-      await reqOk(
-        await request.post(api(`events/${eventId}/workshops`), {
-          data: { slug: `demo-ws-${tok}`, title: `Demo Workshop ${tok}`, durationMinutes: 60 },
-        }),
-      )
-    ).json(),
-  );
-  const workshopId = workshop?.id as string | undefined;
-  if (workshopId) {
-    await step('add workshop instructor', async () =>
-      reqOk(
-        await request.post(api(`workshops/${workshopId}/instructors`), {
-          data: { globalPersonId: gid(instructor) },
-        }),
-      ),
-    );
-    await step('schedule workshop session', async () =>
-      reqOk(
-        await request.post(api(`workshops/${workshopId}/sessions`), {
-          data: { startTime: '2099-01-01T10:00:00Z', endTime: '2099-01-01T11:00:00Z' },
-        }),
-      ),
-    );
-    await step('publish workshop', async () =>
-      reqOk(await request.patch(api(`workshops/${workshopId}`), { data: { status: 'published' } })),
-    );
-  }
-
-  // ── Publish ───────────────────────────────────────────────────────────────────────
-  await step('publish tournament', async () =>
-    reqOk(await request.post(api(`tournaments/${tournamentId}/publish`))),
-  );
-  await step('publish event', async () =>
-    reqOk(await request.post(api(`events/${eventId}/publish`))),
-  );
+  await step('publish event', async () => reqOk(await post(`events/${eventId}/publish`)));
 
   console.log(
     `\n[e2e] populated demo data — inspect it:\n` +
-      `        referees:   ${baseURL}/org/${orgSlug}/events/${eventId}/referees#assignments\n` +
-      `        tournament: ${baseURL}/org/${orgSlug}/events/${eventId}/tournaments\n` +
-      `        schedule:   ${baseURL}/org/${orgSlug}/events/${eventId}/schedule\n` +
-      `        workshops:  ${baseURL}/org/${orgSlug}/events/${eventId}/workshops`,
+      `        referees:    ${baseURL}/org/${orgSlug}/events/${eventId}/referees#assignments\n` +
+      `        tournaments: ${baseURL}/org/${orgSlug}/events/${eventId}/tournaments\n` +
+      `        schedule:    ${baseURL}/org/${orgSlug}/events/${eventId}/schedule\n` +
+      `        workshops:   ${baseURL}/org/${orgSlug}/events/${eventId}/workshops`,
   );
 
-  expect(tournamentId).toBeTruthy();
+  expect(allPoolIds.length).toBeGreaterThan(0);
 });
