@@ -778,6 +778,13 @@ export class EventsService {
       tournamentIds,
       'This event has recorded match results. Submit a deletion request instead of a hard delete.',
     );
+    // Clear referee assignments up-front: deleting their matches/pools/lices would
+    // SET NULL the scope columns and violate referee_assignments_scope_check.
+    const { error: raErr } = await this.supabase.service
+      .from('referee_assignments')
+      .delete()
+      .eq('event_id', eventId);
+    if (raErr) throw new BadRequestException(raErr.message);
     await this.clearTournamentResultGraph(tournamentIds);
 
     const { error } = await this.supabase.service.from('events').delete().eq('id', eventId);
@@ -2153,11 +2160,24 @@ export class EventsService {
       .in('tournament_id', tournamentIds);
     const phaseIds = ((phases ?? []) as Array<{ id: string }>).map((p) => p.id);
 
+    const idsIn = async (table: string, column: string, values: string[]) => {
+      if (values.length === 0) return [] as string[];
+      const { data } = await this.supabase.service.from(table).select('id').in(column, values);
+      return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+    };
     const purge = async (table: string, column: string, values: string[]) => {
       if (values.length === 0) return;
       const { error } = await this.supabase.service.from(table).delete().in(column, values);
       if (error) throw new BadRequestException(error.message);
     };
+
+    // Referee assignments reference pools/matches with ON DELETE SET NULL; the
+    // null-out would violate referee_assignments_scope_check, so clear them first.
+    const poolIds = await idsIn('pools', 'phase_id', phaseIds);
+    const matchIds = await idsIn('matches', 'phase_id', phaseIds);
+    await purge('referee_assignments', 'pool_id', poolIds);
+    await purge('referee_assignments', 'match_id', matchIds);
+
     await purge('match_forfeits', 'tournament_id', tournamentIds);
     await purge('matches', 'phase_id', phaseIds);
     await purge('registrations', 'tournament_id', tournamentIds);

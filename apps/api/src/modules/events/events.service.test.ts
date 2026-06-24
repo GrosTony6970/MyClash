@@ -94,10 +94,12 @@ describe('EventsService', () => {
     });
     // No tournaments → the result-graph teardown is skipped.
     const tournamentsChain = makeChain({ data: [], error: null });
+    const refereeChain = makeChain({ data: null, error: null }); // referee_assignments clear
     const deleteChain = makeChain({ data: null, error: null });
     fromMock
       .mockReturnValueOnce(eventChain)
       .mockReturnValueOnce(tournamentsChain)
+      .mockReturnValueOnce(refereeChain)
       .mockReturnValueOnce(deleteChain);
     assertOrgRole.mockResolvedValue(undefined);
 
@@ -136,11 +138,14 @@ describe('EventsService', () => {
     const matchesChain = makeFullChain({ count: 0, data: [], error: null }); // scheduled-only
     const forfeitsChain = makeFullChain({ data: null, error: null });
     const registrationsChain = makeFullChain({ data: null, error: null });
+    const refereeChain = makeFullChain({ data: null, error: null });
     const byTable: Record<string, unknown> = {
       events: eventsChain,
       tournaments: makeFullChain({ data: [{ id: 't1' }], error: null }),
       phases: makeFullChain({ data: [{ id: 'p1' }], error: null }),
+      pools: makeFullChain({ data: [{ id: 'pool1' }], error: null }),
       matches: matchesChain,
+      referee_assignments: refereeChain,
       match_forfeits: forfeitsChain,
       registrations: registrationsChain,
     };
@@ -151,7 +156,8 @@ describe('EventsService', () => {
       deleted: true,
       id: 'event-1',
     });
-    // Result graph cleared in dependency order, then the event itself deleted.
+    // Referee assignments + result graph cleared first, then the event deleted.
+    expect(refereeChain['delete']).toHaveBeenCalled();
     expect(forfeitsChain['delete']).toHaveBeenCalled();
     expect(matchesChain['delete']).toHaveBeenCalled();
     expect(registrationsChain['delete']).toHaveBeenCalled();
