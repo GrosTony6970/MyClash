@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { registry } from '@myclash/rulesets';
 import type { StandingsColumn, RankingRule } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
+import { normalizeRulesetVersion } from '../events/ruleset-defaults';
 
 export interface StandingsRow {
   rank: number;
@@ -53,7 +54,10 @@ export class PoolStandingsService {
 
     let ruleset;
     try {
-      ruleset = registry.get(rulesetCode, rulesetVersion);
+      // Normalize the stored version to the registry-canonical form ('1' ->
+      // '1.0.0'). Tournaments created before the createTournament fix persisted
+      // the raw shorthand, so normalize here to resolve those legacy rows too.
+      ruleset = registry.get(rulesetCode, normalizeRulesetVersion(rulesetVersion));
     } catch {
       throw new BadRequestException(`Ruleset ${rulesetCode} v${rulesetVersion} not registered`);
     }

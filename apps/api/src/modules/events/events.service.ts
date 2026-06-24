@@ -1935,7 +1935,11 @@ export class EventsService {
         name: dto.name.trim(),
         weapon: dto.weapon ?? null,
         ruleset_code: code,
-        ruleset_version: dto.rulesetVersion ?? '1',
+        // Persist the registry-canonical version ('1' -> '1.0.0'), not the raw
+        // shorthand: the @myclash/rulesets registry keys built-ins as
+        // `${code}@1.0.0`, and downstream reads (e.g. pool-standings) look the
+        // ruleset up by this stored version with no normalization of their own.
+        ruleset_version: version,
         penalty_ruleset_id: dto.penaltyRulesetId ?? null,
         color: dto.color ?? null,
         // Capacity caps from the wizard's Step 1 Basics. Null
@@ -1952,8 +1956,9 @@ export class EventsService {
     if (error) throw new BadRequestException(error.message);
 
     // Pin the ruleset version: subsequent edits to (code, version) must
-    // bump a new version instead of mutating in place.
-    await freezeRulesetVersion(this.supabase, code, dto.rulesetVersion ?? '1');
+    // bump a new version instead of mutating in place. Freeze on the same
+    // canonical version we stored above (a no-op for system rulesets).
+    await freezeRulesetVersion(this.supabase, code, version);
 
     return data;
   }
