@@ -1168,10 +1168,6 @@ export default function ParticipantsPage() {
 
           {loading ? (
             <p className="text-gray-400 text-sm">Loading…</p>
-          ) : filteredPersons.length === 0 ? (
-            <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
-              <p className="text-gray-400 text-sm">No participants found.</p>
-            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
@@ -1291,114 +1287,131 @@ export default function ParticipantsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredPersons.map((p) => {
-                    const regs = registrationsByPersonId.get(p.id) ?? [];
-                    const displayRegs =
-                      activeTab === 'all' ? regs : regs.filter((r) => r.tournamentId === activeTab);
-                    return (
-                      <tr key={p.id} className="group border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-2 pr-3">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(p.id)}
-                            onChange={() => toggleSelect(p.id)}
-                            className="rounded"
-                          />
-                        </td>
-                        <td className="py-2 pr-4">
-                          <p className="font-medium text-gray-900">
-                            {formatRosterName({ familyName: p.familyName, givenName: p.givenName })}
-                          </p>
-                          {p.email && <p className="text-xs text-gray-400 font-mono">{p.email}</p>}
-                        </td>
-                        <td className="py-2 pr-4 text-gray-600">{p.clubLabel ?? '—'}</td>
-                        <td className="py-2 pr-4">
-                          <span
-                            className={[
-                              'text-xs px-2 py-0.5 rounded-full font-medium',
-                              CLAIM_COLORS[p.claimStatus] ?? '',
-                            ].join(' ')}
-                          >
-                            {p.claimStatus.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-4">
-                          {displayRegs.length === 0 ? (
-                            <span className="text-gray-400 text-xs">—</span>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {displayRegs.map((r) => {
-                                const tour = tournaments.find((tour) => tour.id === r.tournamentId);
-                                return (
-                                  <span
-                                    key={r.id}
-                                    className={[
-                                      'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
-                                      REG_STATUS_COLORS[r.status] ?? '',
-                                    ].join(' ')}
-                                    title={r.tournamentName}
-                                  >
-                                    <TournamentColorDot color={tour?.color} />
-                                    {activeTab === 'all'
-                                      ? r.tournamentName
-                                      : r.status.replace('_', ' ')}
-                                  </span>
-                                );
+                  {filteredPersons.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-16 text-center text-sm text-gray-400">
+                        No participants found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPersons.map((p) => {
+                      const regs = registrationsByPersonId.get(p.id) ?? [];
+                      const displayRegs =
+                        activeTab === 'all'
+                          ? regs
+                          : regs.filter((r) => r.tournamentId === activeTab);
+                      return (
+                        <tr key={p.id} className="group border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-2 pr-3">
+                            <input
+                              type="checkbox"
+                              checked={selected.has(p.id)}
+                              onChange={() => toggleSelect(p.id)}
+                              className="rounded"
+                            />
+                          </td>
+                          <td className="py-2 pr-4">
+                            <p className="font-medium text-gray-900">
+                              {formatRosterName({
+                                familyName: p.familyName,
+                                givenName: p.givenName,
                               })}
+                            </p>
+                            {p.email && (
+                              <p className="text-xs text-gray-400 font-mono">{p.email}</p>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 text-gray-600">{p.clubLabel ?? '—'}</td>
+                          <td className="py-2 pr-4">
+                            <span
+                              className={[
+                                'text-xs px-2 py-0.5 rounded-full font-medium',
+                                CLAIM_COLORS[p.claimStatus] ?? '',
+                              ].join(' ')}
+                            >
+                              {p.claimStatus.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {displayRegs.length === 0 ? (
+                              <span className="text-gray-400 text-xs">—</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {displayRegs.map((r) => {
+                                  const tour = tournaments.find(
+                                    (tour) => tour.id === r.tournamentId,
+                                  );
+                                  return (
+                                    <span
+                                      key={r.id}
+                                      className={[
+                                        'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+                                        REG_STATUS_COLORS[r.status] ?? '',
+                                      ].join(' ')}
+                                      title={r.tournamentName}
+                                    >
+                                      <TournamentColorDot color={tour?.color} />
+                                      {activeTab === 'all'
+                                        ? r.tournamentName
+                                        : r.status.replace('_', ' ')}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {p.globalPersonId && refereePersonIds.has(p.globalPersonId) ? (
+                              <SkillBadge
+                                color="violet"
+                                label={
+                                  !p.claimedByUserId
+                                    ? `${t('organizer.persons.refereeTag')} · ${t('organizer.persons.refereeUnclaimedBadge')}`
+                                    : t('organizer.persons.refereeTag')
+                                }
+                              />
+                            ) : null}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {p.globalPersonId && instructorPersonIds.has(p.globalPersonId) ? (
+                              <SkillBadge
+                                color="amber"
+                                label={t('organizer.persons.instructorTag')}
+                              />
+                            ) : null}
+                          </td>
+                          <td className="sticky right-0 z-10 bg-white py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_rgb(229_231_235)] group-hover:bg-gray-50">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => openEdit(p)}
+                                disabled={isReadOnly}
+                                title={
+                                  isReadOnly
+                                    ? t('organizer.deletionRequest.archivedReadOnly')
+                                    : undefined
+                                }
+                                className="text-xs text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => void handleDelete(p.id)}
+                                disabled={isReadOnly}
+                                title={
+                                  isReadOnly
+                                    ? t('organizer.deletionRequest.archivedReadOnly')
+                                    : undefined
+                                }
+                                className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Delete
+                              </button>
                             </div>
-                          )}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {p.globalPersonId && refereePersonIds.has(p.globalPersonId) ? (
-                            <SkillBadge
-                              color="violet"
-                              label={
-                                !p.claimedByUserId
-                                  ? `${t('organizer.persons.refereeTag')} · ${t('organizer.persons.refereeUnclaimedBadge')}`
-                                  : t('organizer.persons.refereeTag')
-                              }
-                            />
-                          ) : null}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {p.globalPersonId && instructorPersonIds.has(p.globalPersonId) ? (
-                            <SkillBadge
-                              color="amber"
-                              label={t('organizer.persons.instructorTag')}
-                            />
-                          ) : null}
-                        </td>
-                        <td className="sticky right-0 z-10 bg-white py-2 pl-3 whitespace-nowrap shadow-[inset_1px_0_0_rgb(229_231_235)] group-hover:bg-gray-50">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => openEdit(p)}
-                              disabled={isReadOnly}
-                              title={
-                                isReadOnly
-                                  ? t('organizer.deletionRequest.archivedReadOnly')
-                                  : undefined
-                              }
-                              className="text-xs text-blue-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => void handleDelete(p.id)}
-                              disabled={isReadOnly}
-                              title={
-                                isReadOnly
-                                  ? t('organizer.deletionRequest.archivedReadOnly')
-                                  : undefined
-                              }
-                              className="text-xs text-red-500 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
