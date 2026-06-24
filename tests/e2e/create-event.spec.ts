@@ -31,10 +31,14 @@ test('event wizard: full happy path creates and cleans up an event', async ({ pa
 
   await page.goto(`/org/${orgSlug}/events/new`);
 
-  // Step 1 — basics. Unique slug avoids cross-run collisions. Dates come from
-  // the calendar popover (day cells are locale-independent numbers).
+  // Unique token keeps the slug AND the org-scoped venue name (venues persist
+  // org-wide, not per event) from colliding across runs.
+  const tok = Date.now().toString(36);
+
+  // Step 1 — basics. Dates come from the calendar popover (day cells are
+  // locale-independent numbers).
   await page.locator('#wizard-event-name').fill('E2E Full Wizard');
-  await page.locator('#wizard-event-slug').fill(`e2e-full-wizard-${Date.now().toString(36)}`);
+  await page.locator('#wizard-event-slug').fill(`e2e-full-wizard-${tok}`);
   await page.locator('#wizard-start-date').click();
   await page.getByRole('button', { name: '15', exact: true }).click();
   await page.locator('#wizard-end-date').click();
@@ -44,7 +48,7 @@ test('event wizard: full happy path creates and cleans up an event', async ({ pa
   // Step 2 — venue & lices. New venue + tournament capability; lices are
   // pre-filled (Lice 1/2), which already satisfies step-2 validation.
   await page.getByTestId('venue-mode-new').or(page.getByRole('tab').nth(1)).click();
-  await page.locator('#wizard-venue-name').fill('E2E Venue');
+  await page.locator('#wizard-venue-name').fill(`E2E Venue ${tok}`);
   const hostsTournament = page
     .getByTestId('venue-hosts-tournament')
     .or(page.getByRole('checkbox').first());
