@@ -4,18 +4,21 @@ import { readFile, rm } from 'node:fs/promises';
 const AUTH_FILE = 'tests/e2e/.auth/admin.json';
 const CONTEXT_FILE = 'tests/e2e/.auth/context.json';
 
+const CLEANUP = ['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').toLowerCase());
+
 /**
- * Cleans up the throwaway event created in global-setup. Reuses the session
- * captured there (no extra login → stays under the password-login rate limit).
+ * By default the test event is PRESERVED so you can open it in the admin UI and
+ * see what the run created (imported participants, the tournament, the generated
+ * schedule). Set E2E_CLEANUP=1 (CI does) to hard-delete it instead.
  *
- * Order matters: registrations reference persons with ON DELETE RESTRICT, so an
- * event hard-delete fails while any tournament (and thus its registrations)
- * still exists. We therefore delete the event's tournaments first — which
- * cascades their registrations, phases, pools and matches — then hard-delete
- * the event (cascading the remaining persons, lices, etc).
+ * Cleanup order matters: pool matches reference registrations with ON DELETE
+ * RESTRICT, so we clear each tournament's pools (→ matches) and delete the
+ * tournament before hard-deleting the event. (The API now does this ordered
+ * teardown server-side too, but doing it here keeps cleanup working against
+ * older deploys.)
  */
 export default async function globalTeardown() {
-  let runCtx: { eventId: string; eventSlug: string; baseURL?: string };
+  let runCtx: { eventId: string; eventSlug: string; orgSlug?: string; baseURL?: string };
   try {
     runCtx = JSON.parse(await readFile(CONTEXT_FILE, 'utf8'));
   } catch {
@@ -23,16 +26,24 @@ export default async function globalTeardown() {
     return;
   }
 
+  const baseURL = runCtx.baseURL ?? process.env.E2E_BASE_URL ?? 'https://admin.myclash.fr';
+  const eventUrl = `${baseURL}/org/${runCtx.orgSlug ?? ''}/events/${runCtx.eventId}`;
+
+  if (!CLEANUP) {
+    console.log(
+      `[e2e] data PRESERVED — open the test event in the admin UI:\n        ${eventUrl}\n` +
+        `        (run with E2E_CLEANUP=1 to delete it instead)`,
+    );
+    return;
+  }
+
   const ctx = await request.newContext({
-    baseURL: runCtx.baseURL ?? process.env.E2E_BASE_URL ?? 'https://admin.myclash.fr',
+    baseURL,
     ignoreHTTPSErrors: true,
     storageState: AUTH_FILE,
   });
 
-  // 1) Delete tournaments first (clears registrations/matches that would
-  //    otherwise block the persons cascade). Pool matches reference
-  //    registrations with ON DELETE RESTRICT, so clear pools (→ matches) before
-  //    deleting each tournament, else the tournament delete itself fails.
+  // 1) Delete tournaments first (clear pools → matches that block the cascade).
   const tRes = await ctx.get(`/api/v1/events/${runCtx.eventId}/tournaments`);
   if (tRes.ok()) {
     const tournaments = (await tRes.json()) as Array<{ id: string }>;

@@ -62,11 +62,18 @@ test('event wizard: full happy path creates and cleans up an event', async ({ pa
     .or(page.getByRole('button', { name: /create/i }))
     .click();
 
-  // Success redirects to /org/:slug/events/:eventId — capture and hard-delete.
+  // Success redirects to /org/:slug/events/:eventId — capture the new id.
   await page.waitForURL(/\/org\/[^/]+\/events\/[0-9a-f-]{36}(\/|\?|$)/i, { timeout: 20_000 });
-  const eventId = page.url().split('/events/')[1].split(/[/?#]/)[0];
+  const eventUrl = page.url();
+  const eventId = eventUrl.split('/events/')[1].split(/[/?#]/)[0];
   expect(eventId).toMatch(/^[0-9a-f-]{36}$/i);
 
-  const del = await request.delete(`/api/v1/events/${eventId}?mode=hard`);
-  expect(del.ok()).toBeTruthy();
+  // Preserve by default so you can inspect the wizard-created event; delete only
+  // when E2E_CLEANUP is set (CI).
+  if (['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').toLowerCase())) {
+    const del = await request.delete(`/api/v1/events/${eventId}?mode=hard`);
+    expect(del.ok()).toBeTruthy();
+  } else {
+    console.log(`[e2e] wizard event preserved: ${eventUrl}`);
+  }
 });
