@@ -20,7 +20,7 @@ import { computePoolStandings } from './standings';
 const TF_V1_STANDINGS_COLUMNS: StandingsColumn[] = [
   // The TF_v1 ranking metric: (wins·winBonus + targetPoints) /
   // (timesHit + doublePenalty(doubles)). Shown first so it leads the table.
-  { key: 'score', label: 'Score', type: 'number', sortDesc: true },
+  { key: 'score', label: 'Score', type: 'number', sortDesc: true, decimals: 2 },
   { key: 'W', label: 'Wins', type: 'number', sortDesc: true },
   { key: 'L', label: 'Losses', type: 'number', sortDesc: false },
   { key: 'D', label: 'Draws', type: 'number', sortDesc: true },

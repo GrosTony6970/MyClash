@@ -11,6 +11,18 @@ interface StandingsColumn {
   label: string;
   type: 'number' | 'string';
   sortDesc?: boolean;
+  /** Fixed decimal places for display (e.g. 2 for the ratio score → "4.00"). */
+  decimals?: number;
+}
+
+/** Render a stat cell, applying the column's fixed decimal places when set. */
+function formatStat(c: StandingsColumn, value: unknown, empty: string): string {
+  if (value == null || value === '') return empty;
+  if (c.decimals != null) {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(n)) return n.toFixed(c.decimals);
+  }
+  return String(value);
 }
 
 interface StandingsRow {
@@ -147,7 +159,7 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
         row.displayName,
         row.club?.name ?? '',
         ...(includePool ? [row._poolName ?? ''] : []),
-        ...columns.map((c) => String(row.stats[c.key] ?? '')),
+        ...columns.map((c) => formatStat(c, row.stats[c.key], '')),
         row.status,
       ];
       lines.push(r.map(csvEscape).join(','));
@@ -349,7 +361,7 @@ function StandingsTable({
                       : 'px-4 py-2 text-center font-mono tabular-nums text-slate-700'
                   }
                 >
-                  {row.stats[c.key] ?? '—'}
+                  {formatStat(c, row.stats[c.key], '—')}
                 </td>
               ))}
               <td className="px-4 py-2">

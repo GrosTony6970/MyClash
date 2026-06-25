@@ -113,6 +113,12 @@ export interface StandingsColumn {
   type: 'number' | 'string';
   /** True when higher = better (e.g. wins, points). False/undefined for fields where lower is better (doubles, hits received). */
   sortDesc?: boolean;
+  /**
+   * Fixed number of decimal places for display (e.g. 2 for a ratio score so it
+   * always renders "4.00" / "2.18"). Omitted for integer columns (wins, points)
+   * which render as-is. Consumers apply `value.toFixed(decimals)`.
+   */
+  decimals?: number;
 }
 
 export interface RankingRule {

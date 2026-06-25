@@ -31,6 +31,18 @@ interface OverallColumn {
   label: string;
   type: 'number' | 'string';
   sortDesc?: boolean;
+  /** Fixed decimal places for display (e.g. 2 for the ratio score → "4.00"). */
+  decimals?: number;
+}
+
+/** Render a stat cell, applying the column's fixed decimal places when set. */
+function formatStat(c: OverallColumn, value: unknown): string {
+  if (value == null || value === '') return '—';
+  if (c.decimals != null) {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(n)) return n.toFixed(c.decimals);
+  }
+  return String(value);
 }
 
 interface OverallRow {
@@ -229,7 +241,7 @@ function OverallTable({ data }: { data: OverallResponse | null }) {
               </td>
               {data.columns.map((c) => (
                 <td key={c.key} className="px-2 py-2 text-right font-mono">
-                  {row.stats[c.key] ?? '—'}
+                  {formatStat(c, row.stats[c.key])}
                 </td>
               ))}
             </tr>
