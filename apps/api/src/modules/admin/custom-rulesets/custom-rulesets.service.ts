@@ -612,7 +612,7 @@ export class CustomRulesetsService {
    * Authorisation is org-scoped: caller must hold an admin role in the org.
    * No-op for super-admins (they should use `list()` for the unscoped view).
    */
-  async listForOrg(orgId: string, _actorUserId: string): Promise<CustomRulesetRow[]> {
+  async listForOrg(orgId: string, _actorUserId: string): Promise<CustomRulesetRowHydrated[]> {
     void _actorUserId; // role check happens at the controller via SuperAdminGuard or org-role assertion
     const { data, error } = await this.supabase.service
       .from('custom_rulesets')
@@ -622,7 +622,11 @@ export class CustomRulesetsService {
       .order('owner_organization_id', { ascending: true })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    return (data ?? []) as CustomRulesetRow[];
+    // Hydrate system rows with the coded rankingChain + metadata (incl. the
+    // score formula) so the org-facing ruleset view can render the read-only
+    // "System ruleset details" panel — the org list is the only org-visible
+    // source for built-ins (the owner-gated detail endpoint can't return them).
+    return ((data ?? []) as CustomRulesetRow[]).map((r) => this.hydrateSystemRow(r));
   }
 
   /**

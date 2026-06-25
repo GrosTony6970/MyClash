@@ -140,6 +140,13 @@ export interface RulesetMetadata {
   deepTargetDefault?: number | null;
   /** Default shallow-target points value (e.g. 1 in TF v1). */
   shallowTargetDefault?: number | null;
+  /**
+   * Human-readable score formula for display, or null if the ruleset has no
+   * single closed-form score (e.g. simple points rulesets). The accompanying
+   * numeric fields (winBonus, doublePenaltyFormula, target defaults) give the
+   * live constants that parameterize it.
+   */
+  scoreFormula?: string | null;
 }
 
 // ── Plugin contract ───────────────────────────────────────────────────────────

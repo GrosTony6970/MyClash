@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS } from '@myclash/rulesets';
-import type { FormulaConstants, FormulaNode, Tiebreaker } from '@myclash/rulesets';
+import type {
+  FormulaConstants,
+  FormulaNode,
+  RankingRule,
+  RulesetMetadata,
+  Tiebreaker,
+} from '@myclash/rulesets';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import {
   RulesetForm,
@@ -40,6 +46,11 @@ interface OrgCustomRulesetDetail {
   submitted_for_review_at: string | null;
   rejected_reason: string | null;
   public_visibility: boolean;
+  /** For is_system rows: the coded ranking chain + metadata (incl. the score
+   *  formula), hydrated by the org list endpoint so the read-only "System
+   *  ruleset details" panel renders for built-ins like TF v1. */
+  systemRankingChain?: RankingRule[];
+  systemMetadata?: RulesetMetadata;
 }
 
 /**
@@ -58,7 +69,14 @@ export default function OrgEditScoringRulesetPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initial, setInitial] = useState<(RulesetFormValue & { code: string }) | null>(null);
+  const [initial, setInitial] = useState<
+    | (RulesetFormValue & {
+        code: string;
+        systemRankingChain?: RankingRule[];
+        systemMetadata?: RulesetMetadata;
+      })
+    | null
+  >(null);
   const [submissionBanner, setSubmissionBanner] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
 
@@ -111,6 +129,8 @@ export default function OrgEditScoringRulesetPage() {
           // Same hydration as the super-admin page: TF v1 reads
           // tf_config.*, custom rulesets read the flat columns.
           ...rulesetFormInitial(data),
+          systemRankingChain: data.systemRankingChain,
+          systemMetadata: data.systemMetadata,
         });
         // Built-in or another org's shared ruleset → view-only (opened via the
         // list "View" action). The organiser can Clone it to get an editable
@@ -181,6 +201,10 @@ export default function OrgEditScoringRulesetPage() {
           tfInternalsTitle={t('admin.rulesets.tfV1InternalsTitleOrg')}
           disabled={readOnly}
           busy={busy}
+          // Read-only system ruleset details (score formula + tie-breakers) for
+          // built-ins like TF v1, hydrated by the org list endpoint.
+          systemMetadata={initial.systemMetadata}
+          systemRankingChain={initial.systemRankingChain}
           submitLabel={t('admin.rulesets.saveAction')}
           onSubmit={async (data) => {
             if (!orgId) return;

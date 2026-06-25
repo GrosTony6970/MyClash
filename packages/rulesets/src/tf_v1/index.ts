@@ -77,6 +77,7 @@ export const TF_v1: Ruleset = {
     doublePenaltyFormula: TFv1DefaultConfig.doublePenaltyFormula,
     deepTargetDefault: TFv1DefaultConfig.targetValues.deepTarget,
     shallowTargetDefault: TFv1DefaultConfig.targetValues.shallowTarget,
+    scoreFormula: 'score = (wins × winBonus + targetPoints) / (timesHit + doublePenalty(doubles))',
   },
 };
 

@@ -240,12 +240,10 @@ export default function EditRulesetPage() {
               code={initial.code}
               disabled={isCurrentFrozen}
               busy={busy}
-              // System metadata / ranking chain props intentionally dropped
-              // so the TF v1 admin edit form renders with the same shape
-              // as every other ruleset (no read-only "System ruleset
-              // details" panel above the form). The component still
-              // accepts these props; only the mount call no longer passes
-              // them.
+              // Surface the coded system ruleset details (score formula +
+              // tie-breakers + constants) in a read-only panel above the form.
+              systemMetadata={initial.systemMetadata}
+              systemRankingChain={initial.systemRankingChain}
               submitLabel={t('admin.rulesets.saveAction')}
               onSubmit={async (data) => {
                 setBusy(true);

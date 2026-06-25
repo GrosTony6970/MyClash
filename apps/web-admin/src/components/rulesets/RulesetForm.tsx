@@ -507,6 +507,15 @@ function SystemRulesetPanel({
         </span>
       </div>
 
+      {metadata.scoreFormula && (
+        <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            {t('admin.rulesets.systemPanelScoreFormula')}
+          </dt>
+          <dd className="mt-1 font-mono text-sm text-slate-800">{metadata.scoreFormula}</dd>
+        </div>
+      )}
+
       <dl className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <MetadataField
           label={t('admin.rulesets.systemPanelHasAfterblow')}
