@@ -67,7 +67,7 @@ export function MedalPodium({
         )}
       </div>
       {showBronze && (
-        <div className="mx-auto mt-3 w-full max-w-[260px]">
+        <div className="mx-auto mt-3 w-full max-w-[360px]">
           <Ribbon
             icon=""
             title={labels.fourth}
@@ -131,21 +131,25 @@ function Step({
   const isTbd = fighter === null;
 
   return (
-    <div className="flex w-[104px] flex-col items-center" role="status">
+    <div className="flex w-[120px] flex-col items-center" role="status">
       <span className="mb-1 text-2xl leading-none" aria-hidden="true">
         {icon}
       </span>
       <div
         className={`flex w-full items-end justify-center rounded-t-md ${bg} ${border} ${topBorder} ${heightClass}`}
       />
-      <span
-        className={[
-          'mt-2 w-full truncate text-center text-xs font-semibold',
-          isTbd ? 'italic text-slate-400' : 'text-slate-900',
-        ].join(' ')}
-      >
-        {fighterName}
-      </span>
+      {/* Reserve ~2 lines so the full name can wrap without truncation while the
+          podium bars stay aligned (items-end on the row). */}
+      <div className="mt-2 flex min-h-[2.5em] w-full items-start justify-center px-0.5 text-xs">
+        <span
+          className={[
+            'text-center font-semibold leading-tight break-words',
+            isTbd ? 'italic text-slate-400' : 'text-slate-900',
+          ].join(' ')}
+        >
+          {fighterName}
+        </span>
+      </div>
       {fighter?.clubAbbrev && (
         <span className="mt-1 rounded bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">
           {fighter.clubAbbrev}
@@ -173,21 +177,24 @@ function Ribbon({
   const isTbd = fighter === null;
 
   return (
-    <div className={`flex h-[22px] items-center gap-2 rounded px-3 ${bg} ${border}`} role="status">
+    <div
+      className={`flex min-h-[22px] items-center gap-2 rounded px-3 py-1 ${bg} ${border}`}
+      role="status"
+    >
       {icon && (
         <span className="text-xs leading-none" aria-hidden="true">
           {icon}
         </span>
       )}
-      <span className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${text}`}>
+      <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] ${text}`}>
         {title}
       </span>
-      <span className="text-slate-400" aria-hidden="true">
+      <span className="shrink-0 text-slate-400" aria-hidden="true">
         ·
       </span>
       <span
         className={[
-          'flex-1 truncate text-xs font-medium',
+          'min-w-0 flex-1 text-xs font-medium leading-tight break-words',
           isTbd ? 'italic text-slate-400' : 'text-slate-900',
         ].join(' ')}
       >
