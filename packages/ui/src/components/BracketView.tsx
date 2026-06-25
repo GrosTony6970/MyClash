@@ -174,7 +174,9 @@ function SingleElimLayout({
     for (let i = 0; i < main.length; i++) {
       const r = main[i]!;
       const remaining = main.length - i;
-      if (remaining === 1) out[r] = 'Final';
+      // The last round decides 1st (gold) + 2nd (silver) — label it plainly so
+      // it reads as the medal match, not just "Final".
+      if (remaining === 1) out[r] = 'Silver and gold Match';
       else if (remaining === 2) out[r] = 'Semi-finals';
       else if (remaining === 3) out[r] = 'Quarter-finals';
       else out[r] = `Round of ${1 << remaining}`;

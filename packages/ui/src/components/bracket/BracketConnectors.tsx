@@ -84,6 +84,24 @@ export function BracketConnectors({ cardRefs, edges, containerRef }: BracketConn
     return () => window.clearTimeout(id);
   }, []);
 
+  // Re-measure when the bracket becomes VISIBLE. The public tournament tabs
+  // mount every panel up-front and hide the inactive ones with `display:none`
+  // (the `hidden` attribute); a bracket mounted hidden measures a 0-size
+  // container, and ResizeObserver doesn't reliably recover on un-hide. The
+  // IntersectionObserver fires the moment the container is shown + on screen,
+  // so the paths are recomputed against laid-out cards. No-op once drawn.
+  React.useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) force();
+      }
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [containerRef]);
+
   const container = containerRef.current;
   if (!container) {
     return <svg className="pointer-events-none absolute inset-0" />;

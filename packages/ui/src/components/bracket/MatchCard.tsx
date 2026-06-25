@@ -31,7 +31,7 @@ export interface MatchCardProps {
 function statusPill(status: string): { label: string; cls: string } {
   switch (status) {
     case 'completed':
-      return { label: 'Final', cls: 'bg-emerald-100 text-emerald-700' };
+      return { label: 'Completed', cls: 'bg-emerald-100 text-emerald-700' };
     case 'running':
       return { label: 'Live', cls: 'bg-amber-100 text-amber-800' };
     case 'ready':
