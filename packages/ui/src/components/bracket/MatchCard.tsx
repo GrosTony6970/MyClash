@@ -231,9 +231,13 @@ function FighterRow({
       <span aria-hidden="true" className={`w-[3px] shrink-0 ${stripeClass}`} />
       <div className="flex flex-1 items-center justify-between gap-1 pl-2 pr-1">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          {/* Name takes priority for the row width (grows, truncates only as a
+              last resort); the club yields first — capped + truncating — so a
+              long club name no longer squeezes the fighter's name. */}
           <span
+            title={name ?? undefined}
             className={[
-              'truncate text-xs',
+              'min-w-0 flex-1 truncate text-xs',
               isTbd
                 ? 'text-slate-400'
                 : highlight
@@ -246,7 +250,10 @@ function FighterRow({
             {name ?? '-'}
           </span>
           {club && !isTbd && (
-            <span className="shrink-0 rounded bg-white/70 px-1 py-px text-[10px] text-slate-500">
+            <span
+              title={club}
+              className="min-w-0 max-w-[40%] flex-none truncate rounded bg-white/70 px-1 py-px text-[10px] text-slate-500"
+            >
               {club}
             </span>
           )}
