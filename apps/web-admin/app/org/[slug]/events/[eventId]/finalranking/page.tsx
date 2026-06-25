@@ -19,6 +19,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import {
   computeFinalRanking,
   type FinalRankingEntry,
+  type PoolEntry,
   type RankingSlot,
 } from './compute-final-ranking';
 
@@ -37,6 +38,8 @@ interface BracketResponse {
 
 interface StandingsRow {
   registrationId: string;
+  displayName: string;
+  club: { name: string; abbreviation: string | null } | null;
   stats: Record<string, number | string>;
 }
 
@@ -53,7 +56,7 @@ export default function FinalRankingPage() {
     searchParams.get('tournamentId') ?? '',
   );
   const [bracket, setBracket] = useState<BracketResponse | null>(null);
-  const [poolScoreByReg, setPoolScoreByReg] = useState<Map<string, number>>(new Map());
+  const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -114,13 +117,18 @@ export default function FinalRankingPage() {
             : null,
         );
         const rows = (standingsData as { rows?: StandingsRow[] } | null)?.rows ?? [];
-        const map = new Map<string, number>();
-        for (const row of rows) {
-          const raw = row.stats?.['score'];
-          const n = typeof raw === 'number' ? raw : Number(raw);
-          if (row.registrationId && Number.isFinite(n)) map.set(row.registrationId, n);
-        }
-        setPoolScoreByReg(map);
+        setPoolEntries(
+          rows.map((row) => {
+            const raw = row.stats?.['score'];
+            const n = typeof raw === 'number' ? raw : Number(raw);
+            return {
+              registrationId: row.registrationId,
+              fighterName: row.displayName,
+              clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
+              poolScore: Number.isFinite(n) ? n : null,
+            };
+          }),
+        );
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -144,8 +152,8 @@ export default function FinalRankingPage() {
     [bracket],
   );
   const ranking = useMemo<FinalRankingEntry[]>(
-    () => (bracket ? computeFinalRanking(bracket.slots, poolScoreByReg, bracket.bronzeSlotId) : []),
-    [bracket, poolScoreByReg],
+    () => (bracket ? computeFinalRanking(bracket.slots, poolEntries, bracket.bronzeSlotId) : []),
+    [bracket, poolEntries],
   );
 
   return (
@@ -273,6 +281,8 @@ function resultLabel(entry: FinalRankingEntry, maxRound: number): string {
       return '4th place';
     case 'round':
       return roundLabel(entry.eliminationRound ?? 0, maxRound);
+    case 'pool':
+      return 'Pools';
   }
 }
 
