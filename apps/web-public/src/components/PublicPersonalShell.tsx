@@ -12,12 +12,11 @@ const navItems = [
   { href: '/me/referee', labelKey: 'publicApp.personalShell.nav.referee', badge: 'R' },
   { href: '/me/notifications', labelKey: 'publicApp.personalShell.nav.notifications', badge: 'N' },
   { href: '/me/security', labelKey: 'publicApp.personalShell.nav.security', badge: 'S' },
-  { href: '/', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
+  { href: '/me/events', labelKey: 'publicApp.personalShell.nav.events', badge: 'E' },
 ] as const;
 
 function isActive(pathname: string, href: string) {
   if (href === '/me') return pathname === '/me';
-  if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
