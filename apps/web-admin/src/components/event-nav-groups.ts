@@ -47,6 +47,11 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
       // Badge PL (not P) to disambiguate from Participants in the People group.
       { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', badge: 'PL' },
       { href: 'bracket', labelKey: 'organizer.eventHub.sections.bracket', badge: 'B' },
+      {
+        href: 'finalranking',
+        labelKey: 'organizer.eventHub.sections.finalRanking',
+        badge: 'FR',
+      },
       { href: 'schedule', labelKey: 'organizer.eventHub.sections.schedule', badge: 'S' },
       { href: 'leagues', labelKey: 'admin.dashboard.leaguesTitle', badge: 'L' },
     ],
