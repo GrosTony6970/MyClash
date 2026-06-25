@@ -42,6 +42,7 @@ import { poolMatchSortKey } from './pool-match-sort';
 import {
   buildCrossPoolSnakeRanking,
   buildR1SeedingPlan,
+  parseSeed,
   type RankedRegistration,
 } from './bracket-r1-seeding';
 // Value import (not `import type`): NestJS DI dependency. Type-only erases the
@@ -758,7 +759,9 @@ export class PhasesService {
     const r1Round = phaseType === 'double_elim' ? 1 : 1;
     const { data: r1Slots, error: slotsErr } = await this.supabase.service
       .from('bracket_slots')
-      .select('id, round, position, registration_a_id, registration_b_id')
+      .select(
+        'id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id',
+      )
       .eq('phase_id', phaseId)
       .eq('round', r1Round)
       .order('position', { ascending: true });
@@ -767,6 +770,8 @@ export class PhasesService {
       id: string;
       round: number;
       position: number;
+      source_a_ref: string | null;
+      source_b_ref: string | null;
       registration_a_id: string | null;
       registration_b_id: string | null;
     }>;
@@ -808,14 +813,16 @@ export class PhasesService {
       bySeed.set(seedNum, reg.id);
     });
 
-    // For each R1 slot, recompute red/blue based on position.
-    // Standard bracket seeding: slot at position P maps to seeds
-    // (2P-1, 2P). Position is 1-indexed in the generator output.
+    // For each R1 slot, recompute red/blue from the slot's intended seeds.
+    // The generator already encodes the standard distribution (seed K vs
+    // seed size+1−K, seeds 1 & 2 in opposite halves) in source_a_ref/
+    // source_b_ref ("seed N"); map seed K → the registration seeded K. The old
+    // (2P−1, 2P) math ignored those labels and paired adjacent seeds.
     for (const slot of slots) {
-      const homeSeed = slot.position * 2 - 1;
-      const awaySeed = slot.position * 2;
-      const regA = bySeed.get(homeSeed) ?? null;
-      const regB = bySeed.get(awaySeed) ?? null;
+      const homeSeed = parseSeed(slot.source_a_ref);
+      const awaySeed = parseSeed(slot.source_b_ref);
+      const regA = homeSeed == null ? null : (bySeed.get(homeSeed) ?? null);
+      const regB = awaySeed == null ? null : (bySeed.get(awaySeed) ?? null);
       const { error: updateErr } = await this.supabase.service
         .from('bracket_slots')
         .update({ registration_a_id: regA, registration_b_id: regB })
@@ -946,13 +953,25 @@ export class PhasesService {
     // 4. R1 slots for this phase.
     const { data: r1Slots } = await this.supabase.service
       .from('bracket_slots')
-      .select('id, round, position')
+      .select('id, round, position, source_a_ref, source_b_ref')
       .eq('phase_id', phaseId)
       .eq('round', 1)
       .order('position', { ascending: true });
-    const slots = ((r1Slots ?? []) as Array<{ id: string; round: number; position: number }>).map(
-      (s) => ({ id: s.id, position: s.position }),
-    );
+    const slots = (
+      (r1Slots ?? []) as Array<{
+        id: string;
+        round: number;
+        position: number;
+        source_a_ref: string | null;
+        source_b_ref: string | null;
+      }>
+    ).map((s) => ({
+      id: s.id,
+      position: s.position,
+      // Map each side to the fighter whose rank == the slot's intended seed.
+      seedA: parseSeed(s.source_a_ref),
+      seedB: parseSeed(s.source_b_ref),
+    }));
 
     // 5. Refuse if any R1 match has already started.
     if (slots.length > 0) {
