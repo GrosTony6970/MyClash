@@ -10,7 +10,7 @@
  */
 
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { BackLink } from '@/components/BackLink';
 import { getApiUrl } from '@/lib/api-url';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
 import { fetchEventInfo } from '../_components/EventHeader';
@@ -46,12 +46,7 @@ export default async function WorkshopsPage({ params }: Props) {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6">
-      <Link
-        href={`/e/${eventSlug}/home`}
-        className="mb-4 inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-500 hover:bg-slate-50"
-      >
-        ← Back to event home
-      </Link>
+      <BackLink href={`/e/${eventSlug}/home`} label="Back to event home" className="mb-4" />
       <h1
         className="mb-4 text-2xl font-bold"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}

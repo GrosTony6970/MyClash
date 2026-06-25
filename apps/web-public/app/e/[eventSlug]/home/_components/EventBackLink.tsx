@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { t } from '@myclash/i18n';
+import { BackLink } from '@/components/BackLink';
 
 /**
  * "← Back to events" link rendered at the top of each event-home
@@ -8,17 +8,9 @@ import { t } from '@myclash/i18n';
  * phones report tapping the address bar instead of finding the
  * logo. This in-page link removes that friction.
  *
- * Palette matches the unified MyClash design (red accent on the light
- * stone surface, mirroring the organizer admin).
+ * Delegates to the shared {@link BackLink} so the back affordance
+ * matches every other public event page (tournament, workshops, …).
  */
 export function EventBackLink() {
-  return (
-    <Link
-      href="/"
-      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-semibold text-red-700 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
-    >
-      <span aria-hidden="true">←</span>
-      <span>{t('publicApp.eventHome.backToEvents')}</span>
-    </Link>
-  );
+  return <BackLink href="/" label={t('publicApp.eventHome.backToEvents')} />;
 }

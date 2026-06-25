@@ -14,8 +14,8 @@
 /* eslint-disable myclash/no-literal-string */
 
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { getApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { t } from '@myclash/i18n';
 import { StandingsView } from './StandingsView';
@@ -361,12 +361,11 @@ export default async function TournamentPage({ params }: Props) {
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col px-4 py-6">
-      <Link
+      <BackLink
         href={`/e/${eventSlug}/home`}
-        className="mb-4 self-start inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-500 hover:bg-slate-50"
-      >
-        {t('publicApp.tournament.backToEventHome')}
-      </Link>
+        label={t('publicApp.tournament.backToEventHome')}
+        className="mb-4"
+      />
 
       {/* Header */}
       <div className="mb-6 flex items-start gap-4">

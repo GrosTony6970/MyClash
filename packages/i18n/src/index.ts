@@ -427,7 +427,7 @@ export const en = {
         modeOverall: 'Overall',
         modeByPool: 'Per pool',
       },
-      backToEventHome: '← Back to event home',
+      backToEventHome: 'Back to event home',
       poolMatchesSearch: 'Search matches (fighter, round, club…)',
       poolMatchesNoResults: 'No matches found.',
       participants: {
@@ -4517,7 +4517,7 @@ export const fr = {
         modeOverall: 'Général',
         modeByPool: 'Par poule',
       },
-      backToEventHome: "← Retour à l'accueil de l'événement",
+      backToEventHome: "Retour à l'accueil de l'événement",
       poolMatchesSearch: 'Rechercher un match (tireur, manche, club…)',
       poolMatchesNoResults: 'Aucun match trouvé.',
       participants: {

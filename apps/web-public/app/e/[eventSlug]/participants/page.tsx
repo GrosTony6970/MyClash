@@ -1,4 +1,6 @@
-import Link from 'next/link';
+/* eslint-disable myclash/no-literal-string -- pre-i18n public page (matches the workshops page). */
+
+import { BackLink } from '@/components/BackLink';
 import { defaultLocale } from '@myclash/i18n';
 import { formatCountryName } from '@myclash/ui';
 import { getApiUrl } from '@/lib/api-url';
@@ -138,12 +140,7 @@ export default async function ParticipantsPage({
             <p className="text-sm text-slate-500">
               {formatDateRange(event.startDate, event.endDate)}
             </p>
-            <Link
-              href={`/e/${eventSlug}/home`}
-              className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-500 hover:bg-slate-50"
-            >
-              ← Back to event home
-            </Link>
+            <BackLink href={`/e/${eventSlug}/home`} label="Back to event home" className="mt-3" />
           </div>
         </header>
       )}

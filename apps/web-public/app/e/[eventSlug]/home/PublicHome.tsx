@@ -307,8 +307,12 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                         <span className="font-semibold tabular-nums">{t.bracketSize}</span>
                       </p>
                     )}
+                  </div>
+                </div>
+                {(t.poolFightsTotal > 0 || t.bracketFightsTotal > 0) && (
+                  <div className="mt-1 space-y-0.5 text-right text-xs text-slate-500">
                     {t.poolFightsTotal > 0 && (
-                      <p className="text-slate-500">
+                      <p className="whitespace-nowrap">
                         {tr('publicApp.eventHome.card.completedPoolFights', {
                           completed: t.poolFightsCompleted,
                           total: t.poolFightsTotal,
@@ -316,7 +320,7 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                       </p>
                     )}
                     {t.bracketFightsTotal > 0 && (
-                      <p className="text-slate-500">
+                      <p className="whitespace-nowrap">
                         {tr('publicApp.eventHome.card.completedBracketFights', {
                           completed: t.bracketFightsCompleted,
                           total: t.bracketFightsTotal,
@@ -324,7 +328,7 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
                       </p>
                     )}
                   </div>
-                </div>
+                )}
                 <div className="mt-2 flex justify-end text-xs">
                   <span className="font-semibold text-red-700 group-hover:text-red-800">→</span>
                 </div>
