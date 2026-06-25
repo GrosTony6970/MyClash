@@ -65,6 +65,9 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   // only shows when there's no cached data yet for the current mode.
   const [revalidating, setRevalidating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Bracket size (when a bracket exists) → drives the qualification cut line in
+  // the overall standings: the top `bracketSize` fighters make the bracket.
+  const [bracketSize, setBracketSize] = useState<number | null>(null);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -88,6 +91,23 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
       })
       .finally(() => setRevalidating(false));
   }, [tournamentId, mode, refreshKey]);
+
+  // Fetch the bracket size (if a bracket has been generated) so the overall
+  // standings can draw the qualification cut line after the Nth fighter.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/bracket`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { bracketSize?: number; mainBracketSize?: number } | null) => {
+        if (cancelled) return;
+        const size = data?.bracketSize ?? data?.mainBracketSize ?? null;
+        setBracketSize(typeof size === 'number' && size > 0 ? size : null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentId, refreshKey]);
 
   const hasDataForMode = mode === 'overall' ? overall !== null : byPool !== null;
 
@@ -210,7 +230,11 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
         (overall.rows.length === 0 ? (
           <EmptyState />
         ) : (
-          <StandingsTable columns={overall.columns} rows={overall.rows} />
+          <StandingsTable
+            columns={overall.columns}
+            rows={overall.rows}
+            cutAfterIndex={bracketSize}
+          />
         ))}
 
       {hasDataForMode &&
@@ -254,15 +278,38 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   );
 }
 
-function StandingsTable({ columns, rows }: { columns: StandingsColumn[]; rows: StandingsRow[] }) {
+function StandingsTable({
+  columns,
+  rows,
+  cutAfterIndex,
+}: {
+  columns: StandingsColumn[];
+  rows: StandingsRow[];
+  /** Draw a qualification cut line after this many fighters (= bracket size).
+   *  Only meaningful in the overall ranking; omitted in by-pool mode. */
+  cutAfterIndex?: number | null;
+}) {
+  // Surface the ranking metric (score) first and make it stand out — it's the
+  // column the standings are actually ordered by.
+  const orderedColumns = [
+    ...columns.filter((c) => c.key === 'score'),
+    ...columns.filter((c) => c.key !== 'score'),
+  ];
   return (
     <table className="w-full text-sm">
       <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
         <tr>
           <th className="w-16 px-4 py-2 text-center">{t('organizer.pools.standings.rank')}</th>
           <th className="px-4 py-2">{t('organizer.pools.standings.fighter')}</th>
-          {columns.map((c) => (
-            <th key={c.key} className="px-4 py-2 text-center">
+          {orderedColumns.map((c) => (
+            <th
+              key={c.key}
+              className={
+                c.key === 'score'
+                  ? 'bg-red-50 px-4 py-2 text-center text-sm font-bold normal-case tracking-normal text-red-800'
+                  : 'px-4 py-2 text-center'
+              }
+            >
               {c.label}
             </th>
           ))}
@@ -270,43 +317,55 @@ function StandingsTable({ columns, rows }: { columns: StandingsColumn[]; rows: S
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr
-            key={row.registrationId}
-            className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
-          >
-            <td className="px-4 py-2 text-center font-mono tabular-nums text-slate-700">
-              {row.rank}
-            </td>
-            <td className="px-4 py-2">
-              <span className="font-medium text-slate-900">{row.displayName}</span>
-              {row.club && (
-                <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                  {row.club.abbreviation ?? row.club.name}
-                </span>
-              )}
-            </td>
-            {columns.map((c) => (
-              <td
-                key={c.key}
-                className="px-4 py-2 text-center font-mono tabular-nums text-slate-700"
-              >
-                {row.stats[c.key] ?? '—'}
+        {rows.map((row, idx) => {
+          // Qualification cutoff: a black line below the Nth fighter (N =
+          // bracket size). Skip it when everyone qualifies (cut at/after the
+          // last row).
+          const isCut = cutAfterIndex != null && idx === cutAfterIndex - 1 && idx < rows.length - 1;
+          return (
+            <tr
+              key={row.registrationId}
+              className={`${
+                isCut ? 'border-b-2 border-black' : 'border-b border-slate-100'
+              } last:border-0 hover:bg-slate-50`}
+            >
+              <td className="px-4 py-2 text-center font-mono tabular-nums text-slate-700">
+                {row.rank}
               </td>
-            ))}
-            <td className="px-4 py-2">
-              <span
-                className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                  row.status === 'completed'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {row.status}
-              </span>
-            </td>
-          </tr>
-        ))}
+              <td className="px-4 py-2">
+                <span className="font-medium text-slate-900">{row.displayName}</span>
+                {row.club && (
+                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                    {row.club.abbreviation ?? row.club.name}
+                  </span>
+                )}
+              </td>
+              {orderedColumns.map((c) => (
+                <td
+                  key={c.key}
+                  className={
+                    c.key === 'score'
+                      ? 'bg-red-50/40 px-4 py-2 text-center font-mono text-base font-bold tabular-nums text-slate-900'
+                      : 'px-4 py-2 text-center font-mono tabular-nums text-slate-700'
+                  }
+                >
+                  {row.stats[c.key] ?? '—'}
+                </td>
+              ))}
+              <td className="px-4 py-2">
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    row.status === 'completed'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {row.status}
+                </span>
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
