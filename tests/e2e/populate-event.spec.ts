@@ -134,10 +134,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const tournamentId = t?.id as string | undefined;
     if (!tournamentId) return { id: '', poolIds: [] };
 
-    await step(`${name}: deductive afterblow`, async () =>
+    await step(`${name}: deductive afterblow + double cap 4`, async () =>
       reqOk(
         await patch(`tournaments/${tournamentId}`, {
-          data: { scoringConfig: { afterblowMode: 'deductive' } },
+          data: {
+            scoringConfig: { afterblowMode: 'deductive' },
+            // Explicit double cap (also the TF_v1 default) so the "double out"
+            // matches below deterministically end as a 0–0 double loss.
+            rulesetConfig: { matchFormat: { maxDoubleHits: 4 } },
+          },
         }),
       ),
     );
@@ -277,16 +282,34 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
 
   const blackCarded = new Set<string>(); // registrations already black-carded (avoid 2nd → DQ)
+  // A couple of pool matches end in a "double out": posting maxDoubleHits (4)
+  // doubles auto-completes the match as a 0–0 double loss (both fighters lose,
+  // end_reason=max_doubles, no winner). Pools only — a null winner can't advance
+  // a bracket slot.
+  const DOUBLE_OUT_IDXS = new Set([5, 12]);
   let played = 0;
   let exchangesPosted = 0;
   let cardsPosted = 0;
+  let doubleOuts = 0;
 
-  const playMatch = async (m: PwmMatch, idx: number): Promise<void> => {
+  const playMatch = async (m: PwmMatch, idx: number, allowDoubleOut: boolean): Promise<void> => {
     const red = m.red_registration_id;
     const blue = m.blue_registration_id;
     if (!red || !blue || m.status === 'completed') return; // bye or already played
 
     await patch(`matches/${m.id}/status`, { data: { status: 'running' } });
+
+    if (allowDoubleOut && DOUBLE_OUT_IDXS.has(idx)) {
+      let dclock = 10_000;
+      for (let d = 1; d <= 4; d++) {
+        await exchange(m.id, { sequence: d, type: 'double', clockTimeMs: dclock });
+        dclock += 20_000;
+        exchangesPosted++;
+      }
+      doubleOuts++;
+      played++;
+      return; // the 4th double auto-completed the match as a 0–0 double loss
+    }
 
     const winnerColor = idx % 2 === 0 ? 'red' : 'blue';
     const loserColor = winnerColor === 'red' ? 'blue' : 'red';
@@ -328,6 +351,15 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       clockTimeMs: clock,
     });
     exchangesPosted += 4;
+
+    // ~25% of matches get one extra "double" exchange — kept well under the cap
+    // of 4 so it stays a normal win; a double scores nobody but dents the TF_v1
+    // score ratio (it grows the denominator).
+    if (idx % 4 === 1) {
+      clock += 30_000;
+      await exchange(m.id, { sequence: seq++, type: 'double', clockTimeMs: clock });
+      exchangesPosted++;
+    }
 
     // Cards mix (penalty sequence is numbered independently of exchanges).
     let pseq = 1;
@@ -372,6 +404,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   };
 
   for (const tid of tournamentIds) {
+    // Confine the 2 double-outs to the first tournament (1–2 total across the run).
+    const allowDoubleOut = tid === tournamentIds[0];
     const pools = (await (
       await reqOk(await get(`tournaments/${tid}/pools-with-matches`))
     ).json()) as Array<{ matches?: PwmMatch[] }>;
@@ -379,7 +413,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     let idx = 0;
     for (const m of matches) {
       try {
-        await playMatch(m, idx);
+        await playMatch(m, idx, allowDoubleOut);
       } catch (e) {
         console.log(`    ✗ match ${m.id.slice(0, 8)}: ${(e as Error).message}`);
       }
@@ -387,7 +421,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     }
   }
   console.log(
-    `  ✓ played ${played} pool matches (${exchangesPosted} exchanges, ${cardsPosted} cards)`,
+    `  ✓ played ${played} pool matches (${exchangesPosted} exchanges, ${cardsPosted} cards, ${doubleOuts} double-outs)`,
   );
 
   // Verify pools completed + standings populated — best-effort, like the rest
@@ -492,6 +526,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
         afterblowValue: 1,
         clockTimeMs: clock,
       });
+      exchangesPosted++;
+    }
+    // ~25%: one "double" exchange (scores nobody) — kept to a single double, well
+    // under the cap of 4, so the bracket match still resolves to a winner that
+    // can advance.
+    if (Math.random() < 0.25) {
+      clock += 20_000;
+      await exchange(mid, { sequence: seq++, type: 'double', clockTimeMs: clock });
       exchangesPosted++;
     }
     // ~20%: a yellow card (warning, no score effect) on the loser.
@@ -649,4 +691,5 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   expect(allPoolIds.length).toBeGreaterThan(0);
   expect(played).toBeGreaterThan(0);
   expect(bracketPlayed).toBeGreaterThan(0);
+  expect(doubleOuts).toBeGreaterThan(0);
 });
