@@ -416,6 +416,157 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
   }
 
+  // ── Play each tournament's bracket of 16 down to a champion ────────────────────
+  // Completing the last pool match fire-and-forgets populate-bracket (silent
+  // until the pool gate is met), so R1 may already be seeded — we call it
+  // explicitly anyway to be deterministic. Bracket matches play exactly like
+  // pool matches; completing one auto-advances the winner (and the semis losers
+  // into the bronze match) via BracketAdvanceService, which is fire-and-forget,
+  // so we re-read the bracket between rounds and poll each slot until both sides
+  // resolve. Scores VARY (margins 1–5, a random winning side, the odd afterblow
+  // / yellow card) so the bracket isn't a wall of identical 5–2s.
+  const readBracket = async (tid: string) =>
+    (await (await reqOk(await get(`tournaments/${tid}/bracket`))).json()) as {
+      slots: Array<{
+        id: string;
+        round: number;
+        position: number;
+        status: string;
+        matchId: string | null;
+        redFighterName: string | null;
+        blueFighterName: string | null;
+        redRegistrationId: string | null;
+        blueRegistrationId: string | null;
+      }>;
+    };
+  type BracketSlot = Awaited<ReturnType<typeof readBracket>>['slots'][number];
+
+  let bracketPlayed = 0;
+
+  const playBracketMatch = async (s: BracketSlot): Promise<{ winnerName: string | null }> => {
+    const mid = s.matchId!;
+    const red = s.redRegistrationId!;
+    const blue = s.blueRegistrationId!;
+    await patch(`matches/${mid}/status`, { data: { status: 'running' } });
+
+    const winnerColor: 'red' | 'blue' = Math.random() < 0.5 ? 'red' : 'blue';
+    const loserColor = winnerColor === 'red' ? 'blue' : 'red';
+    const winnerReg = winnerColor === 'red' ? red : blue;
+    const loserReg = winnerColor === 'red' ? blue : red;
+    const winnerName = winnerColor === 'red' ? s.redFighterName : s.blueFighterName;
+    const winnerPts = 4 + Math.floor(Math.random() * 4); // 4..7
+    const loserPts = Math.floor(Math.random() * 4); // 0..3 (< winner, keeps winner ahead)
+
+    let seq = 1;
+    let clock = 6_000;
+    const hit = async (
+      color: 'red' | 'blue',
+      value: number,
+      extra: Record<string, unknown> = {},
+    ) => {
+      await exchange(mid, {
+        sequence: seq++,
+        type: 'clean',
+        firstStrikerColor: color,
+        firstStrikeValue: value,
+        clockTimeMs: clock,
+        ...extra,
+      });
+      clock += 20_000;
+      exchangesPosted++;
+    };
+    let w = winnerPts;
+    while (w > 0) {
+      const v = w >= 2 && Math.random() < 0.7 ? 2 : 1;
+      await hit(winnerColor, v);
+      w -= v;
+    }
+    for (let i = 0; i < loserPts; i++) await hit(loserColor, 1);
+    // ~25%: a net-zero afterblow for the winner (deductive nets ~0 → winner stays ahead).
+    if (Math.random() < 0.25) {
+      await exchange(mid, {
+        sequence: seq++,
+        type: 'afterblow',
+        firstStrikerColor: winnerColor,
+        firstStrikeValue: 1,
+        afterblowValue: 1,
+        clockTimeMs: clock,
+      });
+      exchangesPosted++;
+    }
+    // ~20%: a yellow card (warning, no score effect) on the loser.
+    if (Math.random() < 0.2) {
+      await penalty(mid, {
+        sequence: 1,
+        registrationId: loserReg,
+        directCard: 'yellow',
+        reason: 'E2E demo: warning',
+        clockTimeMs: clock,
+      });
+      cardsPosted++;
+    }
+
+    await patch(`matches/${mid}/status`, {
+      data: { status: 'completed', winnerRegistrationId: winnerReg },
+    });
+    return { winnerName };
+  };
+
+  const playBracket = async (tid: string, name: string): Promise<number> => {
+    await step(`${name}: populate bracket R1`, async () =>
+      reqOk(await post(`tournaments/${tid}/populate-bracket`, { data: {} })),
+    );
+    let bracket = await readBracket(tid);
+    const finalRound = Math.max(...bracket.slots.map((s) => s.round));
+    const rounds = [...new Set(bracket.slots.map((s) => s.round))]
+      .filter((r) => r >= 1)
+      .sort((a, b) => a - b);
+    let played = 0;
+    let champion: string | null = null;
+
+    for (const round of rounds) {
+      bracket = await readBracket(tid); // pick up winners auto-advanced from prior round
+      const slots = bracket.slots
+        .filter((s) => s.round === round)
+        .sort((a, b) => a.position - b.position);
+      for (const slot of slots) {
+        // Auto-advance is fire-and-forget — poll until both sides + matchId resolve.
+        let s = slot;
+        for (
+          let tries = 0;
+          tries < 12 && (!s.matchId || !s.redRegistrationId || !s.blueRegistrationId);
+          tries++
+        ) {
+          await new Promise((r) => setTimeout(r, 500));
+          const fresh = await readBracket(tid);
+          s = fresh.slots.find((x) => x.id === slot.id) ?? s;
+        }
+        if (!s.matchId || !s.redRegistrationId || !s.blueRegistrationId) continue; // bye / unresolved
+        if (s.status === 'completed') continue;
+        try {
+          const { winnerName } = await playBracketMatch(s);
+          played++;
+          if (round === finalRound && s.position === 1) champion = winnerName;
+        } catch (e) {
+          console.log(`    ✗ bracket ${name} R${round}P${s.position}: ${(e as Error).message}`);
+        }
+      }
+    }
+    console.log(
+      `  ✓ ${name}: played ${played} bracket matches` +
+        (champion ? ` — champion: ${champion}` : ''),
+    );
+    return played;
+  };
+
+  for (const t of [long, side].filter((x) => x.id)) {
+    const name = t === long ? 'Longsword Open' : 'Sidesword Open';
+    bracketPlayed += await playBracket(t.id, name);
+  }
+  console.log(
+    `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
+  );
+
   // ── Workshop venue + areas, then 6 scheduled workshops ─────────────────────────
   const venue = await step('create workshop venue', async () =>
     (
@@ -497,4 +648,5 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
 
   expect(allPoolIds.length).toBeGreaterThan(0);
   expect(played).toBeGreaterThan(0);
+  expect(bracketPlayed).toBeGreaterThan(0);
 });
