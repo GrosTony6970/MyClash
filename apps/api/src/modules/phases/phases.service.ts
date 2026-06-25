@@ -32,7 +32,9 @@ import type {
 import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import type { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import type { PopulateBracketDto } from './dto/populate-bracket.dto';
-import type { BracketAdvanceService } from './bracket-advance.service';
+// Value import (not `import type`): NestJS DI dependency. A type-only import is
+// erased at runtime so the @Optional() param silently resolves to `undefined`.
+import { BracketAdvanceService } from './bracket-advance.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
 import { computePoolReschedule } from './pool-reschedule';
@@ -42,7 +44,11 @@ import {
   buildR1SeedingPlan,
   type RankedRegistration,
 } from './bracket-r1-seeding';
-import type { PoolStandingsService } from '../pool-standings/pool-standings.service';
+// Value import (not `import type`): NestJS DI dependency. Type-only erases the
+// runtime metadata, so poolStandings resolved to `undefined` — which made
+// computePoolGate vacuously "complete" and populateBracket fall back to
+// registration-seed instead of seeding from pool standings.
+import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 
 @Injectable()
 export class PhasesService {

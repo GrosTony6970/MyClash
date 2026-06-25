@@ -13,8 +13,12 @@ import { buildRoundCode } from './round-code.helper';
 import { resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
-import type { BracketAdvanceService } from '../phases/bracket-advance.service';
-import type { PhasesService } from '../phases/phases.service';
+// Value imports (not `import type`): these are NestJS DI dependencies. A
+// type-only import is erased at runtime, so `design:paramtypes` emits `Object`,
+// the @Optional() params silently resolve to `undefined`, and the bracket
+// auto-populate hook below never fires. Keep them as value imports.
+import { BracketAdvanceService } from '../phases/bracket-advance.service';
+import { PhasesService } from '../phases/phases.service';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
