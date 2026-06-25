@@ -138,4 +138,117 @@ describe('PoolStandingsService', () => {
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]!.displayName).toBe('Jean Dupont');
   });
+
+  it('does not select matches.scoring_payload (column does not exist)', async () => {
+    // Regression guard: there is no scoring_payload column on matches. Selecting
+    // it makes PostgREST 400 the whole query; that error used to be swallowed,
+    // zeroing every pool's standings and making pools never "complete".
+    const tournamentChain = makeChain({
+      data: { id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
+      error: null,
+    });
+    const phaseChain = makeChain({ data: { id: 'phase-1' }, error: null });
+    const poolsChain = makeAwaitableChain({ data: [], error: null });
+    const matchesChain = makeAwaitableChain({ data: [], error: null });
+    fromMock
+      .mockReturnValueOnce(tournamentChain)
+      .mockReturnValueOnce(phaseChain)
+      .mockReturnValueOnce(poolsChain)
+      .mockReturnValueOnce(matchesChain);
+
+    const service = new PoolStandingsService(mockSupabase as never);
+    await service.getPoolStandings('t-1', 'overall');
+
+    const selectArg = String((matchesChain.select as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]);
+    expect(selectArg).toContain('red_score');
+    expect(selectArg).not.toContain('scoring_payload');
+  });
+
+  it('throws if the matches query errors (never silently zeroes standings)', async () => {
+    const tournamentChain = makeChain({
+      data: { id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
+      error: null,
+    });
+    const phaseChain = makeChain({ data: { id: 'phase-1' }, error: null });
+    const poolsChain = makeAwaitableChain({ data: [], error: null });
+    const matchesChain = makeAwaitableChain({
+      data: null,
+      error: { message: 'column matches.scoring_payload does not exist' },
+    });
+    fromMock
+      .mockReturnValueOnce(tournamentChain)
+      .mockReturnValueOnce(phaseChain)
+      .mockReturnValueOnce(poolsChain)
+      .mockReturnValueOnce(matchesChain);
+
+    const service = new PoolStandingsService(mockSupabase as never);
+    await expect(service.getPoolStandings('t-1', 'overall')).rejects.toThrow(/does not exist/);
+  });
+
+  it('marks a pool completed and tallies W/points from completed matches', async () => {
+    const tournamentChain = makeChain({
+      data: { id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },
+      error: null,
+    });
+    const phaseChain = makeChain({ data: { id: 'phase-1' }, error: null });
+    const poolsChain = makeAwaitableChain({
+      data: [
+        {
+          id: 'pool-1',
+          name: 'Pool A',
+          pool_members: [
+            {
+              registration_id: 'reg-1',
+              registrations: {
+                id: 'reg-1',
+                persons: { id: 'p-1', given_name: 'A', family_name: 'One', clubs: null },
+              },
+            },
+            {
+              registration_id: 'reg-2',
+              registrations: {
+                id: 'reg-2',
+                persons: { id: 'p-2', given_name: 'B', family_name: 'Two', clubs: null },
+              },
+            },
+          ],
+        },
+      ],
+      error: null,
+    });
+    const matchesChain = makeAwaitableChain({
+      data: [
+        {
+          id: 'm1',
+          pool_id: 'pool-1',
+          status: 'completed',
+          red_registration_id: 'reg-1',
+          blue_registration_id: 'reg-2',
+          red_score: 5,
+          blue_score: 2,
+        },
+      ],
+      error: null,
+    });
+    fromMock
+      .mockReturnValueOnce(tournamentChain)
+      .mockReturnValueOnce(phaseChain)
+      .mockReturnValueOnce(poolsChain)
+      .mockReturnValueOnce(matchesChain);
+
+    const service = new PoolStandingsService(mockSupabase as never);
+    const result = (await service.getPoolStandings('t-1', 'by-pool')) as {
+      pools: Array<{
+        status: string;
+        rows: Array<{ registrationId: string; stats: Record<string, number> }>;
+      }>;
+    };
+
+    expect(result.pools).toHaveLength(1);
+    expect(result.pools[0]!.status).toBe('completed');
+    const winner = result.pools[0]!.rows.find((r) => r.registrationId === 'reg-1')!;
+    expect(winner.stats['W']).toBe(1);
+    expect(winner.stats['ptsScored']).toBe(5);
+    expect(winner.stats['ptsConceded']).toBe(2);
+  });
 });

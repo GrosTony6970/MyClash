@@ -108,12 +108,18 @@ export class PoolStandingsService {
     }>;
 
     // 4. Matches in this phase.
-    const { data: matches } = await this.supabase.service
+    // NOTE: do NOT select a column that doesn't exist on `matches` (there is no
+    // `scoring_payload` column). PostgREST fails the whole select on an unknown
+    // column, and silently swallowing that error here made every pool look
+    // empty → standings all-zero, pools never "completed", bracket never
+    // auto-populated. Check the error and throw instead of degrading silently.
+    const { data: matches, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score, scoring_payload',
+        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score',
       )
       .eq('phase_id', phaseId);
+    if (matchesError) throw new BadRequestException(matchesError.message);
     const matchRows = (matches ?? []) as Array<{
       id: string;
       pool_id: string;
@@ -122,7 +128,6 @@ export class PoolStandingsService {
       blue_registration_id: string;
       red_score: number | null;
       blue_score: number | null;
-      scoring_payload: Record<string, unknown> | null;
     }>;
 
     // 5. Per-pool standings.
@@ -169,7 +174,6 @@ export class PoolStandingsService {
       blue_registration_id: string;
       red_score: number | null;
       blue_score: number | null;
-      scoring_payload: Record<string, unknown> | null;
     }>,
     columns: StandingsColumn[],
     rankingChain: RankingRule[],
@@ -207,21 +211,12 @@ export class PoolStandingsService {
         blue['D'] = (blue['D'] ?? 0) + 1;
       }
 
-      const payload = m.scoring_payload ?? {};
-      const doubles = Number((payload as { doubles?: number }).doubles ?? 0);
-      const redHitsGiven = Number((payload as { redHitsGiven?: number }).redHitsGiven ?? 0);
-      const blueHitsGiven = Number((payload as { blueHitsGiven?: number }).blueHitsGiven ?? 0);
-      const redForfeit = Boolean((payload as { redForfeit?: boolean }).redForfeit);
-      const blueForfeit = Boolean((payload as { blueForfeit?: boolean }).blueForfeit);
-
-      if ('doubles' in red) red['doubles'] = (red['doubles'] ?? 0) + doubles;
-      if ('doubles' in blue) blue['doubles'] = (blue['doubles'] ?? 0) + doubles;
-      if ('hitsGiven' in red) red['hitsGiven'] = (red['hitsGiven'] ?? 0) + redHitsGiven;
-      if ('hitsGiven' in blue) blue['hitsGiven'] = (blue['hitsGiven'] ?? 0) + blueHitsGiven;
-      if ('hitsReceived' in red) red['hitsReceived'] = (red['hitsReceived'] ?? 0) + blueHitsGiven;
-      if ('hitsReceived' in blue) blue['hitsReceived'] = (blue['hitsReceived'] ?? 0) + redHitsGiven;
-      if (redForfeit && 'F' in red) red['F'] = (red['F'] ?? 0) + 1;
-      if (blueForfeit && 'F' in blue) blue['F'] = (blue['F'] ?? 0) + 1;
+      // The extended columns doubles / hitsGiven / hitsReceived / F (forfeit)
+      // were previously read from a `matches.scoring_payload` column that was
+      // never migrated nor written, so they have always resolved to 0. They
+      // stay at their initialized 0 here; deriving them properly would mean
+      // aggregating the `exchanges` (type='double', hit values), `match_penalties`
+      // and `match_forfeits` tables — a follow-up if those columns are needed.
     }
 
     for (const stats of statsByReg.values()) {
