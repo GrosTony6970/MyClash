@@ -1,6 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { registry } from '@myclash/rulesets';
-import type { StandingsColumn, RankingRule } from '@myclash/rulesets';
+import { registry, computeAggregates, computeScore } from '@myclash/rulesets';
+import type {
+  StandingsColumn,
+  RankingRule,
+  Exchange,
+  Match,
+  FighterAggregates,
+} from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { normalizeRulesetVersion } from '../events/ruleset-defaults';
 
@@ -116,7 +122,7 @@ export class PoolStandingsService {
     const { data: matches, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score',
+        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score, winner_registration_id',
       )
       .eq('phase_id', phaseId);
     if (matchesError) throw new BadRequestException(matchesError.message);
@@ -128,7 +134,59 @@ export class PoolStandingsService {
       blue_registration_id: string;
       red_score: number | null;
       blue_score: number | null;
+      winner_registration_id: string | null;
     }>;
+
+    // 4b. Exchanges + forfeits for completed matches — the source for the
+    // ruleset's score formula and the hits/doubles/forfeit columns. The
+    // pre-removal code read these from a non-existent `scoring_payload` column,
+    // which is why those columns showed 0. We now derive them from the
+    // `exchanges` table via the canonical computeAggregates/computeScore.
+    const completedMatchIds = matchRows.filter((m) => m.status === 'completed').map((m) => m.id);
+    const exchangesByMatch = new Map<string, Exchange[]>();
+    const forfeitCountByReg = new Map<string, number>();
+    if (completedMatchIds.length > 0) {
+      const { data: exRows, error: exErr } = await this.supabase.service
+        .from('exchanges')
+        .select('match_id, type, first_striker_color, first_strike_value, afterblow_value, voided')
+        .in('match_id', completedMatchIds)
+        .eq('voided', false);
+      if (exErr) throw new BadRequestException(exErr.message);
+      for (const r of (exRows ?? []) as Array<{
+        match_id: string;
+        type: string;
+        first_striker_color: string | null;
+        first_strike_value: number | null;
+        afterblow_value: number | null;
+        voided: boolean;
+      }>) {
+        // computeAggregates only reads type/firstStrikerColor/firstStrikeValue/
+        // afterblowValue/voided — build a minimal Exchange and cast.
+        const ex = {
+          type: r.type,
+          firstStrikerColor: r.first_striker_color,
+          firstStrikeValue: r.first_strike_value,
+          afterblowValue: r.afterblow_value,
+          voided: r.voided,
+        } as unknown as Exchange;
+        const list = exchangesByMatch.get(r.match_id);
+        if (list) list.push(ex);
+        else exchangesByMatch.set(r.match_id, [ex]);
+      }
+
+      const { data: ffRows, error: ffErr } = await this.supabase.service
+        .from('match_forfeits')
+        .select('forfeiting_registration_id, match_id')
+        .in('match_id', completedMatchIds)
+        .is('voided_at', null);
+      if (ffErr) throw new BadRequestException(ffErr.message);
+      for (const r of (ffRows ?? []) as Array<{ forfeiting_registration_id: string }>) {
+        forfeitCountByReg.set(
+          r.forfeiting_registration_id,
+          (forfeitCountByReg.get(r.forfeiting_registration_id) ?? 0) + 1,
+        );
+      }
+    }
 
     // 5. Per-pool standings.
     const perPool = poolRows.map((pool) => {
@@ -138,7 +196,15 @@ export class PoolStandingsService {
         poolMatches.length > 0 && completed.length === poolMatches.length
           ? 'completed'
           : 'in_progress';
-      const rows = this.computeRows(pool, completed, columns, rankingChain, poolStatus);
+      const rows = this.computeRows(
+        pool,
+        completed,
+        columns,
+        rankingChain,
+        poolStatus,
+        exchangesByMatch,
+        forfeitCountByReg,
+      );
       return { poolId: pool.id, poolName: pool.name, status: poolStatus, rows };
     });
 
@@ -170,22 +236,30 @@ export class PoolStandingsService {
       }>;
     },
     completedMatches: Array<{
+      id: string;
       red_registration_id: string;
       blue_registration_id: string;
       red_score: number | null;
       blue_score: number | null;
+      winner_registration_id: string | null;
     }>,
     columns: StandingsColumn[],
     rankingChain: RankingRule[],
     poolStatus: 'in_progress' | 'completed',
+    exchangesByMatch: Map<string, Exchange[]>,
+    forfeitCountByReg: Map<string, number>,
   ): StandingsRow[] {
     const statsByReg = new Map<string, Record<string, number>>();
+    // Per-fighter exchange aggregates (targetPoints/timesHit/doubles/wins),
+    // accumulated across the pool, then fed to the ruleset's computeScore.
+    const aggByReg = new Map<string, FighterAggregates>();
     for (const member of pool.pool_members) {
       const empty: Record<string, number> = {};
       for (const col of columns) {
         empty[col.key] = 0;
       }
       statsByReg.set(member.registration_id, empty);
+      aggByReg.set(member.registration_id, { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 });
     }
 
     for (const m of completedMatches) {
@@ -211,18 +285,48 @@ export class PoolStandingsService {
         blue['D'] = (blue['D'] ?? 0) + 1;
       }
 
-      // The extended columns doubles / hitsGiven / hitsReceived / F (forfeit)
-      // were previously read from a `matches.scoring_payload` column that was
-      // never migrated nor written, so they have always resolved to 0. They
-      // stay at their initialized 0 here; deriving them properly would mean
-      // aggregating the `exchanges` (type='double', hit values), `match_penalties`
-      // and `match_forfeits` tables — a follow-up if those columns are needed.
+      // Accumulate the canonical per-fighter aggregates from this match's
+      // exchanges (hits given/received, doubles) + the win count the score
+      // formula needs. computeAggregates only reads redRegistrationId +
+      // exchange fields, so a minimal Match cast is enough.
+      const matchExchanges = exchangesByMatch.get(m.id) ?? [];
+      const rulesetMatch = {
+        redRegistrationId: m.red_registration_id,
+        blueRegistrationId: m.blue_registration_id,
+      } as unknown as Match;
+      for (const regId of [m.red_registration_id, m.blue_registration_id]) {
+        const acc = aggByReg.get(regId);
+        if (!acc) continue;
+        const a = computeAggregates(
+          regId,
+          rulesetMatch,
+          matchExchanges,
+          m.winner_registration_id === regId,
+        );
+        acc.wins += a.wins;
+        acc.targetPoints += a.targetPoints;
+        acc.timesHit += a.timesHit;
+        acc.doubles += a.doubles;
+      }
     }
 
     for (const stats of statsByReg.values()) {
       if ('diff' in stats) {
         stats['diff'] = (stats['ptsScored'] ?? 0) - (stats['ptsConceded'] ?? 0);
       }
+    }
+
+    // Extended columns derived from exchanges + forfeits. Only assign keys the
+    // active ruleset actually declares (Generic_PointsCap declares none of these
+    // and stays untouched). Score is rounded to 2 decimals for display; ranking
+    // uses the same rounded value with W as the next tiebreak.
+    for (const [regId, stats] of statsByReg) {
+      const agg = aggByReg.get(regId) ?? { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 };
+      if ('hitsGiven' in stats) stats['hitsGiven'] = agg.targetPoints;
+      if ('hitsReceived' in stats) stats['hitsReceived'] = agg.timesHit;
+      if ('doubles' in stats) stats['doubles'] = agg.doubles;
+      if ('score' in stats) stats['score'] = Math.round(computeScore(agg) * 100) / 100;
+      if ('F' in stats) stats['F'] = forfeitCountByReg.get(regId) ?? 0;
     }
 
     const rows: StandingsRow[] = pool.pool_members.map((member) => {

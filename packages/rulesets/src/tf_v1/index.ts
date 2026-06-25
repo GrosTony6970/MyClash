@@ -18,6 +18,9 @@ import { computeMatchScore, isMatchOver } from './score';
 import { computePoolStandings } from './standings';
 
 const TF_V1_STANDINGS_COLUMNS: StandingsColumn[] = [
+  // The TF_v1 ranking metric: (wins·winBonus + targetPoints) /
+  // (timesHit + doublePenalty(doubles)). Shown first so it leads the table.
+  { key: 'score', label: 'Score', type: 'number', sortDesc: true },
   { key: 'W', label: 'Wins', type: 'number', sortDesc: true },
   { key: 'L', label: 'Losses', type: 'number', sortDesc: false },
   { key: 'D', label: 'Draws', type: 'number', sortDesc: true },
@@ -30,8 +33,10 @@ const TF_V1_STANDINGS_COLUMNS: StandingsColumn[] = [
   { key: 'hitsReceived', label: 'Hits received', type: 'number', sortDesc: false },
 ];
 
+// Mirrors the canonical tiebreak order in standings.ts: score → wins →
+// doubles (fewer better) → timesHit/hitsReceived (fewer better).
 const TF_V1_RANKING_CHAIN: RankingRule[] = [
-  { key: 'ptsScored', direction: 'desc' },
+  { key: 'score', direction: 'desc' },
   { key: 'W', direction: 'desc' },
   { key: 'doubles', direction: 'asc' },
   { key: 'hitsReceived', direction: 'asc' },

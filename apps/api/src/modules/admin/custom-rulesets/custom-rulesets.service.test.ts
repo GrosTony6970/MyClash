@@ -133,7 +133,7 @@ describe('CustomRulesetsService', () => {
     // The DB row's `tiebreakers` is empty, but the response should now
     // surface the coded rankingChain (4 entries for TF v1).
     expect(result.systemRankingChain).toEqual([
-      { key: 'ptsScored', direction: 'desc' },
+      { key: 'score', direction: 'desc' },
       { key: 'W', direction: 'desc' },
       { key: 'doubles', direction: 'asc' },
       { key: 'hitsReceived', direction: 'asc' },
