@@ -43,6 +43,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const tok = Date.now().toString(36);
   const gid = (p: Person) => p.globalPersonId ?? p.id;
 
+  // Tournament-wide double cap (also the TF_v1 default): reaching this many
+  // doubles in ONE match auto-completes it as a 0–0 double loss. ONLY the
+  // dedicated pool "double out" matches post this many. Every other match —
+  // every bracket match and every normal pool match — posts at most ONE double,
+  // which is strictly below the cap, so a double-out can never happen outside a
+  // pool (a null winner would otherwise be unable to advance a bracket slot).
+  const DOUBLE_CAP = 4;
+
   // Pace requests only when asked (E2E_PACE_MS); a whitelisted IP needs none.
   let lastAt = 0;
   const MIN_MS = Number(process.env.E2E_PACE_MS ?? '0') || 0;
@@ -134,14 +142,14 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     const tournamentId = t?.id as string | undefined;
     if (!tournamentId) return { id: '', poolIds: [] };
 
-    await step(`${name}: deductive afterblow + double cap 4`, async () =>
+    await step(`${name}: deductive afterblow + double cap ${DOUBLE_CAP}`, async () =>
       reqOk(
         await patch(`tournaments/${tournamentId}`, {
           data: {
             scoringConfig: { afterblowMode: 'deductive' },
-            // Explicit double cap (also the TF_v1 default) so the "double out"
-            // matches below deterministically end as a 0–0 double loss.
-            rulesetConfig: { matchFormat: { maxDoubleHits: 4 } },
+            // Explicit double cap (also the TF_v1 default) so the pool "double
+            // out" matches below deterministically end as a 0–0 double loss.
+            rulesetConfig: { matchFormat: { maxDoubleHits: DOUBLE_CAP } },
           },
         }),
       ),
@@ -282,10 +290,11 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
 
   const blackCarded = new Set<string>(); // registrations already black-carded (avoid 2nd → DQ)
-  // A couple of pool matches end in a "double out": posting maxDoubleHits (4)
-  // doubles auto-completes the match as a 0–0 double loss (both fighters lose,
-  // end_reason=max_doubles, no winner). Pools only — a null winner can't advance
-  // a bracket slot.
+  // A couple of pool matches end in a "double out": posting DOUBLE_CAP doubles
+  // auto-completes the match as a 0–0 double loss (both fighters lose,
+  // end_reason=max_doubles, no winner). This is the ONLY place that posts that
+  // many doubles, and it is reachable for pool matches only (gated by
+  // `allowDoubleOut`) — a null winner can't advance a bracket slot.
   const DOUBLE_OUT_IDXS = new Set([5, 12]);
   let played = 0;
   let exchangesPosted = 0;
@@ -301,7 +310,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
 
     if (allowDoubleOut && DOUBLE_OUT_IDXS.has(idx)) {
       let dclock = 10_000;
-      for (let d = 1; d <= 4; d++) {
+      for (let d = 1; d <= DOUBLE_CAP; d++) {
         await exchange(m.id, { sequence: d, type: 'double', clockTimeMs: dclock });
         dclock += 20_000;
         exchangesPosted++;
@@ -352,9 +361,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     });
     exchangesPosted += 4;
 
-    // ~25% of matches get one extra "double" exchange — kept well under the cap
-    // of 4 so it stays a normal win; a double scores nobody but dents the TF_v1
-    // score ratio (it grows the denominator).
+    // ~25% of matches get ONE extra "double" exchange — a single double stays
+    // below DOUBLE_CAP so this stays a normal win (never a double-out); a double
+    // scores nobody but dents the TF_v1 score ratio (it grows the denominator).
     if (idx % 4 === 1) {
       clock += 30_000;
       await exchange(m.id, { sequence: seq++, type: 'double', clockTimeMs: clock });
@@ -528,9 +537,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       });
       exchangesPosted++;
     }
-    // ~25%: one "double" exchange (scores nobody) — kept to a single double, well
-    // under the cap of 4, so the bracket match still resolves to a winner that
-    // can advance.
+    // ~25%: ONE "double" exchange (scores nobody) — a single double stays below
+    // DOUBLE_CAP, so a bracket match never double-outs and always resolves to a
+    // winner that can advance.
     if (Math.random() < 0.25) {
       clock += 20_000;
       await exchange(mid, { sequence: seq++, type: 'double', clockTimeMs: clock });
