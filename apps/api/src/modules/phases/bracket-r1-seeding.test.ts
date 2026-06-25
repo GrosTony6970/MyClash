@@ -46,6 +46,33 @@ describe('buildR1SeedingPlan', () => {
     ]);
   });
 
+  it('seeds a play-in bracket: R0 seed slots filled, R1 winner-of feeders left null', () => {
+    // 12 fighters → main bracket 8, 4 direct seeds (1-4), 4 play-in matches.
+    // R0 sides are "seed N" (filled here); R1 feeder sides are "winner of R0Px"
+    // (parseSeed -> null upstream), so they stay empty until the play-in
+    // winners propagate via bracket-advance.
+    const plan = buildR1SeedingPlan(ranks(12), [
+      { id: 'r0p1', position: 1, seedA: 5, seedB: 12 },
+      { id: 'r0p2', position: 2, seedA: 6, seedB: 11 },
+      { id: 'r0p3', position: 3, seedA: 7, seedB: 10 },
+      { id: 'r0p4', position: 4, seedA: 8, seedB: 9 },
+      { id: 'r1p1', position: 1, seedA: 1, seedB: null }, // seedB = winner of R0P4
+      { id: 'r1p2', position: 2, seedA: null, seedB: 4 }, // seedA = winner of R0P1
+      { id: 'r1p3', position: 3, seedA: 3, seedB: null }, // seedB = winner of R0P2
+      { id: 'r1p4', position: 4, seedA: null, seedB: 2 }, // seedA = winner of R0P3
+    ]);
+    expect(plan).toEqual([
+      { slotId: 'r0p1', registrationAId: 'r5', registrationBId: 'r12' },
+      { slotId: 'r0p2', registrationAId: 'r6', registrationBId: 'r11' },
+      { slotId: 'r0p3', registrationAId: 'r7', registrationBId: 'r10' },
+      { slotId: 'r0p4', registrationAId: 'r8', registrationBId: 'r9' },
+      { slotId: 'r1p1', registrationAId: 'r1', registrationBId: null },
+      { slotId: 'r1p2', registrationAId: null, registrationBId: 'r4' },
+      { slotId: 'r1p3', registrationAId: 'r3', registrationBId: null },
+      { slotId: 'r1p4', registrationAId: null, registrationBId: 'r2' },
+    ]);
+  });
+
   it('leaves a seed with no matching rank null (bye for advanceByeSlots)', () => {
     // Only 7 ranked fighters: seed 8 has no rank → that side (s1.b) is a bye.
     const plan = buildR1SeedingPlan(ranks(7), slots8);

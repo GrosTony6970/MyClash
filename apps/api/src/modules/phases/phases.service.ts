@@ -763,7 +763,11 @@ export class PhasesService {
         'id, round, position, source_a_ref, source_b_ref, registration_a_id, registration_b_id',
       )
       .eq('phase_id', phaseId)
-      .eq('round', r1Round)
+      // Include round 0 (play-in) alongside round 1 so a re-seed also re-seeds
+      // the play-in matches, and so the "already started" gate below covers
+      // in-flight play-in matches too. No-op for power-of-two brackets.
+      .in('round', [0, r1Round])
+      .order('round', { ascending: true })
       .order('position', { ascending: true });
     if (slotsErr) throw new BadRequestException(slotsErr.message);
     const slots = (r1Slots ?? []) as Array<{
@@ -950,15 +954,21 @@ export class PhasesService {
     const persistedMode = config['populateSeedingMode'] as 'overall' | 'top-n-per-pool' | undefined;
     const seedingMode: 'overall' | 'top-n-per-pool' = dto.seedingMode ?? persistedMode ?? 'overall';
 
-    // 4. R1 slots for this phase.
-    const { data: r1Slots } = await this.supabase.service
+    // 4. Seed slots for this phase: round 0 (play-in) AND round 1. For
+    //    non-power-of-two fields the generator emits a play-in round whose
+    //    slots also carry "seed N" refs; without seeding them the R0 matches
+    //    stay empty and the play-in can't be played (its winners never reach
+    //    the round-1 "winner of R0Px" slots). Power-of-two brackets have no
+    //    round-0 slots, so [0, 1] is a no-op for them.
+    const { data: seedSlots } = await this.supabase.service
       .from('bracket_slots')
       .select('id, round, position, source_a_ref, source_b_ref')
       .eq('phase_id', phaseId)
-      .eq('round', 1)
+      .in('round', [0, 1])
+      .order('round', { ascending: true })
       .order('position', { ascending: true });
     const slots = (
-      (r1Slots ?? []) as Array<{
+      (seedSlots ?? []) as Array<{
         id: string;
         round: number;
         position: number;
