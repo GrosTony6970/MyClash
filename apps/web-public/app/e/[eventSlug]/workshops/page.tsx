@@ -13,6 +13,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getApiUrl } from '@/lib/api-url';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
+import { fetchEventInfo } from '../_components/EventHeader';
 
 interface Props {
   params: Promise<{ eventSlug: string }>;
@@ -38,7 +39,10 @@ async function fetchWorkshops(eventSlug: string, apiUrl: string): Promise<Worksh
 export default async function WorkshopsPage({ params }: Props) {
   const { eventSlug } = await params;
   const apiUrl = getApiUrl();
-  const workshops = await fetchWorkshops(eventSlug, apiUrl);
+  const [workshops, event] = await Promise.all([
+    fetchWorkshops(eventSlug, apiUrl),
+    fetchEventInfo(eventSlug, apiUrl),
+  ]);
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6">
@@ -55,7 +59,11 @@ export default async function WorkshopsPage({ params }: Props) {
         Workshops
       </h1>
 
-      <WorkshopsBrowser workshops={workshops} eventSlug={eventSlug} />
+      <WorkshopsBrowser
+        workshops={workshops}
+        eventSlug={eventSlug}
+        timezone={event?.timezone ?? 'Europe/Paris'}
+      />
     </main>
   );
 }

@@ -12,6 +12,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { accentClassFor, fuzzyMatch } from '@myclash/ui';
+import { formatInZone } from '@myclash/time';
 
 export interface WorkshopListItem {
   id: string;
@@ -63,9 +64,11 @@ const SELECT_CLS =
 export function WorkshopsBrowser({
   workshops,
   eventSlug,
+  timezone,
 }: {
   workshops: WorkshopListItem[];
   eventSlug: string;
+  timezone: string;
 }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
@@ -167,11 +170,18 @@ export function WorkshopsBrowser({
             const totalConfirmed = w.sessions.reduce((s, sess) => s + sess.confirmedCount, 0);
             const totalCapacity = w.sessions.reduce((s, sess) => s + (sess.capacity ?? 0), 0);
             const description = w.descriptionMd ?? w.shortDescription;
+            // Earliest scheduled session drives the date/time line (mirrors the
+            // event-home card). Extra sessions are flagged with "+N more".
+            const datedSessions = w.sessions
+              .filter((s) => s.startsAt)
+              .sort((a, b) => (a.startsAt! < b.startsAt! ? -1 : 1));
+            const firstSession = datedSessions[0] ?? null;
+            const moreCount = datedSessions.length - 1;
             return (
               <Link
                 key={w.id}
                 href={`/e/${eventSlug}/w/${w.slug}`}
-                className="relative block overflow-hidden rounded-xl border border-gray-200 bg-white p-5 transition-all hover:border-gray-300 hover:shadow-sm"
+                className="group relative block overflow-hidden rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition-colors hover:border-red-400 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500/40"
               >
                 {w.color && (
                   <span
@@ -180,17 +190,17 @@ export function WorkshopsBrowser({
                   />
                 )}
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <h2 className="text-lg font-semibold text-gray-900">{w.title}</h2>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-display text-lg font-semibold text-slate-900">{w.title}</h2>
                     {instructorNames.length > 0 && (
-                      <p className="mt-0.5 text-sm text-gray-500">{instructorNames.join(', ')}</p>
+                      <p className="mt-0.5 text-sm text-slate-500">{instructorNames.join(', ')}</p>
                     )}
                     {description && (
-                      <p className="mt-2 line-clamp-2 text-sm text-gray-600">{description}</p>
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-600">{description}</p>
                     )}
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {w.category && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-600">
                           {w.category}
                         </span>
                       )}
@@ -199,16 +209,35 @@ export function WorkshopsBrowser({
                           {w.level}
                         </span>
                       )}
+                      {w.durationMinutes != null && (
+                        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
+                          {w.durationMinutes} min
+                        </span>
+                      )}
                       {w.language && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-slate-500">
                           {w.language.toUpperCase()}
                         </span>
                       )}
                     </div>
+                    {firstSession?.startsAt && (
+                      <p className="mt-3 text-xs font-medium text-slate-500">
+                        {formatInZone(firstSession.startsAt, timezone, {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {moreCount > 0 && (
+                          <span className="text-slate-400"> · +{moreCount} more</span>
+                        )}
+                      </p>
+                    )}
                   </div>
                   <div className="flex-shrink-0 text-right">
                     {totalCapacity > 0 && capacityBadge(totalConfirmed, totalCapacity)}
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-slate-400">
                       {w.sessions.length} session{w.sessions.length !== 1 ? 's' : ''}
                     </p>
                   </div>
