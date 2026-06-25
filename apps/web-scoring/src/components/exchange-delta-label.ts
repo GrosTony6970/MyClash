@@ -16,3 +16,21 @@ export function exchangeDeltaLabel(
   if (scoreDelta == null) return null;
   return `+${scoreDelta}`;
 }
+
+/**
+ * Delta the OTHER fighter (the afterblower / defender) receives on an afterblow.
+ * In full-afterblow scoring the defender also scores, so the history row must
+ * show both fighters' points. Returns `+N` only for an afterblow that actually
+ * awarded the defender points; null otherwise (clean/double/no-exchange, or a
+ * deductive afterblow where the defender scored nothing).
+ *
+ * Pure: no React, no I/O.
+ */
+export function afterblowDefenderLabel(
+  type: 'clean' | 'afterblow' | 'double' | 'no_exchange',
+  defenderDelta: number | null | undefined,
+): string | null {
+  if (type !== 'afterblow') return null;
+  if (defenderDelta == null || defenderDelta <= 0) return null;
+  return `+${defenderDelta}`;
+}

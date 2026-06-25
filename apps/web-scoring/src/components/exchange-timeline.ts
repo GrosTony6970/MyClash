@@ -12,7 +12,7 @@
 
 import type { TournamentScoringConfig } from '@myclash/types';
 import { formatMatchClock, sideStyle } from '@myclash/ui';
-import { exchangeDeltaLabel } from './exchange-delta-label';
+import { exchangeDeltaLabel, afterblowDefenderLabel } from './exchange-delta-label';
 import type { ExchangeRow } from '../hooks/useExchanges';
 import type { MatchPenalty, PenaltyCard } from '../hooks/usePenalties';
 
@@ -35,6 +35,14 @@ export interface UnifiedEvent {
   /** Penalty card colour — null for exchange rows. */
   card: PenaltyCard | null;
   delta: string | null;
+  /**
+   * The OTHER fighter's points on a full-afterblow exchange (defender also
+   * scores). Set only for afterblows that awarded the defender points; the
+   * row then shows both fighters' deltas. Undefined/null on every other row.
+   */
+  opponentSideColor?: string | null;
+  opponentLabel?: string | null;
+  opponentDelta?: string | null;
 }
 
 /** A row before its display number is assigned. */
@@ -86,6 +94,10 @@ export function buildUnifiedTimeline({
           : e.type === 'afterblow'
             ? 'AB'
             : 'clean';
+    // Full-afterblow: the defender (the OTHER fighter) also scores, so surface
+    // their points alongside the first striker's so the row shows both deltas.
+    const opponentDelta = afterblowDefenderLabel(e.type, e.defenderDelta);
+    const oppSide: 'red' | 'blue' | null = side === 'red' ? 'blue' : side === 'blue' ? 'red' : null;
     // Scoring rows always show their delta — INCLUDING '+0' for a 1-1
     // afterblow, so a no-point exchange still visibly registers.
     return {
@@ -100,6 +112,15 @@ export function buildUnifiedTimeline({
       typeLabel,
       card: null,
       delta: exchangeDeltaLabel(e.type, e.scoreDelta),
+      opponentSideColor: opponentDelta && oppSide ? sideStyle(config, oppSide).border : null,
+      opponentLabel: opponentDelta
+        ? oppSide === 'red'
+          ? redName
+          : oppSide === 'blue'
+            ? blueName
+            : null
+        : null,
+      opponentDelta,
     };
   });
 

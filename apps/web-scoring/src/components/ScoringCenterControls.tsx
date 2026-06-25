@@ -405,6 +405,21 @@ export function ScoringCenterControls({
               )}
               <span className="text-gray-400 truncate">{ev.typeLabel}</span>
               {ev.delta && <span className="font-bold text-white">{ev.delta}</span>}
+              {ev.opponentDelta && (
+                <span className="flex items-center gap-1 flex-shrink-0">
+                  <span className="text-gray-600">·</span>
+                  {ev.opponentSideColor && (
+                    <span
+                      className="inline-block h-2 w-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: ev.opponentSideColor }}
+                    />
+                  )}
+                  {ev.opponentLabel && (
+                    <span className="text-gray-400 truncate max-w-[6rem]">{ev.opponentLabel}</span>
+                  )}
+                  <span className="font-bold text-white">{ev.opponentDelta}</span>
+                </span>
+              )}
             </div>
           ))}
         </div>

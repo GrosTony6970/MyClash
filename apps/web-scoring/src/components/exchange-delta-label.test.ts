@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exchangeDeltaLabel } from './exchange-delta-label';
+import { exchangeDeltaLabel, afterblowDefenderLabel } from './exchange-delta-label';
 
 describe('exchangeDeltaLabel', () => {
   it('shows +0 for a zero-point afterblow (1-1) so the exchange reads as registered', () => {
@@ -16,5 +16,24 @@ describe('exchangeDeltaLabel', () => {
     expect(exchangeDeltaLabel('no_exchange', null)).toBeNull();
     expect(exchangeDeltaLabel('afterblow', null)).toBeNull();
     expect(exchangeDeltaLabel('clean', undefined)).toBeNull();
+  });
+});
+
+describe('afterblowDefenderLabel', () => {
+  it('shows the defender +N on an afterblow that awarded the other fighter points', () => {
+    expect(afterblowDefenderLabel('afterblow', 1)).toBe('+1');
+    expect(afterblowDefenderLabel('afterblow', 2)).toBe('+2');
+  });
+
+  it('shows nothing when the defender scored nothing (deductive / net-zero afterblow)', () => {
+    expect(afterblowDefenderLabel('afterblow', 0)).toBeNull();
+    expect(afterblowDefenderLabel('afterblow', null)).toBeNull();
+    expect(afterblowDefenderLabel('afterblow', undefined)).toBeNull();
+  });
+
+  it('shows nothing for non-afterblow exchange types', () => {
+    expect(afterblowDefenderLabel('clean', 2)).toBeNull();
+    expect(afterblowDefenderLabel('double', 1)).toBeNull();
+    expect(afterblowDefenderLabel('no_exchange', 1)).toBeNull();
   });
 });
