@@ -956,7 +956,29 @@ export class PersonsService {
       return;
     }
 
-    // create_new: auto-create a global_persons record (same as registration flow)
+    // create_new: auto-create a global_persons record (same as registration flow).
+    const email = row.email?.trim().toLowerCase() || null;
+
+    // If a global profile already owns this email (e.g. a prior import of the
+    // same roster), link to it instead of minting a duplicate — and so the
+    // fighter can auto-claim on first login via the email match.
+    if (email) {
+      const { data: existingByEmail } = await this.supabase.service
+        .from('global_persons')
+        .select('id')
+        .ilike('email', email)
+        .is('merged_into_id', null)
+        .limit(1)
+        .maybeSingle();
+      if (existingByEmail) {
+        await this.supabase.service
+          .from('persons')
+          .update({ global_person_id: (existingByEmail as { id: string }).id })
+          .eq('id', personId);
+        return;
+      }
+    }
+
     const displayName = `${row.given_name} ${row.family_name}`;
     const slug =
       `${row.given_name.toLowerCase()}-${row.family_name.toLowerCase()}-${Date.now().toString(36)}`
@@ -966,7 +988,9 @@ export class PersonsService {
         .replace(/^-+|-+$/g, '')
         .slice(0, 80);
 
-    const { data: gp } = await this.supabase.service
+    // Persist the email on the global profile (not just the event person) so the
+    // login email-autolink can claim it without a manual request.
+    const { data: gp, error: gpError } = await this.supabase.service
       .from('global_persons')
       .insert({
         slug,
@@ -974,11 +998,39 @@ export class PersonsService {
         given_name: row.given_name,
         family_name: row.family_name,
         club_id: clubId,
+        email,
+        hema_ratings_id: row.hema_ratings_id ?? null,
         is_fighter: true,
         claimed_by_user_id: null,
       })
       .select('id')
       .single();
+
+    if (gpError) {
+      // A concurrent/duplicate row may have taken the email (unique on
+      // LOWER(email) for unmerged rows) — link to it rather than leaving the
+      // participant globally unlinked.
+      if (email && /duplicate key|unique/i.test(gpError.message)) {
+        const { data: collided } = await this.supabase.service
+          .from('global_persons')
+          .select('id')
+          .ilike('email', email)
+          .is('merged_into_id', null)
+          .limit(1)
+          .maybeSingle();
+        if (collided) {
+          await this.supabase.service
+            .from('persons')
+            .update({ global_person_id: (collided as { id: string }).id })
+            .eq('id', personId);
+        }
+        return;
+      }
+      this.logger.warn(
+        `import: global person create failed for person ${personId}: ${gpError.message}`,
+      );
+      return;
+    }
 
     if (gp) {
       await this.supabase.service

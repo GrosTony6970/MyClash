@@ -162,20 +162,48 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Roster registrations matching the logged-in user's email but not yet
+  // claimed — surfaced as a confirm-to-claim step instead of dead-ending when
+  // no Fighter profile is linked yet.
+  const [claimable, setClaimable] = useState<
+    Array<{ id: string; name: string; eventName: string }>
+  >([]);
+  const [claiming, setClaiming] = useState(false);
+
+  const loadClaimable = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/me/personal-space`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        claimable?: Array<{ id: string; name: string; eventName: string }>;
+      };
+      setClaimable(Array.isArray(data.claimable) ? data.claimable : []);
+    } catch {
+      // ignore — fall back to the generic access-required message
+    }
+  }, [apiUrl]);
 
   const load = useCallback(() => {
+    setLoading(true);
     Promise.all([
       fetch(`${apiUrl}/api/v1/fighters/me/dashboard`, { credentials: 'include' }),
       fetch(`${apiUrl}/api/v1/weapons`, { credentials: 'include' }),
     ])
       .then(async ([dashboardResponse, weaponsResponse]) => {
-        if (!dashboardResponse.ok) throw new Error('dashboard');
+        if (!dashboardResponse.ok) {
+          // Logged in but no Fighter profile linked yet → offer the
+          // confirm-to-claim step rather than a dead-end error.
+          await loadClaimable();
+          setError(t('publicApp.fighterProfile.loadError'));
+          return;
+        }
         const nextDashboard = (await dashboardResponse.json()) as DashboardResponse;
         const nextWeapons = weaponsResponse.ok
           ? ((await weaponsResponse.json()) as WeaponCatalogEntry[])
           : [];
         setDashboard(nextDashboard);
         setWeapons(nextWeapons);
+        setError(null);
         setForm(formFromProfile(nextDashboard.profile, dateFormat.format));
       })
       .catch(() => {
@@ -184,7 +212,29 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
       .finally(() => {
         setLoading(false);
       });
-  }, [apiUrl, t, dateFormat]);
+  }, [apiUrl, t, dateFormat, loadClaimable]);
+
+  const claim = (personId: string) => {
+    setClaiming(true);
+    fetch(`${apiUrl}/api/v1/me/claim-persons`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personIds: [personId] }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('claim');
+        // Claiming links the global profile → the dashboard now resolves.
+        setClaimable([]);
+        load();
+      })
+      .catch(() => {
+        setError(t('publicApp.personalSpace.claimable.error'));
+      })
+      .finally(() => {
+        setClaiming(false);
+      });
+  };
 
   useEffect(() => {
     load();
@@ -286,10 +336,52 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
   }
 
   if (error && !dashboard) {
+    // No Fighter profile linked yet. If the user has roster registrations on
+    // their email, offer to claim one (which links the profile and unlocks the
+    // dashboard); otherwise point them to their personal space.
+    if (claimable.length > 0) {
+      return (
+        <section className="rounded-xl border border-gray-800 bg-gray-950 p-4">
+          <h2 className="text-sm font-semibold text-gray-100">
+            {t('publicApp.personalSpace.claimable.title')}
+          </h2>
+          <p className="mt-1 text-xs text-gray-400">
+            {t('publicApp.personalSpace.claimable.description')}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {claimable.map((person) => (
+              <li
+                key={person.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-gray-800 bg-gray-900 px-3 py-2"
+              >
+                <span className="min-w-0 text-sm text-gray-100">
+                  <span className="font-semibold">{person.name}</span>
+                  {person.eventName && <span className="text-gray-400"> — {person.eventName}</span>}
+                </span>
+                <button
+                  type="button"
+                  disabled={claiming}
+                  onClick={() => claim(person.id)}
+                  className="shrink-0 rounded-md border border-emerald-500/40 px-3 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/10 disabled:opacity-60"
+                >
+                  {t('publicApp.personalSpace.claimable.claim')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    }
     return (
       <section className="rounded-xl border border-red-900 bg-red-950/30 p-4">
         <p className="text-sm text-red-200">{error}</p>
         <p className="mt-2 text-xs text-gray-400">{t('publicApp.fighterProfile.accessRequired')}</p>
+        <a
+          href="/me"
+          className="mt-3 inline-block rounded-md border border-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-200 hover:bg-gray-800"
+        >
+          {t('publicApp.fighterProfile.goToPersonalSpace')}
+        </a>
       </section>
     );
   }
