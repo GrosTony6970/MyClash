@@ -80,6 +80,12 @@ interface Props {
   onDeleteBreak?: (id: string) => void;
 }
 
+// Minimum area-column width. Columns grow to fill the viewport (like the main
+// schedule grid's `minmax(MIN, 1fr)` lices); below this they keep their width
+// and the board scrolls horizontally instead.
+const COL_MIN_WIDTH_PX = 240;
+// Fallback width before the viewport has been measured (avoids a first-paint
+// flash of mis-sized columns).
 const COL_WIDTH_PX = 280;
 const GUTTER_PX = 56;
 const DEFAULT_ZOOM = 28;
@@ -160,6 +166,27 @@ export function WorkshopScheduleBoard({
 
   const columns = buildAreaColumns(venues);
   const bands = buildColumnBands(columns);
+
+  // Size the area columns to fill the grid viewport so the board uses the whole
+  // screen (matching the main schedule grid). Measured live so it tracks window
+  // resizes and the sidebar collapse; falls back to a fixed width pre-measure
+  // and never goes below COL_MIN_WIDTH_PX (so many columns scroll instead of
+  // squashing).
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const [gridViewportWidth, setGridViewportWidth] = useState(0);
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const measure = () => setGridViewportWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const colWidth =
+    columns.length > 0 && gridViewportWidth > 0
+      ? Math.max(COL_MIN_WIDTH_PX, Math.floor((gridViewportWidth - GUTTER_PX) / columns.length))
+      : COL_WIDTH_PX;
   const dayIndex = Math.max(0, days.indexOf(activeDay));
   const blocks = buildWorkshopSessionBlocks(workshops, columns, activeDay, timezone, startHour);
   const drawer = unscheduledWorkshops(workshops, columns);
@@ -593,7 +620,7 @@ export function WorkshopScheduleBoard({
         </aside>
 
         {/* Grid (RIGHT) */}
-        <div className="flex-1 overflow-x-auto">
+        <div ref={gridScrollRef} className="flex-1 overflow-x-auto">
           {columns.length === 0 ? (
             <p className="text-sm text-amber-600">
               No workshop-capable venues for this event yet. Add one from the Venues tab.
@@ -606,7 +633,7 @@ export function WorkshopScheduleBoard({
                   <div
                     key={band.venueId}
                     className="border-b border-r border-gray-200 bg-gray-50 px-2 py-1 text-center text-xs font-semibold text-gray-700 truncate"
-                    style={{ width: band.span * COL_WIDTH_PX }}
+                    style={{ width: band.span * colWidth }}
                   >
                     {band.venueName}
                   </div>
@@ -618,7 +645,7 @@ export function WorkshopScheduleBoard({
                   <div
                     key={c.key}
                     className="border-b border-r border-gray-200 px-2 py-1 text-center text-[11px] text-gray-500 truncate"
-                    style={{ width: COL_WIDTH_PX }}
+                    style={{ width: colWidth }}
                   >
                     {c.areaName ?? '—'}
                   </div>
@@ -643,7 +670,7 @@ export function WorkshopScheduleBoard({
                 {/* Columns + full-width overlays (breaks, now-line) */}
                 <div
                   className="relative flex"
-                  style={{ width: columns.length * COL_WIDTH_PX, height: gridHeight }}
+                  style={{ width: columns.length * colWidth, height: gridHeight }}
                 >
                   {columns.map((c) => (
                     <div
@@ -651,7 +678,7 @@ export function WorkshopScheduleBoard({
                       onDragOver={(e) => handleDragOver(c, e)}
                       onDrop={(e) => handleDrop(c, e)}
                       className="relative border-r border-gray-100"
-                      style={{ width: COL_WIDTH_PX, height: gridHeight }}
+                      style={{ width: colWidth, height: gridHeight }}
                     >
                       {hourLines.map((s) => (
                         <div

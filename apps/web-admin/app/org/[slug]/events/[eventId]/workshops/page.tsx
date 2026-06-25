@@ -687,7 +687,9 @@ export default function WorkshopsAdminPage() {
   }
 
   return (
-    <main className="p-8 max-w-6xl">
+    // Full-bleed (no max-width) so the schedule board can use the whole screen,
+    // matching the main event schedule page.
+    <main className="p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
