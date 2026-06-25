@@ -22,6 +22,7 @@ import {
   type PoolEntry,
   type RankingSlot,
 } from './compute-final-ranking';
+import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
 
 interface Tournament {
   id: string;
@@ -156,25 +157,84 @@ export default function FinalRankingPage() {
     [bracket, poolEntries],
   );
 
+  const tournamentName = tournaments.find((t) => t.id === selectedTournament)?.name ?? 'Tournament';
+  const exportRows = useMemo<ExportRow[]>(
+    () =>
+      ranking.map((entry) => ({
+        rank: entry.place,
+        fighter: entry.fighterName,
+        club: entry.clubAbbrev ?? '',
+        result: resultLabel(entry, maxRound),
+        poolScore: entry.poolScore != null ? entry.poolScore.toFixed(2) : '',
+      })),
+    [ranking, maxRound],
+  );
+
+  function downloadCsv() {
+    if (exportRows.length === 0) return;
+    // BOM so Excel reads accented names as UTF-8.
+    const blob = new Blob(['﻿', rankingToCsv(exportRows)], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `final-ranking-${slugify(tournamentName)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printRanking() {
+    if (exportRows.length === 0) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(rankingToPrintHtml(`${tournamentName} — Final ranking`, exportRows));
+    w.document.close();
+    w.focus();
+    w.print();
+  }
+
+  const canExport = !loading && ranking.length > 0;
+
   return (
     <main className="px-4 py-6">
-      <div className="mb-6">
-        <div className="mb-1 flex items-center gap-2 text-sm text-gray-500">
-          <Link href={`/org/${slug}`} className="hover:text-gray-700">
-            {slug}
-          </Link>
-          <span>/</span>
-          <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
-            Event
-          </Link>
-          <span>/</span>
-          <span className="font-medium text-gray-900">Final ranking</span>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <div className="mb-1 flex items-center gap-2 text-sm text-gray-500">
+            <Link href={`/org/${slug}`} className="hover:text-gray-700">
+              {slug}
+            </Link>
+            <span>/</span>
+            <Link href={`/org/${slug}/events/${eventId}`} className="hover:text-gray-700">
+              Event
+            </Link>
+            <span>/</span>
+            <span className="font-medium text-gray-900">Final ranking</span>
+          </div>
+          <h1 className="text-2xl font-bold">Final ranking</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Bracket placement — fighters eliminated in the same round are separated by their pool
+            score.
+          </p>
         </div>
-        <h1 className="text-2xl font-bold">Final ranking</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Bracket placement — fighters eliminated in the same round are separated by their pool
-          score.
-        </p>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={downloadCsv}
+            disabled={!canExport}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={printRanking}
+            disabled={!canExport}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Print / PDF
+          </button>
+        </div>
       </div>
 
       {tournaments.length > 1 && (
@@ -259,6 +319,18 @@ export default function FinalRankingPage() {
         </div>
       )}
     </main>
+  );
+}
+
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'tournament'
   );
 }
 
