@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
-import { getApiUrl } from '@/lib/api-url';
 import { defaultLocale, t } from '@myclash/i18n';
-import { MaintenanceBanner } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { MaybeSiteHeader } from './_components/MaybeSiteHeader';
+import { RuntimeBanner } from './_components/RuntimeBanner';
 import '../src/styles/globals.css';
 
 // Tournament Manual aesthetic — same font stack as apps/web-admin.
@@ -57,7 +56,7 @@ export default function RootLayout({
           {t('navigation.skipToMainContent')}
         </a>
         <I18nProvider>
-          <MaintenanceBanner apiUrl={getApiUrl()} />
+          <RuntimeBanner />
           <MaybeSiteHeader />
           {children}
         </I18nProvider>
