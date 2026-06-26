@@ -28,7 +28,31 @@ interface VenueRow {
   events: Array<{ id: string; name: string; slug: string }> | null;
 }
 
+/** Minimal event shape for the modal's "attach to event" checklist. */
+interface OrgEventOption {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+}
+
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+
+/** "22/05/2027" or "22/05/2027 - 23/05/2027"; '' when there are no dates. */
+function formatEventDateRange(startDate: string, endDate: string): string {
+  const fmt = (iso: string): string => {
+    if (!iso) return '';
+    const d = new Date(iso.includes('T') ? iso : `${iso}T00:00:00`);
+    return Number.isNaN(d.getTime())
+      ? ''
+      : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+  const s = fmt(startDate);
+  const e = fmt(endDate);
+  if (s && e && s !== e) return `${s} - ${e}`;
+  return s || e || '';
+}
 
 /**
  * Org-level venue catalogue. Venues belong to the operator's org and
@@ -43,8 +67,10 @@ export default function OrgVenuesPage() {
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [venues, setVenues] = useState<VenueRow[]>([]);
+  const [events, setEvents] = useState<OrgEventOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<VenueRow | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -56,6 +82,33 @@ export default function OrgVenuesPage() {
       if (res.ok) setVenues((await res.json()) as VenueRow[]);
     } catch {
       setMessage(t('organizer.venues.loadError'));
+    }
+  }, []);
+
+  // Org events power the modal's "attach to event" checklist. Non-fatal: if it
+  // fails the checklist just shows the empty state. Archived events are hidden;
+  // most recent first.
+  const loadEvents = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/organizations/${id}/events`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const rows = (await res.json()) as Array<Record<string, unknown>>;
+      setEvents(
+        rows
+          .map((r) => ({
+            id: String(r['id']),
+            name: String(r['name'] ?? ''),
+            startDate: String(r['startDate'] ?? r['start_date'] ?? ''),
+            endDate: String(r['endDate'] ?? r['end_date'] ?? ''),
+            status: String(r['status'] ?? 'draft'),
+          }))
+          .filter((e) => e.status !== 'archived')
+          .sort((a, b) => (a.startDate < b.startDate ? 1 : a.startDate > b.startDate ? -1 : 0)),
+      );
+    } catch {
+      // non-fatal — the checklist falls back to its empty state
     }
   }, []);
 
@@ -73,12 +126,12 @@ export default function OrgVenuesPage() {
         }
         const org = (await res.json()) as { id: string };
         setOrgId(org.id);
-        await loadVenues(org.id);
+        await Promise.all([loadVenues(org.id), loadEvents(org.id)]);
       } finally {
         setLoading(false);
       }
     })();
-  }, [slug, loadVenues]);
+  }, [slug, loadVenues, loadEvents]);
 
   const onDelete = async (venue: VenueRow) => {
     if (
@@ -117,7 +170,10 @@ export default function OrgVenuesPage() {
         </div>
         <button
           type="button"
-          onClick={() => setCreating(true)}
+          onClick={() => {
+            setNotice(null);
+            setCreating(true);
+          }}
           className="rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800"
         >
           + {t('organizer.venues.newVenue')}
@@ -127,6 +183,12 @@ export default function OrgVenuesPage() {
       {message && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
           {message}
+        </div>
+      )}
+
+      {notice && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+          {notice}
         </div>
       )}
 
@@ -187,7 +249,10 @@ export default function OrgVenuesPage() {
                 <td className="py-3 pr-3 text-right">
                   <button
                     type="button"
-                    onClick={() => setEditing(v)}
+                    onClick={() => {
+                      setNotice(null);
+                      setEditing(v);
+                    }}
                     className="text-xs rounded-md border border-gray-300 px-2.5 py-1 hover:bg-gray-50 mr-2"
                   >
                     {t('organizer.venues.edit')}
@@ -210,9 +275,11 @@ export default function OrgVenuesPage() {
         <VenueFormModal
           orgId={orgId}
           venue={null}
+          events={events}
           onClose={() => setCreating(false)}
-          onSaved={async () => {
+          onSaved={async (msg) => {
             setCreating(false);
+            setNotice(msg ?? null);
             if (orgId) await loadVenues(orgId);
           }}
         />
@@ -222,9 +289,11 @@ export default function OrgVenuesPage() {
         <VenueFormModal
           orgId={orgId}
           venue={editing}
+          events={events}
           onClose={() => setEditing(null)}
-          onSaved={async () => {
+          onSaved={async (msg) => {
             setEditing(null);
+            setNotice(msg ?? null);
             if (orgId) await loadVenues(orgId);
           }}
         />
@@ -255,11 +324,12 @@ async function responseErrorMessage(res: Response): Promise<string> {
 interface VenueFormModalProps {
   orgId: string;
   venue: VenueRow | null;
+  events: OrgEventOption[];
   onClose: () => void;
-  onSaved: () => void | Promise<void>;
+  onSaved: (message?: string) => void | Promise<void>;
 }
 
-function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps) {
+function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormModalProps) {
   const isEdit = venue !== null;
   const [name, setName] = useState(venue?.name ?? '');
   const [address, setAddress] = useState(venue?.address ?? '');
@@ -271,13 +341,71 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
   const [newArea, setNewArea] = useState(nextAreaName(venue?.venue_areas?.length ?? 0));
   const [lices, setLices] = useState<VenueLice[]>(venue?.venue_lices ?? []);
   const [newLice, setNewLice] = useState(nextLiceName(venue?.venue_lices?.length ?? 0));
+  // Events this venue is attached to. Seeded from the venue's current (effective)
+  // events; ticking/unticking attaches/detaches on save.
+  const [selectedEventIds, setSelectedEventIds] = useState<string[]>(
+    venue?.events?.map((e) => e.id) ?? [],
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const toggleEvent = (id: string) =>
+    setSelectedEventIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  /**
+   * Reconcile this venue's event attachments. The only API is the per-event
+   * replace-all `PUT /events/:id/venues`, so for each changed event we GET its
+   * current venue ids, add/remove this venue, and PUT the full list. Detach is
+   * safe-guarded server-side (a venue with matches/sessions is kept and reported
+   * in `blocked`). Returns a human message if any detach was blocked.
+   */
+  const reconcileEvents = async (venueId: string): Promise<string | undefined> => {
+    const initial = new Set(venue?.events?.map((e) => e.id) ?? []);
+    const selected = new Set(selectedEventIds);
+    const changed = [
+      ...[...selected].filter((id) => !initial.has(id)), // attach
+      ...[...initial].filter((id) => !selected.has(id)), // detach
+    ];
+    if (changed.length === 0) return undefined;
+
+    const blockedIds = await Promise.all(
+      changed.map(async (eventId) => {
+        const attach = selected.has(eventId);
+        const listRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, {
+          credentials: 'include',
+        });
+        if (!listRes.ok) throw new Error(await responseErrorMessage(listRes));
+        const currentIds = ((await listRes.json()) as Array<{ id: string }>).map((v) => v.id);
+        const venueIds = attach
+          ? Array.from(new Set([...currentIds, venueId]))
+          : currentIds.filter((id) => id !== venueId);
+        const putRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ venueIds }),
+        });
+        if (!putRes.ok) throw new Error(await responseErrorMessage(putRes));
+        const result = (await putRes.json()) as { blocked?: Array<{ venueId: string }> };
+        return (result.blocked ?? []).some((b) => b.venueId === venueId) ? eventId : null;
+      }),
+    );
+
+    const blockedNames = blockedIds
+      .filter((id): id is string => id !== null)
+      .map((id) => events.find((e) => e.id === id)?.name ?? id);
+    return blockedNames.length > 0
+      ? t('organizer.venues.eventsBlocked').replace('{events}', blockedNames.join(', '))
+      : undefined;
+  };
 
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
+      let venueId: string;
       if (isEdit) {
         const res = await fetch(`${apiUrl}/api/v1/venues/${venue!.id}`, {
           method: 'PATCH',
@@ -291,6 +419,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
           }),
         });
         if (!res.ok) throw new Error(await responseErrorMessage(res));
+        venueId = venue!.id;
       } else {
         const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/venues`, {
           method: 'POST',
@@ -305,6 +434,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
         });
         if (!res.ok) throw new Error(await responseErrorMessage(res));
         const created = (await res.json()) as { id: string };
+        venueId = created.id;
         // Persist the lices/areas buffered during creation now that the venue
         // has an id (only for the hosts the operator actually enabled). Each
         // POST is checked so a failure surfaces its real reason instead of
@@ -336,7 +466,10 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
           );
         }
       }
-      await onSaved();
+      // Attach/detach events last, so a tournament venue's lice catalogue exists
+      // before an event seeds its lices from it.
+      const blockedMsg = await reconcileEvents(venueId);
+      await onSaved(blockedMsg);
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : t('organizer.venues.saveError'));
     } finally {
@@ -575,6 +708,34 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
             </div>
           </div>
         )}
+
+        <div className="grid gap-2 text-sm font-medium">
+          <span>{t('organizer.venues.eventsSection')}</span>
+          <p className="text-xs font-normal text-slate-500">{t('organizer.venues.eventsHelp')}</p>
+          {events.length === 0 ? (
+            <p className="text-xs font-normal text-slate-400">{t('organizer.venues.noEvents')}</p>
+          ) : (
+            <ul className="max-h-40 space-y-1 overflow-y-auto">
+              {events.map((ev) => {
+                const range = formatEventDateRange(ev.startDate, ev.endDate);
+                return (
+                  <li key={ev.id}>
+                    <label className="flex items-center gap-2 rounded border border-slate-200 px-3 py-1 text-sm font-normal">
+                      <input
+                        type="checkbox"
+                        checked={selectedEventIds.includes(ev.id)}
+                        onChange={() => toggleEvent(ev.id)}
+                        disabled={saving}
+                      />
+                      <span className="flex-1 truncate">{ev.name}</span>
+                      {range && <span className="shrink-0 text-xs text-slate-400">{range}</span>}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
 

@@ -2548,6 +2548,11 @@ export const en = {
       newLicePlaceholder: 'Piste 1',
       removeLice: 'Remove',
       eventsColumn: 'Events',
+      eventsSection: 'Events',
+      eventsHelp:
+        'Attach this venue to one or more events. A venue cannot be detached from an event while it has matches or workshop sessions there.',
+      eventsBlocked: 'Saved. Could not detach from these events (still in use): {events}.',
+      noEvents: 'No events yet.',
       actions: 'Actions',
       edit: 'Edit',
       delete: 'Delete',
@@ -6701,6 +6706,12 @@ export const fr = {
       newLicePlaceholder: 'Piste 1',
       removeLice: 'Retirer',
       eventsColumn: 'Evenements',
+      eventsSection: 'Evenements',
+      eventsHelp:
+        'Rattachez ce lieu a un ou plusieurs evenements. Un lieu ne peut pas etre detache d un evenement tant qu il y a des matchs ou des sessions d atelier.',
+      eventsBlocked:
+        'Enregistre. Impossible de detacher de ces evenements (toujours utilises) : {events}.',
+      noEvents: 'Aucun evenement pour le moment.',
       actions: 'Actions',
       edit: 'Modifier',
       delete: 'Supprimer',
