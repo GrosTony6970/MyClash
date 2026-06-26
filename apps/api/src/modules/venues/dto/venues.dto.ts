@@ -38,3 +38,11 @@ const updateVenueAreaSchema = z
   })
   .strict();
 export class UpdateVenueAreaDto extends createZodDto(updateVenueAreaSchema) {}
+
+const createVenueLiceSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    sortOrder: z.number().int().min(0).optional(),
+  })
+  .strict();
+export class CreateVenueLiceDto extends createZodDto(createVenueLiceSchema) {}

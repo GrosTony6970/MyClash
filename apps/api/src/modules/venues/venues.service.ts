@@ -9,6 +9,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import type {
   CreateVenueAreaDto,
   CreateVenueDto,
+  CreateVenueLiceDto,
   UpdateVenueAreaDto,
   UpdateVenueDto,
 } from './dto/venues.dto';
@@ -33,7 +34,7 @@ export class VenuesService {
   async listForOrg(organizationId: string) {
     const { data, error } = await this.supabase.service
       .from('venues')
-      .select('*, venue_areas(id, name, sort_order)')
+      .select('*, venue_areas(id, name, sort_order), venue_lices(id, name, sort_order)')
       .eq('organization_id', organizationId)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
@@ -44,7 +45,7 @@ export class VenuesService {
   async get(venueId: string) {
     const { data, error } = await this.supabase.service
       .from('venues')
-      .select('*, venue_areas(id, name, sort_order)')
+      .select('*, venue_areas(id, name, sort_order), venue_lices(id, name, sort_order)')
       .eq('id', venueId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -165,6 +166,35 @@ export class VenuesService {
     if (error) throw new BadRequestException(error.message);
   }
 
+  // ── Venue lices ─────────────────────────────────────────────────────────────
+  // Reusable per-venue lices (pistes) for tournament-capable venues — parallel
+  // to venue areas. The event wizard pre-fills an event's lices from these.
+
+  async createLice(venueId: string, dto: CreateVenueLiceDto, userId: string) {
+    await this.assertCanManageVenue(venueId, userId);
+    const { data, error } = await this.supabase.service
+      .from('venue_lices')
+      .insert({
+        venue_id: venueId,
+        name: dto.name.trim(),
+        sort_order: dto.sortOrder ?? 0,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      if (error.message.includes('duplicate'))
+        throw new ConflictException(`Lice name "${dto.name}" already exists in this venue`);
+      throw new BadRequestException(error.message);
+    }
+    return data;
+  }
+
+  async deleteLice(liceId: string, userId: string): Promise<void> {
+    await this.assertCanManageLice(liceId, userId);
+    const { error } = await this.supabase.service.from('venue_lices').delete().eq('id', liceId);
+    if (error) throw new BadRequestException(error.message);
+  }
+
   // ── Event-scoped derived listing ────────────────────────────────────────────
 
   /**
@@ -202,7 +232,7 @@ export class VenuesService {
 
     const { data, error } = await this.supabase.service
       .from('venues')
-      .select('*, venue_areas(id, name, sort_order)')
+      .select('*, venue_areas(id, name, sort_order), venue_lices(id, name, sort_order)')
       .in('id', [...ids])
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
@@ -249,6 +279,21 @@ export class VenuesService {
     if (!area) throw new NotFoundException(`Area ${areaId} not found`);
     const venueId = String((area as Row)['venue_id']);
     const venue = (area as Row)['venues'] as Row | null;
+    const organizationId = venue ? String(venue['organization_id']) : '';
+    await this.orgs.assertOrgRole(organizationId, userId, 'admin');
+    return venueId;
+  }
+
+  private async assertCanManageLice(liceId: string, userId: string): Promise<string> {
+    const { data: lice, error } = await this.supabase.service
+      .from('venue_lices')
+      .select('venue_id, venues!inner(organization_id)')
+      .eq('id', liceId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!lice) throw new NotFoundException(`Lice ${liceId} not found`);
+    const venueId = String((lice as Row)['venue_id']);
+    const venue = (lice as Row)['venues'] as Row | null;
     const organizationId = venue ? String(venue['organization_id']) : '';
     await this.orgs.assertOrgRole(organizationId, userId, 'admin');
     return venueId;

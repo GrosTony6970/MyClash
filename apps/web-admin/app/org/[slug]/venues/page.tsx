@@ -11,6 +11,9 @@ interface VenueArea {
   sort_order: number;
 }
 
+// Venue lices share the area shape (id/name/sort_order).
+type VenueLice = VenueArea;
+
 interface VenueRow {
   id: string;
   organization_id: string;
@@ -20,6 +23,7 @@ interface VenueRow {
   hosts_workshop: boolean;
   sort_order: number;
   venue_areas: VenueArea[] | null;
+  venue_lices: VenueLice[] | null;
 }
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -224,10 +228,14 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
   const isEdit = venue !== null;
   const [name, setName] = useState(venue?.name ?? '');
   const [address, setAddress] = useState(venue?.address ?? '');
-  const [hostsTournament, setHostsTournament] = useState(venue?.hosts_tournament ?? true);
-  const [hostsWorkshop, setHostsWorkshop] = useState(venue?.hosts_workshop ?? true);
+  // Don't pre-select either host on a brand-new venue — the operator picks
+  // what the venue actually hosts, which reveals the lices / areas editors.
+  const [hostsTournament, setHostsTournament] = useState(venue?.hosts_tournament ?? false);
+  const [hostsWorkshop, setHostsWorkshop] = useState(venue?.hosts_workshop ?? false);
   const [areas, setAreas] = useState<VenueArea[]>(venue?.venue_areas ?? []);
   const [newArea, setNewArea] = useState('');
+  const [lices, setLices] = useState<VenueLice[]>(venue?.venue_lices ?? []);
+  const [newLice, setNewLice] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -261,7 +269,33 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
           }),
         });
         if (!res.ok) throw new Error('save');
-        // Areas can only be added once we have a venue id (edit mode).
+        const created = (await res.json()) as { id: string };
+        // Persist the lices/areas buffered during creation now that the venue
+        // has an id (only for the hosts the operator actually enabled).
+        if (hostsTournament) {
+          await Promise.all(
+            lices.map((lice, index) =>
+              fetch(`${apiUrl}/api/v1/venues/${created.id}/lices`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: lice.name.trim(), sortOrder: index }),
+              }),
+            ),
+          );
+        }
+        if (hostsWorkshop) {
+          await Promise.all(
+            areas.map((area, index) =>
+              fetch(`${apiUrl}/api/v1/venues/${created.id}/areas`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: area.name.trim(), sortOrder: index }),
+              }),
+            ),
+          );
+        }
       }
       await onSaved();
     } catch {
@@ -271,14 +305,22 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
     }
   };
 
+  // Add/remove work in both modes: in EDIT they hit the API immediately; in
+  // CREATE they buffer locally (temp id) and get persisted on save().
   const addArea = async () => {
-    if (!isEdit || !newArea.trim()) return;
+    const value = newArea.trim();
+    if (!value) return;
+    if (!isEdit) {
+      setAreas([...areas, { id: crypto.randomUUID(), name: value, sort_order: areas.length }]);
+      setNewArea('');
+      return;
+    }
     try {
       const res = await fetch(`${apiUrl}/api/v1/venues/${venue!.id}/areas`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newArea.trim() }),
+        body: JSON.stringify({ name: value }),
       });
       if (!res.ok) return;
       const area = (await res.json()) as VenueArea;
@@ -290,6 +332,10 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
   };
 
   const removeArea = async (areaId: string) => {
+    if (!isEdit) {
+      setAreas(areas.filter((a) => a.id !== areaId));
+      return;
+    }
     try {
       const res = await fetch(`${apiUrl}/api/v1/venue-areas/${areaId}`, {
         method: 'DELETE',
@@ -303,13 +349,59 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
     }
   };
 
+  const addLice = async () => {
+    const value = newLice.trim();
+    if (!value) return;
+    if (!isEdit) {
+      setLices([...lices, { id: crypto.randomUUID(), name: value, sort_order: lices.length }]);
+      setNewLice('');
+      return;
+    }
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/venues/${venue!.id}/lices`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: value }),
+      });
+      if (!res.ok) return;
+      const lice = (await res.json()) as VenueLice;
+      setLices([...lices, lice]);
+      setNewLice('');
+    } catch {
+      // swallow — operator can retry
+    }
+  };
+
+  const removeLice = async (liceId: string) => {
+    if (!isEdit) {
+      setLices(lices.filter((l) => l.id !== liceId));
+      return;
+    }
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/venue-lices/${liceId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 204) {
+        setLices(lices.filter((l) => l.id !== liceId));
+      }
+    } catch {
+      // swallow
+    }
+  };
+
   return (
     <div
       role="dialog"
       aria-modal="true"
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
       onClick={(ev) => {
         if (ev.target === ev.currentTarget && !saving) onClose();
+      }}
+      onKeyDown={(ev) => {
+        if (ev.key === 'Escape' && !saving) onClose();
       }}
     >
       <div className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-white p-5 shadow-xl">
@@ -365,7 +457,47 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
           </label>
         </fieldset>
 
-        {isEdit && (
+        {hostsTournament && (
+          <div className="grid gap-2 text-sm font-medium">
+            <span>{t('organizer.venues.licesSection')}</span>
+            <p className="text-xs font-normal text-slate-500">{t('organizer.venues.licesHelp')}</p>
+            <ul className="space-y-1">
+              {lices.map((lice) => (
+                <li
+                  key={lice.id}
+                  className="flex items-center justify-between rounded border border-slate-200 px-3 py-1 text-sm font-normal"
+                >
+                  <span>{lice.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => void removeLice(lice.id)}
+                    className="text-xs text-rose-600 hover:underline"
+                  >
+                    {t('organizer.venues.removeLice')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <input
+                value={newLice}
+                onChange={(ev) => setNewLice(ev.target.value)}
+                placeholder={t('organizer.venues.newLicePlaceholder')}
+                className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-normal"
+              />
+              <button
+                type="button"
+                onClick={() => void addLice()}
+                disabled={!newLice.trim()}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+              >
+                {t('organizer.venues.addLice')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {hostsWorkshop && (
           <div className="grid gap-2 text-sm font-medium">
             <span>{t('organizer.venues.areasSection')}</span>
             <p className="text-xs font-normal text-slate-500">{t('organizer.venues.areasHelp')}</p>

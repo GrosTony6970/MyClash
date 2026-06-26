@@ -31,6 +31,7 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
 import {
   CreateVenueAreaDto,
   CreateVenueDto,
+  CreateVenueLiceDto,
   UpdateVenueAreaDto,
   UpdateVenueDto,
 } from './dto/venues.dto';
@@ -136,6 +137,32 @@ export class VenuesController {
   async deleteArea(@Param('areaId', ParseUUIDPipe) areaId: string, @Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
     await this.venues.deleteArea(areaId, userId);
+  }
+
+  // ── Venue lices ─────────────────────────────────────────────────────────────
+
+  @Post('venues/:venueId/lices')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a lice inside a venue (org admin+)' })
+  @ApiParam({ name: 'venueId', type: 'string', format: 'uuid' })
+  async createLice(
+    @Param('venueId', ParseUUIDPipe) venueId: string,
+    @Body() dto: CreateVenueLiceDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.venues.createLice(venueId, dto, userId);
+  }
+
+  @Delete('venue-lices/:liceId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a venue lice (org admin+)' })
+  @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })
+  async deleteLice(@Param('liceId', ParseUUIDPipe) liceId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await this.venues.deleteLice(liceId, userId);
   }
 
   // ── Event-scoped derived listing ────────────────────────────────────────────

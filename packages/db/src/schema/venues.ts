@@ -52,3 +52,23 @@ export const venueAreas = pgTable(
     uniqueVenueName: unique('venue_areas_venue_id_name_key').on(table.venueId, table.name),
   }),
 );
+
+// ── Venue lices ───────────────────────────────────────────────────────────────
+// Reusable per-venue lices (pistes) for tournament-capable venues — the
+// org-level catalogue the event wizard pre-fills an event's lices from.
+// Parallel to venueAreas.
+export const venueLices = pgTable(
+  'venue_lices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    venueId: uuid('venue_id')
+      .notNull()
+      .references(() => venues.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueVenueName: unique('venue_lices_venue_id_name_key').on(table.venueId, table.name),
+  }),
+);

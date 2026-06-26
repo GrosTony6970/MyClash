@@ -13,6 +13,10 @@ interface CatalogueVenue {
   address: string | null;
   hosts_tournament: boolean;
   hosts_workshop: boolean;
+  // Reusable per-venue catalogues — pre-fill the event's lices/areas when this
+  // venue is picked.
+  venue_lices?: Array<{ id: string; name: string }> | null;
+  venue_areas?: Array<{ id: string; name: string }> | null;
 }
 
 type VenueMode = 'existing' | 'new';
@@ -47,6 +51,12 @@ type Action =
   | { type: 'ADD_AREA' }
   | { type: 'REMOVE_AREA'; index: number }
   | { type: 'SET_VENUE_MODE'; mode: VenueMode }
+  | {
+      type: 'SELECT_VENUE';
+      venueId: string | null;
+      liceNames: string[] | null;
+      areaNames: string[] | null;
+    }
   | { type: 'NEXT' }
   | { type: 'BACK' }
   | { type: 'SUBMIT_START' }
@@ -130,6 +140,18 @@ function reducer(state: WizardState, action: Action): WizardState {
         ...state,
         venueMode: action.mode,
         selectedVenueId: action.mode === 'existing' ? state.selectedVenueId : null,
+      };
+    case 'SELECT_VENUE':
+      // Picking a venue pre-fills the event's lices/areas from the venue's
+      // reusable catalogue when it has one; otherwise the current names stay
+      // (operator can still edit).
+      return {
+        ...state,
+        selectedVenueId: action.venueId,
+        liceNames:
+          action.liceNames && action.liceNames.length > 0 ? action.liceNames : state.liceNames,
+        areaNames:
+          action.areaNames && action.areaNames.length > 0 ? action.areaNames : state.areaNames,
       };
     case 'NEXT':
       return { ...state, step: Math.min(4, state.step + 1) as WizardState['step'] };
@@ -381,13 +403,15 @@ function Step2({
             <select
               id="wizard-venue-select"
               value={state.selectedVenueId ?? ''}
-              onChange={(event) =>
+              onChange={(event) => {
+                const picked = catalogue.find((v) => v.id === event.target.value);
                 dispatch({
-                  type: 'SET_FIELD',
-                  field: 'selectedVenueId',
-                  value: event.target.value || null,
-                })
-              }
+                  type: 'SELECT_VENUE',
+                  venueId: event.target.value || null,
+                  liceNames: picked?.venue_lices?.map((l) => l.name) ?? null,
+                  areaNames: picked?.venue_areas?.map((a) => a.name) ?? null,
+                });
+              }}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-600"
             >
               <option value="">{t('organizer.newEvent.venuePickPlaceholder')}</option>
@@ -784,7 +808,7 @@ export default function NewEventPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const orgRes = await fetch(
           `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
