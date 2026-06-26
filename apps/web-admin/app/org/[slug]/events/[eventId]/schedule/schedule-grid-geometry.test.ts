@@ -13,12 +13,28 @@ import {
   slotToHHMM,
   slotToTime,
   snapSlot,
+  venueColor,
   zoomToSlotHeight,
 } from './schedule-grid-geometry';
 
 const BASE = '2026-06-15';
 
 describe('schedule-grid-geometry', () => {
+  describe('venueColor', () => {
+    it('returns null for no venue', () => {
+      expect(venueColor(null)).toBeNull();
+    });
+    it('is deterministic per venue id and differs by id', () => {
+      const a1 = venueColor('venue-a');
+      const a2 = venueColor('venue-a');
+      const b = venueColor('venue-b');
+      expect(a1).toEqual(a2);
+      expect(a1).not.toBeNull();
+      expect(a1!.backgroundColor).toMatch(/^hsl\(/);
+      expect(a1).not.toEqual(b);
+    });
+  });
+
   describe('slotToTime / isoToSlot roundtrip', () => {
     it('isoToSlot inverts slotToTime for every slot, in a fixed event tz', () => {
       for (const tz of ['Europe/Paris', 'America/New_York', 'Asia/Tokyo']) {

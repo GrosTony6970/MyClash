@@ -35,6 +35,7 @@ import {
   isoToSlot,
   resizeStartSlot,
   snapSlot,
+  venueColor,
 } from './schedule-grid-geometry';
 
 export interface ViewLice {
@@ -373,19 +374,26 @@ export function BlockGridView({
           className="sticky left-0 z-30 bg-white"
           style={{ gridColumn: 1, gridRow: 1, height: VENUE_HEADER_HEIGHT_PX }}
         />
-        {venueGroups.map((g, i) => (
-          <div
-            key={`venue-${i}`}
-            className="sticky top-0 z-20 flex items-center justify-center border-b border-blue-200 bg-blue-50 px-2 text-sm font-semibold text-blue-800 truncate"
-            style={{
-              gridColumn: `${g.startIndex + 2} / span ${g.span}`,
-              gridRow: 1,
-              height: VENUE_HEADER_HEIGHT_PX,
-            }}
-          >
-            {g.venueName ?? 'No venue'}
-          </div>
-        ))}
+        {venueGroups.map((g, i) => {
+          const tint = venueColor(g.venueId);
+          return (
+            <div
+              key={`venue-${i}`}
+              className={[
+                'sticky top-0 z-20 flex items-center justify-center border-b px-2 text-sm font-semibold truncate',
+                tint ? '' : 'border-gray-200 bg-gray-100 italic text-gray-400',
+              ].join(' ')}
+              style={{
+                gridColumn: `${g.startIndex + 2} / span ${g.span}`,
+                gridRow: 1,
+                height: VENUE_HEADER_HEIGHT_PX,
+                ...(tint ?? {}),
+              }}
+            >
+              {g.venueName ?? 'No venue'}
+            </div>
+          );
+        })}
 
         {/* Row 2: time-axis corner + per-lice header (name + drift) */}
         <div

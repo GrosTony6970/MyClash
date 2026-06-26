@@ -51,6 +51,7 @@ import {
   slotToHHMM,
   slotToTime,
   snapSlot,
+  venueColor,
   zoomToSlotHeight,
 } from './schedule-grid-geometry';
 
@@ -325,6 +326,42 @@ export function ScheduleGrid({
   }, [slotHeightPx]);
   // Tournament legend focus — clicking a chip dims the other tournaments.
   const [focusedTournament, setFocusedTournament] = useState<string | null>(null);
+
+  // Per-hall filter for the block board: 'all' | venueId | 'none'. Hydration-
+  // safe default, then synced from localStorage (mirrors zoom/panelWidth).
+  const [venueFilter, setVenueFilter] = useState<string>('all');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('myclash.schedule.venueFilter');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stored) setVenueFilter(stored);
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('myclash.schedule.venueFilter', venueFilter);
+  }, [venueFilter]);
+  // Distinct venues across this event's lices → the filter dropdown options.
+  const venueFilterOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    let hasNoVenue = false;
+    for (const l of lices) {
+      if (l.venues?.id) byId.set(l.venues.id, l.venues.name);
+      else hasNoVenue = true;
+    }
+    return { venues: [...byId].map(([id, name]) => ({ id, name })), hasNoVenue };
+  }, [lices]);
+  // The lices the block board renders after the per-hall filter. Blocks whose
+  // lices are all hidden are skipped by BlockGridView. A stale/empty filter
+  // (e.g. a venue removed from the event) falls back to showing all lices.
+  const visibleLices = useMemo(() => {
+    if (venueFilter === 'all') return lices;
+    if (venueFilter === 'none') {
+      const none = lices.filter((l) => !l.venues?.id);
+      return none.length ? none : lices;
+    }
+    const filtered = lices.filter((l) => l.venues?.id === venueFilter);
+    return filtered.length ? filtered : lices;
+  }, [lices, venueFilter]);
 
   function beginPanelResize(ev: React.PointerEvent<HTMLDivElement>) {
     ev.preventDefault();
@@ -2304,6 +2341,24 @@ export function ScheduleGrid({
                     ⚠ {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'}
                   </span>
                 )}
+                {venueFilterOptions.venues.length + (venueFilterOptions.hasNoVenue ? 1 : 0) > 1 && (
+                  <label className="flex items-center gap-1 text-gray-500">
+                    <span className="text-[11px] font-medium">Hall</span>
+                    <select
+                      value={venueFilter}
+                      onChange={(e) => setVenueFilter(e.target.value)}
+                      className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px]"
+                    >
+                      <option value="all">All halls</option>
+                      {venueFilterOptions.venues.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                      {venueFilterOptions.hasNoVenue && <option value="none">No venue</option>}
+                    </select>
+                  </label>
+                )}
                 <div className="ml-auto flex items-center gap-1 text-gray-500">
                   <span className="text-[11px] font-medium">Zoom</span>
                   <button
@@ -2325,7 +2380,7 @@ export function ScheduleGrid({
                 </div>
               </div>
               <BlockGridView
-                lices={lices}
+                lices={visibleLices}
                 blocks={dayBlocks}
                 breaks={bgvBreaks}
                 tournamentColorByName={tournamentColorByName}
@@ -2393,15 +2448,17 @@ export function ScheduleGrid({
               {computeVenueGroups(lices).map((group, groupIndex) => {
                 const startCol = group.startIndex + 2;
                 if (group.venueId) {
+                  const tint = venueColor(group.venueId);
                   return (
                     <a
                       key={`${group.venueId}-${groupIndex}`}
                       href={`/org/${slug}/events/${eventId}/venues`}
-                      className="sticky top-0 z-30 bg-blue-50 border-b border-blue-200 border-l border-l-gray-200 px-2 flex items-center justify-center text-sm font-semibold text-blue-800 hover:bg-blue-100 truncate"
+                      className="sticky top-0 z-30 border-b border-l border-l-gray-200 px-2 flex items-center justify-center text-sm font-semibold truncate hover:brightness-95"
                       style={{
                         gridColumn: `${startCol} / span ${group.span}`,
                         gridRow: 1,
                         height: VENUE_HEADER_HEIGHT_PX,
+                        ...(tint ?? {}),
                       }}
                       title={group.venueName ?? ''}
                     >

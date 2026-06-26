@@ -132,6 +132,32 @@ export interface VenueGroup {
   span: number;
 }
 
+export interface VenueTint {
+  backgroundColor: string;
+  borderColor: string;
+  color: string;
+}
+
+/**
+ * Deterministic soft band color for a venue, derived from its id — there is no
+ * venue color column, and a hash keeps the same hall the same hue everywhere on
+ * the board (and across reloads) without a backend round-trip. `null` id → null
+ * (the caller renders the neutral "No venue" style).
+ */
+export function venueColor(venueId: string | null): VenueTint | null {
+  if (!venueId) return null;
+  let hash = 0;
+  for (let i = 0; i < venueId.length; i++) {
+    hash = (hash * 31 + venueId.charCodeAt(i)) % 360;
+  }
+  const hue = ((hash % 360) + 360) % 360;
+  return {
+    backgroundColor: `hsl(${hue}, 70%, 92%)`,
+    borderColor: `hsl(${hue}, 55%, 78%)`,
+    color: `hsl(${hue}, 45%, 30%)`,
+  };
+}
+
 /** Minimal shape `computeVenueGroups` reads — any `Lice` is assignable. */
 export interface VenueCarrier {
   venues?: { id: string; name: string } | null;
