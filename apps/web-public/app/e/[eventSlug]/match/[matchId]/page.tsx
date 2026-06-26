@@ -1,7 +1,13 @@
 import { notFound } from 'next/navigation';
 import { getApiUrl } from '@/lib/api-url';
-import type { ExchangeRow, MatchPenaltyRow, MatchRow, MatchSummary } from './match-live-view';
-import { MatchLiveView, mapMatchRow } from './match-live-view';
+import { MatchLiveView } from './match-live-view';
+import {
+  mapMatchRow,
+  type ExchangeRow,
+  type MatchPenaltyRow,
+  type MatchRow,
+  type MatchSummary,
+} from './match-row';
 
 const API_URL = getApiUrl();
 
