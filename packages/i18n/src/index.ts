@@ -15,6 +15,7 @@ export const en = {
     name: 'MyClash',
     eventHome: {
       backToEvents: 'Back to events',
+      backToHome: 'Back to event home',
       card: {
         fighters: 'fighters',
         referees: 'referees',
@@ -26,10 +27,23 @@ export const en = {
       section: {
         schedule: 'Schedule',
         workshops: 'Workshops',
+        tournaments: 'Tournaments',
       },
       schedule: {
         tournament: 'Tournament',
         workshop: 'Workshop',
+        tournamentsCard: 'Tournaments',
+        workshopsCard: 'Workshops',
+        viewTournamentSchedule: 'Tournament schedule',
+        viewWorkshopSchedule: 'Workshop schedule',
+        notScheduled: 'Not scheduled yet',
+      },
+      tournament: {
+        firstPool: 'First pool',
+      },
+      tournaments: {
+        seeFullList: 'See full list →',
+        empty: 'No tournaments yet.',
       },
       workshops: {
         seeFullList: 'See full list →',
@@ -4145,6 +4159,7 @@ export const fr = {
     name: 'MyClash',
     eventHome: {
       backToEvents: 'Retour aux evenements',
+      backToHome: "Retour a l'accueil de l'evenement",
       card: {
         fighters: 'tireurs',
         referees: 'arbitres',
@@ -4156,10 +4171,23 @@ export const fr = {
       section: {
         schedule: 'Planning',
         workshops: 'Stages',
+        tournaments: 'Tournois',
       },
       schedule: {
         tournament: 'Tournoi',
         workshop: 'Stage',
+        tournamentsCard: 'Tournois',
+        workshopsCard: 'Stages',
+        viewTournamentSchedule: 'Planning des tournois',
+        viewWorkshopSchedule: 'Planning des stages',
+        notScheduled: 'Pas encore planifie',
+      },
+      tournament: {
+        firstPool: 'Premiere poule',
+      },
+      tournaments: {
+        seeFullList: 'Voir la liste complète →',
+        empty: 'Aucun tournoi pour le moment.',
       },
       workshops: {
         seeFullList: 'Voir la liste complète →',

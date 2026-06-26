@@ -771,6 +771,12 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
             durationMinutes: WS_DURATION_MIN,
             level: WS_LEVELS[i % WS_LEVELS.length],
             category: WS_TOPICS[i % WS_TOPICS.length], // no weapon field on workshops; use category
+            descriptionMd:
+              `A hands-on ${WS_TOPICS[i % WS_TOPICS.length]} workshop for ` +
+              `${WS_LEVELS[i % WS_LEVELS.length]} practitioners.\n\n` +
+              'We will cover footwork, core guards and a few signature techniques, ' +
+              'then drill them in pairs. Bring your own protective gear; loaner ' +
+              'equipment is limited.',
             capacity: 12 + i * 2,
             color: COLORS[i % COLORS.length],
             venueId,

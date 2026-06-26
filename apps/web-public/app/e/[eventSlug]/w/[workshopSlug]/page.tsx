@@ -12,10 +12,10 @@
 
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/api-url';
+import { BackLink } from '@/components/BackLink';
 import { useParams, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { formatInZone } from '@myclash/time';
-import { GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
+import { Button, GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
@@ -160,13 +160,8 @@ export default function WorkshopDetailPage() {
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
           <p className="text-4xl mb-3">📚</p>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Workshop not found</h1>
-          <Link
-            href={`/e/${eventSlug}/workshops`}
-            className="text-sm text-gray-500 hover:underline"
-          >
-            ← Back to workshops
-          </Link>
+          <h1 className="mb-3 text-xl font-bold text-gray-900">Workshop not found</h1>
+          <BackLink href={`/e/${eventSlug}/workshops`} label="Workshops" className="mx-auto" />
         </div>
       </main>
     );
@@ -186,19 +181,9 @@ export default function WorkshopDetailPage() {
       )}
 
       {/* Back links — to the workshop list and the event home */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
-        <Link
-          href={`/e/${eventSlug}/workshops`}
-          className="text-gray-500 transition-colors hover:text-gray-700"
-        >
-          ← Workshops
-        </Link>
-        <Link
-          href={`/e/${eventSlug}/home`}
-          className="text-gray-500 transition-colors hover:text-gray-700"
-        >
-          ← Event home
-        </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <BackLink href={`/e/${eventSlug}/workshops`} label="Workshops" />
+        <BackLink href={`/e/${eventSlug}/home`} label="Event home" />
       </div>
 
       {/* Shared event identity band — matches the event home page. */}
@@ -215,8 +200,8 @@ export default function WorkshopDetailPage() {
 
         {/* Header */}
         <h1
-          className="mb-1 flex items-center gap-2 text-2xl font-bold"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--event-primary, #c0392b)' }}
+          className="mb-1 flex items-center gap-2 font-display text-2xl font-bold sm:text-3xl"
+          style={{ color: 'var(--event-primary, #c0392b)' }}
         >
           <TournamentColorDot color={workshop.color} size="md" />
           {workshop.title}
@@ -259,16 +244,18 @@ export default function WorkshopDetailPage() {
         )}
 
         {personId && (
-          <button
+          <Button
             type="button"
+            variant="back"
+            size="md"
             onClick={() => {
               void handleGoogleClaim();
             }}
-            className="w-full mb-6 inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-red-500 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors"
+            leftIcon={<GoogleIcon />}
+            className="mb-6 w-full"
           >
-            <GoogleIcon />
             {t('auth.oauth.continueWithGoogle')}
-          </button>
+          </Button>
         )}
 
         {/* Sessions */}
@@ -286,7 +273,10 @@ export default function WorkshopDetailPage() {
               const enrolled = session.enrollmentStatus;
 
               return (
-                <div key={session.id} className="border border-gray-200 rounded-xl p-4">
+                <div
+                  key={session.id}
+                  className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       {session.startsAt && (
@@ -298,18 +288,22 @@ export default function WorkshopDetailPage() {
                           })}
                         </p>
                       )}
-                      <p className="text-sm text-gray-500">
-                        {formatInZone(session.startsAt, tz, {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                        {session.startsAt && session.endsAt && ' – '}
-                        {formatInZone(session.endsAt, tz, {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                        {session.locationLabel && ` · ${session.locationLabel}`}
-                      </p>
+                      {(session.startsAt || session.endsAt || session.locationLabel) && (
+                        <p className="text-sm text-gray-500">
+                          {session.startsAt &&
+                            formatInZone(session.startsAt, tz, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          {session.startsAt && session.endsAt && ' – '}
+                          {session.endsAt &&
+                            formatInZone(session.endsAt, tz, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          {session.locationLabel && ` · ${session.locationLabel}`}
+                        </p>
+                      )}
                       {cap > 0 && (
                         <p className="text-xs text-gray-400 mt-0.5">
                           {session.confirmedCount}/{cap} enrolled
@@ -319,28 +313,23 @@ export default function WorkshopDetailPage() {
 
                     <div className="flex-shrink-0">
                       {enrolled === 'confirmed' ? (
-                        <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg">
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                           ✓ Enrolled
                         </span>
                       ) : enrolled === 'waitlisted' ? (
-                        <span className="text-xs font-bold text-yellow-600 bg-yellow-50 px-3 py-1.5 rounded-lg">
+                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
                           Waitlisted
                         </span>
                       ) : (
-                        <button
+                        <Button
+                          type="button"
+                          variant={isFull ? 'secondary' : 'primary'}
+                          size="sm"
                           onClick={() => void handleEnroll(session.id)}
-                          disabled={enrolling === session.id}
-                          className="text-sm font-semibold px-4 py-1.5 rounded-lg text-white disabled:opacity-50 transition-colors"
-                          style={{
-                            backgroundColor: isFull ? '#6b7280' : 'var(--event-primary, #c0392b)',
-                          }}
+                          loading={enrolling === session.id}
                         >
-                          {enrolling === session.id
-                            ? '…'
-                            : isFull
-                              ? 'Join waitlist'
-                              : 'Add to schedule'}
-                        </button>
+                          {isFull ? 'Join waitlist' : 'Add to schedule'}
+                        </Button>
                       )}
                     </div>
                   </div>
