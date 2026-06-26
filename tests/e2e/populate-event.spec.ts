@@ -144,19 +144,36 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     persons.find((p) => /garnier/i.test(p.familyName) && /anthony/i.test(p.givenName)) ??
     persons[0];
   const rest = persons.filter((p) => p.id !== anthony.id);
-  const fightersA = [anthony, ...rest.slice(0, 31)]; // 32, Longsword (incl. Anthony)
-  const fightersB = rest.slice(31, 63); // 32, Sidesword
-  const referees = rest.slice(63, 88); // 25
-  const instructors = rest.slice(88, 94); // 6
+  // 15 people deliberately compete in BOTH tournaments AND referee — overlap that
+  // exercises the referee-assignment model (a competitor who is also an official,
+  // e.g. someone refereeing a pool they don't fight in). Anthony fights Longsword
+  // and is also a referee.
+  const shared = rest.slice(0, 15); // in Longsword + Sidesword + referees
+  const aOnly = rest.slice(15, 31); // 16 → Longsword only
+  const bOnly = rest.slice(31, 48); // 17 → Sidesword only
+  const refOnly = rest.slice(48, 57); // 9 → referee only
+  const instructors = rest.slice(57, 63); // 6 → workshop instructors
+  const fightersA = [anthony, ...shared, ...aOnly]; // 32, Longsword (incl. Anthony)
+  const fightersB = [...shared, ...bOnly]; // 32, Sidesword
+  const referees = [anthony, ...shared, ...refOnly]; // 25 (Anthony + the 15 shared + 9)
   console.log(
-    `  → ${persons.length} persons: ${fightersA.length}+${fightersB.length} fighters, ${referees.length} referees, ${instructors.length} instructors`,
+    `  → ${persons.length} persons: ${fightersA.length}+${fightersB.length} fighters, ${referees.length} referees, ${instructors.length} instructors ` +
+      `(${shared.length} fight both tournaments AND referee; Anthony fights + referees)`,
   );
 
-  // ── Rebrand the throwaway event for the demo (name + a 2-day window) ──────────
-  await step('event → Fosse aux Lions 2027 (22–23 May 2027)', async () =>
+  // ── Rebrand the throwaway event for the demo (name + place + a 2-day window) ──
+  //    country is an ISO 3166-1 alpha-2 code ('FR'); the public UI renders it via
+  //    formatCountryName('FR', locale) → "France".
+  await step('event → Fosse aux Lions 2027, Lyon FR (22–23 May 2027)', async () =>
     reqOk(
       await patch(`events/${eventId}`, {
-        data: { name: 'Fosse aux Lions 2027', startDate: '2027-05-22', endDate: '2027-05-23' },
+        data: {
+          name: 'Fosse aux Lions 2027',
+          city: 'Lyon',
+          country: 'FR',
+          startDate: '2027-05-22',
+          endDate: '2027-05-23',
+        },
       }),
     ),
   );
@@ -286,7 +303,31 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     return { id: tournamentId, poolIds }; // publish later — published pools aren't editable
   };
 
+  // Longsword pools at 09:00 (right after the 08:00–09:00 admin blocks),
+  // Sidesword pools at 13:00. The admin blocks are created first, so they get the
+  // lowest sort_order; programme/generate sweeps blocks in (day, sort_order) order
+  // with a running cursor that only ever pushes a block LATER (never earlier), so
+  // pool matches can never land before 09:00 — i.e. they never overlap
+  // Registration & Gear Check or the Referee meeting.
   const long = await buildTournament('Longsword Open', 'longsword', fightersA, '09', 'red');
+  // Lunch break between the two tournaments. Created BETWEEN the buildTournament
+  // calls so its sort_order lands between the Longsword (sort_order 2) and
+  // Sidesword (sort_order 4) pool blocks; generate's cursor slides it to 12:00
+  // (or later if Longsword overran) and parks the cursor at 13:00 for Sidesword.
+  // A 'break' block needs only day/type/label/start/end — no lice/match fields.
+  await step('programme block: Lunch break', async () =>
+    reqOk(
+      await post(`events/${eventId}/programme/blocks`, {
+        data: {
+          dayIndex: 0,
+          blockType: 'break',
+          label: 'Lunch break',
+          startTime: '12:00',
+          endTime: '13:00',
+        },
+      }),
+    ),
+  );
   const side = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13', 'blue');
   const allPoolIds = [...long.poolIds, ...side.poolIds];
   const tournamentIds = [long.id, side.id].filter(Boolean);
