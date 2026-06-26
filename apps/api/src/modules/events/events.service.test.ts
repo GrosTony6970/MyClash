@@ -1364,11 +1364,13 @@ describe('EventsService', () => {
       const waitlistChain = makeAwaitableChain({ data: [], error: null });
       const phasesChain = makeAwaitableChain({ data: [], error: null });
 
+      const phaseVenuesChain = makeAwaitableChain({ data: [], error: null });
       const regCallQueue = [registrationsChain, waitlistChain];
       fromMock.mockImplementation((table: string) => {
         if (table === 'tournaments') return tournamentsChain;
         if (table === 'registrations') return regCallQueue.shift() ?? waitlistChain;
         if (table === 'phases') return phasesChain;
+        if (table === 'tournament_phase_venues') return phaseVenuesChain;
         throw new Error(`unexpected table ${table}`);
       });
 
@@ -1752,6 +1754,15 @@ describe('EventsService', () => {
         error: null,
       });
 
+      // NEW: per-phase venue assignment (pools @ Hall A, bracket @ Hall B).
+      const phaseVenuesChain = makeAwaitableChain({
+        data: [
+          { tournament_id: 't-1', phase_kind: 'pool', venues: { id: 'v-1', name: 'Hall A' } },
+          { tournament_id: 't-1', phase_kind: 'bracket', venues: { id: 'v-2', name: 'Hall B' } },
+        ],
+        error: null,
+      });
+
       // Registrations is queried twice: registered then waitlist. Use a
       // shift queue so the test doesn't couple to call-site indices.
       const regCalls = [registeredChain, waitlistChain];
@@ -1762,6 +1773,7 @@ describe('EventsService', () => {
         if (table === 'matches') return matchesChain;
         if (table === 'pools') return poolsChain;
         if (table === 'referee_assignments') return refereeChain;
+        if (table === 'tournament_phase_venues') return phaseVenuesChain;
         throw new Error(`unexpected table ${table}`);
       });
 
@@ -1778,6 +1790,10 @@ describe('EventsService', () => {
         refereeCount: number;
         scheduledStart: string | null;
         scheduledEnd: string | null;
+        phaseVenues: {
+          pool: { id: string; name: string } | null;
+          bracket: { id: string; name: string } | null;
+        };
       }>;
 
       expect(result).toHaveLength(1);
@@ -1792,6 +1808,10 @@ describe('EventsService', () => {
         bracketFightsTotal: 2,
         bracketFightsCompleted: 1,
         refereeCount: 2,
+        phaseVenues: {
+          pool: { id: 'v-1', name: 'Hall A' },
+          bracket: { id: 'v-2', name: 'Hall B' },
+        },
       });
     });
   });

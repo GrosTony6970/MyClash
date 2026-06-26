@@ -100,7 +100,12 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
           <Step3Display tournamentId={tournamentId} onNext={goNext} onBack={goBack} />
         )}
         {step === 4 && tournamentId && (
-          <Step4Advanced tournamentId={tournamentId} onBack={goBack} onFinish={finish} />
+          <Step4Advanced
+            tournamentId={tournamentId}
+            eventId={eventId}
+            onBack={goBack}
+            onFinish={finish}
+          />
         )}
       </div>
 

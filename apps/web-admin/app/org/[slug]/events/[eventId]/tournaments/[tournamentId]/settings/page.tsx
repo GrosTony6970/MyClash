@@ -10,12 +10,14 @@ import { MatchFormatTab } from './_components/MatchFormatTab';
 import { DisplayTab } from './_components/DisplayTab';
 import { AdvancedTab } from './_components/AdvancedTab';
 import { LocksTab } from './_components/LocksTab';
+import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 
-type TabKey = 'basics' | 'match-format' | 'display' | 'advanced' | 'locks';
+type TabKey = 'basics' | 'match-format' | 'venues' | 'display' | 'advanced' | 'locks';
 
 const TABS: Array<{ key: TabKey; labelKey: string }> = [
   { key: 'basics', labelKey: 'organizer.tournaments.settings.basics' },
   { key: 'match-format', labelKey: 'organizer.tournaments.settings.matchFormat' },
+  { key: 'venues', labelKey: 'organizer.tournaments.settings.venues' },
   { key: 'display', labelKey: 'organizer.tournaments.settings.display' },
   { key: 'advanced', labelKey: 'organizer.tournaments.settings.advanced' },
   { key: 'locks', labelKey: 'organizer.tournaments.settings.locks' },
@@ -80,6 +82,9 @@ export default function TournamentSettingsPage() {
         <section>
           {active === 'basics' && <BasicsTab tournamentId={params.tournamentId} />}
           {active === 'match-format' && <MatchFormatTab tournamentId={params.tournamentId} />}
+          {active === 'venues' && (
+            <TournamentVenuesEditor tournamentId={params.tournamentId} eventId={params.eventId} />
+          )}
           {active === 'display' && <DisplayTab tournamentId={params.tournamentId} />}
           {active === 'advanced' && <AdvancedTab tournamentId={params.tournamentId} />}
           {active === 'locks' && <LocksTab tournamentId={params.tournamentId} />}

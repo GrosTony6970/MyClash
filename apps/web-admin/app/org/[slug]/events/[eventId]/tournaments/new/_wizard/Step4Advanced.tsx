@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { buildTfFromRow, type RulesetConfigTF, TF_DEFAULTS } from './buildTfFromRow';
+import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
 export function Step4Advanced({
   tournamentId,
+  eventId,
   onBack,
   onFinish,
 }: {
   tournamentId: string;
+  eventId: string;
   onBack: () => void;
   onFinish: (publish: boolean) => void;
 }) {
@@ -83,6 +86,10 @@ export function Step4Advanced({
         These values come from the ruleset and can be overridden per tournament. Auto-lock is now
         configured separately from the tournament settings page after creation.
       </p>
+
+      <div className="rounded-md border border-slate-200 p-4">
+        <TournamentVenuesEditor tournamentId={tournamentId} eventId={eventId} />
+      </div>
 
       {rulesetCode === 'TF_v1' && (
         <fieldset className="space-y-3 rounded-md border border-slate-200 p-4">

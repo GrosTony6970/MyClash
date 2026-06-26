@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { VenuesService } from './venues.service';
 
@@ -145,6 +145,144 @@ describe('VenuesService', () => {
 
       await expect(service.delete('venue-1', 'user-1')).resolves.toBeUndefined();
       expect(deleteCalls).toEqual([{ id: 'venue-1' }]);
+    });
+  });
+
+  describe('tournament phase venues', () => {
+    type AnyChain = Promise<unknown> & {
+      select: ReturnType<typeof vi.fn>;
+      eq: ReturnType<typeof vi.fn>;
+      in: ReturnType<typeof vi.fn>;
+      is: ReturnType<typeof vi.fn>;
+      not: ReturnType<typeof vi.fn>;
+      order: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+      maybeSingle: ReturnType<typeof vi.fn>;
+      single: ReturnType<typeof vi.fn>;
+      insert: ReturnType<typeof vi.fn>;
+      upsert: ReturnType<typeof vi.fn>;
+    };
+    // A thenable chain that ALSO answers .maybeSingle()/write verbs, so one
+    // per-table stub serves both awaited list reads and .maybeSingle() reads.
+    function q(awaitResult: unknown, singleResult: unknown = awaitResult): AnyChain {
+      const promise = Promise.resolve(awaitResult);
+      const api: AnyChain = Object.assign(promise, {
+        select: vi.fn(() => api),
+        eq: vi.fn(() => api),
+        in: vi.fn(() => api),
+        is: vi.fn(() => api),
+        not: vi.fn(() => api),
+        order: vi.fn(() => api),
+        delete: vi.fn(() => api),
+        maybeSingle: vi.fn(() => Promise.resolve(singleResult)),
+        single: vi.fn(() => Promise.resolve(singleResult)),
+        insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
+      });
+      return api;
+    }
+
+    it('getTournamentPhaseVenues maps rows into { pool, bracket }', async () => {
+      const phaseVenues = q({
+        data: [
+          { phase_kind: 'pool', venues: { id: 'v-1', name: 'Hall A' } },
+          { phase_kind: 'bracket', venues: { id: 'v-2', name: 'Hall B' } },
+        ],
+        error: null,
+      });
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) =>
+            table === 'tournament_phase_venues' ? phaseVenues : q({ data: null, error: null }),
+          ),
+        },
+      };
+      const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+      const service = new VenuesService(supabase as never, { assertOrgRole } as never);
+
+      const result = await service.getTournamentPhaseVenues('t-1');
+      expect(result).toEqual({
+        pool: { id: 'v-1', name: 'Hall A' },
+        bracket: { id: 'v-2', name: 'Hall B' },
+      });
+    });
+
+    it('setTournamentPhaseVenues upserts the pool venue (admin) + links it to the event', async () => {
+      const upsertCalls: Array<Record<string, unknown>> = [];
+      const eventVenueInserts: Array<Record<string, unknown>> = [];
+
+      const tournamentChain = q({ data: { id: 't-1', event_id: 'e-1' }, error: null });
+      const eventChain = q({ data: { id: 'e-1', organization_id: 'org-1' }, error: null });
+      // venues answers BOTH the org-validation list AND ensureEventVenueLinked's
+      // .maybeSingle() (hosts_tournament lookup).
+      const venuesChain = q(
+        { data: [{ id: 'v-1' }], error: null },
+        { data: { id: 'v-1', organization_id: 'org-1', hosts_tournament: true }, error: null },
+      );
+      const phaseVenuesChain = q({
+        data: [{ phase_kind: 'pool', venues: { id: 'v-1', name: 'Hall A' } }],
+        error: null,
+      });
+      phaseVenuesChain.upsert = vi.fn((payload: Record<string, unknown>) => {
+        upsertCalls.push(payload);
+        return Promise.resolve({ data: null, error: null });
+      });
+      const eventVenuesChain = q({ count: 0, error: null }); // no existing link → insert
+      eventVenuesChain.insert = vi.fn((payload: Record<string, unknown>) => {
+        eventVenueInserts.push(payload);
+        return Promise.resolve({ data: null, error: null });
+      });
+      const licesChain = q({ count: 0, error: null });
+      const venueLicesChain = q({ data: [], error: null }); // empty catalogue → no seeding
+
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'tournaments') return tournamentChain;
+            if (table === 'events') return eventChain;
+            if (table === 'venues') return venuesChain;
+            if (table === 'tournament_phase_venues') return phaseVenuesChain;
+            if (table === 'event_venues') return eventVenuesChain;
+            if (table === 'lices') return licesChain;
+            if (table === 'venue_lices') return venueLicesChain;
+            return q({ data: null, error: null });
+          }),
+        },
+      };
+      const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+      const service = new VenuesService(supabase as never, { assertOrgRole } as never);
+
+      const result = await service.setTournamentPhaseVenues('t-1', { pool: 'v-1' }, 'user-1');
+
+      expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+      expect(upsertCalls[0]).toMatchObject({
+        tournament_id: 't-1',
+        phase_kind: 'pool',
+        venue_id: 'v-1',
+      });
+      expect(eventVenueInserts[0]).toMatchObject({ event_id: 'e-1', venue_id: 'v-1' });
+      expect(result).toEqual({ pool: { id: 'v-1', name: 'Hall A' }, bracket: null });
+    });
+
+    it('setTournamentPhaseVenues rejects a venue from another org', async () => {
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'tournaments')
+              return q({ data: { id: 't-1', event_id: 'e-1' }, error: null });
+            if (table === 'events')
+              return q({ data: { id: 'e-1', organization_id: 'org-1' }, error: null });
+            if (table === 'venues') return q({ data: [], error: null }); // not in org
+            return q({ data: null, error: null });
+          }),
+        },
+      };
+      const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+      const service = new VenuesService(supabase as never, { assertOrgRole } as never);
+
+      await expect(
+        service.setTournamentPhaseVenues('t-1', { pool: 'v-foreign' }, 'user-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });

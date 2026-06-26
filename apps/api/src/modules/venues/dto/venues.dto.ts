@@ -53,3 +53,14 @@ const setEventVenuesSchema = z
   })
   .strict();
 export class SetEventVenuesDto extends createZodDto(setEventVenuesSchema) {}
+
+// Per-phase-type venue assignment for a tournament. An omitted key leaves that
+// phase's venue unchanged; an explicit `null` clears it (`.nullable()` so the FE
+// can send null to clear — see the zod null-to-clear gotcha in memory).
+const setTournamentPhaseVenuesSchema = z
+  .object({
+    pool: z.uuid().nullable().optional(),
+    bracket: z.uuid().nullable().optional(),
+  })
+  .strict();
+export class SetTournamentPhaseVenuesDto extends createZodDto(setTournamentPhaseVenuesSchema) {}

@@ -16,6 +16,9 @@ import type {
 
 type Row = Record<string, unknown>;
 
+type PhaseVenue = { id: string; name: string } | null;
+type TournamentPhaseVenues = { pool: PhaseVenue; bracket: PhaseVenue };
+
 /**
  * Venues — org-level catalogue of physical locations reusable
  * across many events. CRUD is org-admin gated. Deletion refuses
@@ -471,6 +474,176 @@ export class VenuesService {
     }
 
     return { blocked };
+  }
+
+  /**
+   * Idempotently link a single venue to an event (`event_venues`) and, for a
+   * tournament-capable venue with none yet, seed the event's lices from the
+   * venue's lice catalogue. Used when a tournament phase is assigned a venue so
+   * the venue counts as part of the event and has pistes to schedule on. Asserts
+   * the venue belongs to the event's org; the caller does the org-role check.
+   */
+  async ensureEventVenueLinked(eventId: string, venueId: string): Promise<void> {
+    const { data: event, error: evErr } = await this.supabase.service
+      .from('events')
+      .select('id, organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (evErr) throw new BadRequestException(evErr.message);
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+    const orgId = String((event as Row)['organization_id']);
+
+    const { data: venue, error: vErr } = await this.supabase.service
+      .from('venues')
+      .select('id, organization_id, hosts_tournament')
+      .eq('id', venueId)
+      .maybeSingle();
+    if (vErr) throw new BadRequestException(vErr.message);
+    if (!venue) throw new NotFoundException(`Venue ${venueId} not found`);
+    if (String((venue as Row)['organization_id']) !== orgId) {
+      throw new BadRequestException('Venue belongs to a different organization');
+    }
+
+    // Link (idempotent on UNIQUE(event_id, venue_id)).
+    const { count: linkCount } = await this.supabase.service
+      .from('event_venues')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .eq('venue_id', venueId);
+    if ((linkCount ?? 0) === 0) {
+      await this.supabase.service
+        .from('event_venues')
+        .insert({ event_id: eventId, venue_id: venueId });
+    }
+
+    // Seed the event's lices from the venue's catalogue once (tournament venues).
+    if ((venue as Row)['hosts_tournament']) {
+      const { count: existing } = await this.supabase.service
+        .from('lices')
+        .select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('venue_id', venueId);
+      if ((existing ?? 0) === 0) {
+        const { data: catalogue } = await this.supabase.service
+          .from('venue_lices')
+          .select('name, sort_order')
+          .eq('venue_id', venueId)
+          .order('sort_order', { ascending: true });
+        const rows = (catalogue ?? []) as Array<{ name: string; sort_order: number | null }>;
+        if (rows.length > 0) {
+          await this.supabase.service.from('lices').insert(
+            rows.map((l, index) => ({
+              event_id: eventId,
+              venue_id: venueId,
+              name: l.name,
+              sort_order: l.sort_order ?? index,
+            })),
+          );
+        }
+      }
+    }
+  }
+
+  // ── Tournament phase venues (pools / bracket can live at different venues) ────
+
+  /**
+   * The venue each phase-type of a tournament is assigned to run at. Public read
+   * (powers the admin tournament-list "Venue(s)" column + the settings form).
+   */
+  async getTournamentPhaseVenues(tournamentId: string): Promise<TournamentPhaseVenues> {
+    const { data, error } = await this.supabase.service
+      .from('tournament_phase_venues')
+      .select('phase_kind, venues(id, name)')
+      .eq('tournament_id', tournamentId);
+    if (error) throw new BadRequestException(error.message);
+    const out: TournamentPhaseVenues = { pool: null, bracket: null };
+    for (const row of (data ?? []) as unknown as Array<{
+      phase_kind: string;
+      venues: { id: string; name: string } | null;
+    }>) {
+      const venue = row.venues
+        ? { id: String(row.venues.id), name: String(row.venues.name) }
+        : null;
+      if (row.phase_kind === 'pool') out.pool = venue;
+      else if (row.phase_kind === 'bracket') out.bracket = venue;
+    }
+    return out;
+  }
+
+  /**
+   * Set a tournament's per-phase venue (org-admin). An omitted key leaves that
+   * phase unchanged; `null` clears it. Assigning a venue links it to the event +
+   * seeds its lices (via {@link ensureEventVenueLinked}) so the phase has pistes
+   * to schedule on. This stores intent only — existing matches are not moved.
+   */
+  async setTournamentPhaseVenues(
+    tournamentId: string,
+    assignments: { pool?: string | null; bracket?: string | null },
+    userId: string,
+  ): Promise<TournamentPhaseVenues> {
+    const { data: tournament, error: tErr } = await this.supabase.service
+      .from('tournaments')
+      .select('id, event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (tErr) throw new BadRequestException(tErr.message);
+    if (!tournament) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const eventId = String((tournament as Row)['event_id']);
+
+    const { data: event, error: evErr } = await this.supabase.service
+      .from('events')
+      .select('id, organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (evErr) throw new BadRequestException(evErr.message);
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+    const orgId = String((event as Row)['organization_id']);
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
+
+    // Validate any provided venue belongs to this org.
+    const requestedVenueIds = [assignments.pool, assignments.bracket].filter(
+      (v): v is string => typeof v === 'string',
+    );
+    if (requestedVenueIds.length > 0) {
+      const { data: orgVenues } = await this.supabase.service
+        .from('venues')
+        .select('id')
+        .eq('organization_id', orgId)
+        .in('id', requestedVenueIds);
+      const valid = new Set(((orgVenues ?? []) as Array<{ id: string }>).map((v) => String(v.id)));
+      for (const id of requestedVenueIds) {
+        if (!valid.has(id)) {
+          throw new BadRequestException(`Venue ${id} is not in this organization`);
+        }
+      }
+    }
+
+    const kinds: Array<'pool' | 'bracket'> = ['pool', 'bracket'];
+    for (const kind of kinds) {
+      if (!(kind in assignments)) continue; // omitted → leave unchanged
+      const venueId = assignments[kind] ?? null;
+      if (venueId === null) {
+        await this.supabase.service
+          .from('tournament_phase_venues')
+          .delete()
+          .eq('tournament_id', tournamentId)
+          .eq('phase_kind', kind);
+        continue;
+      }
+      await this.supabase.service.from('tournament_phase_venues').upsert(
+        {
+          tournament_id: tournamentId,
+          phase_kind: kind,
+          venue_id: venueId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'tournament_id,phase_kind' },
+      );
+      // Make the venue part of the event + give the phase pistes to schedule on.
+      await this.ensureEventVenueLinked(eventId, venueId);
+    }
+
+    return this.getTournamentPhaseVenues(tournamentId);
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

@@ -2,7 +2,16 @@
  * Tournaments, registrations, phases, pools, bracket slots.
  * Tournament = a competition within an event (one weapon, one ruleset).
  */
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { events } from './events';
 import { fighters } from './fighters';
 import { persons } from './persons';
@@ -110,6 +119,33 @@ export const bracketSlots = pgTable('bracket_slots', {
     onDelete: 'set null',
   }),
 });
+
+// ── Tournament phase venues ─────────────────────────────────────────────────
+// Per-phase-type venue assignment (pools vs bracket) so a tournament can spread
+// across venues. `phase_kind` is the pool/bracket taxonomy, NOT phases.type
+// (which has no single "bracket" value and is created lazily). venue_id is a
+// plain uuid (FK lives in migration 0108) to avoid a circular schema import,
+// mirroring how lices.venue_id / event_venues are declared.
+export const tournamentPhaseVenues = pgTable(
+  'tournament_phase_venues',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tournamentId: uuid('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    phaseKind: text('phase_kind').notNull(),
+    // pool | bracket
+    venueId: uuid('venue_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueTournamentPhaseKind: unique('tournament_phase_venues_tournament_id_phase_kind_key').on(
+      table.tournamentId,
+      table.phaseKind,
+    ),
+  }),
+);
 
 // ── Pool assignment settings ──────────────────────────────────────────────────
 export const poolAssignmentSettings = pgTable('pool_assignment_settings', {

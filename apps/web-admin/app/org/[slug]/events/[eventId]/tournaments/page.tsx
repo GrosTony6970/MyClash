@@ -27,6 +27,18 @@ interface Tournament {
   maxWaitlist: number | null;
   /** Count of registered + checked_in registrations — drives the table's Registered column. */
   registered: number;
+  /** Venue each phase runs at (pools / bracket can differ) — drives the Venue(s) column. */
+  phaseVenues: {
+    pool: { id: string; name: string } | null;
+    bracket: { id: string; name: string } | null;
+  };
+}
+
+function parsePhaseVenue(value: unknown): { id: string; name: string } | null {
+  if (value == null || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v['id'] !== 'string' || typeof v['name'] !== 'string') return null;
+  return { id: v['id'], name: v['name'] };
 }
 
 function normalizeTournament(row: Record<string, unknown>): Tournament {
@@ -60,6 +72,12 @@ function normalizeTournament(row: Record<string, unknown>): Tournament {
     maxParticipants: typeof row['max_participants'] === 'number' ? row['max_participants'] : null,
     maxWaitlist: typeof row['max_waitlist'] === 'number' ? row['max_waitlist'] : null,
     registered: typeof row['registered'] === 'number' ? row['registered'] : 0,
+    phaseVenues: {
+      pool: parsePhaseVenue((row['phaseVenues'] as Record<string, unknown> | undefined)?.['pool']),
+      bracket: parsePhaseVenue(
+        (row['phaseVenues'] as Record<string, unknown> | undefined)?.['bracket'],
+      ),
+    },
   };
 }
 
@@ -294,6 +312,7 @@ export default function EventTournamentsPage() {
                 <tr>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.tournament')}</th>
                   <th className="px-4 py-3">{t('organizer.tournaments.table.weapon')}</th>
+                  <th className="px-4 py-3">{t('organizer.tournaments.table.venues')}</th>
                   <th className="px-4 py-3 text-center">
                     {t('organizer.tournaments.table.registered')}
                   </th>
@@ -316,6 +335,28 @@ export default function EventTournamentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-slate-600">{tournament.weapon ?? '-'}</td>
+                    <td className="px-4 py-4 text-slate-600">
+                      {tournament.phaseVenues.pool || tournament.phaseVenues.bracket ? (
+                        <div className="flex flex-col gap-0.5 text-xs">
+                          {tournament.phaseVenues.pool && (
+                            <span>
+                              {t('organizer.tournaments.venuesEditor.poolsAt', {
+                                venue: tournament.phaseVenues.pool.name,
+                              })}
+                            </span>
+                          )}
+                          {tournament.phaseVenues.bracket && (
+                            <span>
+                              {t('organizer.tournaments.venuesEditor.bracketAt', {
+                                venue: tournament.phaseVenues.bracket.name,
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     <td className="px-4 py-4 text-center font-mono text-sm tabular-nums text-slate-700">
                       {formatCountOfMax(tournament.registered, tournament.maxParticipants)}
                     </td>

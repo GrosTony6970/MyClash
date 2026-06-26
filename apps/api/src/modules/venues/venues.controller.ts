@@ -34,6 +34,7 @@ import {
   CreateVenueDto,
   CreateVenueLiceDto,
   SetEventVenuesDto,
+  SetTournamentPhaseVenuesDto,
   UpdateVenueAreaDto,
   UpdateVenueDto,
 } from './dto/venues.dto';
@@ -193,6 +194,33 @@ export class VenuesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.venues.setEventVenues(eventId, dto.venueIds, userId);
+  }
+
+  // ── Tournament phase venues (pools / bracket can live at different venues) ───
+
+  @Get('tournaments/:tournamentId/phase-venues')
+  @ApiOperation({
+    summary: "A tournament's per-phase venue assignment (pools / bracket). Public read.",
+  })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async getTournamentPhaseVenues(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+    return this.venues.getTournamentPhaseVenues(tournamentId);
+  }
+
+  @Put('tournaments/:tournamentId/phase-venues')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Set a tournament's per-phase venue (org admin+). Links the venue to the event + seeds its lices; stores intent (does not move existing matches).",
+  })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  async setTournamentPhaseVenues(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Body() dto: SetTournamentPhaseVenuesDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.venues.setTournamentPhaseVenues(tournamentId, dto, userId);
   }
 
   // ── Public slug-based variant for the public event page ────────────────────
