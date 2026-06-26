@@ -488,7 +488,13 @@ export default async function TournamentPage({ params }: Props) {
             visible: finalRankingTabVisible,
             panel: (
               <FinalRankingTab
-                isTournamentCompleted={tournament.status === 'completed'}
+                // Gate on the bracket actually being resolved (a champion +
+                // runner-up decided in the completed final), NOT on the
+                // tournament's lifecycle status — a fully-played tournament is
+                // usually still `published`, never flipped to `completed`, so
+                // the old status gate left this empty while the admin (which
+                // computes from completed matches) showed it.
+                isTournamentCompleted={Boolean(podium?.gold && podium?.silver)}
                 podium={podium ?? null}
                 bracketSlots={bracketSlots}
               />
