@@ -1776,6 +1776,8 @@ describe('EventsService', () => {
         bracketFightsTotal: number;
         bracketFightsCompleted: number;
         refereeCount: number;
+        scheduledStart: string | null;
+        scheduledEnd: string | null;
       }>;
 
       expect(result).toHaveLength(1);

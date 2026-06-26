@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import { t as tr } from '@myclash/i18n';
-import { formatInZone } from '@myclash/time';
+import { formatInZone, zonedDay } from '@myclash/time';
 import { StatusBadge, accentClassFor, tournamentStatusSemantic } from '@myclash/ui';
 import { EventBackLink } from './_components/EventBackLink';
 import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
@@ -28,6 +28,9 @@ interface Tournament {
   poolFightsCompleted: number;
   bracketFightsTotal: number;
   bracketFightsCompleted: number;
+  /** Earliest / latest scheduled match (ISO) — drives the Schedule agenda. */
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
 }
 
 interface ParticipantRow {
@@ -200,6 +203,63 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
   const live = highlights.filter((m) => m.status === 'running');
   const upcoming = highlights.filter((m) => m.status === 'scheduled').slice(0, 5);
 
+  // Schedule agenda: every scheduled tournament + workshop as one chronological,
+  // day-grouped list of cards (the tournament window comes from its match
+  // scheduled_at span; the workshop from its earliest session).
+  const tz = event?.timezone ?? 'Europe/Paris';
+  type ScheduleEntry = {
+    id: string;
+    startsAt: string;
+    endsAt: string | null;
+    title: string;
+    subtitle: string | null;
+    kindLabel: string;
+    color: string | null;
+    href: string;
+  };
+  const scheduleEntries: ScheduleEntry[] = [
+    ...tournaments
+      .filter((tournament) => tournament.scheduledStart)
+      .map((tournament) => ({
+        id: `t-${tournament.id}`,
+        startsAt: tournament.scheduledStart as string,
+        endsAt: tournament.scheduledEnd,
+        title: tournament.name,
+        subtitle: tournament.ruleset_code,
+        kindLabel: tr('publicApp.eventHome.schedule.tournament'),
+        color: tournament.color,
+        href: `/e/${eventSlug}/t/${encodeURIComponent(tournament.slug)}`,
+      })),
+    ...workshops
+      .map((w) => {
+        const session = w.sessions
+          .filter((s) => s.startsAt)
+          .sort((a, b) => ((a.startsAt as string) < (b.startsAt as string) ? -1 : 1))[0];
+        return session ? { w, session } : null;
+      })
+      .filter((x): x is { w: PublicWorkshop; session: PublicWorkshop['sessions'][number] } =>
+        Boolean(x),
+      )
+      .map(({ w, session }) => ({
+        id: `w-${w.id}`,
+        startsAt: session.startsAt as string,
+        endsAt: session.endsAt,
+        title: w.title,
+        subtitle: w.instructors.map((i) => i.displayName).join(', ') || null,
+        kindLabel: tr('publicApp.eventHome.schedule.workshop'),
+        color: w.color,
+        href: `/e/${eventSlug}/w/${encodeURIComponent(w.slug)}`,
+      })),
+  ].sort((a, b) => (a.startsAt < b.startsAt ? -1 : 1));
+  const scheduleByDay = new Map<string, ScheduleEntry[]>();
+  for (const entry of scheduleEntries) {
+    const key = zonedDay(entry.startsAt, tz) ?? entry.startsAt.slice(0, 10);
+    const arr = scheduleByDay.get(key) ?? [];
+    arr.push(entry);
+    scheduleByDay.set(key, arr);
+  }
+  const scheduleDays = [...scheduleByDay.keys()].sort();
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl">
       <EventBackLink />
@@ -236,6 +296,66 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
               View list →
             </p>
           </Link>
+        </section>
+      )}
+
+      {scheduleEntries.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">
+            {tr('publicApp.eventHome.section.schedule')}
+          </h2>
+          <div className="flex flex-col gap-4">
+            {scheduleDays.map((dayKey) => {
+              const items = scheduleByDay.get(dayKey) ?? [];
+              const rep = items[0]?.startsAt ?? null;
+              return (
+                <div key={dayKey}>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    {rep
+                      ? formatInZone(rep, tz, { weekday: 'long', day: 'numeric', month: 'long' })
+                      : dayKey}
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {items.map((entry) => (
+                      <Link
+                        key={entry.id}
+                        href={entry.href}
+                        className="group relative flex items-center gap-3 overflow-hidden rounded-xl border border-stone-200 bg-white p-3 pl-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-0 top-0 h-full w-1"
+                          style={{ backgroundColor: colorTokenToHex(entry.color) }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-mono text-xs font-semibold text-slate-700">
+                            {formatInZone(entry.startsAt, tz, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {entry.endsAt &&
+                              `–${formatInZone(entry.endsAt, tz, {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}`}
+                          </p>
+                          <p className="truncate font-display text-sm font-semibold text-slate-900">
+                            {entry.title}
+                          </p>
+                          {entry.subtitle && (
+                            <p className="truncate text-xs text-slate-500">{entry.subtitle}</p>
+                          )}
+                        </div>
+                        <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                          {entry.kindLabel}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 

@@ -24,7 +24,12 @@ export const en = {
         completedBracketFights: 'Completed Bracket fights : {completed}/{total}',
       },
       section: {
+        schedule: 'Schedule',
         workshops: 'Workshops',
+      },
+      schedule: {
+        tournament: 'Tournament',
+        workshop: 'Workshop',
       },
       workshops: {
         seeFullList: 'See full list →',
@@ -4108,7 +4113,12 @@ export const fr = {
         completedBracketFights: 'Combats de tableau terminés : {completed}/{total}',
       },
       section: {
+        schedule: 'Planning',
         workshops: 'Stages',
+      },
+      schedule: {
+        tournament: 'Tournoi',
+        workshop: 'Stage',
       },
       workshops: {
         seeFullList: 'Voir la liste complète →',

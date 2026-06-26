@@ -1165,14 +1165,33 @@ export class EventsService {
     const poolFightsCompleted = new Map<string, number>();
     const bracketFightsTotal = new Map<string, number>();
     const bracketFightsCompleted = new Map<string, number>();
+    // Earliest / latest scheduled match per tournament → drives the schedule
+    // window on the public event-home "Schedule" agenda.
+    const scheduledStartByTournament = new Map<string, string>();
+    const scheduledEndByTournament = new Map<string, string>();
     if (allPhaseIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
-        .select('phase_id, status')
+        .select('phase_id, status, scheduled_at')
         .in('phase_id', allPhaseIds);
-      for (const row of (matchRows ?? []) as Array<{ phase_id: string; status: string | null }>) {
+      for (const row of (matchRows ?? []) as Array<{
+        phase_id: string;
+        status: string | null;
+        scheduled_at: string | null;
+      }>) {
         const poolTournamentId = poolPhaseIdToTournament.get(row.phase_id);
         const done = row.status === 'completed';
+        const matchTournamentId = phaseIdToTournament.get(row.phase_id);
+        if (matchTournamentId && row.scheduled_at) {
+          const curStart = scheduledStartByTournament.get(matchTournamentId);
+          if (!curStart || row.scheduled_at < curStart) {
+            scheduledStartByTournament.set(matchTournamentId, row.scheduled_at);
+          }
+          const curEnd = scheduledEndByTournament.get(matchTournamentId);
+          if (!curEnd || row.scheduled_at > curEnd) {
+            scheduledEndByTournament.set(matchTournamentId, row.scheduled_at);
+          }
+        }
         if (poolTournamentId) {
           poolFightsTotal.set(poolTournamentId, (poolFightsTotal.get(poolTournamentId) ?? 0) + 1);
           if (done) {
@@ -1242,6 +1261,8 @@ export class EventsService {
         bracketFightsTotal: bracketFightsTotal.get(id) ?? 0,
         bracketFightsCompleted: bracketFightsCompleted.get(id) ?? 0,
         refereeCount: refereeSets.get(id)?.size ?? 0,
+        scheduledStart: scheduledStartByTournament.get(id) ?? null,
+        scheduledEnd: scheduledEndByTournament.get(id) ?? null,
       };
     });
   }
