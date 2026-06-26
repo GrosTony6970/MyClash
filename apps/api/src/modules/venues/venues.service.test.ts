@@ -161,6 +161,7 @@ describe('VenuesService', () => {
       single: ReturnType<typeof vi.fn>;
       insert: ReturnType<typeof vi.fn>;
       upsert: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
     // A thenable chain that ALSO answers .maybeSingle()/write verbs, so one
     // per-table stub serves both awaited list reads and .maybeSingle() reads.
@@ -178,6 +179,7 @@ describe('VenuesService', () => {
         single: vi.fn(() => Promise.resolve(singleResult)),
         insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
         upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        update: vi.fn(() => api),
       });
       return api;
     }
