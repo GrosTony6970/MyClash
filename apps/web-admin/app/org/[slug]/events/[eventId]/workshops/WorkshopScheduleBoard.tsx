@@ -30,6 +30,7 @@ import {
   zoomToSlotHeight,
 } from '../schedule/schedule-grid-geometry';
 import { minutesIntoDayInZone } from '@myclash/time';
+import { tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import { formatDayLabel } from '../schedule/event-days';
 import { workshopScheduleToCsv } from './workshop-schedule-csv';
 import {
@@ -632,7 +633,7 @@ export function WorkshopScheduleBoard({
                 {bands.map((band) => (
                   <div
                     key={band.venueId}
-                    className="border-b border-r border-gray-200 bg-gray-50 px-2 py-1 text-center text-xs font-semibold text-gray-700 truncate"
+                    className="border-b border-r border-gray-200 bg-gray-50 px-2 py-2 text-center text-lg font-bold text-gray-900 truncate"
                     style={{ width: band.span * colWidth }}
                   >
                     {band.venueName}
@@ -714,6 +715,7 @@ export function WorkshopScheduleBoard({
                           const endSlot = r ? r.curEnd : bl.endSlot;
                           const span = endSlot - startSlot;
                           const conflict = conflictIds.has(bl.sessionId);
+                          const color = bl.color;
                           return (
                             <div
                               key={bl.sessionId}
@@ -730,8 +732,10 @@ export function WorkshopScheduleBoard({
                                 conflict ? `${bl.title} — overlaps another workshop` : bl.title
                               }
                               className={[
-                                'group absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border bg-red-50 px-1.5 py-1 text-red-900 shadow-sm hover:bg-red-100',
-                                conflict ? 'border-red-500 ring-2 ring-red-500' : 'border-red-300',
+                                'group absolute left-0.5 right-0.5 cursor-grab overflow-hidden rounded-md border px-1.5 py-1 shadow-sm hover:brightness-95',
+                                conflict
+                                  ? 'border-red-500 bg-red-50 text-red-900 ring-2 ring-red-500'
+                                  : `${tintBgClassFor(color)} ${tintBorderClassFor(color)} ${tintTextClassFor(color)}`,
                               ].join(' ')}
                               style={{ top: startSlot * slotHeightPx, height: span * slotHeightPx }}
                             >
@@ -743,7 +747,7 @@ export function WorkshopScheduleBoard({
                                     e.stopPropagation();
                                     onUnschedule(bl.sessionId);
                                   }}
-                                  className="absolute right-0.5 top-0.5 z-10 rounded px-1 text-sm leading-none text-red-400 opacity-0 hover:bg-red-200 hover:text-red-700 group-hover:opacity-100"
+                                  className="absolute right-0.5 top-0.5 z-10 rounded px-1 text-sm leading-none opacity-0 hover:bg-black/10 group-hover:opacity-100"
                                 >
                                   ×
                                 </button>
@@ -763,25 +767,25 @@ export function WorkshopScheduleBoard({
                                     curEnd: bl.endSlot,
                                   });
                                 }}
-                                className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-red-300/60"
+                                className="absolute left-0 right-0 top-0 h-1.5 cursor-ns-resize bg-black/15"
                               />
                               <span className="block truncate pr-3 text-base font-bold">
                                 {bl.title}
                               </span>
-                              <span className="block font-mono text-sm text-red-700">
+                              <span className="block font-mono text-sm opacity-80">
                                 {slotToHHMM(startSlot, startHour)}–{slotToHHMM(endSlot, startHour)}
                               </span>
                               {bl.instructorNames.length > 0 && (
-                                <span className="block truncate text-sm text-red-800">
+                                <span className="block truncate text-sm opacity-90">
                                   {bl.instructorNames.join(', ')}
                                 </span>
                               )}
                               {(bl.category || bl.level) && (
-                                <span className="block truncate text-xs text-red-700">
+                                <span className="block truncate text-xs opacity-70">
                                   {[bl.category, bl.level].filter(Boolean).join(' · ')}
                                 </span>
                               )}
-                              <span className="block text-xs text-red-700">
+                              <span className="block text-xs opacity-70">
                                 {bl.confirmedCount}/{bl.capacity ?? '∞'}
                               </span>
                               {/* Bottom resize grip */}
@@ -799,7 +803,7 @@ export function WorkshopScheduleBoard({
                                     curEnd: bl.endSlot,
                                   });
                                 }}
-                                className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-red-300/60"
+                                className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-black/15"
                               />
                             </div>
                           );

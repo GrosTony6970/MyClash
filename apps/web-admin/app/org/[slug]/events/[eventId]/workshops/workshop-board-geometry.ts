@@ -34,6 +34,8 @@ export interface BoardWorkshop {
   category?: string | null;
   level?: string | null;
   capacity?: number | null;
+  /** Identity color token (ColorToken, like tournaments) — tints the card. */
+  color?: string | null;
   instructorNames?: string[];
   sessions: Array<{
     id: string;
@@ -59,6 +61,7 @@ export interface WorkshopBlock {
   category: string | null;
   level: string | null;
   capacity: number | null;
+  color: string | null;
   instructorNames: string[];
   confirmedCount: number;
 }
@@ -174,6 +177,7 @@ export function buildWorkshopSessionBlocks(
       category: w.category ?? null,
       level: w.level ?? null,
       capacity: w.capacity ?? null,
+      color: w.color ?? null,
       instructorNames: w.instructorNames ?? [],
       confirmedCount: session.confirmedCount ?? 0,
     });
