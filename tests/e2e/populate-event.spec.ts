@@ -5,18 +5,20 @@ import { runContext } from './_context';
 
 /**
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
- * inspectable, published event:
- *   - imports the roster (if the event is empty), 4 lices
+ * inspectable, published event "Fosse aux Lions 2027" (22–23 May 2027):
+ *   - imports the roster (if the event is empty)
+ *   - a tournament venue (Halle des Tournois) with 4 pistes, and the day-1
+ *     organisational blocks (Registration & Gear Check, Referee meeting)
  *   - 2 tournaments (Longsword Open, Sidesword Open): 32 fighters, 4 pools,
  *     deductive-afterblow scoring, pools scheduled in parallel across the 4
- *     lices, a bracket of 16
+ *     lices, a bracket of 16; both tournaments' phases assigned to the venue
  *   - 25 referees registered + skilled + assigned across both tournaments' pools
  *   - every pool match played with a realistic mix of clean hits, afterblows
  *     and cards (yellow / red / occasional black-card forfeit) — so pools flip
  *     to completed, standings populate, and the bracket of 16 auto-populates
  *     with the real qualifiers
- *   - a workshop venue (3 areas) + 6 workshops scheduled into it at staggered
- *     times, each with a randomly-picked instructor; all published
+ *   - a separate workshop venue (Salle des Ateliers, 3 areas) + 6 workshops on
+ *     day 2 (23 May), each with a randomly-picked instructor; all published
  *   - tournaments + event published
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
@@ -114,13 +116,56 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     `  → ${persons.length} persons: ${fightersA.length}+${fightersB.length} fighters, ${referees.length} referees, ${instructors.length} instructors`,
   );
 
-  // ── 4 lices ──────────────────────────────────────────────────────────────────
+  // ── Rebrand the throwaway event for the demo (name + a 2-day window) ──────────
+  await step('event → Fosse aux Lions 2027 (22–23 May 2027)', async () =>
+    reqOk(
+      await patch(`events/${eventId}`, {
+        data: { name: 'Fosse aux Lions 2027', startDate: '2027-05-22', endDate: '2027-05-23' },
+      }),
+    ),
+  );
+
+  // ── Tournament venue (Halle des Tournois) with 4 pistes ──────────────────────
+  // The 4 event lices are created AT this venue, so every match's venue derives
+  // via matches.lice_id → lices.venue_id. Each tournament's phases are then
+  // pinned to it below via PUT /tournaments/:id/phase-venues.
+  const tournamentVenue = await step('create tournament venue', async () =>
+    (
+      await reqOk(
+        await post(`organizations/${orgId}/venues`, {
+          data: {
+            name: `Halle des Tournois ${tok}`,
+            address: 'Lyon, France',
+            hostsTournament: true,
+            hostsWorkshop: false,
+          },
+        }),
+      )
+    ).json(),
+  );
+  const tournamentVenueId = tournamentVenue?.id as string | undefined;
+
   const liceIds: string[] = [];
   for (let i = 1; i <= 4; i++) {
-    const r = await post(`events/${eventId}/lices`, { data: { name: `Piste ${i}` } });
+    const r = await post(`events/${eventId}/lices`, {
+      data: { name: `Piste ${i}`, venueId: tournamentVenueId },
+    });
     if (r.ok()) liceIds.push(((await r.json()) as { id: string }).id);
   }
-  console.log(`  ✓ ${liceIds.length} lices`);
+  console.log(`  ✓ tournament venue + ${liceIds.length} lices`);
+
+  // ── Day-0 organisational blocks, before the pools. sort_order is assigned in
+  //    creation order, so these (created first) land at the top of the day. ──────
+  const adminBlock = (label: string, startTime: string, endTime: string) =>
+    step(`programme block: ${label}`, async () =>
+      reqOk(
+        await post(`events/${eventId}/programme/blocks`, {
+          data: { dayIndex: 0, blockType: 'admin', label, startTime, endTime },
+        }),
+      ),
+    );
+  await adminBlock('Registration & Gear Check', '08:00', '08:45');
+  await adminBlock('Referee meeting', '08:45', '09:00');
 
   // ── Build one tournament (structure only — matches played later) ──────────────
   const buildTournament = async (
@@ -209,6 +254,20 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const side = await buildTournament('Sidesword Open', 'sidesword', fightersB, '13', 'blue');
   const allPoolIds = [...long.poolIds, ...side.poolIds];
   const tournamentIds = [long.id, side.id].filter(Boolean);
+
+  // Assign each tournament's phases (pools + bracket) to the tournament venue —
+  // exercises the per-phase venue feature and links the venue to the event.
+  if (tournamentVenueId) {
+    for (const id of tournamentIds) {
+      await step(`assign ${id.slice(0, 8)} → tournament venue`, async () =>
+        reqOk(
+          await put(`tournaments/${id}/phase-venues`, {
+            data: { pool: tournamentVenueId, bracket: tournamentVenueId },
+          }),
+        ),
+      );
+    }
+  }
 
   // Schedule both tournaments' pool matches across the 4 lices (parallel).
   const gen = (await step('generate schedule across 4 lices', async () =>
@@ -623,7 +682,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     (
       await reqOk(
         await post(`organizations/${orgId}/venues`, {
-          data: { name: `Workshop Hall ${tok}`, hostsWorkshop: true },
+          data: { name: `Salle des Ateliers ${tok}`, hostsWorkshop: true, hostsTournament: false },
         }),
       )
     ).json(),
@@ -669,8 +728,9 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       const hour = String(9 + i).padStart(2, '0');
       await post(`workshops/${workshopId}/sessions`, {
         data: {
-          startTime: `2099-01-02T${hour}:00:00Z`,
-          endTime: `2099-01-02T${hour}:45:00Z`,
+          // Day 2 of the event (23 May 2027) — the tournaments run on day 1.
+          startTime: `2027-05-23T${hour}:00:00Z`,
+          endTime: `2027-05-23T${hour}:45:00Z`,
           venueId,
           areaId: areaIds.length ? areaIds[i % areaIds.length] : undefined,
         },
