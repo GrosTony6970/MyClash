@@ -11,11 +11,18 @@ const signInWithPasswordMock = vi.fn();
 const fromMock = vi.fn();
 const fetchMock = vi.fn();
 const getAuthUserMock = vi.fn();
+const refreshSessionMock = vi.fn();
 
 const mockSupabase = {
   getAuthUser: getAuthUserMock,
+  refreshSession: refreshSessionMock,
   service: {
-    auth: { admin: { generateLink: generateLinkMock } },
+    auth: {
+      admin: {
+        generateLink: generateLinkMock,
+        deleteUser: vi.fn().mockResolvedValue({ error: null }),
+      },
+    },
     from: fromMock,
   },
   anon: {
@@ -36,6 +43,7 @@ function makeQueryChain(result: unknown) {
     order: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue(result),
     update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
   };
 }
 
@@ -120,6 +128,7 @@ describe('AuthService', () => {
       return value;
     });
     fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
+    refreshSessionMock.mockResolvedValue(null);
     getAuthUserMock.mockImplementation(async (accessToken: string) => {
       const response = await fetchMock('http://supabase-auth:9999/user', {
         method: 'GET',
@@ -412,6 +421,95 @@ describe('AuthService', () => {
         expect.objectContaining({ sameSite: 'lax', path: '/' }),
       );
     });
+
+    it('refreshes an expired session from the refresh-token cookie (sliding session)', async () => {
+      // The current access token is expired/invalid → null; the freshly minted
+      // one validates to a real user.
+      getAuthUserMock.mockImplementation(async (token: string) =>
+        token === 'fresh-access'
+          ? { id: 'user-9', email: 'organizer@example.com', user_metadata: {} }
+          : null,
+      );
+      refreshSessionMock.mockResolvedValue({
+        access_token: 'fresh-access',
+        refresh_token: 'fresh-refresh',
+        expires_in: 3600,
+      });
+
+      const reply = makeReply();
+      const result = await service.getMe(
+        {
+          headers: { authorization: 'Bearer expired-token' },
+          cookies: { 'sb-refresh-token': 'old-refresh' },
+        } as never,
+        reply as never,
+      );
+
+      expect(refreshSessionMock).toHaveBeenCalledWith('old-refresh');
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'fresh-access',
+        expect.objectContaining({ maxAge: 2592000 }),
+      );
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        'fresh-refresh',
+        expect.objectContaining({ maxAge: 2592000 }),
+      );
+      expect(result.type).toBe('claimed');
+      expect(result.user?.email).toBe('organizer@example.com');
+    });
+
+    it('stays anonymous (and sets no cookies) when the refresh token is invalid', async () => {
+      getAuthUserMock.mockResolvedValue(null);
+      refreshSessionMock.mockResolvedValue(null);
+
+      const reply = makeReply();
+      const result = await service.getMe(
+        { headers: {}, cookies: { 'sb-refresh-token': 'bad-refresh' } } as never,
+        reply as never,
+      );
+
+      expect(refreshSessionMock).toHaveBeenCalledWith('bad-refresh');
+      expect(reply.setCookie).not.toHaveBeenCalled();
+      expect(result.type).toBe('anonymous');
+    });
+
+    it('sets the refreshed cookies but returns anonymous if the new token fails to validate (self-heals next request)', async () => {
+      // refresh succeeds (cookies written) but re-validation of the new token
+      // returns null (e.g. GoTrue race). No loop; the next request authenticates.
+      getAuthUserMock.mockResolvedValue(null);
+      refreshSessionMock.mockResolvedValue({
+        access_token: 'fresh-access',
+        refresh_token: 'fresh-refresh',
+        expires_in: 3600,
+      });
+
+      const reply = makeReply();
+      const result = await service.getMe(
+        { headers: {}, cookies: { 'sb-refresh-token': 'r' } } as never,
+        reply as never,
+      );
+
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'fresh-access',
+        expect.anything(),
+      );
+      expect(result.type).toBe('anonymous');
+    });
+
+    it('does not attempt a refresh when no reply is available to persist new cookies', async () => {
+      getAuthUserMock.mockResolvedValue(null);
+
+      const result = await service.getMe({
+        headers: { authorization: 'Bearer expired-token' },
+        cookies: { 'sb-refresh-token': 'old-refresh' },
+      } as never);
+
+      expect(refreshSessionMock).not.toHaveBeenCalled();
+      expect(result.type).toBe('anonymous');
+    });
   });
 
   describe('acceptOAuthSession', () => {
@@ -435,12 +533,12 @@ describe('AuthService', () => {
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'access-token',
-        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
       );
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-refresh-token',
         'refresh-token',
-        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
       expect(fetchMock).toHaveBeenCalledWith(
@@ -579,12 +677,12 @@ describe('AuthService', () => {
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'access-token',
-        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
       );
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-refresh-token',
         'refresh-token',
-        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/me' });
       expect(getUserMock).not.toHaveBeenCalled();
@@ -674,12 +772,12 @@ describe('AuthService', () => {
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'password-access-token',
-        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
       );
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-refresh-token',
         'password-refresh-token',
-        expect.objectContaining({ httpOnly: true, maxAge: 3600 }),
+        expect.objectContaining({ httpOnly: true, maxAge: 2592000 }),
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
     });
@@ -746,6 +844,106 @@ describe('AuthService', () => {
         expect.objectContaining({ path: '/', sameSite: 'lax' }),
       );
       expect(reply.clearCookie).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('cookie Domain scoping (production)', () => {
+    // A separate AuthService wired with NODE_ENV=production + DOMAIN=myclash.fr so
+    // cookieDomain() resolves to `.myclash.fr`. This locks in that the parent
+    // domain actually reaches setCookie/clearCookie through the real auth flows —
+    // the helper-level test only proves the helper honours a passed-in domain.
+    function makeProdService(): AuthService {
+      const prodConfig = {
+        getOrThrow: (key: string) => {
+          const values: Record<string, string> = {
+            SUPABASE_URL: 'https://app.myclash.fr',
+            SUPABASE_ANON_KEY: 'anon-key',
+          };
+          const value = values[key];
+          if (!value) throw new Error(`Missing config ${key}`);
+          return value;
+        },
+        get: (key: string, def?: string) => {
+          const values: Record<string, string> = {
+            NODE_ENV: 'production',
+            DOMAIN: 'myclash.fr',
+            SUPABASE_AUTH_INTERNAL_URL: 'http://supabase-auth:9999',
+          };
+          return values[key] ?? def ?? '';
+        },
+      };
+      return new AuthService(
+        mockSupabase as never,
+        mockMailService as never,
+        prodConfig as never,
+        guestJwtService,
+        mockOnboarding as never,
+      );
+    }
+
+    it('sets refreshed cookies scoped to the parent domain', async () => {
+      getAuthUserMock.mockImplementation(async (token: string) =>
+        token === 'fresh-access' ? { id: 'u1', email: 'a@b.c', user_metadata: {} } : null,
+      );
+      refreshSessionMock.mockResolvedValue({
+        access_token: 'fresh-access',
+        refresh_token: 'fresh-refresh',
+        expires_in: 3600,
+      });
+
+      const reply = makeReply();
+      await makeProdService().getMe(
+        { headers: {}, cookies: { 'sb-refresh-token': 'r' } } as never,
+        reply as never,
+      );
+
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        'fresh-access',
+        expect.objectContaining({ domain: '.myclash.fr', secure: true }),
+      );
+      expect(reply.setCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        'fresh-refresh',
+        expect.objectContaining({ domain: '.myclash.fr', secure: true }),
+      );
+    });
+
+    it('clears cookies with the parent domain on logout', () => {
+      const reply = makeReply();
+      makeProdService().logout(reply as never);
+
+      expect(reply.clearCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        expect.objectContaining({ domain: '.myclash.fr' }),
+      );
+      expect(reply.clearCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        expect.objectContaining({ domain: '.myclash.fr' }),
+      );
+    });
+
+    it('clears cookies with the parent domain on account deletion', async () => {
+      // Google-only account (no email-password identity) → skips the password
+      // re-auth and goes straight to deletion + cookie clear.
+      getAuthUserMock.mockResolvedValue({ id: 'u1', email: 'a@b.c', identities: [] });
+
+      const reply = makeReply();
+      await makeProdService().deleteAccount(
+        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+        '',
+        'DELETE',
+        reply as never,
+      );
+
+      expect(reply.clearCookie).toHaveBeenCalledWith(
+        'sb-access-token',
+        expect.objectContaining({ domain: '.myclash.fr' }),
+      );
+      expect(reply.clearCookie).toHaveBeenCalledWith(
+        'sb-refresh-token',
+        expect.objectContaining({ domain: '.myclash.fr' }),
+      );
     });
   });
 

@@ -141,6 +141,12 @@ services:
       GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
+      # The API keeps sessions alive for ~30 days by exchanging the refresh
+      # cookie (see AuthService.getMe). Rotate refresh tokens so each is
+      # single-use, and revoke the whole family if a used token is replayed
+      # (10s grace window covers legitimate concurrent refreshes).
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: 'true'
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: '10'
       GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
       GOTRUE_MAILER_AUTOCONFIRM: 'false'
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-}

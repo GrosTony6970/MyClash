@@ -42,4 +42,29 @@ describe('HTTP security configuration', () => {
       path: '/',
     });
   });
+
+  it('scopes session cookies to the parent domain when provided', () => {
+    expect(
+      buildSessionCookieOptions({ env: 'production', maxAge: 3600, domain: '.myclash.fr' }),
+    ).toMatchObject({
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      domain: '.myclash.fr',
+    });
+  });
+
+  it('omits the domain attribute when none is provided (host-only cookie)', () => {
+    expect(buildSessionCookieOptions({ env: 'production' })).not.toHaveProperty('domain');
+  });
+
+  it('clears cookies with the matching parent domain so logout actually removes them', () => {
+    expect(buildClearCookieOptions('production', '.myclash.fr')).toEqual({
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      domain: '.myclash.fr',
+    });
+  });
 });

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import * as jwt from 'jsonwebtoken';
+
+/** How long to wait on GoTrue before treating it as unavailable (ms). */
+const GOTRUE_TIMEOUT_MS = 5000;
 
 export interface SupabaseAuthUser {
   id: string;
@@ -10,6 +14,60 @@ export interface SupabaseAuthUser {
   created_at?: string;
   last_sign_in_at?: string | null;
   banned_until?: string | null;
+}
+
+/** Tokens returned by GoTrue's `/token` endpoint (password & refresh grants). */
+export interface SupabaseTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in?: number;
+  user?: { id?: string };
+}
+
+/**
+ * Result of asking GoTrue to validate an access token.
+ *  - `ok`          — token is valid; `user` is populated.
+ *  - `invalid`     — GoTrue actively rejected it (401/403/bad body). Not authed.
+ *  - `unavailable` — GoTrue couldn't be reached (timeout/network/5xx); the
+ *                    caller should fall back to local verification rather than
+ *                    logging the user out over a transient blip.
+ */
+type GoTrueValidation =
+  | { status: 'ok'; user: SupabaseAuthUser }
+  | { status: 'invalid' }
+  | { status: 'unavailable' };
+
+/**
+ * Verify a Supabase access token locally (HS256, shared JWT secret). Returns the
+ * user built from the JWT claims, or null if the signature/expiry is invalid or
+ * the secret is not configured. Used as a fallback when GoTrue is unreachable so
+ * a still-valid token doesn't get logged out by an infra hiccup.
+ */
+function verifyAccessTokenLocally(accessToken: string, secret: string): SupabaseAuthUser | null {
+  try {
+    const payload = jwt.verify(accessToken, secret, { algorithms: ['HS256'] });
+    if (!payload || typeof payload !== 'object') return null;
+    const claims = payload as jwt.JwtPayload & {
+      email?: unknown;
+      user_metadata?: unknown;
+      app_metadata?: unknown;
+    };
+    if (typeof claims.sub !== 'string') return null;
+    return {
+      id: claims.sub,
+      email: typeof claims.email === 'string' ? claims.email : undefined,
+      user_metadata:
+        claims.user_metadata && typeof claims.user_metadata === 'object'
+          ? (claims.user_metadata as Record<string, unknown>)
+          : undefined,
+      app_metadata:
+        claims.app_metadata && typeof claims.app_metadata === 'object'
+          ? (claims.app_metadata as Record<string, unknown>)
+          : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface SupabaseAdminUser extends SupabaseAuthUser {
@@ -82,16 +140,28 @@ export class SupabaseService {
   }
 
   async getAuthUser(accessToken: string): Promise<SupabaseAuthUser | null> {
+    // GoTrue is the source of truth (so revoked/banned users are rejected
+    // promptly), but a transient GoTrue outage must not log everyone out:
+    // on `unavailable` we fall back to verifying the JWT locally with the
+    // shared secret. A clean rejection (`invalid`) is honoured as-is.
+    const validation = await this.validateAgainstGoTrue(accessToken);
+    if (validation.status === 'ok') return validation.user;
+    if (validation.status === 'invalid') return null;
+
+    const secret = this.config.get<string>('SUPABASE_JWT_SECRET');
+    return secret ? verifyAccessTokenLocally(accessToken, secret) : null;
+  }
+
+  private async validateAgainstGoTrue(accessToken: string): Promise<GoTrueValidation> {
     const authUrl =
       this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
       this.config.getOrThrow<string>('SUPABASE_URL');
     const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
 
-    let response: {
-      ok: boolean;
-      json: () => Promise<unknown>;
-    };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GOTRUE_TIMEOUT_MS);
 
+    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
     try {
       response = await fetch(`${authUrl.replace(/\/+$/u, '')}/user`, {
         method: 'GET',
@@ -99,26 +169,89 @@ export class SupabaseService {
           apikey: anonKey,
           Authorization: `Bearer ${accessToken}`,
         },
+        signal: controller.signal,
       });
     } catch {
-      return null;
+      // Network error or aborted (timeout) → GoTrue is unreachable.
+      return { status: 'unavailable' };
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+      // 5xx → GoTrue is having a bad time; everything else (401/403/4xx) is a
+      // genuine rejection of this token.
+      return response.status >= 500 ? { status: 'unavailable' } : { status: 'invalid' };
     }
 
     let body: unknown;
     try {
       body = await response.json();
     } catch {
-      body = null;
+      return { status: 'invalid' };
     }
 
-    if (!response.ok || !body || typeof body !== 'object') {
+    if (!body || typeof body !== 'object') return { status: 'invalid' };
+    const record = body as Record<string, unknown>;
+    if (isAuthUser(record)) return { status: 'ok', user: record };
+    if (isAuthUser(record['user'])) {
+      return { status: 'ok', user: record['user'] as SupabaseAuthUser };
+    }
+    return { status: 'invalid' };
+  }
+
+  /**
+   * Exchange a refresh token for a fresh session via GoTrue's refresh grant.
+   * Returns the new tokens, or null if the refresh token is invalid/expired or
+   * GoTrue is unreachable. Captures whatever refresh_token GoTrue returns so it
+   * works whether or not refresh-token rotation is enabled.
+   */
+  async refreshSession(refreshToken: string): Promise<SupabaseTokenResponse | null> {
+    const authUrl =
+      this.config.get<string>('SUPABASE_AUTH_INTERNAL_URL') ??
+      this.config.getOrThrow<string>('SUPABASE_URL');
+    const anonKey = this.config.getOrThrow<string>('SUPABASE_ANON_KEY');
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GOTRUE_TIMEOUT_MS);
+
+    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
+    try {
+      response = await fetch(`${authUrl.replace(/\/+$/u, '')}/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+        signal: controller.signal,
+      });
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!response.ok) return null;
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
       return null;
     }
 
+    if (!body || typeof body !== 'object') return null;
     const record = body as Record<string, unknown>;
-    if (isAuthUser(record)) return record;
-    if (isAuthUser(record['user'])) return record['user'];
-    return null;
+    if (typeof record['access_token'] !== 'string' || typeof record['refresh_token'] !== 'string') {
+      return null;
+    }
+    return {
+      access_token: record['access_token'],
+      refresh_token: record['refresh_token'],
+      expires_in: typeof record['expires_in'] === 'number' ? record['expires_in'] : undefined,
+      user: record['user'] as { id?: string } | undefined,
+    };
   }
 
   async listAuthAdminUsers(

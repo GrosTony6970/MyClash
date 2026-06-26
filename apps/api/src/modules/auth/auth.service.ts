@@ -16,8 +16,12 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { MailService } from '../mail/mail.service';
 import { OnboardingService } from '../organizations/onboarding.service';
-import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
-import { SupabaseService } from '../supabase/supabase.service';
+import {
+  buildClearCookieOptions,
+  buildSessionCookieOptions,
+  isProductionEnvironment,
+} from '../../security/http-security';
+import { SupabaseService, type SupabaseAuthUser } from '../supabase/supabase.service';
 import { personEmailMatchesUser } from './person-email-match';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -28,7 +32,13 @@ import { GuestJwtService } from './guest-jwt.service';
 
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
 const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard', '/'];
-const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60;
+// Sliding-session lifetime for the auth cookies (30 days). The access token's
+// own JWT exp (GOTRUE_JWT_EXP, ~1h) still governs validity; when it expires,
+// `getMe` mints a fresh one from the refresh-token cookie and re-sets both
+// cookies. This long maxAge just keeps the cookies on disk so that renewal can
+// happen — previously both cookies were capped at 1h with no refresh, so every
+// session hard-expired after an hour.
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 type GoTruePasswordTokenResponse = {
   access_token?: string;
@@ -262,7 +272,10 @@ export class AuthService {
     const cookieReply = reply as FastifyReply & {
       clearCookie: (name: string, opts: Record<string, unknown>) => void;
     };
-    const clearOptions = buildClearCookieOptions(this.config.get<string>('NODE_ENV'));
+    const clearOptions = buildClearCookieOptions(
+      this.config.get<string>('NODE_ENV'),
+      this.cookieDomain(),
+    );
 
     cookieReply.clearCookie('sb-access-token', clearOptions);
     cookieReply.clearCookie('sb-refresh-token', clearOptions);
@@ -331,51 +344,29 @@ export class AuthService {
     const accessToken = this.extractToken(request);
     const cookies = (request as FastifyRequest & { cookies?: Record<string, string> }).cookies;
     const guestToken = cookies?.['mc_guest'];
+    const refreshToken = cookies?.['sb-refresh-token'];
 
     // ── Claimed path ──────────────────────────────────────────────────────
-    if (accessToken) {
-      const user = await this.requestAuthUser(accessToken);
+    let user = accessToken ? await this.requestAuthUser(accessToken) : null;
 
-      if (user) {
-        // Both claimed + guest present → claimed wins, clear guest cookie
-        if (guestToken && reply) {
-          const cookieReply = reply as FastifyReply & {
-            clearCookie: (name: string, opts: Record<string, unknown>) => void;
-          };
-          cookieReply.clearCookie(
-            'mc_guest',
-            buildClearCookieOptions(this.config.get<string>('NODE_ENV')),
-          );
-        }
-
-        let person: MeResponseDto['person'] | undefined;
-        try {
-          const { data: personData } = await this.supabase.service
-            .from('persons')
-            .select('id, given_name, family_name, event_id, claim_status')
-            .eq('claimed_by_user_id', user.id)
-            .maybeSingle();
-
-          if (personData) {
-            person = personData as MeResponseDto['person'];
-          }
-        } catch {
-          // Table doesn't exist yet (pre-T-101) — ignore
-        }
-
-        const admin = await this.getAdminLandingContext(user.id);
-
-        return {
-          type: 'claimed',
-          user: {
-            id: user.id,
-            email: user.email ?? '',
-            display_name: user.user_metadata?.['display_name'] as string | undefined,
-          },
-          person,
-          admin,
-        };
+    // Access token missing or expired → mint a fresh one from the refresh-token
+    // cookie (sliding session). Needs `reply` so the rotated cookies can be
+    // written back; without it (e.g. a read-only call) we just stay anonymous.
+    if (!user && refreshToken && reply) {
+      const refreshed = await this.supabase.refreshSession(refreshToken);
+      if (refreshed) {
+        this.setAuthCookies(
+          reply,
+          refreshed.access_token,
+          refreshed.refresh_token,
+          refreshed.expires_in,
+        );
+        user = await this.requestAuthUser(refreshed.access_token);
       }
+    }
+
+    if (user) {
+      return this.buildClaimedResponse(user, guestToken, reply);
     }
 
     // ── Guest path ────────────────────────────────────────────────────────
@@ -425,6 +416,51 @@ export class AuthService {
 
     // ── Anonymous ─────────────────────────────────────────────────────────
     return { type: 'anonymous' };
+  }
+
+  private async buildClaimedResponse(
+    user: SupabaseAuthUser,
+    guestToken: string | undefined,
+    reply?: FastifyReply,
+  ): Promise<MeResponseDto> {
+    // Both claimed + guest present → claimed wins, clear the guest cookie.
+    if (guestToken && reply) {
+      const cookieReply = reply as FastifyReply & {
+        clearCookie: (name: string, opts: Record<string, unknown>) => void;
+      };
+      cookieReply.clearCookie(
+        'mc_guest',
+        buildClearCookieOptions(this.config.get<string>('NODE_ENV')),
+      );
+    }
+
+    let person: MeResponseDto['person'] | undefined;
+    try {
+      const { data: personData } = await this.supabase.service
+        .from('persons')
+        .select('id, given_name, family_name, event_id, claim_status')
+        .eq('claimed_by_user_id', user.id)
+        .maybeSingle();
+
+      if (personData) {
+        person = personData as MeResponseDto['person'];
+      }
+    } catch {
+      // Table doesn't exist yet (pre-T-101) — ignore
+    }
+
+    const admin = await this.getAdminLandingContext(user.id);
+
+    return {
+      type: 'claimed',
+      user: {
+        id: user.id,
+        email: user.email ?? '',
+        display_name: user.user_metadata?.['display_name'] as string | undefined,
+      },
+      person,
+      admin,
+    };
   }
 
   async getPersonalSpace(request: FastifyRequest): Promise<PersonalSpaceResponseDto> {
@@ -1021,7 +1057,12 @@ export class AuthService {
     const cookieReply = reply as FastifyReply & {
       clearCookie: (name: string, opts: Record<string, unknown>) => void;
     };
-    const clearOptions = buildClearCookieOptions(this.config.get<string>('NODE_ENV'));
+    // Match the Domain the cookies were set with (see setAuthCookies), otherwise
+    // the prod `.${DOMAIN}`-scoped cookies aren't removed on account deletion.
+    const clearOptions = buildClearCookieOptions(
+      this.config.get<string>('NODE_ENV'),
+      this.cookieDomain(),
+    );
     cookieReply.clearCookie('sb-access-token', clearOptions);
     cookieReply.clearCookie('sb-refresh-token', clearOptions);
 
@@ -1570,32 +1611,43 @@ export class AuthService {
     return body as GoTruePasswordTokenResponse;
   }
 
+  /**
+   * Parent-domain scope (e.g. `.myclash.fr`) for the auth cookies in production,
+   * so a login (incl. email-link callbacks that set the cookie on `api.` and
+   * then redirect to `admin.`/`app.`) stays authenticated across subdomains.
+   * Host-only (undefined) in dev to avoid breaking bare-localhost setups; can be
+   * overridden via SESSION_COOKIE_DOMAIN.
+   */
+  private cookieDomain(): string | undefined {
+    const explicit = this.config.get<string>('SESSION_COOKIE_DOMAIN');
+    if (explicit) return explicit;
+    if (!isProductionEnvironment(this.config.get<string>('NODE_ENV'))) return undefined;
+    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
+    return `.${domain}`;
+  }
+
   private setAuthCookies(
     reply: FastifyReply,
     accessToken: string,
     refreshToken: string,
-    _expiresIn = ADMIN_SESSION_MAX_AGE_SECONDS,
+    _expiresIn = SESSION_MAX_AGE_SECONDS,
   ): void {
     const cookieReply = reply as FastifyReply & {
       setCookie: (name: string, value: string, opts: Record<string, unknown>) => void;
     };
+    const env = this.config.get<string>('NODE_ENV');
+    const domain = this.cookieDomain();
 
     cookieReply.setCookie(
       'sb-access-token',
       accessToken,
-      buildSessionCookieOptions({
-        env: this.config.get<string>('NODE_ENV'),
-        maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
-      }),
+      buildSessionCookieOptions({ env, maxAge: SESSION_MAX_AGE_SECONDS, domain }),
     );
 
     cookieReply.setCookie(
       'sb-refresh-token',
       refreshToken,
-      buildSessionCookieOptions({
-        env: this.config.get<string>('NODE_ENV'),
-        maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
-      }),
+      buildSessionCookieOptions({ env, maxAge: SESSION_MAX_AGE_SECONDS, domain }),
     );
   }
 
