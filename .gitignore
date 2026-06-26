@@ -62,5 +62,12 @@ test-results/
 .eslintcache
 
 # Claude Code
+.claude/
 .claude/settings.local.json
 .claude/hooks/node_modules/
+
+# BMad Method local runtime (config, scripts, help catalog) — dev tooling,
+# not product code. Keep out of this public repo. If your team wants to share
+# the project config, un-ignore _bmad/config.yaml specifically (but never
+# _bmad/config.user.yaml — that one is personal).
+_bmad/
