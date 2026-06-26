@@ -165,10 +165,14 @@ export function AssignmentDiagnosticsPanel({
                         c.otherPoolName,
                       )
                     : c.kind === 'double_booked'
-                      ? t('organizer.refereesPage.conflict.alsoOfficiating').replace(
-                          '{pool}',
-                          c.otherPoolName,
-                        )
+                      ? c.crossVenue && c.otherVenueName
+                        ? t('organizer.refereesPage.conflict.alsoOfficiatingVenue')
+                            .replace('{pool}', c.otherPoolName)
+                            .replace('{venue}', c.otherVenueName)
+                        : t('organizer.refereesPage.conflict.alsoOfficiating').replace(
+                            '{pool}',
+                            c.otherPoolName,
+                          )
                       : t('organizer.refereesPage.conflict.alsoFighting').replace(
                           '{pool}',
                           c.otherPoolName,

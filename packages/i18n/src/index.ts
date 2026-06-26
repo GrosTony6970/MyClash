@@ -3959,6 +3959,8 @@ export const en = {
         checkButton: 'Check scheduling conflicts ({count})',
         alsoFighting: 'also fighting in {pool} at the same time',
         alsoOfficiating: 'also officiating {pool} at the same time',
+        alsoOfficiatingVenue:
+          'also officiating {pool} in {venue} at the same time — a referee can’t be in two halls at once',
         unavailableLine: 'assigned outside availability ({tournament})',
         unfillableTitle: 'Unfillable slots',
         unfillableDetail: 'all qualified referees are busy or unavailable',
@@ -8139,6 +8141,8 @@ export const fr = {
         checkButton: 'Verifier les conflits de planning ({count})',
         alsoFighting: 'combat aussi dans {pool} au meme moment',
         alsoOfficiating: 'arbitre aussi {pool} au meme moment',
+        alsoOfficiatingVenue:
+          'arbitre aussi {pool} a {venue} au meme moment — un arbitre ne peut pas etre dans deux lieux a la fois',
         unavailableLine: 'affecte hors disponibilite ({tournament})',
         unfillableTitle: 'Postes impossibles a pourvoir',
         unfillableDetail: 'tous les arbitres qualifies sont occupes ou indisponibles',

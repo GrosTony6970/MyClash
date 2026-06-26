@@ -180,6 +180,10 @@ function queueBoardReads(assignments: unknown[] = []) {
       }),
     )
     .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
+    // Tier 3: loadContext now fetches event lices (→ venue) for the cross-venue
+    // referee double-booking warning. Empty → no venue resolved (no behavior
+    // change for these fixtures).
+    .mockReturnValueOnce(makeChain({ data: [], error: null }))
     // R4: bracket phases query (returns empty so these tests stay
     // pool-only — the bracket loader short-circuits and asks nothing
     // further). Other R4-specific tests cover the bracket path.

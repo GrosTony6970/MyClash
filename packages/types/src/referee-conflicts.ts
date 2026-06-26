@@ -21,6 +21,11 @@ export interface RefereeCommitmentPool {
   scheduledStart: string | null;
   scheduledEnd: string | null;
   liceName?: string | null;
+  /** Venue of the pool/bracket (resolved from its matches' lice). Lets the
+   *  double-booking warning name the clashing hall AND tell cross-venue
+   *  (a softer warning) from same-venue. null = unknown. */
+  venueId?: string | null;
+  venueName?: string | null;
   /** Number of referee role slots this pool/bracket needs. */
   roleSlotCount: number;
   /** Global person ids competing in this pool/bracket. */
@@ -51,6 +56,14 @@ export interface RefereeConflict {
   otherPoolId: string;
   otherPoolName: string;
   otherLiceName?: string | null;
+  /** Venues of the two commitments — so the warning can name the clashing hall. */
+  venueName?: string | null;
+  otherVenueName?: string | null;
+  /** True when the two overlapping commitments are at DIFFERENT venues. A
+   *  referee can't be in two halls at once, but in parallel-venue events this
+   *  is surfaced as a softer warning (not a hard block) so the coordinator can
+   *  resolve it; same-venue double-booking stays a hard error. */
+  crossVenue?: boolean;
 }
 
 /** True when [aStart,aEnd) and [bStart,bEnd) overlap (both windows present). */
@@ -147,17 +160,24 @@ export function findTimeConflict(
   personId: string,
   targetPoolId: string,
   pools: RefereeCommitmentPool[],
-): { kind: RefereeConflictKind; otherPoolName: string } | null {
+): {
+  kind: RefereeConflictKind;
+  otherPoolName: string;
+  otherVenueName: string | null;
+  crossVenue: boolean;
+} | null {
   const target = pools.find((p) => p.id === targetPoolId);
   if (!target || !target.scheduledStart || !target.scheduledEnd) return null;
   for (const other of pools) {
     if (other.id === targetPoolId) continue;
     if (!windowsOverlap(target, other)) continue;
+    const otherVenueName = other.venueName ?? null;
+    const crossVenue = isCrossVenue(target, other);
     if (other.fighterPersonIds.includes(personId)) {
-      return { kind: 'officiate_vs_fight', otherPoolName: other.name };
+      return { kind: 'officiate_vs_fight', otherPoolName: other.name, otherVenueName, crossVenue };
     }
     if (other.assignments.some((a) => a.personId === personId)) {
-      return { kind: 'double_booked', otherPoolName: other.name };
+      return { kind: 'double_booked', otherPoolName: other.name, otherVenueName, crossVenue };
     }
   }
   return null;
@@ -179,7 +199,16 @@ function base(
     otherPoolId: other.id,
     otherPoolName: other.name,
     otherLiceName: other.liceName ?? null,
+    venueName: officiating.venueName ?? null,
+    otherVenueName: other.venueName ?? null,
+    crossVenue: isCrossVenue(officiating, other),
   };
+}
+
+/** Two overlapping commitments are "cross-venue" only when BOTH venues are
+ *  known and differ — unknown venue stays conservative (treated as same). */
+function isCrossVenue(a: RefereeCommitmentPool, b: RefereeCommitmentPool): boolean {
+  return Boolean(a.venueId && b.venueId && a.venueId !== b.venueId);
 }
 
 export function detectRefereeConflicts(pools: RefereeCommitmentPool[]): RefereeConflict[] {

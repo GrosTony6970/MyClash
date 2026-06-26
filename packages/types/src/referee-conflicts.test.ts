@@ -87,6 +87,43 @@ describe('detectRefereeConflicts', () => {
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]).toMatchObject({ personId: 'cb', kind: 'double_booked' });
   });
+
+  it('marks a double-booking across different venues as crossVenue + names both halls', () => {
+    const assign = [{ personId: 'cb', personName: 'Charles Biron', role: 'arbitre_assesseur' }];
+    const pools = [
+      pool({
+        id: 'p1',
+        name: 'Pool 1',
+        ...WIN,
+        venueId: 'hall-a',
+        venueName: 'Hall A',
+        assignments: assign,
+      }),
+      pool({
+        id: 'p2',
+        name: 'Pool 2',
+        ...WIN,
+        venueId: 'hall-b',
+        venueName: 'Hall B',
+        assignments: assign,
+      }),
+    ];
+    expect(detectRefereeConflicts(pools)[0]).toMatchObject({
+      kind: 'double_booked',
+      crossVenue: true,
+      venueName: 'Hall A',
+      otherVenueName: 'Hall B',
+    });
+  });
+
+  it('same-venue double-booking is not crossVenue', () => {
+    const assign = [{ personId: 'cb', personName: 'Charles Biron', role: 'arbitre_assesseur' }];
+    const pools = [
+      pool({ id: 'p1', ...WIN, venueId: 'hall-a', venueName: 'Hall A', assignments: assign }),
+      pool({ id: 'p2', ...WIN, venueId: 'hall-a', venueName: 'Hall A', assignments: assign }),
+    ];
+    expect(detectRefereeConflicts(pools)[0]).toMatchObject({ crossVenue: false });
+  });
 });
 
 describe('findTimeConflict', () => {
@@ -109,6 +146,26 @@ describe('findTimeConflict', () => {
   it('returns null for fighting in the target pool itself (the kept block owns that case)', () => {
     const ownPool = [pool({ id: 'p1', name: 'Pool 1', ...WIN, fighterPersonIds: ['jf'] })];
     expect(findTimeConflict('jf', 'p1', ownPool)).toBeNull();
+  });
+
+  it('flags a cross-venue double-booking with the clashing hall (for the warn path)', () => {
+    const cross = [
+      pool({ id: 'p1', name: 'Pool 1', ...WIN, venueId: 'hall-a', venueName: 'Hall A' }),
+      pool({
+        id: 'p2',
+        name: 'Pool 2',
+        ...WIN,
+        venueId: 'hall-b',
+        venueName: 'Hall B',
+        assignments: [{ personId: 'cb', personName: 'CB', role: 'arbitre_table' }],
+      }),
+    ];
+    expect(findTimeConflict('cb', 'p1', cross)).toMatchObject({
+      kind: 'double_booked',
+      otherPoolName: 'Pool 2',
+      otherVenueName: 'Hall B',
+      crossVenue: true,
+    });
   });
 });
 

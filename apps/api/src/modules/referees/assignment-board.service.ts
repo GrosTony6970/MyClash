@@ -546,17 +546,22 @@ export class AssignmentBoardService {
       dto.poolId,
       this.buildCommitmentPools(context),
     );
-    if (
-      timeConflict &&
-      (timeConflict.kind === 'officiate_vs_fight'
-        ? rules.enableOfficiateVsFightRule
-        : rules.enableDoubleBookedRule)
-    ) {
-      throw new BadRequestException(
-        timeConflict.kind === 'double_booked'
-          ? `Referee is already officiating ${timeConflict.otherPoolName} at this time`
-          : `Referee is competing in ${timeConflict.otherPoolName} at this time`,
-      );
+    if (timeConflict) {
+      // A cross-venue double-booking (the referee already officiating an
+      // overlapping pool in a DIFFERENT hall) is surfaced as a board warning,
+      // not a hard block — parallel-venue events resolve it manually. Same-venue
+      // double-booking and officiate-vs-fight still hard-block.
+      const shouldBlock =
+        timeConflict.kind === 'officiate_vs_fight'
+          ? rules.enableOfficiateVsFightRule
+          : rules.enableDoubleBookedRule && !timeConflict.crossVenue;
+      if (shouldBlock) {
+        throw new BadRequestException(
+          timeConflict.kind === 'double_booked'
+            ? `Referee is already officiating ${timeConflict.otherPoolName} at this time`
+            : `Referee is competing in ${timeConflict.otherPoolName} at this time`,
+        );
+      }
     }
     // Outside the referee's declared tournament/day availability.
     if (
@@ -638,6 +643,7 @@ export class AssignmentBoardService {
         assignments: [] as RefereeAssignmentRow[],
         fighterRegistrationIdsByPerson: new Map<string, string[]>(),
         slotConfigByTournament: new Map<string, ResolvedConfig>(),
+        venueByLiceId: new Map<string, { id: string; name: string }>(),
         locked: false,
       };
     }
@@ -666,6 +672,23 @@ export class AssignmentBoardService {
       fighterRegistrationIdsByPerson.set(registration.global_person_id, existing);
     }
     const assignments = await this.listAssignments(eventId);
+
+    // Lice → venue map, so a referee's double-booking warning can name the
+    // clashing hall and tell cross-venue (warn) from same-venue. lices/venues
+    // have no RLS (service role + org checks own this surface).
+    const venueByLiceId = new Map<string, { id: string; name: string }>();
+    const { data: liceVenueRows } = await this.supabase.service
+      .from('lices')
+      .select('id, venues(id, name)')
+      .eq('event_id', eventId);
+    for (const r of (liceVenueRows ?? []) as unknown as Array<{
+      id: string;
+      venues: { id: string; name: string } | null;
+    }>) {
+      if (r.venues) {
+        venueByLiceId.set(String(r.id), { id: String(r.venues.id), name: String(r.venues.name) });
+      }
+    }
 
     // R2: resolve the slot config once per tournament. We bypass the
     // staffing service's auth gate here — this code path is already
@@ -714,6 +737,7 @@ export class AssignmentBoardService {
       assignments,
       fighterRegistrationIdsByPerson,
       slotConfigByTournament,
+      venueByLiceId,
       locked: assignments.some((a) => a.status === 'confirmed'),
     };
   }
@@ -1276,6 +1300,7 @@ export class AssignmentBoardService {
           });
         }
       }
+      const venue = pool.liceId ? (context.venueByLiceId.get(pool.liceId) ?? null) : null;
       return {
         id: pool.id,
         name: pool.name,
@@ -1284,6 +1309,8 @@ export class AssignmentBoardService {
         scheduledStart: pool.scheduledStart,
         scheduledEnd: pool.scheduledEnd,
         liceName: null,
+        venueId: venue?.id ?? null,
+        venueName: venue?.name ?? null,
         roleSlotCount: slots.length,
         fighterPersonIds,
         assignments,
