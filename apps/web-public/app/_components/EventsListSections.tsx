@@ -53,6 +53,20 @@ function orgAccent(event: PublicEvent): string {
   return event.organizations?.brand_color || DEFAULT_ORG_ACCENT;
 }
 
+// Shared column template for the events table. The header and every row are
+// independent grid containers, so the non-fractional columns must be FIXED
+// (not `auto`) — otherwise each grid sizes its `auto` tracks to its own
+// content (blank header vs the status badge, "TOURNAMENTS" vs "2 tournaments")
+// and the `fr` columns drift between header and rows. Both literal strings are
+// written out in full so Tailwind's scanner emits them. The logo column is
+// dropped entirely when no event in the section has a logo, so a logo-less
+// list isn't indented.
+function gridColsClass(hasLogos: boolean): string {
+  return hasLogos
+    ? 'md:grid-cols-[2.5rem_2fr_1fr_1fr_7rem_6.5rem]'
+    : 'md:grid-cols-[2fr_1fr_1fr_7rem_6.5rem]';
+}
+
 export function EventsListSections({ events }: { events: PublicEvent[] }) {
   const [query, setQuery] = useState('');
   const { live, published, past } = useMemo(
@@ -228,9 +242,10 @@ function LiveSection({ events, query }: { events: PublicEvent[]; query: string }
 interface TableRowProps {
   event: PublicEvent;
   variant: 'published' | 'past';
+  hasLogos: boolean;
 }
 
-function EventRow({ event, variant }: TableRowProps) {
+function EventRow({ event, variant, hasLogos }: TableRowProps) {
   const tag = variant === 'published' ? <PublishedTag /> : <PastTag />;
   const trailing =
     variant === 'past' ? (
@@ -257,8 +272,17 @@ function EventRow({ event, variant }: TableRowProps) {
       className="group flex flex-col gap-3 rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
     >
       <OrganiserEyebrow event={event} />
-      <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4">
-        <EventLogo src={event.logo_url} alt={event.name ?? ''} />
+      <div
+        className={`flex flex-col gap-3 md:grid ${gridColsClass(hasLogos)} md:items-center md:gap-4`}
+      >
+        {hasLogos &&
+          (event.logo_url ? (
+            <EventLogo src={event.logo_url} alt={event.name ?? ''} />
+          ) : (
+            // Keep the logo cell occupied so the remaining cells don't shift
+            // left; hidden on mobile (flex stack) to avoid an empty gap row.
+            <span aria-hidden="true" className="hidden md:block" />
+          ))}
         <div className="min-w-0">
           <p className="font-display text-base font-semibold leading-tight text-slate-900">
             {event.name ?? t('publicApp.home.unknownEvent')}
@@ -285,28 +309,41 @@ function EventRow({ event, variant }: TableRowProps) {
           })()}
         </p>
         <div>{trailing}</div>
-        <div>{tag}</div>
+        <div className="md:justify-self-end">{tag}</div>
       </div>
     </Link>
   );
 }
 
-function EventTableHeader({ variant }: { variant: 'published' | 'past' }) {
+function EventTableHeader({
+  variant,
+  hasLogos,
+}: {
+  variant: 'published' | 'past';
+  hasLogos: boolean;
+}) {
+  // The transparent 4px left border mirrors each row's colored `border-l-4` so
+  // the header labels line up exactly above the row content (the row's border
+  // sits outside its padding, shifting its content 4px to the right).
+  const headerClass = `hidden md:grid ${gridColsClass(hasLogos)} md:items-center md:gap-4 md:border-b md:border-l-4 md:border-stone-200 md:border-l-transparent md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500`;
   return (
-    <div
-      role="row"
-      className="hidden md:grid md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] md:items-center md:gap-4 md:border-b md:border-stone-200 md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-slate-500"
-    >
-      <span role="columnheader" aria-label={t('publicApp.home.colLogo')}>
-        {' '}
-      </span>
+    <div role="row" className={headerClass}>
+      {hasLogos && (
+        <span role="columnheader" aria-label={t('publicApp.home.colLogo')}>
+          {' '}
+        </span>
+      )}
       <span role="columnheader">{t('publicApp.home.colEvent')}</span>
       <span role="columnheader">{t('publicApp.home.colLocation')}</span>
       <span role="columnheader">{t('publicApp.home.colLeague')}</span>
       <span role="columnheader">
         {variant === 'past' ? t('publicApp.home.colResults') : t('publicApp.home.colTournaments')}
       </span>
-      <span role="columnheader" aria-label={t('publicApp.home.colStatus')}>
+      <span
+        role="columnheader"
+        className="md:justify-self-end"
+        aria-label={t('publicApp.home.colStatus')}
+      >
         {' '}
       </span>
     </div>
@@ -314,6 +351,7 @@ function EventTableHeader({ variant }: { variant: 'published' | 'past' }) {
 }
 
 function UpcomingSection({ events, query }: { events: PublicEvent[]; query: string }) {
+  const hasLogos = events.some((event) => Boolean(event.logo_url));
   return (
     <section aria-labelledby="public-events-published-title" className="flex flex-col gap-3">
       <SectionHeader
@@ -329,10 +367,15 @@ function UpcomingSection({ events, query }: { events: PublicEvent[]; query: stri
           aria-labelledby="public-events-published-title"
           className="max-h-[60vh] overflow-y-auto"
         >
-          <EventTableHeader variant="published" />
-          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
+          <EventTableHeader variant="published" hasLogos={hasLogos} />
+          <div className="flex flex-col gap-3">
             {events.map((event) => (
-              <EventRow key={event.slug ?? event.id} event={event} variant="published" />
+              <EventRow
+                key={event.slug ?? event.id}
+                event={event}
+                variant="published"
+                hasLogos={hasLogos}
+              />
             ))}
           </div>
         </div>
@@ -342,6 +385,7 @@ function UpcomingSection({ events, query }: { events: PublicEvent[]; query: stri
 }
 
 function PastSection({ events, query }: { events: PublicEvent[]; query: string }) {
+  const hasLogos = events.some((event) => Boolean(event.logo_url));
   return (
     <section aria-labelledby="public-events-past-title" className="flex flex-col gap-3">
       <SectionHeader
@@ -357,10 +401,15 @@ function PastSection({ events, query }: { events: PublicEvent[]; query: string }
           aria-labelledby="public-events-past-title"
           className="max-h-[60vh] overflow-y-auto"
         >
-          <EventTableHeader variant="past" />
-          <div className="flex flex-col gap-2 md:gap-0 md:divide-y md:divide-stone-100">
+          <EventTableHeader variant="past" hasLogos={hasLogos} />
+          <div className="flex flex-col gap-3">
             {events.map((event) => (
-              <EventRow key={event.slug ?? event.id} event={event} variant="past" />
+              <EventRow
+                key={event.slug ?? event.id}
+                event={event}
+                variant="past"
+                hasLogos={hasLogos}
+              />
             ))}
           </div>
         </div>
