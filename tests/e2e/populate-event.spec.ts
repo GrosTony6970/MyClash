@@ -7,8 +7,8 @@ import { runContext } from './_context';
  * Opt-in demo-data populator (run with E2E_POPULATE=1). Builds a rich,
  * inspectable, published event "Fosse aux Lions 2027" (22–23 May 2027):
  *   - imports the roster (if the event is empty)
- *   - a tournament venue (Halle des Tournois) with 4 pistes, and the day-1
- *     organisational blocks (Registration & Gear Check, Referee meeting)
+ *   - a tournament venue (Centre Sportif et de Loisirs) with 4 pistes, and the
+ *     day-1 organisational blocks (Registration & Gear Check, Referee meeting)
  *   - 2 tournaments (Longsword Open, Sidesword Open): 32 fighters, 4 pools,
  *     deductive-afterblow scoring, pools scheduled in parallel across the 4
  *     lices, a bracket of 16; both tournaments' phases assigned to the venue
@@ -17,8 +17,9 @@ import { runContext } from './_context';
  *     and cards (yellow / red / occasional black-card forfeit) — so pools flip
  *     to completed, standings populate, and the bracket of 16 auto-populates
  *     with the real qualifiers
- *   - a separate workshop venue (Salle des Ateliers, 3 areas) + 6 workshops on
- *     day 2 (23 May), each with a randomly-picked instructor; all published
+ *   - a separate workshop venue (Gymnase des Cerisiers, 1 area) + 6 workshops
+ *     spread evenly across both days (3/day), each 2h, with a 12:00–14:00 midday
+ *     break, each with a randomly-picked instructor; all published
  *   - tournaments + event published
  *
  * The API throttles writes per IP; whitelisted IPs (the organizer's network)
@@ -33,6 +34,41 @@ const WS_LEVELS = ['all', 'beginner', 'intermediate', 'advanced'];
 const WS_TOPICS = ['Longsword', 'Sidesword', 'Rapier', 'Sabre', 'Messer', 'Dagger'];
 const LOCAL_CSV = 'tests/e2e/fixtures/participants.local.csv';
 const SAMPLE_CSV = 'tests/e2e/fixtures/participants.sample.csv';
+
+// Workshop scheduling: the 6 workshops are spread evenly (3/day) across the two
+// event days, each lasting 2h, leaving the 12:00–14:00 midday break free. The
+// single workshop area means sessions can't overlap, so the per-day start times
+// are sequential and straddle the break.
+const EVENT_TZ = 'Europe/Paris'; // events default to Europe/Paris (0102_events_timezone)
+const WS_DAYS = ['2027-05-22', '2027-05-23']; // Sat, Sun
+const WS_START_HHMM = ['10:00', '14:00', '16:00']; // → 10:00–12:00, 14:00–16:00, 16:00–18:00
+const WS_DURATION_MIN = 120;
+
+/**
+ * DST-correct wall-clock (in `tz`) → UTC ISO instant. Mirrors @myclash/time's
+ * `zonedToUtcIso`; inlined to avoid a workspace-package import in the e2e runner.
+ * Workshop sessions are stored as UTC instants but the board (and the workshop
+ * break, given as HH:MM) render in the event timezone, so session times MUST be
+ * built in the event tz or they'd drift relative to the break.
+ */
+function zonedToUtcIso(day: string, hhmm: string, tz: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const [Y, Mo, D] = day.split('-').map(Number);
+  const guess = Date.UTC(Y, Mo - 1, D, h, m);
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const p = Object.fromEntries(dtf.formatToParts(new Date(guess)).map((x) => [x.type, x.value]));
+  const seen = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  return new Date(guess - (seen - guess)).toISOString(); // subtract the tz offset
+}
 
 type Person = { id: string; givenName: string; familyName: string; globalPersonId: string | null };
 
@@ -125,7 +161,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     ),
   );
 
-  // ── Tournament venue (Halle des Tournois) with 4 pistes ──────────────────────
+  // ── Tournament venue (Centre Sportif et de Loisirs) with 4 pistes ────────────
   // The 4 event lices are created AT this venue, so every match's venue derives
   // via matches.lice_id → lices.venue_id. Each tournament's phases are then
   // pinned to it below via PUT /tournaments/:id/phase-venues.
@@ -134,8 +170,8 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
       await reqOk(
         await post(`organizations/${orgId}/venues`, {
           data: {
-            name: `Halle des Tournois ${tok}`,
-            address: 'Lyon, France',
+            name: `Centre Sportif et de Loisirs ${tok}`,
+            address: 'Rue Jean Rigaud, 69130 Écully',
             hostsTournament: true,
             hostsWorkshop: false,
           },
@@ -677,12 +713,17 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
     `  ✓ played ${bracketPlayed} bracket matches across ${tournamentIds.length} tournaments`,
   );
 
-  // ── Workshop venue + areas, then 6 scheduled workshops ─────────────────────────
+  // ── Workshop venue + area, a midday break, then 6 scheduled workshops ───────────
   const venue = await step('create workshop venue', async () =>
     (
       await reqOk(
         await post(`organizations/${orgId}/venues`, {
-          data: { name: `Salle des Ateliers ${tok}`, hostsWorkshop: true, hostsTournament: false },
+          data: {
+            name: `Gymnase des Cerisiers ${tok}`,
+            address: '4 Rue Jean Rigaud, 69130 Écully',
+            hostsWorkshop: true,
+            hostsTournament: false,
+          },
         }),
       )
     ).json(),
@@ -690,12 +731,31 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   const venueId = venue?.id as string | undefined;
   const areaIds: string[] = [];
   if (venueId) {
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 1; i++) {
       const a = await post(`venues/${venueId}/areas`, {
         data: { name: `Area ${i}`, sortOrder: i },
       });
       if (a.ok()) areaIds.push(((await a.json()) as { id: string }).id);
     }
+  }
+
+  // Midday break (12:00–14:00) on each workshop day. A workshop_break is a
+  // first-class obstacle on the workshop board (separate from event programme
+  // blocks); HH:MM is interpreted in the event timezone, scoped per dayIndex.
+  for (let d = 0; d < WS_DAYS.length; d++) {
+    await step(`workshop break day ${d + 1}`, async () =>
+      reqOk(
+        await post(`events/${eventId}/workshop-breaks`, {
+          data: {
+            dayIndex: d,
+            startTime: '12:00',
+            endTime: '14:00',
+            label: 'Pause déjeuner',
+            color: '#94a3b8',
+          },
+        }),
+      ),
+    );
   }
   console.log(`  ✓ workshop venue + ${areaIds.length} areas`);
 
@@ -708,7 +768,7 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
           data: {
             slug: `demo-ws-${tok}-${i}`,
             title: `Demo Workshop ${i + 1}`,
-            durationMinutes: 45,
+            durationMinutes: WS_DURATION_MIN,
             level: WS_LEVELS[i % WS_LEVELS.length],
             category: WS_TOPICS[i % WS_TOPICS.length], // no weapon field on workshops; use category
             capacity: 12 + i * 2,
@@ -724,15 +784,18 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
           data: { globalPersonId: refId(instructor) },
         });
       }
-      // Schedule each workshop into the venue/area at a staggered time slot.
-      const hour = String(9 + i).padStart(2, '0');
+      // Spread the 6 workshops evenly: alternate Sat/Sun (3 each) and step through
+      // the 2h day slots, all in the single area and clear of the 12:00–14:00
+      // break. Times are built in the event tz so they align with the break.
+      const day = WS_DAYS[i % 2];
+      const startHhmm = WS_START_HHMM[Math.floor(i / 2)];
+      const endHhmm = `${String(Number(startHhmm.slice(0, 2)) + WS_DURATION_MIN / 60).padStart(2, '0')}:00`;
       await post(`workshops/${workshopId}/sessions`, {
         data: {
-          // Day 2 of the event (23 May 2027) — the tournaments run on day 1.
-          startTime: `2027-05-23T${hour}:00:00Z`,
-          endTime: `2027-05-23T${hour}:45:00Z`,
+          startTime: zonedToUtcIso(day, startHhmm, EVENT_TZ),
+          endTime: zonedToUtcIso(day, endHhmm, EVENT_TZ),
           venueId,
-          areaId: areaIds.length ? areaIds[i % areaIds.length] : undefined,
+          areaId: areaIds.length ? areaIds[0] : undefined,
         },
       });
       await patch(`workshops/${workshopId}`, { data: { status: 'published' } });
