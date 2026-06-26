@@ -922,6 +922,9 @@ export class EventsService {
   async getPublicTournamentPoolsWithMatches(eventSlug: string, tournamentSlug: string) {
     const event = await this.getEventBySlug(eventSlug);
     const eventId = (event as { id: string }).id;
+    // Event IANA timezone — the client renders each pool's scheduled date/time
+    // in it (defaults to Europe/Paris when unset).
+    const timezone = (event as { timezone?: string | null }).timezone ?? 'Europe/Paris';
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
       .from('tournaments')
@@ -939,7 +942,7 @@ export class EventsService {
     );
     const tournamentStatus = (tournament as { status: string }).status;
     if (!['published', 'running', 'completed'].includes(tournamentStatus)) {
-      return { tournamentId: (tournament as { id: string }).id, sideColors, pools: [] };
+      return { tournamentId: (tournament as { id: string }).id, sideColors, timezone, pools: [] };
     }
     const tournamentId = (tournament as { id: string }).id;
     const weapon = (tournament as { weapon: string | null }).weapon ?? null;
@@ -951,7 +954,7 @@ export class EventsService {
       .eq('tournament_id', tournamentId)
       .eq('type', 'pool')
       .maybeSingle();
-    if (!phaseRow) return { tournamentId, sideColors, pools: [] };
+    if (!phaseRow) return { tournamentId, sideColors, timezone, pools: [] };
     const phaseId = (phaseRow as { id: string }).id;
 
     // 2. Pools (id + name + sort_order so we can compute the canonical
@@ -966,7 +969,7 @@ export class EventsService {
       name: string;
       sort_order: number | null;
     }>;
-    if (pools.length === 0) return { tournamentId, sideColors, pools: [] };
+    if (pools.length === 0) return { tournamentId, sideColors, timezone, pools: [] };
 
     const poolIds = pools.map((p) => p.id);
 
@@ -1035,6 +1038,7 @@ export class EventsService {
     return {
       tournamentId,
       sideColors,
+      timezone,
       pools: pools.map((pool) => {
         const poolNumber = typeof pool.sort_order === 'number' ? pool.sort_order + 1 : null;
         const rows = matchesByPool.get(pool.id) ?? [];

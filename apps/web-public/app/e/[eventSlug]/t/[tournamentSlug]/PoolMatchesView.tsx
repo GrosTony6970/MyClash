@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable myclash/no-literal-string -- pre-i18n public page (matches the other public tournament tabs). */
+
 /**
  * PoolMatchesView — read-only matches table per pool, surfaced on the
  * public tournament page's new "Pool Matches" tab. Mirrors the admin
@@ -19,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { sideStyle, tintTextClassFor } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
 import { t } from '@myclash/i18n';
+import { formatInZone } from '@myclash/time';
 import { supabase } from '@/lib/supabase';
 import { getApiUrl } from '@/lib/api-url';
 import { naturalCompare } from './pool-matches-sort';
@@ -56,7 +59,18 @@ interface ApiResponse {
   /** Configured fighter-side colour tokens (default red/blue), resolved to
    *  hex via `sideStyle` for the accent bar — matches the admin matches table. */
   sideColors: SideColors;
+  /** Event IANA timezone — pool schedule times render in it. */
+  timezone?: string;
   pools: PoolWithMatches[];
+}
+
+/** The pool's scheduled date/time = its earliest match start. */
+function poolScheduledStart(pool: PoolWithMatches): string | null {
+  const starts = pool.matches
+    .map((m) => m.scheduledAt)
+    .filter((v): v is string => Boolean(v))
+    .sort();
+  return starts[0] ?? null;
 }
 
 const DEFAULT_SIDE_COLORS: SideColors = { red: 'red', blue: 'blue' };
@@ -78,6 +92,7 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
   const router = useRouter();
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [sideColors, setSideColors] = useState<SideColors>(DEFAULT_SIDE_COLORS);
+  const [timezone, setTimezone] = useState('Europe/Paris');
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [query, setQuery] = useState('');
@@ -120,6 +135,7 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
           const res = data as ApiResponse;
           setPools(res.pools);
           if (res.sideColors) setSideColors(res.sideColors);
+          if (res.timezone) setTimezone(res.timezone);
         }
       })
       .catch(() => {
@@ -238,9 +254,27 @@ export function PoolMatchesView({ eventSlug, tournamentSlug, colorToken }: Props
           id={`pool-${pool.poolId}`}
           className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm transition-shadow"
         >
-          <header className="flex items-baseline justify-between border-b border-stone-100 px-4 py-3">
-            <h3 className={`font-display text-lg font-semibold ${titleClass}`}>{pool.poolName}</h3>
-            <span className="text-xs uppercase tracking-wider text-slate-500">
+          <header className="flex items-baseline justify-between gap-3 border-b border-stone-100 px-4 py-3">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <h3 className={`font-display text-lg font-semibold ${titleClass}`}>
+                {pool.poolName}
+              </h3>
+              {(() => {
+                const start = poolScheduledStart(pool);
+                return start ? (
+                  <span className="text-xs font-medium text-slate-500">
+                    {formatInZone(start, timezone, {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                ) : null;
+              })()}
+            </div>
+            <span className="shrink-0 text-xs uppercase tracking-wider text-slate-500">
               {pool.matches.length} matches
             </span>
           </header>
