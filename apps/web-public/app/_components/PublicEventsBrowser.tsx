@@ -111,14 +111,14 @@ async function fetchPublicLeagues(): Promise<PublicLeague[]> {
   }
 }
 
-export async function PublicEventsBrowser() {
+export async function PublicEventsBrowser({ personal = false }: { personal?: boolean } = {}) {
   const [{ events, unavailable }, leagues] = await Promise.all([
     fetchPublicEvents(),
     fetchPublicLeagues(),
   ]);
 
   if (events.length > 0 || leagues.length > 0) {
-    return <HomeTabs events={events} leagues={leagues} />;
+    return <HomeTabs events={events} leagues={leagues} personal={personal} />;
   }
 
   return (

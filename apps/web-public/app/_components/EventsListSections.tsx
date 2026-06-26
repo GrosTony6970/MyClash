@@ -38,8 +38,11 @@ function formatEventLocation(event: PublicEvent): string | null {
   return parts.length === 0 ? null : parts.join(', ');
 }
 
-function eventHref(event: PublicEvent): string {
-  return `/e/${encodeURIComponent(event.slug ?? event.id ?? '')}/home`;
+// `personal` routes the card into the personal-space shell (/me/events/<slug>,
+// keeps the sidebar) instead of the standalone public event home.
+function eventHref(event: PublicEvent, personal: boolean): string {
+  const slug = encodeURIComponent(event.slug ?? event.id ?? '');
+  return personal ? `/me/events/${slug}` : `/e/${slug}/home`;
 }
 
 function tournamentCountLabel(n: number | null | undefined): string {
@@ -67,7 +70,13 @@ function gridColsClass(hasLogos: boolean): string {
     : 'md:grid-cols-[2fr_1fr_1fr_7rem_6.5rem]';
 }
 
-export function EventsListSections({ events }: { events: PublicEvent[] }) {
+export function EventsListSections({
+  events,
+  personal = false,
+}: {
+  events: PublicEvent[];
+  personal?: boolean;
+}) {
   const [query, setQuery] = useState('');
   const { live, published, past } = useMemo(
     () => partitionAndFilterEvents(events, query),
@@ -94,9 +103,9 @@ export function EventsListSections({ events }: { events: PublicEvent[] }) {
         />
       </section>
 
-      <LiveSection events={live} query={query} />
-      <UpcomingSection events={published} query={query} />
-      <PastSection events={past} query={query} />
+      <LiveSection events={live} query={query} personal={personal} />
+      <UpcomingSection events={published} query={query} personal={personal} />
+      <PastSection events={past} query={query} personal={personal} />
     </div>
   );
 }
@@ -188,7 +197,15 @@ function PastTag() {
   );
 }
 
-function LiveSection({ events, query }: { events: PublicEvent[]; query: string }) {
+function LiveSection({
+  events,
+  query,
+  personal,
+}: {
+  events: PublicEvent[];
+  query: string;
+  personal: boolean;
+}) {
   return (
     <section aria-labelledby="public-events-live-title" className="flex flex-col gap-4">
       <SectionHeader
@@ -203,7 +220,7 @@ function LiveSection({ events, query }: { events: PublicEvent[]; query: string }
           {events.map((event) => (
             <Link
               key={event.slug ?? event.id}
-              href={eventHref(event)}
+              href={eventHref(event, personal)}
               style={{ borderLeftColor: orgAccent(event) }}
               className="group flex min-h-44 flex-col justify-between rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
             >
@@ -243,9 +260,10 @@ interface TableRowProps {
   event: PublicEvent;
   variant: 'published' | 'past';
   hasLogos: boolean;
+  personal: boolean;
 }
 
-function EventRow({ event, variant, hasLogos }: TableRowProps) {
+function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
   const tag = variant === 'published' ? <PublishedTag /> : <PastTag />;
   const trailing =
     variant === 'past' ? (
@@ -267,7 +285,7 @@ function EventRow({ event, variant, hasLogos }: TableRowProps) {
 
   return (
     <Link
-      href={eventHref(event)}
+      href={eventHref(event, personal)}
       style={{ borderLeftColor: orgAccent(event) }}
       className="group flex flex-col gap-3 rounded-lg border border-stone-200 border-l-4 bg-white p-4 shadow-sm transition-colors hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500"
     >
@@ -350,7 +368,15 @@ function EventTableHeader({
   );
 }
 
-function UpcomingSection({ events, query }: { events: PublicEvent[]; query: string }) {
+function UpcomingSection({
+  events,
+  query,
+  personal,
+}: {
+  events: PublicEvent[];
+  query: string;
+  personal: boolean;
+}) {
   const hasLogos = events.some((event) => Boolean(event.logo_url));
   return (
     <section aria-labelledby="public-events-published-title" className="flex flex-col gap-3">
@@ -375,6 +401,7 @@ function UpcomingSection({ events, query }: { events: PublicEvent[]; query: stri
                 event={event}
                 variant="published"
                 hasLogos={hasLogos}
+                personal={personal}
               />
             ))}
           </div>
@@ -384,7 +411,15 @@ function UpcomingSection({ events, query }: { events: PublicEvent[]; query: stri
   );
 }
 
-function PastSection({ events, query }: { events: PublicEvent[]; query: string }) {
+function PastSection({
+  events,
+  query,
+  personal,
+}: {
+  events: PublicEvent[];
+  query: string;
+  personal: boolean;
+}) {
   const hasLogos = events.some((event) => Boolean(event.logo_url));
   return (
     <section aria-labelledby="public-events-past-title" className="flex flex-col gap-3">
@@ -409,6 +444,7 @@ function PastSection({ events, query }: { events: PublicEvent[]; query: string }
                 event={event}
                 variant="past"
                 hasLogos={hasLogos}
+                personal={personal}
               />
             ))}
           </div>

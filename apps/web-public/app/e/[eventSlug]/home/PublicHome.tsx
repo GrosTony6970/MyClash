@@ -12,6 +12,7 @@
 import Link from 'next/link';
 import { t as tr } from '@myclash/i18n';
 import { formatInZone } from '@myclash/time';
+import { BackLink } from '@/components/BackLink';
 import { EventBackLink } from './_components/EventBackLink';
 import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
 import { TournamentCard } from './_components/TournamentCard';
@@ -27,6 +28,9 @@ import {
 interface Props {
   eventSlug: string;
   apiUrl: string;
+  /** Rendered inside the personal-space shell (/me/events/[slug]) — keep the
+   *  back-link pointing into /me instead of the public events landing. */
+  personalShell?: boolean;
 }
 
 // Horizontal snap-scroller on phones; the existing grid from `sm` up.
@@ -36,7 +40,7 @@ const CARD_SCROLL_2 =
   'flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:pb-0';
 const SCROLL_ITEM = 'min-w-[80%] shrink-0 snap-start sm:min-w-0';
 
-export async function PublicHome({ eventSlug, apiUrl }: Props) {
+export async function PublicHome({ eventSlug, apiUrl, personalShell = false }: Props) {
   const event = await fetchEventInfo(eventSlug, apiUrl);
   const [highlights, tournaments, participantsCounts, venues, workshops] = await Promise.all([
     fetchHighlights(eventSlug, apiUrl),
@@ -80,7 +84,11 @@ export async function PublicHome({ eventSlug, apiUrl }: Props) {
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl">
-      <EventBackLink />
+      {personalShell ? (
+        <BackLink href="/me/events" label={tr('publicApp.eventHome.backToEvents')} />
+      ) : (
+        <EventBackLink />
+      )}
 
       {event && <EventHeader event={event} />}
 

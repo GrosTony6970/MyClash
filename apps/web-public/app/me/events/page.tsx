@@ -20,7 +20,7 @@ export default function PersonalSpaceEventsPage() {
             {t('publicApp.personalShell.nav.events')}
           </p>
         </section>
-        <PublicEventsBrowser />
+        <PublicEventsBrowser personal />
       </div>
     </div>
   );

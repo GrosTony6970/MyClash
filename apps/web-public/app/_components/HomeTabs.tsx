@@ -27,7 +27,15 @@ interface PublicEvent {
 
 type Tab = 'events' | 'leagues';
 
-export function HomeTabs({ events, leagues }: { events: PublicEvent[]; leagues: PublicLeague[] }) {
+export function HomeTabs({
+  events,
+  leagues,
+  personal = false,
+}: {
+  events: PublicEvent[];
+  leagues: PublicLeague[];
+  personal?: boolean;
+}) {
   const [tab, setTab] = useState<Tab>('events');
   return (
     <div className="flex flex-col gap-6">
@@ -51,7 +59,7 @@ export function HomeTabs({ events, leagues }: { events: PublicEvent[]; leagues: 
           </button>
         ))}
       </div>
-      {tab === 'events' && <EventsListSections events={events} />}
+      {tab === 'events' && <EventsListSections events={events} personal={personal} />}
       {tab === 'leagues' && <PublicLeaguesSections leagues={leagues} />}
     </div>
   );
