@@ -315,13 +315,15 @@ export class FightersService {
       fighterId = String((data as Row)['id']);
     }
 
-    // Fetch all registrations for this fighter
+    // Fetch all registrations for this fighter. registrations has no
+    // global_person_id (legacy fighter_id dropped in 0083) — walk through
+    // person_id → persons.global_person_id.
     const { data: regData, error: regError } = await this.supabase.service
       .from('registrations')
       .select(
-        `id, tournament_id, tournaments(id, name, weapon, events(id, name, start_date, end_date))`,
+        `id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, events(id, name, start_date, end_date))`,
       )
-      .eq('global_person_id', fighterId);
+      .eq('persons.global_person_id', fighterId);
     if (regError) throw new BadRequestException(regError.message);
 
     const registrations = (regData ?? []) as Row[];
@@ -724,13 +726,16 @@ export class FightersService {
       .select(
         `
         id, tournament_id, status,
+        persons!inner ( global_person_id ),
         tournaments (
           id, name, slug, status, weapon,
           events ( id, name, slug, status, start_date, end_date )
         )
       `,
       )
-      .eq('global_person_id', fighterId);
+      // registrations has no global_person_id (legacy fighter_id dropped in 0083);
+      // identity flows through person_id → persons.global_person_id.
+      .eq('persons.global_person_id', fighterId);
     if (query.weapon) request = request.eq('tournaments.weapon', query.weapon) as typeof request;
 
     const { data, error } = await request;
@@ -807,8 +812,10 @@ export class FightersService {
   private async fetchCareerLeagueRankings(fighterId: string): Promise<CareerLeagueRankingInput[]> {
     const { data, error } = await this.supabase.service
       .from('league_rankings')
+      // league_rankings keeps the column name `fighter_id`, now referencing
+      // global_persons(id) (table renamed in 0023, column not renamed).
       .select('rank, total_points, ranking_group_key, leagues(name)')
-      .eq('global_person_id', fighterId);
+      .eq('fighter_id', fighterId);
     if (error) return [];
 
     return ((data ?? []) as Row[]).map((row) => {
