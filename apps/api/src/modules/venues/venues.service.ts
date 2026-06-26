@@ -646,6 +646,101 @@ export class VenuesService {
     return this.getTournamentPhaseVenues(tournamentId);
   }
 
+  /**
+   * "Move now": re-point a phase-kind's EXISTING matches onto its assigned
+   * venue's lices (round-robin, preserving scheduled_at), org-admin. This is the
+   * explicit, on-demand counterpart to the intent stored by
+   * {@link setTournamentPhaseVenues} — it never runs automatically. 'finals' run
+   * with the bracket, so kind is just pool | bracket.
+   */
+  async applyTournamentPhaseVenue(
+    tournamentId: string,
+    kind: 'pool' | 'bracket',
+    userId: string,
+  ): Promise<{ moved: number; venueId: string }> {
+    const { data: tournament, error: tErr } = await this.supabase.service
+      .from('tournaments')
+      .select('id, event_id')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (tErr) throw new BadRequestException(tErr.message);
+    if (!tournament) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+    const eventId = String((tournament as Row)['event_id']);
+
+    const { data: event, error: evErr } = await this.supabase.service
+      .from('events')
+      .select('id, organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (evErr) throw new BadRequestException(evErr.message);
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+    await this.orgs.assertOrgRole(String((event as Row)['organization_id']), userId, 'admin');
+
+    const { data: pvRow } = await this.supabase.service
+      .from('tournament_phase_venues')
+      .select('venue_id')
+      .eq('tournament_id', tournamentId)
+      .eq('phase_kind', kind)
+      .maybeSingle();
+    const venueId = pvRow ? String((pvRow as Row)['venue_id'] ?? '') || null : null;
+    if (!venueId) throw new BadRequestException(`No ${kind} venue is assigned for this tournament`);
+
+    // Phases of this kind ('pool' vs the elim/swiss family = "bracket").
+    const phaseTypes = kind === 'pool' ? ['pool'] : ['single_elim', 'double_elim', 'swiss'];
+    const { data: phaseRows } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .in('type', phaseTypes);
+    const phaseIds = ((phaseRows ?? []) as Array<{ id: string }>).map((p) => String(p.id));
+    if (phaseIds.length === 0) return { moved: 0, venueId };
+
+    // Target lices = the event's lices at the assigned venue.
+    const { data: liceRows } = await this.supabase.service
+      .from('lices')
+      .select('id, sort_order')
+      .eq('event_id', eventId)
+      .eq('venue_id', venueId)
+      .order('sort_order', { ascending: true });
+    const venueLiceIds = ((liceRows ?? []) as Array<{ id: string }>).map((l) => String(l.id));
+    if (venueLiceIds.length === 0) {
+      throw new BadRequestException('The assigned venue has no lices in this event');
+    }
+
+    const { data: matchRows } = await this.supabase.service
+      .from('matches')
+      .select('id, scheduled_at')
+      .in('phase_id', phaseIds);
+    const matches = ((matchRows ?? []) as Array<{ id: string; scheduled_at: string | null }>)
+      .slice()
+      .sort((a, b) => {
+        const sa = a.scheduled_at ?? '';
+        const sb = b.scheduled_at ?? '';
+        if (sa !== sb) return sa < sb ? -1 : 1;
+        return a.id < b.id ? -1 : 1;
+      });
+    if (matches.length === 0) return { moved: 0, venueId };
+
+    // Round-robin across the venue's lices → one UPDATE per target lice.
+    const bucket = new Map<string, string[]>();
+    matches.forEach((m, i) => {
+      const liceId = venueLiceIds[i % venueLiceIds.length];
+      if (!liceId) return;
+      const list = bucket.get(liceId) ?? [];
+      list.push(m.id);
+      bucket.set(liceId, list);
+    });
+    for (const [liceId, ids] of bucket) {
+      const { error } = await this.supabase.service
+        .from('matches')
+        .update({ lice_id: liceId })
+        .in('id', ids);
+      if (error) throw new BadRequestException(error.message);
+    }
+
+    return { moved: matches.length, venueId };
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private async assertCanManageVenue(venueId: string, userId: string): Promise<string> {

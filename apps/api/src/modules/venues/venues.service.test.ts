@@ -284,5 +284,72 @@ describe('VenuesService', () => {
         service.setTournamentPhaseVenues('t-1', { pool: 'v-foreign' }, 'user-1'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    it('applyTournamentPhaseVenue round-robins a phase’s matches onto the venue lices', async () => {
+      const updateCalls: Array<{ liceId: string; ids: string[] }> = [];
+      const matchesChain = q({
+        data: [
+          { id: 'm1', scheduled_at: '2026-06-26T10:00:00Z' },
+          { id: 'm2', scheduled_at: '2026-06-26T10:05:00Z' },
+          { id: 'm3', scheduled_at: '2026-06-26T10:10:00Z' },
+        ],
+        error: null,
+      });
+      matchesChain.update = vi.fn((payload: { lice_id: string }) => ({
+        in: vi.fn((_col: string, ids: string[]) => {
+          updateCalls.push({ liceId: payload.lice_id, ids });
+          return Promise.resolve({ data: null, error: null });
+        }),
+      }));
+
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'tournaments')
+              return q({ data: { id: 't-1', event_id: 'e-1' }, error: null });
+            if (table === 'events')
+              return q({ data: { id: 'e-1', organization_id: 'org-1' }, error: null });
+            if (table === 'tournament_phase_venues')
+              return q({ data: { venue_id: 'v-1' }, error: null });
+            if (table === 'phases') return q({ data: [{ id: 'phase-1' }], error: null });
+            if (table === 'lices')
+              return q({ data: [{ id: 'lice-a' }, { id: 'lice-b' }], error: null });
+            if (table === 'matches') return matchesChain;
+            return q({ data: null, error: null });
+          }),
+        },
+      };
+      const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+      const service = new VenuesService(supabase as never, { assertOrgRole } as never);
+
+      const result = await service.applyTournamentPhaseVenue('t-1', 'pool', 'user-1');
+
+      expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+      expect(result).toEqual({ moved: 3, venueId: 'v-1' });
+      const byLice = new Map(updateCalls.map((c) => [c.liceId, c.ids]));
+      expect(byLice.get('lice-a')).toEqual(['m1', 'm3']);
+      expect(byLice.get('lice-b')).toEqual(['m2']);
+    });
+
+    it('applyTournamentPhaseVenue rejects when no venue is assigned for the kind', async () => {
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'tournaments')
+              return q({ data: { id: 't-1', event_id: 'e-1' }, error: null });
+            if (table === 'events')
+              return q({ data: { id: 'e-1', organization_id: 'org-1' }, error: null });
+            if (table === 'tournament_phase_venues') return q({ data: null, error: null });
+            return q({ data: null, error: null });
+          }),
+        },
+      };
+      const assertOrgRole = vi.fn().mockResolvedValue(undefined);
+      const service = new VenuesService(supabase as never, { assertOrgRole } as never);
+
+      await expect(
+        service.applyTournamentPhaseVenue('t-1', 'pool', 'user-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 });

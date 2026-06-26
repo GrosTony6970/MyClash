@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -221,6 +222,27 @@ export class VenuesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.venues.setTournamentPhaseVenues(tournamentId, dto, userId);
+  }
+
+  @Post('tournaments/:tournamentId/phase-venues/:kind/apply')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Move now: re-point a phase's existing matches onto its assigned venue's lices (org admin+).",
+  })
+  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
+  @ApiParam({ name: 'kind', enum: ['pool', 'bracket'] })
+  async applyTournamentPhaseVenue(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Param('kind') kind: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    if (kind !== 'pool' && kind !== 'bracket') {
+      throw new BadRequestException("kind must be 'pool' or 'bracket'");
+    }
+    return this.venues.applyTournamentPhaseVenue(tournamentId, kind, userId);
   }
 
   // ── Public slug-based variant for the public event page ────────────────────

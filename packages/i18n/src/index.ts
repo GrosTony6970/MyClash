@@ -2914,6 +2914,12 @@ export const en = {
         loadError: 'Could not load venues.',
         poolsAt: 'Pools: {venue}',
         bracketAt: 'Bracket: {venue}',
+        moveHelp:
+          'Saving sets where new matches are scheduled. To move already-scheduled matches onto the assigned venue now, use the buttons below.',
+        movePools: 'Move pool matches now',
+        moveBracket: 'Move bracket matches now',
+        moved: 'Moved {count} matches to the venue.',
+        moveError: 'Could not move matches.',
       },
       list: {
         resumeSetup: 'Resume setup',
@@ -7065,6 +7071,12 @@ export const fr = {
         loadError: 'Impossible de charger les lieux.',
         poolsAt: 'Poules : {venue}',
         bracketAt: 'Tableau : {venue}',
+        moveHelp:
+          'L enregistrement definit ou les nouveaux matchs sont planifies. Pour deplacer maintenant les matchs deja planifies vers le lieu attribue, utilisez les boutons ci-dessous.',
+        movePools: 'Deplacer les matchs de poule maintenant',
+        moveBracket: 'Deplacer les matchs de tableau maintenant',
+        moved: '{count} matchs deplaces vers le lieu.',
+        moveError: 'Impossible de deplacer les matchs.',
       },
       list: {
         resumeSetup: 'Reprendre la configuration',

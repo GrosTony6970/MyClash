@@ -432,6 +432,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(
@@ -491,6 +492,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(
@@ -580,6 +582,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(
@@ -672,6 +675,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: matches, error: null }))
@@ -744,6 +748,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       // admin block is first + unshifted → no DB write; then the pool block:
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
@@ -834,6 +839,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
       .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches select
@@ -1357,6 +1363,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // ← zero matches

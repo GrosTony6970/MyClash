@@ -14,8 +14,9 @@ interface VenueOption {
 /**
  * Per-phase venue picker for a tournament: assign which venue the Pools and the
  * Bracket run at. Used both in the create wizard (Step 4) and the tournament
- * settings (Venues tab). Stores intent via PUT /tournaments/:id/phase-venues —
- * existing matches are not moved here (that's the schedule board's "Move now").
+ * settings (Venues tab). Saving stores INTENT (PUT /tournaments/:id/phase-venues)
+ * — it steers future scheduling but does not move existing matches. The explicit
+ * "Move now" buttons re-point a phase's already-scheduled matches on demand.
  */
 export function TournamentVenuesEditor({
   tournamentId,
@@ -28,8 +29,12 @@ export function TournamentVenuesEditor({
   const [venues, setVenues] = useState<VenueOption[]>([]);
   const [poolVenueId, setPoolVenueId] = useState<string>('');
   const [bracketVenueId, setBracketVenueId] = useState<string>('');
+  // The persisted assignment (≠ the editing selects) — gates the "Move now" buttons.
+  const [savedPool, setSavedPool] = useState<string>('');
+  const [savedBracket, setSavedBracket] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [movingKind, setMovingKind] = useState<'pool' | 'bracket' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,8 +52,12 @@ export function TournamentVenuesEditor({
           .filter((v: Record<string, unknown>) => v['hosts_tournament'] !== false)
           .map((v: Record<string, unknown>) => ({ id: String(v['id']), name: String(v['name']) }));
         setVenues(opts);
-        setPoolVenueId(phaseVenues?.pool?.id ?? '');
-        setBracketVenueId(phaseVenues?.bracket?.id ?? '');
+        const pool = phaseVenues?.pool?.id ?? '';
+        const bracket = phaseVenues?.bracket?.id ?? '';
+        setPoolVenueId(pool);
+        setBracketVenueId(bracket);
+        setSavedPool(pool);
+        setSavedBracket(bracket);
       })
       .catch(() => {
         if (!cancelled) toast.error(t('organizer.tournaments.venuesEditor.loadError'));
@@ -72,6 +81,8 @@ export function TournamentVenuesEditor({
         body: JSON.stringify({ pool: poolVenueId || null, bracket: bracketVenueId || null }),
       });
       if (!res.ok) throw new Error(t('organizer.tournaments.venuesEditor.saveError'));
+      setSavedPool(poolVenueId);
+      setSavedBracket(bracketVenueId);
       toast.success(t('organizer.tournaments.venuesEditor.saved'));
     } catch (e) {
       toast.error(
@@ -79,6 +90,25 @@ export function TournamentVenuesEditor({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function moveNow(kind: 'pool' | 'bracket') {
+    setMovingKind(kind);
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/v1/tournaments/${tournamentId}/phase-venues/${kind}/apply`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) throw new Error(t('organizer.tournaments.venuesEditor.moveError'));
+      const body = (await res.json()) as { moved?: number };
+      toast.success(t('organizer.tournaments.venuesEditor.moved', { count: body.moved ?? 0 }));
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : t('organizer.tournaments.venuesEditor.moveError'),
+      );
+    } finally {
+      setMovingKind(null);
     }
   }
 
@@ -124,6 +154,40 @@ export function TournamentVenuesEditor({
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}
       </button>
+
+      {(savedPool || savedBracket) && (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm text-slate-600">
+            {t('organizer.tournaments.venuesEditor.moveHelp')}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {savedPool && (
+              <button
+                type="button"
+                onClick={() => void moveNow('pool')}
+                disabled={movingKind !== null}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {movingKind === 'pool'
+                  ? t('common.saving')
+                  : t('organizer.tournaments.venuesEditor.movePools')}
+              </button>
+            )}
+            {savedBracket && (
+              <button
+                type="button"
+                onClick={() => void moveNow('bracket')}
+                disabled={movingKind !== null}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {movingKind === 'bracket'
+                  ? t('common.saving')
+                  : t('organizer.tournaments.venuesEditor.moveBracket')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

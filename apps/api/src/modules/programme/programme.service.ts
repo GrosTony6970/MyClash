@@ -512,13 +512,14 @@ export class ProgrammeService {
 
     const { data: licesData } = await this.supabase.service
       .from('lices')
-      .select('id, name, sort_order')
+      .select('id, name, sort_order, venue_id')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
     const allLices = (licesData ?? []) as Array<{
       id: string;
       name: string;
       sort_order: number | null;
+      venue_id: string | null;
     }>;
 
     // Fail loud when the event has any competition block but no lices
@@ -532,6 +533,36 @@ export class ProgrammeService {
       throw new BadRequestException(
         'Event has no lices configured. Add at least one lice in Event setup before generating the grid.',
       );
+    }
+
+    // Per-phase venue assignment (multi-venue tournaments): a pool block lands on
+    // its tournament's Pools venue, a bracket/finals block on its Bracket venue.
+    // Keyed `${tournamentId}:${pool|bracket}` → venue_id; finals run with the
+    // bracket (no separate finals slot). Empty map ⇒ legacy single-venue behavior.
+    const phaseVenueByKey = new Map<string, string>();
+    const competitionTournamentIds = [
+      ...new Set(
+        (blocksData ?? [])
+          .filter(
+            (b) =>
+              (b as Record<string, unknown>)['block_type'] === 'competition' &&
+              (b as Record<string, unknown>)['competition_id'],
+          )
+          .map((b) => String((b as Record<string, unknown>)['competition_id'])),
+      ),
+    ];
+    if (competitionTournamentIds.length > 0) {
+      const { data: phaseVenueRows } = await this.supabase.service
+        .from('tournament_phase_venues')
+        .select('tournament_id, phase_kind, venue_id')
+        .in('tournament_id', competitionTournamentIds);
+      for (const r of (phaseVenueRows ?? []) as Array<{
+        tournament_id: string;
+        phase_kind: string;
+        venue_id: string | null;
+      }>) {
+        if (r.venue_id) phaseVenueByKey.set(`${r.tournament_id}:${r.phase_kind}`, r.venue_id);
+      }
     }
 
     let matchesScheduled = 0;
@@ -580,7 +611,14 @@ export class ProgrammeService {
           block.competitionId,
           block.competitionPhase,
         );
-        const blockLices = allLices.slice(0, block.liceCount);
+        // Restrict this block's lices to its phase's assigned venue, if any
+        // (pool block → Pools venue; bracket/finals block → Bracket venue).
+        const phaseKind = block.competitionPhase === 'pool' ? 'pool' : 'bracket';
+        const phaseVenueId = phaseVenueByKey.get(`${block.competitionId}:${phaseKind}`) ?? null;
+        const candidateLices = phaseVenueId
+          ? allLices.filter((l) => l.venue_id === phaseVenueId)
+          : allLices;
+        const blockLices = candidateLices.slice(0, block.liceCount);
         if (matches.length === 0) {
           // Most often: the operator added a Pools block before
           // running the pool draw, so the `matches` table has no rows
