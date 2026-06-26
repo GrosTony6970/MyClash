@@ -401,13 +401,19 @@ services:
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
       # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
-      # NOTE: realtime is the exception — supabase/realtime v2 mounts its
-      # Phoenix endpoint at /realtime/v1/websocket natively, so the
-      # router below intentionally does NOT use a strip middleware.
-      # Stripping `/realtime/v1` here used to cause 404s on the WebSocket
-      # upgrade, which Firefox surfaced as NS_ERROR_WEBSOCKET_CONNECTION_REFUSED.
+      # Realtime: supabase/realtime v2.94 serves its Phoenix socket at
+      # /socket/websocket and its REST API at /api/* — NOT under /realtime/v1.
+      # The browser client (supabase-js) connects to /realtime/v1/websocket, so
+      # we replicate Kong's realtime routes: rewrite /realtime/v1/api/* -> /api/*
+      # and the rest of /realtime/v1/* -> /socket/* (so /realtime/v1/websocket ->
+      # /socket/websocket). Passing /realtime/v1 through unchanged 404s at the
+      # realtime app. ($$ escapes compose interpolation so Traefik sees $1.)
       - traefik.http.middlewares.supabase-auth-strip.stripprefix.prefixes=/auth/v1
       - traefik.http.middlewares.supabase-storage-strip.stripprefix.prefixes=/storage/v1
+      - traefik.http.middlewares.supabase-realtime-ws.replacepathregex.regex=^/realtime/v1/(.*)
+      - traefik.http.middlewares.supabase-realtime-ws.replacepathregex.replacement=/socket/$$1
+      - traefik.http.middlewares.supabase-realtime-api.replacepathregex.regex=^/realtime/v1/api/(.*)
+      - traefik.http.middlewares.supabase-realtime-api.replacepathregex.replacement=/api/$$1
       - traefik.http.routers.myclash-auth.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/auth/v1`)
       - traefik.http.routers.myclash-auth.entrypoints=websecure
       - traefik.http.routers.myclash-auth.tls=true
@@ -416,11 +422,21 @@ services:
       - traefik.http.routers.myclash-auth.priority=20
       - traefik.http.routers.myclash-auth.service=myclash-supabase-auth
       - traefik.http.services.myclash-supabase-auth.loadbalancer.server.url=http://supabase-auth:9999
+      # Realtime REST (broadcast/presence): /realtime/v1/api/* -> /api/*. Higher
+      # priority than the websocket router so the more specific /api prefix wins.
+      - traefik.http.routers.myclash-realtime-api.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/realtime/v1/api`)
+      - traefik.http.routers.myclash-realtime-api.entrypoints=websecure
+      - traefik.http.routers.myclash-realtime-api.tls=true
+      - traefik.http.routers.myclash-realtime-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-realtime-api.middlewares=myclash-security-headers@file,supabase-realtime-api
+      - traefik.http.routers.myclash-realtime-api.priority=25
+      - traefik.http.routers.myclash-realtime-api.service=myclash-supabase-realtime
+      # Realtime WebSocket: /realtime/v1/* -> /socket/* (the actual Phoenix mount).
       - traefik.http.routers.myclash-realtime.rule=Host(`app.${DOMAIN}`) && PathPrefix(`/realtime/v1`)
       - traefik.http.routers.myclash-realtime.entrypoints=websecure
       - traefik.http.routers.myclash-realtime.tls=true
       - traefik.http.routers.myclash-realtime.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file
+      - traefik.http.routers.myclash-realtime.middlewares=myclash-security-headers@file,supabase-realtime-ws
       - traefik.http.routers.myclash-realtime.priority=20
       - traefik.http.routers.myclash-realtime.service=myclash-supabase-realtime
       - traefik.http.services.myclash-supabase-realtime.loadbalancer.server.url=http://supabase-realtime:4000
