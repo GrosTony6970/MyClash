@@ -229,7 +229,7 @@ function FighterRow({
   return (
     <div className={`flex h-[26px] flex-1 items-stretch ${rowTintClass}`}>
       <span aria-hidden="true" className={`w-[3px] shrink-0 ${stripeClass}`} />
-      <div className="flex flex-1 items-center justify-between gap-1 pl-2 pr-1">
+      <div className="flex flex-1 items-center justify-between gap-1 pl-2 pr-2">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {/* Name takes priority for the row width (grows, truncates only as a
               last resort); the club yields first — capped + truncating — so a
@@ -260,7 +260,7 @@ function FighterRow({
         </span>
         <span
           className={[
-            'w-[32px] shrink-0 rounded px-1 text-right font-mono text-xs tabular-nums',
+            'w-9 shrink-0 rounded px-1 text-right font-mono text-xs tabular-nums',
             scoreChipClasses,
           ].join(' ')}
         >

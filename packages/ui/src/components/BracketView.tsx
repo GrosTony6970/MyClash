@@ -174,9 +174,9 @@ function SingleElimLayout({
     for (let i = 0; i < main.length; i++) {
       const r = main[i]!;
       const remaining = main.length - i;
-      // The last round decides 1st (gold) + 2nd (silver) — label it plainly so
-      // it reads as the medal match, not just "Final".
-      if (remaining === 1) out[r] = 'Silver and gold Match';
+      // Last round = the Finals column. The gold/silver vs bronze distinction is
+      // shown by the in-column labels ("Gold & Silver Match" / "Bronze Match").
+      if (remaining === 1) out[r] = 'Finals';
       else if (remaining === 2) out[r] = 'Semi-finals';
       else if (remaining === 3) out[r] = 'Quarter-finals';
       else out[r] = `Round of ${1 << remaining}`;
@@ -236,44 +236,71 @@ function SingleElimLayout({
                 <p className="mb-4 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">
                   {labels[round] ?? `R${round}`}
                 </p>
-                <div className="relative" style={{ height: `${columnHeight}px` }}>
-                  {roundSlots.map((slot) => {
-                    const center = positions.get(slot.id) ?? 0;
-                    return (
-                      <div
+                {isFinalRound ? (
+                  // Finals column: a vertically-centered group so the gold/silver
+                  // decider and the bronze match sit together (bronze directly
+                  // under the final, not dropped to the bottom of the bracket).
+                  <div
+                    className="flex flex-col justify-center"
+                    style={{ minHeight: `${columnHeight}px` }}
+                  >
+                    <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                      Gold &amp; Silver Match
+                    </p>
+                    {roundSlots.map((slot) => (
+                      <MatchCard
                         key={slot.id}
-                        className="absolute left-0 right-0"
-                        style={{ top: `${center - CARD_HEIGHT_PX / 2}px` }}
-                      >
+                        slot={slot}
+                        redColor={redColor}
+                        blueColor={blueColor}
+                        onClick={onMatchClick}
+                        onOverride={onOverrideSlot}
+                        registerRef={registerRef}
+                        isChampionshipMatch={true}
+                        roundCode={roundCodeFor(slot)}
+                      />
+                    ))}
+                    {bronzeMatch && (
+                      <div className="mt-6">
+                        <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                          Bronze Match
+                        </p>
                         <MatchCard
-                          slot={slot}
+                          slot={bronzeMatch}
                           redColor={redColor}
                           blueColor={blueColor}
                           onClick={onMatchClick}
                           onOverride={onOverrideSlot}
                           registerRef={registerRef}
-                          isChampionshipMatch={isFinalRound}
-                          roundCode={roundCodeFor(slot)}
+                          isBronzeMatch={true}
+                          roundCode={roundCodeFor(bronzeMatch)}
                         />
                       </div>
-                    );
-                  })}
-                </div>
-                {isFinalRound && bronzeMatch && (
-                  <div className="mt-8">
-                    <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-                      Bronze Match
-                    </p>
-                    <MatchCard
-                      slot={bronzeMatch}
-                      redColor={redColor}
-                      blueColor={blueColor}
-                      onClick={onMatchClick}
-                      onOverride={onOverrideSlot}
-                      registerRef={registerRef}
-                      isBronzeMatch={true}
-                      roundCode={roundCodeFor(bronzeMatch)}
-                    />
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative" style={{ height: `${columnHeight}px` }}>
+                    {roundSlots.map((slot) => {
+                      const center = positions.get(slot.id) ?? 0;
+                      return (
+                        <div
+                          key={slot.id}
+                          className="absolute left-0 right-0"
+                          style={{ top: `${center - CARD_HEIGHT_PX / 2}px` }}
+                        >
+                          <MatchCard
+                            slot={slot}
+                            redColor={redColor}
+                            blueColor={blueColor}
+                            onClick={onMatchClick}
+                            onOverride={onOverrideSlot}
+                            registerRef={registerRef}
+                            isChampionshipMatch={false}
+                            roundCode={roundCodeFor(slot)}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
