@@ -285,6 +285,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
             liceCount: liceIds.length,
             matchGapSeconds: 30,
             matchDurationMinutes: 5,
+            // No fighter rest for the demo (default is 10 min) so each pool's
+            // matches run back-to-back and render as ONE continuous card per
+            // pool instead of being split into rest-separated blocks.
+            minRestMinutes: 0,
             competitionId: tournamentId,
             competitionPhase: 'pool',
           },
