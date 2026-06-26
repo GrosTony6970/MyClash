@@ -132,6 +132,14 @@ interface RefBoard {
   pools: RefBoardPool[];
 }
 
+/** Event referee skills — id → operator-given name, used to label role slots
+ *  with a human name instead of the raw skill id. */
+interface RefereeSkill {
+  id: string;
+  name: string | null;
+  color?: string | null;
+}
+
 type SeedingStrategy = 'snake' | 'by-rating' | 'random' | 'by-pool-rank';
 
 const MAX_BRACKET_SIZE = 128;
@@ -273,6 +281,7 @@ export default function BracketPage() {
   // and the referee assignment board (per-match role slots for the modal).
   const [lices, setLices] = useState<EventLice[]>([]);
   const [refereeBoard, setRefereeBoard] = useState<RefBoard | null>(null);
+  const [refereeSkills, setRefereeSkills] = useState<RefereeSkill[]>([]);
   const [pickerFilter, setPickerFilter] = useState('');
 
   // Configuration card (post-generation edit)
@@ -501,7 +510,37 @@ export default function BracketPage() {
     return () => controller.abort();
   }, [eventId, apiUrl, bracketRefreshKey]);
 
+  // Event referee skills → id-to-name map, so role slots show the operator's
+  // skill name instead of the raw skill id. Mirrors RefereesTab.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (res.ok) setRefereeSkills((await res.json()) as RefereeSkill[]);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [eventId, apiUrl]);
+
   const liceNameById = useMemo(() => new Map(lices.map((l) => [l.id, l.name])), [lices]);
+
+  const skillNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of refereeSkills) if (s.name) map.set(s.id, s.name);
+    return map;
+  }, [refereeSkills]);
+
+  // Resolve a referee role slot to a human label: operator-typed slot name >
+  // DB skill name > i18n label for the three built-in roles > raw key.
+  const roleLabel = (role: string): string => {
+    const fromSkill = skillNameById.get(role);
+    if (fromSkill) return fromSkill;
+    const builtin = ['arbitre_declarant', 'arbitre_assesseur', 'arbitre_table'];
+    return builtin.includes(role) ? t(`organizer.eventCompensation.roles.${role}`) : role;
+  };
 
   // Role slots for the match being edited (from the board), for the modal.
   // Plain derived value — cheap, and the React Compiler handles memoization.
@@ -1536,7 +1575,7 @@ export default function BracketPage() {
                         className="flex items-center justify-between gap-3 text-sm"
                       >
                         <span className="font-semibold text-gray-700">
-                          {rs.displayName ?? rs.role}
+                          {rs.displayName ?? roleLabel(rs.role)}
                         </span>
                         <select
                           value={value}

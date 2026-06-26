@@ -141,19 +141,26 @@ export function MatchCard({
         </div>
       </div>
 
-      {/* Pills row sits BELOW the card (no overlap). Round code left,
-          status pill right, justify-between keeps them anchored to
-          the card edges. The empty span on the round-code side is
-          rendered as a flex placeholder when roundCode is undefined
-          so the status pill stays right-aligned. */}
+      {/* Pills row sits BELOW the card (no overlap). The match code + the
+          assigned-lice pill group on the left; the status pill stays right
+          via justify-between. The left group (even when empty) keeps the
+          status pill right-aligned when both code and lice are absent. */}
       <div className="flex items-center justify-between px-1">
-        {roundCode ? (
-          <span className="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
-            {roundCode}
-          </span>
-        ) : (
-          <span aria-hidden="true" />
-        )}
+        <div className="flex items-center gap-1">
+          {roundCode && (
+            <span className="inline-flex items-center rounded-full bg-slate-900 px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide text-slate-50">
+              {roundCode}
+            </span>
+          )}
+          {slot.liceName && (
+            <span
+              title={`Lice: ${slot.liceName}`}
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
+            >
+              {slot.liceName}
+            </span>
+          )}
+        </div>
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${pill.cls}`}
         >
@@ -174,16 +181,6 @@ export function MatchCard({
         >
           ✎
         </button>
-      )}
-
-      {/* Assigned-lice pill, top-left. */}
-      {slot.liceName && (
-        <span
-          title={`Lice: ${slot.liceName}`}
-          className="absolute -top-2 -left-2 inline-flex items-center rounded-full border border-slate-300 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 shadow-sm"
-        >
-          {slot.liceName}
-        </span>
       )}
     </div>
   );
