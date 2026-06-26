@@ -374,7 +374,11 @@ export default function OrgDashboardPage() {
                   {t('organizer.dashboard.brand.colorHelp')}
                 </span>
               </div>
-              <BrandColorPreview color={brandColorDraft} orgName={orgName} />
+              <BrandColorPreview
+                color={brandColorDraft}
+                orgName={orgName}
+                logoUrl={org?.logoUrl ?? null}
+              />
             </div>
             <div className="flex justify-end">
               <button
@@ -424,7 +428,15 @@ export default function OrgDashboardPage() {
  * `#dc2626` default the public page uses, so the preview is
  * pixel-faithful for both states.
  */
-function BrandColorPreview({ color, orgName }: { color: string; orgName: string }) {
+function BrandColorPreview({
+  color,
+  orgName,
+  logoUrl,
+}: {
+  color: string;
+  orgName: string;
+  logoUrl?: string | null;
+}) {
   const { t } = useI18n();
   const accent = color || '#dc2626';
   return (
@@ -436,7 +448,20 @@ function BrandColorPreview({ color, orgName }: { color: string; orgName: string 
         className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
         style={{ borderLeftWidth: '4px', borderLeftColor: accent }}
       >
-        <div className="mb-2 inline-flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-2">
+          {logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              key={logoUrl}
+              src={logoUrl}
+              alt=""
+              className="h-10 w-10 shrink-0 rounded-md border border-stone-200 bg-white object-contain p-0.5"
+            />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-stone-50 text-xs font-bold uppercase tracking-wider text-slate-400">
+              {orgName.slice(0, 2)}
+            </span>
+          )}
           <span
             className="rounded-full px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white"
             style={{ backgroundColor: accent }}

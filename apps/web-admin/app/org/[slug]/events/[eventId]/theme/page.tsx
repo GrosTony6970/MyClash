@@ -34,6 +34,11 @@ export default function BrandingEditorPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [eventName, setEventName] = useState<string>('');
+  // Captured for the preview's date/place line (approximates the public header).
+  const [eventStart, setEventStart] = useState<string | null>(null);
+  const [eventEnd, setEventEnd] = useState<string | null>(null);
+  const [eventCity, setEventCity] = useState<string | null>(null);
+  const [eventCountry, setEventCountry] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -55,9 +60,20 @@ export default function BrandingEditorPage() {
     ])
       .then(async ([eventRes, themeRes]) => {
         if (eventRes.ok) {
-          const ev = (await eventRes.json()) as { name: string; logo_url?: string | null };
+          const ev = (await eventRes.json()) as {
+            name: string;
+            logo_url?: string | null;
+            start_date?: string | null;
+            end_date?: string | null;
+            city?: string | null;
+            country?: string | null;
+          };
           setEventName(ev.name);
           if (typeof ev.logo_url === 'string') setLogoUrl(ev.logo_url);
+          setEventStart(ev.start_date ?? null);
+          setEventEnd(ev.end_date ?? null);
+          setEventCity(ev.city ?? null);
+          setEventCountry(ev.country ?? null);
         }
         if (themeRes.ok) {
           const evTheme = (await themeRes.json()) as {
@@ -142,6 +158,23 @@ export default function BrandingEditorPage() {
       </main>
     );
   }
+
+  // Preview date/place line (approximates the public event header).
+  const fmtDate = (d: string | null): string | null => {
+    if (!d) return null;
+    const dt = new Date(d.includes('T') ? d : `${d}T00:00:00`);
+    return Number.isNaN(dt.getTime())
+      ? null
+      : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  const previewPlace = [eventCity, eventCountry].filter(Boolean).join(', ') || null;
+  const startLabel = fmtDate(eventStart);
+  const endLabel = fmtDate(eventEnd);
+  const previewDates =
+    startLabel && endLabel && startLabel !== endLabel
+      ? `${startLabel} – ${endLabel}`
+      : startLabel || endLabel || null;
+  const previewMeta = [previewPlace, previewDates].filter(Boolean).join(' · ');
 
   return (
     <main className="max-w-3xl p-8">
@@ -271,6 +304,53 @@ export default function BrandingEditorPage() {
             >
               {uploadingHero ? 'Uploading…' : heroImageUrl ? 'Replace hero' : 'Upload hero'}
             </button>
+          </div>
+        </section>
+
+        {/* ── Preview ──────────────────────────────────────────────────── */}
+        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-slate-500">Preview</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            How the logo and hero appear at the top of{' '}
+            <code className="font-mono">/e/&lt;slug&gt;/home</code>.
+          </p>
+          <div className="overflow-hidden rounded-xl border border-stone-200">
+            {heroImageUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                key={heroImageUrl}
+                src={heroImageUrl}
+                alt=""
+                className="aspect-[16/7] max-h-48 w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[16/7] max-h-48 w-full items-center justify-center border-b border-dashed border-stone-300 bg-stone-50 text-xs font-medium text-slate-400">
+                Hero image preview
+              </div>
+            )}
+            <div className="flex items-center gap-4 p-4">
+              {logoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  key={logoUrl}
+                  src={logoUrl}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-lg border border-stone-200 bg-white object-cover"
+                />
+              ) : (
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-xl font-bold uppercase text-slate-300">
+                  {(eventName || '?').slice(0, 2)}
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="font-display text-xl font-bold text-slate-900">
+                  {eventName || 'Event name'}
+                </p>
+                {previewMeta && (
+                  <p className="mt-0.5 truncate text-sm text-slate-500">{previewMeta}</p>
+                )}
+              </div>
+            </div>
           </div>
         </section>
       </div>
