@@ -212,6 +212,10 @@ export const en = {
         fighter: 'Fighter',
         referee: 'Referee',
         workshopParticipant: 'Workshop participant',
+        linkedPill: 'Linked',
+        fighterLinked: 'Fighter profile found and linked',
+        refereeLinked: 'Referee profile found and linked',
+        workshopLinked: 'Workshop profile found and linked',
       },
       stats: {
         claimedProfiles: 'Claimed roster profiles',
@@ -4359,6 +4363,10 @@ export const fr = {
         fighter: 'Combattant',
         referee: 'Arbitre',
         workshopParticipant: 'Participant atelier',
+        linkedPill: 'Associe',
+        fighterLinked: 'Profil combattant trouve et associe',
+        refereeLinked: 'Profil arbitre trouve et associe',
+        workshopLinked: 'Profil atelier trouve et associe',
       },
       stats: {
         claimedProfiles: 'Profils de roster revendiques',

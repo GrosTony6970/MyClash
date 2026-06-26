@@ -177,16 +177,19 @@ export function PersonalSpaceDashboard({ apiUrl }: { apiUrl: string }) {
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_fighter')}
                         label={t('publicApp.personalSpace.roles.fighter')}
+                        linkedText={t('publicApp.personalSpace.roles.fighterLinked')}
                         href="/me/fighter"
                       />
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_referee')}
                         label={t('publicApp.personalSpace.roles.referee')}
+                        linkedText={t('publicApp.personalSpace.roles.refereeLinked')}
                         href="/me/referee"
                       />
                       <RolePill
                         active={roleEnabled(globalPerson, 'is_workshop_participant')}
                         label={t('publicApp.personalSpace.roles.workshopParticipant')}
+                        linkedText={t('publicApp.personalSpace.roles.workshopLinked')}
                         href="/"
                       />
                     </div>
@@ -427,22 +430,53 @@ function StatCard({
   return <article className={base}>{body}</article>;
 }
 
-function RolePill({ active, label, href }: { active: boolean; label: string; href?: string }) {
+function RolePill({
+  active,
+  label,
+  linkedText,
+  href,
+}: {
+  active: boolean;
+  label: string;
+  linkedText: string;
+  href?: string;
+}) {
+  const { t } = useI18n();
   const className = [
     'block rounded-md border px-3 py-3 text-sm font-bold',
     active
-      ? 'border-[#1d4ed8]/30 bg-[#1d4ed8]/10 text-[#1d4ed8]'
+      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
       : 'border-slate-200 bg-slate-50 text-slate-400',
-    href ? 'transition hover:border-[#1d4ed8]/50' : '',
+    href
+      ? active
+        ? 'transition hover:border-emerald-400'
+        : 'transition hover:border-[#1d4ed8]/50'
+      : '',
   ].join(' ');
+
+  const content = active ? (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span>{label}</span>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">
+          <span aria-hidden="true">✓</span>
+          {t('publicApp.personalSpace.roles.linkedPill')}
+        </span>
+      </div>
+      <p className="mt-1 text-xs font-medium text-emerald-700">{linkedText}</p>
+    </>
+  ) : (
+    label
+  );
+
   if (href) {
     return (
       <Link href={href} className={className}>
-        {label}
+        {content}
       </Link>
     );
   }
-  return <div className={className}>{label}</div>;
+  return <div className={className}>{content}</div>;
 }
 
 type UnlinkUi = { kind: 'idle' } | { kind: 'confirming' } | { kind: 'pending' } | { kind: 'error' };
