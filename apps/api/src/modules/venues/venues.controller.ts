@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -32,6 +33,7 @@ import {
   CreateVenueAreaDto,
   CreateVenueDto,
   CreateVenueLiceDto,
+  SetEventVenuesDto,
   UpdateVenueAreaDto,
   UpdateVenueDto,
 } from './dto/venues.dto';
@@ -175,6 +177,22 @@ export class VenuesController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.venues.listForEvent(eventId);
+  }
+
+  @Put('events/:eventId/venues')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Reconcile the venues this event spreads on (org admin+). Adds links + seeds tournament lices; safe-removes (blocks venues with matches/sessions).',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async setEventVenues(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: SetEventVenuesDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.venues.setEventVenues(eventId, dto.venueIds, userId);
   }
 
   // ── Public slug-based variant for the public event page ────────────────────

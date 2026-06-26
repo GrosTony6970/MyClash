@@ -72,3 +72,20 @@ export const venueLices = pgTable(
     uniqueVenueName: unique('venue_lices_venue_id_name_key').on(table.venueId, table.name),
   }),
 );
+
+// ── Event ↔ venue links ───────────────────────────────────────────────────────
+// Explicit "this event spreads on these venues" link (tournament + workshop).
+// event_id/venue_id are plain uuids (FKs live in migration 0107) to avoid a
+// circular schema import, mirroring how `lices.venue_id` is declared.
+export const eventVenues = pgTable(
+  'event_venues',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueEventVenue: unique('event_venues_event_id_venue_id_key').on(table.eventId, table.venueId),
+  }),
+);

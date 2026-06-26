@@ -2730,6 +2730,10 @@ export const en = {
       editTitle: 'Edit event properties',
       slugReadOnly: 'Public slug stays /e/{slug}.',
       publicLanding: 'Public landing content',
+      venuesSection: 'Venues',
+      venuesHelp:
+        'Pick the venue(s) this event spreads on. Tournament venues seed their lices into the event; a venue can’t be removed while it has scheduled matches or workshop sessions.',
+      venuesBlocked: 'Saved. These venues are still in use and were kept: {venues}.',
       deleteTitle: 'Hard delete event',
       deleteWarning:
         'This permanently deletes "{name}" and its event data. Archive is safer for real events.',
@@ -6856,6 +6860,10 @@ export const fr = {
       editTitle: "Modifier les proprietes de l'evenement",
       slugReadOnly: 'Le slug public reste /e/{slug}.',
       publicLanding: 'Contenu de la page publique',
+      venuesSection: 'Lieux',
+      venuesHelp:
+        'Choisissez le ou les lieux de cet evenement. Les lieux de tournoi y injectent leurs pistes ; un lieu ne peut pas etre retire tant qu’il a des assauts programmes ou des sessions de stage.',
+      venuesBlocked: 'Enregistre. Ces lieux sont encore utilises et ont ete conserves : {venues}.',
       deleteTitle: 'Suppression definitive',
       deleteWarning:
         'Cette action supprime definitivement "{name}" et ses donnees. Archiver est plus sur pour un evenement reel.',

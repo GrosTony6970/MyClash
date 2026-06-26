@@ -46,3 +46,10 @@ const createVenueLiceSchema = z
   })
   .strict();
 export class CreateVenueLiceDto extends createZodDto(createVenueLiceSchema) {}
+
+const setEventVenuesSchema = z
+  .object({
+    venueIds: z.array(z.uuid()).max(100),
+  })
+  .strict();
+export class SetEventVenuesDto extends createZodDto(setEventVenuesSchema) {}

@@ -77,6 +77,17 @@ export class VenuesService {
       link(r.venue_id, w?.event_id ?? null);
     }
 
+    const { data: linkRows } = await this.supabase.service
+      .from('event_venues')
+      .select('venue_id, event_id')
+      .in('venue_id', venueIds);
+    for (const r of (linkRows ?? []) as Array<{
+      venue_id: string | null;
+      event_id: string | null;
+    }>) {
+      link(r.venue_id, r.event_id);
+    }
+
     const allEventIds = [...new Set([...eventIdsByVenue.values()].flatMap((s) => [...s]))];
     const eventById = new Map<string, { id: string; name: string; slug: string }>();
     if (allEventIds.length > 0) {
@@ -277,11 +288,21 @@ export class VenuesService {
       .not('venue_id', 'is', null);
     if (sessionErr) throw new BadRequestException(sessionErr.message);
 
+    // Explicit event↔venue links (may have no lices/sessions yet).
+    const { data: linkRows, error: linkErr } = await this.supabase.service
+      .from('event_venues')
+      .select('venue_id')
+      .eq('event_id', eventId);
+    if (linkErr) throw new BadRequestException(linkErr.message);
+
     const ids = new Set<string>();
     for (const r of (liceRows ?? []) as Array<{ venue_id: string | null }>) {
       if (r.venue_id) ids.add(r.venue_id);
     }
     for (const r of (sessionRows ?? []) as Array<{ venue_id: string | null }>) {
+      if (r.venue_id) ids.add(r.venue_id);
+    }
+    for (const r of (linkRows ?? []) as Array<{ venue_id: string | null }>) {
       if (r.venue_id) ids.add(r.venue_id);
     }
     if (ids.size === 0) return [];
@@ -308,6 +329,148 @@ export class VenuesService {
     if (error) throw new BadRequestException(error.message);
     if (!event) throw new NotFoundException(`Event ${eventSlug} not found`);
     return this.listForEvent(String((event as Row)['id']));
+  }
+
+  // ── Event ↔ venue links (editor reconcile) ──────────────────────────────────
+
+  /**
+   * Reconcile the set of venues an event spreads on to exactly `venueIds`
+   * (org-admin). Adding a tournament-capable venue seeds the event's lices from
+   * the venue's lice catalogue; removing a venue is SAFE — blocked when its
+   * lices already have matches or the venue has workshop sessions for this event
+   * (those venues stay linked and are returned in `blocked`).
+   */
+  async setEventVenues(
+    eventId: string,
+    venueIds: string[],
+    userId: string,
+  ): Promise<{ blocked: Array<{ venueId: string; reason: string }> }> {
+    const { data: event, error: evErr } = await this.supabase.service
+      .from('events')
+      .select('id, organization_id')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (evErr) throw new BadRequestException(evErr.message);
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+    const orgId = String((event as Row)['organization_id']);
+    await this.orgs.assertOrgRole(orgId, userId, 'admin');
+
+    // Only venues in this org are valid targets.
+    const { data: orgVenues } = await this.supabase.service
+      .from('venues')
+      .select('id, hosts_tournament')
+      .eq('organization_id', orgId);
+    const orgVenueById = new Map(
+      ((orgVenues ?? []) as Array<{ id: string; hosts_tournament: boolean }>).map((v) => [
+        String(v.id),
+        v,
+      ]),
+    );
+    const requested = [...new Set(venueIds.filter((id) => orgVenueById.has(id)))];
+    const requestedSet = new Set(requested);
+
+    // Current effective venues = explicit links ∪ lice venues ∪ session venues.
+    const current = new Set<string>();
+    const collect = (rows: unknown, key: string) => {
+      for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+        const id = r[key];
+        if (typeof id === 'string') current.add(id);
+      }
+    };
+    const { data: links } = await this.supabase.service
+      .from('event_venues')
+      .select('venue_id')
+      .eq('event_id', eventId);
+    collect(links, 'venue_id');
+    const { data: liceVenues } = await this.supabase.service
+      .from('lices')
+      .select('venue_id')
+      .eq('event_id', eventId)
+      .not('venue_id', 'is', null);
+    collect(liceVenues, 'venue_id');
+    const { data: sessVenues } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('venue_id, workshops!inner(event_id)')
+      .eq('workshops.event_id', eventId)
+      .not('venue_id', 'is', null);
+    collect(sessVenues, 'venue_id');
+
+    const toAdd = requested.filter((id) => !current.has(id));
+    const toRemove = [...current].filter((id) => !requestedSet.has(id));
+    const blocked: Array<{ venueId: string; reason: string }> = [];
+
+    for (const venueId of toRemove) {
+      const { data: liceIdRows } = await this.supabase.service
+        .from('lices')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('venue_id', venueId);
+      const liceIds = ((liceIdRows ?? []) as Array<{ id: string }>).map((r) => String(r.id));
+      let hasMatches = false;
+      if (liceIds.length > 0) {
+        const { count } = await this.supabase.service
+          .from('matches')
+          .select('id', { count: 'exact', head: true })
+          .in('lice_id', liceIds);
+        hasMatches = (count ?? 0) > 0;
+      }
+      const { count: sessCount } = await this.supabase.service
+        .from('workshop_sessions')
+        .select('id, workshops!inner(event_id)', { count: 'exact', head: true })
+        .eq('workshops.event_id', eventId)
+        .eq('venue_id', venueId);
+      if (hasMatches || (sessCount ?? 0) > 0) {
+        blocked.push({ venueId, reason: hasMatches ? 'scheduled matches' : 'workshop sessions' });
+        continue;
+      }
+      // Safe: drop the explicit link + the event's (match-free) lices there.
+      await this.supabase.service
+        .from('event_venues')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('venue_id', venueId);
+      if (liceIds.length > 0) {
+        await this.supabase.service
+          .from('lices')
+          .delete()
+          .eq('event_id', eventId)
+          .eq('venue_id', venueId);
+      }
+    }
+
+    for (const venueId of toAdd) {
+      await this.supabase.service
+        .from('event_venues')
+        .insert({ event_id: eventId, venue_id: venueId });
+      // Seed the event's lices from a tournament venue's catalogue (once).
+      if (orgVenueById.get(venueId)?.hosts_tournament) {
+        const { count: existing } = await this.supabase.service
+          .from('lices')
+          .select('id', { count: 'exact', head: true })
+          .eq('event_id', eventId)
+          .eq('venue_id', venueId);
+        if ((existing ?? 0) === 0) {
+          const { data: catalogue } = await this.supabase.service
+            .from('venue_lices')
+            .select('name, sort_order')
+            .eq('venue_id', venueId)
+            .order('sort_order', { ascending: true });
+          const rows = (catalogue ?? []) as Array<{ name: string; sort_order: number | null }>;
+          if (rows.length > 0) {
+            await this.supabase.service.from('lices').insert(
+              rows.map((l, index) => ({
+                event_id: eventId,
+                venue_id: venueId,
+                name: l.name,
+                sort_order: l.sort_order ?? index,
+              })),
+            );
+          }
+        }
+      }
+    }
+
+    return { blocked };
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

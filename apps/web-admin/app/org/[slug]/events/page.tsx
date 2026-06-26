@@ -129,6 +129,12 @@ export default function OrgEventsListPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<string | null>('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>('desc');
+  // Venue editing: the org's venue catalogue (options) + the venues the event
+  // currently spreads on (checked set), reconciled on save.
+  const [orgVenues, setOrgVenues] = useState<
+    Array<{ id: string; name: string; hosts_tournament: boolean; hosts_workshop: boolean }>
+  >([]);
+  const [eventVenueIds, setEventVenueIds] = useState<string[]>([]);
 
   // One ref per row, keyed by event id, so the per-row "Upload logo" button
   // can trigger its own hidden <input type="file">.
@@ -148,16 +154,33 @@ export default function OrgEventsListPage() {
     });
     if (!eventsRes.ok) throw new Error(t('organizer.events.loadError'));
     const rows = (await eventsRes.json()) as Array<Record<string, unknown>>;
-    return { orgName: org.name, events: rows.map(normalizeEvent) };
+
+    // Org venue catalogue — options for the per-event venue multi-select.
+    const venues = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/venues`, {
+      credentials: 'include',
+      signal,
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+
+    return { orgName: org.name, events: rows.map(normalizeEvent), venues };
   };
 
   const load = () => {
     const controller = new AbortController();
     setLoading(true);
     fetchEvents(controller.signal)
-      .then(({ orgName: nextOrgName, events: nextEvents }) => {
+      .then(({ orgName: nextOrgName, events: nextEvents, venues }) => {
         setOrgName(nextOrgName);
         setEvents(nextEvents);
+        setOrgVenues(
+          (venues ?? []) as Array<{
+            id: string;
+            name: string;
+            hosts_tournament: boolean;
+            hosts_workshop: boolean;
+          }>,
+        );
         setError(null);
       })
       .catch((err: unknown) => {
@@ -169,6 +192,9 @@ export default function OrgEventsListPage() {
   };
 
   useEffect(() => {
+    // load() flips setLoading(true) synchronously — intentional for the initial
+    // fetch spinner; not a cascading-render hazard.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     const controller = load();
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,6 +238,7 @@ export default function OrgEventsListPage() {
     setForm(toForm(event));
     setLogoPendingFile(null);
     setLogoRemove(false);
+    setEventVenueIds([]);
     setError(null);
     setNotice(null);
   }
@@ -221,7 +248,27 @@ export default function OrgEventsListPage() {
     setForm(null);
     setLogoPendingFile(null);
     setLogoRemove(false);
+    setEventVenueIds([]);
   }
+
+  // Load the venues the event currently spreads on when the modal opens.
+  // (The reset to [] lives in openEdit/closeEdit — event handlers — so this
+  // effect stays side-effect-only and doesn't setState synchronously.)
+  useEffect(() => {
+    if (!editing) return;
+    const controller = new AbortController();
+    fetch(`${apiUrl}/api/v1/events/${editing.id}/venues`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: Array<{ id: string }>) => setEventVenueIds(rows.map((v) => v.id)))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [editing, apiUrl]);
+
+  const toggleVenue = (id: string) =>
+    setEventVenueIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   // Local preview URL for the staged file. Revoke when it changes so we
   // don't leak the previous one.
@@ -289,8 +336,27 @@ export default function OrgEventsListPage() {
         const body = (await res.json()) as { message?: string };
         throw new Error(body.message ?? t('organizer.events.saveError'));
       }
+      // Reconcile the event's venues (adds links + seeds tournament lices;
+      // safe-removes — venues with matches/sessions are reported as blocked).
+      let blockedNames: string[] = [];
+      const venuesRes = await fetch(`${apiUrl}/api/v1/events/${editing.id}/venues`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ venueIds: eventVenueIds }),
+      });
+      if (venuesRes.ok) {
+        const result = (await venuesRes.json()) as { blocked?: Array<{ venueId: string }> };
+        blockedNames = (result.blocked ?? []).map(
+          (b) => orgVenues.find((v) => v.id === b.venueId)?.name ?? b.venueId,
+        );
+      }
       closeEdit();
-      setNotice(t('organizer.events.saved'));
+      setNotice(
+        blockedNames.length > 0
+          ? t('organizer.events.venuesBlocked', { venues: blockedNames.join(', ') })
+          : t('organizer.events.saved'),
+      );
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('organizer.events.saveError'));
@@ -815,6 +881,39 @@ export default function OrgEventsListPage() {
                   className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </label>
+              {orgVenues.length > 0 && (
+                <div className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
+                  <span>{t('organizer.events.venuesSection')}</span>
+                  <p className="text-xs font-normal text-slate-500">
+                    {t('organizer.events.venuesHelp')}
+                  </p>
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {orgVenues.map((v) => (
+                      <label
+                        key={v.id}
+                        className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-normal"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={eventVenueIds.includes(v.id)}
+                          onChange={() => toggleVenue(v.id)}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{v.name}</span>
+                        {v.hosts_tournament && (
+                          <span className="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                            {t('organizer.venues.tournamentBadge')}
+                          </span>
+                        )}
+                        {v.hosts_workshop && (
+                          <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
+                            {t('organizer.venues.workshopBadge')}
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <Button type="button" variant="cancel" onClick={closeEdit}>
