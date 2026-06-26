@@ -4,7 +4,9 @@ import { z } from 'zod';
 const createVenueSchema = z
   .object({
     name: z.string().min(1).max(200),
-    address: z.string().max(500).optional(),
+    // `.nullable()` so the FE can send `address: null` to clear it (an empty
+    // form field) — `.optional()` alone rejects null and 400s the whole request.
+    address: z.string().max(500).nullable().optional(),
     hostsTournament: z.boolean().optional(),
     hostsWorkshop: z.boolean().optional(),
     sortOrder: z.number().int().min(0).optional(),
@@ -15,7 +17,7 @@ export class CreateVenueDto extends createZodDto(createVenueSchema) {}
 const updateVenueSchema = z
   .object({
     name: z.string().min(1).max(200).optional(),
-    address: z.string().max(500).optional(),
+    address: z.string().max(500).nullable().optional(),
     hostsTournament: z.boolean().optional(),
     hostsWorkshop: z.boolean().optional(),
     sortOrder: z.number().int().min(0).optional(),

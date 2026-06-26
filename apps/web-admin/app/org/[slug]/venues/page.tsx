@@ -236,6 +236,22 @@ export default function OrgVenuesPage() {
 
 // ── Create / edit modal ─────────────────────────────────────────────────────
 
+/** Next auto-numbered default name, mirroring the new-event wizard's lice naming
+ *  so the operator can just click "Add" instead of typing each name. */
+const nextLiceName = (count: number) => `Lice ${count + 1}`;
+const nextAreaName = (count: number) => `Area ${count + 1}`;
+
+/** Pull a human error out of a failed response (RFC 9457 problem+json: `detail`,
+ *  with the legacy `message` + status as fallbacks) so the modal can show the
+ *  real reason instead of a generic "could not save". */
+async function responseErrorMessage(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as {
+    detail?: string;
+    message?: string;
+  } | null;
+  return body?.detail || body?.message || `HTTP ${res.status}`;
+}
+
 interface VenueFormModalProps {
   orgId: string;
   venue: VenueRow | null;
@@ -252,9 +268,9 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
   const [hostsTournament, setHostsTournament] = useState(venue?.hosts_tournament ?? false);
   const [hostsWorkshop, setHostsWorkshop] = useState(venue?.hosts_workshop ?? false);
   const [areas, setAreas] = useState<VenueArea[]>(venue?.venue_areas ?? []);
-  const [newArea, setNewArea] = useState('');
+  const [newArea, setNewArea] = useState(nextAreaName(venue?.venue_areas?.length ?? 0));
   const [lices, setLices] = useState<VenueLice[]>(venue?.venue_lices ?? []);
-  const [newLice, setNewLice] = useState('');
+  const [newLice, setNewLice] = useState(nextLiceName(venue?.venue_lices?.length ?? 0));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -274,7 +290,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
             hostsWorkshop,
           }),
         });
-        if (!res.ok) throw new Error('save');
+        if (!res.ok) throw new Error(await responseErrorMessage(res));
       } else {
         const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/venues`, {
           method: 'POST',
@@ -287,38 +303,42 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
             hostsWorkshop,
           }),
         });
-        if (!res.ok) throw new Error('save');
+        if (!res.ok) throw new Error(await responseErrorMessage(res));
         const created = (await res.json()) as { id: string };
         // Persist the lices/areas buffered during creation now that the venue
-        // has an id (only for the hosts the operator actually enabled).
+        // has an id (only for the hosts the operator actually enabled). Each
+        // POST is checked so a failure surfaces its real reason instead of
+        // silently dropping the lice/area.
         if (hostsTournament) {
           await Promise.all(
-            lices.map((lice, index) =>
-              fetch(`${apiUrl}/api/v1/venues/${created.id}/lices`, {
+            lices.map(async (lice, index) => {
+              const r = await fetch(`${apiUrl}/api/v1/venues/${created.id}/lices`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: lice.name.trim(), sortOrder: index }),
-              }),
-            ),
+              });
+              if (!r.ok) throw new Error(await responseErrorMessage(r));
+            }),
           );
         }
         if (hostsWorkshop) {
           await Promise.all(
-            areas.map((area, index) =>
-              fetch(`${apiUrl}/api/v1/venues/${created.id}/areas`, {
+            areas.map(async (area, index) => {
+              const r = await fetch(`${apiUrl}/api/v1/venues/${created.id}/areas`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: area.name.trim(), sortOrder: index }),
-              }),
-            ),
+              });
+              if (!r.ok) throw new Error(await responseErrorMessage(r));
+            }),
           );
         }
       }
       await onSaved();
-    } catch {
-      setError(t('organizer.venues.saveError'));
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : t('organizer.venues.saveError'));
     } finally {
       setSaving(false);
     }
@@ -331,7 +351,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
     if (!value) return;
     if (!isEdit) {
       setAreas([...areas, { id: crypto.randomUUID(), name: value, sort_order: areas.length }]);
-      setNewArea('');
+      setNewArea(nextAreaName(areas.length + 1));
       return;
     }
     try {
@@ -344,7 +364,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
       if (!res.ok) return;
       const area = (await res.json()) as VenueArea;
       setAreas([...areas, area]);
-      setNewArea('');
+      setNewArea(nextAreaName(areas.length + 1));
     } catch {
       // swallow — operator can retry
     }
@@ -373,7 +393,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
     if (!value) return;
     if (!isEdit) {
       setLices([...lices, { id: crypto.randomUUID(), name: value, sort_order: lices.length }]);
-      setNewLice('');
+      setNewLice(nextLiceName(lices.length + 1));
       return;
     }
     try {
@@ -386,7 +406,7 @@ function VenueFormModal({ orgId, venue, onClose, onSaved }: VenueFormModalProps)
       if (!res.ok) return;
       const lice = (await res.json()) as VenueLice;
       setLices([...lices, lice]);
-      setNewLice('');
+      setNewLice(nextLiceName(lices.length + 1));
     } catch {
       // swallow — operator can retry
     }
