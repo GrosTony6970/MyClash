@@ -24,6 +24,8 @@ interface VenueRow {
   sort_order: number;
   venue_areas: VenueArea[] | null;
   venue_lices: VenueLice[] | null;
+  /** Events that use this venue (via their lices / workshop sessions). */
+  events: Array<{ id: string; name: string; slug: string }> | null;
 }
 
 const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
@@ -140,6 +142,7 @@ export default function OrgVenuesPage() {
               <th className="py-2 pr-3">{t('organizer.venues.address')}</th>
               <th className="py-2 pr-3">{t('organizer.venues.hosts')}</th>
               <th className="py-2 pr-3 text-center">{t('organizer.venues.areas')}</th>
+              <th className="py-2 pr-3">{t('organizer.venues.eventsColumn')}</th>
               <th className="py-2 pr-3 text-right">{t('organizer.venues.actions')}</th>
             </tr>
           </thead>
@@ -164,6 +167,22 @@ export default function OrgVenuesPage() {
                 </td>
                 <td className="py-3 pr-3 text-center text-gray-600 tabular-nums">
                   {v.venue_areas?.length ?? 0}
+                </td>
+                <td className="py-3 pr-3">
+                  {v.events && v.events.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {v.events.map((ev) => (
+                        <span
+                          key={ev.id}
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                        >
+                          {ev.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="py-3 pr-3 text-right">
                   <button

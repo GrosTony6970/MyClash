@@ -39,7 +39,63 @@ export class VenuesService {
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const venues = (data ?? []) as Array<Row>;
+    if (venues.length === 0) return venues;
+
+    // Which events each venue is used by — derived from the event's lices
+    // (venue_id) and its workshop sessions (venue_id). Attached as `events`
+    // so the venues catalogue can show where each venue is in play.
+    const venueIds = venues.map((v) => String(v['id']));
+    const eventIdsByVenue = new Map<string, Set<string>>();
+    const link = (venueId: string | null, eventId: string | null) => {
+      if (!venueId || !eventId) return;
+      const set = eventIdsByVenue.get(venueId) ?? new Set<string>();
+      set.add(eventId);
+      eventIdsByVenue.set(venueId, set);
+    };
+
+    const { data: liceRows } = await this.supabase.service
+      .from('lices')
+      .select('venue_id, event_id')
+      .in('venue_id', venueIds);
+    for (const r of (liceRows ?? []) as Array<{
+      venue_id: string | null;
+      event_id: string | null;
+    }>) {
+      link(r.venue_id, r.event_id);
+    }
+
+    const { data: sessionRows } = await this.supabase.service
+      .from('workshop_sessions')
+      .select('venue_id, workshops!inner(event_id)')
+      .in('venue_id', venueIds);
+    for (const r of (sessionRows ?? []) as Array<{
+      venue_id: string | null;
+      workshops: { event_id: string | null } | Array<{ event_id: string | null }> | null;
+    }>) {
+      const w = Array.isArray(r.workshops) ? r.workshops[0] : r.workshops;
+      link(r.venue_id, w?.event_id ?? null);
+    }
+
+    const allEventIds = [...new Set([...eventIdsByVenue.values()].flatMap((s) => [...s]))];
+    const eventById = new Map<string, { id: string; name: string; slug: string }>();
+    if (allEventIds.length > 0) {
+      const { data: eventRows } = await this.supabase.service
+        .from('events')
+        .select('id, name, slug')
+        .in('id', allEventIds);
+      for (const e of (eventRows ?? []) as Array<{ id: string; name: string; slug: string }>) {
+        eventById.set(e.id, e);
+      }
+    }
+
+    return venues.map((v) => ({
+      ...v,
+      events: [...(eventIdsByVenue.get(String(v['id'])) ?? [])]
+        .map((id) => eventById.get(id))
+        .filter((e): e is { id: string; name: string; slug: string } => Boolean(e))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    }));
   }
 
   async get(venueId: string) {
